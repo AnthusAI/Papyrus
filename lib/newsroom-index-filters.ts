@@ -121,3 +121,15 @@ export function syncBrowserNewsroomIndexUrl(
   if (options?.replace) window.history.replaceState(null, "", nextPath);
   else window.history.pushState(null, "", nextPath);
 }
+
+/** Lineage id from `/newsroom/references/<id>` (not index-only URLs). */
+export function parseReferenceLineageIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
+  if (!pathname?.startsWith("/newsroom/references/")) return null;
+  const segment = pathname.slice("/newsroom/references/".length).split("/")[0]?.trim() ?? "";
+  if (!segment) return null;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
