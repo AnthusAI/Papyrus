@@ -60,6 +60,7 @@ import {
   readReferencesIndexFilters,
   referencesStatusFromUrl,
   referencesStatusToUrl,
+  parseReferenceLineageIdFromNewsroomPathname,
   syncBrowserNewsroomIndexUrl,
 } from "../lib/newsroom-index-filters";
 import { buildNewsroomKnowledgeQueryInput, type NewsroomKnowledgeQueryAnchor as KnowledgeQueryAnchor, type NewsroomKnowledgeQueryTarget as KnowledgeQueryTarget } from "../lib/newsroom-knowledge-query-request";
@@ -1001,6 +1002,11 @@ function NewsDeskDashboard({
     [],
   );
   const activeTab = initialTab;
+  const pathname = usePathname();
+  const pathnameReferenceLineageId = useMemo(
+    () => parseReferenceLineageIdFromNewsroomPathname(pathname),
+    [pathname],
+  );
   const isSectionPage = Boolean(sectionPageId);
   const drawerController = useNewsDeskDrawerController();
   const [corpora, setCorpora] = useState(dashboard.corpora);
@@ -3404,7 +3410,14 @@ function NewsDeskDashboard({
             initialCategoryLineageId={initialSelection.category}
             initialReferenceLineageId={initialSelection.reference}
             isDemo={Boolean(dashboard.isDemo)}
-            deepLinkFetchEnabled={authState.status === "signedIn" && hasHydratedReferences}
+            deepLinkFetchEnabled={
+              authState.status === "signedIn"
+              && (
+                Boolean(initialSelection.reference)
+                || Boolean(pathnameReferenceLineageId)
+                || hasHydratedReferences
+              )
+            }
             qualityActionState={referenceQualityActionState}
             references={references}
             referenceAttachments={referenceAttachments}
@@ -7200,6 +7213,12 @@ function ReferencesDeskView({
   semanticRelations: SemanticRelationRecord[];
   summary?: NewsroomSummaryRecord | null;
 }) {
+  const pathname = usePathname();
+  const pathnameReferenceLineageId = useMemo(
+    () => parseReferenceLineageIdFromNewsroomPathname(pathname),
+    [pathname],
+  );
+  const routeReferenceLineageId = initialReferenceLineageId ?? pathnameReferenceLineageId ?? "";
   const consoleContext = usePapyrusConsole();
   const [statusFilter, setStatusFilter] = useState(() => {
     if (typeof window === "undefined") return "__exclude_pending";
@@ -7209,12 +7228,17 @@ function ReferencesDeskView({
     if (typeof window === "undefined") return "";
     return readReferencesIndexFilters(new URLSearchParams(window.location.search)).processing;
   });
-  const [selectedReferenceLineageId, setSelectedReferenceLineageId] = useState(initialReferenceLineageId ?? "");
-  const [isReferenceDetailOpen, setIsReferenceDetailOpen] = useState(Boolean(initialReferenceLineageId));
+  const [selectedReferenceLineageId, setSelectedReferenceLineageId] = useState(routeReferenceLineageId);
+  const [isReferenceDetailOpen, setIsReferenceDetailOpen] = useState(Boolean(routeReferenceLineageId));
+  const [deepLinkReferenceLoading, setDeepLinkReferenceLoading] = useState(false);
+  const [deepLinkReferenceError, setDeepLinkReferenceError] = useState<string | null>(null);
   const categoryContext = useMemo(() => buildCategoryDrilldownContext(categories, initialCategoryLineageId), [categories, initialCategoryLineageId]);
   const statusFilterValue = statusFilter === "__exclude_pending" ? "" : statusFilter;
   const syncReferencesIndexUrl = useCallback((nextStatus: string, nextProcessing: string, replace = true) => {
     if (categoryContext.primary || isDemo) return;
+    if (parseReferenceLineageIdFromNewsroomPathname(typeof window !== "undefined" ? window.location.pathname : null)) {
+      return;
+    }
     syncBrowserNewsroomIndexUrl(
       "references",
       effectiveReferencesIndexFilters({
@@ -7225,9 +7249,15 @@ function ReferencesDeskView({
     );
   }, [categoryContext.primary, isDemo]);
   useEffect(() => {
-    if (categoryContext.primary || isDemo || isReferenceDetailOpen) return;
+    if (!pathnameReferenceLineageId || isDemo) return;
+    setSelectedReferenceLineageId((current) => current || pathnameReferenceLineageId);
+    setIsReferenceDetailOpen(true);
+  }, [isDemo, pathnameReferenceLineageId]);
+
+  useEffect(() => {
+    if (categoryContext.primary || isDemo || isReferenceDetailOpen || pathnameReferenceLineageId) return;
     syncReferencesIndexUrl(statusFilter, processingFilter, true);
-  }, [categoryContext.primary, isDemo, isReferenceDetailOpen, processingFilter, statusFilter, syncReferencesIndexUrl]);
+  }, [categoryContext.primary, isDemo, isReferenceDetailOpen, pathnameReferenceLineageId, processingFilter, statusFilter, syncReferencesIndexUrl]);
   const feed = useNewsroomPagedRows({
     initialItems: references,
     enabled: !isDemo && !categoryContext.primary,
@@ -7266,15 +7296,13 @@ function ReferencesDeskView({
       const processed = isReferenceProcessed(reference, referenceAttachments);
       return processingFilter === "processed" ? processed : !processed;
     });
-  const requestedReferenceLineageId = selectedReferenceLineageId || initialReferenceLineageId || "";
+  const requestedReferenceLineageId = selectedReferenceLineageId || routeReferenceLineageId;
   const selectedReference = requestedReferenceLineageId
     ? selectedReferenceRecordByLineage(filteredReferences, requestedReferenceLineageId)
       ?? selectedReferenceRecordByLineage(canonicalVisibleReferences, requestedReferenceLineageId)
       ?? selectedReferenceRecordByLineage(references, requestedReferenceLineageId)
       ?? null
     : null;
-  const [deepLinkReferenceLoading, setDeepLinkReferenceLoading] = useState(false);
-  const [deepLinkReferenceError, setDeepLinkReferenceError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!requestedReferenceLineageId || isDemo || !deepLinkFetchEnabled || selectedReference) {
@@ -7393,13 +7421,13 @@ function ReferencesDeskView({
     pushNewsroomDetailUrl("references", canonicalLineageId, isDemo);
   };
   useEffect(() => {
-    if (!initialReferenceLineageId || isDemo) return;
-    const canonicalLineageId = resolveCanonicalReferenceLineage(references, initialReferenceLineageId);
-    if (canonicalLineageId === initialReferenceLineageId) return;
+    if (!routeReferenceLineageId || isDemo) return;
+    const canonicalLineageId = resolveCanonicalReferenceLineage(references, routeReferenceLineageId);
+    if (canonicalLineageId === routeReferenceLineageId) return;
     setSelectedReferenceLineageId(canonicalLineageId);
     setIsReferenceDetailOpen(true);
     pushNewsroomDetailUrl("references", canonicalLineageId, isDemo);
-  }, [initialReferenceLineageId, isDemo, references]);
+  }, [isDemo, references, routeReferenceLineageId]);
   const previousReference = selectedFilteredReferenceIndex > 0 ? filteredReferences[selectedFilteredReferenceIndex - 1] : null;
   const nextReference = selectedFilteredReferenceIndex >= 0 && selectedFilteredReferenceIndex < filteredReferences.length - 1
     ? filteredReferences[selectedFilteredReferenceIndex + 1]
@@ -7440,6 +7468,11 @@ function ReferencesDeskView({
     ? qualityActionState
     : null;
   const realtimeStatusMessage = formatReferencesRealtimeStatusMessage(realtimeStatus, realtimeError);
+  const referenceDetailPending = Boolean(requestedReferenceLineageId) && !selectedReference && !deepLinkReferenceError;
+  const referenceDetailPlaceholder = deepLinkReferenceLoading || referenceDetailPending
+    ? "Loading reference…"
+    : deepLinkReferenceError
+      ?? "Select a reference to inspect curation details.";
 
   return (
     <>
@@ -7461,7 +7494,7 @@ function ReferencesDeskView({
       <NewsroomListDetailShell
         animatedDetail
         sectionKey="references"
-        canExpandDetail={Boolean(selectedReference)}
+        canExpandDetail={Boolean(selectedReference) || Boolean(requestedReferenceLineageId)}
         detailOpen={isReferenceDetailOpen}
         selectionScrollKey={selectedLineageId}
         actions={[]}
@@ -7503,9 +7536,10 @@ function ReferencesDeskView({
         )}
         onCloseDetail={() => {
           setIsReferenceDetailOpen(false);
+          setSelectedReferenceLineageId("");
           syncReferencesIndexUrl(statusFilter, processingFilter, true);
         }}
-        detail={(
+        detail={selectedReference ? (
           <ReferenceDetailPanel
             categories={categories}
             categorySets={categorySets}
@@ -7525,6 +7559,14 @@ function ReferencesDeskView({
             knowledgeQuery={referenceKnowledgeQuery}
             curationMenuActions={curationMenuActions}
           />
+        ) : (
+          <section
+            className="category-steering-section"
+            aria-label="Reference detail"
+            aria-busy={referenceDetailPending || deepLinkReferenceLoading ? true : undefined}
+          >
+            <EmptyRow label={referenceDetailPlaceholder} />
+          </section>
         )}
       />
       {referenceKnowledgeQuery.dialog}
@@ -11344,13 +11386,13 @@ function ReferenceDetailPanel({
     const storageLookups: Array<{ id: string; storagePath: string }> = [];
 
     for (const attachment of attachments) {
+      if (attachment.storagePath) {
+        storageLookups.push({ id: attachment.id, storagePath: attachment.storagePath });
+        continue;
+      }
       const sourceHref = normalizeReferenceDetailHttpUri(attachment.sourceUri);
       if (sourceHref) {
         staticLinks.set(attachment.id, sourceHref);
-        continue;
-      }
-      if (attachment.storagePath) {
-        storageLookups.push({ id: attachment.id, storagePath: attachment.storagePath });
       }
     }
 
@@ -11449,7 +11491,15 @@ function ReferenceDetailPanel({
     return () => {
       active = false;
     };
-  }, [referenceLineageId]);
+  }, [reference?.id, referenceLineageId]);
+
+  const previewAttachments = useMemo(
+    () => attachments.map((attachment) => ({
+      ...attachment,
+      sourceUri: attachmentLinksById[attachment.id] ?? attachment.sourceUri,
+    })),
+    [attachmentLinksById, attachments],
+  );
 
   if (!reference) {
     return (
@@ -11491,13 +11541,6 @@ function ReferenceDetailPanel({
   const activeExtractedTextState = activeExtractedTextEntry?.mode === "original"
     ? extractedTextOriginalState
     : extractedTextFilteredState;
-  const previewAttachments = useMemo(
-    () => attachments.map((attachment) => ({
-      ...attachment,
-      sourceUri: attachmentLinksById[attachment.id] ?? attachment.sourceUri,
-    })),
-    [attachmentLinksById, attachments],
-  );
   const inboundCitationCount = resolveReferenceCitationCount(reference.inboundCitationCount, incomingCitationRelations.length);
   const outboundCitationCount = resolveReferenceCitationCount(reference.outboundCitationCount, outgoingCitationRelations.length);
 
