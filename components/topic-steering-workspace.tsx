@@ -11344,13 +11344,13 @@ function ReferenceDetailPanel({
     const storageLookups: Array<{ id: string; storagePath: string }> = [];
 
     for (const attachment of attachments) {
+      if (attachment.storagePath) {
+        storageLookups.push({ id: attachment.id, storagePath: attachment.storagePath });
+        continue;
+      }
       const sourceHref = normalizeReferenceDetailHttpUri(attachment.sourceUri);
       if (sourceHref) {
         staticLinks.set(attachment.id, sourceHref);
-        continue;
-      }
-      if (attachment.storagePath) {
-        storageLookups.push({ id: attachment.id, storagePath: attachment.storagePath });
       }
     }
 
