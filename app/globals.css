@@ -5512,6 +5512,11 @@ img {
   width: 100%;
 }
 
+.newsroom-list-detail-shell [data-news-desk-reference-detail] .news-desk-reference-source-preview__frame--pdf {
+  aspect-ratio: auto;
+  height: min(32rem, 70vh);
+}
+
 .newsroom-list-detail-shell [data-news-desk-reference-detail] .news-desk-reference-source-preview__frame iframe {
   border: 0;
   display: block;
