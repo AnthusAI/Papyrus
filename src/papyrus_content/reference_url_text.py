@@ -17,7 +17,7 @@ from .env import BIBLICUS_ROOT, load_amplify_outputs, storage_bucket_from_amplif
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
 from .model_defaults import DEFAULT_REFERENCE_FILTER_MODEL
 from .relation_types import semantic_relation_type_fields_for_predicate
-from .source_site_plugins import resolve_source_site_enrichment
+from .source_site_plugins import resolve_accessible_pdf_url_for_reference, resolve_source_site_enrichment
 from .source_readiness import (
     select_reference_attachment_by_role,
     select_extracted_text_attachment,
@@ -174,7 +174,10 @@ def build_reference_url_text_attachment_plans(
                                 "doiResolution": _doi_resolution_for_metadata(enrichment),
                                 "downloadedAt": _utc_now(),
                             },
-                            content=_download_source_attachment_from_uri(extraction_source_uri),
+                            content=_download_source_attachment_from_uri(
+                                extraction_source_uri,
+                                reference=reference,
+                            ),
                             media_type="application/pdf",
                             existing_attachment=existing_source,
                         )
@@ -253,7 +256,10 @@ def build_reference_url_text_attachment_plans(
                             "doiResolution": _doi_resolution_for_metadata(enrichment),
                             "downloadedAt": _utc_now(),
                         },
-                        content=_download_source_attachment_from_uri(extraction_source_uri),
+                        content=_download_source_attachment_from_uri(
+                            extraction_source_uri,
+                            reference=reference,
+                        ),
                         media_type=str(extracted.get("contentType") or "application/pdf"),
                         existing_attachment=existing_source,
                     )
@@ -3372,13 +3378,31 @@ def _reference_source_attachment_record(
     }
 
 
-def _download_source_attachment_from_uri(source_uri: str) -> bytes:
+def _download_source_attachment_from_uri(source_uri: str, *, reference: dict[str, Any] | None = None) -> bytes:
     parsed = urlparse(source_uri)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError(f"Unsupported source URI scheme for source attachment download: {source_uri}")
     request = Request(source_uri, headers={"User-Agent": "Papyrus reference source downloader"})
-    with urlopen(request, timeout=45) as response:
-        payload = response.read()
+    try:
+        with urlopen(request, timeout=45) as response:
+            payload = response.read()
+    except Exception as error:
+        if reference is None:
+            raise
+        fallback = resolve_accessible_pdf_url_for_reference(
+            reference,
+            source_uri=str(reference.get("sourceUri") or source_uri),
+            failed_uri=source_uri,
+        )
+        fallback_uri = normalize_http_url(fallback.get("selectedPdfUrl"))
+        if not fallback_uri or fallback_uri == normalize_http_url(source_uri):
+            raise
+        request = Request(fallback_uri, headers={"User-Agent": "Papyrus reference source downloader"})
+        with urlopen(request, timeout=45) as response:
+            payload = response.read()
+        if not payload:
+            raise ValueError(f"Downloaded empty source payload from {fallback_uri}") from error
+        return payload
     if not payload:
         raise ValueError(f"Downloaded empty source payload from {source_uri}")
     return payload

@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 import sys
 import unittest
+from typing import Any
 from unittest import mock
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -1679,7 +1680,11 @@ class ReferenceCommandsTests(unittest.TestCase):
         self.assertEqual(result["identifiers"]["resolved"]["acl_anthology_id"], "2024.findings-acl.890")
         self.assertEqual(result["sourceVariants"]["canonicalLandingUrl"], "https://aclanthology.org/2024.findings-acl.890/")
 
-    def test_source_site_enrichment_acm_resolves_urls_abstract_and_identifiers(self):
+    @mock.patch(
+        "papyrus_content.source_site_plugins._select_verified_pdf_candidate",
+        return_value=("https://dl.acm.org/doi/pdf/10.1145/122344.122377?download=true", "acm_canonical", False),
+    )
+    def test_source_site_enrichment_acm_resolves_urls_abstract_and_identifiers(self, _mock_select):
         landing_html = """
             <html><head>
             <script type=\"application/ld+json\">
@@ -1712,7 +1717,11 @@ class ReferenceCommandsTests(unittest.TestCase):
             "https://dl.acm.org/doi/10.1145/122344.122377",
         )
 
-    def test_source_site_enrichment_acm_beats_generic_doi_plugin(self):
+    @mock.patch(
+        "papyrus_content.source_site_plugins._select_verified_pdf_candidate",
+        return_value=("https://dl.acm.org/doi/pdf/10.1145/122344.122377?download=true", "acm_canonical", False),
+    )
+    def test_source_site_enrichment_acm_beats_generic_doi_plugin(self, _mock_select):
         result = resolve_source_site_enrichment(
             reference={"id": "reference-acm-doi"},
             source_uri="https://dl.acm.org/doi/abs/10.1145/122344.122377",
@@ -1720,6 +1729,37 @@ class ReferenceCommandsTests(unittest.TestCase):
         )
         self.assertEqual(result["pluginKey"], "acm")
         self.assertEqual(result["identifiers"]["resolved"]["doi"], "10.1145/122344.122377")
+
+    @mock.patch("papyrus_content.source_site_plugins._search_pdf_candidates")
+    @mock.patch("papyrus_content.source_site_plugins._metadata_pdf_candidates", return_value=[])
+    def test_source_site_enrichment_acm_pdf_fallback_when_publisher_blocked(
+        self,
+        _mock_metadata,
+        mock_search,
+    ) -> None:
+        mock_search.return_value = ["http://incompleteideas.net/papers/sutton-90.pdf"]
+
+        def _probe(url: str) -> dict[str, Any]:
+            if "dl.acm.org" in url:
+                return {"ok": False, "isPdf": False, "status": 403, "contentType": "text/html", "blocked": True}
+            if url.endswith(".pdf"):
+                return {"ok": True, "isPdf": True, "status": 200, "contentType": "application/pdf", "blocked": False}
+            return {"ok": False, "isPdf": False, "status": 404, "contentType": "text/html", "blocked": False}
+
+        with mock.patch("papyrus_content.source_site_plugins._probe_pdf_url", side_effect=_probe):
+            result = resolve_source_site_enrichment(
+                reference={
+                    "id": "reference-acm",
+                    "title": "Dyna, an integrated architecture for learning, planning, and reacting",
+                },
+                source_uri="https://dl.acm.org/doi/10.1145/122344.122377",
+                fetcher=lambda _url: "<html></html>",
+            )
+        self.assertEqual(result["pluginKey"], "acm")
+        self.assertEqual(result["canonicalSourceUri"], "http://incompleteideas.net/papers/sutton-90.pdf")
+        self.assertTrue(result["metadata"]["pdfResolution"]["searchHit"])
+        warning_codes = {entry.get("code") for entry in result["warnings"] if isinstance(entry, dict)}
+        self.assertIn("acm_pdf_fallback", warning_codes)
 
     @mock.patch("papyrus_content.source_site_plugins._metadata_pdf_candidates", return_value=[])
     @mock.patch("papyrus_content.source_site_plugins._search_pdf_candidates", return_value=[])

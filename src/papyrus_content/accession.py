@@ -26,7 +26,7 @@ from .model_attachments import parse_jsonish
 from .records import apply_record_changes, build_record_change_from_current, build_record_changes
 from .reference_url_text import _resolve_existing_canonical_uri
 from .source_readiness import SOURCE_READINESS_STATES, is_extractable_media_type, reference_source_readiness
-from .source_site_plugins import resolve_source_site_enrichment
+from .source_site_plugins import resolve_accessible_pdf_url_for_reference, resolve_source_site_enrichment
 from .steering import (
     find_corpus_config,
     load_steering_config,
@@ -323,19 +323,20 @@ def download_reference_source_material(
     download_uri: str | None = None,
 ) -> dict[str, Any]:
     download_uri = str(download_uri or "").strip() or source_download_uri_for_reference(reference)
-    request = urllib.request.Request(
-        download_uri,
-        headers={"user-agent": "papyrus-reference-accession/1"},
-    )
     try:
-        with urllib.request.urlopen(request) as response:
-            content_type = response.headers.get_content_type() or media_type_from_url(download_uri) or "application/octet-stream"
-            buffer = response.read()
-    except urllib.error.HTTPError as error:
-        raise ReferenceAccessionError(
-            f"Failed to download {download_uri}: {error.code} {error.reason}.",
-            kind="download_failed",
-        ) from error
+        buffer, content_type, download_uri = _download_reference_payload(download_uri)
+    except ReferenceAccessionError as error:
+        if error.kind != "download_failed":
+            raise
+        fallback = resolve_accessible_pdf_url_for_reference(
+            reference,
+            source_uri=str(reference.get("sourceUri") or ""),
+            failed_uri=download_uri,
+        )
+        fallback_uri = str(fallback.get("selectedPdfUrl") or "").strip()
+        if not fallback_uri or fallback_uri == download_uri:
+            raise
+        buffer, content_type, download_uri = _download_reference_payload(fallback_uri)
     if not buffer:
         raise ReferenceAccessionError(f"Downloaded source for {reference['id']} was empty.", kind="download_empty")
     filename = reference_accession_filename(
@@ -781,6 +782,25 @@ def resolve_accession_assignment_metadata(
     if not isinstance(rebuilt_metadata, dict):
         raise ValueError(f"Assignment {assignment['id']} metadata could not be reconstructed.")
     return rebuilt_metadata
+
+
+def _download_reference_payload(download_uri: str) -> tuple[bytes, str, str]:
+    request = urllib.request.Request(
+        download_uri,
+        headers={"user-agent": "papyrus-reference-accession/1"},
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            content_type = response.headers.get_content_type() or media_type_from_url(download_uri) or "application/octet-stream"
+            buffer = response.read()
+    except urllib.error.HTTPError as error:
+        raise ReferenceAccessionError(
+            f"Failed to download {download_uri}: {error.code} {error.reason}.",
+            kind="download_failed",
+        ) from error
+    if not buffer:
+        raise ReferenceAccessionError(f"Downloaded source from {download_uri} was empty.", kind="download_empty")
+    return buffer, content_type, download_uri
 
 
 def source_download_uri_for_reference(reference: dict[str, Any]) -> str:

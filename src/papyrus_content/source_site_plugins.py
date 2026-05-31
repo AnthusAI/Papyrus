@@ -318,14 +318,57 @@ class AcmSourcePlugin(SourceSitePlugin):
                 "rank": 10,
             }
         ]
+        pdf_resolution = resolve_accessible_pdf_url(
+            reference=reference,
+            source_uri=source_uri,
+            primary_candidates=[{"url": canonical_pdf_url, "source": "acm_canonical"}],
+            doi=doi,
+            fetcher=fetcher,
+            exclude_hosts_when_blocked={"dl.acm.org"},
+        )
+        selected_pdf_url = _normalize_http_url(pdf_resolution.get("selectedPdfUrl")) or canonical_pdf_url
+        if selected_pdf_url != canonical_pdf_url:
+            warnings.append(
+                {
+                    "code": "acm_pdf_fallback",
+                    "message": (
+                        "ACM publisher PDF was blocked or unavailable; "
+                        f"using fallback from {pdf_resolution.get('selectedPdfSource') or 'pdf_fallback'}."
+                    ),
+                    "publisherPdfUrl": canonical_pdf_url,
+                    "selectedPdfUrl": selected_pdf_url,
+                }
+            )
+        elif pdf_resolution.get("paywalledOrBlocked"):
+            warnings.append(
+                {
+                    "code": "acm_pdf_blocked",
+                    "message": "ACM publisher PDF appears paywalled or blocked and no open fallback was found.",
+                    "publisherPdfUrl": canonical_pdf_url,
+                }
+            )
+
         now = _utc_now()
+        pdf_resolution_payload = {
+            "outcome": "pdf_selected" if selected_pdf_url else "pdf_not_found",
+            "publisherPdfUrl": canonical_pdf_url,
+            "selectedPdfUrl": selected_pdf_url or None,
+            "selectedPdfSource": pdf_resolution.get("selectedPdfSource") or None,
+            "searchUsed": bool(pdf_resolution.get("searchUsed")),
+            "searchHit": bool(pdf_resolution.get("searchHit")),
+            "apiFallbackUsed": bool(pdf_resolution.get("apiFallbackUsed")),
+            "paywalledOrBlocked": bool(pdf_resolution.get("paywalledOrBlocked")),
+            "candidateCount": int(pdf_resolution.get("candidateCount") or 0),
+            "resolvedAt": now,
+        }
         return {
             "pluginKey": self.key,
-            "canonicalSourceUri": canonical_pdf_url,
+            "canonicalSourceUri": selected_pdf_url,
             "sourceVariants": {
                 "inputUrl": source_uri,
                 "canonicalLandingUrl": canonical_landing_url,
-                "canonicalPdfUrl": canonical_pdf_url,
+                "canonicalPdfUrl": selected_pdf_url,
+                "publisherCanonicalPdfUrl": canonical_pdf_url,
             },
             "identifiers": {
                 "resolved": resolved,
@@ -336,16 +379,19 @@ class AcmSourcePlugin(SourceSitePlugin):
             "metadata": {
                 "doi": doi,
                 "canonicalLandingUrl": canonical_landing_url,
-                "canonicalPdfUrl": canonical_pdf_url,
+                "canonicalPdfUrl": selected_pdf_url,
+                "publisherCanonicalPdfUrl": canonical_pdf_url,
                 "abstract": abstract,
                 "abstractSource": "acm_landing_structured" if abstract else "",
+                "pdfResolution": pdf_resolution_payload,
                 "resolvedAt": now,
             },
             "attachmentMetadata": {
                 "sitePlugin": self.key,
                 "doi": doi,
                 "canonicalLandingUrl": canonical_landing_url,
-                "canonicalPdfUrl": canonical_pdf_url,
+                "canonicalPdfUrl": selected_pdf_url,
+                "pdfResolution": pdf_resolution_payload,
                 "resolvedAt": now,
             },
             "warnings": warnings,
@@ -873,6 +919,160 @@ def _pdf_candidates_from_final_url(url: str) -> list[str]:
             if doi:
                 candidates.append(f"https://dl.acm.org/doi/pdf/{doi}?download=true")
     return _dedupe_urls(candidates)
+
+
+def resolve_accessible_pdf_url(
+    *,
+    reference: dict[str, Any],
+    source_uri: str,
+    primary_candidates: list[dict[str, Any]] | None = None,
+    doi: str = "",
+    fetcher: Callable[[str], str] | None = None,
+    exclude_hosts_when_blocked: set[str] | frozenset[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Probe publisher-primary PDF URLs, then search and bibliographic APIs for an
+    accessible open copy when the primary host is paywalled or blocked.
+    """
+    active_fetcher = fetcher or _fetch_url_text
+    candidate_rows: list[dict[str, Any]] = [dict(row) for row in (primary_candidates or []) if isinstance(row, dict)]
+    normalized_doi = _normalize_doi(doi) or _doi_from_reference(reference)
+    final_url = _normalize_http_url(source_uri) or source_uri
+    publisher_hosts = {
+        host.strip().lower()
+        for host in (exclude_hosts_when_blocked or set())
+        if str(host or "").strip()
+    }
+
+    def _append_candidate(url: Any, *, source: str, **extra: Any) -> None:
+        normalized = _normalize_http_url(url)
+        if not normalized:
+            return
+        if publisher_blocked and _url_hostname(normalized) in publisher_hosts:
+            return
+        candidate_rows.append({"url": normalized, "source": source, **extra})
+
+    selected_pdf_url, selected_via, blocked = _select_verified_pdf_candidate(candidate_rows)
+    publisher_blocked = _publisher_pdf_blocked(
+        candidate_rows=candidate_rows,
+        publisher_hosts=publisher_hosts,
+        blocked=blocked,
+        selected_pdf_url=selected_pdf_url,
+    )
+
+    search_used = False
+    search_hit = False
+    api_fallback_used = False
+
+    if not selected_pdf_url and normalized_doi:
+        api_fallback_used = True
+        for row in _metadata_pdf_candidates(doi=normalized_doi):
+            _append_candidate(row.get("url"), source=str(row.get("source") or "metadata"), kind=row.get("kind"))
+        selected_pdf_url, selected_via, blocked = _select_verified_pdf_candidate(candidate_rows)
+
+    if not selected_pdf_url and normalized_doi:
+        search_used = True
+        for query in _doi_search_queries(reference=reference, doi=normalized_doi, final_url=final_url):
+            for candidate in _search_pdf_candidates(query=query, max_results=6):
+                _append_candidate(candidate, source="web_search", query=query)
+                for linked_pdf in _pdf_links_from_landing_page(candidate, fetcher=active_fetcher):
+                    _append_candidate(
+                        linked_pdf,
+                        source="web_search_landing_page",
+                        query=query,
+                        parentUrl=candidate,
+                    )
+        selected_pdf_url, selected_via, blocked = _select_verified_pdf_candidate(candidate_rows)
+        if selected_pdf_url and selected_via in {"web_search", "web_search_landing_page"}:
+            search_hit = True
+
+    return {
+        "selectedPdfUrl": selected_pdf_url or "",
+        "selectedPdfSource": selected_via or "",
+        "paywalledOrBlocked": bool(blocked or publisher_blocked),
+        "publisherBlocked": publisher_blocked,
+        "searchUsed": search_used,
+        "searchHit": search_hit,
+        "apiFallbackUsed": api_fallback_used,
+        "candidateCount": len(candidate_rows),
+        "candidates": candidate_rows[:40],
+    }
+
+
+def resolve_accessible_pdf_url_for_reference(
+    reference: dict[str, Any],
+    *,
+    source_uri: str | None = None,
+    failed_uri: str | None = None,
+    fetcher: Callable[[str], str] | None = None,
+) -> dict[str, Any]:
+    seed_uri = _normalize_http_url(source_uri) or _normalize_http_url(reference.get("sourceUri")) or ""
+    failed = _normalize_http_url(failed_uri) or ""
+    primary_candidates: list[dict[str, Any]] = []
+    if failed:
+        primary_candidates.append({"url": failed, "source": "failed_primary"})
+    exclude_hosts: set[str] = set()
+    host = _url_hostname(failed or seed_uri)
+    if host in {"dl.acm.org", "doi.org", "dx.doi.org"}:
+        exclude_hosts.add(host)
+    if "dl.acm.org" in (failed or seed_uri):
+        exclude_hosts.add("dl.acm.org")
+    return resolve_accessible_pdf_url(
+        reference=reference,
+        source_uri=seed_uri,
+        primary_candidates=primary_candidates,
+        doi=_doi_from_reference(reference),
+        fetcher=fetcher,
+        exclude_hosts_when_blocked=exclude_hosts,
+    )
+
+
+def _url_hostname(url: str) -> str:
+    return (urllib.parse.urlparse(str(url or "")).hostname or "").lower().strip()
+
+
+def _publisher_pdf_blocked(
+    *,
+    candidate_rows: list[dict[str, Any]],
+    publisher_hosts: set[str],
+    blocked: bool,
+    selected_pdf_url: str,
+) -> bool:
+    if selected_pdf_url or not blocked or not publisher_hosts:
+        return False
+    publisher_urls = [
+        _url_hostname(str(row.get("url") or ""))
+        for row in candidate_rows
+        if _normalize_http_url(row.get("url"))
+    ]
+    if not publisher_urls:
+        return False
+    return all(host in publisher_hosts for host in publisher_urls)
+
+
+def _doi_from_reference(reference: dict[str, Any]) -> str:
+    metadata = reference.get("metadata")
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            metadata = {}
+    if isinstance(metadata, dict):
+        identifiers = metadata.get("identifiers")
+        if isinstance(identifiers, dict):
+            resolved = identifiers.get("resolved")
+            if isinstance(resolved, dict):
+                doi = _normalize_doi(resolved.get("doi"))
+                if doi:
+                    return doi
+    for value in (
+        reference.get("sourceUri"),
+        reference.get("doi"),
+    ):
+        match = re.search(r"(10\.\d{4,9}/[^?\s#]+)", str(value or ""), flags=re.IGNORECASE)
+        if match:
+            return _normalize_doi(match.group(1))
+    return ""
 
 
 def _pdf_links_from_landing_page(url: str, *, fetcher: Callable[[str], str]) -> list[str]:
