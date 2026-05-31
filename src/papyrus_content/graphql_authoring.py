@@ -427,6 +427,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": KNOWLEDGE_ARTIFACT_FIELDS,
         "partitionType": "ID",
     },
+    "semanticNodesByCorpusAndNodeKey": {
+        "field": "listSemanticNodesByCorpusAndNodeKey",
+        "partitionKey": "corpusId",
+        "fields": SEMANTIC_NODE_FIELDS,
+        "partitionType": "ID",
+    },
     "semanticNodesByImportRunAndNodeKey": {
         "field": "listSemanticNodesByImportRunAndNodeKey",
         "partitionKey": "importRunId",
@@ -734,11 +740,24 @@ class PapyrusGraphQLAuthoringClient:
     def list_knowledge_artifacts_by_import_run_and_kind(self, import_run_id: str) -> list[dict[str, Any]]:
         return self.list_by_index("knowledgeArtifactsByImportRunAndKind", import_run_id)
 
-    def list_semantic_nodes_by_import_run_and_node_key(self, import_run_id: str) -> list[dict[str, Any]]:
-        return self.list_by_index("semanticNodesByImportRunAndNodeKey", import_run_id)
+    def list_semantic_nodes_by_corpus_and_node_key(self, corpus_id: str, *, page_size: int = 500) -> list[dict[str, Any]]:
+        return self.list_by_index("semanticNodesByCorpusAndNodeKey", corpus_id, limit=page_size)
 
-    def list_semantic_relations_by_import_run_and_imported_at(self, import_run_id: str) -> list[dict[str, Any]]:
-        return self.list_by_index("semanticRelationsByImportRunAndImportedAt", import_run_id)
+    def list_semantic_nodes_by_import_run_and_node_key(
+        self,
+        import_run_id: str,
+        *,
+        page_size: int = 500,
+    ) -> list[dict[str, Any]]:
+        return self.list_by_index("semanticNodesByImportRunAndNodeKey", import_run_id, limit=page_size)
+
+    def list_semantic_relations_by_import_run_and_imported_at(
+        self,
+        import_run_id: str,
+        *,
+        page_size: int = 500,
+    ) -> list[dict[str, Any]]:
+        return self.list_by_index("semanticRelationsByImportRunAndImportedAt", import_run_id, limit=page_size)
 
     def delete_record(self, model_name: str, record_id: str) -> None:
         if model_name not in MUTATIONS:

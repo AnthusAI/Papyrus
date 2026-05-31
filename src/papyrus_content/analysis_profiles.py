@@ -84,6 +84,8 @@ SAFE_OVERRIDE_KEYS = frozenset(
         "graph.item_timeout_seconds",
         "graph.item_retry_attempts",
         "graph.heartbeat_interval_seconds",
+        "graph.min_mention_count",
+        "graph.min_reference_count",
     }
 )
 

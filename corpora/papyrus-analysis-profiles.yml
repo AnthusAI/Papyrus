@@ -131,6 +131,7 @@ profiles:
         - configurations/graph/ner-entities.yml
     defaults:
       extractionSnapshot: pipeline:<canonical-topic-text-snapshot>
+      graph.min_reference_count: 5
     execution:
       maxRuntimeSeconds: 3600
       successCriteria:
@@ -152,6 +153,8 @@ profiles:
       - graph.item_timeout_seconds
       - graph.item_retry_attempts
       - graph.heartbeat_interval_seconds
+      - graph.min_mention_count
+      - graph.min_reference_count
       - extractionSnapshot
     expectedOutputs:
       - graph-snapshot

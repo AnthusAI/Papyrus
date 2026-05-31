@@ -27,6 +27,7 @@ from .analysis_commands import (
     analysis_graph_artifacts,
     analysis_import_graph_artifact,
     analysis_publish_graph_snapshot,
+    analysis_purge_graph_generated,
     analysis_reindex_plan,
     analysis_run_now,
 )
@@ -131,6 +132,7 @@ from .catalog import (
     assert_reference_catalog_plan_safety,
     build_prepared_reference_catalog,
     build_reference_catalog_registration_records,
+    catalog_item_with_external_item_id,
     catalog_items,
 )
 from .corpora import (
@@ -270,6 +272,7 @@ PORTED_COMMANDS = frozenset(
         "analysis:graph-artifacts",
         "analysis:publish-graph-snapshot",
         "analysis:import-graph-artifact",
+        "analysis:purge-graph-generated",
         "analysis:doctor-entity-graph",
         "newsroom:recount-summary",
         "newsroom:repair-message-status",
@@ -528,6 +531,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         analysis_publish_graph_snapshot(flags)
     elif route == "analysis:import-graph-artifact":
         analysis_import_graph_artifact(flags)
+    elif route == "analysis:purge-graph-generated":
+        analysis_purge_graph_generated(flags)
     elif route == "analysis:doctor-entity-graph":
         analysis_doctor_entity_graph(flags)
     elif route == "newsroom:recount-summary":
@@ -1355,7 +1360,7 @@ def print_usage() -> None:
     print("  corpora status/worker-bootstrap/sync-*, references create/process/curate/export commands,")
     print("  assignments list, analysis profiles/validate-profiles/reindex-plan/preview-reindex/")
     print("  create-reindex-assignment/run-now/execute-assignment (auto sync-from-cloud when local catalog is stale;")
-    print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/doctor-entity-graph,")
+    print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/purge-graph-generated/doctor-entity-graph,")
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")

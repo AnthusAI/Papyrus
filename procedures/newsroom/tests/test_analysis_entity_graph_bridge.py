@@ -22,8 +22,11 @@ from papyrus_content.analysis_commands import (  # noqa: E402
     _analysis_publish_graph_snapshot_internal,
 )
 from papyrus_content.analysis_graph import (  # noqa: E402
+    apply_graph_generated_purge_plan,
     build_graph_export_import_records,
     build_graph_export_publish_records,
+    build_graph_generated_purge_plan,
+    filter_graph_export_payload_by_entity_popularity,
 )
 
 
@@ -89,6 +92,83 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Graph import blocked"):
                 _analysis_import_graph_artifact_internal("knowledge-import-demo", options={}, apply=True)
             apply_changes.assert_not_called()
+
+    def test_graph_generated_purge_plan_collects_nodes_and_relations(self) -> None:
+        class FakeClient:
+            def list_knowledge_import_runs_by_corpus_kind_and_imported_at(self, _key: str):
+                return [{"id": "knowledge-import-knowledge-corpus-demo-graph-ner-entities-abc"}]
+
+            def list_semantic_nodes_by_corpus_and_node_key(self, _corpus_id: str, **_kwargs):
+                return [
+                    {
+                        "id": "node-1",
+                        "versionState": "current",
+                        "importRunId": "knowledge-import-knowledge-corpus-demo-graph-ner-entities-abc",
+                    }
+                ]
+
+            def list_semantic_relations_by_import_run_and_imported_at(self, _run_id: str, **_kwargs):
+                return [{"id": "rel-1", "relationState": "current"}]
+
+        with patch(
+            "papyrus_content.analysis_graph.fetch_graph_artifact_rows_indexed",
+            return_value=([{"importRunId": "knowledge-import-knowledge-corpus-demo-graph-ner-entities-abc"}], {}),
+        ):
+            plan = build_graph_generated_purge_plan(
+                FakeClient(),
+                corpus_id="knowledge-corpus-demo",
+            )
+        self.assertEqual(plan["semanticNodeIds"], ["node-1"])
+        self.assertEqual(plan["semanticRelationIds"], ["rel-1"])
+        deleted = apply_graph_generated_purge_plan(FakeClient(), plan, apply=False)
+        self.assertEqual(deleted["deleted"]["SemanticNode"], 0)
+
+    def test_popularity_filter_drops_low_mention_entities(self) -> None:
+        payload = {
+            "snapshot": {"extractor_id": "ner-entities", "snapshot_id": "snap-001"},
+            "manifest": {
+                "graph_id": "graph-001",
+                "extraction_snapshot": "pipeline:demo",
+                "configuration": {"extractor_id": "ner-entities"},
+            },
+            "nodes": [
+                {"node_id": "item:doc-1", "node_type": "item", "label": "Doc 1", "properties": {"item_id": "doc-1"}},
+                {"node_id": "item:doc-2", "node_type": "item", "label": "Doc 2", "properties": {"item_id": "doc-2"}},
+                {"node_id": "ent:ai", "node_type": "entity", "label": "AI", "properties": {"entity_type": "ORG"}},
+                {"node_id": "ent:ml", "node_type": "entity", "label": "ML", "properties": {"entity_type": "ORG"}},
+            ],
+            "edges": [
+                {"edge_id": "m1", "src": "item:doc-1", "dst": "ent:ai", "edge_type": "mentions", "item_id": "doc-1", "weight": 5},
+                {"edge_id": "m2", "src": "item:doc-2", "dst": "ent:ai", "edge_type": "mentions", "item_id": "doc-2", "weight": 4},
+                {"edge_id": "m3", "src": "item:doc-1", "dst": "ent:ml", "edge_type": "mentions", "item_id": "doc-1", "weight": 1},
+                {"edge_id": "r1", "src": "ent:ai", "dst": "ent:ml", "edge_type": "related_to", "weight": 1},
+            ],
+        }
+        filtered, stats = filter_graph_export_payload_by_entity_popularity(payload, min_reference_count=2)
+        kept_ids = {node["node_id"] for node in filtered["nodes"]}
+        self.assertEqual(kept_ids, {"ent:ai"})
+        self.assertEqual(stats["entitiesAfter"], 1)
+        self.assertEqual(len(filtered["edges"]), 2)
+        import_plan = build_graph_export_import_records(
+            filtered,
+            corpus_id="knowledge-corpus-demo",
+            classifier_id="classifier-demo",
+            imported_at="2026-01-01T00:00:00Z",
+            reference_by_external_item_id={
+                "doc-1": {"id": "reference-doc-1-v3", "lineageId": "reference-doc-1", "versionNumber": 3},
+                "doc-2": {"id": "reference-doc-2-v1", "lineageId": "reference-doc-2", "versionNumber": 1},
+            },
+        )
+        semantic_nodes = [record["expected"] for record in import_plan["records"] if record["modelName"] == "SemanticNode"]
+        self.assertEqual(len(semantic_nodes), 1)
+        self.assertEqual(semantic_nodes[0]["displayName"], "AI")
+        self.assertEqual(semantic_nodes[0]["acceptedReferenceMentionCount"], 9)
+        self.assertEqual(semantic_nodes[0]["distinctSourceKindCount"], 2)
+        self.assertEqual(semantic_nodes[0]["description"], "entity: ORG")
+        relation_rows = [record["expected"] for record in import_plan["records"] if record["modelName"] == "SemanticRelation"]
+        mentions = [row for row in relation_rows if row.get("predicate") == "mentions"]
+        self.assertEqual(len(mentions), 2)
+        self.assertEqual(import_plan["mentionRelationCount"], 2)
 
     def test_import_mapping_preserves_mentions_and_typed_edges(self) -> None:
         payload = _sample_graph_payload()
@@ -224,6 +304,7 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
                 patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
                 patch("papyrus_content.analysis_commands.plan_graph_artifact_import", return_value=fake_result),
                 patch("papyrus_content.analysis_commands.update_newsroom_summary_after_analysis_import"),
+                patch("papyrus_content.newsroom_commands.apply_newsroom_summary_recount"),
                 patch("papyrus_content.analysis_commands.apply_record_changes", side_effect=first_pass_apply),
             ):
                 with self.assertRaisesRegex(RuntimeError, "boom on second chunk"):
@@ -238,6 +319,7 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
                 patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
                 patch("papyrus_content.analysis_commands.plan_graph_artifact_import", return_value=fake_result),
                 patch("papyrus_content.analysis_commands.update_newsroom_summary_after_analysis_import"),
+                patch("papyrus_content.newsroom_commands.apply_newsroom_summary_recount"),
                 patch(
                     "papyrus_content.analysis_commands.apply_record_changes",
                     side_effect=lambda _client, changes: second_pass_calls.append([change["expected"]["id"] for change in changes]),

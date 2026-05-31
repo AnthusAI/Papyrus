@@ -208,6 +208,204 @@ def build_graph_export_publish_records(
     }
 
 
+def resolve_graph_entity_popularity_thresholds(
+    options: dict[str, Any] | None,
+    *,
+    plan: dict[str, Any] | None = None,
+) -> tuple[int | None, int | None]:
+    """
+  Resolve minimum mention and reference thresholds from CLI flags and profile overrides.
+
+  :param options: Parsed CLI options.
+  :type options: dict[str, object] or None
+  :param plan: Optional analysis reindex plan with effectiveParameters.
+  :type plan: dict[str, object] or None
+  :return: Tuple of (min_mention_count, min_reference_count); unset values are None.
+  :rtype: tuple[int or None, int or None]
+  """
+    sources: list[dict[str, Any]] = []
+    if options:
+        sources.append(options)
+    if plan:
+        sources.append(plan.get("effectiveParameters") if isinstance(plan.get("effectiveParameters"), dict) else {})
+        sources.append(plan.get("defaults") if isinstance(plan.get("defaults"), dict) else {})
+    min_mention_count: int | None = None
+    min_reference_count: int | None = None
+    for source in sources:
+        if min_mention_count is None:
+            min_mention_count = _positive_int_or_none(
+                source.get("min-mention-count") or source.get("graph.min_mention_count")
+            )
+        if min_reference_count is None:
+            min_reference_count = _positive_int_or_none(
+                source.get("min-reference-count") or source.get("graph.min_reference_count")
+            )
+    return min_mention_count, min_reference_count
+
+
+def filter_graph_export_payload_by_entity_popularity(
+    payload: dict[str, Any],
+    *,
+    min_mention_count: int | None = None,
+    min_reference_count: int | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """
+  Drop low-popularity entity nodes and edges before graph publish/import.
+
+  Popularity is computed across the full export by aggregating item→entity mention edges
+  per canonical entity node_id.
+
+  :param payload: Graph export payload with nodes[] and edges[].
+  :type payload: dict[str, object]
+  :param min_mention_count: Minimum total mention weight required to keep an entity.
+  :type min_mention_count: int or None
+  :param min_reference_count: Minimum distinct corpus items (references) required to keep an entity.
+  :type min_reference_count: int or None
+  :return: Filtered payload and filter statistics.
+  :rtype: tuple[dict[str, object], dict[str, object]]
+  """
+    if not min_mention_count and not min_reference_count:
+        return payload, {"applied": False}
+    stats = payload.get("stats") if isinstance(payload.get("stats"), dict) else {}
+    existing_filter = stats.get("popularityFilter") if isinstance(stats.get("popularityFilter"), dict) else {}
+    existing_mention = existing_filter.get("minMentionCount")
+    existing_reference = existing_filter.get("minReferenceCount")
+    if (
+        int(existing_filter.get("nodesAfter") or 0) > 0
+        and existing_mention == min_mention_count
+        and existing_reference == min_reference_count
+    ):
+        return payload, {**existing_filter, "applied": True, "skipped": True, "reason": "already_filtered"}
+    nodes = payload.get("nodes") if isinstance(payload.get("nodes"), list) else []
+    edges = payload.get("edges") if isinstance(payload.get("edges"), list) else []
+    graph_node_by_id = {
+        _clean_string(node.get("node_id")): node for node in nodes if _clean_string(node.get("node_id"))
+    }
+    mention_stats: dict[str, dict[str, Any]] = {}
+    for edge in edges:
+        if _clean_string(edge.get("edge_type")) != "mentions":
+            continue
+        src = _clean_string(edge.get("src"))
+        dst = _clean_string(edge.get("dst"))
+        if not src or not dst:
+            continue
+        src_node = graph_node_by_id.get(src) or {}
+        dst_node = graph_node_by_id.get(dst) or {}
+        if not _edge_touches_item_endpoint(edge, src_node=src_node, dst_node=dst_node):
+            continue
+        item_id = _edge_source_item_id(edge, src_node=src_node, dst_node=dst_node)
+        entity_id = _entity_graph_node_id_for_mention_edge(
+            edge,
+            src_node=src_node,
+            dst_node=dst_node,
+            graph_node_by_id=graph_node_by_id,
+        )
+        entity_node = graph_node_by_id.get(entity_id) if entity_id else {}
+        if not entity_id:
+            continue
+        stats = mention_stats.setdefault(
+            entity_id,
+            {"mentionCount": 0.0, "referenceItemIds": set(), "label": _clean_string(entity_node.get("label"))},
+        )
+        stats["mentionCount"] += float(edge.get("weight") or 1.0)
+        if item_id:
+            stats["referenceItemIds"].add(item_id)
+
+    allowed_entity_ids: set[str] = set()
+    for entity_id, stats in mention_stats.items():
+        mention_count = int(stats["mentionCount"])
+        reference_count = len(stats["referenceItemIds"])
+        if min_mention_count and mention_count < min_mention_count:
+            continue
+        if min_reference_count and reference_count < min_reference_count:
+            continue
+        allowed_entity_ids.add(entity_id)
+
+    kept_nodes: list[dict[str, Any]] = []
+    seen_entity_ids: set[str] = set()
+    for node in nodes:
+        node_id = _clean_string(node.get("node_id"))
+        if not node_id:
+            continue
+        if _is_graph_item_node(node):
+            continue
+        if node_id not in allowed_entity_ids:
+            continue
+        if node_id in seen_entity_ids:
+            continue
+        seen_entity_ids.add(node_id)
+        properties = node.get("properties") if isinstance(node.get("properties"), dict) else {}
+        stats = mention_stats.get(node_id) or {}
+        kept_nodes.append(
+            {
+                **node,
+                "properties": {
+                    **properties,
+                    "mention_count": int(stats.get("mentionCount") or 0),
+                    "reference_count": len(stats.get("referenceItemIds") or []),
+                },
+            }
+        )
+
+    kept_node_ids = allowed_entity_ids
+    kept_edges: list[dict[str, Any]] = []
+    seen_edge_ids: set[str] = set()
+    for edge in edges:
+        edge_id = _clean_string(edge.get("edge_id")) or f"{_clean_string(edge.get('src'))}:{_clean_string(edge.get('dst'))}"
+        if edge_id in seen_edge_ids:
+            continue
+        src = _clean_string(edge.get("src"))
+        dst = _clean_string(edge.get("dst"))
+        if not src or not dst:
+            continue
+        src_node = graph_node_by_id.get(src) or {}
+        dst_node = graph_node_by_id.get(dst) or {}
+        if _edge_touches_item_endpoint(edge, src_node=src_node, dst_node=dst_node):
+            entity_id = _entity_graph_node_id_for_mention_edge(
+                edge,
+                src_node=src_node,
+                dst_node=dst_node,
+                graph_node_by_id=graph_node_by_id,
+            )
+            if entity_id not in kept_node_ids:
+                continue
+            kept_edges.append(edge)
+            seen_edge_ids.add(edge_id)
+            continue
+        if src in kept_node_ids and dst in kept_node_ids:
+            kept_edges.append(edge)
+            seen_edge_ids.add(edge_id)
+
+    filtered_payload = {**payload, "nodes": kept_nodes, "edges": kept_edges}
+    if isinstance(filtered_payload.get("stats"), dict):
+        filtered_payload["stats"] = {
+            **filtered_payload["stats"],
+            "popularityFilter": {
+                "applied": True,
+                "minMentionCount": min_mention_count,
+                "minReferenceCount": min_reference_count,
+                "entitiesBefore": len(mention_stats),
+                "entitiesAfter": len(allowed_entity_ids),
+                "nodesBefore": len(nodes),
+                "nodesAfter": len(kept_nodes),
+                "edgesBefore": len(edges),
+                "edgesAfter": len(kept_edges),
+            },
+        }
+    filter_stats = {
+        "applied": True,
+        "minMentionCount": min_mention_count,
+        "minReferenceCount": min_reference_count,
+        "entitiesBefore": len(mention_stats),
+        "entitiesAfter": len(allowed_entity_ids),
+        "nodesBefore": len(nodes),
+        "nodesAfter": len(kept_nodes),
+        "edgesBefore": len(edges),
+        "edgesAfter": len(kept_edges),
+    }
+    return filtered_payload, filter_stats
+
+
 def build_graph_export_import_records(
     payload: dict[str, Any],
     *,
@@ -236,6 +434,9 @@ def build_graph_export_import_records(
             f"semantic-node-graph-{safe_id(corpus_id)}-{safe_id(identity['extractorId'])}-"
             f"{safe_id(identity['snapshotId'])}-{hash_short(node_id)}"
         )
+        properties = node.get("properties") if isinstance(node.get("properties"), dict) else {}
+        mention_count = _positive_int_or_none(properties.get("mention_count"))
+        reference_count = _positive_int_or_none(properties.get("reference_count"))
         semantic_node = with_version_fields(
             {
                 "id": f"{lineage_id}-v1",
@@ -249,6 +450,8 @@ def build_graph_export_import_records(
                 "displayName": _clean_string(node.get("label")) or node_id,
                 "description": _graph_node_description(node),
                 "aliases": _graph_node_aliases(node),
+                "acceptedReferenceMentionCount": mention_count,
+                "distinctSourceKindCount": reference_count,
                 "status": "generated",
                 "importRunId": identity["importRunId"],
                 "createdAt": imported_at,
@@ -349,6 +552,123 @@ def build_graph_export_import_records(
     }
 
 
+def graph_generated_import_run_prefix(corpus_id: str) -> str:
+    return f"knowledge-import-{safe_id(corpus_id)}-graph-"
+
+
+def collect_graph_generated_import_run_ids(
+    client: PapyrusGraphQLAuthoringClient,
+    *,
+    corpus_id: str,
+    import_run_id: str | None = None,
+) -> list[str]:
+    prefix = graph_generated_import_run_prefix(corpus_id)
+    rows, _ = fetch_graph_artifact_rows_indexed(client, corpus_id=corpus_id)
+    run_ids = {str(row["importRunId"]) for row in rows if row.get("importRunId")}
+    for run in client.list_knowledge_import_runs_by_corpus_kind_and_imported_at(f"{corpus_id}#graph-export"):
+        run_id = _clean_string(run.get("id"))
+        if run_id and run_id.startswith(prefix):
+            run_ids.add(run_id)
+    ordered = sorted(run_ids)
+    if import_run_id:
+        if import_run_id not in ordered:
+            record = client.get_record("KnowledgeImportRun", import_run_id)
+            if not record or record.get("corpusId") != corpus_id:
+                raise ValueError(
+                    f"Graph import run {import_run_id} was not found for corpus {corpus_id}."
+                )
+            ordered = [import_run_id]
+        else:
+            ordered = [import_run_id]
+    return ordered
+
+
+def build_graph_generated_purge_plan(
+    client: PapyrusGraphQLAuthoringClient,
+    *,
+    corpus_id: str,
+    import_run_id: str | None = None,
+) -> dict[str, Any]:
+    import_run_ids = collect_graph_generated_import_run_ids(
+        client,
+        corpus_id=corpus_id,
+        import_run_id=import_run_id,
+    )
+    import_run_id_set = set(import_run_ids)
+    prefix = graph_generated_import_run_prefix(corpus_id)
+    print(
+        f"graph-purge\tplan\tscan\tcorpus={corpus_id}\timportRuns={len(import_run_ids)}",
+        flush=True,
+    )
+    semantic_node_ids: list[str] = []
+    for node in client.list_semantic_nodes_by_corpus_and_node_key(corpus_id):
+        node_id = _clean_string(node.get("id"))
+        node_import_run_id = _clean_string(node.get("importRunId"))
+        if not node_id or node.get("versionState") != "current":
+            continue
+        if not node_import_run_id or (
+            node_import_run_id not in import_run_id_set
+            and not (not import_run_id and node_import_run_id.startswith(prefix))
+        ):
+            continue
+        semantic_node_ids.append(node_id)
+    print(f"graph-purge\tplan\tsemantic-nodes\t{len(semantic_node_ids)}", flush=True)
+    semantic_relation_ids: list[str] = []
+    for index, run_id in enumerate(import_run_ids, start=1):
+        print(
+            f"graph-purge\tplan\tscan-relations\timportRun={run_id}\t{index}/{len(import_run_ids)}",
+            flush=True,
+        )
+        for relation in client.list_semantic_relations_by_import_run_and_imported_at(run_id):
+            relation_id = _clean_string(relation.get("id"))
+            if not relation_id or relation.get("relationState") != "current":
+                continue
+            semantic_relation_ids.append(relation_id)
+    print(f"graph-purge\tplan\tsemantic-relations\t{len(semantic_relation_ids)}", flush=True)
+    return {
+        "corpusId": corpus_id,
+        "importRunIds": import_run_ids,
+        "semanticNodeIds": sorted(set(semantic_node_ids)),
+        "semanticRelationIds": sorted(set(semantic_relation_ids)),
+    }
+
+
+def apply_graph_generated_purge_plan(
+    client: PapyrusGraphQLAuthoringClient,
+    plan: dict[str, Any],
+    *,
+    apply: bool,
+) -> dict[str, Any]:
+    relation_ids = list(plan.get("semanticRelationIds") or [])
+    node_ids = list(plan.get("semanticNodeIds") or [])
+    deleted = {"SemanticRelation": 0, "SemanticNode": 0}
+    if not apply:
+        return {"deleted": deleted, "skipped": {}}
+    skipped: dict[str, str] = {}
+    try:
+        total_relations = len(relation_ids)
+        for index, relation_id in enumerate(relation_ids, start=1):
+            client.delete_record("SemanticRelation", relation_id)
+            deleted["SemanticRelation"] += 1
+            if index == 1 or index == total_relations or index % 500 == 0:
+                print(
+                    f"graph-purge\tapply\trelations\t{index}/{total_relations}",
+                    flush=True,
+                )
+        total_nodes = len(node_ids)
+        for index, node_id in enumerate(node_ids, start=1):
+            client.delete_record("SemanticNode", node_id)
+            deleted["SemanticNode"] += 1
+            if index == 1 or index == total_nodes or index % 500 == 0:
+                print(
+                    f"graph-purge\tapply\tnodes\t{index}/{total_nodes}",
+                    flush=True,
+                )
+    except RuntimeError as error:
+        skipped["purge"] = str(error)
+    return {"deleted": deleted, "skipped": skipped}
+
+
 def should_supersede_generated_graph(plan: dict[str, Any]) -> bool:
     return bool(plan.get("semanticNodeCount") or plan.get("semanticRelationCount"))
 
@@ -406,6 +726,8 @@ def plan_graph_artifact_import(
     import_run_id: str,
     *,
     resolve_existing: bool = True,
+    min_mention_count: int | None = None,
+    min_reference_count: int | None = None,
 ) -> dict[str, Any]:
     import_run = client.get_record("KnowledgeImportRun", import_run_id)
     if not import_run:
@@ -421,6 +743,11 @@ def plan_graph_artifact_import(
         raise ValueError(f"Graph export attachment was not found for import run {import_run_id}.")
     graph_export_artifact = load_graph_export_payload_from_attachment(client, attachment)
     payload = graph_export_artifact["payload"]
+    payload, _filter_stats = filter_graph_export_payload_by_entity_popularity(
+        payload,
+        min_mention_count=min_mention_count,
+        min_reference_count=min_reference_count,
+    )
     imported_at = import_run.get("importedAt") or import_run.get("generatedAt") or _utc_now()
     reference_by_external_item_id = hydrate_graph_reference_map_sync(client, import_run["corpusId"])
     plan = build_graph_export_import_records(
@@ -527,14 +854,10 @@ def _graph_export_publish_counts(
             continue
         src_node = graph_node_by_id.get(src) or {}
         dst_node = graph_node_by_id.get(dst) or {}
-        if not (_is_graph_item_node(src_node) or _is_graph_item_node(dst_node)):
+        if not _edge_touches_item_endpoint(edge, src_node=src_node, dst_node=dst_node):
             continue
         mention_edge_count += 1
-        source_item_id = (
-            _clean_string(edge.get("item_id"))
-            or _graph_item_id_from_node(src_node)
-            or _graph_item_id_from_node(dst_node)
-        )
+        source_item_id = _edge_source_item_id(edge, src_node=src_node, dst_node=dst_node)
         if source_item_id and reference_by_external_item_id.get(source_item_id):
             continue
         unresolved_references += 1
@@ -592,11 +915,7 @@ def _build_graph_export_relation_records(
         dst_node = graph_node_by_id.get(dst) or {}
         src_semantic = materialized_node_by_graph_node_id.get(src)
         dst_semantic = materialized_node_by_graph_node_id.get(dst)
-        source_item_id = (
-            _clean_string(edge.get("item_id"))
-            or _graph_item_id_from_node(src_node)
-            or _graph_item_id_from_node(dst_node)
-        )
+        source_item_id = _edge_source_item_id(edge, src_node=src_node, dst_node=dst_node)
         metadata = _graph_relation_metadata(
             edge=edge,
             snapshot_ref=snapshot_ref,
@@ -605,7 +924,7 @@ def _build_graph_export_relation_records(
             extraction_snapshot=extraction_snapshot,
             source_item_id=source_item_id,
         )
-        if _is_graph_item_node(src_node) or _is_graph_item_node(dst_node):
+        if _edge_touches_item_endpoint(edge, src_node=src_node, dst_node=dst_node):
             mention_edge_count += 1
             entity_node = src_semantic or dst_semantic
             if not entity_node:
@@ -804,6 +1123,69 @@ def _is_graph_item_node(node: dict[str, Any]) -> bool:
     )
 
 
+def _edge_touches_item_endpoint(
+    edge: dict[str, Any],
+    *,
+    src_node: dict[str, Any],
+    dst_node: dict[str, Any],
+) -> bool:
+    if _is_graph_item_node(src_node) or _is_graph_item_node(dst_node):
+        return True
+    if _clean_string(edge.get("edge_type")) == "mentions":
+        return True
+    src = _clean_string(edge.get("src")) or ""
+    dst = _clean_string(edge.get("dst")) or ""
+    return (
+        src.startswith("item:")
+        or src.startswith("reference:")
+        or dst.startswith("item:")
+        or dst.startswith("reference:")
+    )
+
+
+def _edge_source_item_id(
+    edge: dict[str, Any],
+    *,
+    src_node: dict[str, Any],
+    dst_node: dict[str, Any],
+) -> str | None:
+    direct = _clean_string(edge.get("item_id"))
+    if direct:
+        return direct
+    from_node = _graph_item_id_from_node(src_node) or _graph_item_id_from_node(dst_node)
+    if from_node:
+        return from_node
+    src = _clean_string(edge.get("src")) or ""
+    dst = _clean_string(edge.get("dst")) or ""
+    if src.startswith("item:") or src.startswith("reference:"):
+        return _strip_graph_node_prefix(src, "item:") or _strip_graph_node_prefix(src, "reference:")
+    if dst.startswith("item:") or dst.startswith("reference:"):
+        return _strip_graph_node_prefix(dst, "item:") or _strip_graph_node_prefix(dst, "reference:")
+    return None
+
+
+def _entity_graph_node_id_for_mention_edge(
+    edge: dict[str, Any],
+    *,
+    src_node: dict[str, Any],
+    dst_node: dict[str, Any],
+    graph_node_by_id: dict[str, dict[str, Any]],
+) -> str | None:
+    src = _clean_string(edge.get("src"))
+    dst = _clean_string(edge.get("dst"))
+    if not src or not dst:
+        return None
+    if _is_graph_item_node(src_node) and not _is_graph_item_node(dst_node):
+        return dst
+    if _is_graph_item_node(dst_node) and not _is_graph_item_node(src_node):
+        return src
+    if src.startswith("item:") or src.startswith("reference:"):
+        return dst if dst in graph_node_by_id or not dst.startswith("item:") else dst
+    if dst.startswith("item:") or dst.startswith("reference:"):
+        return src if src in graph_node_by_id or not src.startswith("item:") else src
+    return None
+
+
 def _graph_item_id_from_node(node: dict[str, Any]) -> str | None:
     properties = node.get("properties") if isinstance(node.get("properties"), dict) else {}
     return (
@@ -851,6 +1233,16 @@ def _clean_string(value: Any) -> str | None:
         return None
     trimmed = value.strip()
     return trimmed or None
+
+
+def _positive_int_or_none(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _number_or_null(value: Any) -> float | None:

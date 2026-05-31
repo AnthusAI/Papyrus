@@ -9,15 +9,18 @@ from pathlib import Path
 from typing import Any
 
 from .analysis_graph import (
+    apply_graph_generated_purge_plan,
     build_graph_export_publish_records,
+    build_graph_generated_purge_plan,
     compact_graph_artifact_row,
     fetch_graph_artifact_rows_indexed,
+    filter_graph_export_payload_by_entity_popularity,
     hydrate_graph_reference_map_sync,
     plan_graph_artifact_import,
+    resolve_graph_entity_popularity_thresholds,
 )
 from .analysis_profiles import (
     DEFAULT_ANALYSIS_PROFILES_PATH,
-    DEFAULT_BIBLICUS_WORKDIR,
     analysis_profile_by_key,
     build_analysis_reindex_assignment_records,
     build_analysis_reindex_plan,
@@ -34,7 +37,13 @@ from .options import normalize_positive_integer, normalize_string, parse_boolean
 from .records import apply_record_changes, build_record_changes_tolerating_optional_models
 from .newsroom_summary import update_newsroom_summary_after_analysis_import, update_newsroom_summary_after_assignment_creates
 from .relations_commands import print_category_import_summary
-from .steering import require_corpus_config, require_steering_config, load_steering_config
+from .steering import (
+    require_corpus_config,
+    require_steering_config,
+    load_steering_config,
+    resolve_biblicus_runtime_dir,
+    resolve_corpus_local_path,
+)
 
 
 def analysis_reindex_plan(flags: list[str]) -> None:
@@ -73,23 +82,27 @@ def analysis_entity_graph_preflight(flags: list[str]) -> None:
         blockers.append("unresolved_extraction_snapshot")
     steering_config = require_steering_config(options.get("config"))
     corpus = require_corpus_config(steering_config, plan["corpus"]["key"], "--corpus-key")
-    corpus_path = Path(corpus.get("path") or f"corpora/{plan['corpus']['key']}")
-    biblicus_workdir = Path(options.get("biblicus-workdir") or plan.get("biblicusWorkdir") or DEFAULT_BIBLICUS_WORKDIR).resolve()
+    corpus_root, biblicus_runtime = _resolve_graph_analysis_paths(
+        steering_config,
+        corpus,
+        options,
+        fallback_workdir=plan.get("biblicusWorkdir"),
+    )
     try:
-        _preflight_biblicus_catalog_compatibility(biblicus_workdir, corpus_path)
-        checks.append({"name": "catalog_compatibility", "status": "ok", "detail": str((biblicus_workdir / corpus_path).resolve())})
+        _preflight_biblicus_catalog_compatibility(corpus_root)
+        checks.append({"name": "catalog_compatibility", "status": "ok", "detail": str(corpus_root)})
     except Exception as error:
         checks.append({"name": "catalog_compatibility", "status": "error", "detail": str(error)})
         blockers.append("malformed_catalog")
     payload: dict[str, Any] | None = None
     if snapshot_resolved and snapshot_ref:
-        snapshot_manifest = _resolve_snapshot_manifest_path(biblicus_workdir, corpus_path, snapshot_ref)
+        snapshot_manifest = _resolve_snapshot_manifest_path(corpus_root, snapshot_ref)
         if snapshot_manifest.exists():
             checks.append({"name": "snapshot_manifest", "status": "ok", "detail": str(snapshot_manifest)})
             try:
                 payload = _export_graph_snapshot_payload(
-                    biblicus_workdir=biblicus_workdir,
-                    corpus_path=corpus_path,
+                    biblicus_runtime=biblicus_runtime,
+                    corpus_root=corpus_root,
                     snapshot_ref=snapshot_ref,
                 )
                 _validate_graph_export_payload(payload, snapshot_ref)
@@ -215,6 +228,7 @@ def analysis_publish_graph_snapshot(flags: list[str]) -> None:
         apply=apply,
         item_ids=requested_item_ids,
         max_items=max_items_value,
+        plan=None,
     )
     if options.get("json"):
         print(json.dumps(result, indent=2))
@@ -224,6 +238,8 @@ def analysis_publish_graph_snapshot(flags: list[str]) -> None:
     print(f"analysis-publish\tsnapshot\t{result['snapshot']}")
     print(f"analysis-publish\tchanged-records\t{result['changedRecords']}")
     print(f"analysis-publish\tmention-edges\t{result['mentionEdges']}")
+    if result.get("popularityFilter"):
+        print(f"analysis-publish\tpopularity-filter\t{json.dumps(result['popularityFilter'], sort_keys=True, separators=(',', ':'))}")
     print(f"analysis-publish\tunresolved-references\t{result['unresolvedReferences']}")
     if result["unresolvedReferenceItemIds"]:
         print(
@@ -340,6 +356,7 @@ def analysis_run_now(flags: list[str]) -> None:
                 snapshot_ref=snapshot_ref,
                 options=options,
                 apply=True,
+                plan=plan,
             )
             print(
                 "analysis-run-now\tphase\tpublish-graph-snapshot\tcomplete\t"
@@ -364,6 +381,7 @@ def analysis_run_now(flags: list[str]) -> None:
                 publish_result["importRunId"],
                 options=options,
                 apply=True,
+                plan=plan,
             )
             print(
                 "analysis-run-now\tphase\timport-graph-artifact\tcomplete\t"
@@ -410,6 +428,63 @@ def analysis_execute_assignment(flags: list[str]) -> None:
 
     result = execute_assignment_by_type(client, assignment_id, options)
     print(json.dumps(result, indent=2))
+
+
+def analysis_purge_graph_generated(flags: list[str]) -> None:
+    options = parse_options(flags)
+    corpus_key = normalize_string(options.get("corpus-key"))
+    import_run_id = normalize_string(options.get("import-run"))
+    if not corpus_key:
+        raise ValueError("analysis purge-graph-generated requires --corpus-key <key>.")
+    apply = resolve_mutation_apply(options, "analysis purge-graph-generated")
+    steering_config = require_steering_config(options.get("config"))
+    corpus = require_corpus_config(steering_config, corpus_key, "--corpus-key")
+    corpus_id = knowledge_corpus_id(corpus)
+    client, _ = create_authoring_client()
+    plan = build_graph_generated_purge_plan(
+        client,
+        corpus_id=corpus_id,
+        import_run_id=import_run_id,
+    )
+    result = apply_graph_generated_purge_plan(client, plan, apply=apply)
+    payload = {
+        "ok": True,
+        "command": "analysis purge-graph-generated",
+        "mode": "apply" if apply else "dry-run",
+        "corpusKey": corpus_key,
+        "corpusId": corpus_id,
+        "importRunIds": plan["importRunIds"],
+        "semanticNodes": len(plan["semanticNodeIds"]),
+        "semanticRelations": len(plan["semanticRelationIds"]),
+        "deleted": result["deleted"],
+        "skipped": result.get("skipped") or {},
+        "next": (
+            None
+            if apply
+            else (
+                f"poetry run papyrus analysis purge-graph-generated --corpus-key {corpus_key}"
+                + (f" --import-run {import_run_id}" if import_run_id else "")
+                + " --apply"
+            )
+        ),
+    }
+    if options.get("json"):
+        print(json.dumps(payload, indent=2))
+        return
+    print(f"graph-purge\tmode\t{payload['mode']}")
+    print(f"graph-purge\tcorpus\t{corpus_key}\t{corpus_id}")
+    print(f"graph-purge\timport-runs\t{len(plan['importRunIds'])}")
+    for run_id in plan["importRunIds"]:
+        print(f"graph-purge\timport-run\t{run_id}")
+    print(f"graph-purge\tsemantic-nodes\t{payload['semanticNodes']}")
+    print(f"graph-purge\tsemantic-relations\t{payload['semanticRelations']}")
+    if apply:
+        print(f"graph-purge\tdeleted\tSemanticRelation\t{result['deleted']['SemanticRelation']}")
+        print(f"graph-purge\tdeleted\tSemanticNode\t{result['deleted']['SemanticNode']}")
+        if result.get("skipped"):
+            print(f"graph-purge\tskipped\t{json.dumps(result['skipped'], sort_keys=True)}")
+    elif payload["next"]:
+        print(f"graph-purge\tnext\t{payload['next']}")
 
 
 def analysis_graph_artifacts(flags: list[str]) -> None:
@@ -512,12 +587,20 @@ def _analysis_import_graph_artifact_internal(
     *,
     options: dict[str, Any] | None = None,
     apply: bool = False,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     options = options or {}
     client, _ = create_authoring_client()
     fast_apply = parse_boolean_option(options.get("fast-apply"), apply, "--fast-apply")
     try:
-        result = plan_graph_artifact_import(client, import_run_id, resolve_existing=not fast_apply)
+        min_mention_count, min_reference_count = resolve_graph_entity_popularity_thresholds(options, plan=plan)
+        result = plan_graph_artifact_import(
+            client,
+            import_run_id,
+            resolve_existing=not fast_apply,
+            min_mention_count=min_mention_count,
+            min_reference_count=min_reference_count,
+        )
     except ValueError as error:
         message = str(error)
         if "was not found" in message and "KnowledgeImportRun" in message:
@@ -648,8 +731,16 @@ def _analysis_import_graph_artifact_internal(
             actor_label="papyrus-cli",
             reason=f"analysis reimport graph artifact {result['plan']['importRunId']}",
         )
+        if not parse_boolean_option(options.get("skip-recount-summary"), False, "--skip-recount-summary"):
+            print("graph-artifact-import\tphase\trecount-summary\tstart", flush=True)
+            from .newsroom_commands import apply_newsroom_summary_recount
+
+            apply_newsroom_summary_recount(client, reason=f"analysis import graph artifact {import_run_id}")
+            print("graph-artifact-import\tphase\trecount-summary\tcomplete", flush=True)
     payload["changes"] = result["changes"]
     return payload
+
+
 def analysis_doctor_entity_graph(flags: list[str]) -> None:
     options = parse_options(flags)
     started_at = datetime.now(timezone.utc)
@@ -817,32 +908,38 @@ def _analysis_publish_graph_snapshot_internal(
     apply: bool = False,
     item_ids: list[str] | None = None,
     max_items: int | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     options = options or {}
     started_at = datetime.now(timezone.utc)
     steering_config = require_steering_config(options.get("config"))
     corpus = require_corpus_config(steering_config, corpus_key, "--corpus-key")
     corpus_id = knowledge_corpus_id(corpus)
-    biblicus_workdir = Path(options.get("biblicus-workdir") or DEFAULT_BIBLICUS_WORKDIR).resolve()
-    corpus_path = Path(corpus.get("path") or f"corpora/{corpus_key}")
-    snapshot_manifest = _resolve_snapshot_manifest_path(biblicus_workdir, corpus_path, snapshot_ref)
+    corpus_root, biblicus_runtime = _resolve_graph_analysis_paths(steering_config, corpus, options)
+    snapshot_manifest = _resolve_snapshot_manifest_path(corpus_root, snapshot_ref)
     if not snapshot_manifest.exists():
         raise ValueError(
             f"Missing graph snapshot manifest for {snapshot_ref}: {snapshot_manifest}. "
             "Run graph extract before publish."
         )
     print("analysis-publish\tphase\tpreflight\tstart", flush=True)
-    _preflight_biblicus_catalog_compatibility(biblicus_workdir, corpus_path)
+    _preflight_biblicus_catalog_compatibility(corpus_root)
     print("analysis-publish\tphase\tpreflight\tcomplete", flush=True)
     print("analysis-publish\tphase\texport\tstart", flush=True)
     payload = _export_graph_snapshot_payload(
-        biblicus_workdir=biblicus_workdir,
-        corpus_path=corpus_path,
+        biblicus_runtime=biblicus_runtime,
+        corpus_root=corpus_root,
         snapshot_ref=snapshot_ref,
     )
     print("analysis-publish\tphase\texport\tcomplete", flush=True)
     _validate_graph_export_payload(payload, snapshot_ref)
     payload = _apply_graph_export_item_scope(payload, item_ids=item_ids or [], max_items=max_items)
+    min_mention_count, min_reference_count = resolve_graph_entity_popularity_thresholds(options, plan=plan)
+    payload, popularity_filter = filter_graph_export_payload_by_entity_popularity(
+        payload,
+        min_mention_count=min_mention_count,
+        min_reference_count=min_reference_count,
+    )
     client, _ = create_authoring_client()
     imported_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     reference_by_external_item_id = hydrate_graph_reference_map_sync(client, corpus_id)
@@ -904,6 +1001,7 @@ def _analysis_publish_graph_snapshot_internal(
         "edgeCount": publish_plan["edgeCount"],
         "semanticNodeCount": publish_plan["semanticNodeCount"],
         "mentionEdges": publish_plan["mentionEdgeCount"],
+        "popularityFilter": popularity_filter if popularity_filter.get("applied") else None,
         "unresolvedReferences": publish_plan["unresolvedReferences"],
         "unresolvedReferenceItemIds": (publish_plan.get("unresolvedReferenceItemIds") or [])[:50],
         "plannedRecords": len(records),
@@ -1107,9 +1205,25 @@ def _extract_last_json_from_file(path: Path) -> dict[str, Any]:
     raise ValueError(f"Could not parse JSON payload from graph extract stdout log: {path}")
 
 
-def _resolve_snapshot_manifest_path(biblicus_workdir: Path, corpus_path: Path, snapshot_ref: str) -> Path:
+def _resolve_graph_analysis_paths(
+    steering_config: dict[str, Any],
+    corpus: dict[str, Any],
+    options: dict[str, Any],
+    *,
+    fallback_workdir: str | Path | None = None,
+) -> tuple[Path, Path]:
+    corpus_root = resolve_corpus_local_path(
+        corpus,
+        steering_config,
+        fallback_workdir=fallback_workdir or options.get("biblicus-workdir") or options.get("biblicusWorkdir"),
+    )
+    biblicus_runtime = resolve_biblicus_runtime_dir(options)
+    return corpus_root, biblicus_runtime
+
+
+def _resolve_snapshot_manifest_path(corpus_root: Path, snapshot_ref: str) -> Path:
     extractor, snapshot_id = _parse_snapshot_ref(snapshot_ref)
-    return (biblicus_workdir / corpus_path / "graph" / extractor / snapshot_id / "manifest.json").resolve()
+    return (corpus_root / "graph" / extractor / snapshot_id / "manifest.json").resolve()
 
 
 def _parse_snapshot_ref(snapshot_ref: str) -> tuple[str, str]:
@@ -1122,8 +1236,8 @@ def _parse_snapshot_ref(snapshot_ref: str) -> tuple[str, str]:
     return extractor, snapshot_id
 
 
-def _preflight_biblicus_catalog_compatibility(biblicus_workdir: Path, corpus_path: Path) -> None:
-    catalog_path = (biblicus_workdir / corpus_path / "metadata" / "catalog.json").resolve()
+def _preflight_biblicus_catalog_compatibility(corpus_root: Path) -> None:
+    catalog_path = (corpus_root / "metadata" / "catalog.json").resolve()
     if not catalog_path.exists():
         raise ValueError(f"Missing Biblicus corpus catalog: {catalog_path}")
     try:
@@ -1165,8 +1279,8 @@ def _preflight_biblicus_catalog_compatibility(biblicus_workdir: Path, corpus_pat
 
 def _export_graph_snapshot_payload(
     *,
-    biblicus_workdir: Path,
-    corpus_path: Path,
+    biblicus_runtime: Path,
+    corpus_root: Path,
     snapshot_ref: str,
 ) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile(prefix="papyrus-graph-export-", suffix=".json", delete=False) as temp_file:
@@ -1180,13 +1294,13 @@ def _export_graph_snapshot_payload(
                 "graph",
                 "export",
                 "--corpus",
-                str(corpus_path),
+                str(corpus_root),
                 "--snapshot",
                 snapshot_ref,
                 "--output",
                 str(output_path),
             ],
-            cwd=biblicus_workdir,
+            cwd=biblicus_runtime,
             capture_output=True,
             text=True,
             check=False,
@@ -1197,7 +1311,7 @@ def _export_graph_snapshot_payload(
             error_text = stderr or stdout or f"exit code {result.returncode}"
             if "No such file" in error_text or "not found" in error_text.lower():
                 raise ValueError(
-                    f"Graph snapshot {snapshot_ref} is missing in Biblicus corpus {corpus_path}. "
+                    f"Graph snapshot {snapshot_ref} is missing in Biblicus corpus {corpus_root}. "
                     f"Details: {error_text}"
                 )
             raise RuntimeError(f"Failed to export graph snapshot {snapshot_ref}: {error_text}")
