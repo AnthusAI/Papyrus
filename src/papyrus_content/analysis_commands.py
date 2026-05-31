@@ -554,6 +554,7 @@ def analysis_import_graph_artifact(flags: list[str]) -> None:
         print(f"graph-artifact-import\tsnapshot\t{result_payload['snapshot']}")
         print(f"graph-artifact-import\tchanged-records\t{result_payload['changedRecords']}")
         print(f"graph-artifact-import\tchunk-size\t{result_payload['chunkSize']}")
+        print(f"graph-artifact-import\tmax-parallel\t{result_payload['maxParallel']}")
         print(f"graph-artifact-import\tresume\t{result_payload['resume']}")
         print(f"graph-artifact-import\tfast-apply\t{result_payload['fastApply']}")
         print(f"graph-artifact-import\tcheckpoint\t{result_payload['checkpointPath']}")
@@ -572,6 +573,7 @@ def analysis_import_graph_artifact(flags: list[str]) -> None:
     print(f"graph-artifact-import\tsnapshot\t{result_payload['snapshot']}")
     print(f"graph-artifact-import\tchanged-records\t{result_payload['changedRecords']}")
     print(f"graph-artifact-import\tchunk-size\t{result_payload['chunkSize']}")
+    print(f"graph-artifact-import\tmax-parallel\t{result_payload['maxParallel']}")
     print(f"graph-artifact-import\tresume\t{result_payload['resume']}")
     print(f"graph-artifact-import\tfast-apply\t{result_payload['fastApply']}")
     print(f"graph-artifact-import\tcheckpoint\t{result_payload['checkpointPath']}")
@@ -618,6 +620,7 @@ def _analysis_import_graph_artifact_internal(
     unresolved_count = int(result["plan"].get("unresolvedReferences") or 0)
     unresolved_ids = (result["plan"].get("unresolvedReferenceItemIds") or [])[:50]
     chunk_size = normalize_positive_integer(options.get("chunk-size"), "--chunk-size") or 200
+    max_parallel = min(normalize_positive_integer(options.get("max-parallel"), "--max-parallel") or 1, 16)
     resume = parse_boolean_option(options.get("resume"), True, "--resume")
     checkpoint_path = _graph_import_checkpoint_path(import_run_id, options)
     change_digest = _graph_import_change_digest(result["changes"])
@@ -657,6 +660,7 @@ def _analysis_import_graph_artifact_internal(
         "unresolvedReferences": unresolved_count,
         "unresolvedReferenceItemIds": unresolved_ids,
         "chunkSize": chunk_size,
+        "maxParallel": max_parallel,
         "resume": resume,
         "fastApply": fast_apply,
         "checkpointPath": str(checkpoint_path),
@@ -704,7 +708,12 @@ def _analysis_import_graph_artifact_internal(
                 f"\tchunkModelCounts={json.dumps(chunk_model_counts, sort_keys=True, separators=(',', ':'))}",
                 flush=True,
             )
-            apply_record_changes(client, chunk)
+            apply_record_changes(
+                client,
+                chunk,
+                max_parallel=max_parallel,
+                client_factory=(lambda: create_authoring_client()[0]) if max_parallel > 1 else None,
+            )
             next_index = chunk_end
             _write_graph_import_checkpoint(
                 checkpoint_path,

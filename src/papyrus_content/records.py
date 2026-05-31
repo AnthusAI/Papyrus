@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Callable
 
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
@@ -389,6 +390,9 @@ def remap_reference_attachment(
 def apply_record_changes(
     client: PapyrusGraphQLAuthoringClient,
     changes: list[dict[str, Any]],
+    *,
+    max_parallel: int = 1,
+    client_factory: Callable[[], PapyrusGraphQLAuthoringClient] | None = None,
 ) -> None:
     actionable = [change for change in changes if change.get("action") != "noop"]
     attachment_changes = [
@@ -398,8 +402,28 @@ def apply_record_changes(
     ]
     owner_changes = [change for change in actionable if change not in attachment_changes]
 
-    for change in owner_changes:
-        _apply_change(client, change)
+    parallel = max(1, int(max_parallel or 1))
+    if parallel == 1 or not owner_changes:
+        for change in owner_changes:
+            _apply_change(client, change)
+    else:
+        if client_factory is None:
+            raise ValueError("max_parallel > 1 requires client_factory for thread-local GraphQL clients.")
+        errors: list[Exception] = []
+
+        def apply_one(change: dict[str, Any]) -> None:
+            worker_client = client_factory()
+            _apply_change(worker_client, change)
+
+        with ThreadPoolExecutor(max_workers=parallel) as executor:
+            futures = [executor.submit(apply_one, change) for change in owner_changes]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as error:
+                    errors.append(error)
+        if errors:
+            raise errors[0]
 
     for change in attachment_changes:
         completed = upload_attachment_body(client, change["expected"], change["attachmentBody"])
