@@ -18,7 +18,14 @@ import {
   type ConsoleChatThread,
 } from "../lib/console-chat-client";
 import { buildNewsroomKnowledgeQueryInput, type NewsroomKnowledgeQueryTarget } from "../lib/newsroom-knowledge-query-request";
-import { buildWebUiContext, extractNavigationIntent } from "../lib/papyrus-web-locations";
+import {
+  CONSOLE_WEB_CONTEXT_MESSAGE_KIND,
+  formatConsoleWebContextMessage,
+  readConsoleWebUiFromMessageMetadata,
+  webUiContextKey,
+  type ConsoleWebContextEvent,
+} from "../lib/console-web-context";
+import { buildWebUiContext, extractNavigationIntent, type PapyrusWebUiContext } from "../lib/papyrus-web-locations";
 import { runNewsroomKnowledgeQuery } from "./news-desk-taxonomy-client";
 import { loadReaderSessionSnapshot, type ReaderSessionSnapshot } from "./reader-auth-state";
 import {
@@ -432,10 +439,9 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
   }, [pathname, searchParams]);
 
   const currentWebUi = useMemo(() => buildWebUiContext(currentWebPath), [currentWebPath]);
-
-  useEffect(() => {
-    threadRef.current = thread;
-  }, [thread]);
+  const currentWebUiKey = useMemo(() => webUiContextKey(currentWebUi), [currentWebUi]);
+  const recordingContextRef = useRef<string | null>(null);
+  const [hydratedThreadId, setHydratedThreadId] = useState<string | null>(null);
 
   useEffect(() => {
     for (const message of messages) {
@@ -512,9 +518,112 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
     setMessages((current) => upsertConsoleMessage(current, message));
   }, []);
 
+  const appendConsoleWebContextMessage = useCallback(async (
+    activeThread: ConsoleChatThread,
+    webUi: PapyrusWebUiContext,
+    event: ConsoleWebContextEvent,
+  ) => {
+    const { visibleContent, agentInstructions, summary } = formatConsoleWebContextMessage(webUi, event);
+    const sequenceNumber = (activeThread.messageCount ?? 0) + 1;
+    const now = new Date().toISOString();
+    const messageMetadata = {
+      console: {
+        webUi,
+        contextEvent: event,
+        agentInstructions,
+      },
+    };
+    const message: ConsoleChatMessage = {
+      id: `message-console-context-${crypto.randomUUID()}`,
+      threadId: activeThread.id,
+      parentMessageId: activeThread.lastMessageId ?? null,
+      sequenceNumber,
+      role: "SYSTEM",
+      messageKind: CONSOLE_WEB_CONTEXT_MESSAGE_KIND,
+      messageType: "MESSAGE",
+      content: visibleContent,
+      summary,
+      responseStatus: "COMPLETED",
+      responseCompletedAt: now,
+      metadata: messageMetadata,
+      createdAt: now,
+    };
+    mergeMessage(message);
+    const persisted = await createConsoleMessage({
+      ...message,
+      messageDomain: CONSOLE_MESSAGE_DOMAIN,
+      status: "active",
+      source: "papyrus-console",
+      authorLabel: actorLabel,
+      semanticLayer: CONSOLE_SEMANTIC_LAYER,
+      searchVisibility: CONSOLE_SEARCH_VISIBILITY,
+      responseTarget: CONSOLE_RESPONSE_TARGET,
+      metadata: toAwsJson(messageMetadata),
+      updatedAt: now,
+      newsroomFeedKey: CONSOLE_NEWSROOM_FEED_KEY,
+    });
+    mergeMessage({ ...message, ...persisted });
+    await updateConsoleThread({
+      id: activeThread.id,
+      messageCount: sequenceNumber,
+      lastMessageId: persisted.id,
+      lastMessageAt: now,
+      updatedAt: now,
+    });
+    setThread((current) => current?.id === activeThread.id ? {
+      ...current,
+      messageCount: sequenceNumber,
+      lastMessageId: persisted.id,
+      lastMessageAt: now,
+      updatedAt: now,
+    } : current);
+    recordingContextRef.current = webUiContextKey(webUi);
+    return persisted;
+  }, [actorLabel, mergeMessage]);
+
+  const recordWebContextIfNeeded = useCallback(async (
+    activeThread: ConsoleChatThread,
+    webUi: PapyrusWebUiContext,
+    event: ConsoleWebContextEvent,
+  ) => {
+    const nextKey = webUiContextKey(webUi);
+    if (!nextKey || recordingContextRef.current === nextKey) return;
+    const lastContextMessage = [...sortedMessages].reverse().find((entry) => entry.messageKind === CONSOLE_WEB_CONTEXT_MESSAGE_KIND);
+    const lastRecorded = lastContextMessage
+      ? readConsoleWebUiFromMessageMetadata(readAwsJsonObject(lastContextMessage.metadata))
+      : null;
+    if (lastRecorded && webUiContextKey(lastRecorded) === nextKey) {
+      recordingContextRef.current = nextKey;
+      return;
+    }
+    await appendConsoleWebContextMessage(activeThread, webUi, event);
+  }, [appendConsoleWebContextMessage, sortedMessages]);
+
+  useEffect(() => {
+    threadRef.current = thread;
+  }, [thread]);
+
+  useEffect(() => {
+    recordingContextRef.current = null;
+  }, [thread?.id]);
+
+  useEffect(() => {
+    if (!thread?.id || hydratedThreadId !== thread.id || !currentWebUi.papyrusLocationUri) return;
+    const hasPriorContext = sortedMessages.some((entry) => entry.messageKind === CONSOLE_WEB_CONTEXT_MESSAGE_KIND);
+    void recordWebContextIfNeeded(
+      thread,
+      currentWebUi,
+      hasPriorContext ? "navigation" : "session_start",
+    ).catch((error) => {
+      console.error("[PapyrusConsole] Unable to record web UI context", error);
+    });
+  }, [currentWebUi, currentWebUiKey, hydratedThreadId, recordWebContextIfNeeded, sortedMessages, thread]);
+
   const loadMessages = useCallback(async (threadId: string) => {
+    setHydratedThreadId(null);
     const nextMessages = await listConsoleMessagesByThread(threadId);
     setMessages(nextMessages);
+    setHydratedThreadId(threadId);
   }, []);
 
   const loadThreads = useCallback(async () => {
@@ -624,6 +733,7 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
     setThread(nextThread);
     setSelectedModel(resolveThreadModel(nextThread));
     setMessages([]);
+    setHydratedThreadId(null);
     if (nextThread) void loadMessages(nextThread.id);
   }, [loadMessages, threads]);
 
@@ -656,11 +766,16 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
     setThread(nextThread);
     setThreads((current) => [nextThread, ...current]);
     setMessages([]);
+    setHydratedThreadId(null);
     const created = await createConsoleThread(nextThread);
     activeThreadIdRef.current = created.id;
     setThread(created);
     setSelectedModel(resolveThreadModel(created));
     setThreads((current) => [created, ...current.filter((entry) => entry.id !== created.id)]);
+    setHydratedThreadId(created.id);
+    if (currentWebUi.papyrusLocationUri) {
+      await recordWebContextIfNeeded(created, currentWebUi, "session_start");
+    }
     return created;
   }
 
@@ -1008,6 +1123,7 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
             }
 
             const message = entry.message;
+            const isWebContextMessage = message.messageKind === CONSOLE_WEB_CONTEXT_MESSAGE_KIND;
             const content = (message.content ?? "").trim();
             const summary = (message.summary ?? "").trim();
             const sanitizedSummary = sanitizeConsoleSummary(summary);
@@ -1025,9 +1141,15 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
             if (isSupersededRunningAssistant) return null;
 
             return (
-              <ConsoleChatMessageRow key={message.id} role={message.role}>
+              <ConsoleChatMessageRow
+                key={message.id}
+                role={isWebContextMessage ? "CONTEXT" : message.role}
+              >
                 <div className={message.role === "ASSISTANT" ? "papyrus-console-message__markdown" : undefined}>
                   {message.role === "USER" ? <ConsoleUserAvatar authorEmail={userAuthorEmail} avatarHash={userAvatarHash} /> : null}
+                  {isWebContextMessage ? (
+                    <p className="papyrus-console-message__context-label">Page context</p>
+                  ) : null}
                   {shouldShowThinking ? (
                     <Shimmer className="papyrus-console__thinking-shimmer">Thinking...</Shimmer>
                   ) : <ConsoleChatMessageContent role={message.role} text={content || sanitizedSummary} />}
@@ -1595,7 +1717,13 @@ function ConsoleChatMessageRow({
 
   return (
     <article
-      className={role === "USER" ? "papyrus-console-message papyrus-console-message--user" : "papyrus-console-message papyrus-console-message--assistant"}
+      className={
+        role === "USER"
+          ? "papyrus-console-message papyrus-console-message--user"
+          : role === "CONTEXT"
+            ? "papyrus-console-message papyrus-console-message--context"
+            : "papyrus-console-message papyrus-console-message--assistant"
+      }
       ref={rowRef}
     >
       {children}

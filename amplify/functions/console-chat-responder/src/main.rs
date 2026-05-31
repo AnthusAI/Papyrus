@@ -34,6 +34,7 @@ const SUPPORTED_CONSOLE_MODELS: [&str; 5] = [
     "gpt-5-nano",
 ];
 const MESSAGE_KIND_CHAT_TURN: &str = "console_chat_turn";
+const MESSAGE_KIND_WEB_CONTEXT: &str = "console_web_context";
 const MESSAGE_KIND_TOOL_CALL: &str = "console_tool_call";
 const MESSAGE_KIND_TOOL_RESULT: &str = "console_tool_result";
 const MESSAGE_DOMAIN_CONVERSATION: &str = "conversation";
@@ -929,7 +930,9 @@ async fn rebuild_context_from_dynamodb(
 
 fn cached_message_from_item(item: &HashMap<String, AttributeValue>) -> Option<CachedPromptMessage> {
     let role = attr_string(item.get("role"))?;
-    if role != "USER" && role != "ASSISTANT" && role != "TOOL" {
+    let message_kind = attr_string(item.get("messageKind")).unwrap_or_default();
+    let allows_system = role == "SYSTEM" && message_kind == MESSAGE_KIND_WEB_CONTEXT;
+    if role != "USER" && role != "ASSISTANT" && role != "TOOL" && !allows_system {
         return None;
     }
     let message_type =
@@ -937,7 +940,6 @@ fn cached_message_from_item(item: &HashMap<String, AttributeValue>) -> Option<Ca
     if message_type != "MESSAGE" && message_type != "TOOL_CALL" && message_type != "TOOL_RESPONSE" {
         return None;
     }
-    let message_kind = attr_string(item.get("messageKind")).unwrap_or_default();
     Some(CachedPromptMessage {
         id: attr_string(item.get("id"))?,
         sequence_number: attr_i64(item.get("sequenceNumber")).unwrap_or(0),
@@ -1600,7 +1602,8 @@ async fn run_agent_turn(
     let required_tool_call_counts =
         metadata_string_usize_map_field(&trigger.metadata, "requiredToolCallCounts");
     let expected_final_response = metadata_string_field(&trigger.metadata, "expectedFinalResponse");
-    let web_ui = resolve_trigger_web_ui(&trigger.metadata);
+    let web_ui = resolve_trigger_web_ui(&trigger.metadata)
+        .or_else(|| resolve_web_ui_from_context_messages(&context.recent_messages));
     if web_ui.is_none() {
         if metadata_nested_value_field(&trigger.metadata, &["console"]).is_some() {
             warn!(
@@ -2363,6 +2366,18 @@ fn build_openai_messages(
                     "content": cached.content,
                 }));
             }
+            "SYSTEM" if cached.message_kind == MESSAGE_KIND_WEB_CONTEXT => {
+                messages.push(json!({
+                    "role": "system",
+                    "content": cached.content,
+                }));
+                if let Some(instructions) = console_context_agent_instructions(&cached.metadata) {
+                    messages.push(json!({
+                        "role": "system",
+                        "content": instructions,
+                    }));
+                }
+            }
             _ => continue,
         }
     }
@@ -2867,6 +2882,24 @@ fn metadata_nested_value_field(metadata: &Value, path: &[&str]) -> Option<Value>
     Some(current)
 }
 
+fn console_context_agent_instructions(metadata: &Value) -> Option<String> {
+    let console = coerce_metadata_object(metadata_value_field(metadata, "console")?)?;
+    console
+        .get("agentInstructions")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(str::to_string)
+}
+
+fn resolve_web_ui_from_context_messages(messages: &[CachedPromptMessage]) -> Option<Value> {
+    messages
+        .iter()
+        .rev()
+        .filter(|entry| entry.role == "SYSTEM" && entry.message_kind == MESSAGE_KIND_WEB_CONTEXT)
+        .find_map(|entry| resolve_trigger_web_ui(&entry.metadata))
+}
+
 fn resolve_trigger_web_ui(metadata: &Value) -> Option<Value> {
     metadata_nested_value_field(metadata, &["console", "webUi"])
         .or_else(|| metadata_nested_value_field(metadata, &["webUi"]))
@@ -3111,6 +3144,93 @@ mod tests {
             }
         });
         assert!(resolve_trigger_web_ui(&metadata).is_none());
+    }
+
+    #[test]
+    fn resolve_web_ui_from_context_messages_reads_latest_system_context() {
+        let messages = vec![
+            CachedPromptMessage {
+                id: "ctx-1".to_string(),
+                sequence_number: 1,
+                role: "SYSTEM".to_string(),
+                message_kind: MESSAGE_KIND_WEB_CONTEXT.to_string(),
+                message_type: "MESSAGE".to_string(),
+                content: "older".to_string(),
+                metadata: json!({
+                    "console": {
+                        "webUi": {
+                            "webPath": "/newsroom/references",
+                            "papyrusLocationUri": "papyrus://newsroom/references/index"
+                        }
+                    }
+                }),
+            },
+            CachedPromptMessage {
+                id: "ctx-2".to_string(),
+                sequence_number: 2,
+                role: "SYSTEM".to_string(),
+                message_kind: MESSAGE_KIND_WEB_CONTEXT.to_string(),
+                message_type: "MESSAGE".to_string(),
+                content: "newer".to_string(),
+                metadata: json!({
+                    "console": {
+                        "webUi": {
+                            "webPath": "/newsroom/references/ref-1",
+                            "papyrusLocationUri": "papyrus://newsroom/references/detail/ref-1",
+                            "papyrusObjectUri": "papyrus://reference/ref-1"
+                        }
+                    }
+                }),
+            },
+        ];
+        let web_ui = resolve_web_ui_from_context_messages(&messages).expect("webUi");
+        assert_eq!(
+            web_ui.get("papyrusObjectUri").and_then(Value::as_str),
+            Some("papyrus://reference/ref-1")
+        );
+    }
+
+    #[test]
+    fn build_openai_messages_includes_system_web_context_turns() {
+        let context = ThreadContextCache {
+            schema_version: CONTEXT_CACHE_SCHEMA_VERSION,
+            thread_id: "thread-1".to_string(),
+            last_sequence_number: 1,
+            last_message_id: "ctx-1".to_string(),
+            context_digest: String::new(),
+            rolling_summary: String::new(),
+            recent_messages: vec![CachedPromptMessage {
+                id: "ctx-1".to_string(),
+                sequence_number: 1,
+                role: "SYSTEM".to_string(),
+                message_kind: MESSAGE_KIND_WEB_CONTEXT.to_string(),
+                message_type: "MESSAGE".to_string(),
+                content: "Console session started.".to_string(),
+                metadata: json!({
+                    "console": {
+                        "agentInstructions": "Use Reference.get for this page."
+                    }
+                }),
+            }],
+            updated_at: now_iso(),
+        };
+        let static_prompt = StaticPromptContext {
+            schema_version: STATIC_PROMPT_CACHE_SCHEMA_VERSION,
+            graphql_endpoint: String::new(),
+            generated_at: String::new(),
+            expires_at_epoch: 0,
+            publication_mission: String::new(),
+            publication_policy: String::new(),
+            docs_index: Vec::new(),
+        };
+        let messages = build_openai_messages(&context, &static_prompt, None);
+        let system_contents: Vec<&str> = messages
+            .iter()
+            .filter(|entry| entry.get("role").and_then(Value::as_str) == Some("system"))
+            .filter_map(|entry| entry.get("content").and_then(Value::as_str))
+            .collect();
+        assert!(system_contents.iter().any(|entry| entry.contains("Console session started.")));
+        assert!(system_contents.iter().any(|entry| entry.contains("Reference.get")));
     }
 
     #[test]

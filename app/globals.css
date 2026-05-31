@@ -9404,6 +9404,30 @@ img {
   min-width: 0;
 }
 
+.papyrus-console-message--context {
+  justify-self: center;
+  max-width: 100%;
+}
+
+.papyrus-console-message--context > div {
+  background: rgb(var(--accent-rgb) / 0.06);
+  border-color: rgb(var(--accent-rgb) / 0.18);
+  color: rgb(var(--ink-solid-rgb) / 0.82);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  padding: 0.62rem 0.78rem;
+  text-align: left;
+}
+
+.papyrus-console-message__context-label {
+  color: rgb(var(--ink-solid-rgb) / 0.58);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.28rem;
+  text-transform: uppercase;
+}
+
 .papyrus-console-message--user {
   justify-self: end;
   margin-left: auto;
