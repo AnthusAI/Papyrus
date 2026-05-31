@@ -12,6 +12,7 @@ export type ReferenceSourcePreview =
       kind: "pdf";
       href: string;
       label: string;
+      embedUrl: string;
     }
   | {
       kind: "html";
@@ -40,7 +41,7 @@ export function youtubeVideoIdFromUri(sourceUri: string): string | null {
   return null;
 }
 
-function isPdfAttachment(attachment: ReferenceAttachmentRecord): boolean {
+export function isPdfAttachment(attachment: ReferenceAttachmentRecord): boolean {
   const mediaType = (attachment.mediaType ?? "").toLowerCase();
   if (mediaType.includes("pdf")) return true;
   const path = `${attachment.storagePath ?? ""} ${attachment.sourceUri ?? ""} ${attachment.filename ?? ""}`.toLowerCase();
@@ -54,11 +55,59 @@ function isHtmlAttachment(attachment: ReferenceAttachmentRecord): boolean {
   return path.endsWith(".html") || path.endsWith(".htm");
 }
 
+export function isCitationLandingPageUrl(uri: string): boolean {
+  try {
+    const parsed = new URL(uri);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname.toLowerCase();
+    if (host.endsWith("arxiv.org") && path.startsWith("/abs/")) return true;
+    if (host === "doi.org" || host.endsWith(".doi.org")) return true;
+    if (host.includes("pubmed") && path.includes("/")) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export function isDirectPdfUrl(uri: string): boolean {
+  try {
+    const parsed = new URL(uri);
+    if (parsed.pathname.toLowerCase().endsWith(".pdf")) return true;
+    if (parsed.searchParams.get("response-content-type")?.toLowerCase().includes("pdf")) return true;
+  } catch {
+    return uri.toLowerCase().includes(".pdf");
+  }
+  return uri.toLowerCase().includes(".pdf");
+}
+
+export function pickPdfAttachmentHref(
+  attachment: ReferenceAttachmentRecord,
+  referenceSourceUri?: string | null,
+): string | null {
+  const candidates = [attachment.sourceUri, referenceSourceUri].filter(
+    (value): value is string => Boolean(value?.trim()),
+  );
+
+  for (const candidate of candidates) {
+    if (isDirectPdfUrl(candidate)) return candidate;
+  }
+
+  for (const candidate of candidates) {
+    if (!isCitationLandingPageUrl(candidate)) return candidate;
+  }
+
+  return null;
+}
+
 function pdfPreviewFromUri(sourceUri: string | null | undefined): ReferenceSourcePreview | null {
   if (!sourceUri) return null;
-  const lower = sourceUri.toLowerCase();
-  if (!lower.includes(".pdf") && !lower.includes("/pdf")) return null;
-  return { kind: "pdf", href: sourceUri, label: "Open PDF source" };
+  if (!isDirectPdfUrl(sourceUri)) return null;
+  return {
+    kind: "pdf",
+    href: sourceUri,
+    embedUrl: sourceUri,
+    label: "Open PDF source",
+  };
 }
 
 function htmlPreviewFromUri(sourceUri: string | null | undefined): ReferenceSourcePreview | null {
@@ -93,11 +142,12 @@ export function resolveReferenceSourcePreview(
 
   const pdfAttachment = attachments.find((attachment) => isPdfAttachment(attachment));
   if (pdfAttachment) {
-    const href = pdfAttachment.sourceUri ?? pdfAttachment.storagePath ?? sourceUri;
+    const href = pickPdfAttachmentHref(pdfAttachment, sourceUri);
     if (href) {
       return {
         kind: "pdf",
         href,
+        embedUrl: href,
         label: pdfAttachment.filename ?? "Open PDF attachment",
       };
     }
@@ -108,7 +158,10 @@ export function resolveReferenceSourcePreview(
 
   const htmlAttachment = attachments.find((attachment) => isHtmlAttachment(attachment));
   if (htmlAttachment) {
-    const href = htmlAttachment.sourceUri ?? htmlAttachment.storagePath ?? sourceUri;
+    const candidates = [htmlAttachment.sourceUri, htmlAttachment.storagePath, sourceUri].filter(
+      (value): value is string => Boolean(value?.trim()),
+    );
+    const href = candidates.find((candidate) => !isCitationLandingPageUrl(candidate)) ?? candidates[0];
     if (href) {
       return {
         kind: "html",

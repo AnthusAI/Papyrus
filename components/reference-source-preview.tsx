@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReferenceAttachmentRecord } from "../lib/category-repository";
-import { resolveReferenceSourcePreview } from "../lib/reference-source-preview";
+import { isPdfAttachment, resolveReferenceSourcePreview } from "../lib/reference-source-preview";
 
 export function ReferenceSourcePreview({
   attachments = [],
@@ -11,7 +11,17 @@ export function ReferenceSourcePreview({
   sourceUri?: string | null;
 }) {
   const preview = resolveReferenceSourcePreview(sourceUri, attachments);
-  if (!preview) return null;
+  const pendingPdfPreview = !preview && attachments.some(
+    (attachment) => isPdfAttachment(attachment) && Boolean(attachment.storagePath),
+  );
+  if (!preview) {
+    if (!pendingPdfPreview) return null;
+    return (
+      <p className="news-desk-reference-source-preview__hint" data-news-desk-reference-source-preview="pdf-loading">
+        Loading PDF preview…
+      </p>
+    );
+  }
 
   if (preview.kind === "youtube") {
     return (
@@ -44,13 +54,18 @@ export function ReferenceSourcePreview({
         className="news-desk-reference-source-preview news-desk-reference-source-preview--pdf"
         data-news-desk-reference-source-preview="pdf"
       >
+        <div className="news-desk-reference-source-preview__frame news-desk-reference-source-preview__frame--pdf">
+          <iframe
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            src={preview.embedUrl}
+            title={preview.label}
+          />
+        </div>
         <p className="news-desk-reference-source-preview__actions">
           <a href={preview.href} rel="noopener noreferrer" target="_blank">
             {preview.label}
           </a>
-        </p>
-        <p className="news-desk-reference-source-preview__hint">
-          PDF preview in the newsroom UI is not embedded yet; use the link to open the file.
         </p>
       </div>
     );
