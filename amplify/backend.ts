@@ -390,6 +390,9 @@ if (enableInboundEmail) {
   );
 
   const inboundEventStack = Stack.of(receiveLambda);
+
+  // SES receipt rule sets are account-global; only provision on the production pipeline.
+  if (isAmplifyProductionPipeline) {
   const inboundDnsZone = route53.HostedZone.fromHostedZoneAttributes(storageStack, "PapyrusInboundDnsZone", {
     hostedZoneId: inboundDnsZoneId,
     zoneName: inboundDnsZoneName,
@@ -468,6 +471,7 @@ if (enableInboundEmail) {
     }),
     timeout: Duration.minutes(2),
   });
+  }
 
   new InboundEmailStack(inboundEventStack, "InboundEmail", {
     storageBucket,

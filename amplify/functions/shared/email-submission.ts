@@ -112,8 +112,22 @@ export function resolveParentSubmissionMessageId(
 
 export function countInboundAttachments(rawBytes: Uint8Array): number {
   const raw = Buffer.from(rawBytes).toString("utf8");
-  const matches = raw.match(/Content-Disposition:\s*attachment/gi);
-  return matches?.length ?? 0;
+  let count = 0;
+  const parts = raw.split(/\r?\n\r?\n/);
+  for (let index = 0; index < parts.length; index += 1) {
+    const headerBlock = parts[index];
+    if (!headerBlock || !/Content-Type:/i.test(headerBlock)) continue;
+    const disposition = headerBlock.match(/Content-Disposition:\s*([^\r\n;]+)/i)?.[1]?.trim().toLowerCase() ?? "";
+    const contentType = headerBlock.match(/Content-Type:\s*([^;\r\n]+)/i)?.[1]?.trim().toLowerCase() ?? "";
+    const filename = headerBlock.match(/(?:name|filename)=["']?([^"';\r\n]+)/i)?.[1]?.trim() ?? "";
+    const isPdf = contentType === "application/pdf" || filename.toLowerCase().endsWith(".pdf");
+    if (disposition === "attachment" || (disposition !== "inline" && isPdf && filename)) {
+      count += 1;
+    }
+  }
+  if (count > 0) return count;
+  const legacyMatches = raw.match(/Content-Disposition:\s*attachment/gi);
+  return legacyMatches?.length ?? 0;
 }
 
 const MIN_COMPOSED_PROSE_CHARS_FOR_AGENT = 120;
@@ -201,11 +215,14 @@ export function parseInboundEmailBody(rawBytes: Uint8Array): { subject: string; 
   const subject = subjectMatch?.[1]?.trim() ?? "";
   const plainMatch = raw.match(/Content-Type:\s*text\/plain[\s\S]*?\r?\n\r?\n([\s\S]*?)(?:\r?\n--|$)/i);
   let text = plainMatch?.[1]?.trim() ?? "";
-  if (!text) {
-    const htmlMatch = raw.match(/Content-Type:\s*text\/html[\s\S]*?\r?\n\r?\n([\s\S]*?)(?:\r?\n--|$)/i);
-    text = htmlToText(htmlMatch?.[1] ?? "");
+  const htmlMatch = !plainMatch
+    ? raw.match(/Content-Type:\s*text\/html[\s\S]*?\r?\n\r?\n([\s\S]*?)(?:\r?\n--|$)/i)
+    : null;
+  if (!plainMatch && htmlMatch) {
+    text = htmlToText(htmlMatch[1] ?? "");
   }
-  if (!text) {
+  // For multipart MIME, do not fall back to the raw object (PDF parts may contain DOI-like tokens).
+  if (!plainMatch && !htmlMatch && !/Content-Type:\s*multipart\//i.test(raw)) {
     const bodyIndex = raw.indexOf("\r\n\r\n");
     text = bodyIndex >= 0 ? raw.slice(bodyIndex + 4).trim() : raw.trim();
   }
@@ -273,6 +290,7 @@ export async function lookupRegisteredUserProfileId(client: LambdaDataClient, se
       { limit: 10, authMode: LAMBDA_DATA_AUTH_MODE },
     );
     for (const identity of response.data ?? []) {
+      if (!identity) continue;
       const profileId = String(identity.userProfileId ?? "").trim();
       if (profileId) return profileId;
     }

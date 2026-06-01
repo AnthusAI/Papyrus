@@ -7,6 +7,9 @@ on:
       - "src/papyrus_newsroom/email_submissions.py"
       - "src/papyrus_newsroom/email_submission_replies.py"
       - "src/papyrus_newsroom/email_submission_feedback.py"
+      - "src/papyrus_newsroom/email_pdf_intake.py"
+      - "scripts/e2e-inbound-email-pdf-only.sh"
+      - "amplify/functions/shared/email-submission.ts"
       - "src/papyrus_content/reference_metadata_generation.py"
       - "src/papyrus_content/graphql_authoring.py"
       - "procedures/newsroom/tests/test_email_submissions.py"
@@ -22,6 +25,9 @@ on:
       - "src/papyrus_newsroom/email_submissions.py"
       - "src/papyrus_newsroom/email_submission_replies.py"
       - "src/papyrus_newsroom/email_submission_feedback.py"
+      - "src/papyrus_newsroom/email_pdf_intake.py"
+      - "scripts/e2e-inbound-email-pdf-only.sh"
+      - "amplify/functions/shared/email-submission.ts"
       - "src/papyrus_content/reference_metadata_generation.py"
       - "src/papyrus_content/graphql_authoring.py"
       - "procedures/newsroom/tests/test_email_submissions.py"
@@ -51,4 +57,10 @@ jobs:
             procedures.newsroom.tests.test_email_submissions \
             procedures.newsroom.tests.test_email_submission_feedback \
             procedures.newsroom.tests.test_email_submission_replies \
+            procedures.newsroom.tests.test_email_pdf_intake \
             -v
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Inbound email MIME classification smoke test
+        run: node amplify/functions/shared/email-submission.test.mjs
