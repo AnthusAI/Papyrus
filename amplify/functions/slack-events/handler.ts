@@ -30,18 +30,8 @@ export const handler = async (event: FunctionUrlEvent) => {
 
   const payloadType = String(payload.type ?? "").trim();
   if (payloadType === "url_verification") {
-    let secret: string;
-    try {
-      secret = await slackSigningSecret();
-    } catch (error) {
-      return jsonResponse(500, {
-        ok: false,
-        error: error instanceof Error ? error.message : "PAPYRUS_SLACK_SIGNING_SECRET is not configured.",
-      });
-    }
-    if (!verifySlackRequestSignature({ signingSecret: secret, timestamp, rawBody, signature })) {
-      return jsonResponse(401, { ok: false, error: "invalid-slack-signature" });
-    }
+    // Slack only checks that the endpoint echoes `challenge` (no signature on this step).
+    // Match slack_agent.py; real events below still require a valid signing secret.
     const challenge = String(payload.challenge ?? "").trim();
     if (!challenge) {
       return jsonResponse(400, { ok: false, error: "missing-challenge" });
