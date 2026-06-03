@@ -309,6 +309,7 @@ def messages_repair_insight_titles(flags: list[str]) -> None:
             {
                 "id": message_id_value,
                 "summary": next_title[:500],
+                "content": next_body,
                 "updatedAt": now,
             },
         )
