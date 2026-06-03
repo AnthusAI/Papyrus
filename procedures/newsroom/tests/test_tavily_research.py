@@ -9,6 +9,7 @@ from papyrus_content.model_attachments import expand_private_payload_records
 from papyrus_content.insight_forum import (
     INSIGHT_FORUM_TITLE_MAX_LEN,
     derive_insight_forum_title,
+    format_tavily_insight_message_body,
     insight_summary_needs_title_repair,
 )
 from papyrus_content.tavily_deep_research import (
@@ -94,7 +95,7 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(len(packet["source_snapshots"]), 1)
         self.assertEqual(len(packet["proposed_references"]), 1)
-        self.assertEqual(packet["_forum_title"], "Robotics world models")
+        self.assertEqual(packet["_forum_title"], "world models in robotics")
         self.assertIn("Summary paragraph", packet["summary"])
         self.assertIn("Robotics world models", packet["_report_markdown"])
 
@@ -118,7 +119,7 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(title, "Tavily body fix smoke test")
 
-    def test_forum_title_prefers_assignment_when_report_has_no_heading(self):
+    def test_forum_title_prefers_research_question_over_assignment(self):
         long_report = (
             "Retrieval-augmented generation (RAG) couples an external information retriever "
             "with a language-model generator by processing a user query."
@@ -126,11 +127,35 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
         title = derive_insight_forum_title(
             report_markdown=long_report,
             assignment_title="Tavily body fix smoke test",
-            research_question="What is retrieval-augmented generation?",
+            research_question="What is retrieval-augmented generation in one paragraph?",
         )
-        self.assertEqual(title, "Tavily body fix smoke test")
+        self.assertEqual(title, "What is retrieval-augmented generation in one paragraph?")
         self.assertLessEqual(len(title), INSIGHT_FORUM_TITLE_MAX_LEN)
         self.assertTrue(insight_summary_needs_title_repair(long_report[:120], long_report))
+
+    def test_forum_title_prefers_assignment_when_no_query(self):
+        title = derive_insight_forum_title(
+            report_markdown="Long report body without a heading.",
+            assignment_title="World models in robotics",
+            research_question="",
+        )
+        self.assertEqual(title, "World models in robotics")
+
+    def test_format_tavily_insight_body_includes_task_and_report(self):
+        body = format_tavily_insight_message_body(
+            report_markdown="Full Tavily answer text.",
+            research_question="What is retrieval-augmented generation?",
+            assignment_title="Internal assignment name",
+            tavily_request_id="req-abc",
+            tavily_model="mini",
+            source_count=5,
+            task_message_id="message-tavily-task-1",
+        )
+        self.assertIn("## Research task", body)
+        self.assertIn("What is retrieval-augmented generation?", body)
+        self.assertIn("req-abc", body)
+        self.assertIn("## Report", body)
+        self.assertIn("Full Tavily answer text.", body)
 
     def test_message_record_expands_message_body_from_content(self):
         now = "2026-05-31T12:00:00Z"

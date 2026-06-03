@@ -40,7 +40,11 @@ from .assignments_workflow import (
     timestamp_for_path,
     update_newsroom_summary_after_research_packet_creates,
 )
-from .insight_forum import derive_insight_forum_title, derive_insight_packet_lede
+from .insight_forum import (
+    derive_insight_forum_title,
+    derive_insight_packet_lede,
+    format_tavily_insight_message_body,
+)
 
 TAVILY_DEEP_ASSIGNMENT_TYPE = "research.tavily-deep"
 TAVILY_TASK_MESSAGE_KIND = "tavily_research_task"
@@ -401,6 +405,9 @@ def create_assignment_insight_records(
     summary: str,
     body: str,
     forum_title: str | None = None,
+    research_question: str = "",
+    tavily_model: str = "",
+    source_count: int = 0,
     task_message_id: str,
     research_packet_message_id: str,
     tavily_request_id: str,
@@ -427,6 +434,9 @@ def create_assignment_insight_records(
                 "assignmentTypeKey": assignment.get("assignmentTypeKey"),
                 "queueKey": assignment.get("queueKey"),
                 "tavilyRequestId": tavily_request_id,
+                "tavilyInput": normalize_string(research_question) or None,
+                "tavilyModel": normalize_string(tavily_model) or None,
+                "tavilySourceCount": source_count or None,
                 "taskMessageId": task_message_id,
                 "researchPacketMessageId": research_packet_message_id,
                 "researchBackend": "tavily_deep",
@@ -571,18 +581,41 @@ def finalize_tavily_deep_research(
     packet_entries = load_assignment_research_packet_entries(client, assignment_id)
     research_packet_message_id = packet_entries[0]["message"]["id"] if packet_entries else ""
 
+    research_question = str(completed.get("input") or "").strip() or tavily_research_input_for_assignment(
+        assignment,
+        assignment_meta,
+    )
+    tavily_model = (
+        normalize_string(completed.get("model"))
+        or normalize_string(assignment_meta.get("tavilyModel"))
+        or ""
+    )
+    source_count = len(raw_packet.get("source_snapshots") or [])
     if not forum_title:
         forum_title = derive_insight_forum_title(
             report_markdown=report_markdown,
             assignment_title=str(assignment.get("title") or ""),
-            research_question=tavily_research_input_for_assignment(assignment, assignment_meta),
+            research_question=research_question,
             structured_summary=str(raw_packet.get("summary") or ""),
         )
+    insight_body = format_tavily_insight_message_body(
+        report_markdown=report_markdown,
+        research_question=research_question,
+        assignment_title=str(assignment.get("title") or ""),
+        tavily_request_id=tavily_request_id,
+        tavily_model=tavily_model,
+        tavily_status=str(completed.get("status") or "completed"),
+        source_count=source_count,
+        task_message_id=task_message_id,
+    )
     insight_records = create_assignment_insight_records(
         assignment=assignment,
         summary=forum_title,
-        body=report_markdown,
+        body=insight_body,
         forum_title=forum_title,
+        research_question=research_question,
+        tavily_model=tavily_model,
+        source_count=source_count,
         task_message_id=task_message_id,
         research_packet_message_id=research_packet_message_id,
         tavily_request_id=tavily_request_id,

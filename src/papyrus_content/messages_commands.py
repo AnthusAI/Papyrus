@@ -8,7 +8,10 @@ from typing import Any
 from .assignments_workflow import load_message_metadata_payload, research_packet_body
 from .insight_forum import (
     derive_insight_forum_title,
+    extract_tavily_report_markdown,
+    format_tavily_insight_message_body,
     insight_summary_needs_title_repair,
+    tavily_insight_body_needs_task_section,
 )
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .ids import hash_short
@@ -209,24 +212,39 @@ def messages_repair_insight_titles(flags: list[str]) -> None:
             assignment = client.get_record("Assignment", assignment_record_id)
             if assignment:
                 assignment_title = str(assignment.get("title") or "")
+        tavily_context = _tavily_task_context_for_insight(client, message, metadata)
+        report_markdown = extract_tavily_report_markdown(body_text) or body_text
         next_title = derive_insight_forum_title(
-            report_markdown=body_text,
+            report_markdown=report_markdown,
             assignment_title=assignment_title,
-            research_question="",
+            research_question=tavily_context["research_question"],
             structured_summary=normalize_string(metadata.get("insightTitle")) or "",
         )
-        if (
-            next_title == current_summary
-            and not insight_summary_needs_title_repair(current_summary, body_text)
-        ):
-            planned.append({"messageId": message["id"], "action": "noop", "reason": "title-ok"})
+        next_body = format_tavily_insight_message_body(
+            report_markdown=report_markdown,
+            research_question=tavily_context["research_question"],
+            assignment_title=assignment_title,
+            tavily_request_id=tavily_context["tavily_request_id"],
+            tavily_model=tavily_context["tavily_model"],
+            tavily_status=tavily_context["tavily_status"],
+            source_count=tavily_context["source_count"],
+            task_message_id=tavily_context["task_message_id"],
+        )
+        title_ok = next_title == current_summary and not insight_summary_needs_title_repair(
+            current_summary,
+            report_markdown,
+        )
+        body_ok = not tavily_insight_body_needs_task_section(body_text) and body_text.strip() == next_body.strip()
+        if title_ok and body_ok:
+            planned.append({"messageId": message["id"], "action": "noop", "reason": "ok"})
             continue
         planned.append(
             {
                 "messageId": message["id"],
-                "action": "update-title",
+                "action": "update",
                 "previousTitle": current_summary[:80],
                 "nextTitle": next_title,
+                "bodyChanged": not body_ok,
             }
         )
 
@@ -257,7 +275,7 @@ def messages_repair_insight_titles(flags: list[str]) -> None:
     for message in candidates:
         message_id_value = str(message["id"])
         row = next((entry for entry in planned if entry["messageId"] == message_id_value), None)
-        if not row or row["action"] != "update-title":
+        if not row or row["action"] != "update":
             continue
         body_text = _resolve_insight_body_text(client, message)
         metadata = load_message_metadata_payload(client, message)
@@ -267,11 +285,23 @@ def messages_repair_insight_titles(flags: list[str]) -> None:
             assignment = client.get_record("Assignment", assignment_record_id)
             if assignment:
                 assignment_title = str(assignment.get("title") or "")
+        tavily_context = _tavily_task_context_for_insight(client, message, metadata)
+        report_markdown = extract_tavily_report_markdown(body_text) or body_text
         next_title = derive_insight_forum_title(
-            report_markdown=body_text,
+            report_markdown=report_markdown,
             assignment_title=assignment_title,
-            research_question="",
+            research_question=tavily_context["research_question"],
             structured_summary=normalize_string(metadata.get("insightTitle")) or "",
+        )
+        next_body = format_tavily_insight_message_body(
+            report_markdown=report_markdown,
+            research_question=tavily_context["research_question"],
+            assignment_title=assignment_title,
+            tavily_request_id=tavily_context["tavily_request_id"],
+            tavily_model=tavily_context["tavily_model"],
+            tavily_status=tavily_context["tavily_status"],
+            source_count=tavily_context["source_count"],
+            task_message_id=tavily_context["task_message_id"],
         )
         now = message.get("updatedAt") or message.get("createdAt") or _utc_now()
         client.update_record(
@@ -282,10 +312,57 @@ def messages_repair_insight_titles(flags: list[str]) -> None:
                 "updatedAt": now,
             },
         )
+        if row.get("bodyChanged"):
+            attachment_entry = _message_body_attachment_for_expected(
+                {"id": message_id_value, "content": next_body, "importRunId": message.get("importRunId")},
+                now=now,
+            )
+            if attachment_entry:
+                changes = build_record_changes(client, [attachment_entry])
+                apply_record_changes(client, changes)
         updated += 1
 
     if not options.get("json"):
         print(f"messages\trepair-insight-titles\tupdated\t{updated}")
+
+
+def _tavily_task_context_for_insight(
+    client: PapyrusGraphQLAuthoringClient,
+    message: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    task_message_id = normalize_string(metadata.get("taskMessageId")) or ""
+    research_question = normalize_string(metadata.get("tavilyInput")) or ""
+    tavily_model = normalize_string(metadata.get("tavilyModel")) or ""
+    tavily_request_id = normalize_string(metadata.get("tavilyRequestId")) or ""
+    source_count = int(metadata.get("tavilySourceCount") or 0)
+    if task_message_id:
+        task_message = client.get_record("Message", task_message_id)
+        if task_message:
+            task_metadata = load_message_metadata_payload(client, task_message)
+            research_question = research_question or normalize_string(task_metadata.get("tavilyInput")) or ""
+            tavily_model = tavily_model or normalize_string(task_metadata.get("tavilyModel")) or ""
+            if not tavily_request_id:
+                tavily_request_id = normalize_string(task_metadata.get("tavilyRequestId")) or ""
+    if not research_question:
+        assignment_id = normalize_string(metadata.get("assignmentId"))
+        if assignment_id:
+            assignment = client.get_record("Assignment", assignment_id)
+            if assignment:
+                research_question = (
+                    normalize_string(assignment.get("instructions"))
+                    or normalize_string(assignment.get("brief"))
+                    or normalize_string(assignment.get("title"))
+                    or ""
+                )
+    return {
+        "research_question": research_question,
+        "tavily_model": tavily_model,
+        "tavily_request_id": tavily_request_id,
+        "tavily_status": "completed",
+        "source_count": source_count,
+        "task_message_id": task_message_id,
+    }
 
 
 def messages_backfill_insight_message_body(flags: list[str]) -> None:
