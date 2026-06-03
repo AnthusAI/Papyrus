@@ -55,6 +55,26 @@ class SlackAgentTests(unittest.TestCase):
             "bot-or-non-user-message",
         )
 
+    def test_slack_agent_instructions_are_console_style_not_email_intake(self):
+        instructions = slack_agent.slack_agent_instructions().lower()
+        self.assertIn("editorial assistant", instructions)
+        self.assertIn("web console", instructions)
+        self.assertIn("not inbound email", instructions)
+        self.assertNotIn("for papyrus reference intake", instructions)
+        self.assertNotIn("register scholarly references for each relevant", instructions)
+        self.assertIn("reference.list", instructions)
+
+    def test_build_slack_prompt_includes_console_style_instructions(self):
+        prompt = slack_agent.build_slack_prompt(
+            event={"user": "U1", "text": "What are the latest references?"},
+            team_id="T1",
+            channel_id="C1",
+            thread_ts="1.0",
+        )
+        lowered = prompt.lower()
+        self.assertIn("editorial assistant", lowered)
+        self.assertNotIn("for papyrus reference intake", lowered)
+
     def test_enqueue_console_chat_for_slack_message(self):
         client = mock.Mock()
         client.get_record.return_value = None

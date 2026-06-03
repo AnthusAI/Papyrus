@@ -5,6 +5,11 @@ All three enqueue `console_chat_turn` messages on the `consoleChat` feed; the
 **console-chat-responder** Lambda runs the same agent loop and **`execute_tactus`**
 tool surface as the editor console.
 
+**Tone:** Slack uses the same open-ended editorial assistant stance as the web console
+(questions, commands, knowledge search). Inbound **email** remains citation-oriented
+reference intake. Slack prompts explicitly exclude web UI navigation (`papyrus://`,
+`papyrus.web.*`); filing references is on user intent, not automatic for every URL.
+
 ## Architecture
 
 ```mermaid

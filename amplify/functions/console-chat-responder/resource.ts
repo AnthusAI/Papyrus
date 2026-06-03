@@ -1,4 +1,4 @@
-import { Duration, NestedStack, type NestedStackProps } from "aws-cdk-lib";
+import { Duration, NestedStack, Stack, type NestedStackProps } from "aws-cdk-lib";
 import { Platform } from "aws-cdk-lib/aws-ecr-assets";
 import { Repository } from "aws-cdk-lib/aws-ecr";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
@@ -108,15 +108,18 @@ export class ConsoleChatResponderStack extends NestedStack {
         `${props.threadTable.tableArn}/index/*`,
       ],
     }));
+    const stack = Stack.of(this);
+    // execute_tactus_runner mints PAPYRUS_GRAPHQL_JWT via boto3 get_parameters; branch policies
+    // often grant GetParameters on path prefixes, not GetParameter per secret name.
     this.responderFunction.addToRolePolicy(new PolicyStatement({
       effect: Effect.ALLOW,
-      actions: ["ssm:GetParameter"],
+      actions: ["ssm:GetParameter", "ssm:GetParameters"],
       resources: [
-        "arn:aws:ssm:*:*:parameter/amplify/papyrus/*/PAPYRUS_JWT_SECRET",
-        "arn:aws:ssm:*:*:parameter/amplify/papyrus/*/OPENAI_API_KEY",
-        "arn:aws:ssm:*:*:parameter/amplify/shared/papyrus/PAPYRUS_JWT_SECRET",
-        "arn:aws:ssm:*:*:parameter/amplify/shared/papyrus/OPENAI_API_KEY",
-        "arn:aws:ssm:*:*:parameter/amplify/shared/PAPYRUS_JWT_SECRET",
+        `arn:aws:ssm:${stack.region}:${stack.account}:parameter/amplify/papyrus/*`,
+        `arn:aws:ssm:${stack.region}:${stack.account}:parameter/amplify/shared/papyrus/*`,
+        `arn:aws:ssm:${stack.region}:${stack.account}:parameter/amplify/shared/*`,
+        `arn:aws:ssm:${stack.region}:${stack.account}:parameter/amplify/dbsyytcm9drqa/*`,
+        `arn:aws:ssm:${stack.region}:${stack.account}:parameter/amplify/shared/dbsyytcm9drqa/*`,
       ],
     }));
     this.responderFunction.addToRolePolicy(new PolicyStatement({
