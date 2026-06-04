@@ -148,6 +148,7 @@ def _unsupported_snippet_error(tactus: str) -> dict[str, Any] | None:
             "acceptedExamples": [
                 "return docs_get{ id = \"resources.Assignment\" }",
                 "return Assignment.create{ type = \"research\", title = \"Live smoke assignment\", apply = true }",
+                "return Reference.create{ url = \"https://example.com/article\", apply = true }",
             ],
             "guidance": {
                 "do": [
@@ -567,6 +568,7 @@ RESOURCE_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         parent_message_id=args.get("parentMessageId") or args.get("parent_message_id") or "",
         metadata=args.get("metadata") if isinstance(args.get("metadata"), dict) else None,
     ),
+    ("Reference", "create"): lambda args: newsroom.papyrus_reference_create(args),
     ("Reference", "get"): lambda args: newsroom.papyrus_get_reference(args.get("id") or args.get("referenceId") or args.get("reference_id")),
     ("Reference", "list"): _reference_list_resource,
 }
@@ -607,7 +609,26 @@ RESOURCE_API_SCHEMA: dict[str, Any] = {
         "AssignmentEvent": {"verbs": ["get", "list"], "description": "Audit events for Assignment lifecycle changes. Writes happen through Assignment verbs in v1."},
         "Message": {"verbs": ["get", "list"], "description": "Private work-product and console-message records."},
         "MessageThread": {"verbs": ["get", "list", "create", "append"], "description": "Edition/section forum coordination threads and replies."},
-        "Reference": {"verbs": ["get", "list"], "description": "Knowledge-base source material prospects and accepted references."},
+        "Reference": {
+            "verbs": ["create", "get", "list"],
+            "description": "Knowledge-base source material prospects and accepted references.",
+            "create": {
+                "required": ["url"],
+                "optional": [
+                    "title",
+                    "corpusKey",
+                    "ingestionRationale",
+                    "actorLabel",
+                    "apply",
+                    "enrich",
+                    "skipExisting",
+                    "createCurationAssignment",
+                    "note",
+                ],
+                "writes": ["Reference", "KnowledgeImportRun", "Assignment", "Message"],
+                "applyDefault": False,
+            },
+        },
         "Item": {"verbs": ["get", "list"], "description": "Reader-facing publication items. Assignments are not Items."},
         "Edition": {"verbs": ["get", "list"], "description": "Dated private or published edition records."},
         "EditionSlot": {"verbs": ["get", "list", "update"], "description": "Edition planning slots that bind reporting candidates and selected outcomes."},
@@ -669,9 +690,43 @@ DOCS: dict[str, dict[str, Any]] = {
             "  researchMode = \"source_discovery\",\n"
             "  apply = true,\n"
             "}\n\n"
+            "return Reference.create{\n"
+            "  url = \"https://example.com/article\",\n"
+            "  title = \"Optional display title\",\n"
+            "  apply = true,\n"
+            "}\n\n"
             "Use api_list{} to inspect the resource/verb schema. Use docs_list{ namespace = \"resources\" } "
             "before non-trivial writes, then load focused documentation with "
-            "docs_get{ id = \"resources.Assignment\" }."
+            "docs_get{ id = \"resources.Assignment\" } or docs_get{ id = \"resources.Reference\" }."
+        ),
+    },
+    "resources.Reference": {
+        "id": "resources.Reference",
+        "title": "Reference Resource",
+        "summary": "Register URL source material and read/list references in the knowledge corpus.",
+        "namespace": "resources",
+        "status": "stable",
+        "tags": ["reference", "resource-api", "writes", "intake"],
+        "content": (
+            "Reference is scholarly/source material in a knowledge corpus. Use PascalCase "
+            "resource verbs; do not invent papyrus.reference.create or Reference.register.\n\n"
+            "Reference.create{ url = \"https://...\", apply = true } registers a pending "
+            "reference prospect (same catalog path as inbound email citation intake), creates "
+            "curation intake wiring, and by default runs URL text extraction plus metadata "
+            "generation when apply = true.\n\n"
+            "Required: url (http/https). Optional: title, corpusKey (default AI-ML-research), "
+            "ingestionRationale, actorLabel, apply (default false dry-run), enrich (default true "
+            "when apply), skipExisting (default true), createCurationAssignment (default true), "
+            "note.\n\n"
+            "Example:\n"
+            "return Reference.create{\n"
+            "  url = \"https://newsletter.example.com/p/article-slug\",\n"
+            "  title = \"A visual guide to Gemma\",\n"
+            "  apply = true,\n"
+            "}\n\n"
+            "Use Reference.get{ id = \"reference-id\" } and Reference.list{ limit = 10, order = \"newest\" } "
+            "for discovery. When the user pastes a URL and asks to add/register/file a reference, "
+            "call Reference.create immediately with apply = true unless they asked for a dry-run."
         ),
     },
     "resources.Assignment": {
@@ -2148,12 +2203,14 @@ global `papyrus` host module and canonical PascalCase resource tables such as
 
 Ground rules:
 - `papyrus` is already available; do not require arbitrary Python modules.
-- Prefer canonical resources for writes: `Assignment.create{ type = "research", title = "...", apply = true }`.
-- Use table arguments: `Assignment.get{ id = "assignment-123" }`.
+- Prefer canonical resources for writes: `Reference.create{ url = "https://...", apply = true }`
+  and `Assignment.create{ type = "research", title = "...", apply = true }`.
+- Use table arguments: `Reference.get{ id = "..." }`, `Assignment.get{ id = "assignment-123" }`.
 - The runtime returns the last Papyrus operation if your snippet does not return
   explicitly.
 - Use `api_list{}` and `docs_list{}` for discovery instead of guessing.
-- Load `docs_get{ id = "resources.Assignment" }` before non-trivial Assignment writes.
+- Load `docs_get{ id = "resources.Reference" }` or `docs_get{ id = "resources.Assignment" }`
+  before non-trivial writes.
 - Record-plan helpers are dry-run builders; they do not write GraphQL records.
 
 Example:
