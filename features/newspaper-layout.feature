@@ -604,6 +604,8 @@ Feature: Newspaper layout scenarios
     And the browser path should be "/"
     And presentation section "ai-ml" should render
     And presentation item "agent-procedure-patterns" should render with measured lines
+    And the blog presentation footer should list edition sections
+    And the blog presentation footer should include utility links
     When I open the settings page in the same browser
     And I choose reader format "Magazine"
     And I open the "current-edition" layout scenario in the same browser

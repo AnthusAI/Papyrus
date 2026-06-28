@@ -778,6 +778,18 @@ img {
   text-decoration: none;
 }
 
+.front-footer--presentation {
+  --front-footer-row-height: 2.35rem;
+  height: auto;
+  margin: clamp(40px, 6vw, 72px) auto 0;
+  max-width: 1180px;
+  min-height: calc(var(--front-footer-row-height) * (1 + var(--front-footer-section-rows, 1)));
+}
+
+.front-footer--presentation .front-footer__utilities {
+  min-height: calc(var(--front-footer-row-height) * var(--front-footer-utility-rows, 4));
+}
+
 .front-story {
   border-top: var(--story-border-top, 0) solid var(--rule);
   box-sizing: border-box;
