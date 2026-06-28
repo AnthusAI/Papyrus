@@ -27,7 +27,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" data-papyrus-theme="system" suppressHydrationWarning>
+    <html
+      lang="en"
+      data-papyrus-theme="system"
+      data-site-brand="papyrus"
+      data-default-presentation="newspaper"
+      data-presentation-choices="newspaper,blog,magazine"
+      suppressHydrationWarning
+    >
       <body className={playfairDisplay.variable}>
         <Script id="papyrus-favicon-color-scheme" strategy="beforeInteractive">
           {`(() => {

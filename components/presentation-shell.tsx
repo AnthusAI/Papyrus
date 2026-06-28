@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { findEditionSection, getEditionSectionItems } from "../lib/edition-sections";
 import { getEditionSectionPath } from "../lib/edition-routes";
@@ -14,7 +14,13 @@ import {
   type PublicationItem,
 } from "../lib/publication-items";
 import type { EditionContent, EditionPresentationFormat, EditionSection } from "../lib/content-types";
+import {
+  buildPresentationFooterEntries,
+  getPresentationFooterSubtitle,
+  type PresentationFooterEntry,
+} from "../lib/presentation-footer";
 import { Newspaper } from "./newspaper";
+import { PresentationFooter } from "./presentation-footer";
 import { readLocalReaderSettings, resolveReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
 type PresentationShellProps = {
@@ -70,6 +76,21 @@ export function PresentationShell({
     return unsubscribe;
   }, [lockedPresentation]);
 
+  useEffect(() => {
+    if (activePresentation === "newspaper") return;
+    const papyrusWindow = window as Window & { __PAPYRUS_SCENARIO__?: string };
+    if (content.scenarioId) {
+      papyrusWindow.__PAPYRUS_SCENARIO__ = content.scenarioId;
+    } else {
+      delete papyrusWindow.__PAPYRUS_SCENARIO__;
+    }
+    return () => {
+      if (papyrusWindow.__PAPYRUS_SCENARIO__ === content.scenarioId) {
+        delete papyrusWindow.__PAPYRUS_SCENARIO__;
+      }
+    };
+  }, [activePresentation, content.scenarioId]);
+
   if (activePresentation === "newspaper") {
     return (
       <PresentationFrame>
@@ -116,6 +137,7 @@ function BlogPresentation({
   targetSection?: EditionSection;
 }) {
   const sections = targetSection ? [targetSection] : content.sections;
+  const footerEntries = useMemo(() => buildPresentationFooterEntries(content), [content]);
   usePresentationTargetScroll(targetSection);
   return (
     <main className="presentation-page presentation-page--blog" data-presentation-engine="blog">
@@ -139,6 +161,15 @@ function BlogPresentation({
           </section>
         ))}
       </div>
+      {!targetSection ? (
+        <PresentationFooter
+          editionBasePath={editionBasePath}
+          entries={footerEntries}
+          onSectionClick={handleBlogFooterSectionClick}
+          resolveSectionHref={(entry) => getBlogFooterSectionHref(entry, editionBasePath)}
+          subtitle={getPresentationFooterSubtitle(content)}
+        />
+      ) : null}
     </main>
   );
 }
@@ -356,4 +387,19 @@ function parseItemAnchorHash(hash: string): string | null {
   } catch {
     return null;
   }
+}
+
+function getBlogFooterSectionHref(entry: PresentationFooterEntry, editionBasePath?: string): string {
+  const anchor = `#${encodeURIComponent(entry.articleSlug)}`;
+  return editionBasePath ? `${editionBasePath}${anchor}` : anchor;
+}
+
+function handleBlogFooterSectionClick(
+  event: ReactMouseEvent<HTMLAnchorElement>,
+  entry: PresentationFooterEntry,
+  href: string,
+) {
+  event.preventDefault();
+  window.history.pushState(null, "", href);
+  document.getElementById(entry.articleSlug)?.scrollIntoView({ block: "start" });
 }

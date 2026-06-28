@@ -1,7 +1,16 @@
-const { After, setDefaultTimeout, setWorldConstructor } = require("@cucumber/cucumber");
+const { After, Before, setDefaultTimeout, setWorldConstructor } = require("@cucumber/cucumber");
 const { chromium } = require("playwright");
+const {
+  buildCapabilities,
+  getEffectivePresentation,
+  readCapabilitiesFromDocument,
+  requireCapability,
+  shouldSkipScenario,
+} = require("./capabilities");
 
 setDefaultTimeout(60_000);
+
+let cachedSiteCapabilities = null;
 
 class PapyrusWorld {
   constructor() {
@@ -17,9 +26,48 @@ class PapyrusWorld {
     this.newsroomReferenceSummaryPayloadMock = null;
     this.newsroomReferenceExtractedTextMock = null;
     this.newsroomQualityMutationMock = null;
+    this.capabilities = null;
+    this.pendingReaderSettings = null;
+  }
+
+  async probeSiteCapabilities() {
+    if (cachedSiteCapabilities) {
+      this.capabilities = cachedSiteCapabilities;
+      return this.capabilities;
+    }
+
+    const browser = await chromium.launch({
+      headless: process.env.PAPYRUS_HEADLESS !== "false",
+    });
+    const page = await browser.newPage();
+    await page.goto(this.baseUrl, { waitUntil: "domcontentloaded" });
+    const raw = await page.evaluate(readCapabilitiesFromDocument);
+    cachedSiteCapabilities = buildCapabilities(raw);
+    this.capabilities = cachedSiteCapabilities;
+    await browser.close();
+    return this.capabilities;
+  }
+
+  async readCapabilitiesFromActivePage() {
+    if (!this.page) return;
+    const raw = await this.page.evaluate(readCapabilitiesFromDocument);
+    this.capabilities = buildCapabilities(raw);
+    cachedSiteCapabilities = this.capabilities;
+  }
+
+  requireCapability(capability) {
+    requireCapability(this, capability);
+  }
+
+  getEffectivePresentation() {
+    return getEffectivePresentation(this);
   }
 
   async openScenario(scenarioId, width, height) {
+    await this.openEditionScenario(scenarioId, width, height);
+  }
+
+  async openNewspaperScenario(scenarioId, width, height) {
     this.currentScenarioId = scenarioId;
     await this.openPath(`/?scenario=${encodeURIComponent(scenarioId)}`, width, height);
     await this.page.waitForFunction(
@@ -29,6 +77,32 @@ class PapyrusWorld {
         document.querySelector(".paper-page--active")
       ),
       scenarioId,
+      { timeout: 15_000 },
+    );
+  }
+
+  async openEditionScenario(scenarioId, width, height) {
+    this.currentScenarioId = scenarioId;
+    await this.openPath(`/?scenario=${encodeURIComponent(scenarioId)}`, width, height);
+    await this.page.waitForFunction(
+      (expectedScenarioId) => (
+        window.__PAPYRUS_SCENARIO__ === expectedScenarioId &&
+        (document.querySelector(".paper-page--active") || document.querySelector("[data-presentation-engine]"))
+      ),
+      scenarioId,
+      { timeout: 15_000 },
+    );
+  }
+
+  async openPresentationScenario(scenarioId, presentation, width, height) {
+    this.currentScenarioId = scenarioId;
+    await this.openPath(`/?scenario=${encodeURIComponent(scenarioId)}`, width, height);
+    await this.page.waitForFunction(
+      ({ expectedScenarioId, expectedPresentation }) => (
+        window.__PAPYRUS_SCENARIO__ === expectedScenarioId &&
+        document.querySelector("[data-presentation-engine]")?.getAttribute("data-presentation-engine") === expectedPresentation
+      ),
+      { expectedScenarioId: scenarioId, expectedPresentation: presentation },
       { timeout: 15_000 },
     );
   }
@@ -46,6 +120,12 @@ class PapyrusWorld {
       await this.page.addInitScript(() => {
         window.localStorage.setItem("papyrus:test-editor", "true");
       });
+    }
+    if (this.pendingReaderSettings) {
+      const pendingReaderSettings = this.pendingReaderSettings;
+      await this.page.addInitScript((settings) => {
+        window.localStorage.setItem("papyrus:reader-settings", JSON.stringify(settings));
+      }, pendingReaderSettings);
     }
     if (this.newsroomMessageDetailMock === "reference-curation") {
       await this.page.addInitScript(() => {
@@ -578,6 +658,7 @@ class PapyrusWorld {
 
     const url = new URL(path, this.baseUrl);
     await this.page.goto(url.toString(), { waitUntil: "load" });
+    await this.readCapabilitiesFromActivePage();
   }
 
   async close() {
@@ -590,6 +671,14 @@ class PapyrusWorld {
 }
 
 setWorldConstructor(PapyrusWorld);
+
+Before(async function ({ pickle }) {
+  await this.probeSiteCapabilities();
+  const skipReason = shouldSkipScenario(this, pickle.tags);
+  if (skipReason) {
+    return "skipped";
+  }
+});
 
 After(async function () {
   await this.close();
