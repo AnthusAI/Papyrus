@@ -2038,6 +2038,35 @@ Then("presentation item {string} should render with measured lines", async funct
   assert.ok(lineCount > 0, `Expected ${itemSlug} to render measured Pretext lines`);
 });
 
+Then("the blog presentation footer should list edition sections", async function () {
+  const report = await requirePage(this).evaluate(() => {
+    const footer = document.querySelector('[data-presentation-engine="blog"] [data-presentation-footer="true"]');
+    if (!footer) return null;
+    return Array.from(footer.querySelectorAll(".front-footer__section-link")).map((link) => ({
+      section: link.getAttribute("data-footer-section"),
+      text: link.textContent?.replace(/\s+/g, " ").trim() ?? "",
+      href: link instanceof HTMLAnchorElement ? link.href : null,
+    }));
+  });
+  assert.ok(report, "Expected blog presentation footer");
+  assert.ok(report.length > 0, "Expected at least one blog footer section link");
+  for (const entry of report) {
+    assert.ok(entry.section, "Expected footer section label");
+    assert.ok(entry.text.length > entry.section.length, `Expected footer text for section ${entry.section}`);
+    assert.ok(entry.href?.includes("#"), `Expected footer href to include an item anchor; found ${entry.href}`);
+  }
+});
+
+Then("the blog presentation footer should include utility links", async function () {
+  const report = await requirePage(this).evaluate(() => {
+    const footer = document.querySelector('[data-presentation-engine="blog"] [data-presentation-footer="true"]');
+    if (!footer) return null;
+    return Array.from(footer.querySelectorAll("[data-footer-utility]")).map((entry) => entry.getAttribute("data-footer-utility"));
+  });
+  assert.ok(report, "Expected blog presentation footer utilities");
+  assert.deepEqual(report, ["archive", "newsDesk", "settings", "login"]);
+});
+
 Then("edition section route {string} should target section {string}", function (routePath, expectedSectionKey) {
   const route = parseDatedTestPath(routePath);
   const { parseEditionSectionRoute } = loadEditionRoutesModule();
