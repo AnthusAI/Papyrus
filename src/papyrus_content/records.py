@@ -426,19 +426,11 @@ def apply_record_changes(
             raise errors[0]
 
     for change in attachment_changes:
-        completed = upload_attachment_body(client, change["expected"], change["attachmentBody"])
-        if isinstance(completed, dict):
-            merged = {**change["expected"], **completed}
-        else:
-            merged = change["expected"]
-        _apply_change(
-            client,
-            {
-                "action": change.get("action"),
-                "modelName": "ModelAttachment",
-                "expected": merged,
-            },
-        )
+        # createModelAttachmentUpload/completeModelAttachmentUpload already upserts
+        # the ModelAttachment record. Avoid a second direct model mutation here,
+        # because ModelAttachment writes may be intentionally restricted to the
+        # upload handlers.
+        upload_attachment_body(client, change["expected"], change["attachmentBody"])
 
 
 def _apply_change(client: PapyrusGraphQLAuthoringClient, change: dict[str, Any]) -> None:

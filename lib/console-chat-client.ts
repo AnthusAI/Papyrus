@@ -3,6 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { configureAmplifyClient } from "../components/amplify-client-provider";
+import { loadModelPayloadsForOwner, uploadModelPayloadForOwner } from "../components/news-desk-taxonomy-client";
 
 const USER_POOL_AUTH_MODE = "userPool";
 const API_KEY_AUTH_MODE = "apiKey";
@@ -399,7 +400,6 @@ function fieldValuesForCreateMessageInput(input: CreateConsoleMessageInput): Rec
     sequenceNumber: input.sequenceNumber ?? null,
     role: input.role ?? null,
     messageType: input.messageType ?? null,
-    content: input.content ?? null,
     semanticLayer: input.semanticLayer,
     searchVisibility: input.searchVisibility,
     responseTarget: input.responseTarget,
@@ -409,7 +409,6 @@ function fieldValuesForCreateMessageInput(input: CreateConsoleMessageInput): Rec
     responseCompletedAt: input.responseCompletedAt ?? null,
     responseError: input.responseError ?? null,
     metadata: input.metadata,
-    body: input.content ?? input.summary ?? null,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
     newsroomFeedKey: input.newsroomFeedKey,
@@ -561,7 +560,6 @@ function sanitizeCreateMessageInput(
     sequenceNumber: input.sequenceNumber ?? null,
     role: input.role ?? null,
     messageType: input.messageType ?? null,
-    content: input.content ?? null,
     semanticLayer: input.semanticLayer,
     searchVisibility: input.searchVisibility,
     responseTarget: input.responseTarget,
@@ -571,7 +569,6 @@ function sanitizeCreateMessageInput(
     responseCompletedAt: input.responseCompletedAt ?? null,
     responseError: input.responseError ?? null,
     metadata: input.metadata,
-    body: input.content ?? input.summary ?? null,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
     newsroomFeedKey: input.newsroomFeedKey,
@@ -612,6 +609,22 @@ function truncateSummary(value: string | null): string | null {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (!normalized) return null;
   return normalized.length > 180 ? `${normalized.slice(0, 179)}…` : normalized;
+}
+
+async function maybeUploadConsoleMessageBody(messageId: string, content: string | null | undefined): Promise<void> {
+  const text = String(content ?? "").trim();
+  if (!text) return;
+  await uploadModelPayloadForOwner({
+    ownerKind: "message",
+    ownerId: messageId,
+    ownerLineageId: messageId,
+    role: "message_body",
+    sortKey: "message",
+    filename: "message.md",
+    mediaType: "text/markdown",
+    content: text.endsWith("\n") ? text : `${text}\n`,
+    status: "active",
+  });
 }
 
 export async function listConsoleThreads(primaryAnchorKeyOrLimit: string | number = DEFAULT_CONSOLE_THREAD_ANCHOR_KEY, limit = 25): Promise<ConsoleChatThread[]> {
@@ -738,7 +751,9 @@ export async function createConsoleMessage(input: CreateConsoleMessageInput): Pr
           variables: { input: candidateInput },
           authMode: USER_POOL_AUTH_MODE,
         });
-        return normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "createMessage"));
+        const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "createMessage"));
+        await maybeUploadConsoleMessageBody(created.id, input.content);
+        return input.content?.trim() ? { ...created, content: input.content } : created;
       } catch (error) {
         if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "createMessage");
         lastError = error;
@@ -755,7 +770,9 @@ export async function createConsoleMessage(input: CreateConsoleMessageInput): Pr
         },
         authMode: USER_POOL_AUTH_MODE,
       });
-      return normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "createMessage"));
+      const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "createMessage"));
+      await maybeUploadConsoleMessageBody(created.id, input.content);
+      return input.content?.trim() ? { ...created, content: input.content } : created;
     } catch (error) {
       if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "createMessage");
       lastError = error;
@@ -1033,7 +1050,20 @@ async function listMessagesWithQuery(
     nextToken = queryResult.nextCursor;
   } while (nextToken && messages.length < maxMessages);
 
-  return messages;
+  return hydrateConsoleMessageBodies(messages);
+}
+
+async function hydrateConsoleMessageBodies(messages: ConsoleChatMessage[]): Promise<ConsoleChatMessage[]> {
+  return Promise.all(messages.map(async (message) => {
+    try {
+      const payloads = await loadModelPayloadsForOwner("message", message.id, ["message_body"]);
+      const body = payloads.find((payload) => payload.attachment.role === "message_body")?.text?.trim();
+      if (body) return { ...message, content: body };
+    } catch {
+      // Fall back to inline field.
+    }
+    return message;
+  }));
 }
 
 function deriveConsoleThreadsFromMessages(messages: ConsoleChatMessage[], primaryAnchorKey: string): ConsoleChatThread[] {

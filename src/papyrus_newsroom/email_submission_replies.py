@@ -498,7 +498,7 @@ def enqueue_console_chat_for_email_intake(
     now = now_iso()
     thread_id = f"thread-email-intake-{submission_message_id}"
     response_target = str(os.environ.get("PAPYRUS_CONSOLE_RESPONSE_TARGET") or "cloud").strip() or "cloud"
-    body_text = envelope.body_text if envelope else str(message.get("content") or "")
+    body_text = envelope.body_text if envelope else _message_body_text(client, message)
     subject = (envelope.subject if envelope else None) or str(message.get("summary") or "(no subject)")
     prompt_lines = [
         _email_agent_instructions(),
@@ -605,6 +605,29 @@ def enqueue_console_chat_for_email_intake(
     }
 
 
+def _message_body_text(client: Any, message: dict[str, Any]) -> str:
+    message_id = str(message.get("id") or "").strip()
+    if message_id:
+        try:
+            from papyrus_content.model_attachments import download_attachment_buffer
+
+            attachments = client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", message_id, limit=20)
+            body_attachments = [
+                entry
+                for entry in attachments
+                if str(entry.get("role") or "") == "message_body"
+                and str(entry.get("status") or "").strip().lower() not in {"deleted", "aborted"}
+            ]
+            body_attachments.sort(key=lambda entry: str(entry.get("updatedAt") or ""), reverse=True)
+            for attachment in body_attachments:
+                payload = download_attachment_buffer(client, attachment)
+                if payload:
+                    return payload.decode("utf-8", errors="replace").strip()
+        except Exception:
+            pass
+    return str(message.get("content") or "")
+
+
 def process_inbound_email_submission(
     client: Any,
     *,
@@ -659,7 +682,7 @@ def process_inbound_email_submission(
             else None
         )
     )
-    body_for_classification = envelope.body_text if envelope else str(message.get("content") or "")
+    body_for_classification = envelope.body_text if envelope else _message_body_text(client, message)
     attachments_for_classification = envelope.attachments if envelope else []
     citations = metadata.get("directCitations") if isinstance(metadata.get("directCitations"), list) else []
     if envelope and not citations:
