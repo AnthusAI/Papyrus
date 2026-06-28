@@ -76,6 +76,21 @@ export function PresentationShell({
     return unsubscribe;
   }, [lockedPresentation]);
 
+  useEffect(() => {
+    if (activePresentation === "newspaper") return;
+    const papyrusWindow = window as Window & { __PAPYRUS_SCENARIO__?: string };
+    if (content.scenarioId) {
+      papyrusWindow.__PAPYRUS_SCENARIO__ = content.scenarioId;
+    } else {
+      delete papyrusWindow.__PAPYRUS_SCENARIO__;
+    }
+    return () => {
+      if (papyrusWindow.__PAPYRUS_SCENARIO__ === content.scenarioId) {
+        delete papyrusWindow.__PAPYRUS_SCENARIO__;
+      }
+    };
+  }, [activePresentation, content.scenarioId]);
+
   if (activePresentation === "newspaper") {
     return (
       <PresentationFrame>

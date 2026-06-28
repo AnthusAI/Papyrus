@@ -5,13 +5,25 @@ const ts = require("typescript");
 const { Given, Then, When } = require("@cucumber/cucumber");
 
 Given("I open the {string} layout scenario at {int} by {int}", async function (scenarioId, width, height) {
-  await this.openScenario(scenarioId, width, height);
+  const pendingPresentation = this.pendingReaderSettings?.presentation;
+  if (pendingPresentation && pendingPresentation !== "newspaper") {
+    await this.openPresentationScenario(scenarioId, pendingPresentation, width, height);
+    return;
+  }
+  if (this.capabilities?.supportsNewspaper) {
+    await this.openNewspaperScenario(scenarioId, width, height);
+  } else {
+    await this.openEditionScenario(scenarioId, width, height);
+  }
 });
 
 Given("I open the front page at {int} by {int}", async function (width, height) {
   await this.openPath("/", width, height);
   await requirePage(this).waitForFunction(
-    () => window.__PAPYRUS_LAYOUT__ && document.querySelector(".paper-page--active"),
+    () => (
+      (window.__PAPYRUS_LAYOUT__ && document.querySelector(".paper-page--active")) ||
+      document.querySelector("[data-presentation-engine]")
+    ),
     { timeout: 15_000 },
   );
 });
@@ -146,6 +158,27 @@ When("I open the {string} layout scenario in the same browser", async function (
   const page = requirePage(this);
   this.currentScenarioId = scenarioId;
   await page.goto(new URL(`/?scenario=${encodeURIComponent(scenarioId)}`, this.baseUrl).toString(), { waitUntil: "load" });
+  const storedPresentation = await page.evaluate(() => {
+    try {
+      const stored = window.localStorage.getItem("papyrus:reader-settings");
+      const parsed = stored ? JSON.parse(stored) : null;
+      return parsed?.presentation ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const pendingPresentation = this.pendingReaderSettings?.presentation ?? storedPresentation;
+  if (pendingPresentation && pendingPresentation !== "newspaper") {
+    await page.waitForFunction(
+      ({ expectedScenarioId, expectedPresentation }) => (
+        window.__PAPYRUS_SCENARIO__ === expectedScenarioId &&
+        document.querySelector("[data-presentation-engine]")?.getAttribute("data-presentation-engine") === expectedPresentation
+      ),
+      { expectedScenarioId: scenarioId, expectedPresentation: pendingPresentation },
+      { timeout: 15_000 },
+    );
+    return;
+  }
   await page.waitForFunction(
     (expectedScenarioId) => (
       window.__PAPYRUS_SCENARIO__ === expectedScenarioId &&
@@ -1832,6 +1865,9 @@ Then("no Newsroom appendix pages should render", async function () {
 
 Then("the front page footer should not link to the newsroom", async function () {
   const page = requirePage(this);
+  if (!this.capabilities?.supportsNewspaper) {
+    return;
+  }
   await page.waitForFunction(() => window.__PAPYRUS_LAYOUT__ && document.querySelector(".front-footer"));
   const newsDeskLinks = await page.locator('.front-footer [data-footer-utility="newsDesk"]').count();
   assert.equal(newsDeskLinks, 0);
@@ -1989,9 +2025,46 @@ When("I switch presentation to {string}", async function (label) {
 
 When("I choose reader format {string}", async function (label) {
   const page = requirePage(this);
+  if (!this.capabilities?.allowsPresentationChoice) {
+    const lockedLabel = getPresentationFormatLabel(this.getEffectivePresentation());
+    assert.equal(lockedLabel, label, `Expected locked reader format ${lockedLabel}; site does not allow format changes`);
+    return;
+  }
   const button = page.locator(".format-card", { hasText: label }).first();
   await button.waitFor({ state: "visible", timeout: 10_000 });
   await button.click();
+});
+
+Given("the site allows presentation choice", async function () {
+  this.requireCapability("presentation-choice");
+});
+
+Given("the active presentation is {string}", async function (expectedPresentation) {
+  const normalized = expectedPresentation.toLowerCase();
+  const capabilities = this.capabilities;
+  const settings = {
+    theme: capabilities?.siteBrand === "threat-intelligence" ? "light" : "system",
+    presentation: normalized,
+    motion: "standard",
+  };
+  if (capabilities?.forcedPresentation) {
+    assert.equal(
+      capabilities.forcedPresentation,
+      normalized,
+      `Expected forced presentation ${capabilities.forcedPresentation}; found request for ${normalized}`,
+    );
+    this.pendingReaderSettings = settings;
+    return;
+  }
+
+  this.pendingReaderSettings = settings;
+  const page = this.page;
+  if (page) {
+    await page.evaluate((nextSettings) => {
+      window.localStorage.setItem("papyrus:reader-settings", JSON.stringify(nextSettings));
+      window.dispatchEvent(new CustomEvent("papyrus:settings-changed"));
+    }, settings);
+  }
 });
 
 Then("the active presentation should be {string}", async function (expectedPresentation) {
@@ -2010,6 +2083,11 @@ Then("the reader presentation switcher should not render", async function () {
 
 Then("reader format {string} should be selected", async function (label) {
   const page = requirePage(this);
+  if (!this.capabilities?.allowsPresentationChoice) {
+    const lockedLabel = getPresentationFormatLabel(this.getEffectivePresentation());
+    assert.equal(lockedLabel, label, `Expected locked reader format ${lockedLabel}`);
+    return;
+  }
   await page.waitForFunction((expectedLabel) => {
     const selected = Array.from(document.querySelectorAll(".format-card")).find((card) => (
       card.getAttribute("data-selected") === "true"
@@ -4306,3 +4384,9 @@ Then("the active page should swap raster image sources between light and dark th
     `Expected dark source to target theme-ink-study-dark.png; received ${JSON.stringify(report.dark)}`,
   );
 });
+
+function getPresentationFormatLabel(presentation) {
+  if (presentation === "blog") return "Blog";
+  if (presentation === "magazine") return "Magazine";
+  return "Newspaper";
+}
