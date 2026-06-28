@@ -32,6 +32,8 @@
     "test:content-cli-live": "poetry run python -m unittest procedures.newsroom.tests.test_content_cli_live -v",
     "test:bdd": "cucumber-js",
     "test:bdd:headed": "PAPYRUS_HEADLESS=false cucumber-js",
+    "test:bdd:check-brand": "node scripts/check-bdd-site-brand.mjs",
+    "test:bdd:canonical": "PAPYRUS_BDD_REQUIRE_CANONICAL_BRAND=1 npm run -s test:bdd:check-brand && cucumber-js",
     "test:bdd:backend": "poetry run behave features_backend --tags=~@live-agent",
     "test:bdd:agent-live": "npm run -s check:reference-action-contract && PAPYRUS_LIVE_AGENT_BDD=1 poetry run behave features_backend --tags=@live-agent",
     "test:bdd:agent-live:core": "npm run -s check:reference-action-contract && PAPYRUS_LIVE_AGENT_BDD=1 poetry run behave features_backend --tags=@agent-core",
