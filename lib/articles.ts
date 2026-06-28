@@ -48,6 +48,7 @@ export type Article = {
   section: string;
   headline: string;
   deck: string;
+  excerpt?: string;
   byline: string;
   dateline: string;
   image: ArticleImage;

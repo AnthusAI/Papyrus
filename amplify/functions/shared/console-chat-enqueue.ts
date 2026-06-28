@@ -1,4 +1,5 @@
 import { LAMBDA_DATA_AUTH_MODE, type LambdaDataClient } from "./lambda-data-client";
+import { putTextModelPayload } from "./model-payloads";
 
 export const CONSOLE_MESSAGE_KIND = "console_chat_turn";
 export const CONSOLE_MESSAGE_DOMAIN = "conversation";
@@ -85,7 +86,6 @@ export async function enqueueConsoleChatTurn(
       messageKind: CONSOLE_MESSAGE_KIND,
       messageDomain: CONSOLE_MESSAGE_DOMAIN,
       messageType: "MESSAGE",
-      content: input.prompt.trim(),
       status: "active",
       summary: input.messageSummary.slice(0, 180),
       source: input.source,
@@ -104,6 +104,14 @@ export async function enqueueConsoleChatTurn(
   if (createMessage.errors?.length) {
     throw new Error(createMessage.errors.map((entry) => entry?.message ?? String(entry)).join("; "));
   }
+  await putTextModelPayload(
+    dataClient as any,
+    { ownerKind: "message", ownerId: chatMessageId, ownerLineageId: chatMessageId },
+    "message_body",
+    "message",
+    input.prompt.trim(),
+    { filename: "message.txt", mediaType: "text/plain", now },
+  );
 
   return { queued: true, threadId: input.threadId, chatMessageId, responseTarget };
 }

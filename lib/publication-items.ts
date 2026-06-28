@@ -19,6 +19,7 @@ export type NonArticlePublicationItem = {
   section?: string;
   title: string;
   deck?: string;
+  excerpt?: string;
   body?: string[];
   image?: ArticleImage;
   assets?: ArticleAsset[];

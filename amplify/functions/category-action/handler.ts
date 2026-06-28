@@ -433,7 +433,6 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       }),
       threadId: messageId,
       sequenceNumber: 1,
-      content: body,
     }),
     "create insight Message",
   );

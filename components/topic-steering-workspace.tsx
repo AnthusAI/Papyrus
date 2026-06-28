@@ -2163,7 +2163,6 @@ function NewsDeskDashboard({
       authorLabel: message.authorLabel,
       threadId: message.id,
       sequenceNumber: 1,
-      content: cleanBody,
       createdAt: message.createdAt,
       updatedAt: message.updatedAt,
       newsroomFeedKey: "messages",

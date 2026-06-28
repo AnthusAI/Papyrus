@@ -8,6 +8,7 @@ import { findEditionSection, getEditionSectionItems } from "../lib/edition-secti
 import { getEditionSectionPath } from "../lib/edition-routes";
 import { shouldBypassImageOptimization } from "../lib/image-url";
 import { layoutAllTextLines, prepareWithSegments, type TextLine } from "../lib/pretext-layout";
+import { truncateWords } from "../lib/excerpts";
 import {
   getPublicationItemImageAssets,
   type PublicationItem,
@@ -219,7 +220,7 @@ function PresentationItem({
   const maxWidth = useMeasuredWidth(frameRef);
   const image = getPublicationItemImageAssets(item)[0];
   const textStyle = mode === "blog" ? BLOG_TEXT_STYLE : MAGAZINE_TEXT_STYLE;
-  const text = getPresentationBodyText(item);
+  const text = getPresentationBodyText(item, mode);
   const lines = useMemo(() => {
     if (!maxWidth || !text.trim()) return [];
     return layoutAllTextLines({
@@ -339,8 +340,12 @@ function getPresentationTitle(item: PublicationItem): string {
   return item.type === "article" ? item.headline : item.title;
 }
 
-function getPresentationBodyText(item: PublicationItem): string {
-  return item.type === "article" ? item.body.join("\n\n") : (item.body ?? []).join("\n\n");
+function getPresentationBodyText(item: PublicationItem, mode: "blog" | "magazine" | "magazine-feature"): string {
+  const body = item.type === "article" ? item.body.join("\n\n") : (item.body ?? []).join("\n\n");
+  if (mode !== "blog") return body;
+  const excerpt = String(item.excerpt ?? "").trim();
+  if (excerpt) return excerpt;
+  return truncateWords(body, 80);
 }
 
 function parseItemAnchorHash(hash: string): string | null {

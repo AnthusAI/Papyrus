@@ -1748,7 +1748,6 @@ function formatInsightForumDomainLabel(domain: string | null | undefined): strin
 
 async function hydrateMessageRecordsContent(messages: MessageRecord[]): Promise<MessageRecord[]> {
   return Promise.all(messages.map(async (message) => {
-    if (String(message.content || "").trim()) return message;
     try {
       const payloads = await loadModelPayloadsForOwner("message", message.id, ["message_body"]);
       const body = payloads
@@ -1757,9 +1756,9 @@ async function hydrateMessageRecordsContent(messages: MessageRecord[]): Promise<
         ?.trim();
       if (body) return { ...message, content: body };
     } catch {
-      return message;
+      return String(message.content || "").trim() ? message : { ...message, content: "" };
     }
-    return message;
+    return String(message.content || "").trim() ? message : { ...message, content: "" };
   }));
 }
 

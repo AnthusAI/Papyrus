@@ -370,6 +370,146 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
         print(f"messages\tbackfill-insight-message-body\tcreated\t{created}")
 
 
+def messages_backfill_message_body(flags: list[str]) -> None:
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "messages backfill-message-body")
+    message_id = normalize_string(options.get("message-id"))
+    message_kind = normalize_string(options.get("message-kind"))
+    max_scan = normalize_non_negative_integer(options.get("max-scan"), "--max-scan")
+    client, _ = create_authoring_client()
+
+    rows = client.list_records("Message")
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        if message_id and str(row.get("id") or "") != message_id:
+            continue
+        if message_kind and str(row.get("messageKind") or "") != message_kind:
+            continue
+        candidates.append(row)
+    if max_scan is not None:
+        candidates = candidates[:max_scan]
+
+    planned: list[dict[str, Any]] = []
+    attachments: list[dict[str, Any]] = []
+    for message in candidates:
+        message_id_value = str(message.get("id") or "")
+        direct = normalize_string(message.get("content")) or ""
+        if not direct:
+            planned.append({"messageId": message_id_value, "action": "skip", "reason": "no-inline-content"})
+            continue
+        if _message_has_active_message_body(client, message_id_value):
+            planned.append({"messageId": message_id_value, "action": "noop", "reason": "message_body-exists"})
+            continue
+        now = message.get("updatedAt") or message.get("createdAt") or _utc_now()
+        attachment_entry = _message_body_attachment_for_expected(
+            {"id": message_id_value, "content": direct, "importRunId": message.get("importRunId")},
+            now=now,
+        )
+        if not attachment_entry:
+            planned.append({"messageId": message_id_value, "action": "skip", "reason": "attachment-empty"})
+            continue
+        attachments.append(attachment_entry)
+        planned.append(
+            {
+                "messageId": message_id_value,
+                "action": "create-message_body",
+                "byteSize": len(direct.encode("utf-8")),
+            }
+        )
+
+    if options.get("json"):
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "command": "messages backfill-message-body",
+                    "apply": apply,
+                    "scanned": len(candidates),
+                    "planned": planned,
+                    "plannedAttachments": len(attachments),
+                },
+                indent=2,
+            )
+        )
+    else:
+        for row in planned:
+            print(
+                "messages\tbackfill-message-body\t"
+                f"{row['messageId']}\t{row['action']}\t{row.get('reason') or row.get('byteSize') or ''}"
+            )
+
+    if not apply:
+        return
+    if attachments:
+        changes = build_record_changes(client, attachments)
+        apply_record_changes(client, changes)
+    if not options.get("json"):
+        print(f"messages\tbackfill-message-body\tcreated\t{len(attachments)}")
+
+
+def messages_scrub_inline_content(flags: list[str]) -> None:
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "messages scrub-inline-content")
+    message_id = normalize_string(options.get("message-id"))
+    message_kind = normalize_string(options.get("message-kind"))
+    max_scan = normalize_non_negative_integer(options.get("max-scan"), "--max-scan")
+    client, _ = create_authoring_client()
+
+    rows = client.list_records("Message")
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        if message_id and str(row.get("id") or "") != message_id:
+            continue
+        if message_kind and str(row.get("messageKind") or "") != message_kind:
+            continue
+        candidates.append(row)
+    if max_scan is not None:
+        candidates = candidates[:max_scan]
+
+    planned: list[dict[str, Any]] = []
+    updates: list[dict[str, Any]] = []
+    for message in candidates:
+        message_id_value = str(message.get("id") or "")
+        direct = normalize_string(message.get("content")) or ""
+        if not direct:
+            planned.append({"messageId": message_id_value, "action": "noop", "reason": "already-scrubbed"})
+            continue
+        if not _message_has_active_message_body(client, message_id_value):
+            planned.append({"messageId": message_id_value, "action": "skip", "reason": "missing-message_body"})
+            continue
+        now = message.get("updatedAt") or message.get("createdAt") or _utc_now()
+        updates.append({"id": message_id_value, "content": None, "updatedAt": now})
+        planned.append({"messageId": message_id_value, "action": "scrub"})
+
+    if options.get("json"):
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "command": "messages scrub-inline-content",
+                    "apply": apply,
+                    "scanned": len(candidates),
+                    "planned": planned,
+                    "plannedUpdates": len(updates),
+                },
+                indent=2,
+            )
+        )
+    else:
+        for row in planned:
+            print(
+                "messages\tscrub-inline-content\t"
+                f"{row['messageId']}\t{row['action']}\t{row.get('reason') or ''}"
+            )
+
+    if not apply:
+        return
+    for update in updates:
+        client.update_record("Message", update)
+    if not options.get("json"):
+        print(f"messages\tscrub-inline-content\tupdated\t{len(updates)}")
+
+
 def _insight_messages_for_backfill(
     client: PapyrusGraphQLAuthoringClient,
     *,
@@ -437,13 +577,13 @@ def _read_message_body_attachment_text(client: PapyrusGraphQLAuthoringClient, me
 
 
 def _resolve_insight_body_text(client: PapyrusGraphQLAuthoringClient, message: dict[str, Any]) -> str:
-    direct = normalize_string(message.get("content")) or ""
-    if direct:
-        return direct
     message_id = str(message["id"])
     attachment_text = _read_message_body_attachment_text(client, message_id)
     if attachment_text:
         return attachment_text
+    direct = normalize_string(message.get("content")) or ""
+    if direct:
+        return direct
     metadata = message.get("_metadata")
     if not isinstance(metadata, dict):
         metadata = load_message_metadata_payload(client, message)
