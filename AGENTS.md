@@ -23,20 +23,15 @@ edition layout plans, responsive page grids, regions, block geometry, cut
 policies, page heights, furniture variants, scoring, continuation labels, and
 rendering contracts.
 
-## Continuous integration on `main`
+## Continuous integration on `develop` (promote to `main`)
 
-- **`main` on GitHub (`AnthusAI/Papyrus`) is the only integration branch.** All
-  feature work must land on `main` (merge or push) before it is considered done.
-  Do not leave capabilities (for example Tavily web search, research CLI, GraphQL
-  auth fixes) only on long-lived agent branches or un-pulled local clones.
-- **`~/Projects/Papyrus`** — primary development checkout (sandbox, Poetry, tests).
-- **`~/Projects/Papyrus-production`** — a **second clone of the same repository**,
-  not a separate product fork. Amplify production deploys track `main` on GitHub.
-  After every `git push origin main`, run `git pull origin main` in
-  `Papyrus-production` so both folders match. If a checkout is “N commits behind,”
-  that usually means it was not pulled—not that GitHub `main` lacks the work.
-- Agents should finish integration work with: changes committed on `main`, pushed
-  to `origin/main`, and both local checkouts fast-forwarded to the same commit.
+- **`develop` on GitHub (`AnthusAI/Threat-Intelligence`) is the integration
+  branch.** Feature work should land on `develop` first.
+- **`main` is the release/production branch.** Promote reviewed integration work
+  with `develop -> main` PRs.
+- Keep integration and release state explicit: report whether a change has
+  landed in `develop`, whether a `develop -> main` PR exists, and whether it has
+  merged.
 
 ## Core Rules
 
@@ -45,10 +40,10 @@ rendering contracts.
   Treat `AGENTS.local.md` as required preflight context for cloud operations on
   this machine.
 - Papyrus is an Amplify Gen 2 project. Production backend/frontend deployment is
-  done by pushing commits to `main` through the configured DevOps/Amplify
-  pipeline. Do not run `ampx pipeline-deploy` (or other direct production
-  `ampx` deploy commands) from local agents unless the user explicitly asks for
-  that exact override. Use `ampx` locally for sandbox workflows only.
+  done from `main` through the configured DevOps/Amplify pipeline. Do not run
+  `ampx pipeline-deploy` (or other direct production `ampx` deploy commands)
+  from local agents unless the user explicitly asks for that exact override. Use
+  `ampx` locally for sandbox workflows only.
 - Do not commit unless the user explicitly asks.
 - Preserve unrelated uncommitted work. This project is often dirty because it is
   being iterated in conversation.

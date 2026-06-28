@@ -29,6 +29,16 @@ type UploadedImageThemeVariants = {
 };
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
+type GraphQLClient = {
+  graphql: (options: {
+    query: string;
+    variables?: Record<string, unknown>;
+    authMode?: "userPool";
+  }) => Promise<{
+    data?: Record<string, unknown> | null;
+    errors?: unknown[] | null;
+  }>;
+};
 type NewsroomSectionSeed = {
   id: string;
   title: string;
@@ -236,6 +246,102 @@ const PROCEDURE_SEEDS: ProcedureSeed[] = [
   }),
 ];
 
+const CREATE_MODEL_ATTACHMENT_UPLOAD_MUTATION = `
+  mutation CreateModelAttachmentUpload(
+    $ownerKind: String!
+    $ownerId: ID!
+    $ownerLineageId: ID
+    $ownerVersionNumber: Int
+    $ownerVersionKey: String
+    $role: String!
+    $sortKey: String
+    $filename: String!
+    $mediaType: String!
+    $byteSize: Int!
+    $sha256: String
+    $importRunId: ID
+    $status: String
+  ) {
+    createModelAttachmentUpload(
+      ownerKind: $ownerKind
+      ownerId: $ownerId
+      ownerLineageId: $ownerLineageId
+      ownerVersionNumber: $ownerVersionNumber
+      ownerVersionKey: $ownerVersionKey
+      role: $role
+      sortKey: $sortKey
+      filename: $filename
+      mediaType: $mediaType
+      byteSize: $byteSize
+      sha256: $sha256
+      importRunId: $importRunId
+      status: $status
+    ) {
+      ok
+      uploadId
+      uploadUrl
+      method
+      requiredHeaders
+      storagePath
+    }
+  }
+`;
+
+const COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION = `
+  mutation CompleteModelAttachmentUpload(
+    $uploadId: String!
+    $ownerKind: String!
+    $ownerId: ID!
+    $ownerLineageId: ID
+    $ownerVersionNumber: Int
+    $ownerVersionKey: String
+    $role: String!
+    $sortKey: String
+    $filename: String!
+    $mediaType: String!
+    $byteSize: Int!
+    $sha256: String
+    $importRunId: ID
+    $status: String
+  ) {
+    completeModelAttachmentUpload(
+      uploadId: $uploadId
+      ownerKind: $ownerKind
+      ownerId: $ownerId
+      ownerLineageId: $ownerLineageId
+      ownerVersionNumber: $ownerVersionNumber
+      ownerVersionKey: $ownerVersionKey
+      role: $role
+      sortKey: $sortKey
+      filename: $filename
+      mediaType: $mediaType
+      byteSize: $byteSize
+      sha256: $sha256
+      importRunId: $importRunId
+      status: $status
+    ) {
+      id
+      ownerKind
+      ownerId
+      ownerLineageId
+      ownerVersionNumber
+      ownerVersionKey
+      role
+      sortKey
+      storagePath
+      filename
+      mediaType
+      byteSize
+      sha256
+      etag
+      importRunId
+      createdAt
+      updatedAt
+      status
+    }
+  }
+`;
+
 let cachedClient: DataClient | null = null;
 
 function getRuntimeModule<T extends object>(module: T): T {
@@ -336,9 +442,13 @@ type SeedEditionConfig = ReturnType<typeof getSeedEditionConfig>;
 
 async function seedArticle(article: Article, index: number, editionConfig: SeedEditionConfig) {
   const itemId = `item-${article.slug}`;
+  const publishedId = publishedItemId(itemId);
   const sectionSlug = slugify(article.section);
   const tagId = `tag-${sectionSlug}`;
   const sortKey = `${String(index + 1).padStart(3, "0")}#${article.slug}`;
+  const bodyText = normalizeArticleBodyText(article.body);
+  const excerptText = normalizeOptionalText(article.excerpt);
+  const emptyEditorial = contentAttachmentEditorialRecord(null, null);
 
   const itemRecord = withVersionFields({
     id: itemId,
@@ -352,7 +462,7 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
     title: article.headline,
     headline: article.headline,
     deck: article.deck,
-    body: article.body,
+    body: [],
     byline: article.byline,
     dateline: article.dateline,
     publishedAt: editionConfig.publishedAt,
@@ -360,7 +470,7 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
     sortTitle: article.headline,
     pullQuotes: article.pullQuotes ?? [],
     layout: toAwsJson({ source: "fixture" }),
-    editorial: toAwsJson({}),
+    editorial: toAwsJson(emptyEditorial),
   }, {
     lineageId: itemId,
     versionCreatedAt: editionConfig.publishedAt,
@@ -368,8 +478,8 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
     changeReason: "fixture seed",
   });
   await upsert("Item", itemRecord);
-  await upsert("PublishedItem", {
-    id: publishedItemId(itemId),
+  const publishedRecord = {
+    id: publishedId,
     sourceItemId: itemRecord.id,
     itemLineageId: itemRecord.lineageId,
     versionNumber: itemRecord.versionNumber,
@@ -383,7 +493,7 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
     title: article.headline,
     headline: article.headline,
     deck: article.deck,
-    body: article.body,
+    body: [],
     byline: article.byline,
     dateline: article.dateline,
     publishedAt: editionConfig.publishedAt,
@@ -391,7 +501,88 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
     sortTitle: article.headline,
     pullQuotes: article.pullQuotes ?? [],
     layout: toAwsJson({ source: "fixture" }),
-    editorial: toAwsJson({}),
+    editorial: toAwsJson(emptyEditorial),
+  };
+  await upsert("PublishedItem", publishedRecord);
+
+  const itemBodyAttachment = bodyText
+    ? await upsertSeedTextAttachment({
+      ownerKind: "item",
+      ownerId: itemId,
+      ownerLineageId: itemId,
+      ownerVersionNumber: 1,
+      ownerVersionKey: `item#${itemId}`,
+      role: "item_body",
+      sortKey: "body",
+      filename: "body.md",
+      mediaType: "text/markdown",
+      content: bodyText,
+      now: editionConfig.publishedAt,
+      importRunId: null,
+    })
+    : null;
+  const itemExcerptAttachment = excerptText
+    ? await upsertSeedTextAttachment({
+      ownerKind: "item",
+      ownerId: itemId,
+      ownerLineageId: itemId,
+      ownerVersionNumber: 1,
+      ownerVersionKey: `item#${itemId}`,
+      role: "item_excerpt",
+      sortKey: "excerpt",
+      filename: "excerpt.txt",
+      mediaType: "text/plain",
+      content: excerptText,
+      now: editionConfig.publishedAt,
+      importRunId: null,
+    })
+    : null;
+  const publishedBodyAttachment = bodyText
+    ? await upsertSeedTextAttachment({
+      ownerKind: "publishedItem",
+      ownerId: publishedId,
+      ownerLineageId: itemId,
+      ownerVersionNumber: 1,
+      ownerVersionKey: `publishedItem#${publishedId}`,
+      role: "published_item_body",
+      sortKey: "body",
+      filename: "body.md",
+      mediaType: "text/markdown",
+      content: bodyText,
+      now: editionConfig.publishedAt,
+      importRunId: null,
+    })
+    : null;
+  const publishedExcerptAttachment = excerptText
+    ? await upsertSeedTextAttachment({
+      ownerKind: "publishedItem",
+      ownerId: publishedId,
+      ownerLineageId: itemId,
+      ownerVersionNumber: 1,
+      ownerVersionKey: `publishedItem#${publishedId}`,
+      role: "published_item_excerpt",
+      sortKey: "excerpt",
+      filename: "excerpt.txt",
+      mediaType: "text/plain",
+      content: excerptText,
+      now: editionConfig.publishedAt,
+      importRunId: null,
+    })
+    : null;
+  const itemEditorial = contentAttachmentEditorialRecord(itemBodyAttachment, itemExcerptAttachment);
+  const publishedEditorial = contentAttachmentEditorialRecord(publishedBodyAttachment, publishedExcerptAttachment);
+  await upsert("Item", withVersionFields({
+    ...itemRecord,
+    editorial: toAwsJson(itemEditorial),
+  }, {
+    lineageId: itemId,
+    versionCreatedAt: editionConfig.publishedAt,
+    versionCreatedBy: "amplify-seed",
+    changeReason: "fixture seed",
+  }));
+  await upsert("PublishedItem", {
+    ...publishedRecord,
+    editorial: toAwsJson(publishedEditorial),
   });
 
   await upsert("Tag", {
@@ -426,7 +617,7 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
   await upsert("PublishedEditionItem", {
     id: `${publishedEditionId(editionConfig.id)}-${article.slug}`,
     publishedEditionId: publishedEditionId(editionConfig.id),
-    publishedItemId: publishedItemId(itemId),
+    publishedItemId: publishedId,
     sourceEditionItemId: `${editionConfig.id}-${article.slug}`,
     sourceEditionId: editionConfig.id,
     sourceItemId: itemId,
@@ -787,6 +978,132 @@ async function loadImagePayload(src: string): Promise<{ data: Uint8Array; conten
   };
 }
 
+type SeedAttachmentRecord = {
+  id: string;
+  ownerKind: string;
+  ownerId: string;
+  ownerLineageId: string;
+  ownerVersionNumber: number | null;
+  ownerVersionKey: string | null;
+  role: string;
+  sortKey: string;
+  storagePath: string;
+  filename: string;
+  mediaType: string;
+  byteSize: number;
+  sha256: string;
+  etag: null;
+  importRunId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+};
+
+type SeedAttachmentUploadSlot = {
+  uploadId: string;
+  uploadUrl: string;
+  method?: string | null;
+  requiredHeaders?: Record<string, string> | string | null;
+};
+
+function normalizeArticleBodyText(body: string[]): string {
+  return body.map((part) => String(part ?? "").trim()).filter(Boolean).join("\n\n");
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  const normalized = String(value ?? "").trim();
+  return normalized || null;
+}
+
+function contentAttachmentEditorialRecord(
+  bodyAttachment: SeedAttachmentRecord | null,
+  excerptAttachment: SeedAttachmentRecord | null,
+): Record<string, unknown> {
+  const contentAttachments: Record<string, unknown> = {};
+  if (bodyAttachment) {
+    contentAttachments.body = {
+      role: bodyAttachment.role,
+      storagePath: bodyAttachment.storagePath,
+      mediaType: bodyAttachment.mediaType,
+      filename: bodyAttachment.filename,
+      byteSize: bodyAttachment.byteSize,
+      ownerKind: bodyAttachment.ownerKind,
+    };
+  }
+  if (excerptAttachment) {
+    contentAttachments.excerpt = {
+      role: excerptAttachment.role,
+      storagePath: excerptAttachment.storagePath,
+      mediaType: excerptAttachment.mediaType,
+      filename: excerptAttachment.filename,
+      byteSize: excerptAttachment.byteSize,
+      ownerKind: excerptAttachment.ownerKind,
+    };
+  }
+  return { contentAttachments };
+}
+
+async function upsertSeedTextAttachment(input: {
+  ownerKind: string;
+  ownerId: string;
+  ownerLineageId: string;
+  ownerVersionNumber: number | null;
+  ownerVersionKey: string | null;
+  role: string;
+  sortKey: string;
+  filename: string;
+  mediaType: string;
+  content: string;
+  now: string;
+  importRunId: string | null;
+}): Promise<SeedAttachmentRecord> {
+  const body = Buffer.from(input.content.endsWith("\n") ? input.content : `${input.content}\n`, "utf8");
+  const attachmentVariables = {
+    ownerKind: input.ownerKind,
+    ownerId: input.ownerId,
+    ownerLineageId: input.ownerLineageId,
+    ownerVersionNumber: input.ownerVersionNumber,
+    ownerVersionKey: input.ownerVersionKey,
+    role: input.role,
+    sortKey: input.sortKey,
+    filename: input.filename,
+    mediaType: input.mediaType,
+    byteSize: body.byteLength,
+    sha256: createHash("sha256").update(body).digest("hex"),
+    importRunId: input.importRunId,
+    status: "active",
+  };
+  const client = getSeedClient() as unknown as GraphQLClient;
+  const slotResponse = await client.graphql({
+    query: CREATE_MODEL_ATTACHMENT_UPLOAD_MUTATION,
+    variables: attachmentVariables,
+    authMode: "userPool",
+  });
+  assertNoGraphQLErrors(slotResponse.errors);
+  const slot = slotResponse.data?.createModelAttachmentUpload as SeedAttachmentUploadSlot | null | undefined;
+  if (!slot?.uploadUrl) throw new Error("Seed attachment upload slot did not include an upload URL.");
+  const uploadResponse = await fetch(slot.uploadUrl, {
+    method: slot.method ?? "PUT",
+    headers: normalizeUploadHeaders(slot.requiredHeaders),
+    body,
+  });
+  if (!uploadResponse.ok) {
+    throw new Error(`Seed attachment upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+  }
+  const completeResponse = await client.graphql({
+    query: COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION,
+    variables: {
+      uploadId: slot.uploadId,
+      ...attachmentVariables,
+    },
+    authMode: "userPool",
+  });
+  assertNoGraphQLErrors(completeResponse.errors);
+  const attachment = completeResponse.data?.completeModelAttachmentUpload as SeedAttachmentRecord | null | undefined;
+  if (!attachment) throw new Error("Seed attachment upload completed without a ModelAttachment record.");
+  return attachment;
+}
+
 async function upsert(modelName: keyof DataClient["models"], record: Record<string, unknown>) {
   const model = (getSeedClient().models as Record<string, unknown>)[String(modelName)] as {
     get(input: { id: string }, options: { authMode: "userPool" }): Promise<{ data?: unknown; errors?: unknown[] }>;
@@ -802,6 +1119,71 @@ async function upsert(modelName: keyof DataClient["models"], record: Record<stri
   assertNoGraphQLErrors(response.errors);
 }
 
+function modelPayloadStoragePath(ownerKind: string, ownerId: string, role: string, filename: string): string {
+  const rootPrefix = ownerKind === "publishedItem" ? "media/payloads" : "newsroom/payloads";
+  return `${rootPrefix}/${safeId(ownerKind)}/${safeId(ownerId)}/${safeId(role)}/${filename}`;
+}
+
+function normalizeUploadHeaders(headers: Record<string, string> | string | null | undefined): Record<string, string> {
+  if (!headers) return {};
+  if (typeof headers === "string") {
+    try {
+      const parsed = JSON.parse(headers) as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.entries(parsed).map(([key, value]) => [String(key), String(value)]),
+      );
+    } catch {
+      return {};
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [String(key), String(value)]),
+  );
+}
+
+function modelAttachmentId(ownerKind: string, ownerId: string, role: string, sortKey: string): string {
+  return `model-attachment-${safeId(ownerKind)}-${safeId(ownerId)}-${safeId(role)}-${safeId(sortKey)}`;
+}
+
+function safeId(value: unknown): string {
+  const raw = String(value ?? "payload").trim();
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "payload";
+  if (normalized.length <= 80) return normalized;
+  const digest = createHash("sha256").update(raw).digest("hex").slice(0, 12);
+  return `${normalized.slice(0, 67).replace(/-+$/g, "")}-${digest}`;
+}
+
+async function listSeedModelByIndex(
+  modelName: keyof DataClient["models"],
+  queryName: string,
+  input: Record<string, unknown>,
+): Promise<Array<Record<string, unknown>>> {
+  const model = (getSeedClient().models as Record<string, unknown>)[String(modelName)] as Record<string, unknown>;
+  const query = model[queryName] as (
+    input: Record<string, unknown>,
+    options: { authMode: "userPool"; nextToken?: string | null },
+  ) => Promise<{ data?: Array<Record<string, unknown> | null> | null; errors?: unknown[]; nextToken?: string | null }>;
+  const items: Array<Record<string, unknown>> = [];
+  let nextToken: string | null | undefined;
+  do {
+    const response = await query(input, { authMode: "userPool", nextToken });
+    assertNoGraphQLErrors(response.errors);
+    items.push(...(response.data ?? []).filter((item): item is Record<string, unknown> => item !== null));
+    nextToken = response.nextToken;
+  } while (nextToken);
+  return items;
+}
+
+async function deleteSeedModelRecord(modelName: keyof DataClient["models"], id: string) {
+  const model = (getSeedClient().models as Record<string, unknown>)[String(modelName)] as {
+    delete(input: { id: string }, options: { authMode: "userPool" }): Promise<{ errors?: unknown[] }>;
+  };
+  const response = await model.delete({ id }, { authMode: "userPool" });
+  assertNoGraphQLErrors(response.errors);
+}
 function orderArticles(source: Article[], articleOrder: string[]): Article[] {
   return [...source].sort((left, right) => {
     const leftIndex = articleOrder.indexOf(left.slug);
@@ -924,4 +1306,23 @@ function publishedItemId(itemId: string): string {
   return `published-${itemId}`;
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  const detail = formatUnknownError(error);
+  console.error(`Amplify seed failed: ${detail}`);
+  if (error instanceof Error) throw error;
+  throw new Error(detail);
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    const stack = typeof error.stack === "string" && error.stack.trim() ? error.stack : null;
+    return stack ?? `${error.name}: ${error.message}`;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
