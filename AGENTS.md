@@ -25,7 +25,7 @@ rendering contracts.
 
 ## Continuous integration on `develop` (promote to `main`)
 
-- **`develop` on GitHub (`AnthusAI/Threat-Intelligence`) is the integration
+- **`develop` on GitHub (`AnthusAI/Papyrus`) is the integration
   branch.** Feature work should land on `develop` first.
 - **`main` is the release/production branch.** Promote reviewed integration work
   with `develop -> main` PRs.
