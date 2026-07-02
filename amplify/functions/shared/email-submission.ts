@@ -359,7 +359,6 @@ export function buildEmailSubmissionMessageInput(input: {
     source: "inbound-email",
     authorLabel: input.authorLabel,
     role: "submitter",
-    content: input.bodyText,
     semanticLayer: "private",
     searchVisibility: "private",
     responseTarget: RESPONSE_TARGET_EMAIL_PROCESSOR,

@@ -1282,6 +1282,8 @@ export const schema = a.schema({
       sourcePublishedAt: a.string(),
       sourceUpdatedAt: a.string(),
       retrievedAt: a.string(),
+      inboundCitationCount: a.integer(),
+      outboundCitationCount: a.integer(),
       importRunId: a.id(),
       importedAt: a.datetime(),
       createdAt: a.datetime(),
@@ -1291,6 +1293,7 @@ export const schema = a.schema({
       curationStatusUpdatedBy: a.string(),
       curationStatusReason: a.string(),
       newsroomFeedKey: a.string(),
+      reviewedFeedKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1302,6 +1305,7 @@ export const schema = a.schema({
       index("importRunId").sortKeys(["externalItemId"]).queryField("listReferencesByImportRunAndExternalItem"),
       index("curationStatus").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusAndUpdatedAt"),
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
+      index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

@@ -40,7 +40,6 @@ def build_canonical_message_expected(
         "sequenceNumber": payload.get("sequenceNumber"),
         "role": payload.get("role"),
         "messageType": payload.get("messageType"),
-        "content": _string(payload.get("body")),
         "semanticLayer": payload.get("semanticLayer"),
         "searchVisibility": payload.get("searchVisibility"),
         "responseTarget": _string(payload.get("responseTarget")) or "none",

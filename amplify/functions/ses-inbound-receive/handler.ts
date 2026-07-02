@@ -25,6 +25,7 @@ import {
   shouldProcessInboundS3Key,
 } from "../shared/inbound-email-intake";
 import { getLambdaDataClient, LAMBDA_DATA_AUTH_MODE } from "../shared/lambda-data-client";
+import { putTextModelPayload } from "../shared/model-payloads";
 
 const PROCESSOR_FUNCTION_NAME = process.env.PAPYRUS_EMAIL_SUBMISSION_PROCESSOR_FUNCTION_NAME ?? "";
 const INBOUND_LOCAL_PARTS = parseLocalParts(process.env.PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS ?? "submissions,suggestions");
@@ -193,6 +194,14 @@ async function processInboundSubmission(inbound: InboundPayload): Promise<Record
     const messages = createResponse.errors.map((entry) => entry?.message ?? String(entry)).join("; ");
     throw new Error(`Failed to create inbound email submission message: ${messages}`);
   }
+  await putTextModelPayload(
+    dataClient as any,
+    { ownerKind: "message", ownerId: resolvedMessageId, ownerLineageId: resolvedMessageId },
+    "message_body",
+    "message",
+    inbound.bodyText,
+    { filename: "message.txt", mediaType: "text/plain", now },
+  );
 
   if (authorized && responseStatus === "PENDING" && PROCESSOR_FUNCTION_NAME) {
     await invokeEmailProcessor(resolvedMessageId);

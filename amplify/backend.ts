@@ -320,6 +320,7 @@ if (enableStorageBackups) {
 // Grant S3 access on Lambda roles only (not storage bucket policies) to avoid
 // storage ↔ data nested-stack circular dependencies from allow.resource().
 const corporaObjectArn = `${storageBucket.bucketArn}/corpora/*`;
+const mediaObjectArn = `${storageBucket.bucketArn}/media/*`;
 const newsroomObjectArn = `${storageBucket.bucketArn}/newsroom/*`;
 const grantCorporaRead = (lambda: LambdaFunction) => {
   lambda.addToRolePolicy(
@@ -345,6 +346,14 @@ const grantNewsroomReadWriteDelete = (lambda: LambdaFunction) => {
     }),
   );
 };
+const grantMediaReadWriteDelete = (lambda: LambdaFunction) => {
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      resources: [mediaObjectArn],
+    }),
+  );
+};
 const mediaBucketName = storageBucket.bucketName;
 const withMediaBucketEnv = (resource: { addEnvironment: (key: string, value: string) => void }) => {
   resource.addEnvironment("PAPYRUS_MEDIA_BUCKET_NAME", mediaBucketName);
@@ -367,6 +376,10 @@ grantNewsroomReadWrite(backend.assignmentAction.resources.lambda as LambdaFuncti
 grantNewsroomReadWrite(backend.categoryAction.resources.lambda as LambdaFunction);
 grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
 grantNewsroomReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
+grantMediaReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
+if (backend.sesInboundReceive) {
+  grantNewsroomReadWrite(backend.sesInboundReceive.resources.lambda as LambdaFunction);
+}
 
 if (enableInboundEmail) {
   if (!backend.sesInboundReceive || !backend.emailSubmissionProcessor) {

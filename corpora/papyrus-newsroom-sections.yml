@@ -1,145 +1,89 @@
 schemaVersion: 1
 sections:
-  - id: news
-    title: News
-    shortTitle: Trends & Analysis
+  - id: mission
+    title: Mission
+    shortTitle: Foundational Framing
     type: canonical
-    editorialMission: Cover current developments that materially affect readers, institutions, and public life.
-    editorialPolicy: Prioritize journalistic and official sources for current reporting, including reputable newsroom coverage, regulatory notices, hospital or health-system announcements, and direct-source statements. Use academic papers mainly as background context unless the story is explicitly research-led. Explain what changed, what is verified, what remains uncertain, and why it matters now.
+    editorialMission: Explain how AI/ML is shifting the balance of power between attackers and defenders, and why old scarcity assumptions still shape modern defenses.
+    editorialPolicy: Publish foundational framing pieces about capability shifts, threat-model changes, and the operating assumptions defenders should revisit. Prioritize clarity over novelty. Every mission piece should help readers understand what changed in the threat landscape and why their existing controls may need re-evaluation.
+    assignmentGuidance: Focus on durable shifts in attacker capability, defensive assumptions, and the gap between intended and actual control strength. End with concrete "what to check now" items.
+    killCriteria: Reject pieces that restate generic AI hype, fear-mongering, or vendor positioning without a defensible threat-model change.
     enabled: true
     sortOrder: 1
 
-  - id: business
-    title: Business
-    shortTitle: Market Structure
+  - id: cloud
+    title: Cloud
+    shortTitle: Platform Exposure
     type: canonical
-    editorialMission: Cover the commercial, organizational, and market impact of AI/ML.
-    editorialPolicy: Commission pieces about companies, enterprise adoption, business models, funding, acquisitions, AI infrastructure economics, labor impact, and commercialization.
+    editorialMission: Cover cloud platform security for AI/ML workloads—storage exposure, identity boundaries, encryption posture, data discovery, and cross-account sharing.
+    editorialPolicy: Prioritize vendor documentation, official security guidance, and exposure-audit workflows over generic cloud news. Focus on what defenders can inspect in AWS, Azure, GCP, and adjacent managed services. Translate platform features into practical checks.
+    assignmentGuidance: Start from a specific cloud service or control family. Connect configuration settings to blast radius. Prefer exposure audits over feature announcements.
+    killCriteria: Reject cloud product launch coverage unless it materially changes a defender's exposure or control options.
     enabled: true
     sortOrder: 2
 
-  - id: technology
-    title: Technology
-    shortTitle: Infrastructure Landscape
+  - id: data-ai-assets
+    title: Data & AI Assets
+    shortTitle: Sensitive Estate
     type: canonical
-    editorialMission: Cover tools, platforms, infrastructure, models, APIs, and technical systems.
-    editorialPolicy: Focus on what builders can use, how systems are changing, and which technical capabilities are becoming available.
+    editorialMission: Cover the sensitive data estate created by AI/ML work—training sets, embeddings, prompts, outputs, evaluations, logs, notebooks, and operational traces.
+    editorialPolicy: Treat artifacts by what they can reveal, not by file extension or team boundary. Cover inventory, access-by-task, retention, and silent data multiplication. Favor governance and exposure patterns over model-behavior speculation.
+    assignmentGuidance: Map a class of AI/ML artifact to its blast radius, typical access paths, and retention risks. Include inventory and ownership checks.
+    killCriteria: Reject pieces about model quality or performance unless the security exposure of the underlying data estate is the central subject.
     enabled: true
     sortOrder: 3
 
-  - id: science
-    title: Science
-    shortTitle: New Findings
+  - id: identity-access
+    title: Identity & Access
+    shortTitle: Blast Radius
     type: canonical
-    editorialMission: Cover research, evidence, methods, benchmarks, and technical findings.
-    editorialPolicy: Favor papers, empirical claims, experimental results, benchmarks, and research trends. Require careful distinction between claims, evidence, and speculation.
+    editorialMission: Cover authentication, authorization, service accounts, MFA, session management, and blast-radius separation for AI/ML and security environments.
+    editorialPolicy: Focus on practical identity boundaries—who can reach what, with what credentials, and what happens when those credentials are compromised. Prioritize separation patterns that limit cross-domain damage.
+    assignmentGuidance: Identify a trust boundary or credential path. Explain what an attacker gains by crossing it and what separation would contain the damage.
+    killCriteria: Reject generic password-hygiene advice without connection to AI/ML-specific identity paths or blast-radius design.
     enabled: true
     sortOrder: 4
 
-  - id: methods
-    title: Methods
-    shortTitle: Applied Practice
+  - id: incidents-research
+    title: Incidents & Research
+    shortTitle: Evidence Base
     type: canonical
-    editorialMission: Help practitioners understand how to build, evaluate, operate, or improve AI/ML systems.
-    editorialPolicy: Commission practical, wonky, implementation-oriented pieces. Suitable for evaluation patterns, knowledge-base maintenance, data flywheels, agent orchestration, human feedback loops, and production practices.
+    editorialMission: Cover attack patterns, incident writeups, CVEs, research findings, and near misses that reveal how AI/ML security risk is moving.
+    editorialPolicy: Prioritize primary incident reports, advisories, empirical research, and reproducible findings. Extract the failure mode and asset class, not just the headline. Distinguish verified facts from vendor claims and speculation.
+    assignmentGuidance: Start from a specific incident or research finding. Identify the asset class, failure mode, and whether the lesson applies beyond the named product.
+    killCriteria: Reject breathless breach reporting without a defensible defensive lesson or checkable claim.
     enabled: true
     sortOrder: 5
 
-  - id: history
-    title: History
-    shortTitle: Prior Lineage
+  - id: controls-checks
+    title: Controls & Checks
+    shortTitle: Defensive Practice
     type: canonical
-    editorialMission: Show where current AI/ML ideas came from.
-    editorialPolicy: Commission historical lineage pieces, timelines, forgotten prior art, conceptual archaeology, and comparisons between current systems and earlier technical traditions.
+    editorialMission: Publish defensive practices, lessons registers, and recurring checks that teams can run against their own AI/ML and security environments.
+    editorialPolicy: Every piece must translate a lesson into inspectable controls. Maintain the pattern trend → failure mode → defensive lesson → checks. Tag checks by asset class, control family, cloud service, and use case where possible.
+    assignmentGuidance: Build from a real failure mode or recurring gap. Provide checks with enough specificity that a team can assign an owner and verification date.
+    killCriteria: Reject awareness-only content that cannot be assigned, verified, or retired.
     enabled: true
     sortOrder: 6
 
-  - id: opinion
-    title: Opinion
-    shortTitle: Editorial Voice
-    type: canonical
-    editorialMission: Publish arguments, interpretations, predictions, and editorial positions.
-    editorialPolicy: Clearly distinguish opinion from reporting. Opinion pieces should make a specific argument and be grounded in evidence, but may be more interpretive or provocative than other sections.
+  - id: supply-chain
+    title: Supply Chain
+    shortTitle: Dependencies & Artifacts
+    type: floating
+    editorialMission: Cover dependencies, model artifacts, third-party integrations, package ecosystems, and trust boundaries in AI/ML supply chains.
+    editorialPolicy: Focus on provenance, integrity, update channels, and the blast radius of compromised or misconfigured third-party components. Include model weights, fine-tuning pipelines, agent toolchains, and data providers.
+    assignmentGuidance: Trace a supply-chain path from external input to production use. Identify where trust is assumed without verification.
+    killCriteria: Reject generic SBOM advocacy without AI/ML-specific supply-chain paths or inspectable checks.
     enabled: true
     sortOrder: 7
 
-  - id: world
-    title: World
-    shortTitle: Global Affairs
-    type: floating
-    editorialMission: Cover AI/ML as it relates to governments, geopolitics, international competition, war, regulation, and national strategy.
-    editorialPolicy: Commission pieces about state use of AI, military AI, international AI policy, export controls, surveillance, information warfare, and AI competition between countries.
+  - id: gaming-consumer
+    title: Gaming & Consumer
+    shortTitle: Personal Blast Radius
+    type: rotating
+    editorialMission: Cover personal and consumer security where AI/ML intersects with gaming, launchers, mods, anti-cheat, and everyday software trust boundaries.
+    editorialPolicy: Focus on blast-radius separation for non-enterprise readers. Treat games, launchers, mods, and community downloads as software from strangers. Prioritize practical isolation over enterprise control frameworks.
+    assignmentGuidance: Start from a consumer scenario with high blast radius if compromised. Recommend separation patterns that are cheap to adopt and rebuild if needed.
+    killCriteria: Reject enterprise-only guidance that assumes centralized IT control for a consumer audience.
     enabled: true
     sortOrder: 8
-
-  - id: arts
-    title: Arts
-    shortTitle: Creative Work
-    type: floating
-    editorialMission: Cover AI's relationship to creativity, culture, media, design, games, music, film, and publishing.
-    editorialPolicy: Favor visually interesting and culturally relevant pieces. This section can help make the newspaper more skimmable and image-rich while still staying connected to AI/ML.
-    enabled: true
-    sortOrder: 9
-
-  - id: sports
-    title: Sports
-    shortTitle: Signal & Edge
-    type: floating
-    editorialMission: Cover AI/ML in sports, athletics, broadcasting, performance analytics, officiating, visualization, and fan experience.
-    editorialPolicy: Commission concise, visual pieces about computer vision, predictive analytics, real-time visualization, training systems, broadcast enhancement, and sports data platforms.
-    enabled: true
-    sortOrder: 10
-
-  - id: education
-    title: Education
-    shortTitle: Learning Systems
-    type: floating
-    editorialMission: Cover AI in schools, universities, training, tutoring, research workflows, and learning systems.
-    editorialPolicy: Include AI tutors, academic integrity, curriculum changes, education platforms, student workflows, and the use of AI in research and teaching.
-    enabled: true
-    sortOrder: 11
-
-  - id: health
-    title: Health
-    shortTitle: Clinical Systems
-    type: floating
-    editorialMission: Cover AI/ML in medicine, healthcare operations, diagnostics, clinical workflows, drug discovery, and patient-facing systems.
-    editorialPolicy: Apply stricter editorial standards because health claims are higher-risk. Require careful sourcing and avoid overstating clinical significance.
-    enabled: true
-    sortOrder: 12
-
-  - id: security
-    title: Security
-    shortTitle: Threat Awareness
-    type: floating
-    editorialMission: Cover AI/ML in cybersecurity, misuse, defensive automation, model security, red-teaming, and adversarial systems.
-    editorialPolicy: Focus on practical security implications, defensive use cases, attack surfaces, monitoring, and trustworthy deployment.
-    enabled: true
-    sortOrder: 13
-
-  - id: law-policy
-    title: Law & Policy
-    shortTitle: Rules & Power
-    type: floating
-    editorialMission: Cover legal, regulatory, governance, copyright, liability, and compliance issues around AI/ML.
-    editorialPolicy: Commission pieces that explain policy developments, legal disputes, regulatory frameworks, and operational compliance implications.
-    enabled: true
-    sortOrder: 14
-
-  - id: labor
-    title: Labor
-    shortTitle: Work Change
-    type: floating
-    editorialMission: Cover how AI changes work, management, professions, hiring, automation, augmentation, and human-machine collaboration.
-    editorialPolicy: Focus on practical workplace changes rather than generic automation speculation. Suitable for pieces on call centers, knowledge work, management, training, and productivity systems.
-    enabled: true
-    sortOrder: 15
-
-  - id: gaming
-    title: Gaming
-    shortTitle: Play Systems
-    type: rotating
-    editorialMission: Cover AI in game development, game worlds, player experiences, and interactive media systems.
-    editorialPolicy: Commission reporting on AI-assisted game production, procedural generation, NPC behavior, moderation, creator tools, and platform policy changes affecting game ecosystems.
-    enabled: true
-    sortOrder: 16

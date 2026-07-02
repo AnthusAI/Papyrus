@@ -162,7 +162,7 @@ class PapyrusContentTests(unittest.TestCase):
     def test_resolve_corpus_local_path_ignores_process_cwd(self) -> None:
         steering_config = load_steering_config("corpora/papyrus-steering.yml")
         self.assertIsNotNone(steering_config)
-        corpus_config = require_corpus_config(steering_config, "AI-ML-research", "--corpus-key")
+        corpus_config = require_corpus_config(steering_config, "threat-intelligence", "--corpus-key")
         with tempfile.TemporaryDirectory() as temp_dir:
             previous_cwd = pathlib.Path.cwd()
             try:
@@ -171,7 +171,7 @@ class PapyrusContentTests(unittest.TestCase):
             finally:
                 os.chdir(previous_cwd)
         self.assertTrue(resolved.exists())
-        self.assertIn("AI-ML-research", resolved.as_posix())
+        self.assertIn("threat-intelligence", resolved.as_posix())
         self.assertNotIn(temp_dir, resolved.as_posix())
 
     @mock.patch("papyrus_content.accession.subprocess.Popen")
@@ -277,6 +277,40 @@ class PapyrusContentTests(unittest.TestCase):
                     self.assertEqual(resolve_public_site_base_url(), "https://from-config.example.com")
                 finally:
                     os.environ.pop("PAPYRUS_CONFIG", None)
+
+    def test_normalize_papyrus_config_openai_block(self) -> None:
+        from papyrus_content.papyrus_config import normalize_papyrus_config
+
+        config = normalize_papyrus_config(
+            {
+                "schemaVersion": 1,
+                "openai": {
+                    "api_key": "test-key",
+                    "model": "gpt-4o-mini-tts",
+                    "voice": "alloy",
+                },
+            },
+            "/tmp/config.yaml",
+        )
+        self.assertEqual(config["openai"]["apiKey"], "test-key")
+        self.assertEqual(config["openai"]["model"], "gpt-4o-mini-tts")
+        self.assertEqual(config["openai"]["voice"], "alloy")
+
+    def test_resolve_openai_api_key_env_overrides_config(self) -> None:
+        from papyrus_content.papyrus_config import resolve_openai_api_key
+
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = pathlib.Path(tmp) / "config.yaml"
+            config_path.write_text(
+                "schemaVersion: 1\nopenai:\n  api_key: from-config\n",
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ,
+                {"PAPYRUS_CONFIG": str(config_path), "OPENAI_API_KEY": "from-env"},
+                clear=False,
+            ):
+                self.assertEqual(resolve_openai_api_key(), "from-env")
 
 
 if __name__ == "__main__":

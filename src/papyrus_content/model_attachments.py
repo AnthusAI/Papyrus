@@ -17,8 +17,10 @@ from .ids import hash_short, safe_id
 MODEL_ATTACHMENT_OWNER_MODELS = {
     "assignment": "Assignment",
     "assignmentEvent": "AssignmentEvent",
+    "item": "Item",
     "knowledgeRawPayload": "KnowledgeRawPayload",
     "message": "Message",
+    "publishedItem": "PublishedItem",
     "procedureVersion": "ProcedureVersion",
     "reference": "Reference",
     "semanticNode": "SemanticNode",
@@ -27,7 +29,8 @@ MODEL_ATTACHMENT_OWNER_MODELS = {
 
 
 def model_payload_storage_path(owner_kind: str, owner_id: str, role: str, filename: str) -> str:
-    return f"newsroom/payloads/{safe_id(owner_kind)}/{safe_id(owner_id)}/{safe_id(role)}/{filename}"
+    root_prefix = "media/payloads" if owner_kind == "publishedItem" else "newsroom/payloads"
+    return f"{root_prefix}/{safe_id(owner_kind)}/{safe_id(owner_id)}/{safe_id(role)}/{filename}"
 
 
 def model_attachment_id(owner_kind: str, owner_id: str, role: str, sort_key: str) -> str:
@@ -150,6 +153,8 @@ def _message_body_attachment_for_expected(expected: dict[str, Any], *, now: Any)
     body = ""
     if "body" in expected:
         body = str(expected.pop("body"))
+    elif "content" in expected:
+        body = str(expected.pop("content") or "")
     else:
         body = str(expected.get("content") or "")
     body = body.strip()
@@ -182,6 +187,111 @@ def _message_body_attachment_for_expected(expected: dict[str, Any], *, now: Any)
     )
 
 
+def _item_payload_attachments_for_expected(model_name: str, expected: dict[str, Any], *, now: Any) -> list[dict[str, Any]]:
+    if model_name not in {"Item", "PublishedItem"}:
+        return []
+
+    owner_kind = "item" if model_name == "Item" else "publishedItem"
+    body_role = "item_body" if model_name == "Item" else "published_item_body"
+    excerpt_role = "item_excerpt" if model_name == "Item" else "published_item_excerpt"
+    owner_id = str(expected.get("id") or "").strip()
+    if not owner_id:
+        return []
+    owner_lineage_id = (
+        str(expected.get("lineageId") or "").strip()
+        if model_name == "Item"
+        else str(expected.get("itemLineageId") or expected.get("sourceItemId") or "").strip()
+    ) or owner_id
+    owner_version_number = expected.get("versionNumber")
+    owner_version_key = semantic_version_key(owner_kind, owner_id)
+
+    attachments: list[dict[str, Any]] = []
+    body_text = _normalize_body_text(expected.pop("body", None))
+    if body_text:
+        body_attachment = build_text_model_payload_attachment(
+            {
+                "ownerKind": owner_kind,
+                "ownerId": owner_id,
+                "ownerLineageId": owner_lineage_id,
+                "ownerVersionNumber": owner_version_number,
+                "ownerVersionKey": owner_version_key,
+                "role": body_role,
+                "sortKey": "body",
+                "filename": "body.md",
+                "mediaType": "text/markdown",
+                "content": body_text,
+                "importRunId": expected.get("importRunId"),
+                "now": now,
+            }
+        )
+        attachments.append(attachment_record(body_attachment))
+        _set_content_attachment_pointer(expected, "body", body_attachment["attachment"])
+
+    excerpt_text = _extract_editorial_excerpt(expected)
+    if excerpt_text:
+        excerpt_attachment = build_text_model_payload_attachment(
+            {
+                "ownerKind": owner_kind,
+                "ownerId": owner_id,
+                "ownerLineageId": owner_lineage_id,
+                "ownerVersionNumber": owner_version_number,
+                "ownerVersionKey": owner_version_key,
+                "role": excerpt_role,
+                "sortKey": "excerpt",
+                "filename": "excerpt.txt",
+                "mediaType": "text/plain",
+                "content": excerpt_text,
+                "importRunId": expected.get("importRunId"),
+                "now": now,
+            }
+        )
+        attachments.append(attachment_record(excerpt_attachment))
+        _set_content_attachment_pointer(expected, "excerpt", excerpt_attachment["attachment"])
+
+    return attachments
+
+
+def _normalize_body_text(value: Any) -> str:
+    if isinstance(value, list):
+        parts = [str(part).strip() for part in value if str(part).strip()]
+        return "\n\n".join(parts).strip()
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _extract_editorial_excerpt(expected: dict[str, Any]) -> str:
+    editorial = parse_jsonish(expected.get("editorial"))
+    if not isinstance(editorial, dict):
+        return ""
+    excerpt = str(
+        editorial.pop("customExcerpt", "")
+        or editorial.pop("excerpt", "")
+        or ""
+    ).strip()
+    expected["editorial"] = json.dumps(editorial, separators=(",", ":"))
+    return excerpt
+
+
+def _set_content_attachment_pointer(expected: dict[str, Any], key: str, attachment: dict[str, Any]) -> None:
+    editorial = parse_jsonish(expected.get("editorial"))
+    if not isinstance(editorial, dict):
+        editorial = {}
+    content_attachments = editorial.get("contentAttachments")
+    if not isinstance(content_attachments, dict):
+        content_attachments = {}
+    content_attachments[key] = {
+        "role": attachment.get("role"),
+        "storagePath": attachment.get("storagePath"),
+        "mediaType": attachment.get("mediaType"),
+        "filename": attachment.get("filename"),
+        "byteSize": attachment.get("byteSize"),
+        "ownerKind": attachment.get("ownerKind"),
+    }
+    editorial["contentAttachments"] = content_attachments
+    expected["editorial"] = json.dumps(editorial, separators=(",", ":"))
+
+
 def expand_private_payload_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     expanded: list[dict[str, Any]] = []
     for record in records:
@@ -207,8 +317,10 @@ def expand_private_payload_records(records: list[dict[str, Any]]) -> list[dict[s
                                 "now": now,
                             }
                         )
-                    )
                 )
+            )
+        elif record["modelName"] in {"Item", "PublishedItem"}:
+            expanded.extend(_item_payload_attachments_for_expected(record["modelName"], expected, now=now))
         elif record["modelName"] == "Reference" and "metadata" in expected:
             metadata = parse_jsonish(expected.pop("metadata"))
             expanded.append(

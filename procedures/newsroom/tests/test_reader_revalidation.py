@@ -35,7 +35,17 @@ class ReaderRevalidationTests(unittest.TestCase):
         self.assertEqual(payload["articleSlugs"], ["sample-story"])
 
     def test_trigger_reader_cache_revalidation_skips_without_config(self) -> None:
-        with patch.dict("os.environ", {}, clear=True):
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "papyrus_content.reader_revalidation.resolve_reader_cache_revalidate_secret",
+                return_value=None,
+            ),
+            patch(
+                "papyrus_content.reader_revalidation.resolve_reader_revalidation_base_url",
+                return_value="",
+            ),
+        ):
             self.assertIsNone(
                 trigger_reader_cache_revalidation(
                     edition_date="2026-06-28",

@@ -428,6 +428,30 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": KNOWLEDGE_ARTIFACT_FIELDS,
         "partitionType": "ID",
     },
+    "editionItemsByEditionAndSortKey": {
+        "field": "listEditionItemsByEditionAndSortKey",
+        "partitionKey": "editionId",
+        "fields": EDITION_ITEM_FIELDS,
+        "partitionType": "ID",
+    },
+    "publishedEditionItemsByEditionAndSortKey": {
+        "field": "listPublishedEditionItemsByEditionAndSortKey",
+        "partitionKey": "publishedEditionId",
+        "fields": PUBLISHED_EDITION_ITEM_FIELDS,
+        "partitionType": "ID",
+    },
+    "mediaAssetsByItemAndSortKey": {
+        "field": "listMediaAssetsByItemAndSortKey",
+        "partitionKey": "itemId",
+        "fields": MEDIA_ASSET_FIELDS,
+        "partitionType": "ID",
+    },
+    "publishedMediaAssetsByItemAndSortKey": {
+        "field": "listPublishedMediaAssetsByItemAndSortKey",
+        "partitionKey": "publishedItemId",
+        "fields": PUBLISHED_MEDIA_ASSET_FIELDS,
+        "partitionType": "ID",
+    },
     "semanticNodesByImportRunAndNodeKey": {
         "field": "listSemanticNodesByImportRunAndNodeKey",
         "partitionKey": "importRunId",

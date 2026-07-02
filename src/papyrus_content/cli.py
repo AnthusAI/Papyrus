@@ -92,12 +92,18 @@ from .categories_commands import (
     categories_sandbox_steering_config,
 )
 from .content_commands import content_inspect, content_list, content_schema_check
+from .item_content_commands import (
+    content_backfill_item_body_attachments,
+    content_scrub_item_inline_body,
+)
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
 from .messages_commands import (
+    messages_backfill_message_body,
     messages_backfill_insight_message_body,
     messages_export_legacy_comments,
     messages_import_legacy_comments,
     messages_repair_insight_titles,
+    messages_scrub_inline_content,
 )
 from .model_defaults import (
     DEFAULT_REFERENCE_FILTER_MODEL,
@@ -190,6 +196,7 @@ from .steering import (
     resolve_classifier_for_corpus,
     selected_corpus_configs,
 )
+from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
 
 
 PORTED_COMMANDS = frozenset(
@@ -198,6 +205,8 @@ PORTED_COMMANDS = frozenset(
         "content:schema-check",
         "content:list",
         "content:seed-edition",
+        "content:backfill-item-body-attachments",
+        "content:scrub-item-inline-body",
         "corpora:status",
         "corpora:worker-bootstrap",
         "corpora:sync-from-cloud",
@@ -304,8 +313,10 @@ PORTED_COMMANDS = frozenset(
         "ontology:doctor",
         "messages:export-legacy-comments",
         "messages:import-legacy-comments",
+        "messages:backfill-message-body",
         "messages:backfill-insight-message-body",
         "messages:repair-insight-titles",
+        "messages:scrub-inline-content",
         "categories:import-steering",
         "categories:import-config",
         "categories:sandbox-steering-config",
@@ -333,6 +344,9 @@ PORTED_COMMANDS = frozenset(
         "test:identifier-backfill",
         "policy:check-backend-node-scripts",
         "policy:check-reference-action-contract",
+        "videos:render",
+        "videos:seed",
+        "videos:attach",
     }
 )
 
@@ -369,6 +383,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_list(positional[0] if positional else None, flags)
     elif route == "content:seed-edition":
         seed_edition_content(flags)
+    elif route == "content:backfill-item-body-attachments":
+        content_backfill_item_body_attachments(flags)
+    elif route == "content:scrub-item-inline-body":
+        content_scrub_item_inline_body(flags)
     elif route == "corpora:status":
         corpora_status(flags)
     elif route == "corpora:worker-bootstrap":
@@ -608,10 +626,14 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         messages_export_legacy_comments(flags)
     elif route == "messages:import-legacy-comments":
         messages_import_legacy_comments(flags)
+    elif route == "messages:backfill-message-body":
+        messages_backfill_message_body(flags)
     elif route == "messages:backfill-insight-message-body":
         messages_backfill_insight_message_body(flags)
     elif route == "messages:repair-insight-titles":
         messages_repair_insight_titles(flags)
+    elif route == "messages:scrub-inline-content":
+        messages_scrub_inline_content(flags)
     elif route == "categories:import-steering":
         categories_import_steering(flags)
     elif route == "categories:import-config":
@@ -664,6 +686,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         check_backend_node_scripts(flags)
     elif route == "policy:check-reference-action-contract":
         check_reference_action_contract(flags)
+    elif route == "videos:render":
+        videos_render(flags)
+    elif route == "videos:seed":
+        videos_seed(flags)
+    elif route == "videos:attach":
+        videos_attach(flags)
     else:
         raise ValueError(f"Unsupported papyrus command: {group} {command}")
 

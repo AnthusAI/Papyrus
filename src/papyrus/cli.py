@@ -16,7 +16,7 @@ _TRUTHY = {"1", "true", "yes", "on"}
 def _usage() -> None:
     print("Usage: poetry run papyrus [--allow-cross-root] <group> <command> [options]")
     print(
-        "Groups: assignments, reporting, research, references, knowledge, sections, editions, procedures, analysis, auth, batch, ops"
+        "Groups: assignments, reporting, research, references, knowledge, sections, editions, procedures, analysis, auth, batch, ops, videos"
     )
 
 
@@ -262,6 +262,10 @@ def main(argv: list[str] | None = None) -> int:
         if group == "ops":
             command, flags = _require_command(group, args)
             return _map_ops(command, flags)
+        if group == "videos":
+            command, flags = _require_command(group, args)
+            _delegate_content("videos", command, flags)
+            return 0
         raise ValueError(f"Unsupported papyrus group: {group}")
     except Exception as error:
         print(str(error), file=sys.stderr)

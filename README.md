@@ -606,6 +606,15 @@ For Amplify development, run `npm run sandbox` to provision a local cloud
 sandbox. After the sandbox has generated `amplify_outputs.json`, run
 `npm run seed:amplify` to upload fixture content and media.
 
+Seed content supports optional profiles so one Papyrus-based site can keep
+custom fixture content without overwriting the base default fixture:
+
+- Set `PAPYRUS_SEED_PROFILE=<profile-id>` before `npm run seed:amplify`
+- Optional profile file path:
+  `amplify/seed/profiles/<profile-id>/seed-edition-content.json`
+- Fallback path (always available):
+  `amplify/seed/seed-edition-content.json`
+
 For content inspection and admin against a deployed API:
 
 ```bash
@@ -798,9 +807,10 @@ script. Do not repair production by adding a runtime Markdown content source.
 Production authoring uses the deployed AppSync API, not the sandbox:
 
 ```bash
-export AWS_PROFILE=Ryan
+export AWS_PROFILE=default
 export AWS_REGION=us-east-1
-export PAPYRUS_GRAPHQL_ENDPOINT=https://64hviw44q5cq5nwjcigmasowlq.appsync-api.us-east-1.amazonaws.com/graphql
+export PAPYRUS_GRAPHQL_ENDPOINT=https://ur2anu47d5f67eq7sjzoqpyuze.appsync-api.us-east-1.amazonaws.com/graphql
+export PAPYRUS_JWT_SECRET_SSM_PARAM=/amplify/d3on1y5vlrxmam/main-branch-aeb7dfa526/PAPYRUS_JWT_SECRET
 ```
 
 Mint a fresh short-lived JWT from the production Amplify SSM secret:

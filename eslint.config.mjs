@@ -8,10 +8,19 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals"),
   {
-    ignores: [".amplify/**", ".next/**", "node_modules/**", "dist/**", "out/**", "coverage/**", "corpora/**"],
+    ignores: [
+      ".amplify/**",
+      ".next/**",
+      "node_modules/**",
+      "dist/**",
+      "out/**",
+      "coverage/**",
+      "corpora/**",
+      "public/videoml/**",
+    ],
   },
+  ...compat.extends("next/core-web-vitals"),
 ];
 
 export default eslintConfig;

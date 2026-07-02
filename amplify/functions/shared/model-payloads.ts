@@ -153,7 +153,8 @@ function payloadBucketName(): string {
 }
 
 function modelPayloadStoragePath(ownerKind: string, ownerId: string, role: string, filename: string): string {
-  return `newsroom/payloads/${safeId(ownerKind)}/${safeId(ownerId)}/${safeId(role)}/${filename}`;
+  const rootPrefix = ownerKind === "publishedItem" ? "media/payloads" : "newsroom/payloads";
+  return `${rootPrefix}/${safeId(ownerKind)}/${safeId(ownerId)}/${safeId(role)}/${filename}`;
 }
 
 function modelAttachmentId(ownerKind: string, ownerId: string, role: string, sortKey: string): string {

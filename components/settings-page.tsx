@@ -3,6 +3,7 @@
 import { signOut } from "aws-amplify/auth";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SITE_BRAND } from "../lib/site-brand";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
 import {
@@ -32,6 +33,7 @@ export function SettingsPage() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const userEditedRef = useRef(false);
+  const presentationLocked = Boolean(SITE_BRAND.forcedPresentation);
 
   const refreshSettings = useCallback(async () => {
     userEditedRef.current = false;
@@ -116,7 +118,7 @@ export function SettingsPage() {
           <svg aria-hidden="true" className="edition-progress__icon" focusable="false" viewBox="0 0 10 10">
             <path d="M7.5 1 2.5 5 7.5 9Z" fill="currentColor" />
           </svg>
-          Back to Papyrus
+          {SITE_BRAND.backToHomeLabel}
         </Link>
       </nav>
 
@@ -152,7 +154,11 @@ export function SettingsPage() {
         <section className="settings-section" aria-labelledby="settings-format-title">
           <div className="settings-section__heading">
             <p id="settings-format-title">Format</p>
-            <span>{source === "cloud" ? "Account preference" : "Browser preference"}</span>
+            <span>
+              {presentationLocked
+                ? "Locked by site branding"
+                : (source === "cloud" ? "Account preference" : "Browser preference")}
+            </span>
           </div>
           <div className="format-triptych" role="radiogroup" aria-labelledby="settings-format-title">
             {PRESENTATION_OPTIONS.map((option) => {
@@ -162,7 +168,7 @@ export function SettingsPage() {
                   aria-checked={selected}
                   className="format-card"
                   data-selected={selected ? "true" : "false"}
-                  disabled={pending}
+                  disabled={pending || presentationLocked}
                   key={option.value}
                   onClick={() => void updateSettings({ ...settings, presentation: option.value })}
                   role="radio"

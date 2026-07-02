@@ -12,6 +12,7 @@ import { emailSubmissionProcessor } from "../functions/email-submission-processo
 import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
+import { schema as leanSchema } from "./schema";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -2125,7 +2126,7 @@ export type Schema = ClientSchema<typeof schema>;
 
 export const data = defineData({
   name: "PapyrusCmsApi",
-  schema,
+  schema: leanSchema,
   authorizationModes: {
     defaultAuthorizationMode: "userPool",
     apiKeyAuthorizationMode: {

@@ -12,6 +12,7 @@ import { ARCHIVE_PREVIEW_HEIGHT, ARCHIVE_PREVIEW_WIDTH } from "../lib/archive-ty
 import type { EditionContent, NewsDeskAppendix, NewsDeskCategoryTreeNode } from "../lib/content-types";
 import { shouldBypassImageOptimization } from "../lib/image-url";
 import type { PublicationItem } from "../lib/publication-items";
+import { SITE_BRAND } from "../lib/site-brand";
 import { resolveThemedImageSrc, type ResolvedTheme } from "../lib/themed-image";
 import { loadEditorCategoryTreeState } from "./news-desk-taxonomy-client";
 import { ReaderAuthControl } from "./reader-auth-control";
@@ -653,7 +654,7 @@ function LoadingPage({ content, mastheadHref }: { content: EditionContent; masth
       <header className="masthead">
         <div className="masthead__rule" />
         <h1>
-          <Link href={mastheadHref}>PAPYRUS</Link>
+          <Link href={mastheadHref}>{SITE_BRAND.mastheadTitle}</Link>
         </h1>
         <div className="masthead__meta">
           <span>{formatShortDate(content.editionDate)}</span>
@@ -706,7 +707,7 @@ function SolvedPageView({
         <header className="masthead">
           <div className="masthead__rule" />
           <h1 id={editionTitleId}>
-            <Link href={mastheadHref}>PAPYRUS</Link>
+            <Link href={mastheadHref}>{SITE_BRAND.mastheadTitle}</Link>
           </h1>
           <div className="masthead__meta">
             <span>{formatShortDate(content.editionDate)}</span>
@@ -946,7 +947,7 @@ function FrontPageFooter({
       }
     >
       <div className="front-footer__heading">
-        <span>Inside Papyrus</span>
+        <span>{SITE_BRAND.mastheadSubtitle}</span>
         <span>{footer.entries.length} sections</span>
       </div>
       {footer.entries.length > 0 ? (

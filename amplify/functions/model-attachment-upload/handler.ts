@@ -25,8 +25,10 @@ const DOWNLOAD_EXPIRES_SECONDS = 10 * 60;
 const ALLOWED_OWNER_KINDS = new Set([
   "assignment",
   "assignmentEvent",
+  "item",
   "knowledgeRawPayload",
   "message",
+  "publishedItem",
   "procedureVersion",
   "reference",
   "semanticNode",
@@ -35,10 +37,14 @@ const ALLOWED_OWNER_KINDS = new Set([
 const ALLOWED_ROLES = new Set([
   "assignment_brief",
   "assignment_instructions",
+  "item_body",
+  "item_excerpt",
   "message_body",
   "metadata",
   "ontology_concept_profile",
   "ontology_relation_explanation",
+  "published_item_body",
+  "published_item_excerpt",
   "code",
   "graph_export",
   "raw_payload",
@@ -174,8 +180,8 @@ async function createModelAttachmentDownload(event: Parameters<CreateDownloadHan
   const attachment = result.data;
   if (!attachment) throw new Error(`ModelAttachment ${attachmentId} was not found.`);
   const storagePath = normalizeRequiredString(attachment.storagePath, "storagePath");
-  if (!storagePath.startsWith("newsroom/payloads/")) {
-    throw new Error(`ModelAttachment ${attachmentId} is not a newsroom payload attachment.`);
+  if (!storagePath.startsWith("newsroom/payloads/") && !storagePath.startsWith("media/payloads/")) {
+    throw new Error(`ModelAttachment ${attachmentId} is not a supported payload attachment.`);
   }
   if (attachment.status && attachment.status !== "active") {
     throw new Error(`ModelAttachment ${attachmentId} is ${attachment.status}, not active.`);
@@ -263,8 +269,10 @@ function uploadIdFor(input: ReturnType<typeof normalizeAttachmentInput>): string
 function ownerModelName(ownerKind: string): string {
   if (ownerKind === "assignment") return "Assignment";
   if (ownerKind === "assignmentEvent") return "AssignmentEvent";
+  if (ownerKind === "item") return "Item";
   if (ownerKind === "knowledgeRawPayload") return "KnowledgeRawPayload";
   if (ownerKind === "message") return "Message";
+  if (ownerKind === "publishedItem") return "PublishedItem";
   if (ownerKind === "procedureVersion") return "ProcedureVersion";
   if (ownerKind === "reference") return "Reference";
   if (ownerKind === "semanticNode") return "SemanticNode";
@@ -293,7 +301,8 @@ function payloadBucketName(): string {
 }
 
 function modelPayloadStoragePath(ownerKind: string, ownerId: string, role: string, filename: string): string {
-  return `newsroom/payloads/${safeId(ownerKind)}/${safeId(ownerId)}/${safeId(role)}/${filename}`;
+  const rootPrefix = ownerKind === "publishedItem" ? "media/payloads" : "newsroom/payloads";
+  return `${rootPrefix}/${safeId(ownerKind)}/${safeId(ownerId)}/${safeId(role)}/${filename}`;
 }
 
 function modelAttachmentId(ownerKind: string, ownerId: string, role: string, sortKey: string): string {

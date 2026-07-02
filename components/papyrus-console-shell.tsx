@@ -1356,6 +1356,7 @@ function ConsoleUserAvatar({ authorEmail, avatarHash }: { authorEmail: string | 
       title={tooltip}
     >
       {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           alt=""
           className="papyrus-console-message__user-avatar-image"

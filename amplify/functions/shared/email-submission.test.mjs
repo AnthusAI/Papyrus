@@ -10,20 +10,20 @@ const source = readFileSync(join(dir, "email-submission.ts"), "utf8");
 const compiled = require("typescript").transpileModule(source, {
   compilerOptions: { module: require("typescript").ModuleKind.CommonJS, target: require("typescript").ScriptTarget.ES2020 },
 }).outputText;
-const module = { exports: {} };
+const mockModule = { exports: {} };
 const localRequire = (specifier) => {
   if (specifier === "./lambda-data-client") {
     return { LAMBDA_DATA_AUTH_MODE: "iam", LambdaDataClient: class {} };
   }
   return require(specifier);
 };
-new Function("exports", "require", "module", compiled)(module.exports, localRequire, module);
+new Function("exports", "require", "module", compiled)(mockModule.exports, localRequire, mockModule);
 const {
   parseInboundEmailBody,
   countInboundAttachments,
   classifyNewSubmissionIntake,
   extractDirectCitations,
-} = module.exports;
+} = mockModule.exports;
 
 function buildPdfOnlyMime() {
   const boundary = "----PapyrusPdfUnitTest";

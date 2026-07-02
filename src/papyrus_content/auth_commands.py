@@ -94,7 +94,10 @@ def _read_ssm_secret(parameter_name: str) -> str:
         import boto3  # noqa: F401
     except ModuleNotFoundError:
         return _read_ssm_secret_cli(parameter_name)
-    return _read_ssm_secret_boto(parameter_name)
+    try:
+        return _read_ssm_secret_boto(parameter_name)
+    except Exception:
+        return _read_ssm_secret_cli(parameter_name)
 
 
 def _jwt_secret_ssm_fallback_paths() -> list[str]:

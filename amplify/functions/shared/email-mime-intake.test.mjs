@@ -15,15 +15,15 @@ function loadEmailSubmission() {
       target: require("typescript").ScriptTarget.ES2020,
     },
   }).outputText;
-  const module = { exports: {} };
+  const mockModule = { exports: {} };
   const localRequire = (specifier) => {
     if (specifier === "./lambda-data-client") {
       return { LAMBDA_DATA_AUTH_MODE: "iam", LambdaDataClient: class {} };
     }
     return require(specifier);
   };
-  new Function("exports", "require", "module", compiled)(module.exports, localRequire, module);
-  return module.exports;
+  new Function("exports", "require", "module", compiled)(mockModule.exports, localRequire, mockModule);
+  return mockModule.exports;
 }
 
 function loadEmailMimeIntake(emailSubmission) {
@@ -34,15 +34,15 @@ function loadEmailMimeIntake(emailSubmission) {
       target: require("typescript").ScriptTarget.ES2020,
     },
   }).outputText;
-  const module = { exports: {} };
+  const mockModule = { exports: {} };
   const localRequire = (specifier) => {
     if (specifier === "./email-submission") {
       return emailSubmission;
     }
     return require(specifier);
   };
-  new Function("exports", "require", "module", compiled)(module.exports, localRequire, module);
-  return module.exports;
+  new Function("exports", "require", "module", compiled)(mockModule.exports, localRequire, mockModule);
+  return mockModule.exports;
 }
 
 const emailSubmission = loadEmailSubmission();

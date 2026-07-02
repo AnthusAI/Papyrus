@@ -1,3 +1,4 @@
+@newspaper
 Feature: Newspaper layout scenarios
   Layout scenarios are durable examples of newspaper behavior.
   They verify both the solver's decisions and the rendered page geometry.
@@ -52,6 +53,7 @@ Feature: Newspaper layout scenarios
       | 640   | 1200   | 5            | 3         |
       | 390   | 900    | 4            | 2         |
 
+  @brand-agnostic
   Scenario: Newsroom top shell responds to constrained container width
     Given I open the newsroom at 1280 by 900
     And I constrain the newsroom shell width to 760 pixels
@@ -182,11 +184,13 @@ Feature: Newspaper layout scenarios
       | 780   | 1200   |
       | 390   | 900    |
 
+  @brand-agnostic
   Scenario: Newsroom opens knowledge overview
     Given I open the newsroom at 1280 by 900
     Then the newsroom should render
     And the newsroom should show the knowledge overview
 
+  @brand-agnostic
   Scenario: Newsroom renders the body while the summary is still loading
     Given I am a test editor reader
     And the newsroom summary is delayed by 5000 milliseconds
@@ -196,6 +200,7 @@ Feature: Newspaper layout scenarios
     And the newsroom aggregate counts should remain blank while the summary is loading
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom degrades a missing summary to question marks
     Given I am a test editor reader
     And the newsroom summary is unavailable
@@ -206,6 +211,7 @@ Feature: Newspaper layout scenarios
     And the newsroom should not show a summary error banner
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario Outline: Newsroom overview newspaper sections stay readable
     Given I open the newsroom at <width> by <height>
     Then the newsroom overview should show newspaper sections
@@ -217,6 +223,7 @@ Feature: Newspaper layout scenarios
       | 1280  | 900    |
       | 390   | 900    |
 
+  @brand-agnostic
   Scenario: Newsroom overview headers follow the vertical rhythm at three columns
     Given I am a test editor reader
     And the newsroom summary is unavailable
@@ -225,6 +232,7 @@ Feature: Newspaper layout scenarios
     And newsroom overview section headers should follow the vertical rhythm
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom overview shows configured section rail
     Given I open the newsroom at 1280 by 900
     Then the newsroom section rail should show canonical sections in rank order
@@ -237,6 +245,7 @@ Feature: Newspaper layout scenarios
     Given I open the edition path "/newsroom/messages?demo=1" at 1280 by 900
     Then the newsroom section rail should not render
 
+  @brand-agnostic
   Scenario: Deep newsroom section pages omit operational tabs
     Given I open the edition path "/newsroom/sections/news?demo=1" at 1280 by 900
     Then the deep newsroom section page should show "News"
@@ -244,6 +253,7 @@ Feature: Newspaper layout scenarios
     And the deep newsroom section page should omit operational tabs
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Demo newsroom navigation keeps the desk visible
     Given I open the newsroom at 1280 by 900
     When I follow the newsroom overview link for "References"
@@ -260,6 +270,7 @@ Feature: Newspaper layout scenarios
     And the newsroom should not show an editor access gate
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom renders category steering proposals and category edits
     Given I open the topics newsroom at 1280 by 900
     Then the topics desk should render
@@ -269,6 +280,7 @@ Feature: Newspaper layout scenarios
     And the newsroom should offer accept reject defer and edit actions
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom browses references and semantic concepts
     Given I open the references newsroom at 1280 by 900
     Then the references desk should show reference metadata and semantic neighbors
@@ -276,6 +288,7 @@ Feature: Newspaper layout scenarios
     Then the concepts desk should show semantic nodes and linked objects
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference detail renders the header curation cluster
     Given I open the references newsroom at 1280 by 900
     When I open reference "reference-knowledge-corpus-demo-source-history-001"
@@ -311,6 +324,7 @@ Feature: Newspaper layout scenarios
     Then the reference detail insight composer should be visible
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference quality failure restores the confirmed header state
     Given the reference quality mutation fails
     And I open the references newsroom at 1280 by 900
@@ -323,6 +337,7 @@ Feature: Newspaper layout scenarios
     And the reference detail quality message should mention "not saved"
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference detail removes duplicated source URI from summary body
     Given I am a test editor reader
     And the newsroom uses mocked reference summaries with leading source URI
@@ -339,6 +354,7 @@ Feature: Newspaper layout scenarios
     And the reference detail summary should be "Unchanged summary for mock reference two."
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference detail renders extracted text
     Given I am a test editor reader
     And the newsroom uses mocked extracted text payload for reference detail
@@ -352,6 +368,7 @@ Feature: Newspaper layout scenarios
     Then the reference detail extracted text should include "History 001 extracted text line one."
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference detail hides missing extracted text tabs
     Given I am a test editor reader
     And the newsroom uses mocked filtered extracted text payload for reference detail
@@ -363,17 +380,20 @@ Feature: Newspaper layout scenarios
     And the reference detail extracted text should include "History 002 filtered text line one."
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference detail shows missing extracted text state
     Given I open the newsroom path "/newsroom/references/reference-knowledge-corpus-demo-source-history-002?demo=1" at 1280 by 900
     Then the reference detail should show extracted text empty state when both tabs are missing
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reference detail loads from canonical deep links
     Given I open the newsroom path "/newsroom/references/reference-knowledge-corpus-demo-source-history-002?demo=1" at 1280 by 900
     Then the selected reference detail should be "reference-knowledge-corpus-demo-source-history-002"
     And the selected reference deep link URL should be "reference-knowledge-corpus-demo-source-history-002"
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario Outline: Newsroom operational desks use newspaper card grids
     Given I open the "<section>" newsroom section at <width> by <height>
     Then the newsroom card grid should render for "<section>"
@@ -398,6 +418,7 @@ Feature: Newspaper layout scenarios
       | references  | 1280  | 900    |
       | assignments | 1280  | 900    |
 
+  @brand-agnostic
   Scenario: Newsroom reference-curation message detail uses the linked reference headline and subheading
     Given I am a test editor reader
     And the newsroom uses mocked reference-curation message detail data
@@ -408,6 +429,7 @@ Feature: Newspaper layout scenarios
     And the message detail headline should not be "https://example.com/papers/mock-reference.pdf: accepted"
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom assignment filters animate non-selection reflow
     Given I open the "assignments" newsroom section at 1280 by 900
     Then the newsroom card grid should render for "assignments"
@@ -416,6 +438,7 @@ Feature: Newspaper layout scenarios
     And newsroom cards should not overlap or clip
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario Outline: Newsroom card grids stay readable on compact screens
     Given I open the "<section>" newsroom section at 390 by 900
     Then the newsroom card grid should render for "<section>"
@@ -430,6 +453,7 @@ Feature: Newspaper layout scenarios
       | references  |
       | assignments |
 
+  @brand-agnostic
   Scenario: Newsroom merges duplicate user identities
     Given I open the administration newsroom at 1280 by 900
     Then the users desk should show merge controls
@@ -444,6 +468,7 @@ Feature: Newspaper layout scenarios
     And newsroom user "Demo Reader" should not be listed
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom claims and completes reference curation assignments
     Given I open the assignments newsroom at 1280 by 900
     Then the assignments desk should render
@@ -453,6 +478,7 @@ Feature: Newspaper layout scenarios
     Then assignment "assignment-demo-reference-intake-history-001" should be completed
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom shows reporting context packets without publishing candidate Items
     Given I open the assignments newsroom at 1280 by 900
     Then the assignments desk should render
@@ -461,6 +487,7 @@ Feature: Newspaper layout scenarios
     And assignment "assignment-demo-reporting-news-001" should not appear as an edition item
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom reviews reporting packets without publishing placement
     Given I am a test editor reader
     And I open the assignments newsroom at 1280 by 900
@@ -474,6 +501,7 @@ Feature: Newspaper layout scenarios
     And assignment "assignment-demo-reporting-news-001" should show a copywriting assignment without edition placement
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Newsroom story budget groups reporting packets by section
     Given I am a test editor reader
     And I open the assignments newsroom at 1280 by 900
@@ -494,11 +522,13 @@ Feature: Newspaper layout scenarios
     And story budget candidate "assignment-demo-reporting-news-001" should show a copywriting assignment
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Production newsroom requires editor access
     Given I open the edition path "/newsroom" at 1280 by 900
     Then the newsroom should show an editor access gate
     And no browser console errors should occur
 
+  @brand-agnostic
   Scenario: Administration sections panel route variants resolve
     Given I open the edition path "/newsroom/administration/sections?demo=1" at 1280 by 900
     Then the administration sections panel should render section controls
@@ -590,8 +620,10 @@ Feature: Newspaper layout scenarios
     And article "agent-procedure-patterns" should have exactly one edition anchor
     And no browser console errors should occur
 
-  Scenario: Reader settings change the edition renderer without changing content URLs
-    Given I open the settings page at 1280 by 900
+  @presentation-choice
+  Scenario: Reader settings change presentation when formats are choosable
+    Given the site allows presentation choice
+    And I open the settings page at 1280 by 900
     Then reader format "Newspaper" should be selected
     When I choose reader format "Blog"
     Then reader format "Blog" should be selected
@@ -614,10 +646,22 @@ Feature: Newspaper layout scenarios
     And presentation item "agent-procedure-patterns" should render with measured lines
     And no browser console errors should occur
 
+  @blog
+  Scenario: Blog presentation renders edition sections and footer
+    Given the active presentation is "blog"
+    And I open the "current-edition" layout scenario at 1280 by 900
+    Then presentation section "ai-ml" should render
+    And presentation item "agent-procedure-patterns" should render with measured lines
+    And the blog presentation footer should list edition sections
+    And the blog presentation footer should include utility links
+    And no browser console errors should occur
+
+  @brand-agnostic
   Scenario: Section routes and item routes stay separate content links
     Then edition section route "/2026/may/13/section/ai-ml" should target section "ai-ml"
     And edition item route "/2026/may/13/agent-procedure-patterns" should target item "agent-procedure-patterns"
 
+  @brand-agnostic
   Scenario: Layout validation accepts only canonical headline scales
     Then layout plan validation should accept headline scale "feature"
     And layout plan validation should reject headline scale "poster"
@@ -743,6 +787,7 @@ Feature: Newspaper layout scenarios
       | current-edition      |
       | front-chrome-compact |
 
+  @brand-agnostic
   Scenario: Direct article routes resolve content through the repository
     Given I open article "schools-reading-lab" at 1280 by 900
     Then the article page should show headline "Agent Reliability Papers Turn Demos Into Stress Tests"

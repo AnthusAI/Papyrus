@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import os
 import re
 import subprocess
 import tempfile
@@ -17,14 +18,14 @@ from .reader_revalidation import trigger_reader_cache_revalidation
 from .records import apply_record_changes, build_record_changes_targeted_by_id
 
 SEED_CONTENT_PATH = PAPYRUS_ROOT / "amplify" / "seed" / "seed-edition-content.json"
+DEFAULT_SEED_PROFILE = "default"
+SEED_PROFILE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 def seed_edition_content(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "content seed-edition")
-    seed_path = Path(normalize_string(options.get("seed")) or SEED_CONTENT_PATH)
-    if not seed_path.is_absolute():
-        seed_path = PAPYRUS_ROOT / seed_path
+    seed_path, seed_profile = resolve_seed_content_path(options)
     upload_media = parse_boolean_option(options.get("upload-media"), default=True, label="--upload-media")
     bucket = normalize_string(options.get("bucket")) or storage_bucket_from_amplify_outputs()
     if apply and upload_media and not bucket:
@@ -34,20 +35,27 @@ def seed_edition_content(flags: list[str]) -> None:
     records = build_seed_edition_records(payload)
     client, _claims = create_authoring_client()
     changes = build_record_changes_targeted_by_id(client, records)
+    stale_edition_item_records = list_stale_seed_edition_item_records(client, payload, records)
+    stale_media_records = list_stale_seed_media_records(client, payload)
     counts = summarize_changes(changes)
     result = {
         "ok": True,
         "command": "content seed-edition",
         "seedPath": str(seed_path),
+        "seedProfile": seed_profile,
         "editionId": payload["id"],
         "articleCount": len(payload["articles"]),
         "recordCount": len(records),
         "changes": counts,
+        "deleteStaleEditionItems": summarize_stale_media(stale_edition_item_records),
+        "deleteStaleMedia": summarize_stale_media(stale_media_records),
         "apply": apply,
     }
     if apply:
         if upload_media:
             upload_seed_media(payload, bucket=str(bucket))
+        delete_stale_seed_records(client, stale_edition_item_records)
+        delete_stale_seed_media_records(client, stale_media_records)
         apply_record_changes(client, changes)
         result["applied"] = True
         article_slugs = [str(article.get("slug", "")).strip() for article in payload.get("articles", [])]
@@ -63,6 +71,39 @@ def seed_edition_content(flags: list[str]) -> None:
         print(json.dumps(result, indent=2))
     else:
         print_seed_summary(result)
+
+
+def resolve_seed_content_path(options: dict[str, Any]) -> tuple[Path, str]:
+    explicit_seed = normalize_string(options.get("seed"))
+    if explicit_seed:
+        seed_path = Path(explicit_seed)
+        if not seed_path.is_absolute():
+            seed_path = PAPYRUS_ROOT / seed_path
+        return seed_path, normalize_string(options.get("profile")) or "custom"
+
+    profile_id = (
+        normalize_string(options.get("profile"))
+        or normalize_string(os.environ.get("PAPYRUS_SEED_PROFILE"))
+        or DEFAULT_SEED_PROFILE
+    ).lower()
+    if not SEED_PROFILE_PATTERN.match(profile_id):
+        raise ValueError(f"Invalid seed profile '{profile_id}'. Use lowercase letters, numbers, '-', or '_'.")
+
+    if profile_id == DEFAULT_SEED_PROFILE:
+        return SEED_CONTENT_PATH, profile_id
+
+    candidates = [
+        PAPYRUS_ROOT / "publications" / profile_id.replace("-", "_") / "seed" / "seed-edition-content.json",
+        PAPYRUS_ROOT / "amplify" / "seed" / "profiles" / profile_id / "seed-edition-content.json",
+        SEED_CONTENT_PATH,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate, profile_id
+    raise ValueError(
+        f"Could not find seed edition content for profile '{profile_id}'. "
+        f"Checked: {', '.join(str(candidate) for candidate in candidates)}"
+    )
 
 
 def load_seed_payload(path: Path = SEED_CONTENT_PATH) -> dict[str, Any]:
@@ -137,9 +178,14 @@ def seed_edition_config(payload: dict[str, Any]) -> dict[str, Any]:
         "metadata": {
             "source": "fixture-seed",
             "suppressNewsDeskAppendix": payload.get("suppressNewsDeskAppendix") is True,
+            **(
+                {"editionVideo": build_edition_video_metadata(payload, payload["video"])}
+                if isinstance(payload.get("video"), dict)
+                else {}
+            ),
         },
         "articleOrder": item_ids,
-        "layoutPlan": apply_seed_house_ads(create_seed_edition_layout_plan(item_ids), payload.get("houseAds")),
+        "layoutPlan": apply_seed_house_ads(create_seed_edition_layout_plan(payload["articles"]), payload.get("houseAds")),
     }
 
 
@@ -329,13 +375,119 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
                 },
             )
         )
+
+    video_asset = article_video_asset(article)
+    if video_asset:
+        video_index = len(list(article_image_assets(article)))
+        media_id = f"media-{article['slug']}-video"
+        media_sort_key = f"{video_index + 1:03d}#{article['slug']}-lead-video"
+        video_common = {
+            "type": "video",
+            "role": "lead",
+            "sortKey": media_sort_key,
+            "storagePath": seed_video_upload_metadata(article, video_asset)["storagePath"],
+            "externalUrl": video_asset.get("src"),
+            "alt": video_asset.get("alt"),
+            "caption": video_asset.get("caption") or video_asset.get("credit"),
+            "credit": video_asset.get("credit"),
+            "aspectRatio": 16 / 9,
+            "metadata": to_aws_json(video_media_metadata(video_asset, article_slug=str(article["slug"]))),
+        }
+        records.append(record("MediaAsset", {"id": media_id, "itemId": item_id, **video_common}))
+        records.append(
+            record(
+                "PublishedMediaAsset",
+                {
+                    "id": f"published-{media_id}",
+                    "sourceMediaAssetId": media_id,
+                    "publishedItemId": published_item_id(item_id),
+                    "sourceItemId": item_id,
+                    "itemLineageId": item_id,
+                    **video_common,
+                },
+            )
+        )
     return records
+
+
+def list_stale_seed_edition_item_records(
+    client: PapyrusGraphQLAuthoringClient,
+    payload: dict[str, Any],
+    records: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    edition_id = str(payload["id"])
+    published_id = published_edition_id(edition_id)
+    expected_ids: dict[str, set[str]] = {"EditionItem": set(), "PublishedEditionItem": set()}
+    for record_entry in records:
+        model_name = record_entry.get("modelName")
+        if model_name not in expected_ids:
+            continue
+        record_id = normalize_string((record_entry.get("expected") or {}).get("id"))
+        if record_id:
+            expected_ids[str(model_name)].add(record_id)
+    current = {
+        "EditionItem": client.list_by_index("editionItemsByEditionAndSortKey", edition_id),
+        "PublishedEditionItem": client.list_by_index("publishedEditionItemsByEditionAndSortKey", published_id),
+    }
+    return {
+        model_name: [
+            record_entry
+            for record_entry in records_for_model
+            if normalize_string(record_entry.get("id")) not in expected_ids[model_name]
+        ]
+        for model_name, records_for_model in current.items()
+    }
+
+
+def list_stale_seed_media_records(client: PapyrusGraphQLAuthoringClient, payload: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    stale = {"MediaAsset": [], "PublishedMediaAsset": []}
+    for article in payload["articles"]:
+        item_id = f"item-{article['slug']}"
+        published_id = published_item_id(item_id)
+        stale["MediaAsset"].extend(client.list_by_index("mediaAssetsByItemAndSortKey", item_id))
+        stale["PublishedMediaAsset"].extend(client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_id))
+    return stale
+
+
+def summarize_stale_media(records_by_model: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+    return {model_name: len(records) for model_name, records in records_by_model.items()}
+
+
+def delete_stale_seed_records(
+    client: PapyrusGraphQLAuthoringClient,
+    records_by_model: dict[str, list[dict[str, Any]]],
+) -> None:
+    for model_name in records_by_model:
+        seen_ids: set[str] = set()
+        for record_entry in records_by_model.get(model_name, []):
+            record_id = normalize_string(record_entry.get("id"))
+            if not record_id or record_id in seen_ids:
+                continue
+            seen_ids.add(record_id)
+            client.delete_record(model_name, record_id)
+
+
+def delete_stale_seed_media_records(
+    client: PapyrusGraphQLAuthoringClient,
+    records_by_model: dict[str, list[dict[str, Any]]],
+) -> None:
+    ordered = {
+        "PublishedMediaAsset": records_by_model.get("PublishedMediaAsset", []),
+        "MediaAsset": records_by_model.get("MediaAsset", []),
+    }
+    delete_stale_seed_records(client, ordered)
 
 
 def upload_seed_media(payload: dict[str, Any], *, bucket: str) -> None:
     for article in payload["articles"]:
         for asset_index, asset in enumerate(article_image_assets(article)):
             upload_seed_image(article, asset, asset_index, bucket=bucket)
+        video_asset = article_video_asset(article)
+        if video_asset and should_seed_video_uploads():
+            upload_seed_video(article, video_asset, bucket=bucket)
+    edition_video = payload.get("video")
+    if isinstance(edition_video, dict) and should_seed_video_uploads():
+        upload_seed_edition_video(payload, edition_video, bucket=bucket)
 
 
 def upload_seed_image(article: dict[str, Any], asset: dict[str, Any], index: int, *, bucket: str) -> None:
@@ -429,14 +581,196 @@ def article_image_assets(article: dict[str, Any]) -> list[dict[str, Any]]:
     assets = [asset for asset in article.get("assets") or [] if asset.get("type") == "image"]
     if assets:
         return assets
+    if not isinstance(article.get("image"), dict) or not normalize_string(article["image"].get("src")):
+        return []
     return [
         {
-            **(article.get("image") or {}),
+            **article["image"],
             "id": f"{article['slug']}-primary-image",
             "type": "image",
             "roles": ["lead", "continuation", "continuationInset"],
         }
     ]
+
+
+def article_video_asset(article: dict[str, Any]) -> dict[str, Any] | None:
+    video = article.get("video")
+    if not isinstance(video, dict):
+        return None
+    if not normalize_string(video.get("src")):
+        return None
+    return video
+
+
+def should_seed_video_uploads() -> bool:
+    return os.environ.get("PAPYRUS_SEED_VIDEOS") == "1"
+
+
+def article_video_storage_path(slug: str) -> str:
+    return f"media/articles/{slug}/video-{slug}.mp4"
+
+
+def article_video_light_storage_path(slug: str) -> str:
+    return f"media/articles/{slug}/video-{slug}-light.mp4"
+
+
+def article_video_dark_storage_path(slug: str) -> str:
+    return f"media/articles/{slug}/video-{slug}-dark.mp4"
+
+
+def edition_video_storage_path(edition_slug: str) -> str:
+    return f"media/editions/{edition_slug}/edition-overview.mp4"
+
+
+def edition_video_light_storage_path(edition_slug: str) -> str:
+    return f"media/editions/{edition_slug}/edition-overview-light.mp4"
+
+
+def edition_video_dark_storage_path(edition_slug: str) -> str:
+    return f"media/editions/{edition_slug}/edition-overview-dark.mp4"
+
+
+def seed_video_upload_metadata(article: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "storagePath": article_video_storage_path(str(article["slug"])),
+        "contentType": "video/mp4",
+    }
+
+
+def seed_edition_video_upload_metadata(payload: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
+    edition_slug = str(payload.get("slug") or payload.get("id") or "edition").strip()
+    return {
+        "storagePath": edition_video_storage_path(edition_slug),
+        "contentType": "video/mp4",
+    }
+
+
+def build_video_theme_variants_metadata(
+    asset: dict[str, Any],
+    *,
+    article_slug: str | None = None,
+    edition_slug: str | None = None,
+) -> dict[str, Any] | None:
+    theme_variants = nested_get(asset, "themeVariants")
+    if not isinstance(theme_variants, dict):
+        return None
+
+    variants: dict[str, Any] = {}
+    light = theme_variants.get("light")
+    light_src = normalize_string(light.get("src")) if isinstance(light, dict) else None
+    light_storage_path = (
+        article_video_light_storage_path(article_slug)
+        if article_slug
+        else edition_video_light_storage_path(edition_slug or "current")
+        if edition_slug
+        else None
+    )
+    if light_src or light_storage_path:
+        entry: dict[str, Any] = {}
+        if light_storage_path:
+            entry["storagePath"] = light_storage_path
+        if light_src:
+            entry["sourceUrl"] = light_src
+        variants["light"] = entry
+
+    dark = theme_variants.get("dark")
+    dark_src = normalize_string(dark.get("src")) if isinstance(dark, dict) else None
+    dark_storage_path = (
+        article_video_dark_storage_path(article_slug)
+        if article_slug
+        else edition_video_dark_storage_path(edition_slug or "current")
+        if edition_slug
+        else None
+    )
+    if dark_src or dark_storage_path:
+        entry = {}
+        if dark_storage_path:
+            entry["storagePath"] = dark_storage_path
+        if dark_src:
+            entry["sourceUrl"] = dark_src
+        variants["dark"] = entry
+
+    return variants or None
+
+
+def build_edition_video_metadata(payload: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
+    edition_slug = str(payload.get("slug") or payload.get("id") or "edition").strip()
+    record = dict(asset)
+    record["storagePath"] = edition_video_storage_path(edition_slug)
+    theme_variants = build_video_theme_variants_metadata(asset, edition_slug=edition_slug)
+    if theme_variants:
+        record["themeVariants"] = theme_variants
+    return record
+
+
+def upload_seed_video(article: dict[str, Any], asset: dict[str, Any], *, bucket: str) -> None:
+    slug = str(article["slug"])
+    upload_seed_video_file(bucket, asset["src"], article_video_storage_path(slug))
+    light_src = normalize_string(nested_get(asset, "themeVariants", "light", "src"))
+    if light_src:
+        upload_seed_video_file(bucket, light_src, article_video_light_storage_path(slug))
+    dark_src = normalize_string(nested_get(asset, "themeVariants", "dark", "src"))
+    if dark_src:
+        upload_seed_video_file(bucket, dark_src, article_video_dark_storage_path(slug))
+
+
+def upload_seed_edition_video(payload: dict[str, Any], asset: dict[str, Any], *, bucket: str) -> None:
+    edition_slug = str(payload.get("slug") or payload.get("id") or "edition").strip()
+    upload_seed_video_file(bucket, asset["src"], edition_video_storage_path(edition_slug))
+    light_src = normalize_string(nested_get(asset, "themeVariants", "light", "src"))
+    if light_src:
+        upload_seed_video_file(bucket, light_src, edition_video_light_storage_path(edition_slug))
+    dark_src = normalize_string(nested_get(asset, "themeVariants", "dark", "src"))
+    if dark_src:
+        upload_seed_video_file(bucket, dark_src, edition_video_dark_storage_path(edition_slug))
+
+
+def upload_seed_video_file(bucket: str, src: str, storage_path: str) -> None:
+    source = seed_video_source_path(src)
+    if source is not None and source.exists():
+        aws_s3_cp(str(source), bucket, storage_path, "video/mp4")
+        return
+    if s3_object_exists(bucket, storage_path):
+        print(f"seed\tvideo-skip\t{storage_path}")
+        return
+    raise ValueError(
+        f"Seed video file not found for {storage_path}: {src}. "
+        "Run `poetry run papyrus videos seed` first or upload the object to S3."
+    )
+
+
+def s3_object_exists(bucket: str, storage_path: str) -> bool:
+    result = subprocess.run(
+        ["aws", "s3api", "head-object", "--bucket", bucket, "--key", storage_path],
+        cwd=PAPYRUS_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def seed_video_source_path(src: str) -> Path | None:
+    if re.match(r"^https?://", src):
+        return None
+    path = Path(src)
+    if path.is_absolute() and path.exists():
+        return path
+    return PAPYRUS_ROOT / (Path("public") / src.lstrip("/") if src.startswith("/") else Path(src))
+
+
+def video_media_metadata(asset: dict[str, Any], *, article_slug: str | None = None) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"sourceUrl": asset.get("src")}
+    poster = normalize_string(asset.get("posterSrc"))
+    if poster:
+        metadata["posterSrc"] = poster
+    duration = asset.get("durationSeconds")
+    if isinstance(duration, (int, float)):
+        metadata["durationSeconds"] = duration
+    theme_variants = build_video_theme_variants_metadata(asset, article_slug=article_slug)
+    if theme_variants:
+        metadata["themeVariants"] = theme_variants
+    return metadata
 
 
 def seed_image_source_path(src: str) -> Path | None:
@@ -468,14 +802,24 @@ def image_extension(content_type: str, src: str) -> str:
     return suffix or "jpg"
 
 
-def create_seed_edition_layout_plan(item_ids: list[str]) -> dict[str, Any]:
-    featured_front_item_ids = [
-        "papyrus-reader-contract",
-        "papyrus-introduction",
-        "papyrus-agent-workflow",
-        "papyrus-data-ownership",
+def create_seed_edition_layout_plan(articles: list[dict[str, Any]]) -> dict[str, Any]:
+    item_ids = [str(article["slug"]) for article in articles]
+    image_by_item_id = {str(article["slug"]): article_has_image(article) for article in articles}
+    front_item_ids = item_ids[: min(len(item_ids), 4)]
+    follow_on_blocks = [
+        *[
+            seed_continuation_block(item_id, 0, seed_media_placement(0) if image_by_item_id.get(item_id) else None)
+            for item_id in front_item_ids
+        ],
+        *[
+            seed_page_article_block(
+                item_id,
+                0,
+                seed_media_placement(index + len(front_item_ids)) if image_by_item_id.get(item_id) else None,
+            )
+            for index, item_id in enumerate(item_ids[len(front_item_ids) :])
+        ],
     ]
-    front_item_ids = item_ids if len(item_ids) < 3 else [item_id for item_id in featured_front_item_ids if item_id in item_ids]
     return {
         "pages": [
             {
@@ -489,58 +833,28 @@ def create_seed_edition_layout_plan(item_ids: list[str]) -> dict[str, Any]:
                         "type": "fullPage",
                         "localGrid": {"columns": {"min": 1, "preferred": 6, "max": 6}},
                         "responsiveLayouts": seed_front_responsive_layouts(),
-                        "blocks": [seed_front_block(item_id, index) for index, item_id in enumerate(front_item_ids)],
+                        "blocks": [
+                            seed_front_block(item_id, index, image_by_item_id.get(item_id, False))
+                            for index, item_id in enumerate(front_item_ids)
+                        ],
                     }
                 ],
             },
-            seed_region_stack_page(
-                2,
-                [
-                    ("papyrus-reader-contract-continuation", "top", "papyrus-reader-contract", "continuation", "center", 1, 2, 3, "upperThird", True),
-                    ("papyrus-data-ownership-continuation", "bottom", "papyrus-data-ownership", "continuation", "right", 1, 2, 2, "top", False),
-                ],
-            ),
-            seed_region_stack_page(
-                3,
-                [
-                    ("papyrus-introduction-tail", "top", "papyrus-introduction", "continuation", "right", 1, 2, 2, "top", False),
-                    ("papyrus-workflow-tail", "bottom", "papyrus-agent-workflow", "continuation", "center", 2, 2, 2, "top", False),
-                ],
-            ),
-            seed_region_stack_page(
-                4,
-                [
-                    ("newsroom-how-to-first-install", "top", "papyrus-first-install", "page", "right", 1, 2, 2, "top", False),
-                    ("newsroom-how-to-dispatch-research", "bottom", "howto-dispatch-research-agents", "page", "center", 1, 2, 3, "upperThird", False),
-                ],
-            ),
-            seed_region_stack_page(
-                5,
-                [
-                    ("newsroom-how-to-curate-references", "top", "howto-curate-references", "page", "right", 1, 2, 2, "top", False),
-                    ("newsroom-how-to-register-source-material", "bottom", "howto-register-source-material", "page", "center", 1, 2, 3, "upperThird", False),
-                ],
-            ),
-            seed_region_stack_page(
-                6,
-                [
-                    ("newsroom-how-to-maintain-reference-quality", "top", "howto-maintain-reference-quality", "page", "right", 1, 2, 2, "top", False),
-                    ("papyrus-steering-and-curation-guide", "bottom", "papyrus-steering-and-curation", "page", "center", 1, 2, 3, "upperThird", False),
-                ],
-            ),
-            seed_region_stack_page(
-                7,
-                [
-                    ("papyrus-operating-modes-guide", "top", "papyrus-operating-modes", "page", "right", 1, 2, 2, "top", False),
-                    ("papyrus-reference-governance-guide", "bottom", "papyrus-reference-governance", "page", "center", 1, 2, 3, "upperThird", False),
-                ],
-            ),
+            *seed_follow_on_pages(follow_on_blocks),
         ]
     }
 
 
-def seed_front_block(item_id: str, index: int) -> dict[str, Any]:
+def article_has_image(article: dict[str, Any]) -> bool:
+    assets = article.get("assets") if isinstance(article.get("assets"), list) else []
+    return any(asset.get("type") == "image" and normalize_string(asset.get("src")) for asset in assets) or bool(
+        normalize_string((article.get("image") or {}).get("src") if isinstance(article.get("image"), dict) else None)
+    )
+
+
+def seed_front_block(item_id: str, index: int, has_image: bool) -> dict[str, Any]:
     preferred_span = [1, 4, 1, 2, 2, 2][index] if index < 6 else 1
+    is_feature = index == 1
     block = {
         "id": f"front-{item_id}",
         "type": "articleFrame",
@@ -548,14 +862,14 @@ def seed_front_block(item_id: str, index: int) -> dict[str, Any]:
         "itemId": item_id,
         "flowKey": item_id,
         "startCursor": "beginning",
-        "role": "feature" if index == 1 else "rail" if index in {0, 2} else "standard",
-        "editorialPriority": "primary" if index == 1 else "secondary" if index in {0, 2} else "tertiary",
-        "typography": {"headlineScale": "feature" if index == 1 else "standard"},
+        "role": "feature" if is_feature else "rail" if index in {0, 2} else "standard",
+        "editorialPriority": "primary" if is_feature else "secondary" if index in {0, 2} else "tertiary",
+        "typography": {"headlineScale": "feature" if is_feature else "standard"},
         "span": {"min": 1, "preferred": preferred_span, "max": preferred_span},
         "media": [],
-        "cutPolicy": seed_cut_policy(item_id),
+        "cutPolicy": seed_cut_policy(item_id, index),
     }
-    if index == 1:
+    if is_feature:
         block["localGrid"] = {"columns": {"min": 1, "preferred": 4, "max": 4}}
         block["media"] = [
             {
@@ -570,12 +884,12 @@ def seed_front_block(item_id: str, index: int) -> dict[str, Any]:
                     "wrapsText": True,
                 },
             }
-        ]
-        block["composition"] = seed_feature_composition()
+        ] if has_image else []
+        block["composition"] = seed_feature_composition(has_image)
     return {key: value for key, value in block.items() if value is not None}
 
 
-def seed_feature_composition() -> dict[str, Any]:
+def seed_feature_composition(has_image: bool) -> dict[str, Any]:
     left_title_span = {
         "columnStart": 1,
         "span": {"min": 1, "preferred": 3, "max": 3},
@@ -586,6 +900,25 @@ def seed_feature_composition() -> dict[str, Any]:
         "wrapsText": False,
     }
     left_lead_span = {**left_title_span, "wrapsText": True}
+    lead = [
+        {"slot": "deck", "placement": left_lead_span},
+        {"slot": "byline", "placement": left_lead_span},
+    ]
+    if has_image:
+        lead.append(
+            {
+                "slot": "media",
+                "mediaIndex": 0,
+                "placement": {
+                    "anchor": "right",
+                    "span": {"min": 1, "preferred": 1, "max": 1},
+                    "vertical": "top",
+                    "collapse": "inline",
+                    "crop": "preserve",
+                    "wrapsText": True,
+                },
+            }
+        )
     return {
         "title": [
             {
@@ -601,22 +934,7 @@ def seed_feature_composition() -> dict[str, Any]:
             },
             {"slot": "headline", "placement": left_title_span},
         ],
-        "lead": [
-            {"slot": "deck", "placement": left_lead_span},
-            {"slot": "byline", "placement": left_lead_span},
-            {
-                "slot": "media",
-                "mediaIndex": 0,
-                "placement": {
-                    "anchor": "right",
-                    "span": {"min": 1, "preferred": 1, "max": 1},
-                    "vertical": "top",
-                    "collapse": "inline",
-                    "crop": "preserve",
-                    "wrapsText": True,
-                },
-            },
-        ],
+        "lead": lead,
     }
 
 
@@ -656,6 +974,47 @@ def seed_region_stack_page(page_number: int, region_specs: list[tuple]) -> dict[
     }
 
 
+def seed_follow_on_pages(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    pages: list[dict[str, Any]] = []
+    for page_index, page_blocks in enumerate(chunk(blocks, 2)):
+        page_number = page_index + 2
+        pages.append(
+            {
+                "id": f"page-{page_number}",
+                "pageNumber": page_number,
+                "presetId": "page.regionStack",
+                "grid": {"columns": {"min": 1, "preferred": 6, "max": 6}},
+                "regions": [
+                    {
+                        "id": f"{block['itemId']}-page-{page_number}-{'top' if block_index == 0 else 'bottom'}",
+                        "type": "stack",
+                        "role": "top" if block_index == 0 else "bottom",
+                        "size": {"ratio": 1 if len(page_blocks) == 1 else 0.5},
+                        "blocks": [
+                            {
+                                **block,
+                                "id": f"{block['id']}-page-{page_number}",
+                                **({} if block.get("startCursor") == "current" else {"startCursor": "beginning"}),
+                            }
+                        ],
+                    }
+                    for block_index, block in enumerate(page_blocks)
+                ],
+            }
+        )
+    return pages
+
+
+def chunk(items: list[dict[str, Any]], size: int) -> list[list[dict[str, Any]]]:
+    return [items[index : index + size] for index in range(0, len(items), size)]
+
+
+def seed_media_placement(index: int) -> dict[str, Any]:
+    if index % 2 == 0:
+        return media_spec("right", 1, 2, 2, "top", False)
+    return media_spec("center", 1, 2, 3, "upperThird", False)
+
+
 def media_spec(anchor: str, min_span: int, preferred: int, max_span: int, vertical: str, required: bool) -> dict[str, Any]:
     return {
         "required": required,
@@ -665,7 +1024,7 @@ def media_spec(anchor: str, min_span: int, preferred: int, max_span: int, vertic
     }
 
 
-def seed_page_article_block(item_id: str, page_number: int, media: dict[str, Any]) -> dict[str, Any]:
+def seed_page_article_block(item_id: str, page_number: int, media: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "id": f"{item_id}-page-{page_number}-lead",
         "type": "articleFrame",
@@ -675,12 +1034,12 @@ def seed_page_article_block(item_id: str, page_number: int, media: dict[str, Any
         "startCursor": "beginning",
         "role": "primary",
         "localGrid": {"columns": {"min": 2, "preferred": 6, "max": 6}},
-        "media": [article_media_placement("lead", media)],
+        "media": [article_media_placement("lead", media)] if media else [],
     }
 
 
-def seed_continuation_block(item_id: str, page_number: int, media: dict[str, Any]) -> dict[str, Any]:
-    return {
+def seed_continuation_block(item_id: str, page_number: int, media: dict[str, Any] | None) -> dict[str, Any]:
+    block = {
         "id": f"{item_id}-page-{page_number}",
         "type": "articleFrame",
         "presetId": "article.mediaInset",
@@ -689,7 +1048,7 @@ def seed_continuation_block(item_id: str, page_number: int, media: dict[str, Any
         "startCursor": "current",
         "role": "primary",
         "localGrid": {"columns": {"min": 2, "preferred": 6, "max": 6}},
-        "media": [article_media_placement("continuationInset", media)],
+        "media": [article_media_placement("continuationInset", media)] if media else [],
         "pullQuote": {
             "required": False,
             "placements": [
@@ -702,8 +1061,9 @@ def seed_continuation_block(item_id: str, page_number: int, media: dict[str, Any
                     "wrapsText": True,
                 }
             ],
-        },
+        } if media else None,
     }
+    return {key: value for key, value in block.items() if value is not None}
 
 
 def article_media_placement(asset_role: str, media: dict[str, Any]) -> dict[str, Any]:
@@ -731,7 +1091,6 @@ def seed_front_responsive_layouts() -> list[dict[str, Any]]:
                 priority_slot("secondary", 1, 1, 1, 1, 1),
                 priority_slot("primary", 1, 2, 4, 1, 1),
                 priority_slot("secondary", 2, 6, 1, 1, 1),
-                block_slot("front-papyrus-data-ownership", 1, 6, 2, 1),
             ],
             "overflow": {"columnSpan": "full", "rowSpan": 1},
         },
@@ -743,7 +1102,6 @@ def seed_front_responsive_layouts() -> list[dict[str, Any]]:
                 priority_slot("secondary", 1, 1, 1, 1, 1),
                 priority_slot("primary", 1, 2, 3, 1, 1),
                 priority_slot("secondary", 2, 5, 1, 1, 1),
-                block_slot("front-papyrus-data-ownership", 1, 5, 2, 1),
             ],
             "overflow": {"columnSpan": "full", "rowSpan": 1},
         },
@@ -755,7 +1113,6 @@ def seed_front_responsive_layouts() -> list[dict[str, Any]]:
                 priority_slot("primary", 1, 1, 4, 1, 1),
                 priority_slot("secondary", 1, 1, 2, 2, 1),
                 priority_slot("secondary", 2, 3, 2, 2, 1),
-                block_slot("front-papyrus-data-ownership", 1, 4, 3, 1),
             ],
             "overflow": {"columnSpan": "full", "rowSpan": 1},
         },
@@ -780,26 +1137,13 @@ def priority_slot(priority: str, occurrence: int, column_start: int, column_span
     }
 
 
-def block_slot(block_id: str, column_start: int, column_span: int, row_start: int, row_span: int) -> dict[str, Any]:
+def seed_cut_policy(_item_id: str, index: int) -> dict[str, Any] | None:
+    if index > 3:
+        return None
     return {
-        "blockId": block_id,
-        "columnStart": column_start,
-        "columnSpan": column_span,
-        "rowStart": row_start,
-        "rowSpan": row_span,
+        "bodyDepthRows": 8 if index == 3 else 14,
+        "jumpTargetPage": index // 2 + 2,
     }
-
-
-def seed_cut_policy(item_id: str) -> dict[str, Any] | None:
-    if item_id == "papyrus-reader-contract":
-        return {"bodyDepthRows": 14, "jumpTargetPage": 2}
-    if item_id == "papyrus-introduction":
-        return {"bodyDepthRows": 14, "jumpTargetPage": 3}
-    if item_id == "papyrus-agent-workflow":
-        return {"bodyDepthRows": 14, "jumpTargetPage": 3}
-    if item_id == "papyrus-data-ownership":
-        return {"bodyDepthRows": 8, "jumpTargetPage": 2}
-    return None
 
 
 def order_articles(source: list[dict[str, Any]], article_order: list[str]) -> list[dict[str, Any]]:

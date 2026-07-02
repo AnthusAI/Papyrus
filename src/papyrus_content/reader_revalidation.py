@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import urllib.error
 import urllib.request
 from typing import Any
 
 from .env import load_dotenv
+from .papyrus_config import resolve_reader_cache_revalidate_secret, resolve_reader_revalidation_base_url
 
 
 def trigger_reader_cache_revalidation(
@@ -16,8 +16,8 @@ def trigger_reader_cache_revalidation(
     item_slugs: list[str] | None = None,
 ) -> dict[str, Any] | None:
     load_dotenv()
-    base_url = os.environ.get("PAPYRUS_BASE_URL", "").strip().rstrip("/")
-    secret = os.environ.get("PAPYRUS_REVALIDATE_SECRET", "").strip()
+    base_url = resolve_reader_revalidation_base_url()
+    secret = resolve_reader_cache_revalidate_secret() or ""
     if not base_url or not secret:
         return None
 

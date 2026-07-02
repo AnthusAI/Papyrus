@@ -23,20 +23,15 @@ edition layout plans, responsive page grids, regions, block geometry, cut
 policies, page heights, furniture variants, scoring, continuation labels, and
 rendering contracts.
 
-## Continuous integration on `main`
+## Continuous integration on `develop` (promote to `main`)
 
-- **`main` on GitHub (`AnthusAI/Papyrus`) is the only integration branch.** All
-  feature work must land on `main` (merge or push) before it is considered done.
-  Do not leave capabilities (for example Tavily web search, research CLI, GraphQL
-  auth fixes) only on long-lived agent branches or un-pulled local clones.
-- **`~/Projects/Papyrus`** — primary development checkout (sandbox, Poetry, tests).
-- **`~/Projects/Papyrus-production`** — a **second clone of the same repository**,
-  not a separate product fork. Amplify production deploys track `main` on GitHub.
-  After every `git push origin main`, run `git pull origin main` in
-  `Papyrus-production` so both folders match. If a checkout is “N commits behind,”
-  that usually means it was not pulled—not that GitHub `main` lacks the work.
-- Agents should finish integration work with: changes committed on `main`, pushed
-  to `origin/main`, and both local checkouts fast-forwarded to the same commit.
+- **`develop` on GitHub (`AnthusAI/Threat-Intelligence`) is the integration
+  branch.** Feature work should land on `develop` first.
+- **`main` is the release/production branch.** Promote reviewed integration work
+  with `develop -> main` PRs.
+- Keep integration and release state explicit: report whether a change has
+  landed in `develop`, whether a `develop -> main` PR exists, and whether it has
+  merged.
 
 ## Core Rules
 
@@ -45,10 +40,10 @@ rendering contracts.
   Treat `AGENTS.local.md` as required preflight context for cloud operations on
   this machine.
 - Papyrus is an Amplify Gen 2 project. Production backend/frontend deployment is
-  done by pushing commits to `main` through the configured DevOps/Amplify
-  pipeline. Do not run `ampx pipeline-deploy` (or other direct production
-  `ampx` deploy commands) from local agents unless the user explicitly asks for
-  that exact override. Use `ampx` locally for sandbox workflows only.
+  done from `main` through the configured DevOps/Amplify pipeline. Do not run
+  `ampx pipeline-deploy` (or other direct production `ampx` deploy commands)
+  from local agents unless the user explicitly asks for that exact override. Use
+  `ampx` locally for sandbox workflows only.
 - Do not commit unless the user explicitly asks.
 - Preserve unrelated uncommitted work. This project is often dirty because it is
   being iterated in conversation.
@@ -57,17 +52,10 @@ rendering contracts.
   Use JavaScript/TypeScript only for the Next.js/React frontend and
   frontend-specific test harnesses.
 - Do not add backward-compatibility fallbacks for old schema, GraphQL, content,
-  layout-plan, or CLI shapes. Fallback read queries, dual-shape normalizers,
-  silent compatibility branches, and long-lived migration shims are technical
-  debt. Treat required-field/schema mismatches as data or deployment errors:
-  fix the production data with a targeted backfill, deploy the current schema
-  or code, and remove any one-time repair path after use.
-- Only create a temporary compatibility repair when the user explicitly approves
-  it to restore production immediately. Keep it narrow, document exactly why it
-  exists, and remove it from normal read, authoring, repository, and solver
-  paths as soon as the data or deployment is corrected.
-- Default to clean breaks. Do not add fallback behavior, compatibility shims, or
-  multi-path read/write logic unless the user explicitly requests that fallback.
+  layout-plan, or CLI shapes. See
+  [Schema and API alignment (no compatibility shims)](#schema-and-api-alignment-no-compatibility-shims).
+- Default to clean breaks. Do not add fallback behavior unless the user
+  explicitly requests it.
 - Keep the current one-page React flipper. Do not reintroduce Turn.js, jQuery,
   or DOM-mutating layout loops.
 - Do not make React measure rendered DOM to decide layout. The solver should
@@ -289,6 +277,68 @@ rendering contracts.
   `poetry run papyrus ops categories export-lexical-steering --output <lexical-steering.json>`.
   Do not assume Biblicus consumes that export until the Biblicus agent confirms
   the command contract.
+
+## Schema and API alignment (no compatibility shims)
+
+Local application code and the deployed GraphQL API must describe the same contract.
+When CLI or Lambda code fails because a field, model, or input type is missing on
+AppSync, that is a **deployment error** — not a signal to add adaptation logic in
+Python or TypeScript.
+
+**Do not fix schema drift in code. Fix the deployment.**
+
+### Forbidden (unless the user explicitly approves a temporary emergency repair)
+
+- Runtime schema introspection that **filters** queries or mutations to match
+  whatever the remote API currently exposes (for example: dropping undeployed
+  fields from `listReferences`, or stripping keys from `CreateReferenceInput`
+  before send).
+- Fallback read queries with reduced field sets for "older" APIs.
+- Dual-shape normalizers that accept both old and new schema shapes.
+- Silent `try/except` branches that continue with partial or degraded behavior
+  when the API contract does not match code.
+- Any logic whose purpose is "make the CLI work against a sandbox that hasn't
+  caught up yet." That sandbox will catch up once; the shim stays forever.
+
+These patterns look small at first. They become permanent branches every agent
+and every future feature must reason about. **One hour of deployment lag is not
+worth years of compatibility debt.**
+
+### Required response when code and deployed schema disagree
+
+1. Confirm local schema in [`amplify/data/resource.ts`](amplify/data/resource.ts)
+   (or the relevant Amplify resource) is what code expects.
+2. Deploy it to the target environment:
+   - **Sandbox:** `npx ampx sandbox` (wait for deploy to finish), then
+     `npm run outputs:sandbox` if needed.
+   - **Production:** use the normal pipeline; do not patch around prod drift
+     from local agents.
+3. Re-run the failing CLI command. It should succeed against the updated API or
+   fail with a real data/logic error — not a field-undefined validation error.
+
+Do **not** weaken the CLI client, GraphQL authoring layer, or newsroom tools to
+paper over an outdated AppSync schema.
+
+### Temporary emergency repairs
+
+Only when the user **explicitly approves** restoring production immediately:
+
+- Keep the repair as narrow as possible (one command, one model, one migration).
+- Document exactly why it exists and when it must be removed.
+- Remove it from normal read, authoring, repository, and solver paths as soon
+  as deployment or data is corrected.
+
+Default is **clean breaks**: fail loudly, deploy schema, move on.
+
+### Concrete anti-pattern (do not repeat)
+
+During Threat Intelligence bootstrap, sandbox AppSync was missing
+`Reference.inboundCitationCount`, `Reference.reviewedFeedKey`, and related
+fields that already existed in local schema. The wrong fix was adding
+`_resolved_fields()` and runtime mutation input filtering in
+`src/papyrus_content/graphql_authoring.py`. The right fix was deploying sandbox
+schema, then re-running `references create-from-catalog`.
+
 ## Solver vs. Renderer Boundary
 
 The newspaper pages are not browser-flow layouts. They are solved layouts that
@@ -419,6 +469,9 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
 - The CLI is GraphQL authoring and inspection.
 - `src/papyrus_content/graphql_authoring.py` owns GraphQL authoring calls: JWT
   when run from the CLI; IAM automatically when `AWS_LAMBDA_FUNCTION_NAME` is set.
+- `graphql_authoring.py` uses **fixed** query field lists and explicit input
+  shaping. Do not add runtime schema introspection to adapt to undeployed fields.
+  See [Schema and API alignment (no compatibility shims)](#schema-and-api-alignment-no-compatibility-shims).
 - `content inspect`, `content list`, and `content delete all --yes` are the
   stable deployed-API operations. `content diff` and `content sync` are
   source-driven publishing commands; do not use them as a production runbook
@@ -655,6 +708,16 @@ To change rendering:
 - Keep direct article routes in `app/articles/[slug]/page.tsx` working.
 - Keep the one-page flipper behavior.
 
+## Video pipeline
+
+- Read [publications/threat_intelligence/skills/produce-video/SKILL.md](publications/threat_intelligence/skills/produce-video/SKILL.md) before generating or changing Threat Intelligence videos. It defines branding, pictogram policy, content voice, and edition-overview requirements.
+- Threat Intelligence seed videos are generated with `poetry run papyrus videos seed` (Python orchestration) and VideoML `vml pipeline` (Node subprocess via Babulus `packages/videoml-cli` when `~/Projects/Babulus` is present). See [publications/threat_intelligence/docs/video-pipeline.md](publications/threat_intelligence/docs/video-pipeline.md).
+- The OpenAI key for TTS is sourced from `.papyrus/config.yaml` `openai.api_key` or `OPENAI_API_KEY` via [src/papyrus_content/papyrus_config.py](src/papyrus_content/papyrus_config.py). Never commit keys; `.papyrus/` stays gitignored.
+- Article briefings are `MediaAsset(type="video")` rows linked to article `Item` records. Edition overview teasers live in `Edition.metadata.editionVideo` (also seeded from the fixture top-level `video` block). No separate `VideoAsset` model.
+- Sandbox seed video S3 upload is gated by `PAPYRUS_SEED_VIDEOS=1`. Default seed still writes video metadata with local `externalUrl` paths.
+- Worktrees without `.papyrus/config.yaml` should set `PAPYRUS_CONFIG` to the main clone config path before running the video pipeline.
+- Threat Intelligence videos use **flat solid background colors** matching the blog dark-mode paper (`#191918`). Do not use gradient backgrounds in `TI_BACKGROUND_PROPS` or scene styles — the TI brand language is flat color, not SaaS-style gradients. Pictogram frames, quote cards, and CTA slides all sit on the same flat paper.
+
 ## Verification Checklist
 
 Run these after changes:
@@ -712,6 +775,24 @@ do not stop or restart it unless asked.
 `npm run test:bdd` expects a running app and defaults to `http://localhost:3001`.
 Use `PAPYRUS_BASE_URL` for another server. Use `PAPYRUS_HEADLESS=false` or
 `npm run test:bdd:headed` when debugging geometry visually.
+
+Frontend BDD is site-brand aware. The running app exposes reader capabilities on
+`<html>` through `data-site-brand`, `data-default-presentation`,
+`data-forced-presentation`, and `data-presentation-choices`. Scenarios declare
+requirements with tags such as `@newspaper`, `@blog`, `@presentation-choice`,
+and `@brand-agnostic`; incompatible scenarios skip automatically on locked fork
+brands instead of failing during setup.
+
+- **Full newspaper regression:** start the app with the canonical BDD brand from
+  `config/bdd-canonical.env.example` (`PAPYRUS_SITE_BRAND=papyrus`,
+  `NEXT_PUBLIC_PAPYRUS_SITE_BRAND=papyrus`), then run
+  `npm run test:bdd:canonical`.
+- **Fork checkout CI:** run `npm run test:bdd` against the fork's normal brand.
+  Newspaper-only scenarios skip; blog scenarios run when the fork forces or
+  defaults to blog.
+- **Preflight only:** `npm run test:bdd:check-brand` reports the active site
+  profile. Set `PAPYRUS_BDD_REQUIRE_CANONICAL_BRAND=1` to fail when the server
+  is not on the canonical Papyrus reader profile.
 
 `npm run test:bdd:agent-live` runs backend live-agent BDD (Behave/Python),
 not frontend browser geometry checks.

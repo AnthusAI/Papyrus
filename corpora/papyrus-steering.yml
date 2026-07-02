@@ -1,37 +1,15 @@
 schemaVersion: 1
 publication:
-  name: "Papyrus AI/ML Newsroom"
+  name: "Anthus Threat Intelligence"
 canonicalTopicSet:
-  corpusKey: "AI-ML-research"
-  classifierId: "ai-ml-research"
+  corpusKey: "threat-intelligence"
+  classifierId: "threat-intelligence"
 corpora:
-  - key: "AI-ML-research"
-    name: "AI-ML-research"
-    path: "corpora/ai-ml-research"
-    s3Prefix: "s3://amplify-dbsyytcm9drqa-mai-papyrusmediabucket0dab24-4hstaautjdqo/corpora/ai-ml-research/"
+  - key: "threat-intelligence"
+    name: "threat-intelligence"
+    path: "corpora/threat-intelligence"
+    s3Prefix: "s3://amplify-d3on1y5vlrxmam-ma-papyrusmediabucket0dab24-vq9lqoedok0k/corpora/threat-intelligence/"
     role: "canonical"
     localClassifiers:
-      - classifierId: "ai-ml-research"
-        label: "AI/ML Research Topics"
-  - key: "AI-ML-history"
-    name: "AI-ML-history"
-    path: "corpora/ai-ml-history"
-    s3Prefix: "s3://amplify-dbsyytcm9drqa-mai-papyrusmediabucket0dab24-4hstaautjdqo/corpora/ai-ml-history/"
-    role: "source"
-    canonicalProjection:
-      authorityCorpusKey: "AI-ML-research"
-      classifierId: "ai-ml-research"
-    localClassifiers:
-      - classifierId: "ai-ml-history"
-        label: "AI/ML History Topics"
-  - key: "AI-ML-journalism"
-    name: "AI-ML-journalism"
-    path: "corpora/ai-ml-journalism"
-    s3Prefix: "s3://amplify-dbsyytcm9drqa-mai-papyrusmediabucket0dab24-4hstaautjdqo/corpora/ai-ml-journalism/"
-    role: "source"
-    canonicalProjection:
-      authorityCorpusKey: "AI-ML-research"
-      classifierId: "ai-ml-research"
-    localClassifiers:
-      - classifierId: "ai-ml-journalism"
-        label: "AI/ML Journalism Topics"
+      - classifierId: "threat-intelligence"
+        label: "Threat Intelligence Topics"

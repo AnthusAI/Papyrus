@@ -23,6 +23,7 @@ packages = [
     { include = "papyrus_knowledge_query", from = "src" },
     { include = "papyrus_content", from = "src" },
     { include = "papyrus_web", from = "src" },
+    { include = "publications", from = "." },
 ]
 
 [tool.poetry.group.dev.dependencies]
@@ -31,8 +32,8 @@ behave = "^1.2.6"
 requests = "^2.32.3"
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["procedures/newsroom/tests"]
+pythonpath = ["src", "."]
+testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests"]
 
 [build-system]
 requires = ["poetry-core>=1.9.0"]

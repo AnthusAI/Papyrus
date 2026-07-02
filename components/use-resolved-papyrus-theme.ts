@@ -14,7 +14,7 @@ function readResolvedTheme(): ResolvedTheme {
 }
 
 export function useResolvedPapyrusTheme(): ResolvedTheme {
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => readResolvedTheme());
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
