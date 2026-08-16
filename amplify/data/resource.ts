@@ -1952,7 +1952,7 @@ const schema = a.schema({
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1989,7 +1989,7 @@ const schema = a.schema({
       index("role").sortKeys(["publishedItemId"]).queryField("listPublishedMediaAssetsByRoleAndItem"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2016,7 +2016,7 @@ const schema = a.schema({
       index("editionLineageId").sortKeys(["versionNumber"]).queryField("listPublishedEditionsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2042,7 +2042,7 @@ const schema = a.schema({
       index("publishedItemId").sortKeys(["publishedEditionId"]).queryField("listPublishedEditionItemsByItemAndEdition"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2069,7 +2069,7 @@ const schema = a.schema({
       index("categorySetLineageId").sortKeys(["versionNumber"]).queryField("listPublishedCategorySetsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2106,7 +2106,7 @@ const schema = a.schema({
       index("categoryKey").sortKeys(["publishedCategorySetId"]).queryField("listPublishedCategoriesByKeyAndSet"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2130,7 +2130,7 @@ export const data = defineData({
   authorizationModes: {
     defaultAuthorizationMode: "userPool",
     apiKeyAuthorizationMode: {
-      expiresInDays: 30,
+      expiresInDays: 365,
     },
     lambdaAuthorizationMode: {
       function: graphqlJwtAuthorizer,
