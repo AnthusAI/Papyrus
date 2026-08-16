@@ -434,8 +434,8 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
   inspect and backfill `Edition.publishedAt` before changing the renderer.
 - The read path does not require a hand-managed token in `.env`. It uses
   `amplify_outputs.json` plus Amplify runtime configuration.
-- The public read path should keep using `authMode: "apiKey"` even though the
-  API default authorization mode is `userPool`.
+- The public read path uses `authMode: "identityPool"` (Cognito guest / unauthenticated
+  IAM role). Do not depend on expiring AppSync API keys for SSR reader traffic.
 
 `amplify/` owns the cloud backend:
 

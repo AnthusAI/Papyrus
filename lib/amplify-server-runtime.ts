@@ -34,7 +34,30 @@ function loadAmplifyOutputs(): ResourcesConfig {
     );
   }
 
-  const config = JSON.parse(fs.readFileSync(outputsPath, "utf8")) as ResourcesConfig;
-  assertSandboxAmplifyOutputsForDev(config as Record<string, unknown>);
-  return config;
+  const raw = JSON.parse(fs.readFileSync(outputsPath, "utf8")) as ResourcesConfig & {
+    auth?: { identity_pool_id?: string; user_pool_client_id?: string; user_pool_id?: string };
+  };
+  assertSandboxAmplifyOutputsForDev(raw as Record<string, unknown>);
+
+  // Reader SSR uses Cognito identity-pool guest credentials (no expiring AppSync API keys).
+  const cognito = (raw as { Auth?: { Cognito?: Record<string, unknown> } }).Auth?.Cognito ?? {};
+  const legacyAuth = raw.auth;
+  return {
+    ...raw,
+    Auth: {
+      Cognito: {
+        ...cognito,
+        identityPoolId:
+          (cognito.identityPoolId as string | undefined)
+          ?? legacyAuth?.identity_pool_id,
+        userPoolClientId:
+          (cognito.userPoolClientId as string | undefined)
+          ?? legacyAuth?.user_pool_client_id,
+        userPoolId:
+          (cognito.userPoolId as string | undefined)
+          ?? legacyAuth?.user_pool_id,
+        allowGuestAccess: true,
+      },
+    },
+  } as ResourcesConfig;
 }

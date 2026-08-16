@@ -16,7 +16,7 @@ import {
 } from "./publication-items";
 import { SITE_BRAND } from "./site-brand";
 
-const AUTH_MODE = "apiKey";
+const AUTH_MODE = "identityPool";
 const DEFAULT_EDITION_SLUG = "current";
 const PUBLISHED_STATUS = "published";
 const ARTICLE_TYPE_STATUS = "article#published";
@@ -126,74 +126,106 @@ const IMAGE_ROLES: NonNullable<ArticleImageAsset["roles"]> = [
   "thumbnail",
 ];
 
-let cachedClient: DataClient | null = null;
+let readerContextClient: DataClient | null = null;
+let buildTimeClient: DataClient | null = null;
+
+async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise<T> {
+  const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
+  return runWithAmplifyServerContext({
+    nextServerContext: null,
+    operation: async () => {
+      readerContextClient = generateClient<Schema>({ authMode: AUTH_MODE });
+      try {
+        return await operation();
+      } finally {
+        readerContextClient = null;
+      }
+    },
+  });
+}
 
 export const graphqlContentRepository: ContentRepository = {
-  async loadEditionContent(options?: LoadEditionContentOptions) {
-    return withContentLoadTiming("loadEditionContent", { editionDate: options?.editionDate ?? null }, async () => {
-      const edition = options?.editionDate
-        ? await loadPublishedEditionForDate(options.editionDate, options.editionSlug)
-        : await loadActiveEdition();
-      return loadEditionContentFromEdition(edition);
+  loadEditionContent(options) {
+    return withReaderGraphQLContext(() =>
+      withContentLoadTiming("loadEditionContent", { editionDate: options?.editionDate ?? null }, async () => {
+        const edition = options?.editionDate
+          ? await loadPublishedEditionForDate(options.editionDate, options.editionSlug)
+          : await loadActiveEdition();
+        return loadEditionContentFromEdition(edition);
+      }),
+    );
+  },
+
+  getLatestPublishedEdition() {
+    return withReaderGraphQLContext(async () => {
+      try {
+        return summarizeEditionRoute(await loadLatestPublishedEdition());
+      } catch (error) {
+        if (isMissingGraphQLEditionError(error)) return null;
+        throw error;
+      }
     });
   },
 
-  async getLatestPublishedEdition() {
-    try {
-      return summarizeEditionRoute(await loadLatestPublishedEdition());
-    } catch (error) {
-      if (isMissingGraphQLEditionError(error)) return null;
-      throw error;
-    }
+  getFirstPublishedEdition() {
+    return withReaderGraphQLContext(async () => {
+      try {
+        return summarizeEditionRoute(await loadFirstPublishedEdition());
+      } catch (error) {
+        if (isMissingGraphQLEditionError(error)) return null;
+        throw error;
+      }
+    });
   },
 
-  async getFirstPublishedEdition() {
-    try {
-      return summarizeEditionRoute(await loadFirstPublishedEdition());
-    } catch (error) {
-      if (isMissingGraphQLEditionError(error)) return null;
-      throw error;
-    }
+  listPublishedEditions(options) {
+    return withReaderGraphQLContext(async () => {
+      const result = await listPublishedEditionSummaries(options);
+      return {
+        editions: result.editions.map(summarizeEditionRoute),
+        nextToken: result.nextToken,
+      };
+    });
   },
 
-  async listPublishedEditions(options?: ListPublishedEditionsOptions) {
-    const result = await listPublishedEditionSummaries(options);
-    return {
-      editions: result.editions.map(summarizeEditionRoute),
-      nextToken: result.nextToken,
-    };
+  getArticle(slug) {
+    return withReaderGraphQLContext(async () => {
+      const item = await getItemBySlug(slug);
+      if (!item || item.type !== "article" || item.status !== "published") return undefined;
+      return normalizeArticle(item, await listMediaAssets(item.id));
+    });
   },
 
-  async getArticle(slug: string) {
-    const item = await getItemBySlug(slug);
-    if (!item || item.type !== "article" || item.status !== "published") return undefined;
-    return normalizeArticle(item, await listMediaAssets(item.id));
+  getEditionArticle({ editionDate, articleSlug }) {
+    return withReaderGraphQLContext(async () => {
+      const item = await loadEditionItem(editionDate, articleSlug);
+      return item ? publicationItemToArticle(item) : undefined;
+    });
   },
 
-  async getEditionArticle({ editionDate, articleSlug }) {
-    const item = await loadEditionItem(editionDate, articleSlug);
-    return item ? publicationItemToArticle(item) : undefined;
+  getEditionItem({ editionDate, itemSlug }) {
+    return withReaderGraphQLContext(() => loadEditionItem(editionDate, itemSlug));
   },
 
-  async getEditionItem({ editionDate, itemSlug }) {
-    return loadEditionItem(editionDate, itemSlug);
-  },
-
-  async listArticleSlugs() {
-    const items = await listItemsByTypeStatus(ARTICLE_TYPE_STATUS);
-    return items
-      .filter((item) => item.type === "article" && item.status === "published")
-      .map((item) => item.slug)
-      .sort();
+  listArticleSlugs() {
+    return withReaderGraphQLContext(async () => {
+      const items = await listItemsByTypeStatus(ARTICLE_TYPE_STATUS);
+      return items
+        .filter((item) => item.type === "article" && item.status === "published")
+        .map((item) => item.slug)
+        .sort();
+    });
   },
 };
 
 function getClient(): DataClient {
-  if (cachedClient) return cachedClient;
+  if (readerContextClient) return readerContextClient;
 
-  getAmplifyServerRuntime();
-  cachedClient = generateClient<Schema>({ authMode: AUTH_MODE });
-  return cachedClient;
+  if (!buildTimeClient) {
+    getAmplifyServerRuntime();
+    buildTimeClient = generateClient<Schema>({ authMode: AUTH_MODE });
+  }
+  return buildTimeClient;
 }
 
 async function loadActiveEdition(): Promise<GraphQLEdition> {
