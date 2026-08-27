@@ -1,0 +1,18 @@
+{
+  "id": "PPY-7625aa03-b6c8-453c-83ee-b587370a1035",
+  "title": "Return story work for revision without losing history",
+  "description": "# Return story work for revision without losing history\n\n## Intent\n\nAs an editor, I want to return a story to an earlier editorial stage, so that revision is represented honestly instead of being performed behind an unchanged status.\n\n## Behavior specification\n\nFeature: Revise newsroom story work\n\nScenario: Return reporting for more research\n  Given a story has reached reporting or editor selection\n  When the editor requests additional research through a supported transition\n  Then the story returns to the configured research stage\n  And existing assignment, research, and report artifacts remain available\n  And guidance explains what must change before reporting can advance again\n\nScenario: Return reader-facing copy for revision\n  Given a story has reached copywriting\n  When the editor requests copy revision through a supported transition\n  Then the story remains in or returns to the configured copywriting stage\n  And the prior article artifact remains in Git history\n  And publication remains unavailable until the revised copy passes its gate\n\n## Boundary\n\nSlice 1 needs only the return paths exercised by the real story. It does not need a hosted assignment-event model or verified editor identity.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:18:57.547078Z",
+  "updated_at": "2026-08-27T13:18:57.547078Z",
+  "closed_at": null,
+  "custom": {}
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "7ca8d978-7097-4670-9700-a4bf6d955ff9",
+  "issue_id": "PPY-962447c5-b0e4-4812-b17c-48f2fa528229",
+  "event_type": "dependency_removed",
+  "occurred_at": "2026-08-27T13:22:27.153Z",
+  "actor_id": "ryan",
+  "payload": {
+    "dependency_type": "blocked-by",
+    "target_id": "PPY-02fac7"
+  }
+}

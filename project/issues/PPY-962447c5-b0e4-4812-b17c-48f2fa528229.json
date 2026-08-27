@@ -1,0 +1,30 @@
+{
+  "id": "PPY-962447c5-b0e4-4812-b17c-48f2fa528229",
+  "title": "Author the minimal pod skill and Anth.us doctrine",
+  "description": "# Author the minimal pod skill and Anth.us doctrine\n\n## Purpose\n\nGive agents enough context to follow the newsroom discipline without turning doctrine into an uncapped second product.\n\n## Deliverables\n\n- One pod-specific skill that directs agents to inspect and advance work through Kanbus.\n- Minimal Anth.us publication doctrine that can be read in full on every run.\n- Clear separation between internal research/reporting and publishable copy.\n- Explicit process-versus-authority language: the pod enforces transitions, not verified identity.\n- Explicit instruction that pod-generated CMS files are outputs and must not be edited directly.\n- Guidance for revision, blocked transitions, and escalation to the editor.\n\n## Verification\n\nA fresh agent session can inspect a story, locate the complete doctrine, identify the next supported action, and explain the pod/hosted boundary without relying on prior chat context.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:20:15.240330Z",
+  "updated_at": "2026-08-27T13:20:15.240330Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

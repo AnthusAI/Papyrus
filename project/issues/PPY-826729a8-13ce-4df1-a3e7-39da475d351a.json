@@ -1,0 +1,26 @@
+{
+  "id": "PPY-826729a8-13ce-4df1-a3e7-39da475d351a",
+  "title": "Add generated-article divergence verification",
+  "description": "# Add generated-article divergence verification\n\n## Purpose\n\nMake the pod-to-CMS canonicality rule mechanical rather than dependent on operator memory.\n\n## Deliverables\n\n- Add a deterministic verification command for marked pod-generated Anth.us files.\n- Regenerate or otherwise compare each marked file with its pod source.\n- Fail with the affected article and recovery action when divergence exists.\n- Ignore the existing hand-authored blog corpus unless a file carries the generated marker.\n- Integrate the verification into the Anth.us continuous-integration path under that repository workflow.\n\n## Implements\n\n- PPY-54923a: divergence detection.\n\n## Verification\n\nCI-oriented executable scenarios pass for matching output, fail for a deliberate generated-file edit, and leave unmarked posts outside the contract.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:20:41.365531Z",
+  "updated_at": "2026-08-27T13:20:41.365531Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

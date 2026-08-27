@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bb416ede-713c-4007-9bad-b1824964fc06",
+  "issue_id": "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:17:47.142Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Slice 2: Validate transfer to another pre-infrastructure publication\n\n## Intent\n\nAs a publication operator starting before backend infrastructure exists, I want the proven pod discipline to work on a second real publication, so that we can distinguish Anth.us-specific success from a reusable pre-infrastructure capability.\n\n## Entry criteria\n\n- Slice 1 has an explicit proceed or revise-and-proceed decision.\n- A real publication is selected that differs from Anth.us on at least one material axis such as author count, confidentiality, editorial stakes, cadence, or CMS shape.\n\n## Definition of Done\n\n- At least one real story completes the pod workflow in the second publication.\n- Differences from Anth.us are documented before configuration is generalized.\n- Coaching, blocks, recovery, false positives, operator intervention, and handoff friction are compared with Slice 1.\n- Any confidentiality or role constraints are handled honestly within the process-versus-authority boundary.\n- Repeated needs are separated from publication-specific doctrine and hooks.\n- The result makes an explicit decision about whether a reusable pod package is justified.\n\n## Non-goals\n\n- Proving external adoption or sales conversion.\n- Adding hosted identity or access control to a pod.\n- Promoting a hook into Kanbus core from newsroom evidence alone.",
+    "issue_type": "epic",
+    "labels": [],
+    "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+    "priority": 2,
+    "status": "open",
+    "title": "Slice 2: Validate transfer to another pre-infrastructure publication"
+  }
+}

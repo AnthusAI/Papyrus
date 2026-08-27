@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1f16d64b-be54-498f-90d0-432753db9c5b",
+  "issue_id": "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:20:15.213Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Write executable Slice 1 behavior specifications\n\n## Purpose\n\nTranslate the Slice 1 Kanbus stories into executable specifications before production configuration, hooks, publishing behavior, or CI enforcement is implemented.\n\n## Deliverables\n\n- Cover stable story workspace initialization.\n- Cover coaching, failed transitions, successful transitions, and supported revision paths.\n- Cover deterministic publication, generated markers, divergence detection, and hand-authored exclusions.\n- Cover evidence classification for coaching, blocks, recovery, false positives, intervention, and inconclusive zero-signal runs.\n- Provide a disposable fixture environment that cannot be mistaken for the real-story proof.\n\n## Verification\n\nRun the new specifications and record that they fail for the expected missing-behavior reasons before production work begins. No specification may encode internal implementation structure.",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Write executable Slice 1 behavior specifications"
+  }
+}

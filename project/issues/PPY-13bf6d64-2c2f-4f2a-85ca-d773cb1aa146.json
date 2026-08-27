@@ -1,0 +1,18 @@
+{
+  "id": "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146",
+  "title": "Coach and enforce story-stage prerequisites",
+  "description": "# Coach and enforce story-stage prerequisites\n\n## Intent\n\nAs a newsroom operator, I want each transition to explain and enforce its editorial prerequisite, so that agents learn the process and cannot silently skip required work.\n\n## Behavior specification\n\nFeature: Gate newsroom story transitions\n\nScenario: Coach before a transition is attempted\n  Given a story is in a stage with a defined next editorial artifact\n  And the artifact is not ready\n  When an agent inspects or works with the story through Kanbus\n  Then Kanbus emits guidance naming the missing work\n  And the guidance explains why the work belongs before the next stage\n\nScenario: Refuse an incomplete transition\n  Given a story is ready to attempt a configured stage transition\n  And the artifact required by that transition is missing, empty, or invalid\n  When the agent requests the transition through Kanbus\n  Then the transition fails closed\n  And the story remains in its current stage\n  And the response identifies a concrete recovery action\n\nScenario: Allow a complete transition\n  Given the required artifact satisfies the configured gate\n  When the agent requests the transition through Kanbus\n  Then the transition succeeds\n  And the Kanbus event history records the stage change\n\n## Boundary\n\nSlice 1 implements file checks with lifecycle hooks. It must not add newsroom predicates to Kanbus core.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:18:57.537871Z",
+  "updated_at": "2026-08-27T13:18:57.537871Z",
+  "closed_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "id": "PPY-0d667350-c31a-484f-bbee-7b2d08549188",
+  "title": "Measure coaching, enforcement, and operator friction",
+  "description": "# Measure coaching, enforcement, and operator friction\n\n## Intent\n\nAs the pod experiment owner, I want evidence about how the guardrails affected the run, so that shipping a post is not mistaken for proof that the workflow helped.\n\n## Behavior specification\n\nFeature: Evaluate a newsroom pod run\n\nScenario: Guidance causes compliance without a block\n  Given Kanbus emits coaching for a story-stage prerequisite\n  And the agent completes the prerequisite before attempting the transition\n  When the run evidence is summarized\n  Then the coaching event is counted separately from blocked transitions\n  And the compliant outcome is retained\n\nScenario: A gate blocks an invalid transition\n  Given a stage transition fails closed\n  When the agent responds to the refusal\n  Then the block and subsequent recovery or bypass attempt are recorded\n\nScenario: Human intervention is required\n  Given the operator must intervene for the story to proceed\n  When the run evidence is summarized\n  Then the intervention and its cause are recorded as operator friction\n\nScenario: No coaching or blocking occurs\n  Given the real story completes with zero coaching events and zero blocks\n  When the run is evaluated\n  Then the result is classified as inconclusive about guardrail value\n  And it is not classified as evidence against the workflow.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:18:57.575306Z",
+  "updated_at": "2026-08-27T13:18:57.575306Z",
+  "closed_at": null,
+  "custom": {}
+}

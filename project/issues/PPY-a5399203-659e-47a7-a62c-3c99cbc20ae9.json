@@ -1,0 +1,18 @@
+{
+  "id": "PPY-a5399203-659e-47a7-a62c-3c99cbc20ae9",
+  "title": "Publish approved pod copy deterministically to Anth.us",
+  "description": "# Publish approved pod copy deterministically to Anth.us\n\n## Intent\n\nAs an Anth.us editor, I want approved pod copy to generate the CMS artifact deterministically, so that the pod remains canonical and publication does not create a second editable source.\n\n## Behavior specification\n\nFeature: Publish a pod article to Anth.us\n\nScenario: Generate the approved article\n  Given a story has reached the publication gate\n  And its article artifact and required front matter are valid\n  When the operator publishes the story\n  Then the expected MDX file is generated in the Anth.us blog content location\n  And its front matter marks it as generated from the pod\n  And the generated content identifies the stable source story\n\nScenario: Publish the same story again\n  Given the generated Anth.us file already matches the pod source\n  When the operator publishes the story again\n  Then the resulting file is byte-for-byte equivalent\n  And no duplicate article is created\n\nScenario: Attempt publication before approval\n  Given a story has not passed the configured editorial selection and copywriting gates\n  When the operator attempts publication\n  Then publication is refused\n  And no CMS artifact is changed.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:18:57.556036Z",
+  "updated_at": "2026-08-27T13:18:57.556036Z",
+  "closed_at": null,
+  "custom": {}
+}

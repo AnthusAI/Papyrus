@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "058ba8c3-3206-487e-968c-103a53af80cf",
+  "issue_id": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:17:47.133Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Slice 1: Prove a newsroom pod on one Anth.us story\n\n## Intent\n\nAs an Anth.us editor, I want one real post to move through a Kanbus-configured newsroom workflow, so that we can determine whether file-native gates and coaching create useful editorial discipline before cloud infrastructure exists.\n\n## Definition of Done\n\n- The pod runs on a pinned released Kanbus version without Papyrus or Kanbus core changes.\n- One story moves from idea through assignment, research, report, editor selection, copywriting, and publication using supported Kanbus transitions.\n- Missing or invalid stage artifacts fail closed and explain how to recover.\n- Coaching, blocks, recoveries, false positives, and human interventions are recorded separately.\n- Publication idempotently generates a marked Anth.us MDX file and CI detects divergence from the pod source.\n- A real Anth.us post is published through the workflow.\n- A findings record makes an explicit proceed, revise, or stop decision and identifies only evidence-supported follow-up work.\n\n## Non-goals\n\n- Evidence for the external funnel hypothesis.\n- Changes to Kanbus core or either runtime.\n- Hosted Papyrus features, identity enforcement, corpora, editions, or layout.\n- A reusable public template before the real story exposes what should be generalized.",
+    "issue_type": "epic",
+    "labels": [],
+    "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+    "priority": 1,
+    "status": "open",
+    "title": "Slice 1: Prove a newsroom pod on one Anth.us story"
+  }
+}

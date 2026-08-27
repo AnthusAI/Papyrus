@@ -1,0 +1,38 @@
+{
+  "id": "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad",
+  "title": "Rehearse the complete pod workflow with a disposable fixture",
+  "description": "# Rehearse the complete pod workflow with a disposable fixture\n\n## Purpose\n\nProve that the mechanics and evidence capture are safe enough for the real post without allowing a dummy story to satisfy Slice 1.\n\n## Deliverables\n\n- Initialize a disposable story through the supported Kanbus path.\n- Exercise every forward transition and each configured revision path.\n- Deliberately trigger at least one coaching event and one fail-closed block, then recover through the documented path.\n- Verify deterministic publication and a deliberate divergence failure in an isolated target.\n- Confirm that evidence scoring distinguishes coaching, blocking, recovery, false positives, and intervention.\n- Remove or clearly retain the fixture as test data so it cannot be confused with publication content.\n\n## Verification\n\nAll Slice 1 executable specifications pass against the rehearsal environment, and the real-story completion story remains open.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-962447c5-b0e4-4812-b17c-48f2fa528229",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-826729a8-13ce-4df1-a3e7-39da475d351a",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:20:41.384856Z",
+  "updated_at": "2026-08-27T13:20:41.384856Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

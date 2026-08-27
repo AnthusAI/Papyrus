@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "245f8591-9f53-42c2-bcab-038c9032fe4b",
+  "issue_id": "PPY-d3e17943-4e13-44c7-855a-3da2e85626e3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:18:57.528Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Initialize a pod story with a stable workspace\n\n## Intent\n\nAs a newsroom operator, I want Kanbus to create a story with a stable identity and owned file workspace, so that agents and editors have one durable place for the story throughout its lifecycle.\n\n## Behavior specification\n\nFeature: Initialize a newsroom pod story\n\nScenario: Create a new story from an idea\n  Given an initialized Anth.us newsroom pod\n  When the operator creates a newsroom story through Kanbus\n  Then the story begins in the configured idea stage\n  And its file workspace is derived from the stable Kanbus issue identity\n  And the idea artifact is available for the operator to complete\n  And guidance identifies the next supported action\n\nScenario: Revisit the story after another agent session\n  Given a newsroom story and its file workspace already exist\n  When another agent inspects the story through Kanbus\n  Then the same issue identity resolves to the same file workspace\n  And the current stage and next guidance are visible without reconstructing a prior chat\n\n## Boundary\n\nThis story establishes the per-story convention for Slice 1. It does not require generic Kanbus scaffolding or typed custom fields.",
+    "issue_type": "story",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Initialize a pod story with a stable workspace"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "PPY-2edf13cb-2bdc-4916-a1d9-f62b06807706",
+  "title": "Evaluate Slice 1 and decide the next milestone",
+  "description": "# Evaluate Slice 1 and decide the next milestone\n\n## Purpose\n\nTurn the real-story evidence into a bounded product decision rather than automatically expanding scope.\n\n## Deliverables\n\n- Report coaching, blocks, recoveries, bypass attempts, false positives, and human interventions.\n- Explain where the workflow taught, enforced, obstructed, or remained untested.\n- Score the internal discipline claim only; explicitly withhold funnel conclusions.\n- Record a proceed, revise-and-repeat, or stop decision with reasons.\n- Identify which hooks are publication-specific and which repeated non-newsroom use might justify Kanbus review.\n- Update the later milestone entry criteria based on evidence without prematurely creating implementation tasks for them.\n- If the signal was zero, choose a harder real story or control only if it can answer a specific unresolved question.\n\n## Verification\n\nThe Slice 1 epic can be closed only when its Definition of Done is supported by the real run and the decision record is attached through Kanbus.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-a8566745-92a8-4bea-a953-0de1495646d5",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:20:41.402491Z",
+  "updated_at": "2026-08-27T13:20:41.402491Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

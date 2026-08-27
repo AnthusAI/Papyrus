@@ -1,0 +1,26 @@
+{
+  "id": "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd",
+  "title": "Establish Slice 1 evidence capture and scoring",
+  "description": "# Establish Slice 1 evidence capture and scoring\n\n## Purpose\n\nCapture enough structured evidence to evaluate the guardrails without treating successful publication as the only result.\n\n## Deliverables\n\n- Define how a Slice 1 run is identified and bounded.\n- Capture coaching events separately from failed transitions.\n- Record blocks, recovery, bypass attempts, false positives, and human interventions.\n- Preserve stable rule identities and relevant Kanbus event references without requiring chat reconstruction.\n- Define the classifications for supported, revise, stop, and inconclusive outcomes.\n- Keep internal workflow evidence separate from any future funnel score.\n\n## Implements\n\n- PPY-0d6673: experiment measurement.\n\n## Verification\n\nKnown fixture events produce the expected counts and classifications, including an inconclusive result when both coaching and blocking signals are absent.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:20:41.375303Z",
+  "updated_at": "2026-08-27T13:20:41.375303Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

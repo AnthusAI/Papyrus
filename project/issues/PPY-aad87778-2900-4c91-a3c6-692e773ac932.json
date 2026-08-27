@@ -1,0 +1,18 @@
+{
+  "id": "PPY-aad87778-2900-4c91-a3c6-692e773ac932",
+  "title": "Complete one real Anth.us story through the pod",
+  "description": "# Complete one real Anth.us story through the pod\n\n## Intent\n\nAs an Anth.us editor, I want one genuine post to complete the entire pod workflow, so that the design is tested under real research, judgment, revision, and publication consequences.\n\n## Behavior specification\n\nFeature: Operate a real story through a newsroom pod\n\nScenario: Publish a real Anth.us post\n  Given a genuine Anth.us story idea has been selected\n  And the newsroom pod, gates, doctrine, measurement capture, and publication check are ready\n  When agents and the editor take the story from idea through publication using supported Kanbus transitions\n  Then the published Anth.us article is generated from the approved pod source\n  And every stage transition is present in Kanbus history\n  And the run evidence distinguishes coaching, blocks, recoveries, false positives, and human interventions\n  And the result states whether to proceed, revise, or stop\n  And it makes no claim about external onboarding success\n\n## Boundary\n\nA dummy fixture may verify mechanics, but it cannot satisfy this story.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:18:57.585201Z",
+  "updated_at": "2026-08-27T13:18:57.585201Z",
+  "closed_at": null,
+  "custom": {}
+}

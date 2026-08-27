@@ -1,0 +1,18 @@
+{
+  "id": "PPY-54923a81-3e8a-48d5-89a5-ccc48b18b089",
+  "title": "Detect divergence in generated Anth.us articles",
+  "description": "# Detect divergence in generated Anth.us articles\n\n## Intent\n\nAs an Anth.us maintainer, I want CI to detect manual edits to pod-generated articles, so that the pod remains the unambiguous source of truth without governing existing hand-authored posts.\n\n## Behavior specification\n\nFeature: Verify generated Anth.us content\n\nScenario: Generated content matches the pod\n  Given an Anth.us article carries the pod-generated marker\n  And regeneration matches the committed CMS file\n  When the divergence check runs\n  Then the check passes\n\nScenario: Generated content was edited in the CMS repository\n  Given an Anth.us article carries the pod-generated marker\n  And the committed CMS file differs from regeneration\n  When the divergence check runs\n  Then the check fails\n  And the output identifies the divergent article and regeneration action\n\nScenario: Existing hand-authored content is inspected\n  Given an Anth.us article does not carry the pod-generated marker\n  When the divergence check runs\n  Then that article is outside the pod divergence contract\n  And the check does not require a pod source for it.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:18:57.565649Z",
+  "updated_at": "2026-08-27T13:18:57.565649Z",
+  "closed_at": null,
+  "custom": {}
+}
