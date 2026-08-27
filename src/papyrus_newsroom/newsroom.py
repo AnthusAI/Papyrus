@@ -1197,6 +1197,217 @@ def papyrus_assignment_create(args: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _reference_records_from_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        _decode_record_json(record["expected"])
+        for record in plan.get("records") or []
+        if record.get("modelName") == "Reference" and isinstance(record.get("expected"), dict)
+    ]
+
+
+def _find_existing_reference_for_url(
+    client: Any,
+    *,
+    corpus_id: str,
+    external_item_id: str,
+) -> dict[str, Any] | None:
+    if not external_item_id:
+        return None
+    for reference in client.list_records("Reference"):
+        if str(reference.get("corpusId") or "") != corpus_id:
+            continue
+        if str(reference.get("externalItemId") or "") == external_item_id:
+            return reference
+    return None
+
+
+def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
+    """
+    Resource-oriented Reference.create for execute_tactus (URL intake via catalog registration).
+    """
+    from papyrus_content.assignments_workflow import normalize_proposal_url
+    from papyrus_content.catalog import (
+        assert_reference_catalog_plan_safety,
+        build_prepared_reference_catalog,
+        build_reference_catalog_registration_records,
+        catalog_item_with_external_item_id,
+    )
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+    from papyrus_content.ids import knowledge_corpus_id
+    from papyrus_content.newsroom_summary import update_newsroom_summary_after_reference_registration
+    from papyrus_content.records import apply_record_changes, build_record_changes
+    from papyrus_content.steering import resolve_classifier_for_corpus
+
+    payload = dict(args or {})
+    raw_url = _required(
+        payload.get("url") or payload.get("sourceUri") or payload.get("source_uri"),
+        "url",
+    )
+    normalized_url = normalize_proposal_url(raw_url)
+    if not normalized_url:
+        raise ValueError(f"Invalid reference URL: {raw_url}")
+
+    title = str(payload.get("title") or "").strip() or normalized_url
+    corpus_key = str(payload.get("corpusKey") or payload.get("corpus_key") or "AI-ML-research").strip()
+    config_path = str(payload.get("configPath") or payload.get("config_path") or "").strip()
+    actor_label = str(payload.get("actorLabel") or payload.get("actor_label") or "papyrus-console-agent").strip()
+    ingestion_rationale = str(
+        payload.get("ingestionRationale") or payload.get("ingestion_rationale") or ""
+    ).strip()
+    apply = bool(payload.get("apply") or False)
+    enrich = payload.get("enrich")
+    if enrich is None:
+        enrich = payload.get("runEnrichment")
+    if enrich is None:
+        enrich = True
+    enrich = bool(enrich)
+    skip_existing = payload.get("skipExisting")
+    if skip_existing is None:
+        skip_existing = payload.get("skip_existing")
+    if skip_existing is None:
+        skip_existing = True
+    skip_existing = bool(skip_existing)
+
+    steering_config = _load_steering_config(config_path)
+    corpus_config = _resolve_corpus(corpus_key, config_path)
+    corpus_id = knowledge_corpus_id(corpus_config)
+    publication_name = str(steering_config.get("publication", {}).get("name") or "the publication").strip()
+
+    catalog_item = catalog_item_with_external_item_id(
+        {
+            "title": title,
+            "url": normalized_url,
+            "source_uri": normalized_url,
+            "media_type": str(payload.get("mediaType") or payload.get("media_type") or "text/html").strip(),
+            "ingestion_rationale": ingestion_rationale or None,
+        }
+    )
+    catalog = build_prepared_reference_catalog(
+        {
+            "schema_version": 1,
+            "catalog_kind": "papyrus-console-reference-intake",
+            "generated_at": _now_iso(),
+            "items": [catalog_item],
+        },
+        {"corpusKey": corpus_key, "publicationName": publication_name},
+    )
+
+    client = PapyrusGraphQLAuthoringClient()
+    external_item_id = str(
+        catalog_item.get("item_id") or catalog_item.get("externalItemId") or catalog_item.get("id") or ""
+    ).strip()
+    if skip_existing:
+        existing = _find_existing_reference_for_url(
+            client,
+            corpus_id=corpus_id,
+            external_item_id=external_item_id,
+        )
+        if existing:
+            return {
+                "ok": True,
+                "resource": "Reference",
+                "verb": "create",
+                "applied": False,
+                "skipped": True,
+                "reason": "already_exists",
+                "referenceId": existing.get("id"),
+                "reference": _decode_record_json(existing),
+                "url": normalized_url,
+                "api_calls": ["papyrus.Reference.create"],
+                "error": None,
+            }
+
+    plan_options = {
+        "corpusConfig": corpus_config,
+        "corpusId": corpus_id,
+        "classifierId": resolve_classifier_for_corpus(steering_config, corpus_config, None),
+        "status": "pending",
+        "note": str(payload.get("note") or f"Registered from console chat for {normalized_url}"),
+        "ingestionRationale": ingestion_rationale or None,
+        "actor": actor_label,
+        "createCurationAssignment": bool(
+            payload.get("createCurationAssignment", payload.get("create_curation_assignment", True))
+        ),
+    }
+    plan = build_reference_catalog_registration_records(catalog, plan_options)
+    assert_reference_catalog_plan_safety(plan)
+    planned_references = _reference_records_from_plan(plan)
+    planned_reference = planned_references[0] if planned_references else {}
+    reference_id = str(planned_reference.get("id") or "").strip()
+
+    changes_preview = [
+        {
+            "model": record.get("modelName"),
+            "operation": "create",
+            "id": (record.get("expected") or {}).get("id"),
+        }
+        for record in plan.get("records") or []
+        if record.get("modelName") in {"Reference", "Assignment", "KnowledgeImportRun", "Message"}
+    ]
+
+    result: dict[str, Any] = {
+        "ok": True,
+        "resource": "Reference",
+        "verb": "create",
+        "applied": False,
+        "referenceId": reference_id,
+        "reference": planned_reference,
+        "importRunId": plan.get("importRunId"),
+        "url": normalized_url,
+        "changes": changes_preview,
+        "api_calls": ["papyrus.Reference.create"],
+        "error": None,
+    }
+    if not apply:
+        return result
+
+    changes = build_record_changes(client, plan["records"])
+    apply_record_changes(client, changes)
+    update_newsroom_summary_after_reference_registration(client, changes, plan)
+
+    applied_reference_ids = {
+        str(change["expected"].get("id") or "")
+        for change in changes
+        if change.get("modelName") == "Reference" and change.get("action") in {"create", "update"}
+    }
+    applied_reference_ids.discard("")
+    reference_id = next(iter(applied_reference_ids), reference_id)
+    references = client.get_records_by_id("Reference", sorted(applied_reference_ids)) if applied_reference_ids else {}
+    reference = _decode_record_json(references.get(reference_id) or planned_reference)
+
+    enrichment: dict[str, Any] | None = None
+    if enrich and applied_reference_ids:
+        from papyrus_newsroom.email_submissions import run_registered_reference_enrichment
+
+        (
+            _scoped_references,
+            _scoped_attachments,
+            source_find_result,
+            find_result,
+            process_result,
+        ) = run_registered_reference_enrichment(
+            client,
+            registered_reference_ids=applied_reference_ids,
+            import_run_id=str(plan.get("importRunId") or "").strip() or None,
+            corpus_key=corpus_key,
+            steering_config_path=config_path,
+        )
+        enrichment = {
+            "sourceFind": source_find_result,
+            "urlTextExtraction": find_result,
+            "metadataGeneration": process_result,
+        }
+        refreshed = client.get_records_by_id("Reference", sorted(applied_reference_ids))
+        reference = _decode_record_json(refreshed.get(reference_id) or reference)
+
+    result["applied"] = True
+    result["referenceId"] = reference_id
+    result["reference"] = reference
+    if enrichment is not None:
+        result["enrichment"] = enrichment
+    return result
+
+
 def papyrus_assignment_update(args: dict[str, Any]) -> dict[str, Any]:
     """
     Resource-oriented Assignment.update implementation for execute_tactus.

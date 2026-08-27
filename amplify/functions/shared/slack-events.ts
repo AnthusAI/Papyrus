@@ -75,6 +75,8 @@ export function slackAgentInstructions(): string {
     "",
     'For requests like "most recent references" or "tell me about recent references", do not ask clarifying questions first: immediately call execute_tactus with a Reference.list snippet, then summarize the results.',
     "",
+    'When the user provides a URL and asks to add or register a reference, immediately call execute_tactus with Reference.create{ url = "<url>", apply = true } (not papyrus.reference.create).',
+    "",
     "Keep Slack replies short; use bullet lists when listing references.",
   ].join("\n");
 }
