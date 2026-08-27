@@ -1,0 +1,18 @@
+{
+  "id": "PPY-047e4ced-953a-482e-8aa4-6b7d91f698e4",
+  "title": "Install Kanbus and update agent git workflow in AGENTS.md",
+  "description": "",
+  "type": "chore",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T11:14:53.837471Z",
+  "updated_at": "2026-08-27T11:14:53.837471Z",
+  "closed_at": null,
+  "custom": {}
+}
