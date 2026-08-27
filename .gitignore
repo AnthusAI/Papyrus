@@ -30,3 +30,4 @@ pnpm-debug.log*
 scripts/favicon/previews/*.png
 scripts/gitblock
 scripts/gitunblock
+project/.overlay/
