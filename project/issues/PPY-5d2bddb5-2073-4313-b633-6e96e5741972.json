@@ -1,0 +1,26 @@
+{
+  "id": "PPY-5d2bddb5-2073-4313-b633-6e96e5741972",
+  "title": "Prepare and approve the Slice 1 contractor work package",
+  "description": "# Prepare and approve the Slice 1 contractor work package\n\n## Purpose\n\nConvert the evidence roadmap into a bounded statement of work that a contract development team can execute and that Anthus can accept without relying on conversations outside Kanbus.\n\n## Entry criteria\n\n- PPY-244ed6 is complete and its owner-side decisions are recorded in Kanbus.\n- The exact pinned Kanbus release and chosen runtime have passed the required capability check.\n\n## Included contractor scope\n\n- PPY-4748b6: write executable Slice 1 behavior specifications and demonstrate the expected failures.\n- PPY-02fac7: configure the pinned Anth.us newsroom pod.\n- PPY-5fabc2: implement fail-closed artifact gates and coaching.\n- PPY-962447: author the minimal pod skill and Anth.us doctrine.\n- PPY-03504b: implement deterministic Anth.us publication handoff.\n- PPY-826729: add generated-article divergence verification.\n- PPY-2cee08: establish evidence capture and scoring.\n- PPY-68b697: rehearse the complete workflow with a disposable fixture.\n\nThe contract-team delivery boundary is a successful disposable rehearsal. PPY-a85667, the real Anth.us story run, is joint work under Anthus editorial authority. PPY-2edf13, the proceed/revise/stop decision, remains owned by Anthus.\n\n## Required work-package content\n\n- Exact repositories, branches, working directories, artifact locations, and repository-specific AGENTS.md or Kanbus obligations.\n- Contractor access, confidentiality, unpublished-content handling, code ownership, and delivery expectations.\n- Environment setup and the exact commands used to run specifications, Kanbus validation, publishing verification, and the rehearsal.\n- An acceptance matrix mapping every included task and behavior story to executable evidence or a witnessed demonstration.\n- Required proof that specifications failed before production implementation and pass afterward.\n- Required demonstrations of coaching, fail-closed blocking, recovery, revision, deterministic publication, marked-file divergence failure, hand-authored-file exclusion, and evidence scoring.\n- A cross-repository delivery rule: work performed in Anth.us or another repository must also follow that repository task, branch, review, and verification rules.\n- A stop-and-escalate rule for any proposed Kanbus-core change, Papyrus-core change, cloud dependency, authentication mechanism, new binary, or scope outside the listed tasks.\n- A clear change-control rule: additions must be recorded and approved in this Kanbus task before they enter the contractor scope.\n\n## Approval gate\n\nThe work package is approved only when the Anthus owner records an explicit approval comment in this Kanbus task. External contracts, email, or chat may mirror the scope, but this issue remains the single source of truth. PPY-4748b6 and downstream implementation remain blocked until this task is closed.\n\n## Non-goals\n\n- Selecting or contracting a vendor.\n- Implementing the pod.\n- Running or judging the real Anth.us story.\n- Expanding Slice 1 to external onboarding, migration, hosted Papyrus, or speculative Kanbus features.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T20:48:20.311607Z",
+  "updated_at": "2026-08-27T20:48:20.311607Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

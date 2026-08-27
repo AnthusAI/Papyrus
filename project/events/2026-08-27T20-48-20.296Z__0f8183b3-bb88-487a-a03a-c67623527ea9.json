@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "0f8183b3-bb88-487a-a03a-c67623527ea9",
+  "issue_id": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+  "event_type": "field_updated",
+  "occurred_at": "2026-08-27T20:48:20.296Z",
+  "actor_id": "ryan",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "# Select and charter the Slice 1 Anth.us story\n\n## Purpose\n\nChoose the real editorial work before implementation choices harden around a dummy fixture.\n\n## Deliverables\n\n- Identify one genuine unpublished Anth.us story with enough research and editorial judgment to exercise the workflow.\n- Record the editor, agent responsibilities, intended CMS destination, publication expectations, and acceptable source handling.\n- Confirm that the story is suitable for the single-author, low-confidentiality Slice 1 environment.\n- Record which limitations prevent this story from representing other pre-infrastructure publications.\n- Define the final handoff fields and media expectations needed by this specific post without promoting them into generic Kanbus features.\n\n## Verification\n\nThe selected story has an explicit owner and publication target, is not a dummy fixture, and can proceed without introducing hosted infrastructure or confidential material.",
+        "to": "# Select and charter the Slice 1 Anth.us story\n\n## Purpose\n\nMake the owner-side editorial, repository, privacy, and platform decisions before a contract team is authorized to implement against a dummy or ambiguous target.\n\n## Decisions and deliverables\n\n- Identify one genuine unpublished Anth.us story with enough research and editorial judgment to exercise the workflow.\n- Name the human editor who controls editor selection and publication approval.\n- Record agent responsibilities and the boundary between artifact completeness and editorial authority.\n- Decide where the pod configuration, internal idea/assignment/research/report artifacts, and publishable article source live.\n- Record whether each repository is private or public and what unpublished material a contractor may access.\n- Identify the Anth.us destination repository, expected MDX path, front-matter contract, generated marker, source-story identity field, and media expectations.\n- Confirm how the marked pod-generated article remains separate from existing hand-authored posts.\n- Select the exact released Kanbus version and runtime that Slice 1 will pin.\n- Verify that the pinned release actually supports the configurable issue type, workflow bindings, policy guidance, event history, and fail-closed lifecycle hooks assumed by the initiative.\n- Record the commands and evidence used for that capability check; an unreleased branch or unverified assumption is not sufficient.\n- Confirm that the story can proceed without AWS, hosted Papyrus, confidential source material, or verified identity.\n- Record which single-author, low-confidentiality characteristics prevent this story from representing other pre-infrastructure publications.\n\n## Verification\n\nAll decisions and evidence are recorded in Kanbus. The story has an explicit owner, editor, source location, publication target, privacy classification, CMS contract, and verified pinned Kanbus release. No contractor implementation begins while any of those fields remain undecided."
+      }
+    }
+  }
+}
