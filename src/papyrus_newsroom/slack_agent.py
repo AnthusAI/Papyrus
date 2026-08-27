@@ -90,6 +90,8 @@ def slack_agent_instructions() -> str:
         "For requests like \"most recent references\" or \"tell me about recent references\", "
         "do not ask clarifying questions first: immediately call execute_tactus with a "
         "Reference.list snippet, then summarize the results.\n\n"
+        "When the user provides a URL and asks to add or register a reference, call "
+        "Reference.create{ url = \"...\", apply = true } immediately (not papyrus.reference.create).\n\n"
         "Keep Slack replies short; use bullet lists when listing references."
     )
 

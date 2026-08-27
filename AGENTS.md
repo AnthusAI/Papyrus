@@ -1,5 +1,26 @@
 # AGENTS.md
 
+
+## Project management with Kanbus
+
+Use Kanbus for task management.
+Why: Kanbus task management is MANDATORY here; every task must live in Kanbus.
+When: Create/update the Kanbus task before coding; close it only after the change lands.
+How: See CONTRIBUTING_AGENT.md for the Kanbus workflow, hierarchy, status rules, priorities, command examples, and the mistakes to avoid. Never inspect project/ or issue JSON directly (including with cat or jq); use Kanbus commands only.
+Performance: Prefer kbs (Rust) when available; kanbus (Python) is equivalent but slower.
+Warning: Editing project/ directly violates The Way. Do not read or write anything in project/; work only through Kanbus.
+Artifact sync rule: If Kanbus operations create or update files under `project/issues/` or `project/events/`, stage and commit those artifact files in the same branch before opening a PR.
+
+### Repository hygiene
+
+- **Board changes go through the Kanbus CLI** (`kbs`), never by editing
+  `project/**.json`. Hand-written JSON broke the board twice and once left the
+  CLI unable to parse its own data. Markdown under `project/wiki/` is the
+  documented exception.
+- **Commit as part of completing work.** Do not leave finished changes uncommitted
+  at session end. Stage deliberately; never `git add -A` when unrelated work is
+  in flight.
+
 This file is the operating manual for AI agents maintaining Papyrus. Read it
 before changing the layout engine, renderer, fixture data, or publication model.
 
@@ -23,15 +44,72 @@ edition layout plans, responsive page grids, regions, block geometry, cut
 policies, page heights, furniture variants, scoring, continuation labels, and
 rendering contracts.
 
-## Continuous integration on `develop` (promote to `main`)
+## Agent Git workflow (mandatory)
 
-- **`develop` on GitHub (`AnthusAI/Threat-Intelligence`) is the integration
-  branch.** Feature work should land on `develop` first.
+This repository uses **Git Flow**. Agents are expected to **commit, push, and
+open PRs** as part of normal delivery — do not wait for explicit permission to
+commit finished work.
+
+### Hard rules
+
+- **Never commit directly to `develop` or `main`.**
+- **`develop` on GitHub (`AnthusAI/Papyrus`) is the integration branch.** Land
+  feature work there via pull request.
 - **`main` is the release/production branch.** Promote reviewed integration work
-  with `develop -> main` PRs.
-- Keep integration and release state explicit: report whether a change has
-  landed in `develop`, whether a `develop -> main` PR exists, and whether it has
-  merged.
+  with `develop -> main` PRs. Agents **never** merge to `main` or promote
+  `develop -> main` without explicit human instruction.
+- **Branch from `origin/develop`.** Every coded change needs a Kanbus `PPY-`
+  issue on this repo's board (not the separate `TI` board in Threat Intelligence
+  worktrees).
+- **Land on `develop` only via pull request.** Do not locally
+  `git checkout develop && git merge …`.
+- **Preserve unrelated uncommitted work.** This tree is often dirty across
+  sessions. Stage deliberately; never `git add -A` when someone else's work is
+  in flight.
+- If you accidentally commit to `develop` or `main`, stop and ask before
+  applying any history rewrite or revert strategy.
+
+### Branch naming
+
+Name branches after the Kanbus issue:
+
+| Prefix | When | Example |
+| --- | --- | --- |
+| `feature/` | New behavior | `feature/PPY-59ade4-kanbus-bootstrap` |
+| `fix/` | Bugfix | `fix/PPY-59ade4-media-proxy` |
+| `chore/` | Docs, tooling, PM-only | `chore/PPY-59ade4-agents-md` |
+
+Host PR tooling may require a `cursor/` prefix (e.g.
+`cursor/feature/PPY-59ade4-kanbus-bootstrap`). Same Kanbus id and slug semantics
+apply.
+
+### Delivery sequence
+
+1. Create or claim the Kanbus issue; branch from `develop`.
+2. Implement; comment progress on the issue.
+3. Run relevant verification (tests, lint, BDD subsets as appropriate).
+4. Commit with an honest conventional-commit message.
+5. Push the branch; open a PR into **`develop`** when the change is ready.
+6. Close or update the Kanbus issue when the work lands (include PR link and
+   verification notes in comments).
+
+### Session completion
+
+Work is not complete until the branch is **pushed** and the Kanbus issue records
+branch name, PR link, and verification results. Never leave commits stranded
+locally. If push fails, resolve and retry.
+
+Keep integration and release state explicit: report whether a change has landed
+in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
+
+### Agent commit rules
+
+- Write honest conventional-commit messages. Match the type to the change
+  (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`).
+- Never `--amend` or force-push a commit that may have reached `main` or
+  `develop`.
+- If Kanbus updates `project/issues/` or `project/events/`, include those
+  artifacts in the same commit series as the related code change.
 
 ## Core Rules
 
@@ -44,9 +122,6 @@ rendering contracts.
   `ampx pipeline-deploy` (or other direct production `ampx` deploy commands)
   from local agents unless the user explicitly asks for that exact override. Use
   `ampx` locally for sandbox workflows only.
-- Do not commit unless the user explicitly asks.
-- Preserve unrelated uncommitted work. This project is often dirty because it is
-  being iterated in conversation.
 - Papyrus is Python-first for backend workflows. Create new backend utilities,
   CLIs, automation, API tests, and backend BDD harnesses in Python by default.
   Use JavaScript/TypeScript only for the Next.js/React frontend and

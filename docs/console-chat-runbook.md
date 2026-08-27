@@ -107,6 +107,20 @@ aws lambda get-function \
   --query '{ImageUri:Code.ImageUri,LastModified:Configuration.LastModified}'
 ```
 
+## Console writes (Reference and Assignment)
+
+`execute_tactus` exposes resource-oriented writes for the web and Slack consoles:
+
+- `Reference.create{ url = "https://...", title = "...", apply = true }` — registers a
+  pending reference from a URL (catalog intake + optional enrichment), same lane as email
+  citation intake.
+- `Assignment.create{ type = "research", title = "...", apply = true }` — creates a
+  research assignment.
+
+After changing tactus or responder prompts, rebuild and push the console-chat-responder
+Lambda image (see below). Python-only tactus changes take effect on the next
+`execute_tactus` invocation without an image rebuild.
+
 ## Smoke test
 
 The preferred smoke test is to send a fresh message from the `/newsroom`

@@ -1,0 +1,18 @@
+{
+  "id": "PPY-59ade493-23e0-4b72-aa79-1227f3aa28ca",
+  "title": "Kanbus bootstrap",
+  "description": "",
+  "type": "chore",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T11:04:57.613691Z",
+  "updated_at": "2026-08-27T11:05:13.502551Z",
+  "closed_at": "2026-08-27T11:05:13.502551Z",
+  "custom": {}
+}

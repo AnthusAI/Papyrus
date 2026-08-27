@@ -44,6 +44,7 @@ class NewsroomToolTests(unittest.TestCase):
         self.assertIn("NewsroomSection", resources)
         self.assertIn("create", resources["Assignment"])
         self.assertIn("update", resources["Assignment"])
+        self.assertIn("create", resources["Reference"])
         self.assertIn("docs", result["value"]["api"])
         self.assertEqual(
             result["api_calls"],
@@ -4475,6 +4476,47 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertIn("Edition replan", replan_message["content"])
         self.assertIn("## Why this edition", replan_message["content"])
         self.assertNotIn("planning pass", replan_message["content"].lower())
+
+
+    def test_execute_tactus_reference_create_dry_run(self):
+        planned_reference = {
+            "id": "reference-lineage-test",
+            "displayName": "Gemma guide",
+            "sourceUri": "https://newsletter.example.com/p/gemma",
+        }
+        plan = {
+            "importRunId": "knowledge-import-test",
+            "records": [{"modelName": "Reference", "expected": planned_reference}],
+        }
+        with (
+            mock.patch.object(papyrus_newsroom, "_load_steering_config", return_value={"corpora": [{"key": "AI-ML-research", "path": "AI-ML-research"}]}),
+            mock.patch.object(papyrus_newsroom, "_resolve_corpus", return_value={"key": "AI-ML-research", "name": "AI/ML Research"}),
+            mock.patch("papyrus_content.graphql_authoring.PapyrusGraphQLAuthoringClient") as client_cls,
+            mock.patch(
+                "papyrus_content.catalog.build_reference_catalog_registration_records",
+                return_value=plan,
+            ),
+            mock.patch("papyrus_content.catalog.assert_reference_catalog_plan_safety"),
+            mock.patch("papyrus_content.catalog.build_prepared_reference_catalog", side_effect=lambda catalog, _opts: catalog),
+            mock.patch("papyrus_content.catalog.catalog_item_with_external_item_id", side_effect=lambda item: item),
+            mock.patch("papyrus_content.steering.resolve_classifier_for_corpus", return_value="classifier-1"),
+        ):
+            client_cls.return_value.list_records.return_value = []
+            result = tactus_runtime.execute_tactus(
+                'return Reference.create{ url = "https://newsletter.example.com/p/gemma", title = "Gemma guide", apply = false }'
+            )
+
+        self.assertTrue(result["ok"], result.get("error"))
+        self.assertEqual(result["value"]["resource"], "Reference")
+        self.assertFalse(result["value"]["applied"])
+        self.assertEqual(result["value"]["referenceId"], "reference-lineage-test")
+        self.assertIn("papyrus.Reference.create", result["api_calls"])
+
+    def test_execute_tactus_reference_create_rejects_invalid_url(self):
+        result = tactus_runtime.execute_tactus(
+            'return Reference.create{ url = "not-a-url", apply = false }'
+        )
+        self.assertFalse(result["ok"])
 
 
 if __name__ == "__main__":
