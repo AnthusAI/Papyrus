@@ -9,7 +9,7 @@ When: Create/update the Kanbus task before coding; close it only after the chang
 How: See CONTRIBUTING_AGENT.md for the Kanbus workflow, hierarchy, status rules, priorities, command examples, and the mistakes to avoid. Never inspect project/ or issue JSON directly (including with cat or jq); use Kanbus commands only.
 Performance: Prefer kbs (Rust) when available; kanbus (Python) is equivalent but slower.
 Warning: Editing project/ directly violates The Way. Do not read or write anything in project/; work only through Kanbus.
-Artifact sync rule: If Kanbus operations create or update files under `project/issues/` or `project/events/`, stage and commit those artifact files in the same branch before opening a PR.
+Artifact sync rule: If Kanbus operations create or update files under `project/issues/` or `project/events/`, stage and commit those artifact files with the related work. Kanbus-only project-management updates may use the direct-to-`develop` exception below; include Kanbus artifacts for all other work on its branch before opening a PR.
 
 ### Repository hygiene
 
@@ -48,11 +48,13 @@ rendering contracts.
 
 This repository uses **Git Flow**. Agents are expected to **commit, push, and
 open PRs** as part of normal delivery — do not wait for explicit permission to
-commit finished work.
+commit finished work. The only no-PR path is the Kanbus-only project-management
+exception below.
 
 ### Hard rules
 
-- **Never commit directly to `develop` or `main`.**
+- **Never commit directly to `main`.** Commit to `develop` directly only for the
+  narrow Kanbus-only project-management exception below.
 - **`develop` on GitHub (`AnthusAI/Papyrus`) is the integration branch.** Land
   feature work there via pull request.
 - **`main` is the release/production branch.** Promote reviewed integration work
@@ -61,13 +63,40 @@ commit finished work.
 - **Branch from `origin/develop`.** Every coded change needs a Kanbus `PPY-`
   issue on this repo's board (not the separate `TI` board in Threat Intelligence
   worktrees).
-- **Land on `develop` only via pull request.** Do not locally
-  `git checkout develop && git merge …`.
+- **Land code, configuration, documentation, wiki, and mixed changes on
+  `develop` only via pull request.** Do not locally `git checkout develop && git
+  merge …`.
 - **Preserve unrelated uncommitted work.** This tree is often dirty across
   sessions. Stage deliberately; never `git add -A` when someone else's work is
   in flight.
 - If you accidentally commit to `develop` or `main`, stop and ask before
-  applying any history rewrite or revert strategy.
+  applying any history rewrite or revert strategy, unless the commit is a valid
+  Kanbus-only project-management update under the exception below.
+
+### Kanbus-only project-management exception
+
+Routine project-management updates do not need a branch or pull request. An
+agent may commit and push directly to `develop` when **every changed path** is a
+Kanbus CLI-generated artifact under `project/issues/` or `project/events/`.
+Examples include creating or updating an issue, changing its status, adding a
+comment, or closing it.
+
+For these updates:
+
+1. Start from an up-to-date `develop` that matches `origin/develop`.
+2. Make the board change through `kbs`; never edit the artifacts directly.
+3. Run `kbs validate` and inspect the issue through `kbs show`.
+4. Stage only the exact generated issue and event paths; never use
+   `git add -A`.
+5. Commit with an honest conventional `chore:` message and push `develop`.
+6. If the push is rejected because `develop` advanced, do not force-push;
+   update safely, revalidate, and retry.
+
+This exception does **not** cover `AGENTS.md`, `CONTRIBUTING_AGENT.md`,
+`project/wiki/`, application code, tests, configuration, generated application
+artifacts, or a commit that mixes Kanbus records with any other change. Those
+changes still require an issue branch and PR into `develop`. It never permits a
+direct commit or merge to `main`.
 
 ### Branch naming
 
@@ -85,19 +114,22 @@ apply.
 
 ### Delivery sequence
 
-1. Create or claim the Kanbus issue; branch from `develop`.
+1. Create or claim the Kanbus issue; branch from `develop` unless the work is a
+   Kanbus-only project-management update covered by the exception above.
 2. Implement; comment progress on the issue.
 3. Run relevant verification (tests, lint, BDD subsets as appropriate).
 4. Commit with an honest conventional-commit message.
-5. Push the branch; open a PR into **`develop`** when the change is ready.
-6. Close or update the Kanbus issue when the work lands (include PR link and
-   verification notes in comments).
+5. Push the branch and open a PR into **`develop`** when the change is ready, or
+   push the scoped commit directly to `develop` under the Kanbus-only exception.
+6. Close or update the Kanbus issue when the work lands. Record verification
+   and either the PR link or the direct `develop` commit, as applicable.
 
 ### Session completion
 
-Work is not complete until the branch is **pushed** and the Kanbus issue records
-branch name, PR link, and verification results. Never leave commits stranded
-locally. If push fails, resolve and retry.
+Work is not complete until its commits are **pushed** and the Kanbus issue
+records verification results plus either the branch and PR link or the direct
+`develop` commit. Never leave commits stranded locally. If push fails, resolve
+and retry.
 
 Keep integration and release state explicit: report whether a change has landed
 in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
