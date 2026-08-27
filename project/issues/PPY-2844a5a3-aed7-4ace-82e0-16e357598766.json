@@ -24,10 +24,17 @@
       "text": "Milestone plan filed under this initiative: PPY-d09317 proves one real Anth.us story; PPY-eba77d tests transfer to a materially different pre-infrastructure publication; PPY-9e8f2e packages only repeated needs; PPY-baa423 tests external onboarding separately; PPY-0b058c waits for a real migration candidate. Slice 1 is detailed with eight Gherkin stories, eleven implementation/evidence tasks, and explicit dependencies. Later milestones retain entry and exit criteria without speculative task breakdowns.",
       "created_at": "2026-08-27T13:23:18.704516Z",
       "comment_type": "default"
+    },
+    {
+      "id": "730cf320-842c-435c-9dba-2f55492f83f3",
+      "author": "ryan",
+      "text": "Planning delivery: branch chore/PPY-2844a5-plan-newsroom-pods; PR https://github.com/AnthusAI/Papyrus/pull/50; commit ac9abc1. Verification: kbs validate passed, milestone and Slice 1 child lists were inspected, dependency-bearing issues were verified with kbs show, and git diff --check passed. The plan contains five epics, eight Slice 1 behavior stories, and eleven Slice 1 implementation/evidence tasks. No implementation work has started.",
+      "created_at": "2026-08-27T13:24:46.013099Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-08-27T11:32:12.933866Z",
-  "updated_at": "2026-08-27T13:23:18.704516Z",
+  "updated_at": "2026-08-27T13:24:46.013099Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
