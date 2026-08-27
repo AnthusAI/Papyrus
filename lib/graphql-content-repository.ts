@@ -1,6 +1,6 @@
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
-import type { Article, ArticleImage, ArticleImageAsset, ArticleImageLayout, ArticleImageThemeVariants } from "./articles";
+import type { Article, ArticleImage, ArticleImageAsset, ArticleImageLayout, ArticleImageThemeVariants, ArticleVideoAsset, ArticleVideoThemeVariants } from "./articles";
 import { withContentLoadTiming } from "./content-load-timing";
 import { getAmplifyServerRuntime } from "./amplify-server-runtime";
 import { resolveReaderStorageUrl, signStorageUrl } from "./reader-storage-url";
@@ -14,8 +14,9 @@ import {
   type PublicationItem,
   type PublicationItemType,
 } from "./publication-items";
+import { SITE_BRAND } from "./site-brand";
 
-const AUTH_MODE = "apiKey";
+const AUTH_MODE = "identityPool";
 const DEFAULT_EDITION_SLUG = "current";
 const PUBLISHED_STATUS = "published";
 const ARTICLE_TYPE_STATUS = "article#published";
@@ -125,74 +126,106 @@ const IMAGE_ROLES: NonNullable<ArticleImageAsset["roles"]> = [
   "thumbnail",
 ];
 
-let cachedClient: DataClient | null = null;
+let readerContextClient: DataClient | null = null;
+let buildTimeClient: DataClient | null = null;
+
+async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise<T> {
+  const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
+  return runWithAmplifyServerContext({
+    nextServerContext: null,
+    operation: async () => {
+      readerContextClient = generateClient<Schema>({ authMode: AUTH_MODE });
+      try {
+        return await operation();
+      } finally {
+        readerContextClient = null;
+      }
+    },
+  });
+}
 
 export const graphqlContentRepository: ContentRepository = {
-  async loadEditionContent(options?: LoadEditionContentOptions) {
-    return withContentLoadTiming("loadEditionContent", { editionDate: options?.editionDate ?? null }, async () => {
-      const edition = options?.editionDate
-        ? await loadPublishedEditionForDate(options.editionDate, options.editionSlug)
-        : await loadActiveEdition();
-      return loadEditionContentFromEdition(edition);
+  loadEditionContent(options) {
+    return withReaderGraphQLContext(() =>
+      withContentLoadTiming("loadEditionContent", { editionDate: options?.editionDate ?? null }, async () => {
+        const edition = options?.editionDate
+          ? await loadPublishedEditionForDate(options.editionDate, options.editionSlug)
+          : await loadActiveEdition();
+        return loadEditionContentFromEdition(edition);
+      }),
+    );
+  },
+
+  getLatestPublishedEdition() {
+    return withReaderGraphQLContext(async () => {
+      try {
+        return summarizeEditionRoute(await loadLatestPublishedEdition());
+      } catch (error) {
+        if (isMissingGraphQLEditionError(error)) return null;
+        throw error;
+      }
     });
   },
 
-  async getLatestPublishedEdition() {
-    try {
-      return summarizeEditionRoute(await loadLatestPublishedEdition());
-    } catch (error) {
-      if (isMissingGraphQLEditionError(error)) return null;
-      throw error;
-    }
+  getFirstPublishedEdition() {
+    return withReaderGraphQLContext(async () => {
+      try {
+        return summarizeEditionRoute(await loadFirstPublishedEdition());
+      } catch (error) {
+        if (isMissingGraphQLEditionError(error)) return null;
+        throw error;
+      }
+    });
   },
 
-  async getFirstPublishedEdition() {
-    try {
-      return summarizeEditionRoute(await loadFirstPublishedEdition());
-    } catch (error) {
-      if (isMissingGraphQLEditionError(error)) return null;
-      throw error;
-    }
+  listPublishedEditions(options) {
+    return withReaderGraphQLContext(async () => {
+      const result = await listPublishedEditionSummaries(options);
+      return {
+        editions: result.editions.map(summarizeEditionRoute),
+        nextToken: result.nextToken,
+      };
+    });
   },
 
-  async listPublishedEditions(options?: ListPublishedEditionsOptions) {
-    const result = await listPublishedEditionSummaries(options);
-    return {
-      editions: result.editions.map(summarizeEditionRoute),
-      nextToken: result.nextToken,
-    };
+  getArticle(slug) {
+    return withReaderGraphQLContext(async () => {
+      const item = await getItemBySlug(slug);
+      if (!item || item.type !== "article" || item.status !== "published") return undefined;
+      return normalizeArticle(item, await listMediaAssets(item.id));
+    });
   },
 
-  async getArticle(slug: string) {
-    const item = await getItemBySlug(slug);
-    if (!item || item.type !== "article" || item.status !== "published") return undefined;
-    return normalizeArticle(item, await listMediaAssets(item.id));
+  getEditionArticle({ editionDate, articleSlug }) {
+    return withReaderGraphQLContext(async () => {
+      const item = await loadEditionItem(editionDate, articleSlug);
+      return item ? publicationItemToArticle(item) : undefined;
+    });
   },
 
-  async getEditionArticle({ editionDate, articleSlug }) {
-    const item = await loadEditionItem(editionDate, articleSlug);
-    return item ? publicationItemToArticle(item) : undefined;
+  getEditionItem({ editionDate, itemSlug }) {
+    return withReaderGraphQLContext(() => loadEditionItem(editionDate, itemSlug));
   },
 
-  async getEditionItem({ editionDate, itemSlug }) {
-    return loadEditionItem(editionDate, itemSlug);
-  },
-
-  async listArticleSlugs() {
-    const items = await listItemsByTypeStatus(ARTICLE_TYPE_STATUS);
-    return items
-      .filter((item) => item.type === "article" && item.status === "published")
-      .map((item) => item.slug)
-      .sort();
+  listArticleSlugs() {
+    return withReaderGraphQLContext(async () => {
+      const items = await listItemsByTypeStatus(ARTICLE_TYPE_STATUS);
+      return items
+        .filter((item) => item.type === "article" && item.status === "published")
+        .map((item) => item.slug)
+        .sort();
+    });
   },
 };
 
 function getClient(): DataClient {
-  if (cachedClient) return cachedClient;
+  if (readerContextClient) return readerContextClient;
 
-  getAmplifyServerRuntime();
-  cachedClient = generateClient<Schema>({ authMode: AUTH_MODE });
-  return cachedClient;
+  if (!buildTimeClient) {
+    getAmplifyServerRuntime();
+    buildTimeClient = generateClient<Schema>({ authMode: AUTH_MODE });
+  }
+  return buildTimeClient;
 }
 
 async function loadActiveEdition(): Promise<GraphQLEdition> {
@@ -325,6 +358,38 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
     items,
     sections: createEditionSectionPlan(items, edition.metadata),
     suppressNewsDeskAppendix: editionMetadata?.suppressNewsDeskAppendix === true,
+    editionVideo: await normalizeEditionVideoAsset(editionMetadata?.editionVideo),
+  };
+}
+
+async function normalizeEditionVideoAsset(value: unknown): Promise<ArticleVideoAsset | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const srcPath = typeof record.src === "string" ? record.src.trim() : "";
+  if (!srcPath) return null;
+  const storagePath = typeof record.storagePath === "string" ? record.storagePath.trim() : "";
+  const src = storagePath ? await resolveReaderStorageUrl(storagePath) : srcPath;
+  if (!src) return null;
+  const posterSrc = typeof record.posterSrc === "string" && record.posterSrc.trim() ? record.posterSrc.trim() : undefined;
+  const durationSeconds =
+    typeof record.durationSeconds === "number" && Number.isFinite(record.durationSeconds)
+      ? record.durationSeconds
+      : undefined;
+  const alt = typeof record.alt === "string" && record.alt.trim() ? record.alt.trim() : "Edition overview video";
+  const caption = typeof record.caption === "string" ? record.caption.trim() : undefined;
+  const credit = typeof record.credit === "string" && record.credit.trim() ? record.credit.trim() : (SITE_BRAND.defaultVideoCredit ?? "Edition overview video");
+  const themeVariants = await parseVideoThemeVariantsMetadata(record.themeVariants);
+
+  return {
+    type: "video",
+    src,
+    posterSrc,
+    alt,
+    caption: caption || undefined,
+    credit,
+    durationSeconds,
+    roles: ["feature"],
+    themeVariants,
   };
 }
 
@@ -400,6 +465,7 @@ function summarizeEditionRoute(edition: GraphQLEdition): EditionRouteSummary {
     title: edition.title,
     editionDate: edition.editionDate,
     publishedAt: edition.publishedAt,
+    description: edition.description ?? null,
   };
 }
 
@@ -552,10 +618,16 @@ function readGetResponse<T>(response: GraphQLGetResponse<T>): T | null {
 
 async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsset[]): Promise<Article> {
   const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
+  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const videoAssets = mediaAssets.filter((asset) => asset.type === "video");
   const assets = (
-    await Promise.all(mediaAssets.filter((asset) => asset.type === "image").map((asset) => normalizeImageAsset(item, asset)))
+    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
   ).filter((asset): asset is ArticleImageAsset => asset !== null);
-  const primaryImage = assets.find((asset) => asset.roles?.includes("lead")) ?? assets[0] ?? getFallbackImage(item);
+  const primaryImage = assets.find((asset) => asset.roles?.includes("lead")) ?? assets[0];
+  const normalizedVideos = (
+    await Promise.all(videoAssets.map((asset) => normalizeVideoAsset(item, asset, primaryImage)))
+  ).filter((asset): asset is ArticleVideoAsset => asset !== null);
+  const leadVideo = normalizedVideos.find((asset) => asset.roles?.includes("lead")) ?? normalizedVideos[0];
 
   return {
     slug: item.slug,
@@ -563,10 +635,12 @@ async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsse
     section: item.section ?? "News",
     headline: item.headline ?? item.title ?? item.slug,
     deck: item.deck ?? "",
-    byline: item.byline ?? "Papyrus Staff",
+    excerpt: resolvedContent.excerpt ?? undefined,
+    byline: item.byline ?? SITE_BRAND.placeholderByline,
     dateline: item.dateline ?? "NEWSROOM",
     image: primaryImage,
-    assets,
+    video: leadVideo,
+    assets: [...assets, ...normalizedVideos],
     pullQuotes: compactStrings(item.pullQuotes),
     body: resolvedContent.body ?? compactStrings(item.body),
   };
@@ -577,19 +651,27 @@ async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLM
   if (item.type === "article") return articleToPublicationItem(await normalizeArticle(item, mediaAssets));
   const type = normalizePublicationItemType(item.type);
   if (!type) return null;
+  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const videoAssets = mediaAssets.filter((asset) => asset.type === "video");
   const assets = (
-    await Promise.all(mediaAssets.filter((asset) => asset.type === "image").map((asset) => normalizeImageAsset(item, asset)))
+    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
   ).filter((asset): asset is ArticleImageAsset => asset !== null);
   const image = assets[0] ?? undefined;
+  const normalizedVideos = (
+    await Promise.all(videoAssets.map((asset) => normalizeVideoAsset(item, asset, image)))
+  ).filter((asset): asset is ArticleVideoAsset => asset !== null);
+  const video = normalizedVideos.find((asset) => asset.roles?.includes("lead")) ?? normalizedVideos[0];
   const publicationItem: NonArticlePublicationItem = {
     type,
     slug: item.slug,
     section: item.section ?? "News",
     title: item.headline ?? item.title ?? item.slug,
     deck: item.deck ?? undefined,
+    excerpt: resolvedContent.excerpt ?? undefined,
     body: resolvedContent.body ?? compactStrings(item.body),
     image,
-    assets,
+    video,
+    assets: [...assets, ...normalizedVideos],
   };
   return publicationItem;
 }
@@ -678,15 +760,16 @@ function normalizePublicationItemType(value: string): Exclude<PublicationItemTyp
 }
 
 async function normalizeImageAsset(item: GraphQLItem, asset: GraphQLMediaAsset): Promise<ArticleImageAsset | null> {
-  const src = await getMediaUrl(asset);
-  if (!src) return null;
   const metadata = parseObjectMetadata(asset.metadata);
+  const pictogramSlug = typeof metadata?.pictogramSlug === "string" ? metadata.pictogramSlug.trim() : "";
+  const src = await getMediaUrl(asset);
+  if (!src && !pictogramSlug) return null;
   const themeVariants = await parseThemeVariantsMetadata(metadata?.themeVariants);
 
   return {
     id: asset.id,
     type: "image",
-    src,
+    src: src ?? "",
     alt: asset.alt ?? `Image for ${item.headline ?? item.slug}`,
     caption: asset.caption ?? undefined,
     credit: asset.credit ?? asset.caption ?? "Media asset",
@@ -694,6 +777,43 @@ async function normalizeImageAsset(item: GraphQLItem, asset: GraphQLMediaAsset):
     layout: getImageLayout(asset, metadata),
     themeVariants,
   };
+}
+
+async function normalizeVideoAsset(
+  item: GraphQLItem,
+  asset: GraphQLMediaAsset,
+  fallbackPoster?: ArticleImage,
+): Promise<ArticleVideoAsset | null> {
+  const src = await getMediaUrl(asset);
+  if (!src) return null;
+  const metadata = parseObjectMetadata(asset.metadata);
+  const posterFromMetadata = typeof metadata?.posterSrc === "string" ? metadata.posterSrc.trim() : "";
+  const posterSrc = posterFromMetadata || fallbackPoster?.src || undefined;
+  const durationSeconds =
+    typeof metadata?.durationSeconds === "number" && Number.isFinite(metadata.durationSeconds)
+      ? metadata.durationSeconds
+      : undefined;
+
+  return {
+    id: asset.id,
+    type: "video",
+    src,
+    posterSrc,
+    alt: asset.alt ?? `Video for ${item.headline ?? item.slug}`,
+    caption: asset.caption ?? undefined,
+    credit: asset.credit ?? asset.caption ?? "Media asset",
+    durationSeconds,
+    roles: parseVideoRoles(asset.role),
+    themeVariants: await parseVideoThemeVariantsMetadata(metadata?.themeVariants),
+  };
+}
+
+function parseVideoRoles(role: string | null | undefined): ArticleVideoAsset["roles"] {
+  const parsed = parseImageRoles(role);
+  if (!parsed?.length) return ["lead"];
+  return parsed.filter((entry): entry is NonNullable<ArticleVideoAsset["roles"]>[number] =>
+    entry === "lead" || entry === "feature" || entry === "thumbnail",
+  );
 }
 
 async function getMediaUrl(asset: GraphQLMediaAsset): Promise<string | null> {
@@ -729,6 +849,20 @@ async function parseThemeVariantsMetadata(value: unknown): Promise<ArticleImageT
   const dark = await resolveThemeVariantSource(variants.dark);
   if (!dark) return undefined;
   return { dark: { src: dark } };
+}
+
+async function parseVideoThemeVariantsMetadata(value: unknown): Promise<ArticleVideoThemeVariants | undefined> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const variants = value as Record<string, unknown>;
+  const [light, dark] = await Promise.all([
+    resolveThemeVariantSource(variants.light),
+    resolveThemeVariantSource(variants.dark),
+  ]);
+  if (!light && !dark) return undefined;
+  return {
+    ...(light ? { light: { src: light } } : {}),
+    ...(dark ? { dark: { src: dark } } : {}),
+  };
 }
 
 async function resolveThemeVariantSource(value: unknown): Promise<string | undefined> {

@@ -8,7 +8,7 @@
 Procedure {
     input = {
         message_id = field.string{required = true, description = "Inbound email Message.id"},
-        corpus_key = field.string{default = "AI-ML-research", description = "Target steering corpus key"},
+        corpus_key = field.string{default = "threat-intelligence", description = "Target steering corpus key"},
         apply = field.boolean{default = true, description = "When false, build plans without GraphQL writes"}
     },
     output = {
@@ -17,7 +17,7 @@ Procedure {
     function(input)
         local response = papyrus_email_submission_process{
             message_id = input.message_id,
-            corpus_key = input.corpus_key or "AI-ML-research",
+            corpus_key = input.corpus_key or "threat-intelligence",
             apply = input.apply ~= false,
         }
         return {

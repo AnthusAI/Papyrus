@@ -1311,6 +1311,7 @@ function NewsDeskDashboard({
     if (dashboard.isDemo || !dashboard.canManageUsers) return;
     if (procedureDefinitions.length > 0 && procedureVersions.length > 0) return;
     void refreshProcedureAdministrationData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeTab,
     administrationPanel,

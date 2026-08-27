@@ -2,7 +2,15 @@ import { getUrl } from "aws-amplify/storage/server";
 import { getAmplifyServerRuntime } from "./amplify-server-runtime";
 
 const STORAGE_URL_EXPIRES_IN_SECONDS = 60 * 60;
+const STORAGE_URL_CACHE_TTL_MS = 55 * 60 * 1000;
 const GUEST_READ_PREFIX = "media/";
+
+type SignedUrlCacheEntry = {
+  expiresAt: number;
+  url: string;
+};
+
+const signedUrlCache = new Map<string, SignedUrlCacheEntry>();
 
 export function isGuestReadableStoragePath(storagePath: string): boolean {
   const normalized = storagePath.trim().replace(/^\/+/, "");
@@ -29,16 +37,27 @@ export async function resolveReaderStorageUrl(storagePath: string): Promise<stri
 }
 
 export async function signStorageUrl(storagePath: string): Promise<string> {
+  const normalized = storagePath.trim().replace(/^\/+/, "");
+  const cached = signedUrlCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+
   const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
   const result = await runWithAmplifyServerContext({
     nextServerContext: null,
     operation: (contextSpec) =>
       getUrl(contextSpec, {
-        path: storagePath,
+        path: normalized,
         options: {
           expiresIn: STORAGE_URL_EXPIRES_IN_SECONDS,
         },
       }),
   });
-  return result.url.toString();
+  const url = result.url.toString();
+  signedUrlCache.set(normalized, {
+    expiresAt: Date.now() + STORAGE_URL_CACHE_TTL_MS,
+    url,
+  });
+  return url;
 }

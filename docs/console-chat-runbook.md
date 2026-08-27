@@ -223,3 +223,13 @@ Amplify `main` build: failed backend deploys skip the Next.js phase entirely.
   but `console.webUi` is missing: redeploy the frontend from a green Amplify
   `main` build; the responder is already running but never received location
   metadata on the trigger message.
+- **`Could not resolve JWT signing secret`** when using Papyrus tools
+  (`papyrus.reference.*`, `papyrus.knowledge.*`, etc.): the console-chat-responder
+  Lambda role needs **both** `ssm:GetParameter` and `ssm:GetParameters` permissions
+  on the Amplify SSM parameter paths. The `execute_tactus_runner.py` subprocess
+  uses boto3's `get_parameters` (plural) API to fetch `PAPYRUS_JWT_SECRET` from
+  SSM. **Fix**: PR #23 (commit `0c39cbb`) added the missing `ssm:GetParameters`
+  permission to `amplify/functions/console-chat-responder/resource.ts`. Verify
+  the Lambda's IAM role includes this action, or redeploy from the latest `main`
+  to pick up the updated CDK stack. See `docs/web-console-chat-iam-fix.md` for
+  verification steps.

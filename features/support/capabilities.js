@@ -74,14 +74,27 @@ function scenarioRequiresCapability(tags, capability) {
   return tags.some((tag) => tag.name === `@${normalized}` || tag.name === normalized);
 }
 
-function shouldSkipScenario(world, tags = []) {
+function getRequiredCapabilities(tags = []) {
   if (scenarioRequiresCapability(tags, "brand-agnostic")) {
-    return null;
+    return [];
   }
 
-  const checks = ["newspaper", "blog", "magazine", "presentation-choice"];
-  for (const capability of checks) {
-    if (!scenarioRequiresCapability(tags, capability)) continue;
+  const explicitPresentationTags = ["blog", "magazine", "presentation-choice"].filter((capability) => (
+    scenarioRequiresCapability(tags, capability)
+  ));
+  if (explicitPresentationTags.length > 0) {
+    return explicitPresentationTags;
+  }
+
+  if (scenarioRequiresCapability(tags, "newspaper")) {
+    return ["newspaper"];
+  }
+
+  return [];
+}
+
+function shouldSkipScenario(world, tags = []) {
+  for (const capability of getRequiredCapabilities(tags)) {
     const reason = assertCapability(world, capability);
     if (reason) return reason;
   }

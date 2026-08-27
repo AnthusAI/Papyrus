@@ -11,6 +11,7 @@ import {
   type PublicPlaceholderTopic,
 } from "../lib/public-placeholder-config";
 import type { PublicationItem } from "../lib/publication-items";
+import { SITE_BRAND } from "../lib/site-brand";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -106,7 +107,7 @@ function createEmptyGraphQLEdition(): EditionContent {
     id: "empty-graphql-edition",
     source: "graphql",
     placeholderMode: "emptyEdition",
-    title: "Papyrus",
+    title: SITE_BRAND.appTitle,
     editionDate: new Date().toISOString().slice(0, 10),
     description: "No published GraphQL edition is available yet.",
     items,
@@ -199,8 +200,8 @@ function createEmptyEditionLandingItem(slug: string): PublicationItem {
     shortSlug: "EMPTY",
     section: "Newsroom",
     headline: "An Autonomous Newsroom for Human-Steered Publishing",
-    deck: "An automated newsroom that turns research, judgment, and policy into newspaper editions.",
-    byline: "Papyrus",
+    deck: "An automated newsroom that turns research, judgment, and policy into blog-first editions.",
+    byline: SITE_BRAND.placeholderByline,
     dateline: "SANDBOX",
     image: {
       src: "/papyrus-plant-placeholder.png",
@@ -209,7 +210,7 @@ function createEmptyEditionLandingItem(slug: string): PublicationItem {
           src: "/papyrus-plant-placeholder-dark.png",
         },
       },
-      alt: "A black papyrus plant silhouette",
+      alt: "Anthus Threat Intelligence emblem",
       credit: "",
       layout: {
         minHeight: 120,
@@ -229,7 +230,7 @@ function createEmptyEditionLandingItem(slug: string): PublicationItem {
       },
     },
     body: [
-      "Papyrus helps a publication do what good journalism promises: establish the facts, add context, identify trends, and turn scattered information into something readers can understand.",
+      `${SITE_BRAND.articleTitleSuffix} helps a publication do what good journalism promises: establish the facts, add context, identify trends, and turn scattered information into something readers can understand.`,
       "Instead of starting with a blank article form, you start by steering the newsroom. You define the mission, set editorial policies, choose sections and topics, and tell research agents what questions or trends deserve attention.",
       "As the system finds source material, you curate what it learns. You rate and vote on references, comment on whether they are relevant or reliable, and help the knowledge base decide what should inform future coverage.",
       "Editor agents use that guidance to plan coverage and create assignments. Reporter agents gather context, copywriting agents draft stories, and layout agents assemble editions for human proofing and approval.",

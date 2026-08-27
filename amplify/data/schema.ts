@@ -1282,6 +1282,8 @@ export const schema = a.schema({
       sourcePublishedAt: a.string(),
       sourceUpdatedAt: a.string(),
       retrievedAt: a.string(),
+      inboundCitationCount: a.integer(),
+      outboundCitationCount: a.integer(),
       importRunId: a.id(),
       importedAt: a.datetime(),
       createdAt: a.datetime(),
@@ -1291,6 +1293,7 @@ export const schema = a.schema({
       curationStatusUpdatedBy: a.string(),
       curationStatusReason: a.string(),
       newsroomFeedKey: a.string(),
+      reviewedFeedKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1302,6 +1305,7 @@ export const schema = a.schema({
       index("importRunId").sortKeys(["externalItemId"]).queryField("listReferencesByImportRunAndExternalItem"),
       index("curationStatus").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusAndUpdatedAt"),
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
+      index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
@@ -1777,7 +1781,7 @@ export const schema = a.schema({
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1813,7 +1817,7 @@ export const schema = a.schema({
       index("role").sortKeys(["publishedItemId"]).queryField("listPublishedMediaAssetsByRoleAndItem"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1839,7 +1843,7 @@ export const schema = a.schema({
       index("editionLineageId").sortKeys(["versionNumber"]).queryField("listPublishedEditionsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1864,7 +1868,7 @@ export const schema = a.schema({
       index("publishedItemId").sortKeys(["publishedEditionId"]).queryField("listPublishedEditionItemsByItemAndEdition"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1890,7 +1894,7 @@ export const schema = a.schema({
       index("categorySetLineageId").sortKeys(["versionNumber"]).queryField("listPublishedCategorySetsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1926,7 +1930,7 @@ export const schema = a.schema({
       index("categoryKey").sortKeys(["publishedCategorySetId"]).queryField("listPublishedCategoriesByKeyAndSet"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),

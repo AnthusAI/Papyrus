@@ -5,14 +5,14 @@ profiles:
     description: Compare BERTopic granularity profiles for the canonical corpus before proposing top-level taxonomy changes.
     scope: global-topic-model
     defaultMode: generated-analysis-rebuild
-    corpusKey: AI-ML-research
-    configurationName: ai-ml-research-global-granularity
+    corpusKey: threat-intelligence
+    configurationName: threat-intelligence-global-granularity
     biblicus:
       configurations:
-        - configurations/topic-modeling/ai-ml-research-fine.yml
+        - configurations/topic-modeling/threat-intelligence-fine.yml
     defaults:
       extractionSnapshot: pipeline:<canonical-topic-abstracts-snapshot>
-      targetTopicRange: "10:20"
+      targetTopicRange: "8:16"
       bertopic_analysis:
         representation_model: null
     execution:
@@ -44,15 +44,15 @@ profiles:
     description: Train the semi-supervised canonical topic classifier from accepted references and authoritative labels.
     scope: topic-classifier-train
     defaultMode: classifier-retrain
-    corpusKey: AI-ML-research
-    classifierId: ai-ml-research
-    configurationName: ai-ml-research
+    corpusKey: threat-intelligence
+    classifierId: threat-intelligence
+    configurationName: threat-intelligence
     biblicus:
       configurations:
         - configurations/topic-classifier.yml
     defaults:
       extractionSnapshot: pipeline:<canonical-topic-text-snapshot>
-      seedManifestPath: corpora/AI-ML-research/metadata/topic-classifiers/ai-ml-research/seed-manifest.json
+      seedManifestPath: corpora/threat-intelligence/metadata/topic-classifiers/threat-intelligence/seed-manifest.json
     execution:
       maxRuntimeSeconds: 3600
     allowedOverrides:
@@ -79,12 +79,12 @@ profiles:
     description: Discover candidate child topics under accepted root desks and emit steering proposals.
     scope: scoped-topic-model
     defaultMode: scoped-topic-rebuild
-    corpusKey: AI-ML-research
-    classifierId: ai-ml-research
+    corpusKey: threat-intelligence
+    classifierId: threat-intelligence
     configurationName: desk-child-topic-discovery
     defaults:
       extractionSnapshot: pipeline:<canonical-topic-text-snapshot>
-      steeringFeedbackPath: .papyrus-runs/<run-id>/AI-ML-research-steering-feedback.json
+      steeringFeedbackPath: .papyrus-runs/<run-id>/threat-intelligence-steering-feedback.json
     execution:
       maxRuntimeSeconds: 3600
     allowedOverrides:
@@ -94,36 +94,12 @@ profiles:
       - taxonomy-discovery
       - steering-proposals
 
-  - key: source-corpus-topic-projection
-    title: Source Corpus Topic Projection
-    description: Project the canonical topic classifier onto a source corpus and produce reviewable predictions.
-    scope: topic-projection
-    defaultMode: online-update
-    corpusKey: AI-ML-history
-    classifierId: ai-ml-research
-    configurationName: ai-ml-source-projection
-    defaults:
-      authorityCorpusKey: AI-ML-research
-      extractionSnapshot: pipeline:<target-topic-text-snapshot>
-      topK: 5
-      reviewThreshold: 0.35
-    execution:
-      maxRuntimeSeconds: 1800
-    allowedOverrides:
-      - authorityCorpusKey
-      - extractionSnapshot
-      - topK
-      - reviewThreshold
-    expectedOutputs:
-      - projection-predictions
-      - classified_as-relations
-
   - key: reference-entity-graph
     title: Reference Entity Graph
     description: Rebuild generated entity graph signals for accepted references.
     scope: entity-graph
     defaultMode: entity-graph-rebuild
-    corpusKey: AI-ML-research
+    corpusKey: threat-intelligence
     configurationName: reference-entity-graph
     biblicus:
       extractor: ner-entities

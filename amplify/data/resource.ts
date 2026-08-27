@@ -12,6 +12,7 @@ import { emailSubmissionProcessor } from "../functions/email-submission-processo
 import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
+import { schema as leanSchema } from "./schema";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -1951,7 +1952,7 @@ const schema = a.schema({
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -1988,7 +1989,7 @@ const schema = a.schema({
       index("role").sortKeys(["publishedItemId"]).queryField("listPublishedMediaAssetsByRoleAndItem"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2015,7 +2016,7 @@ const schema = a.schema({
       index("editionLineageId").sortKeys(["versionNumber"]).queryField("listPublishedEditionsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2041,7 +2042,7 @@ const schema = a.schema({
       index("publishedItemId").sortKeys(["publishedEditionId"]).queryField("listPublishedEditionItemsByItemAndEdition"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2068,7 +2069,7 @@ const schema = a.schema({
       index("categorySetLineageId").sortKeys(["versionNumber"]).queryField("listPublishedCategorySetsByLineageAndVersion"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2105,7 +2106,7 @@ const schema = a.schema({
       index("categoryKey").sortKeys(["publishedCategorySetId"]).queryField("listPublishedCategoriesByKeyAndSet"),
     ])
     .authorization((allow) => [
-      allow.publicApiKey().to(["read"]),
+      allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
       allow.custom().to(authoringOperations),
     ]),
@@ -2125,11 +2126,11 @@ export type Schema = ClientSchema<typeof schema>;
 
 export const data = defineData({
   name: "PapyrusCmsApi",
-  schema,
+  schema: leanSchema,
   authorizationModes: {
     defaultAuthorizationMode: "userPool",
     apiKeyAuthorizationMode: {
-      expiresInDays: 30,
+      expiresInDays: 365,
     },
     lambdaAuthorizationMode: {
       function: graphqlJwtAuthorizer,

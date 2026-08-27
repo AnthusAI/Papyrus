@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ARCHIVE_BATCH_SIZE, type ArchiveEditionPreview, type ArchiveEditionsResponse } from "../lib/archive-types";
-import { NewspaperFrontPreview } from "./newspaper";
 
 type ArchiveGridProps = {
   initialPreviews: ArchiveEditionPreview[];
@@ -61,9 +60,12 @@ export function ArchiveGrid({ initialPreviews, initialNextCursor = null }: Archi
               <Link className="archive-card__hit-area" href={preview.href} aria-label={`Open ${preview.edition.title} from ${preview.edition.editionDate}`} />
               <header className="archive-card__label">
                 <time dateTime={preview.edition.editionDate}>{formatArchiveDate(preview.edition.editionDate)}</time>
-                <span>{preview.edition.title}</span>
+                <span>Edition</span>
               </header>
-              <NewspaperFrontPreview content={preview.content} />
+              <div className="archive-card__summary">
+                <h2>{preview.edition.title}</h2>
+                {preview.edition.description ? <p>{preview.edition.description}</p> : null}
+              </div>
             </article>
           ))}
         </div>

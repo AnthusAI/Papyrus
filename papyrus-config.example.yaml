@@ -9,3 +9,11 @@ topics:
 # Override in Lambda with PAPYRUS_PUBLIC_SITE_BASE_URL when config file is absent.
 publicSite:
   baseUrl: https://p.apyr.us
+
+# OpenAI credentials/defaults for the video pipeline (VideoML TTS).
+# Set api_key in .papyrus/config.yaml (gitignored), not in this example file.
+# OPENAI_API_KEY env var overrides api_key when both are set.
+openai:
+  api_key: ""
+  model: gpt-4o-mini-tts
+  voice: alloy

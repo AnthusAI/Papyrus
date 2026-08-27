@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "requiredCliProcedures": {
+    "assignments.run-research": "newsroom.research.explorer",
+    "assignments.run-reporting": "newsroom.reporting.context",
+    "references.summarize": "newsroom.reference.summarization",
+    "references.summarize-batch": "newsroom.reference.summarization",
+    "references.title-subtitle.resolve": "newsroom.reference.summarization",
+    "references.title-subtitle.batch": "newsroom.reference.summarization",
+    "references.title-subtitle.enrich-catalog": "newsroom.reference.summarization",
+    "ontology.explain-relation": "ontology.relationship-explainer",
+    "ontology.profile-concept": "ontology.concept-profiler",
+    "story-cycle.research": "newsroom.research.explorer",
+    "story-cycle.reporting": "newsroom.reporting.context",
+    "edition-plan.rotating-desk": "newsroom.rotating.section.selector",
+    "submissions.process-email": "submissions.email.process"
+  }
+}

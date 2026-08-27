@@ -1,37 +1,43 @@
 schemaVersion: 1
 topics:
-  - key: foundation-model-scaling
-    title: Foundation Model Scaling
-    shortTitle: Scaling
-    description: Model capability curves, training compute, data mixtures, and benchmark saturation.
+  - key: ai-capability-shift
+    title: AI Capability Shift
+    shortTitle: Capability Shift
+    description: How AI lowers barriers to reconnaissance, automation, and sustained attack work against ordinary targets.
     rank: 1
 
-  - key: agent-systems
-    title: Agent Systems
-    shortTitle: Agents
-    description: Tool use, orchestration, memory, planning, and long-running autonomous workflows.
+  - key: sensitive-data-estate
+    title: Sensitive Data Estate
+    shortTitle: Data Estate
+    description: Training data, embeddings, prompts, logs, notebooks, and AI/ML derivatives that concentrate sensitive context.
     rank: 2
 
-  - key: evaluation-benchmarks
-    title: Evaluation and Benchmarks
-    shortTitle: Evaluation
-    description: Measurement quality, benchmark drift, contamination, and operational reliability.
+  - key: cloud-exposure
+    title: Cloud Exposure
+    shortTitle: Cloud Exposure
+    description: Storage sensitivity, access boundaries, encryption posture, and cross-account sharing in cloud AI/ML workloads.
     rank: 3
 
-  - key: knowledge-infrastructure
-    title: Knowledge Infrastructure
-    shortTitle: Knowledge
-    description: Retrieval, corpora, semantic graphs, curation loops, and context engineering.
+  - key: identity-blast-radius
+    title: Identity Blast Radius
+    shortTitle: Blast Radius
+    description: Authentication, service accounts, separation patterns, and credential paths that define damage containment.
     rank: 4
 
-  - key: production-platforms
-    title: Production Platforms
-    shortTitle: Platforms
-    description: Deployment patterns, APIs, infrastructure economics, monitoring, and governance controls.
+  - key: model-supply-chain
+    title: Model Supply Chain
+    shortTitle: Supply Chain
+    description: Dependencies, model artifacts, third-party integrations, and provenance in AI/ML pipelines.
     rank: 5
 
-  - key: governance-and-society
-    title: Governance and Society
-    shortTitle: Governance
-    description: Policy, labor, education, security, and institutional adoption of AI systems.
+  - key: incident-lessons
+    title: Incident Lessons
+    shortTitle: Incidents
+    description: Attack patterns, breach writeups, advisories, and research findings that reveal moving risk.
     rank: 6
+
+  - key: defensive-checks
+    title: Defensive Checks
+    shortTitle: Checks
+    description: Recurring inspectable controls, lessons registers, and behavior-changing practices for defenders.
+    rank: 7

@@ -196,6 +196,7 @@ from .steering import (
     resolve_classifier_for_corpus,
     selected_corpus_configs,
 )
+from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
 
 
 PORTED_COMMANDS = frozenset(
@@ -343,6 +344,9 @@ PORTED_COMMANDS = frozenset(
         "test:identifier-backfill",
         "policy:check-backend-node-scripts",
         "policy:check-reference-action-contract",
+        "videos:render",
+        "videos:seed",
+        "videos:attach",
     }
 )
 
@@ -682,6 +686,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         check_backend_node_scripts(flags)
     elif route == "policy:check-reference-action-contract":
         check_reference_action_contract(flags)
+    elif route == "videos:render":
+        videos_render(flags)
+    elif route == "videos:seed":
+        videos_seed(flags)
+    elif route == "videos:attach":
+        videos_attach(flags)
     else:
         raise ValueError(f"Unsupported papyrus command: {group} {command}")
 

@@ -1,0 +1,1440 @@
+/* Threat Intelligence publication theme tokens and brand styling. */
+/* Extracted from app/globals.css to keep Papyrus framework CSS publication-agnostic. */
+
+/* Shared --ti-* tokens (were scattered in :root, @media dark, .dark-theme blocks) */
+:root {
+  --ti-alarm-red: var(--tomato-11);
+  --ti-section-rule: var(--ti-alarm-red);
+  --ti-footer-control: var(--slate-11);
+  --ti-footer-control-selected: var(--slate-12);
+}
+
+/* Tailwind theme bridge for TI tokens */
+:root {
+  --color-ti-section-rule: var(--ti-section-rule);
+  --color-ti-footer-control: var(--ti-footer-control);
+  --color-ti-footer-control-selected: var(--ti-footer-control-selected);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) {
+    --ti-alarm-red: var(--tomato-9);
+    --ti-pictogram-edge: var(--slate-6);
+    --ti-pictogram-node: var(--slate-5);
+    --ti-pictogram-throb: var(--tomato-8);
+    --ti-pictogram-core-glow: var(--ti-alarm-red);
+    --ti-pictogram-compromised: var(--ti-alarm-red);
+    --ti-pictogram-compromised-stroke: var(--sand-2);
+  }
+}
+
+:root.dark-theme,
+:root[data-papyrus-theme="dark"] {
+  --ti-alarm-red: var(--tomato-9);
+}
+
+/* Main TI brand block (was lines 10139-11541 of globals.css) */
+
+:root[data-site-brand="threat-intelligence"] {
+  color-scheme: light;
+  --background: var(--sand-2);
+  --foreground: var(--sand-11);
+  --foreground-strong: var(--sand-12);
+  --foreground-muted: var(--sand-10);
+  --card: var(--sand-1);
+  --card-foreground: var(--sand-11);
+  --popover: var(--sand-1);
+  --popover-foreground: var(--sand-11);
+  --primary: var(--sand-12);
+  --primary-foreground: var(--sand-1);
+  --secondary: var(--sand-3);
+  --secondary-foreground: var(--sand-11);
+  --muted: var(--sand-3);
+  --muted-foreground: var(--sand-10);
+  --accent: var(--sand-4);
+  --accent-foreground: var(--sand-11);
+  --border: var(--sand-6);
+  --input: var(--sand-6);
+  --ring: var(--sand-8);
+  --surface: var(--sand-1);
+  --surface-foreground: var(--sand-11);
+  --danger: var(--tomato-9);
+  --danger-foreground: var(--sand-1);
+  --ti-alarm-red: var(--tomato-11);
+  --ti-pictogram-edge: var(--slate-8);
+  --ti-pictogram-node: var(--slate-8);
+  --ti-pictogram-muted: var(--slate-6);
+  --ti-pictogram-throb: var(--tomato-8);
+  --ti-pictogram-core-glow: var(--ti-alarm-red);
+  --ti-pictogram-compromised: var(--ti-alarm-red);
+  --ti-pictogram-compromised-stroke: var(--sand-1);
+  --ti-pictogram-accent-glow: rgb(234 88 12 / 0.18);
+  --ti-cta-background: var(--ti-alarm-red);
+  --ti-cta-background-hover: var(--ti-alarm-red);
+  --ti-cta-foreground: var(--danger-foreground);
+  --ti-neutral-button-background: var(--ti-headline-color);
+  --ti-section-rule: var(--ti-alarm-red);
+  --ti-footer-control: var(--sand-11);
+  --ti-footer-control-selected: var(--sand-12);
+  --ti-rhythm: 7px;
+  --ti-copy-font-size: 18px;
+  --ti-copy-line-height: calc(var(--ti-rhythm) * 4);
+  --ti-meta-font-size: 12px;
+  --ti-meta-line-height: calc(var(--ti-rhythm) * 2);
+  --ti-meta-letter-spacing: 0.09em;
+  --ti-deck-font-size: clamp(18px, 1.35vw, 20px);
+  --ti-deck-line-height: var(--ti-copy-line-height);
+  --ti-secondary-headline-line-box: calc(var(--ti-rhythm) * 6);
+  --ti-secondary-headline-font-size: clamp(34px, 2.65vw, 42px);
+  --ti-lead-headline-line-box: calc(var(--ti-rhythm) * 8);
+  --ti-lead-headline-font-size: clamp(42px, 4.2vw, 56px);
+  --ti-section-band-height: var(--ti-secondary-headline-line-box);
+  --ti-section-label-scale: 1.34;
+  --ti-section-label-scale-trimmed: 1.48;
+  --ti-masthead-word-line-box: clamp(calc(var(--ti-rhythm) * 8), 7.1vw, calc(var(--ti-rhythm) * 13));
+  --ti-masthead-font-size: calc(var(--ti-masthead-word-line-box) * 1.42);
+  --ti-stack-gap: var(--ti-rhythm);
+  --ti-section-nav-gap: var(--ti-rhythm);
+  --ti-section-content-gap: calc(var(--ti-rhythm) * 7);
+  --ti-section-stack-gap: calc(var(--ti-rhythm) * 12);
+  --ti-footer-card-min-height: calc(var(--ti-rhythm) * 20);
+  --ti-headline-color: var(--sand-12);
+  --ti-body-color: var(--sand-11);
+  --ti-secondary-color: var(--sand-10);
+  --ti-panel-surface: var(--sand-1);
+  --ti-panel-background: var(--sand-2);
+  --ink-rgb: 99 99 94;
+  --ink-solid-rgb: 33 32 28;
+  --ink-display-alpha: 0.92;
+  --paper: var(--background);
+  --paper-rgb: 249 249 248;
+  --paper-deep: var(--sand-3);
+  --empty-bg: var(--sand-3);
+  --substrate-rgb: 242 242 240;
+  --paper-grain-alpha: 0;
+  --paper-grain-highlight-alpha: 0;
+  --paper-fiber-alpha: 0;
+  --paper-mottle-light-alpha: 0;
+  --paper-mottle-shadow-alpha: 0;
+  --paper-edge-left-alpha: 0;
+  --paper-edge-right-alpha: 0;
+  --paper-edge-right-highlight-alpha: 0;
+  --paper-edge-top-alpha: 0;
+  --paper-edge-bottom-alpha: 0;
+  --paper-background: var(--background);
+  --paper-background-size: 100% 100%;
+  --paper-page-background: var(--paper-background);
+  --paper-page-background-size: 100% 100%;
+  --paper-drop-shadow: 0 18px 44px -34px rgb(15 23 42 / 0.38);
+  --site-body-font:
+    var(--font-sans), "Helvetica Neue", "Segoe UI", Helvetica, Arial, sans-serif;
+  --site-display-font:
+    var(--font-sans), "Helvetica Neue", "Segoe UI", Helvetica, Arial, sans-serif;
+  --site-ui-font:
+    var(--font-sans), "Helvetica Neue", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-site-brand="threat-intelligence"]:not([data-papyrus-theme="light"]):not(.light-theme) {
+    color-scheme: dark;
+    --background: var(--sand-2);
+    --foreground: var(--sand-11);
+    --foreground-strong: var(--sand-12);
+    --foreground-muted: var(--sand-10);
+    --card: var(--sand-1);
+    --card-foreground: var(--sand-11);
+    --popover: var(--sand-1);
+    --popover-foreground: var(--sand-11);
+    --primary: var(--sand-12);
+    --primary-foreground: var(--sand-1);
+    --secondary: var(--sand-3);
+    --secondary-foreground: var(--sand-11);
+    --muted: var(--sand-3);
+    --muted-foreground: var(--sand-10);
+    --accent: var(--sand-4);
+    --accent-foreground: var(--sand-11);
+    --border: var(--sand-6);
+    --input: var(--sand-6);
+    --ring: var(--sand-8);
+    --surface: var(--sand-1);
+    --surface-foreground: var(--sand-11);
+    --destructive-foreground: var(--sand-12);
+    --danger-foreground: var(--destructive-foreground);
+    --ti-alarm-red: var(--tomato-9);
+    --ti-pictogram-edge: var(--slate-6);
+    --ti-pictogram-node: var(--slate-5);
+    --ti-pictogram-muted: var(--slate-7);
+    --ti-pictogram-throb: var(--tomato-8);
+    --ti-pictogram-core-glow: var(--ti-alarm-red);
+    --ti-pictogram-compromised: var(--ti-alarm-red);
+    --ti-pictogram-compromised-stroke: var(--sand-2);
+    --ti-pictogram-accent-glow: rgb(251 146 60 / 0.2);
+    --ti-cta-background: var(--tomato-7);
+    --ti-cta-background-hover: var(--tomato-6);
+    --ti-cta-foreground: var(--sand-12);
+    --ti-neutral-button-background: var(--tomato-7);
+    --ti-headline-color: var(--sand-12);
+    --ti-body-color: var(--sand-11);
+    --ti-secondary-color: var(--sand-10);
+    --ti-panel-surface: var(--sand-1);
+    --ti-panel-background: var(--sand-2);
+    --ti-footer-control: var(--sand-11);
+    --ti-footer-control-selected: var(--ti-cta-background);
+    --ink-rgb: 181 179 173;
+    --ink-solid-rgb: 238 238 236;
+    --ink-display-alpha: 0.96;
+    --paper: var(--background);
+    --paper-rgb: 25 25 24;
+    --paper-deep: var(--sand-3);
+    --empty-bg: var(--sand-3);
+    --substrate-rgb: 17 17 16;
+    --paper-background: var(--background);
+    --paper-page-background: var(--paper-background);
+    --paper-drop-shadow: 0 22px 46px -28px rgb(0 0 0 / 0.86);
+  }
+}
+
+:root.dark-theme[data-site-brand="threat-intelligence"],
+:root[data-site-brand="threat-intelligence"][data-papyrus-theme="dark"] {
+  color-scheme: dark;
+  --background: var(--sand-2);
+  --foreground: var(--sand-11);
+  --foreground-strong: var(--sand-12);
+  --foreground-muted: var(--sand-10);
+  --card: var(--sand-1);
+  --card-foreground: var(--sand-11);
+  --popover: var(--sand-1);
+  --popover-foreground: var(--sand-11);
+  --primary: var(--sand-12);
+  --primary-foreground: var(--sand-1);
+  --secondary: var(--sand-3);
+  --secondary-foreground: var(--sand-11);
+  --muted: var(--sand-3);
+  --muted-foreground: var(--sand-10);
+  --accent: var(--sand-4);
+  --accent-foreground: var(--sand-11);
+  --border: var(--sand-6);
+  --input: var(--sand-6);
+  --ring: var(--sand-8);
+  --surface: var(--sand-1);
+  --surface-foreground: var(--sand-11);
+  --destructive-foreground: var(--sand-12);
+  --danger-foreground: var(--destructive-foreground);
+  --ti-alarm-red: var(--tomato-9);
+  --ti-pictogram-edge: var(--slate-6);
+  --ti-pictogram-node: var(--slate-5);
+  --ti-pictogram-muted: var(--slate-7);
+  --ti-pictogram-throb: var(--tomato-8);
+  --ti-pictogram-core-glow: var(--ti-alarm-red);
+  --ti-pictogram-compromised: var(--ti-alarm-red);
+  --ti-pictogram-compromised-stroke: var(--sand-2);
+  --ti-pictogram-accent-glow: rgb(251 146 60 / 0.2);
+  --ti-cta-background: var(--tomato-7);
+  --ti-cta-background-hover: var(--tomato-6);
+  --ti-cta-foreground: var(--sand-12);
+  --ti-neutral-button-background: var(--tomato-7);
+  --ti-headline-color: var(--sand-12);
+  --ti-body-color: var(--sand-11);
+  --ti-secondary-color: var(--sand-10);
+  --ti-panel-surface: var(--sand-1);
+  --ti-panel-background: var(--sand-2);
+  --ti-footer-control: var(--sand-11);
+  --ti-footer-control-selected: var(--ti-cta-background);
+  --ink-rgb: 181 179 173;
+  --ink-solid-rgb: 238 238 236;
+  --ink-display-alpha: 0.96;
+  --paper: var(--background);
+  --paper-rgb: 25 25 24;
+  --paper-deep: var(--sand-3);
+  --empty-bg: var(--sand-3);
+  --substrate-rgb: 17 17 16;
+  --paper-background: var(--background);
+  --paper-page-background: var(--paper-background);
+  --paper-drop-shadow: 0 22px 46px -28px rgb(0 0 0 / 0.86);
+}
+
+:root[data-site-brand="threat-intelligence"] .paper-page,
+:root[data-site-brand="threat-intelligence"] .site-shell,
+:root[data-site-brand="threat-intelligence"] .presentation-page,
+:root[data-site-brand="threat-intelligence"] .article-page,
+:root[data-site-brand="threat-intelligence"] .settings-page {
+  font-family: var(--site-body-font);
+}
+
+:root[data-site-brand="threat-intelligence"] body {
+  --ti-body-page-padding-x: clamp(18px, 4vw, 56px);
+  --ti-blog-rail-max-width: 1180px;
+  --ti-body-rail-width: min(
+    calc(100vw - (var(--ti-body-page-padding-x) * 2)),
+    var(--ti-blog-rail-max-width),
+    calc(var(--ti-masthead-font-size) * 9.55)
+  );
+  --ti-body-rail-margin: max(0px, calc((100vw - var(--ti-body-rail-width)) * 0.5));
+  --ti-body-background-mark-size: clamp(300px, 33vw, 470px);
+  --ti-body-background-mark-right: calc(var(--ti-body-rail-margin) - (var(--ti-body-background-mark-size) * 0.3));
+  --ti-body-background-mark-top: clamp(-180px, -9vw, -112px);
+
+  background: var(--background);
+  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
+  position: relative;
+}
+
+:root[data-site-brand="threat-intelligence"] body:has(.presentation-page--blog)::before {
+  content: none;
+  display: none;
+}
+
+:root[data-site-brand="threat-intelligence"] body:has(.presentation-page--blog) .papyrus-console-page {
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-site-brand="threat-intelligence"] .masthead h1,
+:root[data-site-brand="threat-intelligence"] .presentation-header h1,
+:root[data-site-brand="threat-intelligence"] .presentation-item__header h2,
+:root[data-site-brand="threat-intelligence"] .article-page h1 {
+  font-family: var(--site-display-font);
+  letter-spacing: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .masthead h1 {
+  font-size: clamp(2rem, 4.9vw, 4rem);
+  line-height: 1.06;
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] .masthead::before,
+:root[data-site-brand="threat-intelligence"] .masthead::after {
+  display: none;
+}
+
+:root[data-site-brand="threat-intelligence"] .masthead__rule,
+:root[data-site-brand="threat-intelligence"] .masthead__meta::after {
+  border-top-width: 1px;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-header p,
+:root[data-site-brand="threat-intelligence"] .presentation-section-header p,
+:root[data-site-brand="threat-intelligence"] .presentation-item__header p,
+:root[data-site-brand="threat-intelligence"] .presentation-header span,
+:root[data-site-brand="threat-intelligence"] .presentation-section-header span,
+:root[data-site-brand="threat-intelligence"] .presentation-item__header span {
+  font-family: var(--site-ui-font);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header {
+  --threat-intelligence-masthead-rhythm: var(--ti-stack-gap);
+
+  align-content: center;
+  align-items: end;
+  border-bottom: 0;
+  border-top: 0;
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(0, 0.77fr) minmax(160px, 0.23fr);
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: calc(var(--ti-rhythm) * 2);
+  max-width: var(--ti-blog-rail-width);
+  min-height: clamp(196px, 22vw, 308px);
+  padding: clamp(18px, 3vw, 40px) 0 clamp(18px, 2.8vw, 32px);
+  position: relative;
+  width: var(--ti-blog-rail-width);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__copy-stack {
+  align-self: end;
+  display: grid;
+  gap: var(--threat-intelligence-masthead-rhythm);
+  grid-column: 1;
+  grid-row: 1;
+  max-width: min(100%, 58rem);
+  min-width: 0;
+  width: min(100%, 58rem);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header h1 {
+  display: contents;
+  margin: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header h1 span {
+  color: var(--ti-alarm-red);
+  display: block;
+  font-family: var(--site-display-font);
+  font-size: var(--ti-masthead-font-size);
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: var(--ti-masthead-word-line-box);
+  max-width: 100%;
+  overflow-wrap: normal;
+  text-wrap: balance;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__meta {
+  align-items: baseline;
+  border-left: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--ti-rhythm) calc(var(--ti-rhythm) * 3);
+  justify-content: space-between;
+  margin-top: 0;
+  max-width: 100%;
+  min-width: 0;
+  padding-left: 0;
+  width: 100%;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__date {
+  align-items: center;
+  color: var(--ti-headline-color);
+  display: inline-flex;
+  font-size: var(--ti-meta-font-size);
+  font-style: normal;
+  font-weight: 900;
+  line-height: var(--ti-meta-line-height);
+  letter-spacing: var(--ti-meta-letter-spacing);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__subtitle {
+  align-items: center;
+  color: var(--ti-headline-color);
+  display: inline-flex;
+  font-size: var(--ti-meta-font-size);
+  font-style: normal;
+  font-weight: 900;
+  line-height: var(--ti-meta-line-height);
+  max-width: 18rem;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__tagline {
+  color: var(--ti-body-color);
+  display: block;
+  font-size: var(--ti-deck-font-size);
+  font-style: normal;
+  font-weight: 650;
+  line-height: var(--ti-deck-line-height);
+  max-width: min(100%, 58rem);
+  width: 100%;
+  text-transform: none;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-edition-video {
+  grid-column: 1 / -1;
+  margin: 0 auto calc(var(--ti-rhythm) * 6);
+  max-width: var(--ti-blog-rail-width);
+  width: var(--ti-blog-rail-width);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-edition-video__figure {
+  margin: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-edition-video__figure .article-video__player {
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 0;
+  max-height: none;
+  object-fit: contain;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-nav {
+  border-bottom: 0;
+  border-top: 0;
+  gap: var(--ti-section-nav-gap) calc(var(--ti-rhythm) * 3);
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: calc(var(--ti-rhythm) * 8);
+  max-width: var(--ti-blog-rail-width);
+  padding-bottom: calc(var(--ti-rhythm) * 2);
+  width: var(--ti-blog-rail-width);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog {
+  --ti-blog-rail-max-width: 1180px;
+  --ti-blog-rail-width: min(100%, var(--ti-blog-rail-max-width), calc(var(--ti-masthead-font-size) * 9.55));
+  --ti-blog-rail-margin: max(0px, calc((100% - var(--ti-blog-rail-width)) * 0.5));
+
+  background: var(--background);
+  isolation: isolate;
+  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
+  position: relative;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog > :not(.blog-page-background) {
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-site-brand="threat-intelligence"] .blog-page-background {
+  --ti-pictogram-edge: var(--slate-8);
+  --ti-pictogram-node: var(--slate-8);
+  --ti-pictogram-throb: var(--tomato-8);
+  --ti-pictogram-core-glow: var(--ti-alarm-red);
+  --ti-pictogram-compromised: var(--ti-alarm-red);
+  --ti-pictogram-compromised-stroke: var(--sand-1);
+  height: clamp(340px, 48vw, 760px);
+  left: 40%;
+  opacity: 1;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  right: auto;
+  top: clamp(10px, 1.6vw, 22px);
+  width: 60%;
+  z-index: 0;
+}
+
+:root[data-site-brand="threat-intelligence"][data-papyrus-theme="dark"] .blog-page-background {
+  --ti-pictogram-edge: var(--slate-6);
+  --ti-pictogram-node: var(--slate-5);
+  --ti-pictogram-core-glow: var(--ti-alarm-red);
+  --ti-pictogram-compromised-stroke: var(--sand-2);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-site-brand="threat-intelligence"]:not([data-papyrus-theme="light"]) .blog-page-background {
+    --ti-pictogram-edge: var(--slate-6);
+    --ti-pictogram-node: var(--slate-5);
+    --ti-pictogram-core-glow: var(--ti-alarm-red);
+    --ti-pictogram-compromised-stroke: var(--sand-2);
+  }
+}
+
+:root[data-site-brand="threat-intelligence"] .blog-page-background__svg {
+  display: block;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-nav a {
+  border-bottom: 2px solid transparent;
+  color: var(--ti-headline-color);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  min-height: var(--ti-copy-line-height);
+  padding: 0 0 var(--ti-rhythm);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-nav a:hover {
+  border-bottom-color: var(--ti-alarm-red);
+  color: var(--ti-headline-color);
+  text-decoration: none;
+}
+
+:root[data-site-brand="threat-intelligence"] .blog-sections {
+  gap: var(--ti-section-stack-gap);
+  max-width: var(--ti-blog-rail-width);
+  width: var(--ti-blog-rail-width);
+}
+
+:root[data-site-brand="threat-intelligence"] .blog-section {
+  display: grid;
+  gap: 0;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header,
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item,
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__copy {
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 1100px) {
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) {
+    column-gap: clamp(28px, 4vw, 52px);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-section-header,
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="0"] {
+    grid-column: 1 / -1;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="1"],
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="2"] {
+    align-self: stretch;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="1"] .presentation-item__copy,
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="2"] .presentation-item__copy {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="1"] .presentation-item__text-frame,
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="2"] .presentation-item__text-frame {
+    margin-bottom: 1em;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="1"] .presentation-item__cta,
+  :root[data-site-brand="threat-intelligence"] .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="2"] .presentation-item__cta {
+    margin-top: auto;
+  }
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header {
+  --threat-intelligence-section-rule-height: var(--ti-section-band-height);
+  --threat-intelligence-section-label-scale: var(--ti-section-label-scale);
+  --threat-intelligence-section-label-scale-trimmed: var(--ti-section-label-scale-trimmed);
+  --threat-intelligence-section-gap-x: var(--ti-rhythm);
+  --threat-intelligence-section-label-pad-x: 2px;
+
+  align-items: center;
+  border-bottom: 0;
+  border-top: 0;
+  display: grid;
+  gap: calc(var(--ti-rhythm) * 2) var(--threat-intelligence-section-gap-x);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: var(--threat-intelligence-section-rule-height) auto;
+  margin-bottom: var(--ti-section-content-gap);
+  min-height: 0;
+  padding: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header::before {
+  background: var(--ti-alarm-red);
+  content: "";
+  grid-column: 1;
+  grid-row: 1;
+  height: var(--threat-intelligence-section-rule-height);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header::after {
+  background: var(--ti-alarm-red);
+  content: "";
+  grid-column: 3;
+  grid-row: 1;
+  height: var(--threat-intelligence-section-rule-height);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header p {
+  align-items: center;
+  background: var(--background);
+  color: var(--ti-headline-color);
+  display: inline-flex;
+  font-family: var(--site-display-font);
+  font-size: calc(var(--threat-intelligence-section-rule-height) * var(--threat-intelligence-section-label-scale));
+  font-weight: 900;
+  grid-column: 2;
+  grid-row: 1;
+  height: var(--threat-intelligence-section-rule-height);
+  justify-content: center;
+  justify-self: center;
+  letter-spacing: 0;
+  line-height: 1;
+  margin: 0;
+  padding: 0 var(--threat-intelligence-section-label-pad-x);
+  text-transform: uppercase;
+  width: max-content;
+}
+
+@supports (text-box-trim: trim-both) {
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header p {
+    font-size: calc(var(--threat-intelligence-section-rule-height) * var(--threat-intelligence-section-label-scale-trimmed));
+    text-box-edge: cap alphabetic;
+    text-box-trim: trim-both;
+  }
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header span {
+  color: var(--ti-body-color);
+  font-size: var(--ti-copy-font-size);
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: center;
+  line-height: var(--ti-copy-line-height);
+  max-width: 46rem;
+  padding: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item {
+  border-bottom: 0;
+  gap: calc(var(--ti-rhythm) * 3) calc(var(--ti-rhythm) * 4);
+  padding-bottom: calc(var(--ti-rhythm) * 4);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item + .presentation-item {
+  border-top: calc(var(--ti-rhythm) * 1.5) solid var(--sand-a4);
+  padding-top: calc(var(--ti-rhythm) * 4);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__video {
+  grid-column: 1 / -1;
+  margin: calc(var(--ti-rhythm) * 2) 0 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__video-figure {
+  margin: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__video .article-video__player {
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  max-height: none;
+  object-fit: contain;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page__hero-video {
+  margin: 0 0 calc(var(--ti-rhythm) * 5);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page__hero-video .article-video__player {
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  max-height: none;
+  object-fit: contain;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-has-image="true"] {
+  grid-template-columns: minmax(0, 0.72fr) minmax(240px, 0.28fr);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"] {
+  gap: calc(var(--ti-rhythm) * 4) calc(var(--ti-rhythm) * 6);
+  padding-bottom: calc(var(--ti-rhythm) * 6);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"][data-has-image="true"] {
+  grid-template-columns: minmax(0, 0.64fr) minmax(320px, 0.36fr);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__header p {
+  display: none;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__header h2 {
+  color: var(--ti-headline-color);
+  font-size: var(--ti-secondary-headline-font-size);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: var(--ti-secondary-headline-line-box);
+  margin-bottom: calc(var(--ti-rhythm) * 2);
+  overflow-wrap: anywhere;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-role="lead"] .presentation-item__header h2 {
+  font-size: var(--ti-lead-headline-font-size);
+  line-height: var(--ti-lead-headline-line-box);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__header span {
+  color: var(--ti-body-color);
+  font-size: var(--ti-deck-font-size);
+  font-weight: 650;
+  line-height: var(--ti-deck-line-height);
+  max-width: none;
+  width: 100%;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__cta {
+  background: var(--ti-cta-background);
+  color: var(--ti-cta-foreground);
+  display: flex;
+  font-family: var(--site-ui-font);
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  margin-right: auto;
+  margin-top: calc(var(--ti-rhythm) * 3);
+  padding: calc(var(--ti-rhythm) * 1.5) calc(var(--ti-rhythm) * 2.25);
+  text-transform: uppercase;
+  width: max-content;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__cta:hover {
+  background: var(--ti-cta-background-hover);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__image {
+  align-self: start;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__image img {
+  aspect-ratio: 16 / 11;
+  background: var(--background);
+  border: 1px solid var(--sand-a5);
+  object-fit: contain;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .pictogram-figure__frame {
+  aspect-ratio: 16 / 11;
+  background: var(--background);
+  border: 1px solid var(--sand-a5);
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"] .presentation-item__image img {
+  aspect-ratio: 1 / 1;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"] .pictogram-figure__frame {
+  aspect-ratio: 1 / 1;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__text-frame {
+  max-width: none;
+  width: 100%;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation {
+  background: var(--sand-a3);
+  border: 0;
+  box-sizing: border-box;
+  color: var(--ti-body-color);
+  display: grid;
+  font-family: var(--site-ui-font);
+  gap: calc(var(--ti-rhythm) * 4);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: calc(var(--ti-rhythm) * 14);
+  max-width: var(--ti-blog-rail-width);
+  overflow: visible;
+  padding: calc(var(--ti-rhythm) * 5);
+  width: var(--ti-blog-rail-width);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__heading {
+  align-items: center;
+  align-self: stretch;
+  background: var(--ti-panel-background);
+  border-bottom: 0;
+  display: flex;
+  flex-direction: row;
+  gap: calc(var(--ti-rhythm) * 4);
+  grid-column: 1;
+  grid-row: 1;
+  justify-content: space-between;
+  line-height: var(--ti-copy-line-height);
+  min-height: 0;
+  overflow: hidden;
+  padding: calc(var(--ti-rhythm) * 4) calc(var(--ti-rhythm) * 5) calc(var(--ti-rhythm) * 4) calc(var(--ti-rhythm) * 8);
+  position: relative;
+  text-align: left;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__heading::before {
+  background: var(--ti-alarm-red);
+  bottom: 0;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: calc(var(--ti-rhythm) * 3);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__brand {
+  display: grid;
+  gap: var(--ti-rhythm);
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__brand-title {
+  color: var(--ti-alarm-red);
+  display: block;
+  font-family: var(--site-display-font);
+  font-size: var(--ti-secondary-headline-font-size);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: var(--ti-secondary-headline-line-box);
+  max-width: 100%;
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__brand-subtitle {
+  color: var(--ti-headline-color);
+  display: block;
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__meta {
+  background: var(--sand-a4);
+  color: var(--ti-headline-color);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  padding: var(--ti-rhythm) calc(var(--ti-rhythm) * 2);
+  position: relative;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__sections {
+  display: grid;
+  gap: calc(var(--ti-rhythm) * 2);
+  grid-column: 1;
+  grid-row: 2;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-rows: none;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__section-link {
+  align-items: stretch;
+  background: var(--ti-panel-background);
+  color: var(--ti-headline-color);
+  display: grid;
+  gap: calc(var(--ti-rhythm) * 2);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: auto;
+  line-height: normal;
+  min-height: calc(var(--ti-rhythm) * 14);
+  padding: calc(var(--ti-rhythm) * 2.5);
+  text-decoration: none;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__section-link:hover {
+  background: var(--ti-cta-background);
+  color: var(--ti-cta-foreground);
+  text-decoration: none;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__section-name {
+  color: var(--ti-alarm-red);
+  font-family: var(--site-ui-font);
+  font-size: var(--ti-meta-font-size);
+  font-weight: 860;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__section-link:hover .front-footer__section-name {
+  color: inherit;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__section-title {
+  color: inherit;
+  font-family: var(--site-display-font);
+  font-size: clamp(22px, 1.7vw, 28px);
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: var(--ti-copy-line-height);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utilities {
+  align-items: center;
+  border-left: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: calc(var(--ti-rhythm) * 1.5);
+  grid-column: 1;
+  grid-row: 3;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-left: 0;
+  text-align: left;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utility-link {
+  background: var(--ti-neutral-button-background);
+  color: var(--ti-cta-foreground);
+  display: inline-flex;
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  height: auto;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  padding: calc(var(--ti-rhythm) * 1.5) calc(var(--ti-rhythm) * 2);
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utility-link:hover {
+  background: var(--ti-cta-background-hover);
+  text-decoration: none;
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utility-link[aria-disabled="true"] {
+  background: var(--sand-a5);
+  color: var(--ti-secondary-color);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control {
+  background: var(--sand-a4);
+  border: 1px solid var(--sand-a6);
+  color: var(--ti-footer-control);
+  flex: 0 0 auto;
+  height: calc(var(--ti-rhythm) * 6);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control .reader-theme-control__button {
+  color: inherit;
+  height: calc(var(--ti-rhythm) * 6 - 2px);
+  width: calc(var(--ti-rhythm) * 6 - 2px);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control .reader-theme-control__button + .reader-theme-control__button {
+  border-left: 1px solid var(--sand-a6);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control .reader-theme-control__button:hover {
+  background: var(--sand-a4);
+}
+
+:root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control .reader-theme-control__button[data-selected="true"] {
+  background: var(--ti-footer-control-selected);
+  color: var(--ti-cta-foreground);
+}
+
+@media (max-width: 1024px) {
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header {
+    grid-template-columns: 1fr;
+    min-height: clamp(210px, 38vw, 300px);
+    padding-top: clamp(22px, 5vw, 38px);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header h1 {
+    max-width: min(100%, 42rem);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__copy-stack {
+    grid-column: 1;
+    grid-row: 1;
+    max-width: min(85vw, 36rem);
+    width: min(85vw, 36rem);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__meta {
+    align-items: flex-start;
+    border-left: 0;
+    border-top: 0;
+    flex-direction: column;
+    gap: calc(var(--ti-rhythm) * 0.75);
+    justify-content: flex-start;
+    max-width: min(85vw, 36rem);
+    padding-left: 0;
+    padding-top: 0;
+    width: min(85vw, 36rem);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__subtitle,
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__tagline {
+    max-width: min(85vw, 36rem);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__date {
+    margin-left: 0;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-page-background {
+    height: clamp(300px, 62vw, 520px);
+    left: 44%;
+    opacity: 1;
+    right: 0;
+    top: -16px;
+    width: 56%;
+  }
+
+  :root[data-site-brand="threat-intelligence"] body {
+    --ti-body-background-mark-size: clamp(280px, 58vw, 420px);
+    --ti-body-background-mark-top: clamp(-92px, -8vw, -42px);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog,
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-has-image="true"],
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"],
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"][data-has-image="true"] {
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"] .presentation-item__image img {
+    aspect-ratio: 16 / 10;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__image {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__header span,
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__text-frame {
+    max-width: none;
+    width: 100%;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header {
+    --threat-intelligence-section-gap-x: var(--ti-rhythm);
+
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: var(--threat-intelligence-section-rule-height) auto;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header::before {
+    display: none;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header::after {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header p {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header span {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation {
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__heading,
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__sections,
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utilities {
+    grid-column: 1;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    grid-row: 1;
+    justify-content: space-between;
+    min-height: 0;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__sections {
+    grid-row: 2;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utilities {
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 560px) {
+  :root[data-site-brand="threat-intelligence"] .presentation-page {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog {
+    --ti-masthead-word-line-box: calc(var(--ti-rhythm) * 7);
+    --ti-masthead-font-size: calc(var(--ti-masthead-word-line-box) * 1.06);
+    --ti-blog-rail-width: calc(100vw - 36px);
+    --ti-blog-rail-margin: 0px;
+  }
+
+  :root[data-site-brand="threat-intelligence"] body {
+    --ti-body-page-padding-x: 18px;
+    --ti-masthead-word-line-box: calc(var(--ti-rhythm) * 7);
+    --ti-masthead-font-size: calc(var(--ti-masthead-word-line-box) * 1.06);
+    --ti-body-rail-width: calc(100vw - 36px);
+    --ti-body-rail-margin: 18px;
+    --ti-body-background-mark-size: 300px;
+    --ti-body-background-mark-top: -72px;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header {
+    margin-bottom: calc(var(--ti-rhythm) * 2);
+    min-height: 220px;
+    padding-bottom: calc(var(--ti-rhythm) * 3);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__copy-stack {
+    max-width: 85vw;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header h1 span {
+    font-size: min(var(--ti-masthead-font-size), 13vw);
+    max-width: 85vw;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-header__meta {
+    gap: var(--ti-rhythm) calc(var(--ti-rhythm) * 2);
+    max-width: 100%;
+    width: 100%;
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-nav {
+    gap: var(--ti-rhythm) calc(var(--ti-rhythm) * 2);
+    margin-bottom: calc(var(--ti-rhythm) * 6);
+    padding-bottom: calc(var(--ti-rhythm) * 2);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-nav a {
+    font-size: var(--ti-meta-font-size);
+    padding-bottom: var(--ti-rhythm);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-sections {
+    gap: calc(var(--ti-rhythm) * 8);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-section-header {
+    margin-bottom: calc(var(--ti-rhythm) * 5);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-index="0"] {
+    padding-bottom: calc(var(--ti-rhythm) * 5);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item__header h2 {
+    font-size: var(--ti-secondary-headline-font-size);
+    letter-spacing: 0;
+    line-height: var(--ti-secondary-headline-line-box);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .presentation-page--blog .presentation-item--blog[data-item-role="lead"] .presentation-item__header h2 {
+    font-size: var(--ti-lead-headline-font-size);
+    line-height: var(--ti-lead-headline-line-box);
+  }
+
+  :root[data-site-brand="threat-intelligence"] .blog-page-background {
+    height: clamp(260px, 72vw, 360px);
+    left: auto;
+    opacity: 0.9;
+    right: 0;
+    top: 8px;
+    width: min(64%, 300px);
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation {
+    margin-top: calc(var(--ti-rhythm) * 8);
+    padding: calc(var(--ti-rhythm) * 2);
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__heading {
+    gap: calc(var(--ti-rhythm) * 4);
+    padding: calc(var(--ti-rhythm) * 3) calc(var(--ti-rhythm) * 3) calc(var(--ti-rhythm) * 3) calc(var(--ti-rhythm) * 6);
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__sections {
+    grid-template-columns: 1fr;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__section-link {
+    min-height: 0;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utilities {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__utility-link {
+    justify-content: center;
+    width: 100%;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control {
+    width: 100%;
+  }
+
+  :root[data-site-brand="threat-intelligence"] :is(.presentation-page--blog, .article-shell--edition) .front-footer--presentation .front-footer__theme-control .reader-theme-control__button {
+    flex: 1 1 0;
+    width: auto;
+  }
+}
+
+@media (max-width: 1000px) {
+  :root[data-site-brand="threat-intelligence"] .blog-page-background {
+    left: auto;
+    right: 0;
+    top: clamp(6px, 1.1vw, 14px);
+    width: min(60%, 480px);
+  }
+
+  :root[data-site-brand="threat-intelligence"] body {
+    --ti-body-background-mark-top: calc(-80px + clamp(0px, (1000px - 100vw) * 0.2, 130px));
+  }
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-item__header span,
+:root[data-site-brand="threat-intelligence"] .presentation-section-header span {
+  color: var(--ti-body-color);
+  font-style: normal;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-item__image figcaption {
+  color: var(--ti-secondary-color);
+  font-style: normal;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-item__image img {
+  filter: none;
+}
+
+:root[data-site-brand="threat-intelligence"] .presentation-section-nav a,
+:root[data-site-brand="threat-intelligence"] .presentation-item__header a {
+  color: var(--ti-headline-color);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-shell {
+  background: var(--background);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-shell--edition {
+  --ti-article-body-rail-width: min(calc(100vw - 60px), 88ch);
+  --ti-blog-rail-width: var(--ti-article-body-rail-width);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-nav {
+  border-bottom: 1px solid var(--sand-a6);
+  color: var(--ti-body-color);
+  font-family: var(--site-ui-font);
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page .story-label,
+:root[data-site-brand="threat-intelligence"] .article-page .story-byline {
+  color: var(--ti-body-color);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page {
+  background: transparent;
+  background-size: auto;
+  margin: 0 auto;
+  max-width: calc(88ch + 60px);
+  min-height: auto;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page h1 {
+  color: var(--ti-headline-color);
+  font-size: var(--ti-lead-headline-font-size);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: var(--ti-lead-headline-line-box);
+  margin: var(--ti-rhythm) 0 calc(var(--ti-rhythm) * 3);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-deck {
+  color: var(--ti-body-color);
+  font-size: var(--ti-deck-font-size);
+  font-style: normal;
+  font-weight: 650;
+  line-height: var(--ti-deck-line-height);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page .story-label {
+  font-size: var(--ti-meta-font-size);
+  font-weight: 900;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page .story-byline {
+  font-size: var(--ti-meta-font-size);
+  font-weight: 850;
+  letter-spacing: var(--ti-meta-letter-spacing);
+  line-height: var(--ti-meta-line-height);
+  font-style: normal;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-page .story-byline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-photo img {
+  filter: none;
+  background: var(--background);
+  object-fit: contain;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-photo .pictogram-figure__frame {
+  border: 1px solid var(--sand-a5);
+}
+
+:root[data-site-brand="threat-intelligence"] .article-body .article-photo {
+  margin-top: 0;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-body .article-photo img {
+  height: auto;
+  max-height: none;
+}
+
+:root[data-site-brand="threat-intelligence"] .article-body {
+  column-count: 1;
+  column-gap: 0;
+  color: var(--ti-body-color);
+  font-family: var(--site-body-font);
+  font-size: var(--ti-copy-font-size);
+  line-height: var(--ti-copy-line-height);
+  max-width: 88ch;
+}
+
+@media (min-width: 900px) {
+  :root[data-site-brand="threat-intelligence"] .article-body .article-photo {
+    float: right;
+    margin: 0 0 1.25rem clamp(1.5rem, 3vw, 2.25rem);
+    width: min(38%, 360px);
+  }
+}
+
+:root[data-site-brand="threat-intelligence"] .archive-header {
+  --masthead-height: auto;
+  --masthead-title-line-height: 1.05;
+  --masthead-title-font-size: clamp(2rem, 4.8vw, 3.6rem);
+  --masthead-title-margin-top: 20px;
+  --masthead-title-margin-bottom: 18px;
+  --masthead-title-optical-shift: 0;
+  background: var(--paper-page-background);
+  background-size: var(--paper-page-background-size);
+  border-bottom: 1px solid rgb(var(--rule-rgb) / 0.22);
+  block-size: auto;
+}
+
+:root[data-site-brand="threat-intelligence"] .archive-header h1 {
+  font-family: var(--site-display-font);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+:root[data-site-brand="threat-intelligence"] .archive-card__summary h2 {
+  font-family: var(--site-display-font);
+  font-weight: 900;
+  letter-spacing: 0;
+}

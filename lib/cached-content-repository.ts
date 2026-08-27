@@ -11,6 +11,8 @@ import type {
 import { graphqlContentRepository } from "./graphql-content-repository";
 import { READER_REVALIDATE_SECONDS } from "./reader-route-config";
 
+const bypassReaderCacheInDevelopment = process.env.NODE_ENV === "development";
+
 export const EDITIONS_CACHE_TAG = "editions";
 export const ARCHIVE_CACHE_TAG = "archive";
 export const ARTICLES_CACHE_TAG = "articles";
@@ -27,40 +29,43 @@ export function editionItemCacheTag(editionDate: string, itemSlug: string): stri
   return `edition-item:${editionDate}:${itemSlug}`;
 }
 
+function withReaderCache<T>(
+  cacheKey: string[],
+  tags: string[],
+  loader: () => Promise<T>,
+): Promise<T> {
+  if (bypassReaderCacheInDevelopment) return loader();
+  return unstable_cache(loader, cacheKey, {
+    tags,
+    revalidate: READER_REVALIDATE_SECONDS,
+  })();
+}
+
 export function loadCachedEditionContent(options: LoadEditionContentOptions = {}): Promise<EditionContent> {
   const editionDate = options.editionDate ?? "active";
   const editionSlug = options.editionSlug ?? "";
-  return unstable_cache(
-    async () => graphqlContentRepository.loadEditionContent(options),
+  return withReaderCache(
     ["reader-edition-content", editionDate, editionSlug],
-    {
-      tags: editionDate === "active" ? [EDITIONS_CACHE_TAG] : [editionContentCacheTag(editionDate), EDITIONS_CACHE_TAG],
-      revalidate: READER_REVALIDATE_SECONDS,
-    },
-  )();
+    editionDate === "active" ? [EDITIONS_CACHE_TAG] : [editionContentCacheTag(editionDate), EDITIONS_CACHE_TAG],
+    async () => graphqlContentRepository.loadEditionContent(options),
+  );
 }
 
 export function getCachedArticle(slug: string): Promise<Article | undefined> {
-  return unstable_cache(
-    async () => graphqlContentRepository.getArticle(slug),
+  return withReaderCache(
     ["reader-article", slug],
-    {
-      tags: [articleCacheTag(slug), ARTICLES_CACHE_TAG],
-      revalidate: READER_REVALIDATE_SECONDS,
-    },
-  )();
+    [articleCacheTag(slug), ARTICLES_CACHE_TAG],
+    async () => graphqlContentRepository.getArticle(slug),
+  );
 }
 
 export function getCachedEditionItem(options: GetEditionItemOptions): Promise<import("./publication-items").PublicationItem | undefined> {
   const { editionDate, itemSlug } = options;
-  return unstable_cache(
-    async () => graphqlContentRepository.getEditionItem(options),
+  return withReaderCache(
     ["reader-edition-item", editionDate, itemSlug],
-    {
-      tags: [editionItemCacheTag(editionDate, itemSlug), editionContentCacheTag(editionDate), EDITIONS_CACHE_TAG],
-      revalidate: READER_REVALIDATE_SECONDS,
-    },
-  )();
+    [editionItemCacheTag(editionDate, itemSlug), editionContentCacheTag(editionDate), EDITIONS_CACHE_TAG],
+    async () => graphqlContentRepository.getEditionItem(options),
+  );
 }
 
 export function listCachedPublishedEditions(
@@ -68,23 +73,17 @@ export function listCachedPublishedEditions(
 ): Promise<PublishedEditionConnection> {
   const limit = options.limit ?? 0;
   const nextToken = options.nextToken ?? "";
-  return unstable_cache(
-    async () => graphqlContentRepository.listPublishedEditions(options),
+  return withReaderCache(
     ["reader-published-editions", String(limit), nextToken],
-    {
-      tags: [ARCHIVE_CACHE_TAG, EDITIONS_CACHE_TAG],
-      revalidate: READER_REVALIDATE_SECONDS,
-    },
-  )();
+    [ARCHIVE_CACHE_TAG, EDITIONS_CACHE_TAG],
+    async () => graphqlContentRepository.listPublishedEditions(options),
+  );
 }
 
 export function getCachedLatestPublishedEdition(): Promise<EditionRouteSummary | null> {
-  return unstable_cache(
-    async () => graphqlContentRepository.getLatestPublishedEdition(),
+  return withReaderCache(
     ["reader-latest-published-edition"],
-    {
-      tags: [EDITIONS_CACHE_TAG, ARCHIVE_CACHE_TAG],
-      revalidate: READER_REVALIDATE_SECONDS,
-    },
-  )();
+    [EDITIONS_CACHE_TAG, ARCHIVE_CACHE_TAG],
+    async () => graphqlContentRepository.getLatestPublishedEdition(),
+  );
 }

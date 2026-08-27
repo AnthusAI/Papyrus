@@ -2948,6 +2948,7 @@ function measureWrappedTextBlock(
 }
 
 function getLeadImageWrap(article: ArticlePublicationItem, width: number, config: LayoutConfig): TextObstacle | null {
+  if (!article.image) return null;
   const layout = article.image.layout;
   const minHeight = layout?.minHeight ?? config.lineHeight * 6;
   const maxHeight = layout?.maxHeight ?? config.lineHeight * 12;
@@ -2972,7 +2973,7 @@ function getLeadImageWrap(article: ArticlePublicationItem, width: number, config
 }
 
 function getInlineFloatWidth(
-  layout: ArticlePublicationItem["image"]["layout"],
+  layout: NonNullable<ArticlePublicationItem["image"]>["layout"],
   width: number,
   config: LayoutConfig,
 ): number {
@@ -3043,6 +3044,7 @@ function createFrontPreludeImage(
 }
 
 function leadImageToFurniture(article: ArticlePublicationItem, obstacle: TextObstacle, config: LayoutConfig): SolvedImageFurniture {
+  if (!article.image) throw new Error(`Cannot create lead image furniture for ${article.slug} without an image.`);
   const [asset] = getPublicationItemImageAssets(article);
   const aspectRatio = getImageAspectRatio(article.image);
   const caption = getImageCaption(article.image);

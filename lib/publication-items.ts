@@ -3,8 +3,10 @@ import {
   type ArticleAsset,
   type ArticleImage,
   type ArticleImageAsset,
+  type ArticleVideoAsset,
   getArticleImageAssets,
   getArticleText,
+  getArticleVideoAsset,
 } from "./articles";
 
 export type PublicationItemType = "article" | "brief" | "correction" | "promo" | "ad" | "sectionHeader";
@@ -22,6 +24,7 @@ export type NonArticlePublicationItem = {
   excerpt?: string;
   body?: string[];
   image?: ArticleImage;
+  video?: ArticleVideoAsset;
   assets?: ArticleAsset[];
   href?: string;
   metadata?: Record<string, unknown>;
@@ -66,6 +69,15 @@ export function getPublicationItemImageAssets(item: PublicationItem): ArticleIma
   ];
 }
 
+export function getPublicationItemVideoAsset(item: PublicationItem): ArticleVideoAsset | undefined {
+  if (item.type === "article") return getArticleVideoAsset(item);
+  const explicitAssets = item.assets?.filter((asset): asset is ArticleVideoAsset => asset.type === "video") ?? [];
+  if (explicitAssets.length > 0) {
+    return explicitAssets.find((asset) => asset.roles?.includes("lead")) ?? explicitAssets[0];
+  }
+  return item.video;
+}
+
 export function clonePublicationItems(items: PublicationItem[]): PublicationItem[] {
   return items.map((item) => (item.type === "article" ? articleToPublicationItem(item) : cloneNonArticleItem(item)));
 }
@@ -73,17 +85,34 @@ export function clonePublicationItems(items: PublicationItem[]): PublicationItem
 export function cloneArticle(article: Article): Article {
   return {
     ...article,
-    image: {
-      ...article.image,
-      layout: cloneImageLayout(article.image.layout),
-      themeVariants: cloneImageThemeVariants(article.image.themeVariants),
-    },
-    assets: article.assets?.map((asset) => ({
-      ...asset,
-      layout: cloneImageLayout(asset.layout),
-      roles: asset.roles ? [...asset.roles] : undefined,
-      themeVariants: cloneImageThemeVariants(asset.themeVariants),
-    })),
+    image: article.image
+      ? {
+          ...article.image,
+          layout: cloneImageLayout(article.image.layout),
+          themeVariants: cloneImageThemeVariants(article.image.themeVariants),
+        }
+      : undefined,
+    video: article.video
+      ? {
+          ...article.video,
+          roles: article.video.roles ? [...article.video.roles] : undefined,
+          themeVariants: cloneVideoThemeVariants(article.video.themeVariants),
+        }
+      : undefined,
+    assets: article.assets?.map((asset) =>
+      asset.type === "video"
+        ? {
+            ...asset,
+            roles: asset.roles ? [...asset.roles] : undefined,
+            themeVariants: cloneVideoThemeVariants(asset.themeVariants),
+          }
+        : {
+            ...asset,
+            layout: cloneImageLayout(asset.layout),
+            roles: asset.roles ? [...asset.roles] : undefined,
+            themeVariants: cloneImageThemeVariants(asset.themeVariants),
+          },
+    ),
     pullQuotes: article.pullQuotes ? [...article.pullQuotes] : undefined,
     body: [...article.body],
   };
@@ -99,18 +128,33 @@ function cloneNonArticleItem(item: NonArticlePublicationItem): NonArticlePublica
           themeVariants: cloneImageThemeVariants(item.image.themeVariants),
         }
       : undefined,
-    assets: item.assets?.map((asset) => ({
-      ...asset,
-      layout: cloneImageLayout(asset.layout),
-      roles: asset.roles ? [...asset.roles] : undefined,
-      themeVariants: cloneImageThemeVariants(asset.themeVariants),
-    })),
+    video: item.video
+      ? {
+          ...item.video,
+          roles: item.video.roles ? [...item.video.roles] : undefined,
+          themeVariants: cloneVideoThemeVariants(item.video.themeVariants),
+        }
+      : undefined,
+    assets: item.assets?.map((asset) =>
+      asset.type === "video"
+        ? {
+            ...asset,
+            roles: asset.roles ? [...asset.roles] : undefined,
+            themeVariants: cloneVideoThemeVariants(asset.themeVariants),
+          }
+        : {
+            ...asset,
+            layout: cloneImageLayout(asset.layout),
+            roles: asset.roles ? [...asset.roles] : undefined,
+            themeVariants: cloneImageThemeVariants(asset.themeVariants),
+          },
+    ),
     body: item.body ? [...item.body] : undefined,
     metadata: item.metadata ? { ...item.metadata } : undefined,
   };
 }
 
-function cloneImageLayout<T extends Article["image"]["layout"]>(layout: T): T {
+function cloneImageLayout<T extends ArticleImage["layout"]>(layout: T): T {
   if (!layout) return undefined as T;
   return {
     ...layout,
@@ -119,10 +163,19 @@ function cloneImageLayout<T extends Article["image"]["layout"]>(layout: T): T {
   } as T;
 }
 
-function cloneImageThemeVariants<T extends Article["image"]["themeVariants"]>(themeVariants: T): T {
+function cloneImageThemeVariants<T extends ArticleImage["themeVariants"]>(themeVariants: T): T {
   if (!themeVariants) return undefined as T;
   return {
     ...themeVariants,
+    dark: themeVariants.dark ? { ...themeVariants.dark } : undefined,
+  } as T;
+}
+
+function cloneVideoThemeVariants<T extends ArticleVideoAsset["themeVariants"]>(themeVariants: T): T {
+  if (!themeVariants) return undefined as T;
+  return {
+    ...themeVariants,
+    light: themeVariants.light ? { ...themeVariants.light } : undefined,
     dark: themeVariants.dark ? { ...themeVariants.dark } : undefined,
   } as T;
 }

@@ -13,7 +13,7 @@ frontend:
   phases:
     build:
       commands:
-        - env | grep -e '^PAPYRUS_CONTENT_SOURCE=' -e '^PAPYRUS_EDITION_SLUG=' >> .env.production
+        - env | grep -e '^PAPYRUS_CONTENT_SOURCE=' -e '^PAPYRUS_EDITION_SLUG=' -e '^PAPYRUS_REVALIDATE_SECRET=' >> .env.production
         - npm run build
   artifacts:
     baseDirectory: .next

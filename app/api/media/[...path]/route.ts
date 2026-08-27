@@ -17,5 +17,19 @@ export async function GET(_request: Request, context: MediaRouteContext) {
   }
 
   const signedUrl = await signStorageUrl(storagePath);
-  return NextResponse.redirect(signedUrl, 307);
+  const upstream = await fetch(signedUrl, { cache: "no-store" });
+  if (!upstream.ok) {
+    return NextResponse.json(
+      { error: `Upstream media fetch failed (${upstream.status}).` },
+      { status: upstream.status === 404 ? 404 : 502 },
+    );
+  }
+
+  const headers = new Headers();
+  const contentType = upstream.headers.get("content-type");
+  if (contentType) {
+    headers.set("content-type", contentType);
+  }
+  headers.set("cache-control", "public, max-age=3600, stale-while-revalidate=86400");
+  return new NextResponse(upstream.body, { status: 200, headers });
 }

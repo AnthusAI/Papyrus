@@ -5267,7 +5267,7 @@ slack = ["slack-sdk (>=3.0)"]
 
 [package.source]
 type = "directory"
-url = "../Tactus"
+url = "../../Tactus"
 
 [[package]]
 name = "tenacity"

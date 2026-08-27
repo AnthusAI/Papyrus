@@ -4,6 +4,7 @@ import type { PublicationItem } from "./publication-items";
 
 export type PresentationFooterEntry = {
   section: string;
+  sectionKey: string;
   articleSlug: string;
   articleTitle: string;
 };
@@ -62,6 +63,7 @@ export function buildPresentationFooterEntries(content: EditionContent): Present
     seenSections.add(sectionKey);
     entries.push({
       section: section.label,
+      sectionKey: section.key,
       articleSlug: leadItem.slug,
       articleTitle: getPresentationFooterItemTitle(leadItem),
     });

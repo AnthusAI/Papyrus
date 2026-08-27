@@ -2,19 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { addToUserGroup, createAndSignUpUser, signInUser } from "@aws-amplify/seed";
-import { Amplify } from "aws-amplify";
+import { Amplify, type ResourcesConfig } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { signOut } from "aws-amplify/auth";
-import { uploadData } from "aws-amplify/storage";
+import { getProperties, uploadData } from "aws-amplify/storage";
 import YAML from "yaml";
 import type { Schema } from "../data/resource";
-import type { Article, ArticleImageAsset } from "../../lib/articles";
-import * as amplifyServerRuntimeModule from "../../lib/amplify-server-runtime";
-import { getSeedEditionConfig, seedEditionArticles } from "./seed-edition-content";
-import { getArticleImageAssets } from "../../lib/articles";
-
-const amplifyServerRuntime = getRuntimeModule(amplifyServerRuntimeModule);
-const { getAmplifyServerRuntime } = amplifyServerRuntime as typeof import("../../lib/amplify-server-runtime");
+import type { Article, ArticleImageAsset, ArticleVideoAsset } from "../../lib/articles";
+import { getSeedEditionConfig, getSeedEditionProfileInfo, seedEditionArticles } from "./seed-edition-content";
+import { getSeedEditionContentSource } from "./seed-profile";
 
 const EDITOR_GROUP = "editor";
 const ADMIN_GROUP = "admin";
@@ -99,7 +95,28 @@ const PROCEDURE_SEED_BY_KEY: Record<string, ProcedureSeed> = {
       },
     },
     defaults: {
-      corpusKey: "AI-ML-research",
+      corpusKey: "threat-intelligence",
+    },
+  },
+  "submissions.email.process": {
+    key: "submissions.email.process",
+    title: "Email Submission Processor",
+    category: "ingestion",
+    description: "Processes inbound submission emails into reference create/find/process intake for direct citations.",
+    versionLabel: "starter",
+    tactusSource: loadProcedureSeedSource("email_submission_processor.tac"),
+    parameterSchema: {
+      type: "object",
+      required: ["message_id"],
+      properties: {
+        message_id: { type: "string" },
+        corpus_key: { type: "string" },
+        apply: { type: "boolean" },
+      },
+    },
+    defaults: {
+      corpus_key: "threat-intelligence",
+      apply: true,
     },
   },
   "newsroom.research.explorer": {
@@ -344,19 +361,16 @@ const COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION = `
 
 let cachedClient: DataClient | null = null;
 
-function getRuntimeModule<T extends object>(module: T): T {
-  return "default" in module && typeof module.default === "object" && module.default !== null ? (module.default as T) : module;
-}
-
 function getSeedClient(): DataClient {
   if (!cachedClient) cachedClient = generateClient<Schema>({ authMode: "userPool" });
   return cachedClient;
 }
 
 async function main() {
-  const runtime = getAmplifyServerRuntime();
-  Amplify.configure(runtime.config);
+  Amplify.configure(loadSeedAmplifyOutputs());
   await signInSeedEditor();
+  const seedProfile = getSeedEditionProfileInfo();
+  console.log(`seed\tedition-profile\t${seedProfile.id}\t${seedProfile.sourcePath}`);
   const editionConfig = getSeedEditionConfig();
 
   try {
@@ -392,6 +406,7 @@ async function main() {
       layoutPlan: toAwsJson(editionConfig.layoutPlan),
       metadata: toAwsJson(editionConfig.metadata),
     });
+    await clearEditionItemLinks(editionConfig.id, publishedEditionId(editionConfig.id));
     await seedNewsroomSections(editionConfig.publishedAt);
     await seedPublicationDoctrine(editionConfig.publishedAt);
     await seedProcedureDefinitions(editionConfig.publishedAt);
@@ -400,10 +415,47 @@ async function main() {
       await seedArticle(article, index, editionConfig);
     }
 
+    const editionVideo = getSeedEditionContentSource().content.video;
+    if (editionVideo) {
+      const editionVideoRecord = await buildSeedEditionVideoMetadata(editionConfig.slug, editionVideo);
+      const updatedMetadata = {
+        ...editionConfig.metadata,
+        editionVideo: editionVideoRecord,
+      };
+      if (JSON.stringify(updatedMetadata) !== JSON.stringify(editionConfig.metadata)) {
+        await upsert("Edition", {
+          ...editionRecord,
+          metadata: toAwsJson(updatedMetadata),
+        });
+        await upsert("PublishedEdition", {
+          id: publishedEditionId(editionConfig.id),
+          sourceEditionId: editionRecord.id,
+          editionLineageId: editionRecord.lineageId,
+          versionNumber: editionRecord.versionNumber,
+          slug: editionConfig.slug,
+          title: editionConfig.title,
+          status: "published",
+          editionDate: editionConfig.publishDate,
+          publishedAt: editionConfig.publishedAt,
+          description: editionConfig.description,
+          layoutPlan: toAwsJson(editionConfig.layoutPlan),
+          metadata: toAwsJson(updatedMetadata),
+        });
+      }
+    }
+
     console.log(`Seeded ${orderedArticles.length} articles into Amplify Data and Storage.`);
   } finally {
     await signOut();
   }
+}
+
+function loadSeedAmplifyOutputs(): ResourcesConfig {
+  const outputsPath = path.join(process.cwd(), "amplify_outputs.json");
+  if (!fs.existsSync(outputsPath)) {
+    throw new Error("Missing amplify_outputs.json. Run `npm run sandbox` before seeding.");
+  }
+  return JSON.parse(fs.readFileSync(outputsPath, "utf8")) as ResourcesConfig;
 }
 
 async function signInSeedEditor() {
@@ -630,7 +682,9 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
     metadata: toAwsJson({}),
   });
 
-  const imageAssets = getArticleImageAssets(article);
+  await clearArticleMediaAssets(itemId, publishedItemId(itemId));
+
+  const imageAssets = getSeedArticleImageAssets(article);
   for (const [assetIndex, asset] of imageAssets.entries()) {
     const uploaded = await uploadSeedImage(article, asset, assetIndex);
     const mediaId = `media-${article.slug}-${assetIndex}`;
@@ -656,7 +710,10 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
       maxHeight: asset.layout?.maxHeight,
       crop: asset.layout?.crop,
       wrapsText: asset.layout?.wrapsText,
-      metadata: toAwsJson(getMediaMetadata(asset, uploaded.themeVariants)),
+      metadata: toAwsJson({
+        ...getMediaMetadata(asset, uploaded.themeVariants),
+        ...(!asset.src ? { pictogramSlug: article.slug } : {}),
+      }),
     });
     await upsert("PublishedMediaAsset", {
       id: `published-${mediaId}`,
@@ -682,9 +739,78 @@ async function seedArticle(article: Article, index: number, editionConfig: SeedE
       maxHeight: asset.layout?.maxHeight,
       crop: asset.layout?.crop,
       wrapsText: asset.layout?.wrapsText,
-      metadata: toAwsJson(getMediaMetadata(asset, uploaded.themeVariants)),
+      metadata: toAwsJson({
+        ...getMediaMetadata(asset, uploaded.themeVariants),
+        ...(!asset.src ? { pictogramSlug: article.slug } : {}),
+      }),
     });
   }
+
+  const videoAsset = getSeedArticleVideoAsset(article);
+  if (videoAsset) {
+    const videoIndex = imageAssets.length;
+    const mediaId = `media-${article.slug}-video`;
+    const mediaSortKey = `${String(videoIndex + 1).padStart(3, "0")}#${article.slug}-lead-video`;
+    let storagePath: string | undefined;
+    let uploadedVideoThemeVariants: UploadedVideoThemeVariants | undefined;
+    if (shouldSeedVideoUploads()) {
+      const uploaded = await uploadSeedVideo(article, videoAsset);
+      storagePath = uploaded.storagePath;
+      uploadedVideoThemeVariants = uploaded.themeVariants;
+    }
+    const videoMetadata = getVideoMediaMetadata(videoAsset, uploadedVideoThemeVariants);
+    const commonVideo = {
+      type: "video" as const,
+      role: "lead",
+      sortKey: mediaSortKey,
+      storagePath,
+      externalUrl: videoAsset.src,
+      alt: videoAsset.alt,
+      caption: videoAsset.caption ?? videoAsset.credit,
+      credit: videoAsset.credit,
+      aspectRatio: 16 / 9,
+      metadata: toAwsJson(videoMetadata),
+    };
+    await upsert("MediaAsset", {
+      id: mediaId,
+      itemId,
+      ...commonVideo,
+    });
+    await upsert("PublishedMediaAsset", {
+      id: `published-${mediaId}`,
+      sourceMediaAssetId: mediaId,
+      publishedItemId: publishedItemId(itemId),
+      sourceItemId: itemId,
+      itemLineageId: itemId,
+      ...commonVideo,
+    });
+  }
+}
+
+async function clearEditionItemLinks(editionId: string, publishedEditionIdValue: string) {
+  const editionItems = await listSeedModelByIndex("EditionItem", "listEditionItemsByEditionAndSortKey", { editionId });
+  const publishedEditionItems = await listSeedModelByIndex(
+    "PublishedEditionItem",
+    "listPublishedEditionItemsByEditionAndSortKey",
+    { publishedEditionId: publishedEditionIdValue },
+  );
+  await Promise.all([
+    ...editionItems.map((item) => deleteSeedModelRecord("EditionItem", String(item.id))),
+    ...publishedEditionItems.map((item) => deleteSeedModelRecord("PublishedEditionItem", String(item.id))),
+  ]);
+}
+
+async function clearArticleMediaAssets(itemId: string, publishedItemIdValue: string) {
+  const mediaAssets = await listSeedModelByIndex("MediaAsset", "listMediaAssetsByItemAndSortKey", { itemId });
+  const publishedMediaAssets = await listSeedModelByIndex(
+    "PublishedMediaAsset",
+    "listPublishedMediaAssetsByItemAndSortKey",
+    { publishedItemId: publishedItemIdValue },
+  );
+  await Promise.all([
+    ...publishedMediaAssets.map((asset) => deleteSeedModelRecord("PublishedMediaAsset", String(asset.id))),
+    ...mediaAssets.map((asset) => deleteSeedModelRecord("MediaAsset", String(asset.id))),
+  ]);
 }
 
 async function seedNewsroomSections(importedAt: string) {
@@ -790,6 +916,7 @@ function safeProcedureId(value: string): string {
 }
 
 function loadRequiredCliProcedureKeys(configPath = REQUIRED_PROCEDURES_CONFIG_PATH): string[] {
+  if (!fs.existsSync(configPath)) return [];
   const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
     requiredCliProcedures?: Record<string, unknown>;
   };
@@ -816,6 +943,7 @@ function loadNewsroomSectionSeeds(configPath = NEWSROOM_SECTIONS_CONFIG_PATH): N
 }
 
 function loadPublicationDoctrineSeeds(configPath = PUBLICATION_DOCTRINE_CONFIG_PATH): PublicationDoctrineSeed[] {
+  if (!fs.existsSync(configPath)) return [];
   const parsed = YAML.parse(fs.readFileSync(configPath, "utf8")) as {
     schemaVersion?: number;
     doctrine?: Array<Record<string, unknown>>;
@@ -909,18 +1037,32 @@ function positiveInteger(value: unknown, fallback: number): number {
 }
 
 async function uploadSeedImage(article: Article, asset: ArticleImageAsset, index: number) {
-  const payload = await loadImagePayload(asset.src);
-  const extension = getImageExtension(payload.contentType, asset.src);
-  const storagePath = `media/articles/${article.slug}/${String(index + 1).padStart(2, "0")}-${asset.id}.${extension}`;
+  if (!asset.src) {
+    return {
+      storagePath: "",
+      width: asset.layout ? Math.round(asset.layout.aspectRatio * asset.layout.preferredHeight) : undefined,
+      height: asset.layout?.preferredHeight,
+      themeVariants: undefined,
+    };
+  }
 
-  await uploadData({
-    path: storagePath,
-    data: payload.data,
-    options: {
-      contentType: payload.contentType,
-      cacheControl: "public, max-age=31536000, immutable",
-    },
-  }).result;
+  const extension = guessImageExtension(asset.src);
+  const storagePath = `media/articles/${article.slug}/${String(index + 1).padStart(2, "0")}-${asset.id}.${extension}`;
+  const localFilepath = resolveLocalSeedFilepath(asset.src);
+  if (localFilepath && (await storageObjectMatchesLocal(storagePath, localFilepath))) {
+    console.log(`seed\timage-skip\t${storagePath}`);
+  } else {
+    const payload = await loadImagePayload(asset.src);
+    console.log(`seed\timage-upload\t${storagePath}`);
+    await uploadData({
+      path: storagePath,
+      data: payload.data,
+      options: {
+        contentType: payload.contentType,
+        cacheControl: "public, max-age=31536000, immutable",
+      },
+    }).result;
+  }
 
   const themeVariants: UploadedImageThemeVariants = {};
   if (asset.themeVariants?.dark?.src) {
@@ -937,6 +1079,219 @@ async function uploadSeedImage(article: Article, asset: ArticleImageAsset, index
   };
 }
 
+function getSeedArticleImageAssets(article: Article): ArticleImageAsset[] {
+  const imageAssets = article.assets?.filter((asset) => asset.type === "image") ?? [];
+  if (imageAssets.length > 0) return imageAssets;
+  if (!article.image) return [];
+  return [
+    {
+      ...article.image,
+      src: article.image.src ?? "",
+      id: `${article.slug}-primary-image`,
+      type: "image",
+      roles: ["lead", "continuation", "continuationInset"],
+    },
+  ];
+}
+
+function getSeedArticleVideoAsset(article: Article): ArticleVideoAsset | undefined {
+  return article.video;
+}
+
+function shouldSeedVideoUploads(): boolean {
+  return process.env.PAPYRUS_SEED_VIDEOS === "1";
+}
+
+/**
+ * Resolves a seed asset `src` to a local filesystem path, or null when the src
+ * is a remote URL (which we cannot cheaply HEAD-compare via Amplify Storage).
+ */
+function resolveLocalSeedFilepath(src: string): string | null {
+  if (/^https?:\/\//.test(src)) return null;
+  if (path.isAbsolute(src) && fs.existsSync(src)) return src;
+  return path.join(process.cwd(), src.startsWith("/") ? path.join("public", src.slice(1)) : src);
+}
+
+/**
+ * Returns true when the S3 object at `storagePath` already has the same bytes as
+ * the local file at `filepath`, so the seed can skip re-uploading it. Uses a
+ * cheap HEAD (getProperties) for size + ETag; only reads the local file to
+ * compute an MD5 when the sizes already match. For single-part PUTs (all seed
+ * media are well under the 5 MB multipart threshold) the S3 ETag is the object's
+ * MD5, so a size + ETag match is a reliable identity check with no data transfer.
+ * On any error or missing object, returns false so the caller uploads.
+ */
+async function storageObjectMatchesLocal(storagePath: string, filepath: string): Promise<boolean> {
+  let props;
+  try {
+    props = await getProperties({ path: storagePath });
+  } catch {
+    return false;
+  }
+  const localSize = fs.statSync(filepath).size;
+  const remoteSize = (props as { size?: number }).size;
+  if (remoteSize !== localSize) return false;
+  const localMd5 = createHash("md5").update(fs.readFileSync(filepath)).digest("hex");
+  const etag = String((props as { eTag?: string }).eTag ?? "").replace(/^"|"$/g, "");
+  return etag === localMd5;
+}
+
+type UploadedVideoThemeVariants = {
+  light?: { storagePath: string };
+  dark?: { storagePath: string };
+};
+
+async function buildSeedEditionVideoMetadata(
+  editionSlug: string,
+  asset: ArticleVideoAsset,
+): Promise<Record<string, unknown>> {
+  const baseRecord: Record<string, unknown> = { ...asset };
+  if (!shouldSeedVideoUploads()) return baseRecord;
+  const uploaded = await uploadSeedEditionVideo(editionSlug, asset);
+  baseRecord.storagePath = uploaded.storagePath;
+  const themeVariants = buildVideoThemeVariantsMetadata(asset.themeVariants, uploaded.themeVariants);
+  if (themeVariants) baseRecord.themeVariants = themeVariants;
+  return baseRecord;
+}
+
+async function uploadSeedEditionVideo(
+  editionSlug: string,
+  asset: ArticleVideoAsset,
+): Promise<{ storagePath: string; themeVariants?: UploadedVideoThemeVariants }> {
+  const storagePath = `media/editions/${editionSlug}/edition-overview.mp4`;
+  await uploadSeedVideoFile(storagePath, asset.src);
+  const themeVariants: UploadedVideoThemeVariants = {};
+  const lightSrc = asset.themeVariants?.light?.src;
+  if (lightSrc) {
+    themeVariants.light = {
+      storagePath: await uploadSeedVideoFile(
+        `media/editions/${editionSlug}/edition-overview-light.mp4`,
+        lightSrc,
+      ),
+    };
+  }
+  const darkSrc = asset.themeVariants?.dark?.src;
+  if (darkSrc) {
+    themeVariants.dark = {
+      storagePath: await uploadSeedVideoFile(
+        `media/editions/${editionSlug}/edition-overview-dark.mp4`,
+        darkSrc,
+      ),
+    };
+  }
+  return {
+    storagePath,
+    themeVariants: Object.keys(themeVariants).length ? themeVariants : undefined,
+  };
+}
+
+async function uploadSeedVideo(
+  article: Article,
+  asset: ArticleVideoAsset,
+): Promise<{ storagePath: string; themeVariants?: UploadedVideoThemeVariants }> {
+  const storagePath = `media/articles/${article.slug}/video-${article.slug}.mp4`;
+  await uploadSeedVideoFile(storagePath, asset.src);
+  const themeVariants: UploadedVideoThemeVariants = {};
+  const lightSrc = asset.themeVariants?.light?.src;
+  if (lightSrc) {
+    themeVariants.light = {
+      storagePath: await uploadSeedVideoFile(
+        `media/articles/${article.slug}/video-${article.slug}-light.mp4`,
+        lightSrc,
+      ),
+    };
+  }
+  const darkSrc = asset.themeVariants?.dark?.src;
+  if (darkSrc) {
+    themeVariants.dark = {
+      storagePath: await uploadSeedVideoFile(
+        `media/articles/${article.slug}/video-${article.slug}-dark.mp4`,
+        darkSrc,
+      ),
+    };
+  }
+  return {
+    storagePath,
+    themeVariants: Object.keys(themeVariants).length ? themeVariants : undefined,
+  };
+}
+
+async function uploadSeedVideoFile(storagePath: string, assetSrc: string): Promise<string> {
+  const localFilepath = resolveLocalSeedFilepath(assetSrc);
+  if (localFilepath && (await storageObjectMatchesLocal(storagePath, localFilepath))) {
+    console.log(`seed\tvideo-skip\t${storagePath}`);
+    return storagePath;
+  }
+  const payload = await loadVideoPayload(assetSrc);
+  console.log(`seed\tvideo-upload\t${storagePath}`);
+  await uploadData({
+    path: storagePath,
+    data: payload.data,
+    options: {
+      contentType: payload.contentType,
+      cacheControl: "public, max-age=31536000, immutable",
+    },
+  }).result;
+
+  return storagePath;
+}
+
+async function loadVideoPayload(src: string): Promise<{ data: Uint8Array; contentType: string }> {
+  const filepath =
+    path.isAbsolute(src) && fs.existsSync(src)
+      ? src
+      : path.join(process.cwd(), src.startsWith("/") ? path.join("public", src.slice(1)) : src);
+  if (!fs.existsSync(filepath)) {
+    throw new Error(`Seed video file not found: ${filepath}. Run 'poetry run papyrus videos seed' first.`);
+  }
+  return {
+    data: fs.readFileSync(filepath),
+    contentType: "video/mp4",
+  };
+}
+
+function getVideoMediaMetadata(
+  asset: ArticleVideoAsset,
+  uploadedThemeVariants?: UploadedVideoThemeVariants,
+): Record<string, unknown> {
+  const themeVariants = buildVideoThemeVariantsMetadata(asset.themeVariants, uploadedThemeVariants);
+  return {
+    sourceUrl: asset.src,
+    ...(asset.posterSrc ? { posterSrc: asset.posterSrc } : {}),
+    ...(asset.durationSeconds ? { durationSeconds: asset.durationSeconds } : {}),
+    ...(themeVariants ? { themeVariants } : {}),
+  };
+}
+
+function buildVideoThemeVariantsMetadata(
+  seedVariants: ArticleVideoAsset["themeVariants"],
+  uploadedThemeVariants?: UploadedVideoThemeVariants,
+): Record<string, unknown> | undefined {
+  const lightSrc = seedVariants?.light?.src;
+  const darkSrc = seedVariants?.dark?.src;
+  const lightStoragePath = uploadedThemeVariants?.light?.storagePath;
+  const darkStoragePath = uploadedThemeVariants?.dark?.storagePath;
+  if (!lightSrc && !darkSrc && !lightStoragePath && !darkStoragePath) return undefined;
+  return {
+    ...(lightSrc || lightStoragePath
+      ? {
+          light: {
+            ...(lightStoragePath ? { storagePath: lightStoragePath } : {}),
+            ...(lightSrc ? { sourceUrl: lightSrc } : {}),
+          },
+        }
+      : {}),
+    ...(darkSrc || darkStoragePath
+      ? {
+          dark: {
+            ...(darkStoragePath ? { storagePath: darkStoragePath } : {}),
+            ...(darkSrc ? { sourceUrl: darkSrc } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
 async function uploadSeedImageVariant(
   article: Article,
   asset: ArticleImageAsset,
@@ -944,9 +1299,15 @@ async function uploadSeedImageVariant(
   variant: "dark",
   src: string,
 ): Promise<string> {
-  const payload = await loadImagePayload(src);
-  const extension = getImageExtension(payload.contentType, src);
+  const extension = guessImageExtension(src);
   const storagePath = `media/articles/${article.slug}/${String(index + 1).padStart(2, "0")}-${asset.id}-${variant}.${extension}`;
+  const localFilepath = resolveLocalSeedFilepath(src);
+  if (localFilepath && (await storageObjectMatchesLocal(storagePath, localFilepath))) {
+    console.log(`seed\timage-skip\t${storagePath}`);
+    return storagePath;
+  }
+  const payload = await loadImagePayload(src);
+  console.log(`seed\timage-upload\t${storagePath}`);
   await uploadData({
     path: storagePath,
     data: payload.data,
@@ -1184,6 +1545,7 @@ async function deleteSeedModelRecord(modelName: keyof DataClient["models"], id: 
   const response = await model.delete({ id }, { authMode: "userPool" });
   assertNoGraphQLErrors(response.errors);
 }
+
 function orderArticles(source: Article[], articleOrder: string[]): Article[] {
   return [...source].sort((left, right) => {
     const leftIndex = articleOrder.indexOf(left.slug);
@@ -1209,6 +1571,17 @@ function getImageExtension(contentType: string, src: string): string {
 
   const match = new URL(src, "file:///").pathname.match(/\.([a-z0-9]+)$/i);
   return match?.[1] ?? "jpg";
+}
+
+/**
+ * Derives the storage extension for an image src without loading the file, so
+ * the storage path can be computed for a pre-upload identity check. Local files
+ * use the filename content type; remote URLs fall back to the URL's extension.
+ */
+function guessImageExtension(src: string): string {
+  const local = resolveLocalSeedFilepath(src);
+  if (local) return getImageExtension(getContentTypeFromFilename(local), src);
+  return getImageExtension("", src);
 }
 
 function getContentTypeFromFilename(filename: string): string {
@@ -1245,7 +1618,7 @@ function getMediaMetadata(asset: ArticleImageAsset, uploadedThemeVariants?: Uplo
         }
       : undefined;
   return {
-    sourceUrl: asset.src,
+    ...(asset.src ? { sourceUrl: asset.src } : {}),
     ...(asset.layout?.inlineFloat ? { inlineFloat: asset.layout.inlineFloat } : {}),
     ...(themeVariants ? { themeVariants } : {}),
   };

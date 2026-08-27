@@ -16,8 +16,14 @@ corpora/*
 !corpora/papyrus-lexical-steering.yml
 !corpora/papyrus-newsroom-sections.yml
 !corpora/papyrus-public-topics.yml
+!corpora/papyrus-publication-doctrine.yml
+!corpora/papyrus-required-procedures.json
 .papyrus-runs/
 .papyrus/
+videoml-work/
+.videoml/
+public/videoml/
+publications/threat_intelligence/seed-art/videos/*.mp4
 AGENTS.local.md
 .amplify/
 amplify_outputs.json

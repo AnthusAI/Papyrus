@@ -9,6 +9,7 @@ import {
   type PresentationFooterUtilityEntry,
 } from "../lib/presentation-footer";
 import { ReaderAuthControl } from "./reader-auth-control";
+import { ReaderThemeControl } from "./reader-theme-control";
 
 type PresentationFooterProps = {
   disableLinks?: boolean;
@@ -18,6 +19,7 @@ type PresentationFooterProps = {
   onSectionClick?: (event: ReactMouseEvent<HTMLAnchorElement>, entry: PresentationFooterEntry, href: string) => void;
   resolveSectionHref: (entry: PresentationFooterEntry) => string;
   subtitle: string;
+  title?: string;
   utilityEntries?: PresentationFooterUtilityEntry[];
   variant?: "newspaper" | "presentation";
 };
@@ -30,6 +32,7 @@ export function PresentationFooter({
   onSectionClick,
   resolveSectionHref,
   subtitle,
+  title,
   utilityEntries = PRESENTATION_FOOTER_UTILITIES,
   variant = "presentation",
 }: PresentationFooterProps) {
@@ -44,8 +47,15 @@ export function PresentationFooter({
       style={geometry ? getFooterGeometryStyle(geometry) : getPresentationFooterStyle(entries, utilityEntries)}
     >
       <div className="front-footer__heading">
-        <span>{subtitle}</span>
-        <span>{entries.length} sections</span>
+        {title ? (
+          <span className="front-footer__brand">
+            <span className="front-footer__brand-title">{title}</span>
+            {subtitle ? <span className="front-footer__brand-subtitle">{subtitle}</span> : null}
+          </span>
+        ) : (
+          <span>{subtitle}</span>
+        )}
+        <span className="front-footer__meta">{entries.length} sections</span>
       </div>
       {entries.length > 0 ? (
         <nav className="front-footer__sections" aria-label="Edition sections">
@@ -75,6 +85,7 @@ export function PresentationFooter({
         </nav>
       ) : null}
       <div className="front-footer__utilities" aria-label="Publication utilities">
+        {!disableLinks ? <ReaderThemeControl className="front-footer__theme-control" /> : null}
         {utilityEntries.map((entry) => {
           if (entry.id === "newsDesk" && disableLinks) return null;
 
