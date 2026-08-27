@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "981d8f17-1172-487c-a1e3-910002261634",
+  "issue_id": "PPY-0b058c26-b0b0-4a94-bdf5-08d8e5326b8d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.054Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Validate pod-to-hosted migration with a real candidate\n\n## Intent\n\nAs a publication whose needs have outgrown a pod, I want its valuable story history and provenance to be reconstructable in hosted Papyrus, so that graduation does not require starting from raw prose.\n\n## Entry criteria\n\n- A real pod operator has a concrete hosted capability need and chooses to evaluate migration.\n- The migration target and retained information are explicitly scoped.\n\n## Definition of Done\n\n- Stable story identity, assignments, stage outputs, source citations, editorial decisions, final copy, publication metadata, and media references are assessed against the hosted import path.\n- One real story is migrated or reconstructed and the effort, loss, and manual decisions are measured.\n- The outcome defines the supported migration promise without implying schema parity or a configuration switch.\n\n## Non-goals\n\n- Prebuilding migration infrastructure without a candidate.\n- Seamless dual-backend operation.\n- Keeping pod and hosted records continuously synchronized.",
+    "issue_type": "epic",
+    "labels": [],
+    "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+    "priority": 3,
+    "status": "open",
+    "title": "Validate pod-to-hosted migration with a real candidate"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "22be9383-99d1-42c5-8b46-4b7010544dc0",
+  "issue_id": "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.648Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Rehearse the complete pod workflow with a disposable fixture\n\n## Purpose\n\nProve that the mechanics and evidence capture are safe enough for the real post without allowing a dummy story to satisfy Slice 1.\n\n## Deliverables\n\n- Initialize a disposable story through the supported Kanbus path.\n- Exercise every forward transition and each configured revision path.\n- Deliberately trigger at least one coaching event and one fail-closed block, then recover through the documented path.\n- Verify deterministic publication and a deliberate divergence failure in an isolated target.\n- Confirm that evidence scoring distinguishes coaching, blocking, recovery, false positives, and intervention.\n- Remove or clearly retain the fixture as test data so it cannot be confused with publication content.\n\n## Verification\n\nAll Slice 1 executable specifications pass against the rehearsal environment, and the real-story completion story remains open.",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Rehearse the complete pod workflow with a disposable fixture"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "34b1e9ea-d1d6-4ae1-8358-dc34be973e4b",
+  "issue_id": "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.318Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Record editorial selection without claiming verified identity\n\n## Intent\n\nAs a publication operator, I want editorial selection to be an explicit visible transition without implying authenticated human identity, so that the pod enforces the process honestly and hosted Papyrus retains the authority boundary.\n\n## Behavior specification\n\nFeature: Represent editorial selection in a pod\n\nScenario: Copywriting is attempted before selection\n  Given a story has a complete report\n  And no editor-select transition is present\n  When an agent attempts to begin copywriting\n  Then the transition is refused\n  And guidance explains that editorial selection must occur first\n\nScenario: Selection advances the process\n  Given a story has a complete report\n  When the configured editor-select transition succeeds\n  Then Kanbus history records the transition and locally claimed actor\n  And copywriting becomes available\n\nScenario: Selection history is inspected\n  Given a pod story has passed editor selection\n  When an operator inspects who approved the transition\n  Then the pod presents the local event history\n  And it does not represent the local actor claim as verified identity\n  And guidance identifies hosted Papyrus as the boundary for enforceable authority\n\n## Boundary\n\nSlice 1 does not add authentication, signatures, role-based access control, or another identity mechanism.",
+    "issue_type": "story",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Record editorial selection without claiming verified identity"
+  }
+}
