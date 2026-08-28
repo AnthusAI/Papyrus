@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "63f7d09b-6376-4de2-ab70-3d917d7f213b",
+  "issue_id": "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T12:45:36.897Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "Clarify the repository Git workflow so project-management-only changes made through the Kanbus CLI may be committed and pushed directly to develop without a pull request. Keep code, configuration, documentation, wiki, and mixed changes under the normal branch and PR workflow.",
+    "issue_type": "chore",
+    "labels": [],
+    "parent": null,
+    "priority": 2,
+    "status": "open",
+    "title": "Allow direct develop commits for Kanbus-only updates"
+  }
+}

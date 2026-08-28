@@ -1,0 +1,33 @@
+{
+  "id": "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf",
+  "title": "Allow direct develop commits for Kanbus-only updates",
+  "description": "Clarify the repository Git workflow so project-management-only changes made through the Kanbus CLI may be committed and pushed directly to develop without a pull request. Keep code, configuration, documentation, wiki, and mixed changes under the normal branch and PR workflow.",
+  "type": "chore",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0bece514-811f-4550-a6bc-990c0f7edcb9",
+      "author": "ryan",
+      "text": "Started on branch chore/PPY-f9b3e1-kanbus-direct-develop from origin/develop at 741fa53. Updating AGENTS.md to define a narrow no-PR exception for Kanbus-only issue and event artifacts while preserving PR requirements for code, docs, config, wiki, and mixed changes.",
+      "created_at": "2026-08-27T12:45:56.563477Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "80f9cd24-3e73-4c20-bdb0-f6c452c71e7c",
+      "author": "ryan",
+      "text": "Ready for review in PR https://github.com/AnthusAI/Papyrus/pull/49 on branch chore/PPY-f9b3e1-kanbus-direct-develop. Verification: kbs validate passed, kbs show confirmed the policy chore, and git diff --check passed.",
+      "created_at": "2026-08-27T12:47:03.918248Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-08-27T12:45:36.897237Z",
+  "updated_at": "2026-08-27T12:47:03.918248Z",
+  "closed_at": null,
+  "custom": {}
+}
