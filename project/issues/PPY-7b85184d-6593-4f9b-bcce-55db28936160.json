@@ -1,0 +1,18 @@
+{
+  "id": "PPY-7b85184d-6593-4f9b-bcce-55db28936160",
+  "title": "Operator auth refresh and JWT error UX",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-28T18:58:58.583944Z",
+  "updated_at": "2026-08-28T18:58:58.583944Z",
+  "closed_at": null,
+  "custom": {}
+}

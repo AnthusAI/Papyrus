@@ -565,6 +565,44 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
   Do not add `content login` or `content logout` unless the auth model changes
   again.
 
+## Operator CLI (dual backend)
+
+Operators use **one** `papyrus` command on PATH (`[project.scripts] papyrus =
+papyrus.cli:main`). It is a thin facade over `papyrus_content` and
+`papyrus_newsroom` today; the operator surface is converging on the same argv for
+**local pod** and **cloud** backends.
+
+- **Same verbs, same flags.** Core operator commands include `papyrus references
+  list`, `papyrus references show <id>`, `papyrus assignments list`, and
+  `papyrus auth refresh`. Local pod and cloud must accept the same argv and
+  return the same human-readable output shape (tabular list rows, detail blocks,
+  exit codes). Executable specs live in `features/operator-cli.feature`.
+- **Backend is config, not a second command tree.** Select `local` or `cloud`
+  from project config (`backend`, `local.podPath`, `cloud.graphqlEndpoint`) or
+  with `--backend local|cloud`. Do not fork the noun vocabulary per backend.
+- **Local pod backend** reads a Kanbus newsroom pod (for example
+  `pods/anthus-blog`): story artifacts, hooks, and pod reference rows. It does
+  **not** revive a local Markdown content store (`content/articles/`) or emulate
+  hosted corpus sync, editions, or the layout solver.
+- **Cloud backend** uses the existing GraphQL/AppSync newsroom (`Reference`,
+  `Assignment`, editions, knowledge-query). Corpus key, publication, endpoint,
+  and JWT come from steering/config defaults (`threat-intelligence` today);
+  operators should not need `--corpus-key` or `PYTHONPATH=src` for the common
+  path.
+- **Object kinds are explicit.** Cloud `assignments list` rows are GraphQL
+  `Assignment` work records (`kind: newsroom-assignment`). Local `assignments
+  list` rows are Kanbus **pod stories** (`kind: pod-story`), not GraphQL
+  Assignments. A pod story's `assignment` **stage** is Kanbus workflow state —
+  use `kbs` for board columns and transitions. Cloud `references` rows are
+  GraphQL `Reference` records (`kind: cloud-reference`); local rows are pod
+  evidence/source artifacts (`kind: pod-reference`).
+- **`kbs` stays the board.** Kanbus owns issues, columns, screenshots, and
+  workflow transitions. `papyrus` owns newsroom objects (references, assignments,
+  editions, knowledge). Do not merge `kbs` into `papyrus`.
+- **Auth is operator UX.** Cloud authoring uses `papyrus auth refresh` (alias of
+  today's `refresh-jwt`) to mint `PAPYRUS_GRAPHQL_JWT`. Expired or missing JWT
+  must print recovery guidance, not a Python traceback.
+
 `lib/layout-plan.ts` owns the edition layout-plan contract:
 
 - `EditionLayoutPlan` is stored with edition content as editorial intent, not

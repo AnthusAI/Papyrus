@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a73978fc-0ba9-4ea6-a937-cda510ce72ce",
+  "issue_id": "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T18:58:57.635Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Operator CLI executable specifications",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "labels": []
+  }
+}

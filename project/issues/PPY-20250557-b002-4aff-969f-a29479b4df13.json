@@ -1,0 +1,27 @@
+{
+  "id": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+  "title": "Operator CLI: unified local and cloud backend",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8dd2c335-eb38-4f2c-8799-24b39f2bf29a",
+      "author": "ubuntu",
+      "text": "Epic intent: one papyrus command on PATH with the same argv for local pod and cloud backends. Backend is config (--backend local|cloud), not a parallel command tree. kbs stays the Kanbus board; papyrus owns newsroom objects.\n\nChild issues:\n- PPY-873378 story: executable Gherkin specs (features/operator-cli.feature)\n- PPY-ebf0b6 task: backend config, default corpus/publication, resolution order\n- PPY-58e740 task: cloud adapters (GraphQL Reference, Assignment)\n- PPY-97625f task: local pod adapters (Kanbus project + story artifacts)\n- PPY-7b8518 task: papyrus auth refresh + friendly JWT errors\n- PPY-500b35 task: --help tree, no PYTHONPATH ImportError, deprecate papyrus-newsroom docs\n\nObject-kind rule: cloud assignments = newsroom-assignment (GraphQL Assignment); local assignments list = pod-story (Kanbus story). Pod assignment stage is kbs workflow, not papyrus assignments list.",
+      "created_at": "2026-08-28T18:59:04.510889Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
+  "created_at": "2026-08-28T18:58:54.238499Z",
+  "updated_at": "2026-08-28T18:59:04.510889Z",
+  "closed_at": null,
+  "custom": {}
+}
