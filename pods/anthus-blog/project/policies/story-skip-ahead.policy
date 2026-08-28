@@ -1,0 +1,25 @@
+Feature: Refuse newsroom skip-ahead
+
+  Rule: Block configured shortcut transitions
+    Scenario: Refuse jumping from idea to research
+      Given the issue type is "story"
+      When transitioning from "idea" to "research"
+      Then the issue must have label "assignment-complete"
+
+    Scenario: Refuse jumping from idea to copywriting
+      Given the issue type is "story"
+      When transitioning from "idea" to "copywriting"
+      Then the issue must have label "editor-selected"
+
+    Scenario: Refuse jumping from research to copywriting
+      Given the issue type is "story"
+      When transitioning from "research" to "copywriting"
+      Then the issue must have label "editor-selected"
+
+  Rule: Coach against skip-ahead while inspecting
+    Scenario: Remind while viewing an idea
+      Given the issue type is "story"
+      Given the issue status is "idea"
+      When viewing an issue
+      Then warn "Do not skip newsroom stages."
+      Then explain "The ladder is idea → assignment → research → report → editor select → copywriting → published. Hooks refuse skip-ahead and missing artifacts."

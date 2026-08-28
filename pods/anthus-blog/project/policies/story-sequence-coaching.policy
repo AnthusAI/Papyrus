@@ -1,0 +1,23 @@
+Feature: Newsroom story sequence coaching
+
+  Rule: Explain the editorial ladder
+    Scenario: Coach on new story creation
+      Given the issue type is "story"
+      When creating an issue
+      Then warn "Newsroom stories advance one stage at a time: idea, assignment, research, report, editor select, copywriting, published."
+      Then explain "Each stage has a markdown artifact in stories/<story-id>/. Kanbus refuses skip-ahead and missing files."
+      Then suggest "Fill idea.md, then run: kbs update <story-id> --status assignment"
+
+    Scenario: Coach while a story is still an idea
+      Given the issue type is "story"
+      Given the issue status is "idea"
+      When updating an issue
+      Then warn "Complete the idea artifact before chartering assignment."
+      Then suggest "Fill idea.md, then advance to assignment."
+
+    Scenario: Coach before copywriting
+      Given the issue type is "story"
+      Given the issue status is "editor_select"
+      When updating an issue
+      Then warn "Copywriting is reader-facing work."
+      Then explain "It starts only after editor selection from the private report."
