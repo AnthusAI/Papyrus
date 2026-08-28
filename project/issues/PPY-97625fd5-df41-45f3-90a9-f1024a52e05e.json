@@ -1,0 +1,18 @@
+{
+  "id": "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e",
+  "title": "Local pod backend adapters for operator nouns",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-28T18:58:58.346094Z",
+  "updated_at": "2026-08-28T18:58:58.346094Z",
+  "closed_at": null,
+  "custom": {}
+}

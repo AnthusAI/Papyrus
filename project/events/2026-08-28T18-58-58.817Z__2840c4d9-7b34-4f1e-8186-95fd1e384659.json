@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2840c4d9-7b34-4f1e-8186-95fd1e384659",
+  "issue_id": "PPY-500b35db-76d2-46c8-b9e1-f55c80dbe16f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T18:58:58.817Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Facade help tree and install ergonomics",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "labels": []
+  }
+}

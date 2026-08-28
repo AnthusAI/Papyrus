@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e6020615-7592-48dc-ad94-38cb8d48d9cb",
+  "issue_id": "PPY-58e74049-7747-49ed-a920-a11b2ae888b1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T18:58:58.111Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Cloud backend adapters for operator nouns",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "labels": []
+  }
+}

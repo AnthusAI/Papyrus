@@ -1,0 +1,18 @@
+{
+  "id": "PPY-ebf0b626-d098-473e-8e3e-f0a98b79a940",
+  "title": "Backend config and publication defaults",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-28T18:58:57.875461Z",
+  "updated_at": "2026-08-28T18:58:57.875461Z",
+  "closed_at": null,
+  "custom": {}
+}
