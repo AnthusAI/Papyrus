@@ -1,0 +1,5 @@
+stories/
+project/.overlay/
+project/.cache/
+project/issues/*.json
+project/events/*.json
