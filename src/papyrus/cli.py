@@ -3,21 +3,38 @@ from __future__ import annotations
 import os
 import shlex
 import sys
+import traceback
 from pathlib import Path
-
-from papyrus_content import cli as content_cli
-from papyrus_content.env import PAPYRUS_ROOT
-from papyrus_newsroom import cli as newsroom_cli
 
 _ALLOW_CROSS_ROOT_FLAG = "--allow-cross-root"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
+def _bootstrap_import_path() -> None:
+    src_root = Path(__file__).resolve().parents[1]
+    repo_root = src_root.parent
+    for candidate in (str(src_root), str(repo_root)):
+        if candidate not in sys.path:
+            sys.path.insert(0, candidate)
+
+
+_bootstrap_import_path()
+
+from papyrus_content import cli as content_cli  # noqa: E402
+from papyrus_content.env import PAPYRUS_ROOT  # noqa: E402
+from papyrus_newsroom import cli as newsroom_cli  # noqa: E402
+from papyrus.operator.help_text import TOP_LEVEL_HELP, print_group_help  # noqa: E402
+from papyrus.operator.runtime import (  # noqa: E402
+    dispatch_operator_command,
+    format_unexpected_error,
+    is_operator_command,
+    print_top_level_help,
+    should_suppress_traceback,
+)
+
+
 def _usage() -> None:
-    print("Usage: poetry run papyrus [--allow-cross-root] <group> <command> [options]")
-    print(
-        "Groups: assignments, reporting, research, references, knowledge, sections, editions, procedures, analysis, auth, batch, ops, videos"
-    )
+    print_top_level_help()
 
 
 def _delegate_content(group: str, command: str, flags: list[str]) -> None:
@@ -29,10 +46,23 @@ def _delegate_newsroom(argv: list[str]) -> int:
     return newsroom_cli.main(argv)
 
 
-def _require_command(group: str, argv: list[str]) -> tuple[str, list[str]]:
-    if len(argv) < 2:
-        raise ValueError(f"papyrus {group} requires <command>.")
-    return argv[1], argv[2:]
+def _operator_groups_with_help() -> set[str]:
+    return {"references", "assignments", "auth", "knowledge"}
+
+
+def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
+    if not args:
+        return [], []
+    if args[0] in {"--help", "-h"} and len(args) == 1:
+        return ["--help"], []
+    if args[0] == "--version":
+        return ["--version"], []
+    remaining = list(args)
+    passthrough: list[str] = []
+    if len(args) >= 3 and args[2] == "--backend":
+        passthrough.extend(["--backend", args[3]])
+        remaining = [args[0], args[1], *args[4:]]
+    return remaining, passthrough
 
 
 def _map_reporting(command: str, flags: list[str]) -> None:
@@ -96,6 +126,8 @@ def _map_procedures(command: str, flags: list[str]) -> int:
 
 
 def _map_assignments(command: str, flags: list[str]) -> int:
+    if command == "list":
+        return dispatch_operator_command("assignments", "list", flags)
     if command == "run-story-cycle":
         return _delegate_newsroom(["assignments", "run-story-cycle", *flags])
     if command == "story-cycle-output":
@@ -107,8 +139,9 @@ def _map_assignments(command: str, flags: list[str]) -> int:
 
 
 def _map_references(command: str, flags: list[str]) -> int:
+    if command in {"list", "show"}:
+        return dispatch_operator_command("references", command, flags)
     newsroom_reference_commands = {
-        "list",
         "curate-recent",
         "summaries",
         "summarize",
@@ -167,6 +200,15 @@ def _map_ops(command: str, flags: list[str]) -> int:
     return 0
 
 
+def _map_auth(command: str, flags: list[str]) -> int:
+    if command == "refresh":
+        return dispatch_operator_command("auth", "refresh", flags)
+    if command == "refresh-jwt":
+        _delegate_content("auth", "refresh-jwt", flags)
+        return 0
+    raise ValueError(f"Unsupported papyrus auth command: {command}")
+
+
 def _find_operator_repo_root(start: Path) -> Path | None:
     resolved = start.resolve()
     for candidate in [resolved, *resolved.parents]:
@@ -218,57 +260,102 @@ def _enforce_root_guard(args: list[str], *, cwd: Path | None = None, module_root
 def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     allow_cross_root, args = _consume_cross_root_override(args)
-    if not args:
+    args, global_flags = _consume_global_flags(args)
+
+    if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):
         _usage()
-        return 1
+        return 0
+    if args[0] == "--version":
+        from papyrus import __version__
+
+        print(__version__)
+        return 0
+
     try:
         if not allow_cross_root:
             _enforce_root_guard(args)
         group = args[0]
+        command = args[1] if len(args) > 1 else None
+        flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
+
+        if command in {"--help", "-h"}:
+            print_group_help(group)
+            return 0
+
+        if command is None and group in _operator_groups_with_help():
+            print_group_help(group)
+            return 0
+
         if group == "assignments":
-            command, flags = _require_command(group, args)
+            if command is None:
+                print_group_help(group)
+                return 0
             return _map_assignments(command, flags)
         if group == "references":
-            command, flags = _require_command(group, args)
+            if command is None:
+                print_group_help(group)
+                return 0
             return _map_references(command, flags)
         if group == "analysis":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus analysis requires <command>.")
             return _map_analysis(command, flags)
-        if group in {"editions", "auth", "batch"}:
-            command, flags = _require_command(group, args)
+        if group == "auth":
+            if command is None:
+                print_group_help(group)
+                return 0
+            return _map_auth(command, flags)
+        if group in {"editions", "batch"}:
+            if command is None:
+                raise ValueError(f"papyrus {group} requires <command>.")
             _delegate_content(group, command, flags)
             return 0
         if group == "reporting":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus reporting requires <command>.")
             _map_reporting(command, flags)
             return 0
         if group == "research":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus research requires <command>.")
             _map_research(command, flags)
             return 0
         if group == "sections":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus sections requires <command>.")
             _map_sections(command, flags)
             return 0
         if group == "procedures":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus procedures requires <command>.")
             return _map_procedures(command, flags)
         if group == "knowledge":
-            command, flags = _require_command(group, args)
+            if command is None:
+                print_group_help(group)
+                return 0
             return _map_knowledge(command, flags)
         if group == "help":
             _usage()
             return 0
         if group == "ops":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus ops requires <command>.")
             return _map_ops(command, flags)
         if group == "videos":
-            command, flags = _require_command(group, args)
+            if command is None:
+                raise ValueError("papyrus videos requires <command>.")
             _delegate_content("videos", command, flags)
             return 0
         raise ValueError(f"Unsupported papyrus group: {group}")
     except Exception as error:
-        print(str(error), file=sys.stderr)
+        message = format_unexpected_error(error)
+        print(message, file=sys.stderr)
+        if not should_suppress_traceback(error):
+            traceback.print_exc()
+        if isinstance(error, ValueError) and "unknown backend" in str(error):
+            return 2
+        if isinstance(error, ValueError) and "PAPYRUS_GRAPHQL_JWT" in str(error):
+            return 2
         return 1
 
 

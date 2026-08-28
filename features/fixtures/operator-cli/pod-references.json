@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "id": "ref-pod-001",
+      "status": "accepted",
+      "title": "Pod fixture reference one",
+      "corpus": "threat-intelligence"
+    },
+    {
+      "id": "ref-pod-002",
+      "status": "pending",
+      "title": "Pod fixture reference two",
+      "corpus": "threat-intelligence"
+    }
+  ]
+}

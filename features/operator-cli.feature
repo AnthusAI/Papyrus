@@ -1,4 +1,4 @@
-@cli @operator @spec-only
+@cli @operator
 Feature: Operator CLI
   As a Papyrus operator
   I want one `papyrus` command with the same verbs against local pod or cloud backends

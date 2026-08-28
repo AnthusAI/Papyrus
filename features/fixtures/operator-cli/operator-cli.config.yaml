@@ -1,0 +1,7 @@
+backend: cloud
+defaultCorpusKey: threat-intelligence
+publicationKey: threat-intelligence
+local:
+  podPath: pods/anthus-blog
+cloud:
+  graphqlEndpoint: https://example.appsync-api.example.com/graphql

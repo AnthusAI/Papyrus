@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "id": "asg-cloud-001",
+      "status": "open",
+      "type": "research.explore",
+      "title": "Cloud fixture assignment"
+    }
+  ]
+}
