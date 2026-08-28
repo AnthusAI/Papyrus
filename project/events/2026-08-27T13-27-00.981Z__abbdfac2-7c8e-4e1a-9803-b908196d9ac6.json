@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "abbdfac2-7c8e-4e1a-9803-b908196d9ac6",
+  "issue_id": "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:00.981Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Package the reusable newsroom pod\n\n## Intent\n\nAs an internal publication operator, I want a repeatable newsroom pod template built from demonstrated needs, so that a new pre-infrastructure publication can start without reconstructing the Anth.us experiment.\n\n## Entry criteria\n\n- Two real publications have completed the workflow.\n- The repeated configuration, doctrine boundaries, hooks, and handoff needs are known.\n\n## Definition of Done\n\n- A version-pinned pod template establishes the newsroom workflow, policies, per-story file convention, minimal doctrine, and agent skill.\n- Publication-specific doctrine and CMS adapters remain outside the generic template.\n- Setup and upgrade expectations are documented and tested from a clean environment.\n- Every generalized feature is supported by evidence from more than one publication.\n- Proposed Kanbus-core work is separately reviewed and tracked on the Kanbus board; newsroom-only behavior stays in configuration or hooks.\n\n## Non-goals\n\n- A new pod binary or storage layer.\n- Hosted Papyrus parity.\n- External funnel claims.",
+    "issue_type": "epic",
+    "labels": [],
+    "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+    "priority": 2,
+    "status": "open",
+    "title": "Package the reusable newsroom pod"
+  }
+}

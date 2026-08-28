@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5d155436-9f79-43a7-ab3d-bd177c3e359c",
+  "issue_id": "PPY-a8566745-92a8-4bea-a953-0de1495646d5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.682Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Run and publish the real Slice 1 Anth.us story\n\n## Purpose\n\nOperate the selected genuine article through the proven pod mechanics and collect unedited evidence from the real workflow.\n\n## Deliverables\n\n- Create the real story through Kanbus and complete idea, assignment, research, report, editorial selection, and copywriting artifacts.\n- Use only supported transitions, including revision paths if the editor requests changes.\n- Preserve internal research/reporting separately from reader-facing copy.\n- Publish the approved marked article into Anth.us and pass the divergence check.\n- Capture coaching, blocks, recovery, bypass attempts, false positives, and human interventions as the run occurs.\n- Follow the Anth.us repository delivery rules for the actual published article.\n\n## Implements\n\n- PPY-aad877: one real end-to-end story.\n\n## Verification\n\nThe real post is published from the pod source, the Kanbus history contains every transition, and the evidence record can be evaluated without relying on the agent conversation.",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Run and publish the real Slice 1 Anth.us story"
+  }
+}

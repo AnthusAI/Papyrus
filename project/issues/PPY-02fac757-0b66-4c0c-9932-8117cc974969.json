@@ -1,0 +1,26 @@
+{
+  "id": "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+  "title": "Configure the pinned Anth.us newsroom pod",
+  "description": "# Configure the pinned Anth.us newsroom pod\n\n## Purpose\n\nEstablish the smallest Kanbus project configuration that can own the Slice 1 story lifecycle without changing Kanbus core.\n\n## Deliverables\n\n- Pin a released Kanbus version.\n- Define the newsroom story type and initial stage.\n- Define forward transitions from idea through publication plus only the revision paths required by Slice 1.\n- Establish the deterministic mapping from a stable Kanbus story identity to its owned file workspace.\n- Define the expected idea, assignment, research, report, and article artifacts.\n- Keep publication-specific configuration separate from generic Kanbus behavior.\n\n## Implements\n\n- PPY-d3e179: stable story workspace.\n- PPY-7625aa: supported revision paths.\n\n## Verification\n\nThe executable initialization and lifecycle specifications pass while Papyrus and Kanbus core remain unchanged.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:27:01.411636Z",
+  "updated_at": "2026-08-27T13:27:01.411636Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

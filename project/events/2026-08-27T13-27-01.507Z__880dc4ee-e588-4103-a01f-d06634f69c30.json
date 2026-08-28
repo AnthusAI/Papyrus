@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "880dc4ee-e588-4103-a01f-d06634f69c30",
+  "issue_id": "PPY-962447c5-b0e4-4812-b17c-48f2fa528229",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.507Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Author the minimal pod skill and Anth.us doctrine\n\n## Purpose\n\nGive agents enough context to follow the newsroom discipline without turning doctrine into an uncapped second product.\n\n## Deliverables\n\n- One pod-specific skill that directs agents to inspect and advance work through Kanbus.\n- Minimal Anth.us publication doctrine that can be read in full on every run.\n- Clear separation between internal research/reporting and publishable copy.\n- Explicit process-versus-authority language: the pod enforces transitions, not verified identity.\n- Explicit instruction that pod-generated CMS files are outputs and must not be edited directly.\n- Guidance for revision, blocked transitions, and escalation to the editor.\n\n## Verification\n\nA fresh agent session can inspect a story, locate the complete doctrine, identify the next supported action, and explain the pod/hosted boundary without relying on prior chat context.",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Author the minimal pod skill and Anth.us doctrine"
+  }
+}

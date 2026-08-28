@@ -1,0 +1,21 @@
+{
+  "id": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+  "title": "Select and charter the Slice 1 Anth.us story",
+  "description": "# Select and charter the Slice 1 Anth.us story\n\n## Purpose\n\nMake the owner-side editorial, repository, privacy, and platform decisions before a contract team is authorized to implement against a dummy or ambiguous target.\n\n## Decisions and deliverables\n\n- Identify one genuine unpublished Anth.us story with enough research and editorial judgment to exercise the workflow.\n- Name the human editor who controls editor selection and publication approval.\n- Record agent responsibilities and the boundary between artifact completeness and editorial authority.\n- Decide where the pod configuration, internal idea/assignment/research/report artifacts, and publishable article source live.\n- Record whether each repository is private or public and what unpublished material a contractor may access.\n- Identify the Anth.us destination repository, expected MDX path, front-matter contract, generated marker, source-story identity field, and media expectations.\n- Confirm how the marked pod-generated article remains separate from existing hand-authored posts.\n- Select the exact released Kanbus version and runtime that Slice 1 will pin.\n- Verify that the pinned release actually supports the configurable issue type, workflow bindings, policy guidance, event history, and fail-closed lifecycle hooks assumed by the initiative.\n- Record the commands and evidence used for that capability check; an unreleased branch or unverified assumption is not sufficient.\n- Confirm that the story can proceed without AWS, hosted Papyrus, confidential source material, or verified identity.\n- Record which single-author, low-confidentiality characteristics prevent this story from representing other pre-infrastructure publications.\n\n## Verification\n\nAll decisions and evidence are recorded in Kanbus. The story has an explicit owner, editor, source location, publication target, privacy classification, CMS contract, and verified pinned Kanbus release. No contractor implementation begins while any of those fields remain undecided.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-27T13:27:01.349433Z",
+  "updated_at": "2026-08-27T20:48:20.295767Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fbfe0a84-1f34-4613-ae86-fef834276aa1",
+  "issue_id": "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.442Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Implement fail-closed artifact gates and coaching\n\n## Purpose\n\nUse existing Kanbus policy guidance and lifecycle hooks to teach and enforce the editorial sequence for Slice 1.\n\n## Deliverables\n\n- Define the prerequisite artifact for every guarded transition.\n- Reject missing, empty, or invalid artifacts before the transition mutates state.\n- Emit actionable guidance that names the missing work and explains the editorial reason.\n- Give every coaching and blocking rule a stable identity suitable for evidence capture.\n- Preserve the current stage and all story files after a refusal.\n- Keep newsroom-specific file and front-matter validation in hooks rather than Kanbus core.\n\n## Implements\n\n- PPY-13bf6d: coaching and stage enforcement.\n- PPY-7625aa: gated revision recovery.\n\n## Verification\n\nExecutable scenarios demonstrate coaching, refusal, recovery, successful transition, and unchanged state after failure.",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Implement fail-closed artifact gates and coaching"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dfe377c0-44b9-4cc6-b87e-b1bd00b08359",
+  "issue_id": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-27T13:27:01.349Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "# Select and charter the Slice 1 Anth.us story\n\n## Purpose\n\nChoose the real editorial work before implementation choices harden around a dummy fixture.\n\n## Deliverables\n\n- Identify one genuine unpublished Anth.us story with enough research and editorial judgment to exercise the workflow.\n- Record the editor, agent responsibilities, intended CMS destination, publication expectations, and acceptable source handling.\n- Confirm that the story is suitable for the single-author, low-confidentiality Slice 1 environment.\n- Record which limitations prevent this story from representing other pre-infrastructure publications.\n- Define the final handoff fields and media expectations needed by this specific post without promoting them into generic Kanbus features.\n\n## Verification\n\nThe selected story has an explicit owner and publication target, is not a dummy fixture, and can proceed without introducing hosted infrastructure or confidential material.",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+    "priority": 1,
+    "status": "open",
+    "title": "Select and charter the Slice 1 Anth.us story"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "PPY-baa4231a-802c-4019-96c2-3c81b54002df",
+  "title": "Validate external operator onboarding",
+  "description": "# Validate external operator onboarding\n\n## Intent\n\nAs a prospective publication operator outside Anthus AI Solutions, I want to start and use a newsroom pod with minimal assistance, so that we can test whether the pod is a credible on-ramp rather than only an internal tool.\n\n## Entry criteria\n\n- A reusable pod package has passed internal use.\n- The participant, support boundary, success measures, and treatment of their content are agreed in advance.\n\n## Definition of Done\n\n- An external operator initializes or receives a pod and advances a real story.\n- Time to first useful result, coaching comprehension, blocked-transition recovery, human support, and abandonment points are recorded.\n- Internal workflow success and funnel evidence are reported separately.\n- The result makes an explicit decision about onboarding changes, professional-services positioning, and whether another external trial is warranted.\n\n## Non-goals\n\n- Treating internal dogfooding as customer validation.\n- Building hosted-scale capabilities to rescue the local experiment.\n- Claiming conversion from a single successful trial.",
+  "type": "epic",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-08-27T13:27:01.017317Z",
+  "updated_at": "2026-08-27T13:27:01.017317Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
