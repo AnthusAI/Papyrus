@@ -9,7 +9,7 @@ When: Create/update the Kanbus task before coding; close it only after the chang
 How: See CONTRIBUTING_AGENT.md for the Kanbus workflow, hierarchy, status rules, priorities, command examples, and the mistakes to avoid. Never inspect project/ or issue JSON directly (including with cat or jq); use Kanbus commands only.
 Performance: Prefer kbs (Rust) when available; kanbus (Python) is equivalent but slower.
 Warning: Editing project/ directly violates The Way. Do not read or write anything in project/; work only through Kanbus.
-Artifact sync rule: If Kanbus operations create or update files under `project/issues/` or `project/events/`, stage and commit those artifact files in the same branch before opening a PR.
+Board commits go to `develop`, not a PR: after `kbs` creates or updates issues, commit `project/issues/` and `project/events/` on `develop` and push. Do not open a pull request whose purpose is `project/` or spec-only work. Never hand-edit those JSON files.
 
 ### Repository hygiene
 
@@ -52,17 +52,22 @@ commit finished work.
 
 ### Hard rules
 
-- **Never commit directly to `develop` or `main`.**
+- **Never commit implementation to `develop` or `main`.** Code that changes
+  runtime behavior lands on `develop` via pull request.
+- **Exception: `project/` and spec-only work.** Kanbus issues, events, and
+  behavior specs (Gherkin with no implementation) are committed on `develop`
+  and pushed. Do not open a PR for those.
 - **`develop` on GitHub (`AnthusAI/Papyrus`) is the integration branch.** Land
-  feature work there via pull request.
+  implementation there via pull request.
 - **`main` is the release/production branch.** Promote reviewed integration work
   with `develop -> main` PRs. Agents **never** merge to `main` or promote
   `develop -> main` without explicit human instruction.
 - **Branch from `origin/develop`.** Every coded change needs a Kanbus `PPY-`
   issue on this repo's board (not the separate `TI` board in Threat Intelligence
   worktrees).
-- **Land on `develop` only via pull request.** Do not locally
-  `git checkout develop && git merge …`.
+- **Land implementation on `develop` via pull request.** Do not locally
+  `git checkout develop && git merge …` for feature work. The `project/`
+  and spec-only exception above is a direct commit to `develop`, not a merge.
 - **Preserve unrelated uncommitted work.** This tree is often dirty across
   sessions. Stage deliberately; never `git add -A` when someone else's work is
   in flight.
@@ -108,8 +113,10 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`).
 - Never `--amend` or force-push a commit that may have reached `main` or
   `develop`.
-- If Kanbus updates `project/issues/` or `project/events/`, include those
-  artifacts in the same commit series as the related code change.
+- If Kanbus updates `project/issues/` or `project/events/` with no
+  implementation, commit them on `develop` and push. Do not open a PR.
+  If they belong with an implementation PR, include them in that same
+  commit series.
 
 ## Core Rules
 
