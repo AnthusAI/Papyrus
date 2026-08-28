@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ce998e62-a473-49b6-b346-8b57f8d1a9b4",
+  "issue_id": "PPY-ac174340-9136-4843-bf81-acc004f686ea",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T20:14:11.492Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "Researcher first-pass on /workspace/research-pod.\n\nThe documented operator path is `papyrus references list --backend local` (Papyrus #54). That binary is not on PATH on the Grok Bot box, so Researcher can only use the throwaway bin/register-ref.py and bin/list-refs.py wrappers.\n\nFix: land and install the operator CLI so `papyrus` is a real command. Do not keep growing the wrappers as the product interface.",
+    "issue_type": "bug",
+    "labels": [],
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "priority": 1,
+    "status": "open",
+    "title": "papyrus is not on PATH for agent boxes"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "455d335a-9db1-4821-b8ae-8257daeb5967",
+  "issue_id": "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T20:14:11.559Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "Researcher first-pass.\n\nregister accepts --why ''. A reject still has to be write-nothing, but a junk accepted or pending row with a blank why can be created.\n\nProduct rule: accepted and pending require a non-empty why. Empty why is only valid for a reject (or for not writing the row at all).",
+    "issue_type": "bug",
+    "labels": [],
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "priority": 2,
+    "status": "open",
+    "title": "empty --why is allowed on accepted and pending refs"
+  }
+}

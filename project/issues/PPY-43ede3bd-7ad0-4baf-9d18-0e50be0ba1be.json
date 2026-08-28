@@ -1,0 +1,18 @@
+{
+  "id": "PPY-43ede3bd-7ad0-4baf-9d18-0e50be0ba1be",
+  "title": "local register hardcodes a story path; no --story",
+  "description": "Researcher first-pass.\n\nregister-ref.py writes only to stories/WIKI-650fd9/references/. After project_key WIKI → ANTHUS, new assignments are ANTHUS-* but new refs still land on the old story. There is no --story flag.\n\nProduct rule: papyrus references register --backend local must take an explicit story (or a configured default corpus story), never a hardcoded id. A project_key change must not strand new refs on a retired prefix.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-28T20:14:11.508918Z",
+  "updated_at": "2026-08-28T20:14:11.508918Z",
+  "closed_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9a78e6a1-0ddd-4064-9c2e-931e0f28f309",
+  "issue_id": "PPY-fe73a279-57db-49c7-9e58-e9b99ec37d53",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T20:14:11.525Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "Researcher first-pass. Highest local-pod data-loss bug.\n\nRe-registering an existing URL overwrites the reference JSON with no guard, merge, or warning. Researcher overwrote an accepted Compaction Cliff record with a pending dup probe, then had to restore it by hand.\n\nProduct rule: same URL in the same corpus is an identity. Re-register must refuse, or merge non-destructively, and must warn if the existing row is already accepted. Never clobber accepted why/status/title.",
+    "issue_type": "bug",
+    "labels": [],
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "priority": 0,
+    "status": "open",
+    "title": "re-registering the same URL silently overwrites the JSON"
+  }
+}
