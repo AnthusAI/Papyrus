@@ -21,7 +21,8 @@ Work from the pod root: `pods/anthus-blog/`. Use `kbs` (Kanbus 0.19.1 per
 `idea` → `assignment` → `research` → `report` → `editor_select` → `copywriting` → `published`
 
 Supported revision paths return to an earlier stage without deleting prior files.
-Do not skip stages; workflow and hooks refuse skip-ahead.
+Copy revision at the copywriting stage is file-based: edit `article.md` while the
+story remains in `copywriting`. Do not skip stages; workflow and hooks refuse skip-ahead.
 
 ## Artifacts (one directory per story)
 

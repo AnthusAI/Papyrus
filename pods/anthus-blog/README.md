@@ -21,24 +21,28 @@ cd pods/anthus-blog
 kbs validate
 kbs hooks validate
 
-# Legal path: create story, fill idea.md, advance to assignment
+# Executable Slice 1 kernel behavior specs (disposable fixture)
+python3 tests/run_slice1_kernel_specs.py
+
+# Manual spot-check: legal advance and blocked skip-ahead
 kbs create "Slice 1 kernel demo" --type story
 STORY_DIR=$(ls -t stories | head -1)
 printf '# Idea\n\nDemo pitch for kernel verification.\n' > "stories/${STORY_DIR}/idea.md"
 kbs update "$STORY_DIR" --status assignment
 
-# Illegal skip-ahead: idea → copywriting (blocked with coaching)
 kbs create "Skip-ahead demo" --type story
 SKIP_DIR=$(ls -t stories | head -1)
 kbs update "$SKIP_DIR" --status copywriting || true
 ```
 
-Expect the last command to fail and stderr to mention copywriting requires
-editor selection and the stage ladder.
+Expect the spec runner to report `8/8 scenarios passed`, and the manual skip-ahead
+command to fail with coaching that names the stage ladder.
 
 ## Layout
 
 - `.kanbus.yml` — story type and stage machine
+- `features/` — executable Slice 1 kernel behavior specifications (Gherkin)
+- `tests/run_slice1_kernel_specs.py` — runs kernel specs in a disposable fixture
 - `project/policies/` — coaching and skip-ahead policy rules
 - `hooks/` — fail-closed artifact gates (files the policy DSL cannot see)
 - `skills/advance-story/SKILL.md` — agent instructions
