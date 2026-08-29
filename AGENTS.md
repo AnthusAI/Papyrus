@@ -1,6 +1,10 @@
 # AGENTS.md
 
 
+## Ryan's board names
+
+When Ryan says **the newsroom board** or **the Papyrus board**, he means the Anth.us publication board in `pods/anthus-blog` (Kanbus key `ANTH`), not this repo's product board (`PPY`). Call `PPY` the product board or the PPY board.
+
 ## Project management with Kanbus
 
 Use Kanbus for task management.

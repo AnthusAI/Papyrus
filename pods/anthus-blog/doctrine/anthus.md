@@ -20,3 +20,7 @@ hosted Papyrus infrastructure exists.
 - Posts explain how Anthus builds and operates AI systems for real editorial work.
 - Research and report artifacts are internal notes; only `article.md` is reader-facing.
 - Keep doctrine short enough to read in full every run.
+
+## Board names
+
+When Ryan says the newsroom board or the Papyrus board, he means this publication board (ANTH), not the Papyrus product board (PPY).
