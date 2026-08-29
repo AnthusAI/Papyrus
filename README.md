@@ -1,7 +1,7 @@
 # Papyrus
 
 You are focused on a topic. For us, it is AI/ML information systems. For you,
-it might be golf club technology, underwater basket weaving, oil markets, local
+it might be golf club technology, oil markets, local
 politics, or any other beat worth watching closely.
 
 Papyrus turns that focus into a fully automated newsroom. Research agents
@@ -952,3 +952,9 @@ inside the feature file.
 Pretext measurement depends on browser canvas APIs, so the newspaper layout is
 computed after client hydration. The server-rendered shell is intentionally
 minimal.
+
+---
+
+Built by [Anthus AI Solutions](https://anth.us). We run this class of system in production.
+
+If you need this operated, not just cloned, [talk to us](https://anth.us).
