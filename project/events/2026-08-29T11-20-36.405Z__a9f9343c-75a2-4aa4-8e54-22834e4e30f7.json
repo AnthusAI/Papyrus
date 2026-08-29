@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "a9f9343c-75a2-4aa4-8e54-22834e4e30f7",
+  "issue_id": "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99",
+  "event_type": "field_updated",
+  "occurred_at": "2026-08-29T11:20:36.405Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Problem: a compiled wiki page has no cheap header stamps. An agent cannot tell where it came from, who confirmed it, whether it is still current, or whether it is the live version without reading the body. Generated pages can look attested.\n\nSolution: specify a header schema on compiled pages. Stamps include source/provenance, attested vs generated, current vs live, and who confirmed. A non-LLM checker reads the header and fails closed if stamps are missing or contradictory. Numbers that a sanctioned query may fill in but may not rewrite belong here.\n\nDo not treat the compiled page as evidence. Follow stamps back to the original source. Specs first.",
+        "to": "Problem: a compiled wiki page has no cheap header stamps. An agent cannot tell where it came from, who confirmed it, whether it is still current, or whether it is the live version without reading the body. Generated pages can look attested. Stamping a page “generated” is not the same as checking the attested computation.\n\nSolution: specify a header schema on compiled pages. Stamps include source/provenance, attested vs generated, current vs live, and who confirmed. A non-LLM checker reads the header and fails closed if stamps are missing or contradictory.\n\nAttested computation (OKF lock, from Researcher): the checker has no model in it. The agent may fill a sanctioned slot (the year). It may not edit the rule (swap the table name). A format that only records how to check, and never runs, is the hole we must not ship.\n\nDo not treat the compiled page as evidence. Follow stamps back to the original source. Specs first."
+      }
+    }
+  }
+}
