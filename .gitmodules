@@ -1,0 +1,3 @@
+[submodule "pods/anthus-blog"]
+	path = pods/anthus-blog
+	url = https://github.com/AnthusAI/anthus-semantic-knowledge-base.git
