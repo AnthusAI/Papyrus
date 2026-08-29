@@ -10,9 +10,18 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "00c73e0c-fa25-4780-ba2d-3b8b6ff6a550",
+      "author": "box",
+      "text": "PLAN ONLY. Nobody implements until Ryan says go. Quality owns the board. Specs may be written; no runtime work.\n\nResearch steal-list (from Applied Research, 2026-08-29):\n- OKF: cheap header stamps; attested computation that actually runs (non-LLM checker). Agent may fill a sanctioned slot (the year). It may not edit the rule (swap the table). A format that only records how to check, and never runs, is the hole we do not ship.\n- TrajWiki: compiled page can die; raw traces stay immutable; the wiki is not evidence. Follow stamps back to the source.\n- C-Unseen: include/exclude is a corroboration gate, not \u201cthe model thought it was useful.\u201d\n- Anti-pattern (WikiSkill / SCALE / KBevo): a graph that only grows because the model thought it helped. Auto-write without a human gate is forbidden.\n\nChildren: PPY-aa6f0a stamps + attested run, PPY-b088d7 supersession, PPY-9272c8 corroboration gate.",
+      "created_at": "2026-08-29T11:22:55.247280Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
   "created_at": "2026-08-29T11:19:04.142026Z",
-  "updated_at": "2026-08-29T11:19:04.142026Z",
+  "updated_at": "2026-08-29T11:22:55.247280Z",
   "closed_at": null,
   "custom": {}
 }
