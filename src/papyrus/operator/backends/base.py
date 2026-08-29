@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import OperatorConfig
+from ..errors import OperatorError
 from ..output import OperatorRow
 
 
@@ -35,6 +36,19 @@ class OperatorBackend(ABC):
   ) -> list[OperatorRow]:
     raise NotImplementedError
 
+  def register_reference(
+    self,
+    *,
+    story_id: str | None,
+    url: str,
+    title: str,
+    status: str,
+    why: str,
+    corpus_key: str,
+    reference_id: str | None = None,
+  ) -> None:
+    raise OperatorError("papyrus references register is only supported for --backend local")
+
 
 def load_fixture_json(fixture_root: Path, filename: str) -> dict[str, Any]:
   path = fixture_root / filename
@@ -58,7 +72,11 @@ def reference_rows_from_fixture(payload: dict[str, Any], *, kind: str) -> list[O
         status=str(item.get("status") or ""),
         identifier=str(item.get("id") or ""),
         title=str(item.get("title") or ""),
-        extra={"corpus": str(item.get("corpus") or item.get("corpusKey") or "")},
+        extra={
+          "corpus": str(item.get("corpus") or item.get("corpusKey") or ""),
+          "url": str(item.get("url") or item.get("sourceUri") or ""),
+          "why": str(item.get("why") or ""),
+        },
       )
     )
   return rows

@@ -7,6 +7,7 @@ from .commands.auth import run_auth_refresh
 from .commands.references import (
   run_assignments_list,
   run_references_list,
+  run_references_register,
   run_references_show,
 )
 from .config import load_operator_config
@@ -17,6 +18,7 @@ from .help_text import TOP_LEVEL_HELP, print_group_help
 OPERATOR_COMMANDS = {
   ("references", "list"),
   ("references", "show"),
+  ("references", "register"),
   ("assignments", "list"),
   ("auth", "refresh"),
 }
@@ -42,6 +44,8 @@ def dispatch_operator_command(group: str, command: str | None, flags: list[str])
       return run_references_list(config, flags)
     if group == "references" and command == "show":
       return run_references_show(config, flags)
+    if group == "references" and command == "register":
+      return run_references_register(config, flags)
     if group == "assignments" and command == "list":
       return run_assignments_list(config, flags)
     if group == "auth" and command == "refresh":

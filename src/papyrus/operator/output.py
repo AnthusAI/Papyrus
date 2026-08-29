@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
+from .pod_references import PodReferenceRecord
+
 
 @dataclass(frozen=True)
 class OperatorRow:
@@ -11,6 +13,21 @@ class OperatorRow:
   identifier: str
   title: str
   extra: dict[str, str]
+
+
+def pod_reference_to_row(record: PodReferenceRecord) -> OperatorRow:
+  return OperatorRow(
+    kind="pod-reference",
+    status=record.status,
+    identifier=record.identifier,
+    title=record.title,
+    extra={
+      "corpus": record.corpus,
+      "url": record.url,
+      "why": record.why,
+      "story": record.story_id,
+    },
+  )
 
 
 def format_meta_line(**fields: str) -> str:
@@ -34,6 +51,8 @@ def print_tabular(rows: Sequence[OperatorRow], *, columns: Sequence[str]) -> Non
         values.append(row.extra.get("corpus", ""))
       elif column == "type":
         values.append(row.extra.get("type", ""))
+      elif column == "url":
+        values.append(row.extra.get("url", ""))
       else:
         values.append(row.extra.get(column, ""))
     print("\t".join(values))
@@ -47,6 +66,10 @@ def print_reference_detail(row: OperatorRow) -> None:
   print(f"title: {row.title}")
   if row.extra.get("corpus"):
     print(f"corpus: {row.extra['corpus']}")
+  if row.extra.get("url"):
+    print(f"url: {row.extra['url']}")
+  if row.extra.get("why"):
+    print(f"why: {row.extra['why']}")
 
 
 def rows_match_status(rows: Iterable[OperatorRow], status: str) -> bool:

@@ -43,6 +43,16 @@ def build_references_parser() -> argparse.ArgumentParser:
   show_parser.add_argument("reference_id")
   show_parser.add_argument("--backend", choices=["local", "cloud"], default="")
 
+  register_parser = subparsers.add_parser("register", help="Register a local pod reference artifact")
+  register_parser.add_argument("--url", required=False, default="")
+  register_parser.add_argument("--title", required=False, default="")
+  register_parser.add_argument("--status", default="pending")
+  register_parser.add_argument("--why", default="")
+  register_parser.add_argument("--story", default="", help="Kanbus story id (or use local.defaultStory in config)")
+  register_parser.add_argument("--corpus-key", default="")
+  register_parser.add_argument("--id", default="", help="Optional stable reference id")
+  register_parser.add_argument("--backend", choices=["local", "cloud"], default="local")
+
   return parser
 
 

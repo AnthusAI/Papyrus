@@ -20,6 +20,7 @@ class OperatorConfig:
   default_corpus_key: str
   publication_key: str
   pod_path: Path | None
+  default_story: str | None
   graphql_endpoint: str | None
   config_path: Path | None
   fixture_root: Path | None
@@ -86,6 +87,7 @@ def load_operator_config(
   )
   publication_key = _optional_string(raw.get("publicationKey")) or default_corpus
   pod_path = _resolve_path(_optional_string(local_section.get("podPath")), base=PAPYRUS_ROOT)
+  default_story = _optional_string(local_section.get("defaultStory"))
   graphql_endpoint = (
     _optional_string(cloud_section.get("graphqlEndpoint"))
     or _optional_string(os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT"))
@@ -103,6 +105,7 @@ def load_operator_config(
     default_corpus_key=default_corpus,
     publication_key=publication_key,
     pod_path=pod_path,
+    default_story=default_story,
     graphql_endpoint=graphql_endpoint,
     config_path=resolved_config_path,
     fixture_root=fixture_root,

@@ -70,7 +70,11 @@ class CloudBackend(OperatorBackend):
           status=str(item.get("curationStatus") or item.get("status") or ""),
           identifier=str(item.get("id") or ""),
           title=str(item.get("title") or ""),
-          extra={"corpus": corpus_key},
+          extra={
+            "corpus": corpus_key,
+            "url": str(item.get("sourceUri") or item.get("url") or ""),
+            "why": str(item.get("why") or item.get("ingestionRationale") or ""),
+          },
         )
         for item in payload.get("items") or []
       ]

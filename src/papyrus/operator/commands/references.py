@@ -5,7 +5,7 @@ from ..errors import OperatorError
 from ..output import format_meta_line, print_reference_detail, print_tabular
 from ..backends.base import create_backend
 
-REFERENCE_LIST_COLUMNS = ("kind", "status", "id", "title", "corpus")
+REFERENCE_LIST_COLUMNS = ("kind", "status", "id", "title", "corpus", "url")
 ASSIGNMENT_LIST_COLUMNS = ("kind", "status", "id", "type", "title")
 
 
@@ -55,9 +55,44 @@ def run_assignments_list(config: OperatorConfig, flags: list[str]) -> int:
   return 0
 
 
+def run_references_register(config: OperatorConfig, flags: list[str]) -> int:
+  options, _ = parse_operator_flags(flags)
+  active_config = _with_overrides(config, options)
+  backend_name = str(options.get("backend") or active_config.backend)
+  if backend_name != "local":
+    raise OperatorError("papyrus references register is only supported for --backend local")
+
+  url = str(options.get("url") or "").strip()
+  title = str(options.get("title") or "").strip()
+  status = str(options.get("status") or "pending").strip().lower()
+  why = str(options.get("why") or "")
+  story_id = str(options.get("story") or "").strip() or None
+  corpus_key = str(options.get("corpus-key") or active_config.default_corpus_key)
+  reference_id = str(options.get("id") or "").strip() or None
+
+  if not url:
+    raise OperatorError("papyrus references register requires --url")
+  if not title:
+    raise OperatorError("papyrus references register requires --title")
+
+  backend = create_backend(active_config)
+  backend.register_reference(
+    story_id=story_id,
+    url=url,
+    title=title,
+    status=status,
+    why=why,
+    corpus_key=corpus_key,
+    reference_id=reference_id,
+  )
+  return 0
+
+
 def accepted_flags_for(command: str) -> set[str]:
   if command == "papyrus references list":
     return {"--limit", "--status", "--order", "--corpus-key", "--backend"}
+  if command == "papyrus references register":
+    return {"--url", "--title", "--status", "--why", "--story", "--corpus-key", "--backend", "--id"}
   if command == "papyrus assignments list":
     return {"--limit", "--status", "--type", "--backend"}
   return set()

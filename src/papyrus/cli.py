@@ -139,7 +139,7 @@ def _map_assignments(command: str, flags: list[str]) -> int:
 
 
 def _map_references(command: str, flags: list[str]) -> int:
-    if command in {"list", "show"}:
+    if command in {"list", "show", "register"}:
         return dispatch_operator_command("references", command, flags)
     newsroom_reference_commands = {
         "curate-recent",

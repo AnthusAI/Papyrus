@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,7 @@ import yaml
 from behave import given, then, when
 
 from papyrus.operator.commands.references import accepted_flags_for
+from papyrus.operator.pod_references import find_reference_by_url, normalize_reference_url
 
 
 def _run_papyrus(context, command: str, *, clean_env: bool = False) -> None:
@@ -23,7 +25,7 @@ def _run_papyrus(context, command: str, *, clean_env: bool = False) -> None:
     env["PYTHONPATH"] = f"{context.repo_root / 'src'}:{context.repo_root}"
     if context.config_path:
         env["PAPYRUS_OPERATOR_CONFIG"] = str(context.config_path)
-    if getattr(context, "fixture_root_active", False):
+    if getattr(context, "fixture_root_active", False) and not getattr(context, "pod_root", None):
         env["PAPYRUS_OPERATOR_FIXTURE_ROOT"] = str(context.fixture_root)
     if getattr(context, "tmp_env_path", None) and context.tmp_env_path.exists():
         env["PAPYRUS_GRAPHQL_JWT"] = _read_env_value(context.tmp_env_path, "PAPYRUS_GRAPHQL_JWT")
@@ -165,9 +167,77 @@ def step_stderr_mentions_backends(context):
     assert "cloud" in stderr
 
 
+@given('the writable local pod fixture "anthus-blog" is configured')
+def step_writable_local_pod_fixture(context):
+    context.fixture_root_active = False
+    context.pending_backend = "local"
+    context.pod_root = _copy_writable_pod(context)
+    context.include_default_story = True
+    _write_config(context)
+
+
+@given('the writable local pod fixture "anthus-blog" is configured without default story')
+def step_writable_local_pod_without_default_story(context):
+    context.fixture_root_active = False
+    context.pending_backend = "local"
+    context.pod_root = _copy_writable_pod(context)
+    context.include_default_story = False
+    _write_config(context)
+
+
+@given('local pod story "{story_id}" has an accepted reference for URL "{url}"')
+def step_local_pod_accepted_reference(context, story_id, url):
+    pod_root = _active_pod_root(context)
+    refs_dir = pod_root / "stories" / story_id / "references"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "id": "ref-pod-accepted",
+        "status": "accepted",
+        "title": "Compaction Cliff",
+        "corpus": "threat-intelligence",
+        "url": normalize_reference_url(url),
+        "why": "Accepted reference that must not be clobbered.",
+        "story": story_id,
+    }
+    (refs_dir / "ref-pod-accepted.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+@then('stdout should contain "{text}"')
+def step_stdout_contains(context, text):
+    assert text in (context.last_result.stdout or "")
+
+
+@then('stdout should report url "{url}"')
+def step_stdout_reports_url(context, url):
+    assert f"url: {url}" in (context.last_result.stdout or "")
+
+
+@then('stdout should report why "{why}"')
+def step_stdout_reports_why(context, why):
+    assert f"why: {why}" in (context.last_result.stdout or "")
+
+
+@then('the local pod reference file for URL "{url}" should still have status "{status}"')
+def step_reference_file_status(context, url, status):
+    record = find_reference_by_url(_active_pod_root(context), corpus_key="threat-intelligence", url=url)
+    assert record is not None, f"no reference found for {url}"
+    assert record.status == status
+
+
+@then('the local pod reference file for URL "{url}" should not exist')
+def step_reference_file_missing(context, url):
+    record = find_reference_by_url(_active_pod_root(context), corpus_key="threat-intelligence", url=url)
+    assert record is None
+
+
 @then('stderr should mention `papyrus auth refresh`')
 def step_stderr_mentions_auth_refresh(context):
     assert "papyrus auth refresh" in (context.last_result.stderr or "")
+
+
+@then('stderr should mention `{item}`')
+def step_stderr_mentions_item(context, item):
+    assert item in (context.last_result.stderr or "")
 
 
 @then('stderr should not mention `papyrus auth refresh`')
@@ -350,14 +420,32 @@ def step_same_flags(context):
     assert accepted_flags_for(command) == flags
 
 
+def _copy_writable_pod(context) -> Path:
+    source = context.fixture_root / "local-pod" / "anthus-blog"
+    tmp_dir = Path(tempfile.mkdtemp(prefix="operator-cli-pod-"))
+    context.tmp_dirs.append(tmp_dir)
+    shutil.copytree(source, tmp_dir, dirs_exist_ok=True)
+    return tmp_dir
+
+
+def _active_pod_root(context) -> Path:
+    if getattr(context, "pod_root", None):
+        return context.pod_root
+    return context.fixture_root / "local-pod" / "anthus-blog"
+
+
 def _write_config(context) -> None:
     tmp_dir = Path(tempfile.mkdtemp(prefix="operator-cli-config-"))
     context.tmp_dirs.append(tmp_dir)
+    pod_path = getattr(context, "pod_root", None) or (context.fixture_root / "local-pod" / "anthus-blog")
+    local_section: dict[str, str] = {"podPath": str(pod_path)}
+    if getattr(context, "include_default_story", True):
+        local_section["defaultStory"] = "ANTH-33c4de"
     config = {
         "backend": getattr(context, "pending_backend", "cloud"),
         "defaultCorpusKey": getattr(context, "pending_corpus", "threat-intelligence"),
         "publicationKey": getattr(context, "pending_corpus", "threat-intelligence"),
-        "local": {"podPath": str(context.fixture_root / "local-pod" / "anthus-blog")},
+        "local": local_section,
         "cloud": {"graphqlEndpoint": "https://example.appsync-api.example.com/graphql"},
     }
     context.config_path = tmp_dir / "operator-cli.config.yaml"
