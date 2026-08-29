@@ -1,0 +1,18 @@
+{
+  "id": "PPY-b088d734-a319-4f46-b3a6-f19864ff31a4",
+  "title": "Supersession: compiled page dies, raw traces stay immutable",
+  "description": "Problem: when a fact changes, yesterday\u2019s compiled page still looks live. A cheap model keeps answering from the old concept thesis. TrajWiki\u2019s mistake was treating the wiki as evidence and deleting or rewriting history.\n\nSolution: when a newer page supersedes a fact, mark the old compiled page dead/outdated. Do not delete it. Do not rewrite raw traces. Traces are immutable. The compiled page is the thing that dies. Specs first. A cheap model answering from a superseded file is the fail case.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-29T11:19:10.905729Z",
+  "updated_at": "2026-08-29T11:19:10.905729Z",
+  "closed_at": null,
+  "custom": {}
+}

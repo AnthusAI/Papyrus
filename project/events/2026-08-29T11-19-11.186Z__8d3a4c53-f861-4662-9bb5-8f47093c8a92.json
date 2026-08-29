@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8d3a4c53-f861-4662-9bb5-8f47093c8a92",
+  "issue_id": "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-29T11:19:11.186Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Include/exclude gate: C-Unseen corroboration, not model-usefulness",
+    "description": "Problem: auto-writing concept pages with no human gate makes the graph messier. KBevo grades the graph only by whether the answer was right. WikiSkill only grows. “The model thought it was useful” is not a gate.\n\nSolution: human include/exclude on an induced page is a first-class op, shaped like C-Unseen’s corroboration gate. A page is not live until a human includes it. Exclude is write-nothing for live use, not a silent delete of traces. Auto-write without this gate is forbidden. Specs first. Fail closed.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+    "labels": []
+  }
+}

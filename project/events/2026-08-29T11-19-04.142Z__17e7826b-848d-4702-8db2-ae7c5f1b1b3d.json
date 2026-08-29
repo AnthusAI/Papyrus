@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "17e7826b-848d-4702-8db2-ae7c5f1b1b3d",
+  "issue_id": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-29T11:19:04.142Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Wiki page lifecycle: stamps, supersession, and a corroboration gate",
+    "description": "Product work from Applied Research (OKF / TrajWiki / WikiSkill / KBevo / C-Unseen).\n\nProblem: compiled wiki pages can look attested while they are stale, generated, or superseded. A cheap model will keep answering from yesterday’s concept thesis. Treating the compiled page as evidence is the TrajWiki failure.\n\nSolution: specify and implement three behaviors. Raw traces stay immutable. The compiled page is the thing that can die. A non-LLM checker enforces stamps. Auto-writing concept pages with no gate is out of scope and forbidden.\n\nChildren:\n1. Header stamps (provenance, attested vs generated, current vs live)\n2. Supersession (old compiled page marked dead; traces untouched)\n3. Human include/exclude as a C-Unseen corroboration gate, not “the model thought it was useful”\n\nAcceptance: a cheap model must not treat a superseded or unattested compiled page as live evidence. Fail closed.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

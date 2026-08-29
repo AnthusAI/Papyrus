@@ -1,0 +1,18 @@
+{
+  "id": "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99",
+  "title": "Header stamps: provenance, attested vs generated, current vs live",
+  "description": "Problem: a compiled wiki page has no cheap header stamps. An agent cannot tell where it came from, who confirmed it, whether it is still current, or whether it is the live version without reading the body. Generated pages can look attested.\n\nSolution: specify a header schema on compiled pages. Stamps include source/provenance, attested vs generated, current vs live, and who confirmed. A non-LLM checker reads the header and fails closed if stamps are missing or contradictory. Numbers that a sanctioned query may fill in but may not rewrite belong here.\n\nDo not treat the compiled page as evidence. Follow stamps back to the original source. Specs first.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-29T11:19:10.634160Z",
+  "updated_at": "2026-08-29T11:19:10.634160Z",
+  "closed_at": null,
+  "custom": {}
+}
