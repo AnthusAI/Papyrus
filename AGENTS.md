@@ -5,22 +5,14 @@
 
 When Ryan says **the newsroom board** or **the Papyrus board**, he means the Anth.us publication board (Kanbus key `ANTH`), not this repo's product board (`PPY`). Call `PPY` the product board or the PPY board.
 
-Anth.us stories and the ANTH Kanbus board live in the public repo [AnthusAI/anthus-semantic-knowledge-base](https://github.com/AnthusAI/anthus-semantic-knowledge-base), wired into Papyrus as a git submodule at `pods/anthus-blog`. That submodule is the source of truth for publication stories, issue JSON, and story workspaces — not a local template and not anything under Anth.us `src/blog/`.
-
-Clone Papyrus with submodules so agents can proofread stories:
+Source of truth: [AnthusAI/anthus-semantic-knowledge-base](https://github.com/AnthusAI/anthus-semantic-knowledge-base), checked out at `~/Projects/anthus-semantic-knowledge-base`. Work there:
 
 ```bash
-git clone --recurse-submodules https://github.com/AnthusAI/Papyrus.git
-# existing clone:
-git submodule update --init pods/anthus-blog
-```
-
-Work the publication board from the submodule root:
-
-```bash
-cd pods/anthus-blog
+cd ~/Projects/anthus-semantic-knowledge-base
 kbs list    # or: kanbus list
 ```
+
+Papyrus `develop` also mounts that repo as a git submodule at `pods/anthus-blog`. That path is live only after `git submodule update --init` in a checkout that has `.gitmodules`. The default `~/Projects/Papyrus` tree is often a feature branch whose `pods/anthus-blog` is still the old **empty template**. If `kbs list` shows no stories, you are in the stale copy. Do not conclude the board is empty. Do not use anything under Anth.us `src/blog/` as the publication board.
 
 ## Project management with Kanbus
 
