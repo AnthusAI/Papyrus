@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1882c95e-facf-4163-9c34-7155f39a7873",
+  "issue_id": "PPY-4d6a966b-0df0-4213-b0a0-9cbfff3eace3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-28T20:14:11.542Z",
+  "actor_id": "ryan",
+  "payload": {
+    "assignee": null,
+    "description": "Researcher first-pass.\n\nlist-refs.py (and papyrus references show on local) print kind/status/id/title/corpus and drop url and why. Fine for a smoke test, unusable as a knowledge base.\n\nProduct rule: list must include url. show must include url and why. Those two fields are why the row exists.",
+    "issue_type": "bug",
+    "labels": [],
+    "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+    "priority": 1,
+    "status": "open",
+    "title": "references list and show omit url and why"
+  }
+}

@@ -16,28 +16,18 @@
       "author": "ubuntu",
       "text": "Epic intent: one papyrus command on PATH with the same argv for local pod and cloud backends. Backend is config (--backend local|cloud), not a parallel command tree. kbs stays the Kanbus board; papyrus owns newsroom objects.\n\nChild issues:\n- PPY-873378 story: executable Gherkin specs (features/operator-cli.feature)\n- PPY-ebf0b6 task: backend config, default corpus/publication, resolution order\n- PPY-58e740 task: cloud adapters (GraphQL Reference, Assignment)\n- PPY-97625f task: local pod adapters (Kanbus project + story artifacts)\n- PPY-7b8518 task: papyrus auth refresh + friendly JWT errors\n- PPY-500b35 task: --help tree, no PYTHONPATH ImportError, deprecate papyrus-newsroom docs\n\nObject-kind rule: cloud assignments = newsroom-assignment (GraphQL Assignment); local assignments list = pod-story (Kanbus story). Pod assignment stage is kbs workflow, not papyrus assignments list.",
       "created_at": "2026-08-28T18:59:04.510889Z",
-      "comment_type": "default",
-      "data": {}
+      "comment_type": "default"
     },
     {
-      "id": "44243592-945e-4ed9-974a-8729c7500d07",
-      "author": "ubuntu",
-      "text": "Cloud agent implementing operator CLI slice: help/install/config defaults, cloud+local adapters, auth UX, behave steps.",
-      "created_at": "2026-08-28T19:10:21.082554Z",
-      "comment_type": "default",
-      "data": {}
-    },
-    {
-      "id": "160b33e4-3b66-42b5-98ca-71307a7b0ef2",
-      "author": "ubuntu",
-      "text": "Implementation branch cursor/operator-cli-2020: all 23 operator-cli.feature scenarios green via behave.",
-      "created_at": "2026-08-28T19:14:58.010228Z",
-      "comment_type": "default",
-      "data": {}
+      "id": "e8f1fd72-f9c1-42f9-bab5-994cede46d45",
+      "author": "ryan",
+      "text": "Researcher first-pass on /workspace/research-pod (12 refs, then project_key WIKI → ANTHUS). Filed: PPY-fe73a2 P0 same-URL overwrite; PPY-ac1743 papyrus not on PATH; PPY-43ede3 hardcoded story / no --story; PPY-4d6a96 list/show omit url and why; PPY-1e058b empty --why; PPY-f7b389 project_key prefix mix (document + warn, do not remint). Refs are not board cards (by design). They did not hand-edit project/issues.",
+      "created_at": "2026-08-28T20:14:30.323949Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-08-28T18:58:54.238499Z",
-  "updated_at": "2026-08-28T19:14:58.010228Z",
+  "updated_at": "2026-08-28T20:14:30.323949Z",
   "closed_at": null,
   "custom": {}
 }

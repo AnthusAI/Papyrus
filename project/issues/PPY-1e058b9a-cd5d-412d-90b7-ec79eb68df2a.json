@@ -1,0 +1,18 @@
+{
+  "id": "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a",
+  "title": "empty --why is allowed on accepted and pending refs",
+  "description": "Researcher first-pass.\n\nregister accepts --why ''. A reject still has to be write-nothing, but a junk accepted or pending row with a blank why can be created.\n\nProduct rule: accepted and pending require a non-empty why. Empty why is only valid for a reject (or for not writing the row at all).",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-28T20:14:11.558706Z",
+  "updated_at": "2026-08-28T20:14:11.558706Z",
+  "closed_at": null,
+  "custom": {}
+}
