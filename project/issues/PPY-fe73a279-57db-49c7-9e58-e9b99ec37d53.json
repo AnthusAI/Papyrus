@@ -3,16 +3,25 @@
   "title": "re-registering the same URL silently overwrites the JSON",
   "description": "Researcher first-pass. Highest local-pod data-loss bug.\n\nRe-registering an existing URL overwrites the reference JSON with no guard, merge, or warning. Researcher overwrote an accepted Compaction Cliff record with a pending dup probe, then had to restore it by hand.\n\nProduct rule: same URL in the same corpus is an identity. Re-register must refuse, or merge non-destructively, and must warn if the existing row is already accepted. Never clobber accepted why/status/title.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
   "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "21104607-3615-4a15-8642-2eb4d9373822",
+      "author": "ubuntu",
+      "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green).",
+      "created_at": "2026-08-29T05:37:57.336059Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
   "created_at": "2026-08-28T20:14:11.525266Z",
-  "updated_at": "2026-08-28T20:14:11.525266Z",
-  "closed_at": null,
+  "updated_at": "2026-08-29T05:37:57.954133Z",
+  "closed_at": "2026-08-29T05:37:57.954133Z",
   "custom": {}
 }

@@ -1,18 +1,27 @@
 {
   "id": "PPY-f7b389e7-8b81-4fa1-a0ab-9644d56fc735",
   "title": "project_key change does not remint ids; board mixes prefixes",
-  "description": "Researcher first-pass. Not a register bug; Kanbus identity.\n\nAfter project_key WIKI → ANTHUS: kbs show still reports WIKI-650fd9, the issue file is still WIKI-650fd91d-….json, kbs list prints “S 650fd9” with no ANTHUS prefix. Reminting existing ids on key change is correctly not automatic, but the board now mixes prefixes and agents will keep targeting the old story.\n\nNeed: document the constraint in Papyrus/Kanbus AGENTS.md, and warn on project_key change if existing issues use the old prefix. Do not silently remint.",
+  "description": "Researcher first-pass. Not a register bug; Kanbus identity.\n\nAfter project_key WIKI \u2192 ANTHUS: kbs show still reports WIKI-650fd9, the issue file is still WIKI-650fd91d-\u2026.json, kbs list prints \u201cS 650fd9\u201d with no ANTHUS prefix. Reminting existing ids on key change is correctly not automatic, but the board now mixes prefixes and agents will keep targeting the old story.\n\nNeed: document the constraint in Papyrus/Kanbus AGENTS.md, and warn on project_key change if existing issues use the old prefix. Do not silently remint.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a1188e91-8f7c-46f1-8a3d-1fc95cc613ec",
+      "author": "ubuntu",
+      "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green).",
+      "created_at": "2026-08-29T05:38:02.222924Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
   "created_at": "2026-08-28T20:14:11.575173Z",
-  "updated_at": "2026-08-28T20:14:11.575173Z",
-  "closed_at": null,
+  "updated_at": "2026-08-29T05:38:02.833084Z",
+  "closed_at": "2026-08-29T05:38:02.833084Z",
   "custom": {}
 }

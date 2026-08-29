@@ -1,18 +1,27 @@
 {
   "id": "PPY-43ede3bd-7ad0-4baf-9d18-0e50be0ba1be",
   "title": "local register hardcodes a story path; no --story",
-  "description": "Researcher first-pass.\n\nregister-ref.py writes only to stories/WIKI-650fd9/references/. After project_key WIKI → ANTHUS, new assignments are ANTHUS-* but new refs still land on the old story. There is no --story flag.\n\nProduct rule: papyrus references register --backend local must take an explicit story (or a configured default corpus story), never a hardcoded id. A project_key change must not strand new refs on a retired prefix.",
+  "description": "Researcher first-pass.\n\nregister-ref.py writes only to stories/WIKI-650fd9/references/. After project_key WIKI \u2192 ANTHUS, new assignments are ANTHUS-* but new refs still land on the old story. There is no --story flag.\n\nProduct rule: papyrus references register --backend local must take an explicit story (or a configured default corpus story), never a hardcoded id. A project_key change must not strand new refs on a retired prefix.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1739a012-2ce1-4123-8920-c028982403f3",
+      "author": "ubuntu",
+      "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green).",
+      "created_at": "2026-08-29T05:37:58.561835Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
   "created_at": "2026-08-28T20:14:11.508918Z",
-  "updated_at": "2026-08-28T20:14:11.508918Z",
-  "closed_at": null,
+  "updated_at": "2026-08-29T05:37:59.172327Z",
+  "closed_at": "2026-08-29T05:37:59.172327Z",
   "custom": {}
 }

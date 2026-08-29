@@ -3,16 +3,25 @@
   "title": "empty --why is allowed on accepted and pending refs",
   "description": "Researcher first-pass.\n\nregister accepts --why ''. A reject still has to be write-nothing, but a junk accepted or pending row with a blank why can be created.\n\nProduct rule: accepted and pending require a non-empty why. Empty why is only valid for a reject (or for not writing the row at all).",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1a3f1f1d-37e7-4b9e-91be-c56981ab7477",
+      "author": "ubuntu",
+      "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green).",
+      "created_at": "2026-08-29T05:38:01.003837Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
   "created_at": "2026-08-28T20:14:11.558706Z",
-  "updated_at": "2026-08-28T20:14:11.558706Z",
-  "closed_at": null,
+  "updated_at": "2026-08-29T05:38:01.613629Z",
+  "closed_at": "2026-08-29T05:38:01.613629Z",
   "custom": {}
 }
