@@ -177,6 +177,8 @@ Feature: Operator CLI
     And stdout should be a single reference detail block
     And stdout should report kind "cloud-reference"
     And stdout should report id "ref-cloud-001"
+    And stdout should report url "https://example.com/articles/cloud-reference-one"
+    And stdout should report why "Canonical accepted cloud fixture for operator CLI list/show."
 
   @references @local-backend
   Scenario: Local pod references show prints one record with the same shape
