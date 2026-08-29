@@ -1,0 +1,18 @@
+{
+  "id": "PPY-443dc085-c4f8-4f9c-916c-065e372f08af",
+  "title": "research-pod needs papyrus CLI on PATH for references register",
+  "description": "Researcher and Papyrus desks on /workspace/research-pod still accept non-paper refs with python3 /workspace/research-pod/bin/register-ref.py onto WIKI-650fd9. papyrus is not on PATH. papyrus references register does not exist for them. Do not invent a second kbs wiki accept. Operator CLI is the accept path (same subcommands for local-pod and cloud). Install or expose papyrus on the research-pod PATH so both desks can drop the sidecar. Specs first if the register command is incomplete.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-08-29T13:28:28.032860Z",
+  "updated_at": "2026-08-29T13:28:28.032860Z",
+  "closed_at": null,
+  "custom": {}
+}
