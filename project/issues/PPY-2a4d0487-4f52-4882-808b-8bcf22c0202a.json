@@ -1,0 +1,27 @@
+{
+  "id": "PPY-2a4d0487-4f52-4882-808b-8bcf22c0202a",
+  "title": "Wire Anthus newsroom as git submodule",
+  "description": "Replace pods/anthus-blog template with git submodule to AnthusAI/anthus-semantic-knowledge-base so agents cloning Papyrus with --recurse-submodules see ANTH stories.",
+  "type": "chore",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c0123788-5df2-486c-a892-32471792f05b",
+      "author": "ubuntu",
+      "text": "Replacing in-repo template with git submodule to AnthusAI/anthus-semantic-knowledge-base at pods/anthus-blog.",
+      "created_at": "2026-08-29T12:06:29.633632Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
+  "created_at": "2026-08-29T12:06:17.057303Z",
+  "updated_at": "2026-08-29T12:06:29.633632Z",
+  "closed_at": null,
+  "custom": {}
+}

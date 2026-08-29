@@ -3,7 +3,24 @@
 
 ## Ryan's board names
 
-When Ryan says **the newsroom board** or **the Papyrus board**, he means the Anth.us publication board in `pods/anthus-blog` (Kanbus key `ANTH`), not this repo's product board (`PPY`). Call `PPY` the product board or the PPY board.
+When Ryan says **the newsroom board** or **the Papyrus board**, he means the Anth.us publication board (Kanbus key `ANTH`), not this repo's product board (`PPY`). Call `PPY` the product board or the PPY board.
+
+Anth.us stories and the ANTH Kanbus board live in the public repo [AnthusAI/anthus-semantic-knowledge-base](https://github.com/AnthusAI/anthus-semantic-knowledge-base), wired into Papyrus as a git submodule at `pods/anthus-blog`. That submodule is the source of truth for publication stories, issue JSON, and story workspaces — not a local template and not anything under Anth.us `src/blog/`.
+
+Clone Papyrus with submodules so agents can proofread stories:
+
+```bash
+git clone --recurse-submodules https://github.com/AnthusAI/Papyrus.git
+# existing clone:
+git submodule update --init pods/anthus-blog
+```
+
+Work the publication board from the submodule root:
+
+```bash
+cd pods/anthus-blog
+kbs list    # or: kanbus list
+```
 
 ## Project management with Kanbus
 
@@ -591,8 +608,9 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **Backend is config, not a second command tree.** Select `local` or `cloud`
   from project config (`backend`, `local.podPath`, `cloud.graphqlEndpoint`) or
   with `--backend local|cloud`. Do not fork the noun vocabulary per backend.
-- **Local pod backend** reads a Kanbus newsroom pod (for example
-  `pods/anthus-blog`): story artifacts, hooks, and pod reference rows. It does
+- **Local pod backend** reads the Anth.us publication submodule
+  (`pods/anthus-blog`, repo `AnthusAI/anthus-semantic-knowledge-base`): story
+  artifacts, hooks, and pod reference rows. It does
   **not** revive a local Markdown content store (`content/articles/`) or emulate
   hosted corpus sync, editions, or the layout solver.
 - **Cloud backend** uses the existing GraphQL/AppSync newsroom (`Reference`,

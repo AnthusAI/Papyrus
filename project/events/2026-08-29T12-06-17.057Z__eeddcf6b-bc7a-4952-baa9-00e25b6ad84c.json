@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "eeddcf6b-bc7a-4952-baa9-00e25b6ad84c",
+  "issue_id": "PPY-2a4d0487-4f52-4882-808b-8bcf22c0202a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-08-29T12:06:17.057Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Wire Anthus newsroom as git submodule",
+    "description": "Replace pods/anthus-blog template with git submodule to AnthusAI/anthus-semantic-knowledge-base so agents cloning Papyrus with --recurse-submodules see ANTH stories.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
