@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "id": "ref-pod-001",
+      "status": "accepted",
+      "title": "Pod fixture reference one",
+      "corpus": "threat-intelligence",
+      "url": "https://example.com/articles/compaction-cliff",
+      "why": "Canonical accepted fixture for operator CLI list/show."
+    },
+    {
+      "id": "ref-pod-002",
+      "status": "pending",
+      "title": "Pod fixture reference two",
+      "corpus": "threat-intelligence",
+      "url": "https://example.com/articles/pending-probe",
+      "why": "Pending fixture row for filter tests."
+    }
+  ]
+}

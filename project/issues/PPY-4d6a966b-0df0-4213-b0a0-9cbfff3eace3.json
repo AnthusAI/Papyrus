@@ -3,16 +3,25 @@
   "title": "references list and show omit url and why",
   "description": "Researcher first-pass.\n\nlist-refs.py (and papyrus references show on local) print kind/status/id/title/corpus and drop url and why. Fine for a smoke test, unusable as a knowledge base.\n\nProduct rule: list must include url. show must include url and why. Those two fields are why the row exists.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0c1941f2-01a5-4830-b5e9-2d2f4528c4e4",
+      "author": "ubuntu",
+      "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green).",
+      "created_at": "2026-08-29T05:37:59.782117Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
   "created_at": "2026-08-28T20:14:11.542020Z",
-  "updated_at": "2026-08-28T20:14:11.542020Z",
-  "closed_at": null,
+  "updated_at": "2026-08-29T05:38:00.394827Z",
+  "closed_at": "2026-08-29T05:38:00.394827Z",
   "custom": {}
 }

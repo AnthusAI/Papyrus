@@ -3,7 +3,7 @@
   "title": "Backend config and publication defaults",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-08-28T18:58:57.875461Z",
-  "updated_at": "2026-08-28T18:58:57.875461Z",
+  "updated_at": "2026-08-28T19:10:19.830207Z",
   "closed_at": null,
   "custom": {}
 }

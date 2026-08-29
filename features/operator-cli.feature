@@ -1,4 +1,4 @@
-@cli @operator @spec-only
+@cli @operator
 Feature: Operator CLI
   As a Papyrus operator
   I want one `papyrus` command with the same verbs against local pod or cloud backends
@@ -118,6 +118,7 @@ Feature: Operator CLI
       | id       |
       | title    |
       | corpus   |
+      | url      |
     And stdout row kind should be "cloud-reference"
     And stdout should contain reference id "ref-cloud-001"
     And stdout should contain reference id "ref-cloud-002"
@@ -148,6 +149,7 @@ Feature: Operator CLI
       | id       |
       | title    |
       | corpus   |
+      | url      |
     And stdout row kind should be "pod-reference"
     And stdout should contain reference id "ref-pod-001"
     And stdout should contain reference id "ref-pod-002"
@@ -175,6 +177,8 @@ Feature: Operator CLI
     And stdout should be a single reference detail block
     And stdout should report kind "cloud-reference"
     And stdout should report id "ref-cloud-001"
+    And stdout should report url "https://example.com/articles/cloud-reference-one"
+    And stdout should report why "Canonical accepted cloud fixture for operator CLI list/show."
 
   @references @local-backend
   Scenario: Local pod references show prints one record with the same shape
@@ -185,6 +189,8 @@ Feature: Operator CLI
     And stdout should be a single reference detail block
     And stdout should report kind "pod-reference"
     And stdout should report id "ref-pod-001"
+    And stdout should report url "https://example.com/articles/compaction-cliff"
+    And stdout should report why "Canonical accepted fixture for operator CLI list/show."
 
   @references
   Scenario: Missing references fail with operator guidance
@@ -306,3 +312,52 @@ Feature: Operator CLI
       | --status  |
       | --type    |
       | --backend |
+
+  # ---------------------------------------------------------------------------
+  # Local pod references register — Researcher first-pass dogfood fixes
+  # ---------------------------------------------------------------------------
+
+  @references @local-backend @register
+  Scenario: Re-registering the same URL refuses instead of overwriting accepted metadata
+    Given operator CLI config selects backend "local"
+    And the writable local pod fixture "anthus-blog" is configured
+    And local pod story "ANTH-33c4de" has an accepted reference for URL "https://example.com/articles/compaction-cliff"
+    When I run `papyrus references register --backend local --story ANTH-33c4de --url https://example.com/articles/compaction-cliff --title "Dup probe" --status pending --why "duplicate probe"`
+    Then the exit code should be 2
+    And stderr should contain "already"
+    And stderr should contain "accepted"
+    And the local pod reference file for URL "https://example.com/articles/compaction-cliff" should still have status "accepted"
+
+  @references @local-backend @register
+  Scenario: Local register requires an explicit story or configured default
+    Given operator CLI config selects backend "local"
+    And the writable local pod fixture "anthus-blog" is configured without default story
+    When I run `papyrus references register --backend local --url https://example.com/new --title "New ref" --status pending --why "probe"`
+    Then the exit code should be 2
+    And stderr should contain "--story"
+
+    When I run `papyrus references register --backend local --story ANTH-33c4de --url https://example.com/new --title "New ref" --status pending --why "probe"`
+    Then the exit code should be 0
+    And stdout should mention `stories/ANTH-33c4de/references/`
+
+  @references @local-backend @register
+  Scenario: Accepted and pending register reject empty why
+    Given operator CLI config selects backend "local"
+    And the writable local pod fixture "anthus-blog" is configured
+    When I run `papyrus references register --backend local --story ANTH-33c4de --url https://example.com/empty-why --title "Bad ref" --status accepted --why ""`
+    Then the exit code should be 2
+    And stderr should contain "non-empty --why"
+
+    When I run `papyrus references register --backend local --story ANTH-33c4de --url https://example.com/reject-me --title "Reject ref" --status rejected --why ""`
+    Then the exit code should be 0
+    And stdout should contain "no pod reference row written"
+    And the local pod reference file for URL "https://example.com/reject-me" should not exist
+
+  @references @local-backend @register
+  Scenario: project_key changes warn about legacy issue prefixes
+    Given operator CLI config selects backend "local"
+    And the writable local pod fixture "anthus-blog" is configured
+    When I run `papyrus references list --limit 1`
+    Then the exit code should be 0
+    And stderr should contain "legacy prefix"
+    And stderr should mention `WIKI-650fd9`

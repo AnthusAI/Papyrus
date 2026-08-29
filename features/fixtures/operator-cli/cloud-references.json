@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "id": "ref-cloud-001",
+      "status": "accepted",
+      "title": "Cloud fixture reference one",
+      "corpus": "threat-intelligence",
+      "url": "https://example.com/articles/cloud-reference-one",
+      "why": "Canonical accepted cloud fixture for operator CLI list/show."
+    },
+    {
+      "id": "ref-cloud-002",
+      "status": "pending",
+      "title": "Cloud fixture reference two",
+      "corpus": "threat-intelligence",
+      "url": "https://example.com/articles/cloud-reference-two",
+      "why": "Pending cloud fixture row for filter tests."
+    }
+  ]
+}

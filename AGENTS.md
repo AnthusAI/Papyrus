@@ -609,6 +609,19 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **Auth is operator UX.** Cloud authoring uses `papyrus auth refresh` (alias of
   today's `refresh-jwt`) to mint `PAPYRUS_GRAPHQL_JWT`. Expired or missing JWT
   must print recovery guidance, not a Python traceback.
+- **Local pod references** live under `stories/<story-id>/references/*.json`.
+  `papyrus references register --backend local` requires `--story <story-id>`
+  or `local.defaultStory` in operator CLI config; never hard-code a story path.
+  Same URL within the same corpus is an identity: re-register must refuse rather
+  than overwrite accepted `status`/`why`/`title`. `accepted` and `pending` rows
+  require a non-empty `--why`; `rejected` with empty why writes no row. List
+  output includes `url`; show output includes `url` and `why`.
+- **Kanbus `project_key` is stable.** Changing `.kanbus.yml` `project_key` does
+  **not** remint existing issue ids or filenames under `project/issues/`. After a
+  key change, legacy ids (for example `WIKI-*` rows when the key is `ANTH`) keep
+  their old prefix; `papyrus` local-pod commands warn when legacy prefixes are
+  detected. Pass `--story` explicitly; do not assume new work lands on a retired
+  story id.
 
 `lib/layout-plan.ts` owns the edition layout-plan contract:
 

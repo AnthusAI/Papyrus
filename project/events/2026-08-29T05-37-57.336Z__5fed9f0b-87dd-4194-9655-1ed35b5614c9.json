@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "5fed9f0b-87dd-4194-9655-1ed35b5614c9",
+  "issue_id": "PPY-fe73a279-57db-49c7-9e58-e9b99ec37d53",
+  "event_type": "comment_added",
+  "occurred_at": "2026-08-29T05:37:57.336Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "comment_id": "21104607-3615-4a15-8642-2eb4d9373822",
+    "comment_author": "ubuntu"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "d49c904b-777d-4f72-ac48-5bd18e0600a4",
+  "issue_id": "PPY-43ede3bd-7ad0-4baf-9d18-0e50be0ba1be",
+  "event_type": "state_transition",
+  "occurred_at": "2026-08-29T05:37:59.172Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "from_status": "open",
+    "to_status": "closed"
+  }
+}

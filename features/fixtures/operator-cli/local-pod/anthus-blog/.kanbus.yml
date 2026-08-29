@@ -1,0 +1,84 @@
+project_directory: project
+project_key: ANTH
+types:
+- story
+workflows:
+  default:
+    open:
+    - in_progress
+    - closed
+    in_progress:
+    - open
+    - closed
+    closed:
+    - open
+  story:
+    idea:
+    - assignment
+    assignment:
+    - research
+    research:
+    - report
+    - assignment
+    report:
+    - editor_select
+    - research
+    editor_select:
+    - copywriting
+    - research
+    copywriting:
+    - published
+    published:
+    - copywriting
+initial_status: idea
+priorities:
+  2:
+    name: medium
+    color: yellow
+default_priority: 2
+statuses:
+- key: idea
+  name: Idea
+  category: Editorial
+- key: assignment
+  name: Assignment
+  category: Editorial
+- key: research
+  name: Research
+  category: Reporting
+- key: report
+  name: Report
+  category: Reporting
+- key: editor_select
+  name: Editor select
+  category: Reporting
+- key: copywriting
+  name: Copywriting
+  category: Publishing
+- key: published
+  name: Published
+  category: Publishing
+- key: open
+  name: Discovery
+  category: To do
+- key: in_progress
+  name: In Progress
+  category: In progress
+- key: closed
+  name: Done
+  category: Done
+categories:
+- name: Editorial
+  color: yellow
+- name: Reporting
+  color: blue
+- name: Publishing
+  color: green
+- name: To do
+  color: grey
+- name: In progress
+  color: blue
+- name: Done
+  color: green
+hooks:
+  enabled: false
