@@ -3,7 +3,7 @@
   "title": "Non-LLM periphery/adjacency scout for the knowledge graph (plan only)",
   "description": "PLAN ONLY. No runtime work. Ryan wants quantitative, NON-LLM graph methods to find things ADJACENT to the Papyrus knowledge base that sit toward the OUTER PERIPHERY of the graph, not the dense middle the catalog already clusters on. Output is a human-reviewable suggestion list that feeds the include/exclude gate (PPY-9272c8). A high score must never auto-accept a source. Wiki is not evidence.\n\nFeasibility verdict: FEASIBLE. The graph is real, typed, attributed, and already has graph-analytics plumbing (weighted PageRank, relation-type weighting, in-memory graph builder, signals CLI). Every existing metric ranks toward the CENTER (PageRank, popularity, trending, authority). Nothing surfaces the periphery. That is the gap. Primary risk is corpus size (the architecture doc warns the corpus is small because of the human curation gate); periphery shells on a small graph are noisy, so measure before shipping and report stability.\n\nSee comments for: the graph we run on, candidate algorithms, data inventory (have vs add), the recommended first feature, and risks.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -64,10 +64,28 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "2b48f30d-d3a9-4820-b8c5-c174b386d2e7",
+      "author": "ubuntu",
+      "text": "## Delivery\n\n- Branch: `cursor/chore-ppy-c559ad-periphery-scout-plan-a77d` (off `origin/develop`).\n- PR (draft, targets `develop`): https://github.com/AnthusAI/Papyrus/pull/56\n- Contents: Kanbus artifacts only (this issue + event history). No production code.\n- Status: plan only. No merge to `main`. No runtime work until Ryan says go.\n\nIntegration/release state: not landed in `develop` (PR is draft); no `develop -> main` PR; nothing on `main`.\n",
+      "created_at": "2026-09-03T02:34:27.433694Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "a009d03f-35d9-4b20-ae0a-5431a1a3ae30",
+      "author": "ubuntu",
+      "text": "## Implementation started (Ryan said proceed)\n\nStatus moved from plan-only to in_progress. This is now implementation, not a second plan.\n\n### Product (clarified against the code)\nA Papyrus tool that lists graph items by **centrality**, so a human can ask for either the MOST central or the LEAST central items \u2014 both ends of the same ranking. Shaped as a new `centrality` report type on the existing `papyrus knowledge signals concept-report` CLI, with `--order {most,least}`.\n\n### Honest fit (verified against code, not the hunch-as-spec)\n- The hunch said \"existing authority/PageRank for the center end, one shared ranking inverted.\" Verified: `rank_concepts` (`ontology_enrichment.py:476`) already computes weighted PageRank (`compute_pagerank:608`) over the full `SemanticNode`/`SemanticRelation` graph (all non-operational relation types, weighted by `RELATION_WEIGHTS`). It returns a raw `pageRank` per concept. That raw PageRank IS a standard centrality measure \u2014 so the centrality ranking reuses that, and `--order least` simply returns the opposite end of the same ranking. No second pipeline, no k-shell needed for v1.\n- The existing `signals concept-report` `pagerank` report uses a *different* graph (concept co-mention only, `_weighted_pagerank` in `coverage_theme.py`). Centrality deliberately uses the full-graph authority PageRank instead, because the plan assessed the full SemanticNode/SemanticRelation graph and because the co-mention graph excludes zero-mention/ontology-only concepts \u2014 which are exactly the periphery we want visible at the \"least\" end.\n- `centrality` is currently aliased to `pagerank` in `_normalize_concept_report_type`; that alias is being removed so `centrality` is its own report type.\n\n### Fail-closed gate\nIf the corpus subgraph is too sparse for a stable ranking (no relations among corpus concepts \u2192 uniform PageRank, or fewer than a minimum node count), the centrality report emits an empty ranked list with a `stability` block explaining why, rather than inventing scores (the existing `pagerank` report falls back to mention frequency; centrality does NOT).\n\n### Hard gates honored\n- No auto-accept. The report creates a `concept_report` Message + `uses_signal` relations only (reuses `build_concept_report_records`); no `Reference`/`Item`/`EditionItem`. Human include/exclude remains the gate.\n- No LLM calls, no embeddings. Pure graph structure + PageRank.\n- Targets develop. Not merged to main.\n\nProgress will be recorded here as the work lands.\n",
+      "created_at": "2026-09-03T08:02:39.325728Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-09-03T02:33:02.580899Z",
-  "updated_at": "2026-09-03T02:33:51.389683Z",
+  "updated_at": "2026-09-03T08:02:39.325790Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

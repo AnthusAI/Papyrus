@@ -3703,6 +3703,206 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertGreaterEqual(payload["summary"]["trendingCount"], 1)
         self.assertGreaterEqual(payload["summary"]["pagerankCount"], 1)
 
+    def test_concept_report_centrality_most_returns_highest_pagerank_concepts(self):
+        fixture = self._concept_report_fixture()
+        result = papyrus_coverage_theme.signals_concept_report(
+            corpus_key="AI-ML-research",
+            report_type="centrality",
+            order="most",
+            limit=3,
+            references=fixture["references"],
+            semantic_nodes=fixture["semantic_nodes"],
+            semantic_relations=fixture["semantic_relations"],
+            now="2026-05-21T12:00:00Z",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["reportType"], "centrality")
+        self.assertEqual(result["order"], "most")
+        self.assertGreaterEqual(len(result["centrality"]), 1)
+        self.assertTrue(result["summary"]["centralityStability"]["stable"])
+        # Most-central first: the concept with the most mention + ontology weight leads.
+        self.assertEqual(result["centrality"][0]["metric"], "pagerankScore")
+        self.assertGreaterEqual(result["centrality"][0]["score"], result["centrality"][-1]["score"])
+        # Suggestion list only: never creates reader-facing records.
+        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in result["records"]))
+
+    def test_concept_report_centrality_least_returns_opposite_end_of_same_ranking(self):
+        fixture = self._concept_report_fixture()
+        most = papyrus_coverage_theme.signals_concept_report(
+            corpus_key="AI-ML-research",
+            report_type="centrality",
+            order="most",
+            limit=3,
+            references=fixture["references"],
+            semantic_nodes=fixture["semantic_nodes"],
+            semantic_relations=fixture["semantic_relations"],
+            now="2026-05-21T12:00:00Z",
+        )
+        least = papyrus_coverage_theme.signals_concept_report(
+            corpus_key="AI-ML-research",
+            report_type="centrality",
+            order="least",
+            limit=3,
+            references=fixture["references"],
+            semantic_nodes=fixture["semantic_nodes"],
+            semantic_relations=fixture["semantic_relations"],
+            now="2026-05-21T12:00:00Z",
+        )
+
+        self.assertTrue(least["ok"])
+        self.assertEqual(least["order"], "least")
+        self.assertTrue(least["summary"]["centralityStability"]["stable"])
+        self.assertGreaterEqual(len(least["centrality"]), 1)
+        # Same ranking, opposite end: least-central first, and the least end's
+        # top score must not exceed the most end's top score.
+        self.assertLessEqual(least["centrality"][0]["score"], most["centrality"][0]["score"])
+        # The two ends together cover the full ranking without overlap at the top.
+        most_ids = {concept["conceptLineageId"] for concept in most["centrality"]}
+        least_ids = {concept["conceptLineageId"] for concept in least["centrality"]}
+        self.assertEqual(most_ids | least_ids, {"semantic-node-ai-agents", "semantic-node-rl", "semantic-node-simulation"})
+
+    def test_concept_report_centrality_fails_closed_on_sparse_graph(self):
+        fixture = self._concept_report_fixture()
+        sparse_relations = [
+            relation
+            for relation in fixture["semantic_relations"]
+            if relation.get("relationTypeKey") != "mentions"
+        ]
+        # Drop every mention edge so no reference mentions any concept: the
+        # concept-only subgraph has no edges that differentiate centrality.
+        isolated_nodes = [node for node in fixture["semantic_nodes"] if node["lineageId"] != "semantic-node-rl"]
+        sparse_relations = [
+            relation
+            for relation in sparse_relations
+            if relation.get("subjectLineageId") not in {"semantic-node-rl"}
+            and relation.get("objectLineageId") not in {"semantic-node-rl"}
+        ]
+        result = papyrus_coverage_theme.signals_concept_report(
+            corpus_key="AI-ML-research",
+            report_type="centrality",
+            order="least",
+            limit=3,
+            references=fixture["references"],
+            semantic_nodes=isolated_nodes,
+            semantic_relations=sparse_relations,
+            now="2026-05-21T12:00:00Z",
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["centrality"], [])
+        self.assertFalse(result["summary"]["centralityStability"]["stable"])
+        self.assertIn("sparse", result["summary"]["centralityStability"]["reason"])
+        # No invented scores, no records creating reader-facing items.
+        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in result["records"]))
+
+    def test_newsroom_cli_concept_report_centrality_least_command(self):
+        from papyrus_newsroom import cli as newsroom_cli
+
+        fixture = self._concept_report_fixture()
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json") as handle:
+            json.dump(
+                {
+                    "references": fixture["references"],
+                    "semanticNodes": fixture["semantic_nodes"],
+                    "semanticRelations": fixture["semantic_relations"],
+                },
+                handle,
+            )
+            handle.flush()
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = newsroom_cli.main(
+                    [
+                        "signals",
+                        "concept-report",
+                        "--corpus-key",
+                        "AI-ML-research",
+                        "--report-type",
+                        "centrality",
+                        "--order",
+                        "least",
+                        "--limit",
+                        "3",
+                        "--now",
+                        "2026-05-21T12:00:00Z",
+                        "--input",
+                        handle.name,
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["command"], "signals concept-report")
+        self.assertEqual(payload["reportType"], "centrality")
+        self.assertEqual(payload["order"], "least")
+        self.assertGreaterEqual(payload["summary"]["centralityCount"], 1)
+        self.assertTrue(payload["summary"]["centralityStability"]["stable"])
+
+    def test_newsroom_cli_concept_report_centrality_fails_closed_on_empty_graph(self):
+        from papyrus_newsroom import cli as newsroom_cli
+
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json") as handle:
+            json.dump(
+                {
+                    "references": [
+                        {
+                            "id": "reference-1-v1",
+                            "lineageId": "reference-1",
+                            "versionState": "current",
+                            "corpusId": "knowledge-corpus-ai-ml-research",
+                            "title": "x",
+                            "sourceUri": "https://example.com/x",
+                            "curationStatus": "accepted",
+                            "sourcePublishedAt": "2026-05-20T12:00:00Z",
+                        }
+                    ],
+                    "semanticNodes": [
+                        {
+                            "id": "semantic-node-a-v1",
+                            "lineageId": "semantic-node-a",
+                            "versionState": "current",
+                            "status": "accepted",
+                            "nodeKind": "entity",
+                            "nodeKey": "entity.a",
+                            "displayName": "A",
+                            "corpusId": "knowledge-corpus-ai-ml-research",
+                        }
+                    ],
+                    "semanticRelations": [],
+                },
+                handle,
+            )
+            handle.flush()
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = newsroom_cli.main(
+                    [
+                        "signals",
+                        "concept-report",
+                        "--corpus-key",
+                        "AI-ML-research",
+                        "--report-type",
+                        "centrality",
+                        "--order",
+                        "least",
+                        "--limit",
+                        "3",
+                        "--now",
+                        "2026-05-21T12:00:00Z",
+                        "--input",
+                        handle.name,
+                    ]
+                )
+
+        # An empty relations list must pass through the CLI (not collapse to
+        # None and trigger a live load) and the report must fail closed.
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["reportType"], "centrality")
+        self.assertEqual(payload["centrality"], [])
+        self.assertFalse(payload["summary"]["centralityStability"]["stable"])
+
     def test_coverage_theme_plan_counts_assignments_and_avoids_items(self):
         plan = papyrus_coverage_theme.build_coverage_theme_plan(
             date="2026-05-21",

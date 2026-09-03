@@ -313,6 +313,7 @@ def signals_concept_report(
     pagerank_damping: float = 0.85,
     node_kinds: list[str] | None = None,
     max_nodes_per_reference: int = 50,
+    order: str = "most",
     run_id: str = "",
     references: list[dict[str, Any]] | None = None,
     semantic_nodes: list[dict[str, Any]] | None = None,
@@ -322,6 +323,7 @@ def signals_concept_report(
 ) -> dict[str, Any]:
     now = now or _now_iso()
     report_type = _normalize_concept_report_type(report_type)
+    order = _normalize_centrality_order(order)
     if references is None or semantic_nodes is None or semantic_relations is None:
         state = load_live_state(models=["Reference", "SemanticNode", "SemanticRelation"])
         references = state.get("references", []) if references is None else references
@@ -343,6 +345,7 @@ def signals_concept_report(
         pagerank_damping=pagerank_damping,
         node_kinds=node_kinds or [],
         max_nodes_per_reference=max_nodes_per_reference,
+        order=order,
         now=now,
     )
     mention_relation_count = sum(len(report.get("mentionRelationIds") or []) for report in reports)
@@ -359,23 +362,32 @@ def signals_concept_report(
     popularity = reports_by_type.get("popularity", [])
     trending = reports_by_type.get("trending", [])
     pagerank = reports_by_type.get("pagerank", [])
+    centrality = reports_by_type.get("centrality", [])
+    centrality_stability = next(
+        (section.get("stability") for section in reports if section.get("reportType") == "centrality"),
+        None,
+    )
     report = {
         "ok": True,
         "command": "signals concept-report",
         "runId": run_id,
         "corpusKey": corpus_key,
         "reportType": report_type,
+        "order": order if report_type == "centrality" else "most",
         "generatedAt": now,
         "reports": reports,
         "popularity": popularity,
         "trending": trending,
         "pagerank": pagerank,
+        "centrality": centrality,
         "summary": {
             "reportCount": len(reports),
             "rankedConceptCount": len(ranked_concept_ids),
             "popularityCount": len(popularity),
             "trendingCount": len(trending),
             "pagerankCount": len(pagerank),
+            "centralityCount": len(centrality),
+            "centralityStability": centrality_stability,
             "acceptedReferenceCount": len(_accepted_references(references, corpus_key)),
             "mentionRelationCount": mention_relation_count,
             "createsItemOrEditionItem": False,
@@ -496,9 +508,11 @@ def build_concept_reports(
     pagerank_damping: float,
     node_kinds: list[str],
     max_nodes_per_reference: int,
+    order: str = "most",
     now: str,
 ) -> list[dict[str, Any]]:
     report_type = _normalize_concept_report_type(report_type)
+    order = _normalize_centrality_order(order)
     limit = max(1, int(limit or 1))
     context = _concept_report_context(
         references=references,
@@ -517,6 +531,21 @@ def build_concept_reports(
             reports.append(_build_concept_trending_report(context, limit, trend_window_days))
         elif current_type == "pagerank":
             reports.append(_build_concept_pagerank_report(context, limit, pagerank_iterations, pagerank_damping, max_nodes_per_reference))
+        elif current_type == "centrality":
+            reports.append(
+                _build_concept_centrality_report(
+                    context=context,
+                    references=references,
+                    semantic_nodes=semantic_nodes,
+                    semantic_relations=semantic_relations,
+                    corpus_key=corpus_key,
+                    node_kinds=node_kinds,
+                    limit=limit,
+                    order=order,
+                    pagerank_iterations=pagerank_iterations,
+                    pagerank_damping=pagerank_damping,
+                )
+            )
     return reports
 
 
@@ -5649,11 +5678,30 @@ def _normalize_concept_report_type(value: str) -> str:
         "popular": "popularity",
         "trend": "trending",
         "page_rank": "pagerank",
-        "centrality": "pagerank",
     }
     normalized = aliases.get(normalized, normalized)
-    if normalized not in {"all", "popularity", "trending", "pagerank"}:
-        raise ValueError("report_type must be one of all, popularity, trending, or pagerank")
+    if normalized not in {"all", "popularity", "trending", "pagerank", "centrality"}:
+        raise ValueError("report_type must be one of all, popularity, trending, pagerank, or centrality")
+    return normalized
+
+
+def _normalize_centrality_order(value: str) -> str:
+    normalized = str(value or "most").strip().lower().replace("-", "_")
+    aliases = {
+        "top": "most",
+        "central": "most",
+        "descending": "most",
+        "desc": "most",
+        "bottom": "least",
+        "periphery": "least",
+        "peripheral": "least",
+        "frontier": "least",
+        "ascending": "least",
+        "asc": "least",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"most", "least"}:
+        raise ValueError("order must be one of most or least")
     return normalized
 
 
@@ -5836,6 +5884,202 @@ def _build_concept_pagerank_report(
         primary_metric="pagerankScore",
         ranked=ranked[:limit],
     )
+
+
+# Minimum corpus subgraph size for a meaningful centrality ranking. Below this,
+# the centrality report fails closed instead of inventing scores.
+CENTRALITY_MIN_NODES = 2
+
+
+def _build_concept_centrality_report(
+    *,
+    context: dict[str, Any],
+    references: list[dict[str, Any]],
+    semantic_nodes: list[dict[str, Any]],
+    semantic_relations: list[dict[str, Any]],
+    corpus_key: str,
+    node_kinds: list[str],
+    limit: int,
+    order: str,
+    pagerank_iterations: int,
+    pagerank_damping: float,
+) -> dict[str, Any]:
+    """Rank corpus concepts by graph centrality (weighted PageRank over the full
+    SemanticNode/SemanticRelation subgraph), reusing the existing authority
+    PageRank plumbing. ``order="most"`` returns the most-central concepts;
+    ``order="least"`` returns the opposite end of the same ranking (the
+    periphery). Fails closed with an empty list and a stability reason when the
+    corpus subgraph is too sparse for a stable ranking. Creates no
+    Reference/Item/EditionItem; it is a human-reviewable suggestion list only.
+    """
+    from papyrus_content.ontology_enrichment import build_state_indexes, rank_concepts
+
+    corpus_id = f"knowledge-corpus-{_safe_id(corpus_key)}" if corpus_key else ""
+    allowed_node_kinds = {str(kind).strip() for kind in (node_kinds or []) if str(kind).strip()}
+    filtered_nodes = _centrality_filtered_nodes(semantic_nodes, corpus_id, allowed_node_kinds)
+    accepted_refs = _accepted_references(references, corpus_key)
+    allowed_endpoints = _centrality_allowed_endpoints(filtered_nodes, accepted_refs)
+    filtered_relations = _centrality_filtered_relations(semantic_relations, allowed_endpoints)
+
+    state = build_state_indexes(
+        {
+            "SemanticNode": filtered_nodes,
+            "SemanticRelation": filtered_relations,
+            "Reference": accepted_refs,
+            "ModelAttachment": [],
+            "SemanticRelationType": [],
+        }
+    )
+    ranked_concepts = rank_concepts(
+        state,
+        include_operational=False,
+        include_profile_status=False,
+    )
+
+    node_count = len(filtered_nodes)
+    relation_count = len(filtered_relations)
+    pagerank_values = [float(row.get("pageRank") or 0.0) for row in ranked_concepts]
+    max_pr = max(pagerank_values) if pagerank_values else 0.0
+    min_pr = min(pagerank_values) if pagerank_values else 0.0
+    uniform = bool(pagerank_values) and max_pr <= min_pr
+    stable = node_count >= CENTRALITY_MIN_NODES and not uniform
+
+    if not stable:
+        reason = (
+            "no current semantic nodes in corpus"
+            if node_count < CENTRALITY_MIN_NODES
+            else "graph too sparse: no relations differentiate concept centrality"
+        )
+        return _concept_report_section(
+            report_type="centrality",
+            title="Concept Centrality" if order == "most" else "Concept Periphery (Least Central)",
+            primary_metric="pagerankScore",
+            ranked=[],
+        ) | {
+            "order": order,
+            "stability": {
+                "stable": False,
+                "reason": reason,
+                "nodeCount": node_count,
+                "relationCount": relation_count,
+                "minNodes": CENTRALITY_MIN_NODES,
+            },
+        }
+
+    ranked = []
+    for row in ranked_concepts:
+        concept_id = str(row.get("id") or "")
+        if not concept_id:
+            continue
+        mentions = context["mentionsByConcept"].get(concept_id) or []
+        reference_lineage_ids = sorted({mention["referenceLineageId"] for mention in mentions})
+        source_reference_ids = sorted({mention["referenceId"] for mention in mentions})
+        source_domains = sorted(
+            {
+                _domain((context["referencesByKey"].get(ref_id) or {}).get("sourceUri"))
+                for ref_id in reference_lineage_ids
+                if _domain((context["referencesByKey"].get(ref_id) or {}).get("sourceUri"))
+            }
+        )
+        ranked.append(
+            {
+                "conceptId": concept_id,
+                "conceptLineageId": str(row.get("lineageId") or concept_id),
+                "nodeKind": row.get("nodeKind"),
+                "displayName": str(row.get("displayName") or row.get("nodeKey") or concept_id),
+                "metric": "pagerankScore",
+                "score": round(float(row.get("pageRank") or 0.0), 8),
+                "mentionCount": len(mentions),
+                "distinctReferenceCount": len(reference_lineage_ids),
+                "weightedMentionScore": round(sum(float(m.get("weight") or 0) for m in mentions), 3),
+                "sourceReferenceIds": source_reference_ids,
+                "sourceReferenceLineageIds": reference_lineage_ids,
+                "sourceDomains": source_domains,
+                "mentionRelationIds": [str(m.get("id")) for m in mentions if m.get("id")],
+            }
+        )
+
+    ranked.sort(
+        key=lambda item: (
+            -float(item["score"]),
+            -int(item["distinctReferenceCount"]),
+            str(item["conceptId"]),
+        )
+    )
+    if order == "least":
+        ranked.reverse()
+    return _concept_report_section(
+        report_type="centrality",
+        title="Concept Centrality" if order == "most" else "Concept Periphery (Least Central)",
+        primary_metric="pagerankScore",
+        ranked=ranked[:limit],
+    ) | {
+        "order": order,
+        "stability": {
+            "stable": True,
+            "reason": "",
+            "nodeCount": node_count,
+            "relationCount": relation_count,
+            "minNodes": CENTRALITY_MIN_NODES,
+        },
+    }
+
+
+def _centrality_filtered_nodes(
+    semantic_nodes: list[dict[str, Any]],
+    corpus_id: str,
+    allowed_node_kinds: set[str],
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for raw_node in semantic_nodes:
+        node = _decode_record(raw_node)
+        if node.get("versionState") not in {None, "current"}:
+            continue
+        if node.get("status") in {"deleted", "archived", "rejected"}:
+            continue
+        if allowed_node_kinds and str(node.get("nodeKind") or "") not in allowed_node_kinds:
+            continue
+        if corpus_id and node.get("corpusId") not in {None, "", corpus_id}:
+            continue
+        filtered.append(node)
+    return filtered
+
+
+def _centrality_allowed_endpoints(
+    filtered_nodes: list[dict[str, Any]],
+    accepted_refs: list[dict[str, Any]],
+) -> set[str]:
+    allowed: set[str] = set()
+    for node in filtered_nodes:
+        lineage_id = str(node.get("lineageId") or node.get("id") or "")
+        if lineage_id:
+            allowed.add(f"semanticNode#{lineage_id}")
+    for ref in accepted_refs:
+        for key in (ref.get("lineageId"), ref.get("id")):
+            if key:
+                allowed.add(f"reference#{key}")
+    return allowed
+
+
+def _centrality_filtered_relations(
+    semantic_relations: list[dict[str, Any]],
+    allowed_endpoints: set[str],
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for raw_relation in semantic_relations:
+        relation = _decode_record(raw_relation)
+        if relation.get("relationState") not in {None, "", "current"}:
+            continue
+        subject_kind = str(relation.get("subjectKind") or "")
+        object_kind = str(relation.get("objectKind") or "")
+        if {subject_kind, object_kind} - {"semanticNode", "reference"}:
+            continue
+        subject_key = f"{subject_kind}#{relation.get('subjectLineageId') or relation.get('subjectId') or ''}"
+        object_key = f"{object_kind}#{relation.get('objectLineageId') or relation.get('objectId') or ''}"
+        if subject_key not in allowed_endpoints or object_key not in allowed_endpoints:
+            continue
+        filtered.append(relation)
+    return filtered
 
 
 def _concept_report_row(

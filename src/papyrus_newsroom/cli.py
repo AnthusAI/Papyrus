@@ -359,16 +359,23 @@ def _add_signals_parser(subparsers: argparse._SubParsersAction[argparse.Argument
     signal_subparsers = parser.add_subparsers(dest="signals_command")
     concept_parser = signal_subparsers.add_parser(
         "concept-report",
-        help="Build concept analytics reports (popularity, trending, pagerank) from current knowledge graph mentions",
+        help="Build concept analytics reports (popularity, trending, pagerank, centrality) from current knowledge graph mentions",
     )
     concept_parser.add_argument("--corpus-key", required=True)
-    concept_parser.add_argument("--report-type", choices=["all", "popularity", "trending", "pagerank"], default="all")
+    concept_parser.add_argument("--report-type", choices=["all", "popularity", "trending", "pagerank", "centrality"], default="all")
     concept_parser.add_argument("--limit", type=int, default=25)
     concept_parser.add_argument("--trend-window-days", type=int, default=30)
     concept_parser.add_argument("--pagerank-iterations", type=int, default=24)
     concept_parser.add_argument("--pagerank-damping", type=float, default=0.85)
     concept_parser.add_argument("--node-kinds", default="entity", help="Comma-separated semantic node kinds to include")
     concept_parser.add_argument("--max-nodes-per-reference", type=int, default=30)
+    concept_parser.add_argument(
+        "--order",
+        choices=["most", "least"],
+        default="most",
+        help="End of the ranking to return. Only applies to --report-type centrality: "
+        "'most' = most-central concepts, 'least' = least-central (periphery).",
+    )
     concept_parser.add_argument("--run-id", default="")
     concept_parser.add_argument("--now", default="", help="Optional ISO timestamp for deterministic report generation")
     concept_parser.add_argument("--input", default="", help="Optional fixture JSON with references, semanticNodes, and semanticRelations")
@@ -489,6 +496,19 @@ def _add_story_budget_output_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true")
 
 
+def _fixture_list(fixture: dict[str, Any] | None, primary_key: str, fallback_key: str) -> list[dict[str, Any]] | None:
+    """Read a list field from a fixture, preferring ``primary_key`` and falling
+    back to ``fallback_key`` only when ``primary_key`` is absent. An empty
+    list is preserved (not collapsed to ``None``), so an explicitly empty
+    graph can be passed through without forcing a live GraphQL load.
+    """
+    if not fixture:
+        return None
+    if primary_key in fixture:
+        return fixture.get(primary_key)
+    return fixture.get(fallback_key)
+
+
 def _run_signals_command(args: argparse.Namespace) -> dict:
     if args.signals_command == "concept-report":
         fixture = load_json_file(args.input) if args.input else {}
@@ -501,10 +521,11 @@ def _run_signals_command(args: argparse.Namespace) -> dict:
             pagerank_damping=args.pagerank_damping,
             node_kinds=parse_csv(args.node_kinds),
             max_nodes_per_reference=args.max_nodes_per_reference,
+            order=args.order,
             run_id=args.run_id,
             references=fixture.get("references") if fixture else None,
-            semantic_nodes=(fixture.get("semanticNodes") or fixture.get("semantic_nodes")) if fixture else None,
-            semantic_relations=(fixture.get("semanticRelations") or fixture.get("semantic_relations")) if fixture else None,
+            semantic_nodes=_fixture_list(fixture, "semanticNodes", "semantic_nodes"),
+            semantic_relations=_fixture_list(fixture, "semanticRelations", "semantic_relations"),
             apply=args.apply,
             now=args.now,
         )
