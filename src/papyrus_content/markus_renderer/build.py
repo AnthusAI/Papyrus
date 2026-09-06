@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
 from dataclasses import dataclass
@@ -229,9 +230,19 @@ def build_markus_site(
 
 
 def _css_version(css_dir: Path) -> str:
-    """Cache-busting token: newest mtime of the emitted stylesheets."""
-    newest = max((f.stat().st_mtime for f in css_dir.glob("*.css")), default=0)
-    return str(int(newest))
+    """Cache-busting token: a short hash of the emitted stylesheets' CONTENT.
+
+    Deliberately not an mtime. Second-granularity mtimes collide when two
+    builds land in the same second, and the browser then keeps serving the
+    stale stylesheet from cache while the URL looks unchanged -- which is
+    exactly how a real CSS fix appeared not to work during development.
+    Hashing content means the URL changes if and only if the CSS changed.
+    """
+    digest = hashlib.sha256()
+    for path in sorted(css_dir.glob("*.css")):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
 
 
 def html_escape(value: str) -> str:
