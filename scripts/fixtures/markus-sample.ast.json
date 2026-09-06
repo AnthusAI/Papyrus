@@ -1,0 +1,233 @@
+{
+  "type": "document",
+  "schema_version": 1,
+  "front_matter": {
+    "title": "Agents work better with less freedom",
+    "authors": [
+      "Ada Lovelace"
+    ],
+    "date": "2026-09-06"
+  },
+  "children": [
+    {
+      "type": "paragraph",
+      "inline": [
+        {
+          "type": "text",
+          "text": "Developers are learning that reliable agents need less freedom, not more."
+        }
+      ],
+      "line": 8
+    },
+    {
+      "type": "paragraph",
+      "inline": [
+        {
+          "type": "text",
+          "text": "Across demos and tool launches, builders kept circling the same answer."
+        }
+      ],
+      "line": 10
+    },
+    {
+      "type": "directive",
+      "name": "pull-quote",
+      "attributes": {
+        "id": null,
+        "attribution": "Editorial principle",
+        "source": null,
+        "tone": "default",
+        "align": "inline"
+      },
+      "leaf": false,
+      "line": 12,
+      "children": [
+        {
+          "type": "paragraph",
+          "inline": [
+            {
+              "type": "text",
+              "text": "The practical breakthrough is not giving agents a bigger sandbox."
+            }
+          ],
+          "line": 13
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "inline": [
+        {
+          "type": "text",
+          "text": "Planning state"
+        }
+      ],
+      "line": 16
+    },
+    {
+      "type": "paragraph",
+      "inline": [
+        {
+          "type": "text",
+          "text": "Read-only tools. An inline "
+        },
+        {
+          "type": "code_span",
+          "code": "code_span"
+        },
+        {
+          "type": "text",
+          "text": " should not be confused with a block."
+        }
+      ],
+      "line": 18
+    },
+    {
+      "type": "code",
+      "lang": "python",
+      "value": "def plan():\n    return \"read only\"\n",
+      "line": 20
+    },
+    {
+      "type": "directive",
+      "name": "card-grid",
+      "attributes": {
+        "id": null,
+        "label": null,
+        "columns": 2
+      },
+      "leaf": false,
+      "line": 25,
+      "children": [
+        {
+          "type": "directive",
+          "name": "card",
+          "attributes": {
+            "id": null,
+            "icon": null,
+            "title": "Read",
+            "span": null
+          },
+          "leaf": false,
+          "line": 26,
+          "children": [
+            {
+              "type": "paragraph",
+              "inline": [
+                {
+                  "type": "text",
+                  "text": "Look before you leap."
+                }
+              ],
+              "line": 27
+            }
+          ]
+        },
+        {
+          "type": "directive",
+          "name": "card",
+          "attributes": {
+            "id": null,
+            "icon": null,
+            "title": "Write",
+            "span": null
+          },
+          "leaf": false,
+          "line": 29,
+          "children": [
+            {
+              "type": "paragraph",
+              "inline": [
+                {
+                  "type": "text",
+                  "text": "Only after planning."
+                }
+              ],
+              "line": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "directive",
+      "name": "two-up",
+      "attributes": {
+        "id": null,
+        "ratio": "1:1",
+        "align": "start"
+      },
+      "leaf": false,
+      "line": 34,
+      "children": [
+        {
+          "type": "directive",
+          "name": "column",
+          "attributes": {
+            "id": null
+          },
+          "leaf": false,
+          "line": 35,
+          "children": [
+            {
+              "type": "paragraph",
+              "inline": [
+                {
+                  "type": "text",
+                  "text": "Planning state keeps risk low."
+                }
+              ],
+              "line": 36
+            }
+          ]
+        },
+        {
+          "type": "directive",
+          "name": "column",
+          "attributes": {
+            "id": null
+          },
+          "leaf": false,
+          "line": 38,
+          "children": [
+            {
+              "type": "paragraph",
+              "inline": [
+                {
+                  "type": "text",
+                  "text": "Implementation state is where damage happens."
+                }
+              ],
+              "line": 39
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "directive",
+      "name": "figure",
+      "attributes": {
+        "id": null,
+        "src": "diagram.png",
+        "alt": "State diagram",
+        "credit": null,
+        "caption": "Two states, one agent"
+      },
+      "leaf": false,
+      "line": 43,
+      "children": []
+    },
+    {
+      "type": "paragraph",
+      "inline": [
+        {
+          "type": "text",
+          "text": "The lesson is not that agents are over."
+        }
+      ],
+      "line": 46
+    }
+  ]
+}
