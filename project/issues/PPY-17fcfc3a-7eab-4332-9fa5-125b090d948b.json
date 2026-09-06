@@ -101,10 +101,17 @@
       "text": "Ryan set registrar NS. Public resolvers still show GoDaddy (expected). ACM CNAME is already in zone Z09961547QX1VHIXOBD7 — no registrar CNAME. Default site is live at https://main.d1od6t7lzbwanr.amplifyapp.com/ (WEB, HTTP 200). Custom https://pilobol.us waits on NS. GitHub repo still disconnected (human OAuth) — push-to-deploy not on yet; current deploy is the manual artifact.",
       "created_at": "2026-09-06T14:25:51.029929Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9227b23e-c2e6-4b05-833e-005011cf6d6b",
+      "author": "home",
+      "text": "## Acceptance review — live Markus static site (Composer 2.5)\n\n**Primary URL tested:** https://main.d1od6t7lzbwanr.amplifyapp.com/\n\n### Custom domains (expected not ready — not filed as product bugs)\n- **pilobol.us** — HTTP 200 but serves GoDaddy placeholder (`/lander` redirect). Not the Markus build.\n- **www.pilobol.us** — Does not serve the site (SSL/connect failure / CloudFront error). DNS still not pointed at Amplify.\n\n### Front page ✅\n- Loads HTTP 200 with styled HTML (not raw/unstyled).\n- Wordmark is **Pilobol.us** in `<title>`, masthead, and body copy. No reader-facing **Pilobil.us** typo found (internal asset `pilobil-theme.css` filename only).\n\n### Articles ✅\nBoth open and render with CSS:\n- `/articles/fungus-among-us.html` — 200, full article content + assets (e.g. mycelium SVG 200)\n- `/articles/infiltrated-circle.html` — 200, full article content\n\nNote: bare paths `/fungus-among-us/` and `/infiltrated-circle/` return 404; live links on the home page use the `.html` paths above.\n\n### Markus directives ✅ (site-wide)\nOn **fungus-among-us**: pull-quote, card-grid, card, two-up, figure, callout, aside, metric — all present in markup.\nOn **infiltrated-circle**: pull-quote, callout (+ timeline). Remaining directive types are demonstrated on the other piece; a reader visiting both sees the full set.\n\n### CSS ✅\n- `css/markus-vendor.css` — 200\n- `css/pilobil-theme.css` — 200, includes `data-theme=\"dark\"` / `data-theme=\"light\"` rules\n\n### Theme toggle ⚠️ not visually verified\n- Masthead **Dark mode** button and inline JS (`data-pilo-theme-toggle`, `localStorage` key `pilobil-theme`) are present on all pages checked.\n- No browser automation available in this run — could not confirm click toggles appearance or persistence.\n\n### Mobile viewport ⚠️ not visually verified\n- `viewport` meta tag present; responsive `@media` rules exist in both CSS files.\n- Narrow-width layout not rendered/tested without browser tools.\n\n---\n\n**Verdict: Approve to continue on PPY-17fcfc** for the Amplify staging URL. Blockers for public launch remain custom-domain DNS (pilobol.us / www) and optional follow-ups: clean URL paths, visual QA of theme toggle + mobile layout.",
+      "created_at": "2026-09-06T14:27:22.652973Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T14:05:42.812329Z",
-  "updated_at": "2026-09-06T14:25:51.029929Z",
+  "updated_at": "2026-09-06T14:27:22.652973Z",
   "closed_at": null,
   "custom": {}
 }
