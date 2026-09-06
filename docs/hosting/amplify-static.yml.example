@@ -1,0 +1,24 @@
+# Amplify Hosting — platform WEB (static Markus publication)
+#
+# Copy to the publication repo root as amplify.yml (e.g. AnthusAI/Pilobol.us).
+# Pairing: amplify-static + markus. Domain example: pilobol.us
+#
+# Do NOT add a backend: phase. Do NOT run ampx pipeline-deploy or npm run build.
+# See docs/site-hosting.md in AnthusAI/Papyrus.
+
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # anthus-markus is not on PyPI; install from the tagged release on GitHub.
+        - pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
+    build:
+      commands:
+        - cd web && python3 build.py
+  artifacts:
+    baseDirectory: web/dist
+    files:
+      - '**/*'
+  cache:
+    paths: []
