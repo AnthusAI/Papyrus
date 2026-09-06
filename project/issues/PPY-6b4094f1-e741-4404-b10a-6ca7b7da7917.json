@@ -3,7 +3,7 @@
   "title": "Deploy Papyrus to AWS and report rough edges",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -98,10 +98,17 @@
       "text": "Independent check: account 335163751677, stack amplify-papyrus-ppy6b4094-sandbox-e7c1507645 CREATE_COMPLETE, not Ryan/prod. PR #62 is docs + ensure-sandbox no longer defaults AWS_PROFILE=Ryan. Identifier shortened to ppy-6b4094 (Amplify 14-char limit) — accepted. Acceptance running before merge to develop. Issue stays open.",
       "created_at": "2026-09-06T15:15:42.413342Z",
       "comment_type": "default"
+    },
+    {
+      "id": "96610a9b-afdc-4f4c-b04f-bef67c1ac6de",
+      "author": "home",
+      "text": "Acceptance PASS. Merged PR #62 into develop as 7d78557. Live stack stays: identifier ppy-6b4094, stack amplify-papyrus-ppy6b4094-sandbox-e7c1507645. Do not ampx sandbox delete. Worker: remove the git worktree only.",
+      "created_at": "2026-09-06T15:17:51.216340Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.034022Z",
-  "updated_at": "2026-09-06T15:15:42.413342Z",
-  "closed_at": null,
+  "updated_at": "2026-09-06T15:17:51.227635Z",
+  "closed_at": "2026-09-06T15:17:51.227635Z",
   "custom": {}
 }
