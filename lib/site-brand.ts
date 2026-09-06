@@ -1,8 +1,10 @@
-import type { EditionPresentationFormat } from "./content-types";
+import type { PretextLayout, RendererConfig } from "./renderer-config";
+import { buildDefaultEmptyEditionLayoutPlan } from "./empty-edition-layout-plan";
 import { threatIntelligenceBrand } from "../publications/threat_intelligence/brand";
+import { pilobolUsBrand } from "../publications/pilobol_us/brand";
 import { PRETEXT_LAYOUTS } from "../renderers/pretext/layouts";
 
-export type SiteBrandId = "papyrus" | "threat-intelligence";
+export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us";
 
 export type SiteBrand = {
   id: SiteBrandId;
@@ -14,8 +16,7 @@ export type SiteBrand = {
   backToHomeLabel: string;
   articleTitleSuffix: string;
   placeholderByline: string;
-  defaultPresentation: EditionPresentationFormat;
-  forcedPresentation?: EditionPresentationFormat;
+  rendererConfig: RendererConfig;
   textFont: string;
   footerTitle?: string;
   footerSubtitleOverride?: string;
@@ -28,6 +29,8 @@ export type SiteBrand = {
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
 
+const DEFAULT_PRETEXT_LAYOUT_PLAN = buildDefaultEmptyEditionLayoutPlan();
+
 const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   papyrus: {
     id: "papyrus",
@@ -38,7 +41,11 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     backToHomeLabel: "Back to Papyrus",
     articleTitleSuffix: "Papyrus",
     placeholderByline: "Papyrus",
-    defaultPresentation: "newsprint",
+    rendererConfig: {
+      kind: "pretext",
+      layout: "newsprint",
+      layoutPlan: DEFAULT_PRETEXT_LAYOUT_PLAN,
+    },
     textFont: SERIF_TEXT_FONT,
     mastheadWordSplit: false,
     mastheadDateFormat: "raw",
@@ -46,6 +53,7 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     sectionLinkStrategy: "route",
   },
   "threat-intelligence": threatIntelligenceBrand,
+  "pilobol-us": pilobolUsBrand,
 };
 
 function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
@@ -55,6 +63,9 @@ function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | n
   if (normalized === "papyrus") return "papyrus";
   if (normalized === "threat-intelligence" || normalized === "threat_intelligence" || normalized === "anthus") {
     return "threat-intelligence";
+  }
+  if (normalized === "pilobol-us" || normalized === "pilobol_us" || normalized === "pilobol") {
+    return "pilobol-us";
   }
   return null;
 }
@@ -69,12 +80,33 @@ function resolveSiteBrandId(): SiteBrandId {
 
 export const SITE_BRAND = SITE_BRANDS[resolveSiteBrandId()];
 
-export function enforcePresentation(presentation: EditionPresentationFormat): EditionPresentationFormat {
-  return SITE_BRAND.forcedPresentation ?? presentation;
+export function getDefaultPretextLayout(): PretextLayout {
+  const config = SITE_BRAND.rendererConfig;
+  if (config.kind !== "pretext") {
+    throw new Error(`Site brand "${SITE_BRAND.id}" does not define a Pretext layout.`);
+  }
+  return config.layout;
 }
 
-export function getPresentationChoices(): EditionPresentationFormat[] {
-  return SITE_BRAND.forcedPresentation
-    ? [SITE_BRAND.forcedPresentation]
-    : [...PRETEXT_LAYOUTS];
+export function getPresentationChoices(): PretextLayout[] {
+  if (SITE_BRAND.rendererConfig.kind !== "pretext") return [];
+  if (SITE_BRAND.id === "threat-intelligence") return ["blog"];
+  return [...PRETEXT_LAYOUTS];
+}
+
+export function getForcedPresentation(): PretextLayout | undefined {
+  const choices = getPresentationChoices();
+  return choices.length === 1 ? choices[0] : undefined;
+}
+
+export function enforcePresentation(presentation: PretextLayout): PretextLayout {
+  const forced = getForcedPresentation();
+  if (forced) return forced;
+  const choices = getPresentationChoices();
+  if (choices.includes(presentation)) return presentation;
+  return getDefaultPretextLayout();
+}
+
+export function getRendererKind(): RendererConfig["kind"] {
+  return SITE_BRAND.rendererConfig.kind;
 }

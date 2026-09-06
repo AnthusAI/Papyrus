@@ -4,7 +4,10 @@ import type { PublicationItem } from "./publication-items";
 
 export type ContentSource = "scenario" | "graphql";
 
-export type EditionPresentationFormat = "newsprint" | "blog" | "magazine";
+import type { PretextLayout } from "./renderer-config";
+
+/** @deprecated Use PretextLayout from lib/renderer-config.ts */
+export type EditionPresentationFormat = PretextLayout;
 
 export type EditionSection = {
   key: string;
@@ -48,8 +51,6 @@ export type EditionContent = {
   layoutPlan: EditionLayoutPlan;
   placeholderMode?: "emptyEdition";
   suppressNewsDeskAppendix?: boolean;
-  defaultPresentation?: EditionPresentationFormat;
-  presentationPlans?: Partial<Record<EditionPresentationFormat, unknown>>;
   newsDeskAppendix?: NewsDeskAppendix | null;
   scenarioId?: string;
   description?: string;

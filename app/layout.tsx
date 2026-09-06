@@ -4,9 +4,18 @@ import Script from "next/script";
 import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SITE_BRAND, getPresentationChoices } from "../lib/site-brand";
+import {
+  SITE_BRAND,
+  getDefaultPretextLayout,
+  getForcedPresentation,
+  getPresentationChoices,
+  getRendererKind,
+} from "../lib/site-brand";
+import { assertPretextSite } from "../lib/site-renderer";
 import "./tailwind.css";
 import "./globals.css";
+
+assertPretextSite();
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -33,6 +42,7 @@ export const metadata: Metadata = {
 };
 
 const presentationChoices = getPresentationChoices();
+const forcedPresentation = getForcedPresentation();
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -41,9 +51,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       className="light light-theme"
       data-papyrus-theme={defaultTheme}
       data-site-brand={SITE_BRAND.id}
-      data-default-presentation={SITE_BRAND.defaultPresentation}
+      data-renderer-kind={getRendererKind()}
+      data-default-presentation={getDefaultPretextLayout()}
       data-presentation-choices={presentationChoices.join(",")}
-      {...(SITE_BRAND.forcedPresentation ? { "data-forced-presentation": SITE_BRAND.forcedPresentation } : {})}
+      {...(forcedPresentation ? { "data-forced-presentation": forcedPresentation } : {})}
       suppressHydrationWarning
     >
       <body className={`${playfairDisplay.variable} ${plusJakartaSans.variable}`}>

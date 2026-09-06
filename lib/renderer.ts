@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import type { Article } from "./articles";
-import type { EditionContent, EditionPresentationFormat } from "./content-types";
+import type { EditionContent } from "./content-types";
+import type { PretextLayout } from "./renderer-config";
 import type { PresentationFooterEntry } from "./presentation-footer";
 import type { PublicationItem } from "./publication-items";
 
@@ -11,7 +12,7 @@ import type { PublicationItem } from "./publication-items";
  * (Anthus-flavored Markdown -> static HTML) as the second implementation
  * this shape is designed to admit. See docs/pluggable-publishers.md.
  *
- * `Layout` (`"newsprint" | "blog" | "magazine"`, `EditionPresentationFormat`
+ * `Layout` (`"newsprint" | "blog" | "magazine"`, `PretextLayout`
  * below) is a *Pretext-internal* concern -- it is the look within Pretext,
  * not a concept every renderer needs to understand. A renderer that isn't
  * Pretext may support none of these layouts; `supportsLayout` is how a
@@ -28,7 +29,7 @@ export type RenderEditionProps = {
   editionBasePath?: string;
   mastheadHomeHref?: string;
   initialPageNumber?: number;
-  lockedPresentation?: EditionPresentationFormat;
+  lockedPresentation?: PretextLayout;
   target?: PresentationTarget;
 };
 
@@ -82,5 +83,5 @@ export type Renderer = {
   renderArticle: ComponentType<RenderArticleProps>;
   renderItem: ComponentType<RenderItemProps>;
   stylesheets(): string[];
-  supportsLayout(layout: EditionPresentationFormat): boolean;
+  supportsLayout(layout: PretextLayout): boolean;
 };

@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { EditionRoutePage } from "../../edition-route-page";
 import { parseEditionPageRoute } from "../../../../../../lib/edition-routes";
-import { SITE_BRAND } from "../../../../../../lib/site-brand";
+import { getDefaultPretextLayout, getForcedPresentation } from "../../../../../../lib/site-brand";
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
 export const revalidate = 3600;
 
@@ -24,7 +24,7 @@ export default async function EditionPageRoute({ params }: EditionPageRouteProps
     <EditionRoutePage
       day={day}
       initialPageNumber={route.pageNumber}
-      lockedPresentation={SITE_BRAND.forcedPresentation ?? "newsprint"}
+      lockedPresentation={getForcedPresentation() ?? getDefaultPretextLayout()}
       month={month}
       year={year}
     />

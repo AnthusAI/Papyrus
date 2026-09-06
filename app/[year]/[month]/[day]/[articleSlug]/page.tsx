@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { pretextRenderer } from "../../../../../renderers/pretext";
+import { getSiteRenderer } from "../../../../../lib/site-renderer";
 import { getCachedEditionItem, loadCachedEditionContent } from "../../../../../lib/cached-content-repository";
 import { getEditionDatePath, parseEditionArticleRoute } from "../../../../../lib/edition-routes";
 import { buildPresentationFooterEntries } from "../../../../../lib/presentation-footer";
@@ -44,8 +44,10 @@ export default async function DateScopedArticlePage({ params }: DateScopedArticl
   if (!item) notFound();
   const editionBasePath = getEditionDatePath(route.editionDate);
 
+  const siteRenderer = getSiteRenderer();
+
   return (
-    <pretextRenderer.renderItem
+    <siteRenderer.renderItem
       editionDate={content.editionDate}
       editionFooter={{
         editionBasePath,
