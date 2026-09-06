@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" role="img" aria-label="State diagram">
+  <rect width="320" height="120" fill="#f4f1ea"/>
+  <rect x="24" y="32" width="120" height="56" rx="8" fill="#dbe8df" stroke="#3d6b4f" stroke-width="2"/>
+  <text x="84" y="66" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="#1a1a1a">Planning</text>
+  <rect x="176" y="32" width="120" height="56" rx="8" fill="#f0ddd8" stroke="#8b3a3a" stroke-width="2"/>
+  <text x="236" y="66" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="#1a1a1a">Build</text>
+  <path d="M144 60 H176" stroke="#666" stroke-width="2" marker-end="url(#arrow)"/>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#666"/>
+    </marker>
+  </defs>
+</svg>
