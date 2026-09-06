@@ -22,6 +22,8 @@
     "test:blog-header-obstacles": "node publications/threat_intelligence/tests/test-blog-header-obstacles.cjs",
     "test:threat-intelligence-pictograms": "node publications/threat_intelligence/tests/test-pictograms.cjs",
     "test:markus-projection": "tsx scripts/test-markus-projection.ts",
+    "test:markus-to-article": "tsx scripts/test-markus-to-article.ts",
+    "test:pilobol-sample-ast": "node scripts/check-pilobol-sample-ast-stale.mjs",
     "test:renderer-config": "tsx scripts/test-renderer-config.ts",
     "videoml:bundle": "node scripts/videoml/build-browser-bundle.mjs",
     "typecheck": "tsc --noEmit",

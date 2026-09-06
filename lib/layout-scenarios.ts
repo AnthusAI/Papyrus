@@ -3,6 +3,7 @@ import type { EditionContent, NewsDeskAppendix } from "./content-types";
 import { createEditionSectionPlan } from "./edition-sections";
 import { createDefaultEditionLayoutPlan, type EditionLayoutPlan } from "./layout-plan";
 import { articleToPublicationItem, cloneArticle } from "./publication-items";
+import { PILOBOL_SAMPLE_SCENARIO_ID, createPilobolSampleEditionContent } from "./pilobol-sample";
 import { SITE_BRAND } from "./site-brand";
 import threatIntelligenceSeedContent from "../publications/threat_intelligence/seed/seed-edition-content.json";
 
@@ -162,6 +163,12 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
       "A shrinkable article-frame row target proves defaultRows can be released when content solves shorter.",
     layoutPlan: createHeightPolicyLayoutPlan({ regionShrinkToContent: true, defaultRows: 64, blockShrinkToContent: true }),
     items: cloneArticles(articles).map(articleToPublicationItem),
+  },
+  {
+    id: PILOBOL_SAMPLE_SCENARIO_ID,
+    source: "scenario",
+    scenarioId: PILOBOL_SAMPLE_SCENARIO_ID,
+    ...createPilobolSampleEditionContent(),
   },
 ];
 
