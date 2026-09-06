@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a7ab5e21-a93c-40d3-8b46-ea74fd779ea3",
+  "issue_id": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:09:05.786Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Pluggable publication front ends (Pretext + Markus)",
+    "description": "",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7d058256-1c04-4ac2-afb8-df4cc9915051",
+  "issue_id": "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:09:10.001Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Design doc + spike for pluggable publishers (Markus static path)",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "labels": []
+  }
+}
