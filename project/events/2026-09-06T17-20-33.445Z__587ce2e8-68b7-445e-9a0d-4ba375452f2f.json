@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "587ce2e8-68b7-445e-9a0d-4ba375452f2f",
+  "issue_id": "PPY-ed9d0946-560b-4c6b-8a31-d5a6f3fe698e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T17:20:33.445Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "bug",
+    "labels": [],
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "priority": 0,
+    "status": "open",
+    "title": "Markus pipeline breaks against published anthus-markus 0.5.0: document IR is unreleased"
+  }
+}

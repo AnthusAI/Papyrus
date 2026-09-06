@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-09-06T14:42:56Z",
+  "built_at": "2026-09-06T17:12:00Z",
   "file_mtimes": {
     "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45.json": 1788698550.102527,
     "PPY-02fac757-0b66-4c0c-9932-8117cc974969.json": 1788698550.102607,
@@ -7,9 +7,9 @@
     "PPY-047e4ced-953a-482e-8aa4-6b7d91f698e4.json": 1788698330.233223,
     "PPY-0b058c26-b0b0-4a94-bdf5-08d8e5326b8d.json": 1788698550.102765,
     "PPY-0d667350-c31a-484f-bbee-7b2d08549188.json": 1788698550.102836,
-    "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788700648.729037,
+    "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788708799.273902,
     "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146.json": 1788698550.102898,
-    "PPY-17fcfc3a-7eab-4332-9fa5-125b090d948b.json": 1788704842.653187,
+    "PPY-17fcfc3a-7eab-4332-9fa5-125b090d948b.json": 1788707861.467919,
     "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a.json": 1788698550.102974,
     "PPY-20250557-b002-4aff-969f-a29479b4df13.json": 1788698550.103055,
     "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1.json": 1788698550.103124,
@@ -21,49 +21,49 @@
     "PPY-443dc085-c4f8-4f9c-916c-065e372f08af.json": 1788698550.103629,
     "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607.json": 1788698550.103695,
     "PPY-4d6a966b-0df0-4213-b0a0-9cbfff3eace3.json": 1788698550.103768,
-    "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0.json": 1788700648.729131,
+    "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0.json": 1788707861.468073,
     "PPY-500b35db-76d2-46c8-b9e1-f55c80dbe16f.json": 1788698550.103907,
     "PPY-54923a81-3e8a-48d5-89a5-ccc48b18b089.json": 1788698550.103977,
     "PPY-58e74049-7747-49ed-a920-a11b2ae888b1.json": 1788698550.104042,
     "PPY-59ade493-23e0-4b72-aa79-1227f3aa28ca.json": 1788698330.233288,
     "PPY-5d2bddb5-2073-4313-b633-6e96e5741972.json": 1788698550.104163,
-    "PPY-5e8072d4-d940-478b-8140-29d7b1f54069.json": 1788704443.196564,
+    "PPY-5e8072d4-d940-478b-8140-29d7b1f54069.json": 1788707861.468338,
     "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81.json": 1788698550.104232,
-    "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896.json": 1788701484.031232,
+    "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896.json": 1788707861.468575,
     "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad.json": 1788698550.104299,
-    "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917.json": 1788705771.70149,
+    "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917.json": 1788707871.227762,
     "PPY-7625aa03-b6c8-453c-83ee-b587370a1035.json": 1788698550.104365,
     "PPY-7b85184d-6593-4f9b-bcce-55db28936160.json": 1788698550.104435,
     "PPY-826729a8-13ce-4df1-a3e7-39da475d351a.json": 1788698550.104502,
     "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f.json": 1788698550.104575,
-    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788705753.972255,
+    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788707861.469236,
     "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5.json": 1788698550.104634,
-    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788703928.477139,
-    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788704056.29302,
+    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788707861.469558,
+    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788707861.469838,
     "PPY-962447c5-b0e4-4812-b17c-48f2fa528229.json": 1788698550.104825,
     "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8.json": 1788698550.104903,
     "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e.json": 1788698550.104971,
     "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab.json": 1788698550.105029,
-    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788705424.517259,
+    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788707861.470133,
     "PPY-a5399203-659e-47a7-a62c-3c99cbc20ae9.json": 1788698550.105089,
     "PPY-a8566745-92a8-4bea-a953-0de1495646d5.json": 1788698550.105164,
     "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99.json": 1788698550.105236,
     "PPY-aad87778-2900-4c91-a3c6-692e773ac932.json": 1788698550.105301,
     "PPY-ac174340-9136-4843-bf81-acc004f686ea.json": 1788698550.105361,
     "PPY-b088d734-a319-4f46-b3a6-f19864ff31a4.json": 1788698550.105418,
-    "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca.json": 1788700648.730114,
+    "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca.json": 1788707861.470438,
     "PPY-baa4231a-802c-4019-96c2-3c81b54002df.json": 1788698550.105483,
     "PPY-d0931707-028e-4263-9fcc-0987ad515209.json": 1788698550.105561,
     "PPY-d3e17943-4e13-44c7-855a-3da2e85626e3.json": 1788698550.105626,
-    "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0.json": 1788701245.713266,
-    "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab.json": 1788703928.503592,
+    "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0.json": 1788707861.470736,
+    "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab.json": 1788707861.470988,
     "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89.json": 1788698550.105696,
     "PPY-ebf0b626-d098-473e-8e3e-f0a98b79a940.json": 1788698550.105759,
-    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788703928.490858,
-    "PPY-f25738ae-3891-43e5-8d5c-1ef28e61847b.json": 1788701222.326444,
+    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788707861.471279,
+    "PPY-f25738ae-3891-43e5-8d5c-1ef28e61847b.json": 1788707861.47157,
     "PPY-f7b389e7-8b81-4fa1-a0ab-9644d56fc735.json": 1788698550.105839,
     "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf.json": 1788698550.105908,
-    "PPY-fd84684a-8a7d-4bde-9db3-6a9cb65ea02b.json": 1788701550.568858,
+    "PPY-fd84684a-8a7d-4bde-9db3-6a9cb65ea02b.json": 1788707861.47185,
     "PPY-fe73a279-57db-49c7-9e58-e9b99ec37d53.json": 1788698550.105986
   },
   "issues": [
@@ -217,6 +217,27 @@
           "created_at": "2026-09-06T12:45:16.892836Z",
           "id": "d3745bc9-1c1c-491b-9fa4-40946abab77d",
           "text": "GOAL: the actual proof of concept - real published pages for Pilobil.us.\n\nCONTEXT: Pilobil.us is a Papyrus pod at /Users/home/Projects/Pilobol.us (Kanbus project PILO, editorial story workflow idea->assignment->research->report->editor_select->copywriting->published). It is KB-ready but cannot publish today.\n\nSCOPE:\n1. Author at least one REAL article in Markus Markdown that exercises the interesting vocabulary - pull-quote AND a multi-column construct (card-grid or two-up) AND a figure. The whole point is to prove non-trivial constructs survive the shared schema, so a plain-prose article does not test anything.\n2. Configure the publication with rendererConfig { kind: 'markus', theme: ... }.\n3. Publish real static pages.\n4. Then flip the SAME article to { kind: 'pretext', layout: 'newsprint' } and render it again. THIS IS THE MONEY SHOT: one source, two renderers, no second content model. Capture both outputs.\n\nACCEPTANCE: two real rendered outputs from one Markdown file, both openable in a browser.\n\nDEPENDS ON: PPY-88f77b, PPY-eca592."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:03:54.029415Z",
+          "id": "b8a80947-d31e-404c-a08a-1a3b49ab03c9",
+          "text": "88f77b and eca592 landed. Starting Composer 2.5 planning for the dual-renderer PoC. Domain is pilobol.us (not pilobil.us). Worktree at implement time: Papyrus-worktrees/PPY-10e4cd-dual-renderer from origin/feature/renderer-architecture. Do not fork a second Papyrus GitHub app."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:27:19.557172Z",
+          "id": "d3dccc27-5086-49ec-abbd-e4b02a62de60",
+          "text": "Output A accepted. Output B blocked: this branch tracks .papyrus-production-workspace so npm run dev requires production amplify_outputs. Retrying Pretext via npx next dev plus personal sandbox outputs (ppy-6b4094 stack). Issue stays open."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:33:19.273754Z",
+          "id": "3764ede4-7570-4159-a2e5-d59413c277ff",
+          "text": "Landed on feature/renderer-architecture as e48afed (PR #63). Adapter, sample.md, Markus static path, and pilobol-sample layoutPlan (only slug sample) are on the branch to build on. Visual design is a separate track; issue stays open."
         }
       ],
       "created_at": "2026-09-06T12:43:02.752434Z",
@@ -240,10 +261,10 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 1,
-      "status": "open",
+      "status": "in_progress",
       "title": "Pilobil.us proof of concept: author one article, publish real pages",
       "type": "task",
-      "updated_at": "2026-09-06T12:45:16.892836Z"
+      "updated_at": "2026-09-06T15:33:19.273754Z"
     },
     {
       "assignee": null,
@@ -959,7 +980,7 @@
     },
     {
       "assignee": null,
-      "closed_at": null,
+      "closed_at": "2026-09-06T15:17:51.227635Z",
       "comments": [
         {
           "author": "home",
@@ -1034,6 +1055,27 @@
           "created_at": "2026-09-06T14:42:51.701338Z",
           "id": "6b093984-7530-4545-ab2d-d5a8213d29c4",
           "text": "First deploy failed: missing `GOOGLE_CLIENT_ID` secret (auth stack rolled back). Setting sandbox secrets + redeploying with `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`. Stack was `amplify-papyrus-ppy6b4094-sandbox-e7c1507645` (ROLLBACK_COMPLETE)."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:58:55.552897Z",
+          "id": "75f5e664-148c-482f-9876-e5dbdf413258",
+          "text": "Sandbox deploy **succeeded** (identifier `ppy-6b4094`). Stack `amplify-papyrus-ppy6b4094-sandbox-e7c1507645`. Seed OK (12 articles). `npm run build` **passed** against live AppSync. Running BDD baseline next."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:15:42.413342Z",
+          "id": "b0d6efe8-2970-4413-bc80-10492362d2df",
+          "text": "Independent check: account 335163751677, stack amplify-papyrus-ppy6b4094-sandbox-e7c1507645 CREATE_COMPLETE, not Ryan/prod. PR #62 is docs + ensure-sandbox no longer defaults AWS_PROFILE=Ryan. Identifier shortened to ppy-6b4094 (Amplify 14-char limit) — accepted. Acceptance running before merge to develop. Issue stays open."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:17:51.216340Z",
+          "id": "96610a9b-afdc-4f4c-b04f-bef67c1ac6de",
+          "text": "Acceptance PASS. Merged PR #62 into develop as 7d78557. Live stack stays: identifier ppy-6b4094, stack amplify-papyrus-ppy6b4094-sandbox-e7c1507645. Do not ampx sandbox delete. Worker: remove the git worktree only."
         }
       ],
       "created_at": "2026-09-06T13:26:03.034022Z",
@@ -1045,10 +1087,10 @@
       "labels": [],
       "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
       "priority": 1,
-      "status": "in_progress",
+      "status": "closed",
       "title": "Deploy Papyrus to AWS and report rough edges",
       "type": "task",
-      "updated_at": "2026-09-06T14:42:51.701338Z"
+      "updated_at": "2026-09-06T15:17:51.227635Z"
     },
     {
       "assignee": null,
@@ -1147,7 +1189,7 @@
     },
     {
       "assignee": null,
-      "closed_at": null,
+      "closed_at": "2026-09-06T14:48:41.176536Z",
       "comments": [
         {
           "author": "home",
@@ -1212,6 +1254,32 @@
           "created_at": "2026-09-06T14:42:33.972087Z",
           "id": "93c68ae7-d73f-48ce-87a6-15e8d402b42b",
           "text": "Implementation complete — PR #60 (not merged, issue left open).\n\n**Branch:** cursor/feature/PPY-88f77b-markus-renderer-3af6 @ 7e154fd\n**Worktree:** /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\n\n**Build:**\n```bash\npip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\ncd /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nPYTHONPATH=src python3 -m papyrus_content renderers markus-build\n```\n\n**Generated HTML (acceptance path):**\nfile:///Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer/web/dist/articles/sample.html\n\nPreview: `cd web/dist && python3 -m http.server 8765` → http://localhost:8765/articles/sample.html\n\n**Verified:**\n- @layer markus in web/dist/css/markus-vendor.css\n- markus-document + pull-quote + two-up/columns + figure in sample.html\n- --allow-html never passed; version pin asserts 0.5.0\n- npm run lint: pass\n- npm run typecheck: pre-existing amplify_outputs.json missing (environmental)\n\n**One path:** no Next.js Markus shell; renderers/markus stubs not wired to app/*."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:44:24.809946Z",
+          "id": "f1726608-6d3d-427a-bf94-aeff2bc3de33",
+          "text": "Review of PR #60: static sample page is real (pull-quote, card-grid, two-up, figure). Sending back one revision: build complete nav before writing pages (loop currently omits later articles). Acceptance running in parallel. Issue stays open."
+        },
+        {
+          "agent": {
+            "model": "Composer 2.5",
+            "name": "implementation agent",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:44:53.064575Z",
+          "id": "4834d2b4-5823-4d93-9316-096e311ba1c3",
+          "text": "3954706"
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:48:41.165350Z",
+          "id": "cde01bc2-0e87-4b85-9bbe-9da5f5c66c70",
+          "text": "Acceptance PASS (static sample + second-note, desktop and mobile). Merged PR #60 into feature/renderer-architecture as d9f703b. Theme contrast in hackerman is later polish, not a DoD miss. Worker: remove worktree Papyrus-worktrees/PPY-88f77b-markus-renderer and the local branch."
         }
       ],
       "created_at": "2026-09-06T12:43:02.719307Z",
@@ -1231,10 +1299,10 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 1,
-      "status": "in_progress",
+      "status": "closed",
       "title": "Markus renderer: publish real static pages",
       "type": "task",
-      "updated_at": "2026-09-06T14:42:33.972087Z"
+      "updated_at": "2026-09-06T14:48:41.176536Z"
     },
     {
       "assignee": null,
@@ -1885,7 +1953,7 @@
     },
     {
       "assignee": null,
-      "closed_at": null,
+      "closed_at": "2026-09-06T15:03:54.010648Z",
       "comments": [
         {
           "author": "home",
@@ -1900,6 +1968,75 @@
           "created_at": "2026-09-06T14:12:08.490343Z",
           "id": "39f4bed7-9f13-42dd-bdac-3fd29a960923",
           "text": "When RendererConfig lands, leave room for a sibling HostingConfig (amplify-ssr | amplify-static). Do not implement hosting in this issue. Do not add a required hosting field that Markus ignores. PPY-17fcfc documents the option and proves static WEB on pilobil.us; absorb the type here later."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:48:41.199224Z",
+          "id": "74dc7dc5-c7ee-4d78-9fac-e35baad59512",
+          "text": "88f77b landed (d9f703b / PR #60). Starting Composer 2.5 planning for RendererConfig discriminated union. Worktree to be created at implement time: Papyrus-worktrees/PPY-eca592-renderer-config on cursor/feature/PPY-eca592-renderer-config-3af6 from origin/feature/renderer-architecture. HostingConfig stays a sibling type, not a required-but-ignored field."
+        },
+        {
+          "agent": {
+            "model": "composer-2.5",
+            "name": "Composer 2.5",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:50:10.930622Z",
+          "id": "dd96194b-21fd-4e8b-8f3f-0ac42e91c336",
+          "text": "# PPY-eca592 — Implementation plan (Composer 2.5)\n\n**Status:** PLAN ONLY — no worktree, no code, no PR.\n**Base:** `origin/feature/renderer-architecture` (`d9f703b`, Markus merge #60)\n**Worktree (create when authorized):** `/Users/home/Projects/Papyrus-worktrees/PPY-eca592-renderer-config`\n**Branch:** `cursor/feature/PPY-eca592-renderer-config-3af6`\n**PR target:** `feature/renderer-architecture` (not `main`)\n\n---\n\n## Goal\n\nOne site-level field (`SiteBrand.rendererConfig`) selects the whole renderer. Invalid combinations are unrepresentable via a discriminated union. Markus stays a Python static build; Pretext stays Next.js. No required-but-ignored fields.\n\n```ts\ntype RendererConfig =\n  | { kind: \"pretext\"; layout: \"newsprint\" | \"blog\" | \"magazine\"; layoutPlan: EditionLayoutPlan }\n  | { kind: \"markus\"; theme: string };\n\n// Sibling type only — NOT wired to deploy in this issue\ntype HostingConfig =\n  | { kind: \"amplify-ssr\" }\n  | { kind: \"amplify-static\" };\n```\n\n---\n\n## Key design decisions\n\n### 1. Two meanings of `layoutPlan` (no fake plan for Markus)\n\n| Location | Purpose | Markus touches it? |\n|---|---|---|\n| `SiteBrand.rendererConfig` (pretext branch) | Site-level **empty-edition placeholder** template (today inline in `app/page.tsx` `createEmptyGraphQLEdition`) | No — markus branch has no `layoutPlan` field |\n| `EditionContent.layoutPlan` | Per-edition plan from GraphQL (`Edition.layoutPlan`) for Pretext solver | No — Markus build reads `web/content/**/*.md` via `papyrus renderers markus-build`, never through Next.js `EditionContent` |\n\nMarkus does **not** need a stub `EditionLayoutPlan` because it never enters the Next content/render path.\n\n### 2. Retire standalone presentation enum\n\n- Remove `SiteBrand.defaultPresentation` and `SiteBrand.forcedPresentation`.\n- Remove `EditionContent.defaultPresentation` (redundant with site `rendererConfig.layout`).\n- **Delete** `EditionContent.presentationPlans` — grep confirms zero reads; RendererConfig union replaces any per-renderer site slot.\n- Rename `EditionPresentationFormat` → **`PretextLayout`** (`\"newsprint\" | \"blog\" | \"magazine\"`). Scoped to Pretext internals only; not a site-wide concept Markus must understand.\n- `lockedPresentation` prop → `lockedLayout` on Pretext render props.\n\n### 3. Dispatch at app-shell / build seam (NOT in `presentation-shell.tsx`)\n\n**Build seam** (new, minimal — no full hosting deploy):\n- `lib/site-renderer.ts` — compile-time helpers: `getRendererConfig()`, `assertPretextSite()`, `getSiteRenderer()` → `pretextRenderer` only when `kind === \"pretext\"`.\n- `scripts/resolve-site-build.mjs` — reads `PAPYRUS_SITE_BRAND` / `NEXT_PUBLIC_PAPYRUS_SITE_BRAND`, prints `pretext` | `markus` for CI/Amplify branching (seam only; `amplify.yml` artifact switch is follow-up PPY-17fcfc).\n- Markus production path: `poetry run papyrus renderers markus-build --theme <theme>` → `web/dist/`. **Do not invent Next.js Markus preview.**\n\n**App-shell seam** (route files, not components):\n- Replace direct `pretextRenderer` imports in `app/*` with `getSiteRenderer()` from `lib/site-renderer.ts`.\n- `assertPretextSite()` at top of reader routes — Markus brands fail fast with a clear build/runtime error if someone runs `next dev`/`next build` without switching to the static pipeline.\n- `presentation-shell.tsx` keeps **Pretext layout switching only** (newsprint/blog/magazine) using `SITE_BRAND.rendererConfig.layout`; no renderer-kind dispatch inside React.\n\n### 4. Brand mappings\n\n| Site | `SiteBrandId` | `rendererConfig` |\n|---|---|---|\n| Papyrus | `papyrus` | `{ kind: \"pretext\", layout: \"newsprint\", layoutPlan: <placeholder plan> }` |\n| Threat Intelligence | `threat-intelligence` | `{ kind: \"pretext\", layout: \"blog\", layoutPlan: <placeholder plan> }` — layout locked (no reader choice) |\n| Pilobol.us | `pilobol-us` (new) | `{ kind: \"markus\", theme: \"<theme>\" }` — domain `pilobol.us` |\n\nUse `newsprint` (not `newspaper`). Do not fight PPY-61dc8f alias bug here.\n\n### 5. `HostingConfig`\n\n- Export type in `lib/renderer-config.ts` alongside `RendererConfig`.\n- Optional JSDoc on `SiteBrand` noting future `hostingConfig?: HostingConfig`.\n- **Do not** add a required hosting field. **Do not** implement Amplify static deploy.\n\n### 6. Inversions explicitly avoided\n\n| Anti-pattern | Avoidance |\n|---|---|\n| Required-but-ignored fields (PR #57) | Discriminated union — Markus branch has no `layout`/`layoutPlan`; Pretext branch has no `theme` |\n| Dispatch inside React | `lib/site-renderer.ts` + `app/*` route imports only |\n| Dual preview paths | Markus stubs in `renderers/markus/stubs.tsx` stay unwired; no Next route mounts them |\n| Fake `EditionLayoutPlan` for Markus | Markus build bypasses `EditionContent`; static markdown path only |\n| Colliding with `PPY-6b4094` sandbox | Isolated worktree; do not touch `Papyrus-worktrees/PPY-6b4094-sandbox`, prod Amplify `dbsyytcm9drqa`, or pilobol.us app `d1od6t7lzbwanr` |\n\n---\n\n## Exact files to change\n\n### New files\n| File | Purpose |\n|---|---|\n| `lib/renderer-config.ts` | `RendererConfig`, `HostingConfig`, type guards, accessors (`getPretextLayout`, `getMarkusTheme`, `isPretextRenderer`) |\n| `lib/site-renderer.ts` | `getSiteRenderer()`, `assertPretextSite()` — app-shell dispatch |\n| `publications/pilobol_us/brand.ts` | Pilobol.us `SiteBrand` with markus `rendererConfig` |\n| `scripts/resolve-site-build.mjs` | Build-time renderer-kind resolver (seam for CI; no deploy) |\n\n### Core types & brand registry\n| File | Change |\n|---|---|\n| `lib/site-brand.ts` | Add `rendererConfig`; remove `defaultPresentation`/`forcedPresentation`; add `pilobol-us` to `SiteBrandId`; replace `enforcePresentation`/`getPresentationChoices` with layout helpers derived from `rendererConfig` |\n| `publications/threat_intelligence/brand.ts` | `rendererConfig: { kind: \"pretext\", layout: \"blog\", layoutPlan: … }` |\n| `lib/content-types.ts` | Remove `defaultPresentation`, `presentationPlans`; rename `EditionPresentationFormat` → `PretextLayout` (update imports) |\n| `lib/renderer.ts` | Use `PretextLayout` in `RenderEditionProps.lockedLayout`, `supportsLayout`; doc tweak only |\n\n### Pretext renderer (layout switch only, no kind dispatch)\n| File | Change |\n|---|---|\n| `renderers/pretext/layouts.ts` | `PRETEXT_LAYOUTS`, `pretextSupportsLayout` use `PretextLayout` |\n| `renderers/pretext/presentation-shell.tsx` | Read layout from `SITE_BRAND.rendererConfig` (pretext branch); drop `content.defaultPresentation`; rename locked prop |\n| `renderers/pretext/index.ts` | No behavioral change |\n\n### App routes (renderer dispatch)\n| File | Change |\n|---|---|\n| `app/page.tsx` | `getSiteRenderer()`; empty edition uses `SITE_BRAND.rendererConfig.layoutPlan` (pretext) |\n| `app/articles/[slug]/page.tsx` | `getSiteRenderer()` |\n| `app/[year]/[month]/[day]/edition-route-page.tsx` | `getSiteRenderer()`; `lockedLayout` from rendererConfig |\n| `app/[year]/[month]/[day]/page/[pageNumber]/page.tsx` | `lockedLayout` from rendererConfig |\n| `app/[year]/[month]/[day]/[articleSlug]/page.tsx` | `getSiteRenderer()` |\n| `app/layout.tsx` | Replace `data-default-presentation` / `data-forced-presentation` / `data-presentation-choices` with `data-renderer-kind`, `data-pretext-layout`, `data-pretext-layout-choices` |\n\n### Reader settings & Lambda\n| File | Change |\n|---|---|\n| `components/reader-settings.ts` | Default/allowed layout from `rendererConfig`; rename `presentation` → `layout` in settings shape (or keep storage key `presentation` for backward compat — decide at implement time; prefer rename with one-release localStorage migration) |\n| `components/settings-page.tsx` | Lock UI when only one Pretext layout allowed |\n| `amplify/functions/reader-settings/handler.ts` | Align `ReaderSettings` layout field with Pretext layouts; default from env brand if feasible |\n\n### BDD & docs\n| File | Change |\n|---|---|\n| `features/support/capabilities.js` | Probe new `<html>` data attributes |\n| `scripts/check-bdd-site-brand.mjs` | Same attribute updates |\n| `docs/pluggable-publishers.md` | Replace PR #57 `publisher`/`defaultPresentation` narrative with `RendererConfig` union |\n\n### Out of scope (touch only if typecheck forces)\n- `lib/graphql-content-repository.ts` — no change expected (`layoutPlan` stays on editions)\n- `renderers/markus/*` — stubs stay; no Next wiring\n- `amplify.yml` — document seam; full static artifact switch deferred\n- `project/` — board writes via `kbs` only on main Papyrus checkout, never in worktree commits\n\n---\n\n## How Pretext vs Markus pick the union\n\n```\n                    PAPYRUS_SITE_BRAND env\n                            │\n                            ▼\n                   lib/site-brand.ts\n                   SITE_BRAND.rendererConfig\n                            │\n              ┌─────────────┴─────────────┐\n              │                           │\n      kind: \"pretext\"              kind: \"markus\"\n              │                           │\n              ▼                           ▼\n    npm run build (Next.js)     poetry run papyrus renderers markus-build\n    app/* → getSiteRenderer()         → web/dist/\n    → pretextRenderer                 (plain static server preview)\n    EditionContent.layoutPlan\n    from GraphQL per edition\n    SiteBrand.rendererConfig.layoutPlan\n    for empty-edition placeholder only\n```\n\n---\n\n## Tests to run (implementation)\n\n```bash\nnpm run lint\nnpm run typecheck\nnpm run build                    # PAPYRUS_SITE_BRAND=papyrus (pretext)\nnpm run test:bdd:check-brand\nnpm run test:bdd:canonical       # canonical newsprint profile\nnpm run test:bdd                 # fork-aware skips (TI blog)\npoetry run papyrus renderers markus-build --theme hackerman   # Markus path still builds\nnpx tsx scripts/test-markus-projection.ts                       # if PretextLayout rename touches projection imports\n```\n\nPre-existing: `next build` may fail at page-data collection without live AppSync (confirmed on `feature/renderer-architecture`); not introduced by this change.\n\n---\n\n## Implementation sequence\n\n1. Create worktree + branch (when authorized).\n2. Add `lib/renderer-config.ts` + `lib/site-renderer.ts`.\n3. Migrate `lib/site-brand.ts` and publication brands (papyrus, TI, pilobol-us).\n4. Update `lib/content-types.ts` (delete dead fields, rename layout type).\n5. Rewire `app/*` through `getSiteRenderer()`; extract placeholder `layoutPlan` to papyrus brand config.\n6. Update Pretext presentation-shell + reader-settings + layout.tsx data attributes.\n7. Update BDD capability probes.\n8. Update `docs/pluggable-publishers.md`.\n9. Run verification commands; PR to `feature/renderer-architecture`.\n10. After manager closes issue + acceptance: remove worktree `Papyrus-worktrees/PPY-eca592-renderer-config`.\n\n---\n\n## Cleanup (post-acceptance)\n\nAgent removes worktree at `/Users/home/Projects/Papyrus-worktrees/PPY-eca592-renderer-config` after issue close and acceptance pass.\n"
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:51:50.852194Z",
+          "id": "15c5c855-a577-49ad-84a7-a85f8fbf313f",
+          "text": "Plan review: direction is right (union, fail-closed Next, no fake Markus layoutPlan, HostingConfig sibling-only). Do not implement until the worktree exists and the manager authorizes.\n\nCorrections before coding:\n1. `getSiteRenderer()` must throw on `kind: \"markus\"` — never return `markusRenderer` stubs. Every Next route asserts pretext. Markus never enters `app/*`.\n2. Do not rename the persisted reader-settings key in this slice (PPY-61dc8f owns silent-reset). Keep storage/API field `presentation`; derive allowed values from `rendererConfig.layout`.\n3. Merge gates: lint, typecheck, `test:bdd:check-brand`, a union unit test, `markus-build` for the pilobol-us theme. Not `npm run build` (sandbox/AppSync) and not full `test:bdd` (PPY-fd8468).\n4. Do not touch the 6b4094 sandbox worktree or deploy the reader-settings Lambda as part of this PR."
+        },
+        {
+          "agent": {
+            "model": "composer-2.5",
+            "name": "Composer 2.5",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:52:08.043406Z",
+          "id": "4b2c13c6-83d5-404b-a63c-233dec8c9dc9",
+          "text": "# PPY-eca592 — Revised plan (approved corrections)\n\n**Worktree created.** Stopped before any product code.\n\n| | |\n|---|---|\n| Path | `/Users/home/Projects/Papyrus-worktrees/PPY-eca592-renderer-config` |\n| Branch | `cursor/feature/PPY-eca592-renderer-config-3af6` |\n| HEAD | `3995fb2` (includes Markus merge `d9f703b` / PR #60) |\n| Base | `origin/feature/renderer-architecture` |\n\n## Mandatory corrections applied to plan\n\n1. **`getSiteRenderer()` throws on `kind: \"markus\"`** — never returns `renderers/markus` stubs. Every Next `app/*` route calls `assertPretextSite()` first. Markus never enters React.\n2. **Do not rename persisted reader-settings key `presentation`** (PPY-61dc8f). Derive allowed layouts from `rendererConfig.layout` only.\n3. **Verification gates:** `npm run lint`, `npm run typecheck`, `npm run test:bdd:check-brand`, a discriminated-union unit test, `poetry run papyrus renderers markus-build`. **Not** `npm run build`, **not** full `test:bdd`.\n4. **`HostingConfig` type-only** — not a required `SiteBrand` field. No Amplify deploy. No `PPY-6b4094` sandbox tree. No prod apps.\n5. **`layoutPlan` on pretext `rendererConfig` branch** = empty-edition placeholder moved from `app/page.tsx`. Do not invent Markus geometry. Keep GraphQL `EditionContent.layoutPlan` as the per-edition Pretext plan.\n\nAwaiting manager worktree verification before implement authorization.\n"
+        },
+        {
+          "agent": {
+            "model": "composer-2.5",
+            "name": "Composer 2.5",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:59:13.213666Z",
+          "id": "cfd85d1d-367c-4d30-9ee4-06f7f810def8",
+          "text": "Implementation complete. PR: https://github.com/AnthusAI/Papyrus/pull/61\n\nBranch: cursor/feature/PPY-eca592-renderer-config-3af6 (565b0d2)\nWorktree: /Users/home/Projects/Papyrus-worktrees/PPY-eca592-renderer-config\n\nGates:\n- npm run lint: pass\n- npm run typecheck: pre-existing amplify_outputs.json missing only\n- npm run test:renderer-config: pass\n- npm run test:bdd:check-brand: pass (renderer=pretext, default=newsprint, choices=newsprint|blog|magazine)\n- markus-build: not re-run (no Python changes; markusmd unavailable in agent env)\n\nWorktree retained pending manager close + acceptance."
+        },
+        {
+          "agent": {
+            "model": "composer-2.5",
+            "name": "Composer 2.5",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:02:19.394921Z",
+          "id": "da26f2db-6034-43ac-814e-d6cab6627a64",
+          "text": "Doc revision pushed: ac9c744 — updated docs/pluggable-publishers.md to match landed RendererConfig union (pretext|markus, pilobol-us, newsprint, HostingConfig type-only, markus-build not Next). Replaces PR #57 publisher/defaultPresentation/newspaper/pilobil anti-patterns. PR #61 updated."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T15:03:54.000305Z",
+          "id": "19b7cec3-6d79-4a3b-92e4-6e2f3bfdcafe",
+          "text": "Acceptance PASS. Merged PR #61 into feature/renderer-architecture as 5961d54. TI blog lock remains a brand-id special case (not a DoD miss). Worker: remove worktree Papyrus-worktrees/PPY-eca592-renderer-config."
         }
       ],
       "created_at": "2026-09-06T12:43:02.729828Z",
@@ -1919,10 +2056,10 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 2,
-      "status": "open",
+      "status": "closed",
       "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
       "type": "task",
-      "updated_at": "2026-09-06T14:12:08.490343Z"
+      "updated_at": "2026-09-06T15:03:54.010648Z"
     },
     {
       "assignee": null,
