@@ -3,7 +3,7 @@
   "title": "Pilobil.us proof of concept: author one article, publish real pages",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -47,11 +47,18 @@
       "text": "Landed on feature/renderer-architecture as e48afed (PR #63). Adapter, sample.md, Markus static path, and pilobol-sample layoutPlan (only slug sample) are on the branch to build on. Visual design is a separate track; issue stays open.",
       "created_at": "2026-09-06T15:33:19.273754Z",
       "comment_type": "default"
+    },
+    {
+      "id": "0dd6a1f6-c8b9-4776-bc10-8f539d82b55b",
+      "author": "home",
+      "text": "OUTPUT B ACHIEVED. The dual-renderer thesis is now DEMONSTRATED RUNNING, not just asserted.\n\nHOW THE ORIGINAL BLOCKER WAS BYPASSED: Output B was blocked on 'npm run dev requires production amplify_outputs'. It does not, for this purpose. lib/content-repository.ts routes loadEditionContent({scenarioId}) straight to getLayoutScenario(scenarioId) and NEVER touches GraphQL. So the scenario path renders Pretext with no backend at all. The only real requirement is that components/amplify-client-provider.tsx can resolve amplify_outputs.json; lib/amplify-outputs-guard.ts rejects only PRODUCTION-shaped outputs (graphql host '64hviw' or user pool us-east-1_40Uot7WSv). A clearly-local non-production stub satisfies it. That file is gitignored and uncommitted.\n\nOUTPUT B - Pretext, from Markus source:\n  npx next dev -p 3100  ->  http://localhost:3100/?scenario=pilobol-sample   (HTTP 200)\nRenders as newsprint, masthead 'PILOBOL.US DUAL RENDERER POC'. Verified rendered text contains, from the SAME sample.md:\n  - prose paragraphs intact\n  - PULL QUOTE EXTRACTED to Pretext's side-channel: 'The practical breakthrough is not giving agents a bigger sandbox.'\n  - card-grid DEGRADED INLINE, content preserved: 'Planning state' / 'Read-only tools. An inline code_span should not be confused with a block.'\n  - two-up DEGRADED INLINE, content preserved: 'Planning state keeps risk low.' / 'Implementation state is where damage happens.'\n  - callout content preserved: 'Look before you leap.' / 'Only after planning.'\nNOTHING SILENTLY DROPPED - exactly the documented degradation rule.\n\nOUTPUT A - Markus, from the same source, built by PAPYRUS'S OWN RENDERER (not a bespoke script):\n  papyrus_content.markus_renderer.commands.markus_build([])  ->  web/dist/{index.html, articles/sample.html, articles/second-note.html}\n  served at http://localhost:8902/articles/sample.html (HTTP 200)\nFull fidelity confirmed by markup count: 3 markus-pull-quote, 1 markus-card-grid, 6 markus-card, 2 markus-two-up, 3 markus-column, 1 markus-figure.\n\nTHE MONEY SHOT: one sample.md -> two renderers. Markus renders card-grid and two-up as real multi-column layout; Pretext, which cannot express them, inlines their content and lifts the pull quote into its own side-channel. One content model, no second schema.\n\nBoth outputs are reproducible with the commands above. Closing.",
+      "created_at": "2026-09-06T17:46:29.924054Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.752434Z",
-  "updated_at": "2026-09-06T15:33:19.273754Z",
-  "closed_at": null,
+  "updated_at": "2026-09-06T17:46:29.936709Z",
+  "closed_at": "2026-09-06T17:46:29.936709Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
