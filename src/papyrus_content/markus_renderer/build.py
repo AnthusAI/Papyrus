@@ -57,6 +57,14 @@ def _discover_articles(content_dir: Path) -> list[tuple[str, Path]]:
     return articles
 
 
+def _build_nav_items(articles: list[tuple[str, Path]]) -> list[NavItem]:
+    nav_items = [NavItem("Home", "index.html")]
+    for slug, source in articles:
+        title = _read_title(source, slug.replace("-", " ").title())
+        nav_items.append(NavItem(title, f"articles/{slug}.html"))
+    return nav_items
+
+
 def _copy_tree(source: Path, dest: Path) -> None:
     if not source.exists():
         return
@@ -106,14 +114,13 @@ def build_markus_site(
 
     _copy_tree(content_root / "assets", output_root / "assets")
 
-    nav_items = [NavItem("Home", "index.html")]
+    nav_items = _build_nav_items(articles)
     built_pages: list[Path] = []
 
     for slug, source in articles:
         fragment = convert_fragment(source, theme=theme, markus_executable=markus_executable)
         title = _read_title(source, slug.replace("-", " ").title())
         href = f"articles/{slug}.html"
-        nav_items.append(NavItem(title, href))
         page_path = output_root / href
         page_path.write_text(
             render_page(
