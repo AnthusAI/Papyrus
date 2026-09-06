@@ -33,10 +33,17 @@
       "text": "88f77b and eca592 landed. Starting Composer 2.5 planning for the dual-renderer PoC. Domain is pilobol.us (not pilobil.us). Worktree at implement time: Papyrus-worktrees/PPY-10e4cd-dual-renderer from origin/feature/renderer-architecture. Do not fork a second Papyrus GitHub app.",
       "created_at": "2026-09-06T15:03:54.029415Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d3dccc27-5086-49ec-abbd-e4b02a62de60",
+      "author": "home",
+      "text": "Output A accepted. Output B blocked: this branch tracks .papyrus-production-workspace so npm run dev requires production amplify_outputs. Retrying Pretext via npx next dev plus personal sandbox outputs (ppy-6b4094 stack). Issue stays open.",
+      "created_at": "2026-09-06T15:27:19.557172Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.752434Z",
-  "updated_at": "2026-09-06T15:03:54.029415Z",
+  "updated_at": "2026-09-06T15:27:19.557172Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
