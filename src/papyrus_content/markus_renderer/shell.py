@@ -3,13 +3,42 @@
 from __future__ import annotations
 
 import html
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class NavItem:
     label: str
     href: str
+
+
+@dataclass(frozen=True)
+class SiteChrome:
+    """Per-publication identity for the static page shell.
+
+    A publication supplies this so it can render through the shared Markus
+    renderer without forking the build. Everything here is publication-level
+    (masthead, footer, decorative scripts); none of it is article content.
+
+    ``scripts`` are emitted as ``<script src=...>`` just before ``</body>``,
+    path-prefixed for page depth exactly like nav links. They exist for site
+    chrome -- theme toggles, decorative canvases. They are NEVER derived from
+    article Markdown: keeping author content unable to introduce script tags is
+    precisely why Markus runs with raw HTML disabled.
+    """
+
+    site_name: str = "Papyrus Markus"
+    tagline: str | None = None
+    footer_html: str | None = None
+    scripts: tuple[str, ...] = field(default_factory=tuple)
+
+
+DEFAULT_CHROME = SiteChrome()
+
+_DEFAULT_FOOTER = (
+    "<p>Static Markus output from "
+    "<code>poetry run papyrus renderers markus-build</code>.</p>"
+)
 
 
 def render_page(
@@ -19,8 +48,14 @@ def render_page(
     active_href: str,
     nav_items: list[NavItem],
     depth: int = 0,
-    site_name: str = "Papyrus Markus",
+    site_name: str | None = None,
+    chrome: SiteChrome | None = None,
+    css_version: str | None = None,
 ) -> str:
+    chrome = chrome or DEFAULT_CHROME
+    # `site_name` stays an explicit override so existing callers keep working.
+    resolved_site_name = site_name if site_name is not None else chrome.site_name
+
     prefix = "../" * depth
     nav_links = []
     for item in nav_items:
@@ -31,7 +66,27 @@ def render_page(
         )
     nav_html = "\n      ".join(nav_links)
     safe_title = html.escape(title)
-    safe_site = html.escape(site_name)
+    safe_site = html.escape(resolved_site_name)
+
+    # Cache-busting query on the stylesheets. Without it a browser serves a
+    # stale theme and a CSS fix silently appears not to have worked.
+    suffix = f"?v={html.escape(css_version, quote=True)}" if css_version else ""
+
+    tagline_html = ""
+    if chrome.tagline:
+        tagline_html = (
+            f'\n    <p class="markus-site-tagline">{html.escape(chrome.tagline)}</p>'
+        )
+
+    script_html = ""
+    if chrome.scripts:
+        tags = [
+            f'<script src="{html.escape(prefix + src, quote=True)}"></script>'
+            for src in chrome.scripts
+        ]
+        script_html = "\n" + "\n".join(tags)
+
+    footer_inner = chrome.footer_html or _DEFAULT_FOOTER
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -39,12 +94,12 @@ def render_page(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{safe_title} · {safe_site}</title>
-<link rel="stylesheet" href="{prefix}css/markus-vendor.css">
-<link rel="stylesheet" href="{prefix}css/site-theme.css">
+<link rel="stylesheet" href="{prefix}css/markus-vendor.css{suffix}">
+<link rel="stylesheet" href="{prefix}css/site-theme.css{suffix}">
 </head>
 <body class="markus-body markus-site">
   <header class="markus-site-masthead">
-    <p class="markus-site-wordmark"><a href="{prefix}index.html">{safe_site}</a></p>
+    <p class="markus-site-wordmark"><a href="{prefix}index.html">{safe_site}</a></p>{tagline_html}
     <nav class="markus-site-nav" aria-label="Site">
       {nav_html}
     </nav>
@@ -53,8 +108,8 @@ def render_page(
 {fragment}
   </main>
   <footer class="markus-site-footer">
-    <p>Static Markus output from <code>poetry run papyrus renderers markus-build</code>.</p>
-  </footer>
+    {footer_inner}
+  </footer>{script_html}
 </body>
 </html>
 """

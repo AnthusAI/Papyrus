@@ -10,7 +10,7 @@ from pathlib import Path
 from ..env import PAPYRUS_ROOT
 from .convert import convert_fragment
 from .security import assert_markus_version
-from .shell import NavItem, render_page
+from .shell import DEFAULT_CHROME, NavItem, SiteChrome, render_page
 from .vendor_css import vendor_markus_css
 
 DEFAULT_CONTENT_DIR = PAPYRUS_ROOT / "web" / "content"
@@ -57,6 +57,23 @@ def _discover_articles(content_dir: Path) -> list[tuple[str, Path]]:
     return articles
 
 
+def _discover_section(content_dir: Path, section: str) -> list[tuple[str, Path]]:
+    """Discover ``<content>/<section>/*.md``. Returns [] when the dir is absent.
+
+    Unlike ``_discover_articles`` this never raises: extra sections are
+    optional. A publication with only ``articles/`` behaves exactly as before.
+    """
+    section_dir = content_dir / section
+    if not section_dir.is_dir():
+        return []
+    found: list[tuple[str, Path]] = []
+    for path in sorted(section_dir.glob("*.md")):
+        match = _ARTICLE_SLUG.match(path.name)
+        if match:
+            found.append((match.group(1), path))
+    return found
+
+
 def _build_nav_items(articles: list[tuple[str, Path]]) -> list[NavItem]:
     nav_items = [NavItem("Home", "index.html")]
     for slug, source in articles:
@@ -91,10 +108,20 @@ def build_markus_site(
     out_dir: Path | None = None,
     theme: str | None = DEFAULT_THEME,
     markus_executable: str = "markus",
+    site_css: Path | None = None,
+    chrome: SiteChrome | None = None,
+    sections: tuple[str, ...] = (),
 ) -> BuildResult:
+    """Build a Markus static site.
+
+    ``site_css`` and ``chrome`` are what let a publication (Pilobol.us, say)
+    render through this shared renderer instead of forking its own build
+    script. Defaults reproduce Papyrus's own site exactly.
+    """
     content_root = (content_dir or DEFAULT_CONTENT_DIR).resolve()
     output_root = (out_dir or DEFAULT_OUT_DIR).resolve()
-    site_css = DEFAULT_SITE_CSS
+    site_css = (site_css or DEFAULT_SITE_CSS).resolve()
+    chrome = chrome or DEFAULT_CHROME
 
     assert_markus_version(markus_executable)
 
@@ -114,6 +141,9 @@ def build_markus_site(
 
     _copy_tree(content_root / "assets", output_root / "assets")
 
+    # Derived from the emitted stylesheets so any CSS change yields a new URL.
+    css_version = _css_version(output_root / "css")
+
     nav_items = _build_nav_items(articles)
     built_pages: list[Path] = []
 
@@ -129,10 +159,38 @@ def build_markus_site(
                 active_href=href,
                 nav_items=nav_items,
                 depth=1,
+                chrome=chrome,
+                css_version=css_version,
             ),
             encoding="utf-8",
         )
         built_pages.append(page_path)
+
+    for section in sections:
+        entries = _discover_section(content_root, section)
+        if not entries:
+            continue
+        (output_root / section).mkdir(parents=True, exist_ok=True)
+        for slug, source in entries:
+            fragment = convert_fragment(
+                source, theme=theme, markus_executable=markus_executable
+            )
+            title = _read_title(source, slug.replace("-", " ").title())
+            href = f"{section}/{slug}.html"
+            page_path = output_root / href
+            page_path.write_text(
+                render_page(
+                    title=title,
+                    fragment=fragment,
+                    active_href=href,
+                    nav_items=nav_items,
+                    depth=1,
+                    chrome=chrome,
+                    css_version=css_version,
+                ),
+                encoding="utf-8",
+            )
+            built_pages.append(page_path)
 
     index_md = content_root / "index.md"
     if index_md.is_file():
@@ -160,12 +218,20 @@ def build_markus_site(
             active_href="index.html",
             nav_items=nav_items,
             depth=0,
+            chrome=chrome,
+            css_version=css_version,
         ),
         encoding="utf-8",
     )
     built_pages.insert(0, index_path)
 
     return BuildResult(content_dir=content_root, out_dir=output_root, pages=built_pages)
+
+
+def _css_version(css_dir: Path) -> str:
+    """Cache-busting token: newest mtime of the emitted stylesheets."""
+    newest = max((f.stat().st_mtime for f in css_dir.glob("*.css")), default=0)
+    return str(int(newest))
 
 
 def html_escape(value: str) -> str:
