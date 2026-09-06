@@ -1,0 +1,25 @@
+---
+title: The Next Agent Breakthrough Is a Checklist
+section: AI/ML
+slug: agent-procedure-patterns
+---
+
+Developers are learning that reliable agents need less freedom, not more: state machines, scoped tools, policy gates, and step-by-step procedure. The most interesting argument this week was not about a new frontier model. It was about how much freedom an AI agent should be allowed to have.
+
+Across demos, comments, and tool launches, builders kept circling the same answer: the practical breakthrough is not giving agents a bigger sandbox, but putting them inside a procedure. That marks a quiet reversal in the agent story. The first wave of agent demos sold autonomy: ask for an outcome and let the model decide what to do. The newer work is more cautious and more useful.
+
+:::pull-quote
+The practical breakthrough is not giving agents a bigger sandbox.
+:::
+
+It treats agency as a dial, not a switch. At one end are scripts, workflow engines, and RPA jobs: predictable, auditable, and brittle when reality changes. At the other end are open-ended agents that can plan, browse, call tools, edit files, and recover from surprises, but may also wander, repeat themselves, or take unsafe actions. The emerging middle ground is bounded agency.
+
+A model can improvise, but only inside states, allowed tools, review gates, and traceable transitions. The Statewright project drew attention because it says part of this out loud. Its author argues that agentic problem solving becomes more reliable when the problem is made smaller instead of the model larger.
+
+A planning state can get read-only tools. An implementation state can get edit tools. A testing state can get test commands. The model cannot skip the workflow because the workflow is enforced outside the prompt. That pattern is showing up elsewhere. A tiny tool-calling model can follow agent steps as long as the next action is constrained by a procedure.
+
+:::pull-quote
+A tiny tool-calling model can follow agent steps as long as the workflow is enforced outside the prompt.
+:::
+
+The lesson is not that agents are over. It is that they need architecture. The frontier is shifting from open-ended instruction following to systems that decide where the model is allowed to be creative and where the software should be boring. In practice, the checklist may be the most important agent interface.

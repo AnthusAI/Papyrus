@@ -21,6 +21,7 @@
     "test:blog-defense-graph": "node publications/threat_intelligence/tests/test-blog-defense-graph.cjs",
     "test:blog-header-obstacles": "node publications/threat_intelligence/tests/test-blog-header-obstacles.cjs",
     "test:threat-intelligence-pictograms": "node publications/threat_intelligence/tests/test-pictograms.cjs",
+    "test:markus-projection": "tsx scripts/test-markus-projection.ts",
     "videoml:bundle": "node scripts/videoml/build-browser-bundle.mjs",
     "typecheck": "tsc --noEmit",
     "sandbox": "ampx sandbox",
