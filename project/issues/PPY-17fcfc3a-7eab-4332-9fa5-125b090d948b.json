@@ -73,10 +73,17 @@
       "text": "Route 53 public hosted zone **pilobol.us** created so Ryan can set registrar nameservers now (propagation while Amplify/static CI continues).\n\n- Hosted zone ID: `Z09961547QX1VHIXOBD7`\n- Account: `335163751677`\n- **Not** `pilobil.us` — no zone for that name.\n\nSet the domain's nameservers at the registrar to:\n\n1. `ns-544.awsdns-04.net`\n2. `ns-1358.awsdns-41.org`\n3. `ns-1751.awsdns-26.co.uk`\n4. `ns-404.awsdns-50.com`\n\nApex/www records will be added when the Amplify `WEB` app is attached. Until then the zone is empty except NS/SOA — that is expected.",
       "created_at": "2026-09-06T14:18:51.968979Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5a330107-e053-431e-a942-a2e0dc28035f",
+      "author": "home",
+      "text": "Worktrees verified by manager. Implementation authorized. Hosted zone already exists (Z09961547QX1VHIXOBD7 / pilobol.us) — do not create another. NS already handed to Ryan. Pin Markus @v0.5.0. Comment progress; do not close this issue.",
+      "created_at": "2026-09-06T14:19:55.481555Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T14:05:42.812329Z",
-  "updated_at": "2026-09-06T14:18:51.968979Z",
+  "updated_at": "2026-09-06T14:19:55.481555Z",
   "closed_at": null,
   "custom": {}
 }
