@@ -10,7 +10,12 @@ import { fileURLToPath } from "node:url";
 import { parseMarkusDocument } from "../lib/markus-ir";
 import { markusDocumentToArticle, resolveMarkusAssetSrc } from "../lib/markus-to-article";
 import { projectMarkusJsonToPretext } from "../lib/markus-projection";
-import { getPilobolSampleArticle, PILOBOL_SAMPLE_SLUG } from "../lib/pilobol-sample";
+import { validateEditionLayoutPlanForItems } from "../lib/layout-plan";
+import {
+  createPilobolSampleEditionContent,
+  getPilobolSampleArticle,
+  PILOBOL_SAMPLE_SLUG,
+} from "../lib/pilobol-sample";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,5 +67,25 @@ assert(
 const lazyArticle = getPilobolSampleArticle();
 assert(lazyArticle.slug === article.slug, "lazy singleton matches direct conversion");
 assert(lazyArticle.body.length === article.body.length, "lazy singleton body length");
+
+const edition = createPilobolSampleEditionContent();
+validateEditionLayoutPlanForItems(edition.layoutPlan, edition.items, "pilobol-sample");
+const itemSlugs = new Set(edition.items.map((item) => item.slug));
+const referencedIds = new Set<string>();
+for (const page of edition.layoutPlan.pages) {
+  for (const region of page.regions) {
+    for (const block of region.blocks) {
+      if ("itemId" in block && block.itemId) referencedIds.add(block.itemId);
+      if ("itemIds" in block && Array.isArray(block.itemIds)) {
+        for (const itemId of block.itemIds) referencedIds.add(itemId);
+      }
+    }
+  }
+}
+for (const itemId of referencedIds) {
+  assert(itemSlugs.has(itemId), `layoutPlan itemId ${itemId} must exist on edition items`);
+}
+assert(referencedIds.size > 0, "layoutPlan should reference at least one itemId");
+assert(referencedIds.size === 1 && referencedIds.has("sample"), "pilobol-sample layoutPlan references only sample");
 
 console.log("Markus -> Article adapter tests passed.");
