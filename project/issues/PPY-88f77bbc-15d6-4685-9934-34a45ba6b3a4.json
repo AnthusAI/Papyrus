@@ -1,0 +1,34 @@
+{
+  "id": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+  "title": "Markus renderer: publish real static pages",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "041d43df-f234-4570-902e-42083ba0d53c",
+      "author": "home",
+      "text": "GOAL: the Markus renderer, producing REAL viewable static pages. This is the task that makes the PoC real.\n\nSCOPE:\n1. Implement the Renderer interface (from PPY-d79ff2) for Markus.\n2. Build step in Python (Papyrus is Python-first on the backend; markus is already installed at /Users/home/miniconda3/bin/markus - the PR's 'PyPI unverified' question is RESOLVED, anthus-markus is installed and working).\n3. Emit real static HTML pages: markus convert --fragment --no-css per article, plus a page shell, plus CSS.\n4. CSS CASCADE - do NOT rely on upstream Markus not using @layer (PR #57 does; that is a bet on someone else's future commits). Wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically.\n5. ONE PATH ONLY. PR #57 proposed a Python-built static output AND a Next.js dev/preview shell - that means what you preview is not what you ship. Build the static site and serve it with a plain static server.\n6. SECURITY: fragments get mounted as trusted HTML. 'markus validate' checks DIRECTIVE VOCABULARY, not XSS - it is not a security control and PR #57 wrongly implies it is. The real invariant is: fragments are built in CI from repo-committed Markdown with --allow-html OFF. Assert that at build time, do not just comment it.\n\nACCEPTANCE: I can open a real generated HTML file in a browser and see a correctly rendered article. Not a placeholder.",
+      "created_at": "2026-09-06T12:44:51.948723Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T12:43:02.719307Z",
+  "updated_at": "2026-09-06T12:44:51.948723Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

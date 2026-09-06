@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "350496f4-aa80-4f99-9470-2fd7a6600911",
+  "issue_id": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:43:02.697Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "priority": 1,
+    "status": "open",
+    "title": "Renderer interface + retrofit Pretext onto it"
+  }
+}

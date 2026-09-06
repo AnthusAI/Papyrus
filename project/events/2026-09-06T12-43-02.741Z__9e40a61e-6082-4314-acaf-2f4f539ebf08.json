@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9e40a61e-6082-4314-acaf-2f4f539ebf08",
+  "issue_id": "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:43:02.741Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "priority": 2,
+    "status": "open",
+    "title": "Migrate Papyrus + Threat Intelligence content to Markus Markdown bodies"
+  }
+}

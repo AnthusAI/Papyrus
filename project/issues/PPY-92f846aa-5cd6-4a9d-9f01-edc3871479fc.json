@@ -1,6 +1,6 @@
 {
   "id": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
-  "title": "Publisher plugin interface design (Pretext + Markus)",
+  "title": "Canonical content schema (Markus vocabulary) + Renderer interface",
   "description": "",
   "type": "epic",
   "status": "open",
@@ -12,10 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-09-06T12:09:07.764545Z",
-  "updated_at": "2026-09-06T12:09:07.764621Z",
+  "updated_at": "2026-09-06T12:42:54.204267Z",
   "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {},
-  "agent": null
+  "custom": {}
 }

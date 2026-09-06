@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e96129a4-38a8-4a2d-8e42-40c72519e7cf",
+  "issue_id": "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:43:02.752Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "priority": 1,
+    "status": "open",
+    "title": "Pilobil.us proof of concept: author one article, publish real pages"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad",
+  "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "02327261-2adf-483e-ba7e-3fcf2a8600b1",
+      "author": "home",
+      "text": "GOAL: one config toggle switches the whole site's renderer. This is the user-facing point of the initiative.\n\nPROBLEM WITH PR #57's SHAPE: it puts 'publisher' and 'defaultPresentation' on SiteBrand as two INDEPENDENT enums, most of whose combinations are invalid. Its own section 7.2 then has Pilobil set defaultPresentation: 'newspaper' because 'the field is required' - and then ignores it. Required-but-ignored config is how config rots. Same problem with layoutPlan: PR #57 has Markus emit a fake EditionLayoutPlan it never reads, and section 9 proposes making it worse with a 'page.markus' preset - inventing geometry to satisfy a schema that should not apply.\n\nREQUIRED SHAPE - discriminated union, so invalid states are unrepresentable:\n\n  type RendererConfig =\n    | { kind: \"pretext\"; layout: \"newsprint\" | \"blog\" | \"magazine\"; layoutPlan: EditionLayoutPlan }\n    | { kind: \"markus\"; theme: string };\n\nThis: (a) makes it literally one field to toggle, (b) moves Pretext geometry INSIDE the Pretext branch where it belongs, (c) eliminates every required-but-ignored field.\n\nSCOPE:\n1. Add rendererConfig to SiteBrand as above. Remove the standalone presentation enum and EditionContent.defaultPresentation where it is now redundant.\n2. layoutPlan moves under the pretext branch. EditionContent.presentationPlans (declared but UNUSED anywhere in the codebase - verified) should be deleted or repurposed as the per-renderer slot; decide and justify.\n3. Wire the dispatch at the app-shell level, NOT inside a React component. PR #57 dispatches inside components/presentation-shell.tsx, which forces a build-time static renderer to enter through a runtime React component. Markus needs no React and no hydration. Put the seam above the component.\n4. Papyrus -> newsprint, Threat Intelligence -> blog, Pilobil.us -> markus, all via this one field.",
+      "created_at": "2026-09-06T12:45:16.872331Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T12:43:02.729828Z",
+  "updated_at": "2026-09-06T12:45:16.872331Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

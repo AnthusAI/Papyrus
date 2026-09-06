@@ -1,0 +1,1555 @@
+{
+  "built_at": "2026-09-06T12:45:55Z",
+  "file_mtimes": {
+    "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45.json": 1788698550.102527,
+    "PPY-02fac757-0b66-4c0c-9932-8117cc974969.json": 1788698550.102607,
+    "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15.json": 1788698550.102693,
+    "PPY-047e4ced-953a-482e-8aa4-6b7d91f698e4.json": 1788698330.233223,
+    "PPY-0b058c26-b0b0-4a94-bdf5-08d8e5326b8d.json": 1788698550.102765,
+    "PPY-0d667350-c31a-484f-bbee-7b2d08549188.json": 1788698550.102836,
+    "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788698750.618942,
+    "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146.json": 1788698550.102898,
+    "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a.json": 1788698550.102974,
+    "PPY-20250557-b002-4aff-969f-a29479b4df13.json": 1788698550.103055,
+    "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1.json": 1788698550.103124,
+    "PPY-2844a5a3-aed7-4ace-82e0-16e357598766.json": 1788698550.103245,
+    "PPY-2a4d0487-4f52-4882-808b-8bcf22c0202a.json": 1788698550.103351,
+    "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd.json": 1788698550.103412,
+    "PPY-2edf13cb-2bdc-4916-a1d9-f62b06807706.json": 1788698550.103489,
+    "PPY-43ede3bd-7ad0-4baf-9d18-0e50be0ba1be.json": 1788698550.103561,
+    "PPY-443dc085-c4f8-4f9c-916c-065e372f08af.json": 1788698550.103629,
+    "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607.json": 1788698550.103695,
+    "PPY-4d6a966b-0df0-4213-b0a0-9cbfff3eace3.json": 1788698550.103768,
+    "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0.json": 1788698550.103842,
+    "PPY-500b35db-76d2-46c8-b9e1-f55c80dbe16f.json": 1788698550.103907,
+    "PPY-54923a81-3e8a-48d5-89a5-ccc48b18b089.json": 1788698550.103977,
+    "PPY-58e74049-7747-49ed-a920-a11b2ae888b1.json": 1788698550.104042,
+    "PPY-59ade493-23e0-4b72-aa79-1227f3aa28ca.json": 1788698330.233288,
+    "PPY-5d2bddb5-2073-4313-b633-6e96e5741972.json": 1788698550.104163,
+    "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81.json": 1788698550.104232,
+    "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad.json": 1788698550.104299,
+    "PPY-7625aa03-b6c8-453c-83ee-b587370a1035.json": 1788698550.104365,
+    "PPY-7b85184d-6593-4f9b-bcce-55db28936160.json": 1788698550.104435,
+    "PPY-826729a8-13ce-4df1-a3e7-39da475d351a.json": 1788698550.104502,
+    "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f.json": 1788698550.104575,
+    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788698750.58043,
+    "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5.json": 1788698550.104634,
+    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788698574.205246,
+    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788698574.193981,
+    "PPY-962447c5-b0e4-4812-b17c-48f2fa528229.json": 1788698550.104825,
+    "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8.json": 1788698550.104903,
+    "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e.json": 1788698550.104971,
+    "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab.json": 1788698550.105029,
+    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788698750.567296,
+    "PPY-a5399203-659e-47a7-a62c-3c99cbc20ae9.json": 1788698550.105089,
+    "PPY-a8566745-92a8-4bea-a953-0de1495646d5.json": 1788698550.105164,
+    "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99.json": 1788698550.105236,
+    "PPY-aad87778-2900-4c91-a3c6-692e773ac932.json": 1788698550.105301,
+    "PPY-ac174340-9136-4843-bf81-acc004f686ea.json": 1788698550.105361,
+    "PPY-b088d734-a319-4f46-b3a6-f19864ff31a4.json": 1788698550.105418,
+    "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca.json": 1788698750.552581,
+    "PPY-baa4231a-802c-4019-96c2-3c81b54002df.json": 1788698550.105483,
+    "PPY-d0931707-028e-4263-9fcc-0987ad515209.json": 1788698550.105561,
+    "PPY-d3e17943-4e13-44c7-855a-3da2e85626e3.json": 1788698550.105626,
+    "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0.json": 1788698628.037242,
+    "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89.json": 1788698550.105696,
+    "PPY-ebf0b626-d098-473e-8e3e-f0a98b79a940.json": 1788698550.105759,
+    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788698750.593059,
+    "PPY-f7b389e7-8b81-4fa1-a0ab-9644d56fc735.json": 1788698550.105839,
+    "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf.json": 1788698550.105908,
+    "PPY-fe73a279-57db-49c7-9e58-e9b99ec37d53.json": 1788698550.105986
+  },
+  "issues": [
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.318653Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Record editorial selection without claiming verified identity\n\n## Intent\n\nAs a publication operator, I want editorial selection to be an explicit visible transition without implying authenticated human identity, so that the pod enforces the process honestly and hosted Papyrus retains the authority boundary.\n\n## Behavior specification\n\nFeature: Represent editorial selection in a pod\n\nScenario: Copywriting is attempted before selection\n  Given a story has a complete report\n  And no editor-select transition is present\n  When an agent attempts to begin copywriting\n  Then the transition is refused\n  And guidance explains that editorial selection must occur first\n\nScenario: Selection advances the process\n  Given a story has a complete report\n  When the configured editor-select transition succeeds\n  Then Kanbus history records the transition and locally claimed actor\n  And copywriting becomes available\n\nScenario: Selection history is inspected\n  Given a pod story has passed editor selection\n  When an operator inspects who approved the transition\n  Then the pod presents the local event history\n  And it does not represent the local actor claim as verified identity\n  And guidance identifies hosted Papyrus as the boundary for enforceable authority\n\n## Boundary\n\nSlice 1 does not add authentication, signatures, role-based access control, or another identity mechanism.",
+      "id": "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Record editorial selection without claiming verified identity",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.318653Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.411636Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Configure the pinned Anth.us newsroom pod\n\n## Purpose\n\nEstablish the smallest Kanbus project configuration that can own the Slice 1 story lifecycle without changing Kanbus core.\n\n## Deliverables\n\n- Pin a released Kanbus version.\n- Define the newsroom story type and initial stage.\n- Define forward transitions from idea through publication plus only the revision paths required by Slice 1.\n- Establish the deterministic mapping from a stable Kanbus story identity to its owned file workspace.\n- Define the expected idea, assignment, research, report, and article artifacts.\n- Keep publication-specific configuration separate from generic Kanbus behavior.\n\n## Implements\n\n- PPY-d3e179: stable story workspace.\n- PPY-7625aa: supported revision paths.\n\n## Verification\n\nThe executable initialization and lifecycle specifications pass while Papyrus and Kanbus core remain unchanged.",
+      "id": "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Configure the pinned Anth.us newsroom pod",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.411636Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.544516Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Implement deterministic Anth.us publication handoff\n\n## Purpose\n\nGenerate the Anth.us CMS artifact from approved pod copy while preserving the pod as the single editable source.\n\n## Deliverables\n\n- Convert a valid article artifact and approved front matter into the expected Anth.us MDX path and shape.\n- Stamp a generated-file marker and stable source-story identity into front matter.\n- Refuse publication before required editorial stages are complete.\n- Make repeated publication byte-for-byte equivalent for unchanged source.\n- Avoid governing or rewriting existing hand-authored Anth.us posts.\n- Coordinate any destination-repository changes through that repository workflow when implementation begins.\n\n## Implements\n\n- PPY-a53992: deterministic publication.\n\n## Verification\n\nExecutable scenarios cover successful generation, early refusal, stable regeneration, and absence of duplicate output.",
+      "id": "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Implement deterministic Anth.us publication handoff",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.544516Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-27T11:16:31.485182Z",
+      "comments": [
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T11:16:30.611187Z",
+          "id": "0b2aad13-372e-445a-b4c8-4cb2b84963ef",
+          "text": "Branch: chore/PPY-047e4c-kanbus-install\nPR: https://github.com/AnthusAI/Papyrus/pull/46\nVerification: kanbus repair/list/create/close smoke tests passed"
+        }
+      ],
+      "created_at": "2026-08-27T11:14:53.837471Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-047e4ced-953a-482e-8aa4-6b7d91f698e4",
+      "labels": [],
+      "parent": null,
+      "priority": 2,
+      "status": "closed",
+      "title": "Install Kanbus and update agent git workflow in AGENTS.md",
+      "type": "chore",
+      "updated_at": "2026-08-27T11:16:31.485182Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.054741Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Validate pod-to-hosted migration with a real candidate\n\n## Intent\n\nAs a publication whose needs have outgrown a pod, I want its valuable story history and provenance to be reconstructable in hosted Papyrus, so that graduation does not require starting from raw prose.\n\n## Entry criteria\n\n- A real pod operator has a concrete hosted capability need and chooses to evaluate migration.\n- The migration target and retained information are explicitly scoped.\n\n## Definition of Done\n\n- Stable story identity, assignments, stage outputs, source citations, editorial decisions, final copy, publication metadata, and media references are assessed against the hosted import path.\n- One real story is migrated or reconstructed and the effort, loss, and manual decisions are measured.\n- The outcome defines the supported migration promise without implying schema parity or a configuration switch.\n\n## Non-goals\n\n- Prebuilding migration infrastructure without a candidate.\n- Seamless dual-backend operation.\n- Keeping pod and hosted records continuously synchronized.",
+      "id": "PPY-0b058c26-b0b0-4a94-bdf5-08d8e5326b8d",
+      "labels": [],
+      "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "priority": 3,
+      "status": "open",
+      "title": "Validate pod-to-hosted migration with a real candidate",
+      "type": "epic",
+      "updated_at": "2026-08-27T13:27:01.054741Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.255463Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Measure coaching, enforcement, and operator friction\n\n## Intent\n\nAs the pod experiment owner, I want evidence about how the guardrails affected the run, so that shipping a post is not mistaken for proof that the workflow helped.\n\n## Behavior specification\n\nFeature: Evaluate a newsroom pod run\n\nScenario: Guidance causes compliance without a block\n  Given Kanbus emits coaching for a story-stage prerequisite\n  And the agent completes the prerequisite before attempting the transition\n  When the run evidence is summarized\n  Then the coaching event is counted separately from blocked transitions\n  And the compliant outcome is retained\n\nScenario: A gate blocks an invalid transition\n  Given a stage transition fails closed\n  When the agent responds to the refusal\n  Then the block and subsequent recovery or bypass attempt are recorded\n\nScenario: Human intervention is required\n  Given the operator must intervene for the story to proceed\n  When the run evidence is summarized\n  Then the intervention and its cause are recorded as operator friction\n\nScenario: No coaching or blocking occurs\n  Given the real story completes with zero coaching events and zero blocks\n  When the run is evaluated\n  Then the result is classified as inconclusive about guardrail value\n  And it is not classified as evidence against the workflow.",
+      "id": "PPY-0d667350-c31a-484f-bbee-7b2d08549188",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Measure coaching, enforcement, and operator friction",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.255463Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:45:16.892836Z",
+          "id": "d3745bc9-1c1c-491b-9fa4-40946abab77d",
+          "text": "GOAL: the actual proof of concept - real published pages for Pilobil.us.\n\nCONTEXT: Pilobil.us is a Papyrus pod at /Users/home/Projects/Pilobol.us (Kanbus project PILO, editorial story workflow idea->assignment->research->report->editor_select->copywriting->published). It is KB-ready but cannot publish today.\n\nSCOPE:\n1. Author at least one REAL article in Markus Markdown that exercises the interesting vocabulary - pull-quote AND a multi-column construct (card-grid or two-up) AND a figure. The whole point is to prove non-trivial constructs survive the shared schema, so a plain-prose article does not test anything.\n2. Configure the publication with rendererConfig { kind: 'markus', theme: ... }.\n3. Publish real static pages.\n4. Then flip the SAME article to { kind: 'pretext', layout: 'newsprint' } and render it again. THIS IS THE MONEY SHOT: one source, two renderers, no second content model. Capture both outputs.\n\nACCEPTANCE: two real rendered outputs from one Markdown file, both openable in a browser.\n\nDEPENDS ON: PPY-88f77b, PPY-eca592."
+        }
+      ],
+      "created_at": "2026-09-06T12:43:02.752434Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [
+        {
+          "target": "PPY-88f77b",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-eca592",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "",
+      "id": "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 1,
+      "status": "open",
+      "title": "Pilobil.us proof of concept: author one article, publish real pages",
+      "type": "task",
+      "updated_at": "2026-09-06T12:45:16.892836Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.124442Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Coach and enforce story-stage prerequisites\n\n## Intent\n\nAs a newsroom operator, I want each transition to explain and enforce its editorial prerequisite, so that agents learn the process and cannot silently skip required work.\n\n## Behavior specification\n\nFeature: Gate newsroom story transitions\n\nScenario: Coach before a transition is attempted\n  Given a story is in a stage with a defined next editorial artifact\n  And the artifact is not ready\n  When an agent inspects or works with the story through Kanbus\n  Then Kanbus emits guidance naming the missing work\n  And the guidance explains why the work belongs before the next stage\n\nScenario: Refuse an incomplete transition\n  Given a story is ready to attempt a configured stage transition\n  And the artifact required by that transition is missing, empty, or invalid\n  When the agent requests the transition through Kanbus\n  Then the transition fails closed\n  And the story remains in its current stage\n  And the response identifies a concrete recovery action\n\nScenario: Allow a complete transition\n  Given the required artifact satisfies the configured gate\n  When the agent requests the transition through Kanbus\n  Then the transition succeeds\n  And the Kanbus event history records the stage change\n\n## Boundary\n\nSlice 1 implements file checks with lifecycle hooks. It must not add newsroom predicates to Kanbus core.",
+      "id": "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Coach and enforce story-stage prerequisites",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.124442Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-29T05:38:01.613629Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T05:38:01.003837Z",
+          "id": "1a3f1f1d-37e7-4b9e-91be-c56981ab7477",
+          "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green)."
+        }
+      ],
+      "created_at": "2026-08-28T20:14:11.558706Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher first-pass.\n\nregister accepts --why ''. A reject still has to be write-nothing, but a junk accepted or pending row with a blank why can be created.\n\nProduct rule: accepted and pending require a non-empty why. Empty why is only valid for a reject (or for not writing the row at all).",
+      "id": "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 2,
+      "status": "closed",
+      "title": "empty --why is allowed on accepted and pending refs",
+      "type": "bug",
+      "updated_at": "2026-08-29T05:38:01.613629Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-28T18:59:04.510889Z",
+          "id": "8dd2c335-eb38-4f2c-8799-24b39f2bf29a",
+          "text": "Epic intent: one papyrus command on PATH with the same argv for local pod and cloud backends. Backend is config (--backend local|cloud), not a parallel command tree. kbs stays the Kanbus board; papyrus owns newsroom objects.\n\nChild issues:\n- PPY-873378 story: executable Gherkin specs (features/operator-cli.feature)\n- PPY-ebf0b6 task: backend config, default corpus/publication, resolution order\n- PPY-58e740 task: cloud adapters (GraphQL Reference, Assignment)\n- PPY-97625f task: local pod adapters (Kanbus project + story artifacts)\n- PPY-7b8518 task: papyrus auth refresh + friendly JWT errors\n- PPY-500b35 task: --help tree, no PYTHONPATH ImportError, deprecate papyrus-newsroom docs\n\nObject-kind rule: cloud assignments = newsroom-assignment (GraphQL Assignment); local assignments list = pod-story (Kanbus story). Pod assignment stage is kbs workflow, not papyrus assignments list."
+        },
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-28T20:14:30.323949Z",
+          "id": "e8f1fd72-f9c1-42f9-bab5-994cede46d45",
+          "text": "Researcher first-pass on /workspace/research-pod (12 refs, then project_key WIKI → ANTHUS). Filed: PPY-fe73a2 P0 same-URL overwrite; PPY-ac1743 papyrus not on PATH; PPY-43ede3 hardcoded story / no --story; PPY-4d6a96 list/show omit url and why; PPY-1e058b empty --why; PPY-f7b389 project_key prefix mix (document + warn, do not remint). Refs are not board cards (by design). They did not hand-edit project/issues."
+        }
+      ],
+      "created_at": "2026-08-28T18:58:54.238499Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "labels": [],
+      "parent": null,
+      "priority": 1,
+      "status": "open",
+      "title": "Operator CLI: unified local and cloud backend",
+      "type": "epic",
+      "updated_at": "2026-08-28T20:14:30.323949Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.349433Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [],
+      "description": "# Select and charter the Slice 1 Anth.us story\n\n## Purpose\n\nMake the owner-side editorial, repository, privacy, and platform decisions before a contract team is authorized to implement against a dummy or ambiguous target.\n\n## Decisions and deliverables\n\n- Identify one genuine unpublished Anth.us story with enough research and editorial judgment to exercise the workflow.\n- Name the human editor who controls editor selection and publication approval.\n- Record agent responsibilities and the boundary between artifact completeness and editorial authority.\n- Decide where the pod configuration, internal idea/assignment/research/report artifacts, and publishable article source live.\n- Record whether each repository is private or public and what unpublished material a contractor may access.\n- Identify the Anth.us destination repository, expected MDX path, front-matter contract, generated marker, source-story identity field, and media expectations.\n- Confirm how the marked pod-generated article remains separate from existing hand-authored posts.\n- Select the exact released Kanbus version and runtime that Slice 1 will pin.\n- Verify that the pinned release actually supports the configurable issue type, workflow bindings, policy guidance, event history, and fail-closed lifecycle hooks assumed by the initiative.\n- Record the commands and evidence used for that capability check; an unreleased branch or unverified assumption is not sufficient.\n- Confirm that the story can proceed without AWS, hosted Papyrus, confidential source material, or verified identity.\n- Record which single-author, low-confidentiality characteristics prevent this story from representing other pre-infrastructure publications.\n\n## Verification\n\nAll decisions and evidence are recorded in Kanbus. The story has an explicit owner, editor, source location, publication target, privacy classification, CMS contract, and verified pinned Kanbus release. No contractor implementation begins while any of those fields remain undecided.",
+      "id": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Select and charter the Slice 1 Anth.us story",
+      "type": "task",
+      "updated_at": "2026-08-27T20:48:20.295767Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T12:21:51.583353Z",
+          "id": "5096079b-1d96-49b8-b105-0c5b231d938d",
+          "text": "Delivery record: branch chore/PPY-2844a5-newsroom-pods-description; PR https://github.com/AnthusAI/Papyrus/pull/48; verification: kbs show confirmed the initiative description, kbs validate passed, and git diff --check passed."
+        },
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T13:27:33.504350Z",
+          "id": "92938dc2-fbb6-4a8c-9608-a0647cb65634",
+          "text": "Milestone plan filed under this initiative: PPY-d09317 proves one real Anth.us story; PPY-eba77d tests transfer to a materially different pre-infrastructure publication; PPY-9e8f2e packages only repeated needs; PPY-baa423 tests external onboarding separately; PPY-0b058c waits for a real migration candidate. Slice 1 is detailed with eight Gherkin stories, twelve tasks, and explicit dependencies. PPY-244ed6 records the owner-side story, repository, privacy, CMS, and pinned-Kanbus decisions. PPY-5d2bdd converts those decisions into the approved contractor work package and gates implementation. Later milestones retain entry and exit criteria without speculative task breakdowns."
+        },
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T13:28:27.498164Z",
+          "id": "ad191a21-1729-4f99-a985-e8b6bafeded3",
+          "text": "Planning delivery: branch chore/PPY-2844a5-newsroom-pods-roadmap; PR https://github.com/AnthusAI/Papyrus/pull/51; commit 4a3ac03. Verification: kbs validate passed; all 25 issue descriptions matched the reviewed source through kbs show; milestone, story, and task child lists were inspected; dependency-bearing issues were verified with kbs show; and git diff --check passed. The plan contains five epics, eight Slice 1 behavior stories, and eleven Slice 1 implementation/evidence tasks. No implementation work has started."
+        }
+      ],
+      "created_at": "2026-08-27T11:32:12.933866Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Papyrus newsroom pods\n\nStatus: brainstorming-stage initiative, circulating for input. This is not an\nimplementation plan and nothing here should be built until it has been reviewed.\n\n## 1. What this is\n\nA **pod** is a small, file-native newsroom that runs entirely on a laptop: a\ndirectory of story files, a workflow definition, and a set of gates that keep\nagents on the newsroom's discipline. It uses **no cloud resources** — no\nAppSync, no AWS, no Biblicus, no S3.\n\nThree things want this, and they are not equally certain.\n\n**A pre-infrastructure mode for our own publications.** We repeatedly start\neditorial work before the AWS infrastructure behind it is stood up. Today that\nmeans either waiting on infrastructure or working with no discipline at all. A\npod is the mode that runs before there is a backend. This need is confirmed and\nrecurring, and on its own it justifies the work.\n\n**Running the Anth.us blog through the newsroom process.** Papyrus is both a\nproduct and a tool; we dogfood it as a tool to refine it. The blog is real\ncontent on a real cadence, which is the only honest test of whether the\ndiscipline holds.\n\n**A top-of-funnel on-ramp.** How a prospect experiences newsroom discipline at\nzero cost, and how Anthus AI Solutions professional services engagements start.\nThis one is a **hypothesis**, not an established need, and §10 scores it\nseparately so a successful slice 1 is not mistaken for evidence about it.\n\nThe Anth.us blog will probably never move to hosted Papyrus. But it might. The\npod is about **preserving the option to scale up**, not committing to it.\nPreserving an option is much cheaper than making a path seamless, and this design\noptimizes for the former. Graduation from pod to hosted is a **migration** (files\n→ AppSync), not a config flip. Most pods will never graduate, and that is a\nsuccess, not a failure.\n\n## 2. A pod is a Kanbus project\n\nThis is the central architectural decision and everything else follows from it.\n\nA pod is **not a new tool**. A pod is a Kanbus project configured with a newsroom\nschema: a `.kanbus.yml` defining story types and stages, `.policy` files defining\nthe gates, a `doctrine/` folder of plain markdown, and one skill. Setting up a\npod is writing configuration, not shipping a binary.\n\nKanbus already provides everything the pod's core needs:\n\n- **Configurable issue types and state machines.** `issue_types`, `workflows` as\n  explicit transition tables, `workflow_bindings` per type, and `initial_status`\n  are already config. The newsroom stage machine is a `.kanbus.yml` stanza.\n- **Blocking transition gates.** Policy-as-code supports\n  `When transitioning to \"<state>\"` with fail-closed enforcement. A newsroom gate\n  is structurally the same object as the existing\n  `epic-ready-requires-children.policy`.\n- **Gates that coach, not just refuse.** Guidance mode (`Then warn` / `suggest` /\n  `explain`) is what makes the on-ramp claim true. A gate that only says *no*\n  teaches nothing. A gate that says \"editors select from the private report\n  before copywriting starts, and here is why\" is the entire value proposition of\n  the on-ramp, and it already exists.\n- **Git-native storage and audit.** One file per issue, no secondary database,\n  events carrying actor and payload. The pod's versioning and audit story is\n  Kanbus's, unchanged.\n- **Lifecycle hooks.** Fail-closed `before` hooks on mutating operations are the\n  escape hatch for any gate the policy DSL cannot yet express.\n- **Distribution.** Kanbus ships on PyPI and crates.io. An on-ramp that requires\n  professional services to install is not top-of-funnel.\n\nTwo further consequences:\n\n- **`papyrus` is untouched.** No local mode inside the `papyrus` binary, no\n  compatibility shims (`AGENTS.md:356`), no revival of a local Markdown content\n  store (`AGENTS.md:460`), and no future `papyrus` feature has to answer \"does\n  this work in local mode?\" The invariant that live Assignment packets are\n  private `Message` work products (`AGENTS.md:178`) is a rule about `papyrus`\n  and is not in tension with a pod storing notes as files, because a pod is not\n  Papyrus.\n- **The value runs both ways.** Kanbus's configurable-schema features currently\n  have exactly one consumer, and it is a software issue tracker. A config system\n  with one consumer is not proven configurable — it is proven parameterized. A\n  newsroom is different in every dimension that matters: different nouns,\n  different state topology, different gate conditions. It is the forcing function\n  that shows where the abstraction leaks, and it gives Kanbus a demo that is not\n  a bug tracker. Note that this may be worth more to Kanbus's product story than\n  to Papyrus's.\n\n## 3. The line between pod and hosted\n\nOne rule decides every scope question, present and future:\n\n> **A pod is a filesystem, git, and an LLM. Anything that needs a corpus, a\n> curator, a solver, or infrastructure belongs to hosted Papyrus.**\n\nThis line is defensible to a prospect because it tracks a real capability\ndifference, not artificial crippling. It also makes the refusals below derivable\nrather than arbitrary — they are worked examples of the rule, not a list to\nmemorize.\n\nThe seam falls between the **story** and the **edition**. A pod produces stories.\nHosted Papyrus owns the corpus, the concept graph, the edition, and the layout.\n\n**Process versus authority.** A pod can prove that an `editor select` transition\noccurred. It cannot prove a human editor performed it: `actor_id` in a pod is\nwhatever the local environment claims, and an agent with shell access can run any\ncommand a person can. This is not a temporary gap to be closed later — verified\nidentity needs infrastructure, which is exactly what puts auth on the refuse list\nin §7. State it as the capability boundary it is:\n\n> **A pod enforces the process. Hosted Papyrus enforces who.**\n\nAny newsroom that must answer \"who approved this\" has just been told what hosted\nis for, without a feature comparison table. Within a pod, editorial roles are a\ndisciplined convention backed by visible git history, and the documentation\nshould say so plainly rather than imply stronger guarantees.\n\n## 4. Discipline over verbs\n\nThe on-ramp's value is the **discipline** a client internalizes, not memorized\nverb names. A client who has run stories through gates for six months understands\n\"stories have stages, you advance through the tool, you do not skip steps.\" That\nunderstanding survives any rename. A client who memorized a command string but\nnever internalized why a gate exists has learned nothing transferable.\n\nSo the pod uses **Kanbus verbs**. It does not mirror `papyrus` verb names by\nhand, and it does not invent a third dialect. The discipline transfers; the verbs\nare labels.\n\n## 5. In scope\n\n- A **newsroom `.kanbus.yml`**: a story type and its stage machine\n  (idea → assignment → research → report → editor select → copywriting →\n  published), with explicit transitions.\n- **Gates as `.policy` files**: a story cannot advance without the artifacts that\n  stage requires. Each gate carries `warn` / `suggest` / `explain` guidance so a\n  refusal teaches.\n- A **per-story file convention**: each story owns a directory holding\n  `idea.md`, `assignment.md`, `research.md`, `report.md`, `article.md`.\n- **Copywriting as a gated stage** — the transition from private reporting to\n  reader-facing copy. This is the core discipline and it is cheap.\n- **Doctrine as plain markdown** in `doctrine/`. The skill reads it. No GraphQL\n  doctrine model.\n- **Research and report packets as plain markdown.** The discipline (private\n  report → editor select → copywriting creates the reader-facing piece), not the\n  schema.\n- **One skill** telling agents how the gates work and how to advance a story.\n- **Publish as handoff**: `article.md` with YAML front matter lands in the\n  client's CMS. For Anth.us that is `src/blog/` in the Gatsby repo.\n\n## 6. Canonicality\n\nThe pod is **upstream**; the CMS copy is a build output. Publish is an\n**idempotent regeneration** of the target file, never a one-shot copy.\n\nThis is decided rather than left open because the alternative is the specific\nfailure that kills dogfooding: two copies with no defined source of truth, then\nnobody is sure which side to edit, then everyone edits the CMS, then the pod\nstops being used.\n\nA rule this load-bearing cannot rest on remembering it. Make it mechanical:\n`publish` stamps a generated-file marker into the `.mdx` front matter, and a CI\ncheck fails when a marked file has diverged from what regeneration would produce.\nEditing the CMS copy then fails the build instead of quietly winning. The marker\ndoes double duty as the boundary between pod-published posts and the existing\nhand-authored files in `src/blog/`, which are not governed by this rule.\n\n## 7. Refused entirely\n\nThese do not exist in a pod. Where a user might expect them, the answer is a\nclear \"that is hosted Papyrus,\" not an emulation.\n\n- **The concept graph, knowledge query, `SemanticNode`, `SemanticRelation`, the\n  relation-type system.** Concept identity is *the* hard problem and a pod has no\n  curator. `concepts/` is hand-edited notes, or it does not exist.\n- **Reference curation, Biblicus, corpus sync, `Reference` records, evidence\n  eligibility, `curationStatus`.** All coupled to S3, Biblicus, and GraphQL. A\n  pod story's `research.md` cites URLs and that is it.\n- **Analysis** — entity graph, topic modeling, Biblicus artifacts.\n- **Videos and VideoML** — the entire pipeline. Refused on infrastructure, not on\n  principle.\n- **Editions, edition planning, layout, Pretext, the solver.** The pod's unit is\n  the story. The moment \"publish an edition\" enters a pod, the expensive half of\n  Papyrus comes with it. Editions are the off-ramp to hosted.\n- **Sections, `NewsroomSection` doctrine, lanes, budgets.** A pod story is just a\n  story, with at most a free-text `section` field in front matter.\n- **Auth and JWT, ops (content and corpora management), batch.** See the process\n  versus authority boundary in §3.\n- **Coverage Themes, signals trend-report, story-cycle orchestration, editions\n  plan.** The assignment-desk layer assumes a corpus and signals a pod lacks.\n- **The Tactus procedure runtime.** Coupled to GraphQL helpers. A pod's agents\n  are ordinary LLMs following the skill and running Kanbus commands.\n- **Parallel versioning, lineage, `PublishedEdition` projections.** Git and\n  Kanbus events are the version and audit story.\n\n## 8. Refused because tempting but dangerous\n\n- **A local `knowledge query` over `concepts/`.** It sounds local, it implies a\n  graph exists, and building a real semantic engine over markdown is real\n  software. Without it, concept files are just notes — which is fine.\n- **Replicating the `Message` / `ModelAttachment` / `AssignmentEvent` audit\n  model.** Kanbus events are the audit log. No parallel append-only rows, no\n  `select` / `merge` / `brief` / `hold` / `kill` as structured event types.\n- **Importing hosted dialect quirks** such as the `--assignment` /\n  `--assignment-id` split. The pod inherits Kanbus's dialect and nothing else.\n- **Validated packet schemas.** Keep the discipline (private report before editor\n  select before copy); drop the schema. `research.md` and `report.md` are notes\n  with light structure.\n- **Anything newsroom-specific pushed into Kanbus core.** See §11.\n\n## 9. What the pod might need from Kanbus\n\nThese are **hypotheses to be tested by slice 1, not a shopping list.** Slice 1\nruns on lifecycle hooks precisely so the real work reveals which of these are\njustified; anything still speculative afterward does not get built.\n\nThe gap is narrow and specific. Kanbus's policy predicates all operate on the\n**issue record** — fields, labels, title pattern, description, parent and child\nstatus. None operate on **files**. That is essentially the whole gap.\n\n1. **File predicates in the policy DSL** — `the file \"report.md\" must exist`,\n   `must not be empty`, `must have front matter field \"slug\"`. The strongest\n   candidate: generically useful well beyond newsrooms (\"cannot close without a\n   changelog entry,\" \"cannot reach review without a design doc\").\n2. **Per-issue file trees** — a convention for the directory an issue owns.\n   Small, and it unlocks (1).\n3. **Custom fields typed per issue type** — today there is a free-form `custom`\n   bag; stories want declared `slug`, `section`, `byline`.\n4. **Scaffolding and templates** — `create --type story` laying down the file\n   skeleton, and a template flag on `init` so a pod is one command.\n5. **Hierarchy display aliases** — the hierarchy levels stay structurally fixed\n   so tooling is stable, but each level gets a configurable display name.\n   Newsroom nouns are as well known to models as Jira nouns.\n\n**The promotion rule:** a hook earns a DSL predicate when a second, unrelated\nproject would write the same hook. The hooks we find ourselves writing twice were\ngeneral all along; the ones only a newsroom wants stay hooks. This is the same\ntest as §11's boundary rule, applied to the upstream list rather than to features\nalready proposed for core.\n\n**The parity tax is real.** Kanbus maintains behavior parity across Python and\nRust with cucumber suites in both, so every new DSL predicate costs double. That\nargues for a small, general file-predicate set rather than an accreting pile of\nnewsroom-specific steps.\n\n## 10. Slice 1 — the test of the claim\n\nSlice 1 is **one real Anth.us post** going idea → assignment → research → report\n→ editor select → `article.md`, landing in `Anth.us/src/blog/`, with every stage\nadvance passing through Kanbus gates. One dummy story is not enough; it does not\ntest whether the discipline holds under real content.\n\nSlice 1 uses **lifecycle hooks** for the file checks rather than waiting on file\npredicates to land in both runtimes. Hooks are already fail-closed on mutating\noperations, cost zero Kanbus changes, and let the real post tell us which\npredicates are worth the parity tax instead of guessing the vocabulary up front.\n\n### What gets measured\n\nA pod that never refuses anything and no pod at all produce the same `.mdx`, so\n\"the post shipped\" is not a result. But **zero refusals is inconclusive, not\nnegative** — a gate that never fires because the agent read the skill and\ncomplied is prevention working exactly as intended.\n\nSeparating the two requires distinguishing **coaching** from **blocking**. Kanbus\nguidance fires on `show`, `create`, `update`, `list`, and `ready` — not only on\nrejected transitions — and emits structured reports carrying severity, source\nfile, and rule. So record:\n\n- **Coaching events**, and whether the agent complied without being blocked.\n  Coaching-then-compliance is the outcome we actually want, and it is the\n  signal that would otherwise be invisible.\n- **Blocks**, and whether the agent recovered or tried to route around the gate.\n- **False positives** — gates that fired on correct work.\n- **Operator friction** — where a human had to intervene to make progress.\n\nIf coaching and blocking both read zero, the story was too easy to test the\ndesign and slice 1 needs a harder one, not a verdict.\n\n### Scoring the two claims separately\n\nSlice 1 tests the **internal** case: does the discipline hold on real content,\nand does a newsroom schema actually run on Kanbus configuration? A clean pass\nsettles that and settles nothing about the funnel.\n\nThe **funnel** claim needs a different experiment with a person who does not work\nhere (§11). A successful slice 1 must not be reported as evidence for it.\n\nIf a real story cannot make the trip on gates alone, the architecture is built on\nhope. No knowledge query, no concept graph, no editions, no Tactus — just the\nschema, the gates, the file convention, and one skill.\n\n## 11. Constraints and risks\n\n- **The boundary test for Kanbus core:** would a non-newsroom user want this\n  feature? File predicates, yes. Templates, yes. MDX front-matter parsing, no —\n  that is a hook. A copywriting stage, obviously not — that is config. This is\n  the same test as §9's promotion rule; one rule, two lists.\n- **The pod stays configuration.** A `.kanbus.yml`, `.policy` files, a skill, and\n  doctrine. If we find ourselves patching Kanbus core for newsroom reasons, the\n  seam is wrong.\n- **Pods pin a Kanbus version.** Never ride `main`, or every Kanbus release is a\n  potential client incident.\n- **Doctrine is the uncapped scope vector.** It is the easiest thing to keep\n  writing and where the professional-services value lives. Structural cap:\n  doctrine is whatever the agent reads *in full* every run. When it stops fitting\n  in context, it is too big. Self-enforcing, no policy needed.\n- **The funnel claim is untested.** The pre-infrastructure and dogfooding cases\n  in §1 are confirmed needs; the on-ramp case is not. It stays unproven until\n  someone outside the company runs a pod, and it should not be used to justify\n  scope that the confirmed cases would not justify on their own.\n- **Kanbus has not weighed in.** §9 proposes work in someone else's repository\n  from inside a Papyrus document. The upstream list needs review by whoever owns\n  Kanbus before it is treated as agreed.\n\n## 12. Open questions\n\n1. Is \"pod\" the right product word, or does it collide with too much\n   (Kubernetes, podcasts, AWS)? **Bureau** is the newspaper metaphor that\n   actually fits: a small local office of a larger paper, autonomous, reporting\n   upstream, which may or may not ever be absorbed. Working name for now.\n2. Where do skills live: in Kanbus's skill setup, in the pod tree, or generic in\n   one and publication doctrine in the other?\n3. Are private reports (`research.md`, `report.md`) acceptable in a git-hosted\n   pod repo, given hosted Papyrus keeps packets private for a reason? Proposed:\n   the Anth.us blog has no confidentiality need, so one repo — but keep reports\n   under a single directory prefix so they can be split or ignored later.\n4. Should `idea` become a first-class stage in hosted Papyrus eventually, or only\n   exist in a pod? If only in a pod, that is fine.\n5. Is a control worth running — one story through the gates and one without — or\n   do the coaching and blocking counts in §10 carry enough signal on their own?\n6. Which pre-infrastructure publications should get a pod after slice 1, and do\n   any of them need something the Anth.us blog does not?\n\n## 13. Non-goals\n\n- A pod tool with its own binary, storage layer, or CLI dialect.\n- Dual-backend completeness — every Papyrus command in pod form.\n- Biblicus, GROBID, S3 vectors, entity-graph workers.\n- Newspaper and Pretext layout.\n- The video pipeline.\n- A `papyrus pod` UX inside the `papyrus` binary.\n- Reviving `content/articles` as a Papyrus runtime store.\n- Seamless graduation to hosted Papyrus.\n- Verified editorial identity or access control in a pod.\n- Building the schema, the gates, the Kanbus features, or the skills before this\n  document has been reviewed.",
+      "id": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "labels": [],
+      "parent": null,
+      "priority": 2,
+      "status": "in_progress",
+      "title": "Papyrus newsroom pods",
+      "type": "initiative",
+      "updated_at": "2026-08-27T20:48:34.307918Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-29T12:17:20.426576Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T12:06:29.633632Z",
+          "id": "c0123788-5df2-486c-a892-32471792f05b",
+          "text": "Replacing in-repo template with git submodule to AnthusAI/anthus-semantic-knowledge-base at pods/anthus-blog."
+        },
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T12:07:10.280798Z",
+          "id": "307eaac4-9db0-4856-9811-d6227f74e75d",
+          "text": "PR opened: https://github.com/AnthusAI/Papyrus/pull/55\n\nVerified: git clone --recurse-submodules of branch cursor/chore/PPY-2a4d04-anthus-submodule-8cfb yields pods/anthus-blog with 11 ANTH story workspaces; kanbus list shows publication board."
+        },
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-29T12:17:20.436751Z",
+          "id": "76629157-688d-4885-a739-787cd9c4787c",
+          "text": "Merged. Newsroom is AnthusAI/anthus-semantic-knowledge-base, submodule at pods/anthus-blog via PR 55."
+        }
+      ],
+      "created_at": "2026-08-29T12:06:17.057303Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Replace pods/anthus-blog template with git submodule to AnthusAI/anthus-semantic-knowledge-base so agents cloning Papyrus with --recurse-submodules see ANTH stories.",
+      "id": "PPY-2a4d0487-4f52-4882-808b-8bcf22c0202a",
+      "labels": [],
+      "parent": null,
+      "priority": 2,
+      "status": "closed",
+      "title": "Wire Anthus newsroom as git submodule",
+      "type": "chore",
+      "updated_at": "2026-08-29T12:17:20.436751Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.615146Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Establish Slice 1 evidence capture and scoring\n\n## Purpose\n\nCapture enough structured evidence to evaluate the guardrails without treating successful publication as the only result.\n\n## Deliverables\n\n- Define how a Slice 1 run is identified and bounded.\n- Capture coaching events separately from failed transitions.\n- Record blocks, recovery, bypass attempts, false positives, and human interventions.\n- Preserve stable rule identities and relevant Kanbus event references without requiring chat reconstruction.\n- Define the classifications for supported, revise, stop, and inconclusive outcomes.\n- Keep internal workflow evidence separate from any future funnel score.\n\n## Implements\n\n- PPY-0d6673: experiment measurement.\n\n## Verification\n\nKnown fixture events produce the expected counts and classifications, including an inconclusive result when both coaching and blocking signals are absent.",
+      "id": "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Establish Slice 1 evidence capture and scoring",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.615146Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.715408Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-a8566745-92a8-4bea-a953-0de1495646d5",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Evaluate Slice 1 and decide the next milestone\n\n## Purpose\n\nTurn the real-story evidence into a bounded product decision rather than automatically expanding scope.\n\n## Deliverables\n\n- Report coaching, blocks, recoveries, bypass attempts, false positives, and human interventions.\n- Explain where the workflow taught, enforced, obstructed, or remained untested.\n- Score the internal discipline claim only; explicitly withhold funnel conclusions.\n- Record a proceed, revise-and-repeat, or stop decision with reasons.\n- Identify which hooks are publication-specific and which repeated non-newsroom use might justify Kanbus review.\n- Update the later milestone entry criteria based on evidence without prematurely creating implementation tasks for them.\n- If the signal was zero, choose a harder real story or control only if it can answer a specific unresolved question.\n\n## Verification\n\nThe Slice 1 epic can be closed only when its Definition of Done is supported by the real run and the decision record is attached through Kanbus.",
+      "id": "PPY-2edf13cb-2bdc-4916-a1d9-f62b06807706",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Evaluate Slice 1 and decide the next milestone",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.715408Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-29T05:37:59.172327Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T05:37:58.561835Z",
+          "id": "1739a012-2ce1-4123-8920-c028982403f3",
+          "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green)."
+        }
+      ],
+      "created_at": "2026-08-28T20:14:11.508918Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher first-pass.\n\nregister-ref.py writes only to stories/WIKI-650fd9/references/. After project_key WIKI → ANTHUS, new assignments are ANTHUS-* but new refs still land on the old story. There is no --story flag.\n\nProduct rule: papyrus references register --backend local must take an explicit story (or a configured default corpus story), never a hardcoded id. A project_key change must not strand new refs on a retired prefix.",
+      "id": "PPY-43ede3bd-7ad0-4baf-9d18-0e50be0ba1be",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "closed",
+      "title": "local register hardcodes a story path; no --story",
+      "type": "bug",
+      "updated_at": "2026-08-29T05:37:59.172327Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-29T13:28:28.032860Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher and Papyrus desks on /workspace/research-pod still accept non-paper refs with python3 /workspace/research-pod/bin/register-ref.py onto WIKI-650fd9. papyrus is not on PATH. papyrus references register does not exist for them. Do not invent a second kbs wiki accept. Operator CLI is the accept path (same subcommands for local-pod and cloud). Install or expose papyrus on the research-pod PATH so both desks can drop the sidecar. Specs first if the register command is incomplete.",
+      "id": "PPY-443dc085-c4f8-4f9c-916c-065e372f08af",
+      "labels": [],
+      "parent": null,
+      "priority": 1,
+      "status": "open",
+      "title": "research-pod needs papyrus CLI on PATH for references register",
+      "type": "task",
+      "updated_at": "2026-08-29T13:28:28.032860Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.379714Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-5d2bddb5-2073-4313-b633-6e96e5741972",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Write executable Slice 1 behavior specifications\n\n## Purpose\n\nTranslate the Slice 1 Kanbus stories into executable specifications before production configuration, hooks, publishing behavior, or CI enforcement is implemented.\n\n## Deliverables\n\n- Cover stable story workspace initialization.\n- Cover coaching, failed transitions, successful transitions, and supported revision paths.\n- Cover deterministic publication, generated markers, divergence detection, and hand-authored exclusions.\n- Cover evidence classification for coaching, blocks, recovery, false positives, intervention, and inconclusive zero-signal runs.\n- Provide a disposable fixture environment that cannot be mistaken for the real-story proof.\n\n## Verification\n\nRun the new specifications and record that they fail for the expected missing-behavior reasons before production work begins. No specification may encode internal implementation structure.",
+      "id": "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Write executable Slice 1 behavior specifications",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.379714Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-29T05:38:00.394827Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T05:37:59.782117Z",
+          "id": "0c1941f2-01a5-4830-b5e9-2d2f4528c4e4",
+          "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green)."
+        }
+      ],
+      "created_at": "2026-08-28T20:14:11.542020Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher first-pass.\n\nlist-refs.py (and papyrus references show on local) print kind/status/id/title/corpus and drop url and why. Fine for a smoke test, unusable as a knowledge base.\n\nProduct rule: list must include url. show must include url and why. Those two fields are why the row exists.",
+      "id": "PPY-4d6a966b-0df0-4213-b0a0-9cbfff3eace3",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "closed",
+      "title": "references list and show omit url and why",
+      "type": "bug",
+      "updated_at": "2026-08-29T05:38:00.394827Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-09-06T12:13:32.088137Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:09:13.164045Z",
+          "id": "f72b94ac-3918-4cc3-9024-feb38a036198",
+          "text": "As a Papyrus pod operator (Pilobil.us), I want to publish via a Markus static-Markdown front end alongside the existing Pretext site type, so that the same standard content model can be toggled to either publisher.\n\nScope: design doc under docs/ + minimal spike (publisher interface stub + config enum). No Pretext removal, no second content model. Branch from develop, PR into develop."
+        },
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:13:26.717259Z",
+          "id": "7cd6f673-b896-40ae-b44c-719851558391",
+          "text": "Design + spike landed in PR #57 (into develop): https://github.com/AnthusAI/Papyrus/pull/57\n\nBranch: cursor/feature/PPY-4db888-pluggable-publishers-markus-8e6b\nFiles: docs/pluggable-publishers.md (design), lib/publisher.ts (metadata-only PublisherId/Publisher registry stub, not wired).\n\nVerification:\n- npm run lint: clean\n- npm run typecheck: no new errors from lib/publisher.ts (pre-existing amplify_outputs.json error on develop is unrelated)\n- Spike passes standalone tsc --noEmit --strict in isolation\n- No runtime behavior added (spike is unimported), so build/BDD unchanged from develop\n\nNext: Phase 1 wiring (publisher on SiteBrand + PresentationShell dispatch + decouple TI imports + PodContentRepository) tracked as follow-up work under PPY-92f846."
+        }
+      ],
+      "created_at": "2026-09-06T12:09:10.000979Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 2,
+      "status": "closed",
+      "title": "Design doc + spike for pluggable publishers (Markus static path)",
+      "type": "task",
+      "updated_at": "2026-09-06T12:13:32.088228Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-28T18:58:58.817412Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-500b35db-76d2-46c8-b9e1-f55c80dbe16f",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 2,
+      "status": "in_progress",
+      "title": "Facade help tree and install ergonomics",
+      "type": "task",
+      "updated_at": "2026-08-28T19:10:20.465029Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.224949Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Detect divergence in generated Anth.us articles\n\n## Intent\n\nAs an Anth.us maintainer, I want CI to detect manual edits to pod-generated articles, so that the pod remains the unambiguous source of truth without governing existing hand-authored posts.\n\n## Behavior specification\n\nFeature: Verify generated Anth.us content\n\nScenario: Generated content matches the pod\n  Given an Anth.us article carries the pod-generated marker\n  And regeneration matches the committed CMS file\n  When the divergence check runs\n  Then the check passes\n\nScenario: Generated content was edited in the CMS repository\n  Given an Anth.us article carries the pod-generated marker\n  And the committed CMS file differs from regeneration\n  When the divergence check runs\n  Then the check fails\n  And the output identifies the divergent article and regeneration action\n\nScenario: Existing hand-authored content is inspected\n  Given an Anth.us article does not carry the pod-generated marker\n  When the divergence check runs\n  Then that article is outside the pod divergence contract\n  And the check does not require a pod source for it.",
+      "id": "PPY-54923a81-3e8a-48d5-89a5-ccc48b18b089",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Detect divergence in generated Anth.us articles",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.224949Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-28T18:58:58.111299Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-58e74049-7747-49ed-a920-a11b2ae888b1",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Cloud backend adapters for operator nouns",
+      "type": "task",
+      "updated_at": "2026-08-28T19:14:56.123430Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-27T11:05:13.502551Z",
+      "comments": [],
+      "created_at": "2026-08-27T11:04:57.613691Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-59ade493-23e0-4b72-aa79-1227f3aa28ca",
+      "labels": [],
+      "parent": null,
+      "priority": 2,
+      "status": "closed",
+      "title": "Kanbus bootstrap",
+      "type": "chore",
+      "updated_at": "2026-08-27T11:05:13.502551Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T20:49:06.654240Z",
+          "id": "18bb069b-8a54-4e99-a825-c6f9dbe96580",
+          "text": "Planning delivery: recorded on branch chore/PPY-2844a5-newsroom-pods-roadmap in commit 77e0f31 and PR https://github.com/AnthusAI/Papyrus/pull/51. Verification: kbs validate passed; the contractor-readiness issue and downstream executable-specification dependency were inspected with kbs show; the Slice 1 task list contains twelve tasks; and git diff --check passed. No contractor implementation is authorized until PPY-244ed6 is complete and this task has an explicit Anthus approval comment and is closed."
+        }
+      ],
+      "created_at": "2026-08-27T20:48:20.311607Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Prepare and approve the Slice 1 contractor work package\n\n## Purpose\n\nConvert the evidence roadmap into a bounded statement of work that a contract development team can execute and that Anthus can accept without relying on conversations outside Kanbus.\n\n## Entry criteria\n\n- PPY-244ed6 is complete and its owner-side decisions are recorded in Kanbus.\n- The exact pinned Kanbus release and chosen runtime have passed the required capability check.\n\n## Included contractor scope\n\n- PPY-4748b6: write executable Slice 1 behavior specifications and demonstrate the expected failures.\n- PPY-02fac7: configure the pinned Anth.us newsroom pod.\n- PPY-5fabc2: implement fail-closed artifact gates and coaching.\n- PPY-962447: author the minimal pod skill and Anth.us doctrine.\n- PPY-03504b: implement deterministic Anth.us publication handoff.\n- PPY-826729: add generated-article divergence verification.\n- PPY-2cee08: establish evidence capture and scoring.\n- PPY-68b697: rehearse the complete workflow with a disposable fixture.\n\nThe contract-team delivery boundary is a successful disposable rehearsal. PPY-a85667, the real Anth.us story run, is joint work under Anthus editorial authority. PPY-2edf13, the proceed/revise/stop decision, remains owned by Anthus.\n\n## Required work-package content\n\n- Exact repositories, branches, working directories, artifact locations, and repository-specific AGENTS.md or Kanbus obligations.\n- Contractor access, confidentiality, unpublished-content handling, code ownership, and delivery expectations.\n- Environment setup and the exact commands used to run specifications, Kanbus validation, publishing verification, and the rehearsal.\n- An acceptance matrix mapping every included task and behavior story to executable evidence or a witnessed demonstration.\n- Required proof that specifications failed before production implementation and pass afterward.\n- Required demonstrations of coaching, fail-closed blocking, recovery, revision, deterministic publication, marked-file divergence failure, hand-authored-file exclusion, and evidence scoring.\n- A cross-repository delivery rule: work performed in Anth.us or another repository must also follow that repository task, branch, review, and verification rules.\n- A stop-and-escalate rule for any proposed Kanbus-core change, Papyrus-core change, cloud dependency, authentication mechanism, new binary, or scope outside the listed tasks.\n- A clear change-control rule: additions must be recorded and approved in this Kanbus task before they enter the contractor scope.\n\n## Approval gate\n\nThe work package is approved only when the Anthus owner records an explicit approval comment in this Kanbus task. External contracts, email, or chat may mirror the scope, but this issue remains the single source of truth. PPY-4748b6 and downstream implementation remain blocked until this task is closed.\n\n## Non-goals\n\n- Selecting or contracting a vendor.\n- Implementing the pod.\n- Running or judging the real Anth.us story.\n- Expanding Slice 1 to external onboarding, migration, hosted Papyrus, or speculative Kanbus features.",
+      "id": "PPY-5d2bddb5-2073-4313-b633-6e96e5741972",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Prepare and approve the Slice 1 contractor work package",
+      "type": "task",
+      "updated_at": "2026-08-27T20:49:06.654240Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.442762Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Implement fail-closed artifact gates and coaching\n\n## Purpose\n\nUse existing Kanbus policy guidance and lifecycle hooks to teach and enforce the editorial sequence for Slice 1.\n\n## Deliverables\n\n- Define the prerequisite artifact for every guarded transition.\n- Reject missing, empty, or invalid artifacts before the transition mutates state.\n- Emit actionable guidance that names the missing work and explains the editorial reason.\n- Give every coaching and blocking rule a stable identity suitable for evidence capture.\n- Preserve the current stage and all story files after a refusal.\n- Keep newsroom-specific file and front-matter validation in hooks rather than Kanbus core.\n\n## Implements\n\n- PPY-13bf6d: coaching and stage enforcement.\n- PPY-7625aa: gated revision recovery.\n\n## Verification\n\nExecutable scenarios demonstrate coaching, refusal, recovery, successful transition, and unchanged state after failure.",
+      "id": "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Implement fail-closed artifact gates and coaching",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.442762Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.648605Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-962447c5-b0e4-4812-b17c-48f2fa528229",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-826729a8-13ce-4df1-a3e7-39da475d351a",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Rehearse the complete pod workflow with a disposable fixture\n\n## Purpose\n\nProve that the mechanics and evidence capture are safe enough for the real post without allowing a dummy story to satisfy Slice 1.\n\n## Deliverables\n\n- Initialize a disposable story through the supported Kanbus path.\n- Exercise every forward transition and each configured revision path.\n- Deliberately trigger at least one coaching event and one fail-closed block, then recover through the documented path.\n- Verify deterministic publication and a deliberate divergence failure in an isolated target.\n- Confirm that evidence scoring distinguishes coaching, blocking, recovery, false positives, and intervention.\n- Remove or clearly retain the fixture as test data so it cannot be confused with publication content.\n\n## Verification\n\nAll Slice 1 executable specifications pass against the rehearsal environment, and the real-story completion story remains open.",
+      "id": "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Rehearse the complete pod workflow with a disposable fixture",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.648605Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.158829Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Return story work for revision without losing history\n\n## Intent\n\nAs an editor, I want to return a story to an earlier editorial stage, so that revision is represented honestly instead of being performed behind an unchanged status.\n\n## Behavior specification\n\nFeature: Revise newsroom story work\n\nScenario: Return reporting for more research\n  Given a story has reached reporting or editor selection\n  When the editor requests additional research through a supported transition\n  Then the story returns to the configured research stage\n  And existing assignment, research, and report artifacts remain available\n  And guidance explains what must change before reporting can advance again\n\nScenario: Return reader-facing copy for revision\n  Given a story has reached copywriting\n  When the editor requests copy revision through a supported transition\n  Then the story remains in or returns to the configured copywriting stage\n  And the prior article artifact remains in Git history\n  And publication remains unavailable until the revised copy passes its gate\n\n## Boundary\n\nSlice 1 needs only the return paths exercised by the real story. It does not need a hosted assignment-event model or verified editor identity.",
+      "id": "PPY-7625aa03-b6c8-453c-83ee-b587370a1035",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 2,
+      "status": "open",
+      "title": "Return story work for revision without losing history",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.158829Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-28T18:58:58.583944Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-7b85184d-6593-4f9b-bcce-55db28936160",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Operator auth refresh and JWT error UX",
+      "type": "task",
+      "updated_at": "2026-08-28T19:14:57.399180Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.579326Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Add generated-article divergence verification\n\n## Purpose\n\nMake the pod-to-CMS canonicality rule mechanical rather than dependent on operator memory.\n\n## Deliverables\n\n- Add a deterministic verification command for marked pod-generated Anth.us files.\n- Regenerate or otherwise compare each marked file with its pod source.\n- Fail with the affected article and recovery action when divergence exists.\n- Ignore the existing hand-authored blog corpus unless a file carries the generated marker.\n- Integrate the verification into the Anth.us continuous-integration path under that repository workflow.\n\n## Implements\n\n- PPY-54923a: divergence detection.\n\n## Verification\n\nCI-oriented executable scenarios pass for matching output, fail for a deliberate generated-file edit, and leave unmarked posts outside the contract.",
+      "id": "PPY-826729a8-13ce-4df1-a3e7-39da475d351a",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Add generated-article divergence verification",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.579326Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-28T18:59:04.744771Z",
+          "id": "caa2a513-d826-4f0e-8e41-def498ab694f",
+          "text": "Gherkin acceptance in features/operator-cli.feature. Fixture contract in features/fixtures/operator-cli/README.md. Covers references list/show, assignments list, auth refresh, backend selection, config defaults, help tree, and local/cloud parity. Spec-only in first PR; implementation follows outside-in."
+        },
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-28T18:59:42.766251Z",
+          "id": "055302d3-4b2d-4434-a2e4-e34313983bac",
+          "text": "Spec delivery: branch cursor/operator-cli-spec-8c3b; PR https://github.com/AnthusAI/Papyrus/pull/53; verification: Gherkin in features/operator-cli.feature, fixture README, AGENTS.md contract section. No implementation — specs tagged @spec-only."
+        }
+      ],
+      "created_at": "2026-08-28T18:58:57.635637Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "open",
+      "title": "Operator CLI executable specifications",
+      "type": "story",
+      "updated_at": "2026-08-28T18:59:42.766251Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:44:51.948723Z",
+          "id": "041d43df-f234-4570-902e-42083ba0d53c",
+          "text": "GOAL: the Markus renderer, producing REAL viewable static pages. This is the task that makes the PoC real.\n\nSCOPE:\n1. Implement the Renderer interface (from PPY-d79ff2) for Markus.\n2. Build step in Python (Papyrus is Python-first on the backend; markus is already installed at /Users/home/miniconda3/bin/markus - the PR's 'PyPI unverified' question is RESOLVED, anthus-markus is installed and working).\n3. Emit real static HTML pages: markus convert --fragment --no-css per article, plus a page shell, plus CSS.\n4. CSS CASCADE - do NOT rely on upstream Markus not using @layer (PR #57 does; that is a bet on someone else's future commits). Wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically.\n5. ONE PATH ONLY. PR #57 proposed a Python-built static output AND a Next.js dev/preview shell - that means what you preview is not what you ship. Build the static site and serve it with a plain static server.\n6. SECURITY: fragments get mounted as trusted HTML. 'markus validate' checks DIRECTIVE VOCABULARY, not XSS - it is not a security control and PR #57 wrongly implies it is. The real invariant is: fragments are built in CI from repo-committed Markdown with --allow-html OFF. Assert that at build time, do not just comment it.\n\nACCEPTANCE: I can open a real generated HTML file in a browser and see a correctly rendered article. Not a placeholder."
+        }
+      ],
+      "created_at": "2026-09-06T12:43:02.719307Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [
+        {
+          "target": "PPY-d79ff2",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "",
+      "id": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 1,
+      "status": "open",
+      "title": "Markus renderer: publish real static pages",
+      "type": "task",
+      "updated_at": "2026-09-06T12:44:51.948723Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-29T11:19:11.186536Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Problem: auto-writing concept pages with no human gate makes the graph messier. KBevo grades the graph only by whether the answer was right. WikiSkill only grows. “The model thought it was useful” is not a gate.\n\nSolution: human include/exclude on an induced page is a first-class op, shaped like C-Unseen’s corroboration gate. A page is not live until a human includes it. Exclude is write-nothing for live use, not a silent delete of traces. Auto-write without this gate is forbidden. Specs first. Fail closed.",
+      "id": "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5",
+      "labels": [],
+      "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+      "priority": 1,
+      "status": "open",
+      "title": "Include/exclude gate: C-Unseen corroboration, not model-usefulness",
+      "type": "story",
+      "updated_at": "2026-08-29T11:19:11.186536Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-09-06T12:09:07.764545Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "labels": [],
+      "parent": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+      "priority": 2,
+      "status": "open",
+      "title": "Canonical content schema (Markus vocabulary) + Renderer interface",
+      "type": "epic",
+      "updated_at": "2026-09-06T12:42:54.204267Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-09-06T12:09:05.786234Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+      "labels": [],
+      "parent": null,
+      "priority": 2,
+      "status": "open",
+      "title": "Renderer architecture: one content schema, swappable renderers",
+      "type": "initiative",
+      "updated_at": "2026-09-06T12:42:54.192120Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.506734Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1",
+          "type": "blocked-by"
+        },
+        {
+          "target": "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Author the minimal pod skill and Anth.us doctrine\n\n## Purpose\n\nGive agents enough context to follow the newsroom discipline without turning doctrine into an uncapped second product.\n\n## Deliverables\n\n- One pod-specific skill that directs agents to inspect and advance work through Kanbus.\n- Minimal Anth.us publication doctrine that can be read in full on every run.\n- Clear separation between internal research/reporting and publishable copy.\n- Explicit process-versus-authority language: the pod enforces transitions, not verified identity.\n- Explicit instruction that pod-generated CMS files are outputs and must not be edited directly.\n- Guidance for revision, blocked transitions, and escalation to the editor.\n\n## Verification\n\nA fresh agent session can inspect a story, locate the complete doctrine, identify the next supported action, and explain the pod/hosted boundary without relying on prior chat context.",
+      "id": "PPY-962447c5-b0e4-4812-b17c-48f2fa528229",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Author the minimal pod skill and Anth.us doctrine",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.506734Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "box",
+          "comment_type": "default",
+          "created_at": "2026-08-29T11:22:55.247280Z",
+          "id": "00c73e0c-fa25-4780-ba2d-3b8b6ff6a550",
+          "text": "PLAN ONLY. Nobody implements until Ryan says go. Quality owns the board. Specs may be written; no runtime work.\n\nResearch steal-list (from Applied Research, 2026-08-29):\n- OKF: cheap header stamps; attested computation that actually runs (non-LLM checker). Agent may fill a sanctioned slot (the year). It may not edit the rule (swap the table). A format that only records how to check, and never runs, is the hole we do not ship.\n- TrajWiki: compiled page can die; raw traces stay immutable; the wiki is not evidence. Follow stamps back to the source.\n- C-Unseen: include/exclude is a corroboration gate, not “the model thought it was useful.”\n- Anti-pattern (WikiSkill / SCALE / KBevo): a graph that only grows because the model thought it helped. Auto-write without a human gate is forbidden.\n\nChildren: PPY-aa6f0a stamps + attested run, PPY-b088d7 supersession, PPY-9272c8 corroboration gate."
+        }
+      ],
+      "created_at": "2026-08-29T11:19:04.142026Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Product work from Applied Research (OKF / TrajWiki / WikiSkill / KBevo / C-Unseen).\n\nProblem: compiled wiki pages can look attested while they are stale, generated, or superseded. A cheap model will keep answering from yesterday’s concept thesis. Treating the compiled page as evidence is the TrajWiki failure.\n\nSolution: specify and implement three behaviors. Raw traces stay immutable. The compiled page is the thing that can die. A non-LLM checker enforces stamps. Auto-writing concept pages with no gate is out of scope and forbidden.\n\nChildren:\n1. Header stamps (provenance, attested vs generated, current vs live)\n2. Supersession (old compiled page marked dead; traces untouched)\n3. Human include/exclude as a C-Unseen corroboration gate, not “the model thought it was useful”\n\nAcceptance: a cheap model must not treat a superseded or unattested compiled page as live evidence. Fail closed.",
+      "id": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+      "labels": [],
+      "parent": null,
+      "priority": 1,
+      "status": "open",
+      "title": "Wiki page lifecycle: stamps, supersession, and a corroboration gate",
+      "type": "epic",
+      "updated_at": "2026-08-29T11:22:55.247280Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-28T18:58:58.346094Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Local pod backend adapters for operator nouns",
+      "type": "task",
+      "updated_at": "2026-08-28T19:14:56.768281Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:00.980914Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Package the reusable newsroom pod\n\n## Intent\n\nAs an internal publication operator, I want a repeatable newsroom pod template built from demonstrated needs, so that a new pre-infrastructure publication can start without reconstructing the Anth.us experiment.\n\n## Entry criteria\n\n- Two real publications have completed the workflow.\n- The repeated configuration, doctrine boundaries, hooks, and handoff needs are known.\n\n## Definition of Done\n\n- A version-pinned pod template establishes the newsroom workflow, policies, per-story file convention, minimal doctrine, and agent skill.\n- Publication-specific doctrine and CMS adapters remain outside the generic template.\n- Setup and upgrade expectations are documented and tested from a clean environment.\n- Every generalized feature is supported by evidence from more than one publication.\n- Proposed Kanbus-core work is separately reviewed and tracked on the Kanbus board; newsroom-only behavior stays in configuration or hooks.\n\n## Non-goals\n\n- A new pod binary or storage layer.\n- Hosted Papyrus parity.\n- External funnel claims.",
+      "id": "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab",
+      "labels": [],
+      "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "priority": 2,
+      "status": "open",
+      "title": "Package the reusable newsroom pod",
+      "type": "epic",
+      "updated_at": "2026-08-27T13:27:00.980914Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:44:51.938529Z",
+          "id": "5477a3dd-dfb6-47fe-b22c-ffc93879546d",
+          "text": "GOAL: make Markus Markdown the CANONICAL article body, and project it into what Pretext needs.\n\nTHE CORE ARCHITECTURAL FACT (verified in lib/articles.ts):\n  Article.body: string[]        <- flat plain-text paragraphs, no inline markup\n  Article.pullQuotes?: string[] <- SIDE-CHANNEL array, not positioned in the body\n  Article.assets/image/video    <- also side-channel, positioned by the solver\n\nMarkus's directive vocabulary (pull-quote, card-grid, card, two-up, column, figure, callout, details, aside, metric, timeline) is a strict SUPERSET of that, and it is POSITIONAL - the pull quote sits where the author put it. So the resolution is not to invent a Papyrus schema; it is to adopt Markus's vocabulary as the Papyrus content schema.\n\nDIRECTION OF TRAVEL:\n  Article.body: string[]  ->  Article.body: string (Markus Markdown)\n  Article.pullQuotes[]    ->  DELETED; pull quotes become :::pull-quote in the body\n\nSCOPE:\n1. Consume the Markus document IR (kanbus-37dd9a, in the Markus repo, gives typed block nodes + schema_version). Do NOT re-parse Markdown in TypeScript.\n2. Build the Pretext PROJECTION: IR -> the flat structures the solver consumes (ordered paragraph strings, extracted pull quotes, figures). This projection is LOSSY BY DESIGN and that is correct - Pretext cannot express a card-grid. Decide and document the degradation for each directive Pretext cannot render (best candidate: render its textual content inline, never silently drop content).\n3. Type the IR in TS from the schema Markus emits. Keep schema_version checked at the boundary; fail loudly on mismatch.\n4. Round-trip test: an existing article migrated to Markdown must project back to the SAME body: string[] it has today. That is the regression proof for PPY-b794e1.\n\nDEPENDS ON: kanbus-37dd9a (Markus document IR) and PPY-d79ff2 (Renderer interface)."
+        }
+      ],
+      "created_at": "2026-09-06T12:43:02.708614Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [
+        {
+          "target": "PPY-d79ff2",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "",
+      "id": "PPY-a1020691-0271-4514-8fdf-f8d69339731f",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 1,
+      "status": "open",
+      "title": "Document IR ingestion + Pretext projection",
+      "type": "task",
+      "updated_at": "2026-09-06T12:44:51.938529Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.193834Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Publish approved pod copy deterministically to Anth.us\n\n## Intent\n\nAs an Anth.us editor, I want approved pod copy to generate the CMS artifact deterministically, so that the pod remains canonical and publication does not create a second editable source.\n\n## Behavior specification\n\nFeature: Publish a pod article to Anth.us\n\nScenario: Generate the approved article\n  Given a story has reached the publication gate\n  And its article artifact and required front matter are valid\n  When the operator publishes the story\n  Then the expected MDX file is generated in the Anth.us blog content location\n  And its front matter marks it as generated from the pod\n  And the generated content identifies the stable source story\n\nScenario: Publish the same story again\n  Given the generated Anth.us file already matches the pod source\n  When the operator publishes the story again\n  Then the resulting file is byte-for-byte equivalent\n  And no duplicate article is created\n\nScenario: Attempt publication before approval\n  Given a story has not passed the configured editorial selection and copywriting gates\n  When the operator attempts publication\n  Then publication is refused\n  And no CMS artifact is changed.",
+      "id": "PPY-a5399203-659e-47a7-a62c-3c99cbc20ae9",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Publish approved pod copy deterministically to Anth.us",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.193834Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.682387Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Run and publish the real Slice 1 Anth.us story\n\n## Purpose\n\nOperate the selected genuine article through the proven pod mechanics and collect unedited evidence from the real workflow.\n\n## Deliverables\n\n- Create the real story through Kanbus and complete idea, assignment, research, report, editorial selection, and copywriting artifacts.\n- Use only supported transitions, including revision paths if the editor requests changes.\n- Preserve internal research/reporting separately from reader-facing copy.\n- Publish the approved marked article into Anth.us and pass the divergence check.\n- Capture coaching, blocks, recovery, bypass attempts, false positives, and human interventions as the run occurs.\n- Follow the Anth.us repository delivery rules for the actual published article.\n\n## Implements\n\n- PPY-aad877: one real end-to-end story.\n\n## Verification\n\nThe real post is published from the pod source, the Kanbus history contains every transition, and the evidence record can be evaluated without relying on the agent conversation.",
+      "id": "PPY-a8566745-92a8-4bea-a953-0de1495646d5",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Run and publish the real Slice 1 Anth.us story",
+      "type": "task",
+      "updated_at": "2026-08-27T13:27:01.682387Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "box",
+          "comment_type": "default",
+          "created_at": "2026-08-29T11:20:36.692605Z",
+          "id": "1f8a17a0-5ea0-48fb-addf-117f981a2518",
+          "text": "Added the OKF attested-computation lock from Researcher: non-LLM checker that refuses a swapped table name; agent may fill the year, not edit the rule. A check-format that never runs is out of scope as the product."
+        }
+      ],
+      "created_at": "2026-08-29T11:19:10.634160Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Problem: a compiled wiki page has no cheap header stamps. An agent cannot tell where it came from, who confirmed it, whether it is still current, or whether it is the live version without reading the body. Generated pages can look attested. Stamping a page “generated” is not the same as checking the attested computation.\n\nSolution: specify a header schema on compiled pages. Stamps include source/provenance, attested vs generated, current vs live, and who confirmed. A non-LLM checker reads the header and fails closed if stamps are missing or contradictory.\n\nAttested computation (OKF lock, from Researcher): the checker has no model in it. The agent may fill a sanctioned slot (the year). It may not edit the rule (swap the table name). A format that only records how to check, and never runs, is the hole we must not ship.\n\nDo not treat the compiled page as evidence. Follow stamps back to the original source. Specs first.",
+      "id": "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99",
+      "labels": [],
+      "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+      "priority": 1,
+      "status": "open",
+      "title": "Header stamps: provenance, attested vs generated, current vs live",
+      "type": "story",
+      "updated_at": "2026-08-29T11:20:36.692605Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.287712Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Complete one real Anth.us story through the pod\n\n## Intent\n\nAs an Anth.us editor, I want one genuine post to complete the entire pod workflow, so that the design is tested under real research, judgment, revision, and publication consequences.\n\n## Behavior specification\n\nFeature: Operate a real story through a newsroom pod\n\nScenario: Publish a real Anth.us post\n  Given a genuine Anth.us story idea has been selected\n  And the newsroom pod, gates, doctrine, measurement capture, and publication check are ready\n  When agents and the editor take the story from idea through publication using supported Kanbus transitions\n  Then the published Anth.us article is generated from the approved pod source\n  And every stage transition is present in Kanbus history\n  And the run evidence distinguishes coaching, blocks, recoveries, false positives, and human interventions\n  And the result states whether to proceed, revise, or stop\n  And it makes no claim about external onboarding success\n\n## Boundary\n\nA dummy fixture may verify mechanics, but it cannot satisfy this story.",
+      "id": "PPY-aad87778-2900-4c91-a3c6-692e773ac932",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Complete one real Anth.us story through the pod",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.287712Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-28T20:14:11.491286Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher first-pass on /workspace/research-pod.\n\nThe documented operator path is `papyrus references list --backend local` (Papyrus #54). That binary is not on PATH on the Grok Bot box, so Researcher can only use the throwaway bin/register-ref.py and bin/list-refs.py wrappers.\n\nFix: land and install the operator CLI so `papyrus` is a real command. Do not keep growing the wrappers as the product interface.",
+      "id": "PPY-ac174340-9136-4843-bf81-acc004f686ea",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "open",
+      "title": "papyrus is not on PATH for agent boxes",
+      "type": "bug",
+      "updated_at": "2026-08-28T20:14:11.491286Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-29T11:19:10.905729Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Problem: when a fact changes, yesterday’s compiled page still looks live. A cheap model keeps answering from the old concept thesis. TrajWiki’s mistake was treating the wiki as evidence and deleting or rewriting history.\n\nSolution: when a newer page supersedes a fact, mark the old compiled page dead/outdated. Do not delete it. Do not rewrite raw traces. Traces are immutable. The compiled page is the thing that dies. Specs first. A cheap model answering from a superseded file is the fail case.",
+      "id": "PPY-b088d734-a319-4f46-b3a6-f19864ff31a4",
+      "labels": [],
+      "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+      "priority": 1,
+      "status": "open",
+      "title": "Supersession: compiled page dies, raw traces stay immutable",
+      "type": "story",
+      "updated_at": "2026-08-29T11:19:10.905729Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:45:16.883048Z",
+          "id": "d95fb0de-7680-4686-ba31-f62610f66e8f",
+          "text": "GOAL: migrate ALL existing content to Markus Markdown bodies. Maximalist - decided explicitly by Ryan: do not avoid big changes for expediency, fix existing Papyrus and Threat Intelligence content now.\n\nSCOPE:\n1. Convert every existing article from body: string[] + pullQuotes: string[] to a single Markus Markdown body, with pull quotes placed POSITIONALLY as :::pull-quote directives where they belong in the prose (not appended at the end - use editorial judgment about where each quote actually pulls from).\n2. Sources include lib/articles.ts seed articles, publications/threat_intelligence/seed/seed-edition-content.json, and any GraphQL seed/scenario fixtures. Find them all - grep, do not assume this list is complete.\n3. Write a repeatable migration script; do not hand-edit. The script is the deliverable as much as the output.\n4. REGRESSION PROOF: use the round-trip from PPY-a10206. Every migrated article must project back to the same paragraph array it has today. Any diff is either a bug or a deliberate improvement you must call out explicitly.\n5. Every migrated file must pass 'markus validate'.\n\nDEPENDS ON: PPY-a10206."
+        }
+      ],
+      "created_at": "2026-09-06T12:43:02.741815Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [
+        {
+          "target": "PPY-a10206",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "",
+      "id": "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 2,
+      "status": "open",
+      "title": "Migrate Papyrus + Threat Intelligence content to Markus Markdown bodies",
+      "type": "task",
+      "updated_at": "2026-09-06T12:45:16.883048Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.017317Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Validate external operator onboarding\n\n## Intent\n\nAs a prospective publication operator outside Anthus AI Solutions, I want to start and use a newsroom pod with minimal assistance, so that we can test whether the pod is a credible on-ramp rather than only an internal tool.\n\n## Entry criteria\n\n- A reusable pod package has passed internal use.\n- The participant, support boundary, success measures, and treatment of their content are agreed in advance.\n\n## Definition of Done\n\n- An external operator initializes or receives a pod and advances a real story.\n- Time to first useful result, coaching comprehension, blocked-transition recovery, human support, and abandonment points are recorded.\n- Internal workflow success and funnel evidence are reported separately.\n- The result makes an explicit decision about onboarding changes, professional-services positioning, and whether another external trial is warranted.\n\n## Non-goals\n\n- Treating internal dogfooding as customer validation.\n- Building hosted-scale capabilities to rescue the local experiment.\n- Claiming conversion from a single successful trial.",
+      "id": "PPY-baa4231a-802c-4019-96c2-3c81b54002df",
+      "labels": [],
+      "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "priority": 3,
+      "status": "open",
+      "title": "Validate external operator onboarding",
+      "type": "epic",
+      "updated_at": "2026-08-27T13:27:01.017317Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T13:27:33.494408Z",
+          "id": "6719129f-e551-4480-bc92-9bfe38ee757d",
+          "text": "## Planned execution order\n\n```mermaid\nflowchart LR\n  A[Select and charter real story] --> R[Approve contractor work package]\n  R --> B[Executable specifications fail]\n  B --> C[Configure pinned pod]\n  C --> D[Gates and coaching]\n  R --> E[Skill and doctrine]\n  C --> E\n  R --> F[Publication handoff]\n  B --> F\n  C --> F\n  F --> G[Divergence verification]\n  D --> H[Evidence capture]\n  D --> I[Disposable rehearsal]\n  E --> I\n  G --> I\n  H --> I\n  I --> J[Run real Anth.us story]\n  J --> K[Proceed, revise, or stop]\n```\n\nEight behavior stories define the observable contract. Twelve tasks prepare, implement, and prove that contract. Owner decisions and the approved contractor package gate all implementation. The contract-team delivery boundary is the disposable rehearsal; Anthus retains the real-story run and final product decision."
+        }
+      ],
+      "created_at": "2026-08-27T13:26:36.586288Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Slice 1: Prove a newsroom pod on one Anth.us story\n\n## Intent\n\nAs an Anth.us editor, I want one real post to move through a Kanbus-configured newsroom workflow, so that we can determine whether file-native gates and coaching create useful editorial discipline before cloud infrastructure exists.\n\n## Definition of Done\n\n- The pod runs on a pinned released Kanbus version without Papyrus or Kanbus core changes.\n- One story moves from idea through assignment, research, report, editor selection, copywriting, and publication using supported Kanbus transitions.\n- Missing or invalid stage artifacts fail closed and explain how to recover.\n- Coaching, blocks, recoveries, false positives, and human interventions are recorded separately.\n- Publication idempotently generates a marked Anth.us MDX file and CI detects divergence from the pod source.\n- A real Anth.us post is published through the workflow.\n- A findings record makes an explicit proceed, revise, or stop decision and identifies only evidence-supported follow-up work.\n\n## Non-goals\n\n- Evidence for the external funnel hypothesis.\n- Changes to Kanbus core or either runtime.\n- Hosted Papyrus features, identity enforcement, corpora, editions, or layout.\n- A reusable public template before the real story exposes what should be generalized.",
+      "id": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "labels": [],
+      "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "priority": 1,
+      "status": "open",
+      "title": "Slice 1: Prove a newsroom pod on one Anth.us story",
+      "type": "epic",
+      "updated_at": "2026-08-27T20:48:34.297714Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:01.088641Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "# Initialize a pod story with a stable workspace\n\n## Intent\n\nAs a newsroom operator, I want Kanbus to create a story with a stable identity and owned file workspace, so that agents and editors have one durable place for the story throughout its lifecycle.\n\n## Behavior specification\n\nFeature: Initialize a newsroom pod story\n\nScenario: Create a new story from an idea\n  Given an initialized Anth.us newsroom pod\n  When the operator creates a newsroom story through Kanbus\n  Then the story begins in the configured idea stage\n  And its file workspace is derived from the stable Kanbus issue identity\n  And the idea artifact is available for the operator to complete\n  And guidance identifies the next supported action\n\nScenario: Revisit the story after another agent session\n  Given a newsroom story and its file workspace already exist\n  When another agent inspects the story through Kanbus\n  Then the same issue identity resolves to the same file workspace\n  And the current stage and next guidance are visible without reconstructing a prior chat\n\n## Boundary\n\nThis story establishes the per-story convention for Slice 1. It does not require generic Kanbus scaffolding or typed custom fields.",
+      "id": "PPY-d3e17943-4e13-44c7-855a-3da2e85626e3",
+      "labels": [],
+      "parent": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+      "priority": 1,
+      "status": "open",
+      "title": "Initialize a pod story with a stable workspace",
+      "type": "story",
+      "updated_at": "2026-08-27T13:27:01.088641Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:43:39.823393Z",
+          "id": "2f38bde0-74d7-442b-b008-1176dc92cf35",
+          "text": "GOAL: prove the Renderer contract by retrofitting the EXISTING Pretext path onto it. No Markus code in this task.\n\nWHY FIRST: PR #57's lib/publisher.ts is a metadata-only record with no operations - nothing would fail to compile if the contract were wrong. All three of its fields are pure functions of id (requiresPretext === (id==='pretext')), and it bakes one implementation's name into the generic interface. The only real test of an interface is whether the existing implementation fits through it.\n\nNOMENCLATURE (decided, use exactly): Renderer x Layout.\n- Renderer = the swappable system that turns content into a site: 'pretext' | 'markus'\n- Layout = the look WITHIN Pretext: 'newsprint' | 'blog' | 'magazine'\n- 'publication' stays reserved for the title/property (P.apyr.us, Threat Intelligence, Pilobil.us)\n- Do NOT use: publisher, publication type, front end, press, site type.\n- Note: today's enum value is 'newspaper'; rename to 'newsprint' to match how the team actually talks about it.\n\nSCOPE:\n1. DELETE lib/publisher.ts (from PR #57). Replace with lib/renderer.ts defining a Renderer interface with REAL operations. Derive the operation set from what components/presentation-shell.tsx and app routes actually need - read them first, do not guess. Expect something like: renderEdition, renderArticle, stylesheets, and a capability/validation hook.\n2. Retrofit the existing Pretext path to implement that interface under renderers/pretext/. Behavior must be byte-identical - this is a pure refactor.\n3. NO boolean fields named after an implementation (requiresPretext is banned). If a renderer needs to declare a capability, name the capability, not the implementation.\n4. Decouple the hardcoded publications/threat_intelligence/* imports in components/presentation-shell.tsx (BlogPageBackground) and components/article-page.tsx (PictogramFigure) so a non-TI publication loads cleanly.\n\nVERIFY: npm run lint, npm run typecheck, npm run build, and the BDD suite must pass. Report exact commands and output. Pre-existing failure to expect: components/amplify-client-provider.tsx 'Cannot find module ../amplify_outputs.json' (gitignored generated file) - that one is not yours.\n\nBranch feature/renderer-architecture is already checked out. Commit there."
+        }
+      ],
+      "created_at": "2026-09-06T12:43:02.697152Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Renderer interface + retrofit Pretext onto it",
+      "type": "task",
+      "updated_at": "2026-09-06T12:43:48.037091Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-27T13:27:00.937642Z",
+      "creator": null,
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
+      "dependencies": [
+        {
+          "target": "PPY-d0931707-028e-4263-9fcc-0987ad515209",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "# Slice 2: Validate transfer to another pre-infrastructure publication\n\n## Intent\n\nAs a publication operator starting before backend infrastructure exists, I want the proven pod discipline to work on a second real publication, so that we can distinguish Anth.us-specific success from a reusable pre-infrastructure capability.\n\n## Entry criteria\n\n- Slice 1 has an explicit proceed or revise-and-proceed decision.\n- A real publication is selected that differs from Anth.us on at least one material axis such as author count, confidentiality, editorial stakes, cadence, or CMS shape.\n\n## Definition of Done\n\n- At least one real story completes the pod workflow in the second publication.\n- Differences from Anth.us are documented before configuration is generalized.\n- Coaching, blocks, recovery, false positives, operator intervention, and handoff friction are compared with Slice 1.\n- Any confidentiality or role constraints are handled honestly within the process-versus-authority boundary.\n- Repeated needs are separated from publication-specific doctrine and hooks.\n- The result makes an explicit decision about whether a reusable pod package is justified.\n\n## Non-goals\n\n- Proving external adoption or sales conversion.\n- Adding hosted identity or access control to a pod.\n- Promoting a hook into Kanbus core from newsroom evidence alone.",
+      "id": "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89",
+      "labels": [],
+      "parent": "PPY-2844a5a3-aed7-4ace-82e0-16e357598766",
+      "priority": 2,
+      "status": "open",
+      "title": "Slice 2: Validate transfer to another pre-infrastructure publication",
+      "type": "epic",
+      "updated_at": "2026-08-27T13:27:00.937642Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [],
+      "created_at": "2026-08-28T18:58:57.875461Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-ebf0b626-d098-473e-8e3e-f0a98b79a940",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Backend config and publication defaults",
+      "type": "task",
+      "updated_at": "2026-08-28T19:10:19.830207Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:45:16.872331Z",
+          "id": "02327261-2adf-483e-ba7e-3fcf2a8600b1",
+          "text": "GOAL: one config toggle switches the whole site's renderer. This is the user-facing point of the initiative.\n\nPROBLEM WITH PR #57's SHAPE: it puts 'publisher' and 'defaultPresentation' on SiteBrand as two INDEPENDENT enums, most of whose combinations are invalid. Its own section 7.2 then has Pilobil set defaultPresentation: 'newspaper' because 'the field is required' - and then ignores it. Required-but-ignored config is how config rots. Same problem with layoutPlan: PR #57 has Markus emit a fake EditionLayoutPlan it never reads, and section 9 proposes making it worse with a 'page.markus' preset - inventing geometry to satisfy a schema that should not apply.\n\nREQUIRED SHAPE - discriminated union, so invalid states are unrepresentable:\n\n  type RendererConfig =\n    | { kind: \"pretext\"; layout: \"newsprint\" | \"blog\" | \"magazine\"; layoutPlan: EditionLayoutPlan }\n    | { kind: \"markus\"; theme: string };\n\nThis: (a) makes it literally one field to toggle, (b) moves Pretext geometry INSIDE the Pretext branch where it belongs, (c) eliminates every required-but-ignored field.\n\nSCOPE:\n1. Add rendererConfig to SiteBrand as above. Remove the standalone presentation enum and EditionContent.defaultPresentation where it is now redundant.\n2. layoutPlan moves under the pretext branch. EditionContent.presentationPlans (declared but UNUSED anywhere in the codebase - verified) should be deleted or repurposed as the per-renderer slot; decide and justify.\n3. Wire the dispatch at the app-shell level, NOT inside a React component. PR #57 dispatches inside components/presentation-shell.tsx, which forces a build-time static renderer to enter through a runtime React component. Markus needs no React and no hydration. Put the seam above the component.\n4. Papyrus -> newsprint, Threat Intelligence -> blog, Pilobil.us -> markus, all via this one field."
+        }
+      ],
+      "created_at": "2026-09-06T12:43:02.729828Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [
+        {
+          "target": "PPY-d79ff2",
+          "type": "blocked-by"
+        }
+      ],
+      "description": "",
+      "id": "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 2,
+      "status": "open",
+      "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
+      "type": "task",
+      "updated_at": "2026-09-06T12:45:16.872331Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-29T05:38:02.833084Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T05:38:02.222924Z",
+          "id": "a1188e91-8f7c-46f1-8a3d-1fc95cc613ec",
+          "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green)."
+        }
+      ],
+      "created_at": "2026-08-28T20:14:11.575173Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher first-pass. Not a register bug; Kanbus identity.\n\nAfter project_key WIKI → ANTHUS: kbs show still reports WIKI-650fd9, the issue file is still WIKI-650fd91d-….json, kbs list prints “S 650fd9” with no ANTHUS prefix. Reminting existing ids on key change is correctly not automatic, but the board now mixes prefixes and agents will keep targeting the old story.\n\nNeed: document the constraint in Papyrus/Kanbus AGENTS.md, and warn on project_key change if existing issues use the old prefix. Do not silently remint.",
+      "id": "PPY-f7b389e7-8b81-4fa1-a0ab-9644d56fc735",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 2,
+      "status": "closed",
+      "title": "project_key change does not remint ids; board mixes prefixes",
+      "type": "task",
+      "updated_at": "2026-08-29T05:38:02.833084Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T12:45:56.563477Z",
+          "id": "0bece514-811f-4550-a6bc-990c0f7edcb9",
+          "text": "Started on branch chore/PPY-f9b3e1-kanbus-direct-develop from origin/develop at 741fa53. Updating AGENTS.md to define a narrow no-PR exception for Kanbus-only issue and event artifacts while preserving PR requirements for code, docs, config, wiki, and mixed changes."
+        },
+        {
+          "author": "ryan",
+          "comment_type": "default",
+          "created_at": "2026-08-27T12:47:03.918248Z",
+          "id": "80f9cd24-3e73-4c20-bdb0-f6c452c71e7c",
+          "text": "Ready for review in PR https://github.com/AnthusAI/Papyrus/pull/49 on branch chore/PPY-f9b3e1-kanbus-direct-develop. Verification: kbs validate passed, kbs show confirmed the policy chore, and git diff --check passed."
+        }
+      ],
+      "created_at": "2026-08-27T12:45:36.897237Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Clarify the repository Git workflow so project-management-only changes made through the Kanbus CLI may be committed and pushed directly to develop without a pull request. Keep code, configuration, documentation, wiki, and mixed changes under the normal branch and PR workflow.",
+      "id": "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf",
+      "labels": [],
+      "parent": null,
+      "priority": 2,
+      "status": "in_progress",
+      "title": "Allow direct develop commits for Kanbus-only updates",
+      "type": "chore",
+      "updated_at": "2026-08-27T12:47:03.918248Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": "2026-08-29T05:37:57.954133Z",
+      "comments": [
+        {
+          "author": "ubuntu",
+          "comment_type": "default",
+          "created_at": "2026-08-29T05:37:57.336059Z",
+          "id": "21104607-3615-4a15-8642-2eb4d9373822",
+          "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green)."
+        }
+      ],
+      "created_at": "2026-08-28T20:14:11.525266Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "Researcher first-pass. Highest local-pod data-loss bug.\n\nRe-registering an existing URL overwrites the reference JSON with no guard, merge, or warning. Researcher overwrote an accepted Compaction Cliff record with a pending dup probe, then had to restore it by hand.\n\nProduct rule: same URL in the same corpus is an identity. Re-register must refuse, or merge non-destructively, and must warn if the existing row is already accepted. Never clobber accepted why/status/title.",
+      "id": "PPY-fe73a279-57db-49c7-9e58-e9b99ec37d53",
+      "labels": [],
+      "parent": "PPY-20250557-b002-4aff-969f-a29479b4df13",
+      "priority": 0,
+      "status": "closed",
+      "title": "re-registering the same URL silently overwrites the JSON",
+      "type": "bug",
+      "updated_at": "2026-08-29T05:37:57.954133Z"
+    }
+  ],
+  "reverse_deps": {
+    "PPY-02fac757-0b66-4c0c-9932-8117cc974969": [
+      "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15",
+      "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81",
+      "PPY-962447c5-b0e4-4812-b17c-48f2fa528229"
+    ],
+    "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15": [
+      "PPY-826729a8-13ce-4df1-a3e7-39da475d351a"
+    ],
+    "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1": [
+      "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15",
+      "PPY-5d2bddb5-2073-4313-b633-6e96e5741972",
+      "PPY-962447c5-b0e4-4812-b17c-48f2fa528229"
+    ],
+    "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd": [
+      "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad"
+    ],
+    "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607": [
+      "PPY-02fac757-0b66-4c0c-9932-8117cc974969",
+      "PPY-03504b9e-b6c7-466f-a6ba-3dfa2b20ff15"
+    ],
+    "PPY-5d2bddb5-2073-4313-b633-6e96e5741972": [
+      "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607"
+    ],
+    "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81": [
+      "PPY-2cee0869-c939-42e1-8ec4-ccde19239fcd",
+      "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad"
+    ],
+    "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad": [
+      "PPY-a8566745-92a8-4bea-a953-0de1495646d5"
+    ],
+    "PPY-826729a8-13ce-4df1-a3e7-39da475d351a": [
+      "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad"
+    ],
+    "PPY-88f77b": [
+      "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0"
+    ],
+    "PPY-962447c5-b0e4-4812-b17c-48f2fa528229": [
+      "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad"
+    ],
+    "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab": [
+      "PPY-baa4231a-802c-4019-96c2-3c81b54002df"
+    ],
+    "PPY-a10206": [
+      "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca"
+    ],
+    "PPY-a8566745-92a8-4bea-a953-0de1495646d5": [
+      "PPY-2edf13cb-2bdc-4916-a1d9-f62b06807706"
+    ],
+    "PPY-d0931707-028e-4263-9fcc-0987ad515209": [
+      "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89"
+    ],
+    "PPY-d79ff2": [
+      "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+      "PPY-a1020691-0271-4514-8fdf-f8d69339731f",
+      "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad"
+    ],
+    "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89": [
+      "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab"
+    ],
+    "PPY-eca592": [
+      "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0"
+    ]
+  },
+  "version": 1
+}

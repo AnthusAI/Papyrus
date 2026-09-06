@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "82c04b74-29ad-4b17-8c1d-c58da45f5b63",
+  "issue_id": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-06T12:42:54.194Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Pluggable publication front ends (Pretext + Markus)",
+        "to": "Renderer architecture: one content schema, swappable renderers"
+      }
+    }
+  }
+}

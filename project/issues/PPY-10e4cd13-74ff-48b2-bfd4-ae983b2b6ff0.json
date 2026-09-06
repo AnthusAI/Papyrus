@@ -1,0 +1,38 @@
+{
+  "id": "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0",
+  "title": "Pilobil.us proof of concept: author one article, publish real pages",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "d3745bc9-1c1c-491b-9fa4-40946abab77d",
+      "author": "home",
+      "text": "GOAL: the actual proof of concept - real published pages for Pilobil.us.\n\nCONTEXT: Pilobil.us is a Papyrus pod at /Users/home/Projects/Pilobol.us (Kanbus project PILO, editorial story workflow idea->assignment->research->report->editor_select->copywriting->published). It is KB-ready but cannot publish today.\n\nSCOPE:\n1. Author at least one REAL article in Markus Markdown that exercises the interesting vocabulary - pull-quote AND a multi-column construct (card-grid or two-up) AND a figure. The whole point is to prove non-trivial constructs survive the shared schema, so a plain-prose article does not test anything.\n2. Configure the publication with rendererConfig { kind: 'markus', theme: ... }.\n3. Publish real static pages.\n4. Then flip the SAME article to { kind: 'pretext', layout: 'newsprint' } and render it again. THIS IS THE MONEY SHOT: one source, two renderers, no second content model. Capture both outputs.\n\nACCEPTANCE: two real rendered outputs from one Markdown file, both openable in a browser.\n\nDEPENDS ON: PPY-88f77b, PPY-eca592.",
+      "created_at": "2026-09-06T12:45:16.892836Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T12:43:02.752434Z",
+  "updated_at": "2026-09-06T12:45:16.892836Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

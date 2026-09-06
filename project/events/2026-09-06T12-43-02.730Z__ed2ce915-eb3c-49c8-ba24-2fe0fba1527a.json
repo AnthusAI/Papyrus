@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ed2ce915-eb3c-49c8-ba24-2fe0fba1527a",
+  "issue_id": "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:43:02.730Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "priority": 2,
+    "status": "open",
+    "title": "Renderer config: SiteBrand discriminated union; retire presentation enum"
+  }
+}
