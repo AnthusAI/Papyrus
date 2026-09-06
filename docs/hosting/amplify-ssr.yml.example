@@ -1,0 +1,33 @@
+# Amplify Hosting — platform WEB_COMPUTE (SSR Pretext / Papyrus)
+#
+# REFERENCE ONLY for amplify-ssr + pretext pairings (p.apyr.us, Threat Intelligence).
+# The live Papyrus root amplify.yml is the canonical copy; keep this example in sync
+# when that file changes.
+#
+# Do NOT use this file in a Markus static publication repo.
+
+version: 1
+backend:
+  phases:
+    build:
+      commands:
+        - npm install --cache .npm --prefer-offline
+        - |
+          if [ -z "${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}" ]; then
+            export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true
+          fi
+        - npx ampx pipeline-deploy --debug --branch $AWS_BRANCH --app-id $AWS_APP_ID
+frontend:
+  phases:
+    build:
+      commands:
+        - env | grep -e '^PAPYRUS_CONTENT_SOURCE=' -e '^PAPYRUS_EDITION_SLUG=' -e '^PAPYRUS_REVALIDATE_SECRET=' >> .env.production
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .next/cache/**/*
+      - .npm/**/*

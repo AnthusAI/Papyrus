@@ -133,6 +133,13 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
 
 ## Core Rules
 
+- **Site hosting** is a configuration axis separate from renderer and layout.
+  Read [`docs/site-hosting.md`](docs/site-hosting.md) before standing up or
+  changing Amplify apps for a publication. Root `amplify.yml` here is **SSR /
+  WEB_COMPUTE** for p.apyr.us only (`ampx pipeline-deploy`, `.next` artifacts).
+  Markus static pods use platform **`WEB`**, template
+  [`docs/hosting/amplify-static.yml.example`](docs/hosting/amplify-static.yml.example),
+  and their **own** Amplify app — do not cargo-cult this repo's SSR build spec.
 - Before running any AWS-, Amplify-, sandbox-, or deployment-related command,
   read `AGENTS.local.md` and follow its local account/profile/env guidance.
   Treat `AGENTS.local.md` as required preflight context for cloud operations on
