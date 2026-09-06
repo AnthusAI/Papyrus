@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-09-06T12:45:55Z",
+  "built_at": "2026-09-06T13:57:36Z",
   "file_mtimes": {
     "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45.json": 1788698550.102527,
     "PPY-02fac757-0b66-4c0c-9932-8117cc974969.json": 1788698550.102607,
@@ -7,7 +7,7 @@
     "PPY-047e4ced-953a-482e-8aa4-6b7d91f698e4.json": 1788698330.233223,
     "PPY-0b058c26-b0b0-4a94-bdf5-08d8e5326b8d.json": 1788698550.102765,
     "PPY-0d667350-c31a-484f-bbee-7b2d08549188.json": 1788698550.102836,
-    "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788698750.618942,
+    "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788700648.729037,
     "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146.json": 1788698550.102898,
     "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a.json": 1788698550.102974,
     "PPY-20250557-b002-4aff-969f-a29479b4df13.json": 1788698550.103055,
@@ -20,43 +20,49 @@
     "PPY-443dc085-c4f8-4f9c-916c-065e372f08af.json": 1788698550.103629,
     "PPY-4748b68d-9435-4e0b-83c6-c1d8a7cc0607.json": 1788698550.103695,
     "PPY-4d6a966b-0df0-4213-b0a0-9cbfff3eace3.json": 1788698550.103768,
-    "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0.json": 1788698550.103842,
+    "PPY-4db888b6-6483-482f-9ce8-ba2e4dfe51c0.json": 1788700648.729131,
     "PPY-500b35db-76d2-46c8-b9e1-f55c80dbe16f.json": 1788698550.103907,
     "PPY-54923a81-3e8a-48d5-89a5-ccc48b18b089.json": 1788698550.103977,
     "PPY-58e74049-7747-49ed-a920-a11b2ae888b1.json": 1788698550.104042,
     "PPY-59ade493-23e0-4b72-aa79-1227f3aa28ca.json": 1788698330.233288,
     "PPY-5d2bddb5-2073-4313-b633-6e96e5741972.json": 1788698550.104163,
+    "PPY-5e8072d4-d940-478b-8140-29d7b1f54069.json": 1788701305.839945,
     "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81.json": 1788698550.104232,
+    "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896.json": 1788701484.031232,
     "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad.json": 1788698550.104299,
+    "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917.json": 1788701484.003996,
     "PPY-7625aa03-b6c8-453c-83ee-b587370a1035.json": 1788698550.104365,
     "PPY-7b85184d-6593-4f9b-bcce-55db28936160.json": 1788698550.104435,
     "PPY-826729a8-13ce-4df1-a3e7-39da475d351a.json": 1788698550.104502,
     "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f.json": 1788698550.104575,
-    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788698750.58043,
+    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788701305.827914,
     "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5.json": 1788698550.104634,
-    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788698574.205246,
-    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788698574.193981,
+    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788700648.72945,
+    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788701587.916166,
     "PPY-962447c5-b0e4-4812-b17c-48f2fa528229.json": 1788698550.104825,
     "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8.json": 1788698550.104903,
     "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e.json": 1788698550.104971,
     "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab.json": 1788698550.105029,
-    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788698750.567296,
+    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788701305.813314,
     "PPY-a5399203-659e-47a7-a62c-3c99cbc20ae9.json": 1788698550.105089,
     "PPY-a8566745-92a8-4bea-a953-0de1495646d5.json": 1788698550.105164,
     "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99.json": 1788698550.105236,
     "PPY-aad87778-2900-4c91-a3c6-692e773ac932.json": 1788698550.105301,
     "PPY-ac174340-9136-4843-bf81-acc004f686ea.json": 1788698550.105361,
     "PPY-b088d734-a319-4f46-b3a6-f19864ff31a4.json": 1788698550.105418,
-    "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca.json": 1788698750.552581,
+    "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca.json": 1788700648.730114,
     "PPY-baa4231a-802c-4019-96c2-3c81b54002df.json": 1788698550.105483,
     "PPY-d0931707-028e-4263-9fcc-0987ad515209.json": 1788698550.105561,
     "PPY-d3e17943-4e13-44c7-855a-3da2e85626e3.json": 1788698550.105626,
-    "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0.json": 1788698628.037242,
+    "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0.json": 1788701245.713266,
+    "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab.json": 1788701375.403272,
     "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89.json": 1788698550.105696,
     "PPY-ebf0b626-d098-473e-8e3e-f0a98b79a940.json": 1788698550.105759,
-    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788698750.593059,
+    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788700648.730413,
+    "PPY-f25738ae-3891-43e5-8d5c-1ef28e61847b.json": 1788701222.326444,
     "PPY-f7b389e7-8b81-4fa1-a0ab-9644d56fc735.json": 1788698550.105839,
     "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf.json": 1788698550.105908,
+    "PPY-fd84684a-8a7d-4bde-9db3-6a9cb65ea02b.json": 1788701550.568858,
     "PPY-fe73a279-57db-49c7-9e58-e9b99ec37d53.json": 1788698550.105986
   },
   "issues": [
@@ -214,14 +220,17 @@
       ],
       "created_at": "2026-09-06T12:43:02.752434Z",
       "creator": null,
-      "custom": {},
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
       "dependencies": [
         {
-          "target": "PPY-88f77b",
+          "target": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
           "type": "blocked-by"
         },
         {
-          "target": "PPY-eca592",
+          "target": "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad",
           "type": "blocked-by"
         }
       ],
@@ -703,6 +712,32 @@
     {
       "assignee": null,
       "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:26:43.310401Z",
+          "id": "516e097b-b2e5-4bfc-9022-d24559e37ad4",
+          "text": "GOAL: the visual design for Pilobil.us as a Markus-rendered publication. Fully parallel to the renderer plumbing - it needs no Papyrus TypeScript at all.\n\nCONTEXT: Pilobil.us ('a fungus among us') is a Papyrus pod at /Users/home/Projects/Pilobol.us. Read doctrine/pilobil.md there for editorial voice. It will render through Markus (Markdown + semantic directives -> static HTML), NOT through the Pretext layout solver.\n\nWHY YOU CAN START NOW: Markus renders standalone. 'markus' is installed (/Users/home/miniconda3/bin/markus) and /Users/home/Projects/Markus has the source, 23 themes in src/markusmd/themes/, and tokens as --markus-* CSS custom properties. You can author Markdown, run 'markus convert', and iterate on CSS in a browser without waiting on anything.\n\nSCOPE:\n1. Design the Pilobil.us look: masthead, typography, color, section treatment, article page, index page.\n2. Deliver it as a SITE CSS LAYER over Markus's tokens - redefine --markus-* rather than fighting Markus's selectors. Either pick and adapt an existing theme or write a new one; say which and why.\n3. CASCADE RULE (decided, non-negotiable): wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically. Do NOT rely on upstream Markus happening not to use @layer - that is a bet on someone else's future commits.\n4. Design for BOTH light and dark. Markus themes carry both; do not ship a design that only works in one.\n5. Exercise the real vocabulary in your sample page: pull-quote, card-grid/card, two-up, figure, callout, aside, metric. These constructs are the whole point of the architecture - a plain-prose mockup proves nothing.\n6. Deliverable: real HTML+CSS openable in a browser, plus the Markdown source that produced it. Screenshots alone are not enough.\n\nDO NOT: touch lib/renderer.ts, renderers/pretext/, or any Papyrus route. This is CSS + Markdown + Markus."
+        }
+      ],
+      "created_at": "2026-09-06T13:26:03.046588Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-5e8072d4-d940-478b-8140-29d7b1f54069",
+      "labels": [],
+      "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Visual web design for the Pilobil.us publication",
+      "type": "task",
+      "updated_at": "2026-09-06T13:28:25.839836Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
       "comments": [],
       "created_at": "2026-08-27T13:27:01.442762Z",
       "creator": null,
@@ -725,6 +760,32 @@
       "title": "Implement fail-closed artifact gates and coaching",
       "type": "task",
       "updated_at": "2026-08-27T13:27:01.442762Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:26:43.321584Z",
+          "id": "5d1ab206-c3f7-41f2-bf16-0d655475f1c9",
+          "text": "BUG raised by the agent that did PPY-d79ff2, worth fixing before this ships.\n\nThe layout enum value was renamed 'newspaper' -> 'newsprint' (commit f9b073f). amplify/functions/reader-settings/handler.ts now stores and accepts 'newsprint'. Any reader setting ALREADY PERSISTED in DynamoDB as 'newspaper' will no longer match a valid value and will silently fall back to the default.\n\nSilent fallback is the problem - the user's saved preference vanishes with no signal.\n\nSCOPE: decide and implement a migration. Options: accept 'newspaper' as a deprecated alias that normalizes to 'newsprint' on read (simplest, no data migration, recommended); or backfill the stored values; or both. Whatever you choose, cover it with a test that a stored 'newspaper' value still yields newsprint.\n\nNOTE: verify the premise first. Confirm there IS persisted data with the old value before building a migration for a table that may be empty. Report what you find either way."
+        }
+      ],
+      "created_at": "2026-09-06T13:26:03.071325Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896",
+      "labels": [],
+      "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Persisted reader setting 'newspaper' silently resets after newsprint rename",
+      "type": "bug",
+      "updated_at": "2026-09-06T13:31:24.031104Z"
     },
     {
       "assignee": null,
@@ -763,6 +824,32 @@
       "title": "Rehearse the complete pod workflow with a disposable fixture",
       "type": "task",
       "updated_at": "2026-08-27T13:27:01.648605Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:26:23.457276Z",
+          "id": "8c862ec8-db3e-43c3-9bd4-b26838dc7e31",
+          "text": "GOAL: actually deploy Papyrus to AWS, find what breaks, fix what you can, and report every rough edge.\n\nWHY THIS IS VALUABLE NOW: local verification is blocked on a missing backend and we have been unable to distinguish real regressions from environment gaps. Concretely, verified today:\n- 'npm run build' FAILS at 'Collecting page data' with 'TypeError: Cannot convert undefined or null to object' in listPublishedEditions / listArticleSlugs. I confirmed this failure is IDENTICAL on origin/develop, so it is PRE-EXISTING and environmental - the build fetches live AppSync data and there is no reachable backend.\n- BDD needs a synthetic amplify_outputs.json plus a dev server, and most failures are 'no seeded GraphQL data', not real defects.\nA real deployment is the only way to get a trustworthy green baseline.\n\nSCOPE:\n1. Deploy the Amplify backend (amplify/ - Gen 2, see amplify.yml and package.json scripts such as outputs:sandbox). Get a real amplify_outputs.json.\n2. Get 'npm run build' to actually succeed against it. Document every step that was not already written down.\n3. Run the BDD suite against the deployed backend and record the REAL baseline: how many scenarios pass when the environment is correct. That number is what future work gets compared against.\n4. Fix rough edges you hit, in small reviewable commits, and log each one as a comment here as you go.\n5. Write down the working procedure (a runnable doc under docs/) so the next person does not rediscover it.\n\nCONSTRAINTS: do not touch lib/renderer.ts or renderers/pretext/. If deployment reveals a defect in the renderer refactor, comment on PPY-d79ff2 and PPY-92f846 rather than editing.\n\nCOST/SAFETY: this creates real AWS resources. Prefer an Amplify sandbox over anything shared. Record exactly what you created and how to tear it down. Do NOT deploy to or modify any production environment, and do not put credentials in the repo."
+        }
+      ],
+      "created_at": "2026-09-06T13:26:03.034022Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917",
+      "labels": [],
+      "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Deploy Papyrus to AWS and report rough edges",
+      "type": "task",
+      "updated_at": "2026-09-06T13:31:24.003877Z"
     },
     {
       "assignee": null,
@@ -873,10 +960,13 @@
       ],
       "created_at": "2026-09-06T12:43:02.719307Z",
       "creator": null,
-      "custom": {},
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
       "dependencies": [
         {
-          "target": "PPY-d79ff2",
+          "target": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
           "type": "blocked-by"
         }
       ],
@@ -885,10 +975,10 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 1,
-      "status": "open",
+      "status": "in_progress",
       "title": "Markus renderer: publish real static pages",
       "type": "task",
-      "updated_at": "2026-09-06T12:44:51.948723Z"
+      "updated_at": "2026-09-06T13:28:25.827763Z"
     },
     {
       "assignee": null,
@@ -911,7 +1001,15 @@
     {
       "assignee": null,
       "closed_at": null,
-      "comments": [],
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:11:20.336964Z",
+          "id": "a02dc4b8-9ff4-464d-affb-b460ef43ee51",
+          "text": "=== HANDOFF / CURRENT STATE (2026-09-06) - READ THIS FIRST IF YOU ARE PICKING UP COLD ===\n\nWHERE THE WORK LIVES\n- Papyrus: /Users/home/Projects/Papyrus, branch feature/renderer-architecture, branched off PR #57's head (so it BUILDS ON #57 rather than diverging). 3 commits ahead of origin/develop, two of which are #57's own.\n- Markus:  /Users/home/Projects/Markus,  branch feature/document-ir, 5 commits ahead of origin/main.\n- NOTHING IS PUSHED. Neither branch exists on origin. Do not push without Ryan saying so.\n- Ryan endorsed working DIRECTLY in AnthusAI/Papyrus. Not a fork. Goal is to improve Papyrus itself.\n\nCROSS-REPO HAZARD: the Papyrus work depends on Markus branch feature/document-ir, which is UNPUSHED and local-only. Another machine will not have it. The Markus repo is also pip-installed editable into the active Python (/Users/home/miniconda3), so 'markus' on PATH runs that working tree. If you are on a different box, you must reproduce the Markus branch first or nothing downstream works.\n\nNOMENCLATURE - DECIDED BY RYAN, DO NOT RELITIGATE\n- Renderer = the swappable system: 'pretext' | 'markus'\n- Layout = the look WITHIN Pretext: 'newsprint' | 'blog' | 'magazine' (old value 'newspaper' is renamed to 'newsprint')\n- Publication = the title/property: P.apyr.us, Threat Intelligence, Pilobil.us\n- BANNED for these concepts: publisher, publication type, front end, press, site type.\n\nARCHITECTURE THESIS - PROVEN, NOT ASSUMED\nMarkus's directive vocabulary IS the Papyrus content schema. Verified facts:\n- Papyrus Article.body is string[] (flat plain-text paragraphs) and pullQuotes is a SEPARATE side-channel array with no position in the body.\n- Markus's vocabulary (pull-quote, card-grid, card, two-up, column, figure, callout, details, aside, metric, timeline) is a strict SUPERSET and is POSITIONAL.\nSo: canonical body becomes Markus Markdown; pullQuotes[] dies as a schema concept; Pretext consumes a LOSSY PROJECTION of the IR.\nI prototyped that projection against the real IR and it works - see PPY-a10206 for the verified output and the algorithm. Degradation rule: any directive Pretext cannot express recurses into its children so content is preserved inline and NOTHING is silently dropped.\n\nWHAT PR #57 GOT WRONG (do not revert to it)\n- lib/publisher.ts is metadata-only with no operations; all fields are pure functions of id; 'requiresPretext' bakes an implementation name into a generic interface. Being deleted.\n- It dispatches inside components/presentation-shell.tsx, forcing a build-time static renderer through a runtime React component. The seam must be ABOVE the component.\n- It has required-but-ignored config (defaultPresentation on a Markus site, a fake EditionLayoutPlan). Fixed by a discriminated union - see PPY-eca592.\n- It claims 'markus validate' makes fragments safe to mount. It does not; it validates directive vocabulary, not XSS. Real invariant is build-from-repo-committed-Markdown with --allow-html off.\n- Its 'is anthus-markus on PyPI' unknown is RESOLVED: markus is installed and working.\n\nVERIFICATION STANDARD - APPLY IT\nDo not accept subagent reports at face value; re-run their checks. Two of two reports so far contained undisclosed inaccuracies (one silently downgraded the package version 0.4.0->0.1.0 in two files; one claimed a diff covered '8 files' in directories holding 4). Check 'git diff --stat' for files the task had no business touching.\n\nSTATUS\n- kanbus-37dd9a (Markus doc IR) CLOSED, reviewed. markus ast now emits typed versioned IR, schema_version 1.\n- kanbus-dacb70 (front-matter date serialization) CLOSED, reviewed.\n- kanbus-2ecaf7 (bare HH:MM:SS silently becomes int 48600 via YAML 1.1 sexagesimal) IN PROGRESS.\n- PPY-d79ff2 (Renderer interface + Pretext retrofit) IN PROGRESS - blocks everything else in Papyrus.\n- PPY-a10206, PPY-88f77b, PPY-eca592 queued behind d79ff2. PPY-b794e1 behind a10206. PPY-10e4cd behind 88f77b+eca592.\n\nGOAL: a real proof of concept that actually publishes actual pages. Acceptance for PPY-10e4cd is one Markdown article exercising pull-quote AND a multi-column construct AND a figure, rendered through BOTH renderers from the same source, both openable in a browser."
+        }
+      ],
       "created_at": "2026-09-06T12:09:07.764545Z",
       "creator": null,
       "custom": {},
@@ -924,12 +1022,20 @@
       "status": "open",
       "title": "Canonical content schema (Markus vocabulary) + Renderer interface",
       "type": "epic",
-      "updated_at": "2026-09-06T12:42:54.204267Z"
+      "updated_at": "2026-09-06T13:11:20.336964Z"
     },
     {
       "assignee": null,
       "closed_at": null,
-      "comments": [],
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:33:07.915747Z",
+          "id": "ffdb529d-6991-40e0-b13b-ddc2171fde2c",
+          "text": "=== ORCHESTRATOR HANDOFF - 2026-09-06, written expecting imminent rate-limit cutoff ===\n=== IF YOU ARE PICKING UP COLD, THIS IS THE ENTRY POINT. ===\n\nTHE GOAL: a working proof of concept that ACTUALLY PUBLISHES ACTUAL PAGES. Not a design doc, not a stub. Ryan chose a MAXIMALIST rearchitecture explicitly: do not avoid big changes for expediency, and it is acceptable to go back and fix existing Papyrus and Threat Intelligence content.\n\nTHE THESIS, PROVEN NOT ASSUMED:\nMarkus's directive vocabulary IS the Papyrus content schema. Papyrus Article.body is string[] (flat plain-text paragraphs) with pullQuotes[] as a side-channel array having NO position in the prose. Markus's vocabulary is a strict superset AND positional. So: one Markdown source, two renderers. Markus renders at full fidelity; Pretext consumes a LOSSY PROJECTION. I verified this end to end against the real IR - the working algorithm and its output are in PPY-a10206.\nDEGRADATION RULE, NON-NEGOTIABLE: any directive Pretext cannot express recurses into its children so content is preserved inline. NOTHING is ever silently dropped.\n\nNOMENCLATURE - DECIDED BY RYAN, DO NOT RELITIGATE:\nRenderer (pretext|markus) x Layout (newsprint|blog|magazine, Pretext-internal) x Publication (the title/property).\nBANNED: publisher, publication type, front end, press, site type.\n\nSTATE OF THE WORLD:\n- Papyrus /Users/home/Projects/Papyrus branch feature/renderer-architecture. Built ON TOP of PR #57's head.\n- Markus /Users/home/Projects/Markus branch feature/document-ir. Pip-installed editable, so 'markus' on PATH runs that tree.\n- NOTHING IS PUSHED anywhere. Neither branch exists on origin. Ryan endorsed working DIRECTLY in AnthusAI/Papyrus - not a fork - but has NOT authorized any push. Do not push without him saying so.\n- CROSS-REPO HAZARD: Papyrus depends on the UNPUSHED Markus branch. Another machine will not have it.\n\nDONE AND REVIEWED:\n- kanbus-37dd9a: Markus typed document IR (schema_version 1). Block nodes and directives as ordered peers, typed inline nodes. Inline code spans are 'code_span', distinct from block 'code'.\n- kanbus-dacb70: front-matter date/datetime serialize to ISO 8601; unrepresentable types raise a named error instead of a silent fallback.\n- kanbus-2ecaf7: bare HH:MM:SS no longer silently becomes int 48600 (PyYAML YAML-1.1 sexagesimal). Fixed surgically; octal/hex/bool/date all verified unchanged.\n- PPY-d79ff2: Renderer interface + Pretext retrofitted onto it (commit f9b073f). lib/publisher.ts DELETED. Five call sites go THROUGH the interface. lint + typecheck clean.\n\nRUNNING RIGHT NOW (do not duplicate, avoid these files):\n- PPY-a10206 + PPY-88f77b: IR ingestion, Pretext projection, Markus renderer, REAL PUBLISHED PAGES. Touches lib/, renderers/. THIS IS THE CRITICAL PATH.\n- PPY-6b4094: AWS deployment + real baseline. Touches amplify/, docs/.\n- PPY-61dc8f: reader-settings newspaper->newsprint alias (Haiku). Touches amplify/functions/reader-settings/.\n- PPY-5e8072: Pilobil.us visual design. Touches /Users/home/Projects/Pilobol.us + Markus CSS.\n\nREADY QUEUE + MODEL GUIDANCE: see PPY-da6f1f.\n\nTWO ENVIRONMENT FACTS THAT WILL WASTE YOUR TIME IF YOU DO NOT KNOW THEM:\n1. 'npm run build' FAILS at 'Collecting page data' (TypeError: Cannot convert undefined or null to object). This is IDENTICAL on origin/develop. PRE-EXISTING and environmental - no reachable AppSync backend. Do not chase it; PPY-6b4094 owns it.\n2. BDD: 117 scenarios, ~39 failed, 27 undefined. Two pre-existing causes - operator-cli.feature has zero cucumber-js step definitions (it targets behave), and console scenarios have no seeded data. PPY-fd8468 owns it, deliberately HELD until 6b4094 reports.\nAlso: typecheck passes partly because a synthetic gitignored amplify_outputs.json exists locally. Do not read 'typecheck clean' as evidence the Amplify wiring is healthy.\n\nWORKING STANDARD, LEARNED THE HARD WAY: do not accept subagent reports at face value - re-run their checks. Three of four reports so far contained an undisclosed inaccuracy (a silent package-version downgrade 0.4.0->0.1.0; a diff claimed to cover '8 files' in directories holding 4; an unreachable code path claimed as handled). All were caught only by re-running. Check 'git diff --stat' for files the task had no business touching.\n\nWHAT #57 GOT WRONG - do not revert toward it: metadata-only registry with no operations; requiresPretext baking an implementation name into a generic interface; dispatch inside a React component forcing a build-time renderer through a runtime path; required-but-ignored config; and the false claim that 'markus validate' makes fragments safe to mount (it validates vocabulary, not XSS)."
+        }
+      ],
       "created_at": "2026-09-06T12:09:05.786234Z",
       "creator": null,
       "custom": {},
@@ -942,7 +1048,7 @@
       "status": "open",
       "title": "Renderer architecture: one content schema, swappable renderers",
       "type": "initiative",
-      "updated_at": "2026-09-06T12:42:54.192120Z"
+      "updated_at": "2026-09-06T13:33:07.915747Z"
     },
     {
       "assignee": null,
@@ -1054,14 +1160,24 @@
           "created_at": "2026-09-06T12:44:51.938529Z",
           "id": "5477a3dd-dfb6-47fe-b22c-ffc93879546d",
           "text": "GOAL: make Markus Markdown the CANONICAL article body, and project it into what Pretext needs.\n\nTHE CORE ARCHITECTURAL FACT (verified in lib/articles.ts):\n  Article.body: string[]        <- flat plain-text paragraphs, no inline markup\n  Article.pullQuotes?: string[] <- SIDE-CHANNEL array, not positioned in the body\n  Article.assets/image/video    <- also side-channel, positioned by the solver\n\nMarkus's directive vocabulary (pull-quote, card-grid, card, two-up, column, figure, callout, details, aside, metric, timeline) is a strict SUPERSET of that, and it is POSITIONAL - the pull quote sits where the author put it. So the resolution is not to invent a Papyrus schema; it is to adopt Markus's vocabulary as the Papyrus content schema.\n\nDIRECTION OF TRAVEL:\n  Article.body: string[]  ->  Article.body: string (Markus Markdown)\n  Article.pullQuotes[]    ->  DELETED; pull quotes become :::pull-quote in the body\n\nSCOPE:\n1. Consume the Markus document IR (kanbus-37dd9a, in the Markus repo, gives typed block nodes + schema_version). Do NOT re-parse Markdown in TypeScript.\n2. Build the Pretext PROJECTION: IR -> the flat structures the solver consumes (ordered paragraph strings, extracted pull quotes, figures). This projection is LOSSY BY DESIGN and that is correct - Pretext cannot express a card-grid. Decide and document the degradation for each directive Pretext cannot render (best candidate: render its textual content inline, never silently drop content).\n3. Type the IR in TS from the schema Markus emits. Keep schema_version checked at the boundary; fail loudly on mismatch.\n4. Round-trip test: an existing article migrated to Markdown must project back to the SAME body: string[] it has today. That is the regression proof for PPY-b794e1.\n\nDEPENDS ON: kanbus-37dd9a (Markus document IR) and PPY-d79ff2 (Renderer interface)."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T12:57:32.724398Z",
+          "id": "b65ee653-af9c-4454-ba19-480c1db88daf",
+          "text": "UNBLOCKED ON THE MARKUS SIDE: kanbus-37dd9a is landed and reviewed (Markus repo, branch feature/document-ir). 'markus ast' now emits a typed, versioned IR - schema_version: 1, front matter parsed, and block nodes (heading/paragraph/list/blockquote/code/table/thematic_break/html) sitting as ordered PEERS of directive nodes in one children[]. Inline content is typed too (text/emphasis/strong/strikethrough/code_span/link/image/breaks).\n\nNOTE: inline code spans are type 'code_span', distinct from block-level 'code'. Do not conflate them in the TS types.\n\nI PROTOTYPED THE PROJECTION AGAINST THE REAL IR - it works. Verified output for an article with front matter + pull-quote + card-grid:\n\n  body (string[]):\n    'Developers are learning that reliable agents need less freedom, not more.'\n    'Across demos and tool launches, builders kept circling the same answer.'\n    'Planning state'\n    'Read-only tools.'\n    'Implementation state'\n    'Edit tools.'\n    'The lesson is not that agents are over.'\n  pullQuotes: ['The practical breakthrough is not giving agents a bigger sandbox.']\n  degraded directives (content preserved inline): ['card-grid','card','card']\n\nThe algorithm: walk children in order; paragraph -> push inline_text() to body; heading -> push its text to body; directive pull-quote -> push to pullQuotes; ANY OTHER directive -> recurse into its children so content is preserved inline and NOTHING is silently dropped. That last rule is the important one and it is the documented degradation policy.\n\nPort this to TypeScript against the typed IR. The Python prototype is a proof of shape, not the deliverable.\n\nSTILL BLOCKED BY: PPY-d79ff2 (Renderer interface) - the projection needs somewhere to live."
         }
       ],
       "created_at": "2026-09-06T12:43:02.708614Z",
       "creator": null,
-      "custom": {},
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
       "dependencies": [
         {
-          "target": "PPY-d79ff2",
+          "target": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
           "type": "blocked-by"
         }
       ],
@@ -1070,10 +1186,10 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 1,
-      "status": "open",
+      "status": "in_progress",
       "title": "Document IR ingestion + Pretext projection",
       "type": "task",
-      "updated_at": "2026-09-06T12:44:51.938529Z"
+      "updated_at": "2026-09-06T13:28:25.813165Z"
     },
     {
       "assignee": null,
@@ -1213,10 +1329,13 @@
       ],
       "created_at": "2026-09-06T12:43:02.741815Z",
       "creator": null,
-      "custom": {},
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
       "dependencies": [
         {
-          "target": "PPY-a10206",
+          "target": "PPY-a1020691-0271-4514-8fdf-f8d69339731f",
           "type": "blocked-by"
         }
       ],
@@ -1302,7 +1421,7 @@
     },
     {
       "assignee": null,
-      "closed_at": null,
+      "closed_at": "2026-09-06T13:27:25.713175Z",
       "comments": [
         {
           "author": "home",
@@ -1310,6 +1429,13 @@
           "created_at": "2026-09-06T12:43:39.823393Z",
           "id": "2f38bde0-74d7-442b-b008-1176dc92cf35",
           "text": "GOAL: prove the Renderer contract by retrofitting the EXISTING Pretext path onto it. No Markus code in this task.\n\nWHY FIRST: PR #57's lib/publisher.ts is a metadata-only record with no operations - nothing would fail to compile if the contract were wrong. All three of its fields are pure functions of id (requiresPretext === (id==='pretext')), and it bakes one implementation's name into the generic interface. The only real test of an interface is whether the existing implementation fits through it.\n\nNOMENCLATURE (decided, use exactly): Renderer x Layout.\n- Renderer = the swappable system that turns content into a site: 'pretext' | 'markus'\n- Layout = the look WITHIN Pretext: 'newsprint' | 'blog' | 'magazine'\n- 'publication' stays reserved for the title/property (P.apyr.us, Threat Intelligence, Pilobil.us)\n- Do NOT use: publisher, publication type, front end, press, site type.\n- Note: today's enum value is 'newspaper'; rename to 'newsprint' to match how the team actually talks about it.\n\nSCOPE:\n1. DELETE lib/publisher.ts (from PR #57). Replace with lib/renderer.ts defining a Renderer interface with REAL operations. Derive the operation set from what components/presentation-shell.tsx and app routes actually need - read them first, do not guess. Expect something like: renderEdition, renderArticle, stylesheets, and a capability/validation hook.\n2. Retrofit the existing Pretext path to implement that interface under renderers/pretext/. Behavior must be byte-identical - this is a pure refactor.\n3. NO boolean fields named after an implementation (requiresPretext is banned). If a renderer needs to declare a capability, name the capability, not the implementation.\n4. Decouple the hardcoded publications/threat_intelligence/* imports in components/presentation-shell.tsx (BlogPageBackground) and components/article-page.tsx (PictogramFigure) so a non-TI publication loads cleanly.\n\nVERIFY: npm run lint, npm run typecheck, npm run build, and the BDD suite must pass. Report exact commands and output. Pre-existing failure to expect: components/amplify-client-provider.tsx 'Cannot find module ../amplify_outputs.json' (gitignored generated file) - that one is not yours.\n\nBranch feature/renderer-architecture is already checked out. Commit there."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:27:25.701607Z",
+          "id": "6341a0a4-02eb-4d61-8812-5a98a007e2f2",
+          "text": "REVIEW: ACCEPTED. Committed as f9b073f on feature/renderer-architecture.\n\nWHAT LANDED: lib/publisher.ts DELETED. lib/renderer.ts defines Renderer with real operations - renderEdition, renderArticle, renderItem, stylesheets(), supportsLayout(). Pretext moved under renderers/pretext/. Five call sites now go THROUGH the interface (JSX member-expression tags) rather than importing components directly, so the contract is actually exercised, not merely type-compatible.\n\nTHE CONTRACT TEST PASSED. That was the point of doing this first: the existing implementation fits through the interface without contortion. supportsLayout is backed by a real PRETEXT_LAYOUTS value that lib/site-brand.ts also consumes - it is NOT a pure function of id, which is exactly what was wrong with PR #57's requiresPretext. No implementation-named booleans survive.\n\nVERIFIED BY ME INDEPENDENTLY (not taken on report):\n- npm run lint: clean.\n- npm run typecheck: CLEAN, zero errors.\n- 'newspaper' as an enum value: fully gone. The 3 remaining occurrences are a presentation-footer CSS variant and a favicon icon name - correctly left alone.\n- npm run build: FAILS at 'Collecting page data' (TypeError: Cannot convert undefined or null to object in listPublishedEditions/listArticleSlugs). I checked out origin/develop and got the IDENTICAL failure, so it is PRE-EXISTING and environmental - the build fetches live AppSync data and no backend is reachable. NOT caused by this change.\n- BDD: 117 scenarios, 39 failed, 27 undefined, 49 skipped, 2 passed. A develop baseline run is in flight. Two known pre-existing causes: features/operator-cli.feature has zero cucumber-js step definitions (it targets behave), and console scenarios have no seeded GraphQL data. Tracked as PPY-fd8468; a real backend (PPY-6b4094) may resolve the second outright.\n\nNOTE ON TYPECHECK: it passes partly because a synthetic amplify_outputs.json now exists locally (gitignored, uncommitted, generated during the work). The module-not-found error PR #57 called pre-existing is masked by that file, not fixed by code. Do not read 'typecheck clean' as evidence the Amplify wiring is healthy.\n\nTWO CONCERNS THE AGENT RAISED, BOTH SPLIT OUT RATHER THAN WAVED THROUGH:\n- PPY-61dc8f: persisted reader setting 'newspaper' now silently falls back to default after the rename. Real behavioral edge.\n- PPY-f25738: lib/site-brand.ts importing from renderers/pretext/layouts.ts inverts the layering. No cycle, but worth a deliberate call once PPY-eca592 lands.\n\nPROCESS NOTE, MY FAULT NOT THE AGENT'S: I committed the working tree and checked out origin/develop for a baseline comparison WHILE this agent was still live. The agent correctly flagged the unexplained commit and detached HEAD as suspicious. No damage - content verified correct - but I created that race and should not have.\n\nUNBLOCKS: PPY-a10206, PPY-88f77b, PPY-eca592."
         }
       ],
       "created_at": "2026-09-06T12:43:02.697152Z",
@@ -1321,10 +1447,43 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 1,
-      "status": "in_progress",
+      "status": "closed",
       "title": "Renderer interface + retrofit Pretext onto it",
       "type": "task",
-      "updated_at": "2026-09-06T12:43:48.037091Z"
+      "updated_at": "2026-09-06T13:27:25.713175Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:26:23.445861Z",
+          "id": "a6ff8852-22de-47f0-8ae7-fece1e59c50a",
+          "text": "PURPOSE: work that can proceed INDEPENDENTLY of the renderer critical path (PPY-92f846), so a swarm of agents can make progress while the orchestrating session is rate-limited.\n\nRULES FOR ANYONE PICKING UP FROM THIS EPIC:\n- Read PPY-92f846's HANDOFF comment first for repo/branch/push state and the decided nomenclature (Renderer x Layout). Do not relitigate settled decisions.\n- These tasks are deliberately scoped to NOT collide with the renderer work. Do not refactor lib/renderer.ts or renderers/pretext/ from here; if you must, comment on PPY-92f846 instead of editing.\n- Report findings as Kanbus comments as you go, not only at the end. The orchestrator may be throttled; Kanbus is the shared state.\n- Do not push and do not open PRs without Ryan's explicit say-so. Everything is local on feature/renderer-architecture (Papyrus) and feature/document-ir (Markus), neither pushed.\n- Ryan endorsed working directly in AnthusAI/Papyrus. Not a fork.\n- Do not close your own issue; comment your findings and leave it for review."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:29:35.403143Z",
+          "id": "b81f7e3f-e682-4b3d-b320-850c36512a88",
+          "text": "=== READY QUEUE - PICK UP FROM HERE IF THE ORCHESTRATOR IS THROTTLED ===\n\nThese are specced, unblocked, and deliberately chosen NOT to collide with the renderer critical path. Each issue's own comment is the authoritative spec. Take one, comment that you have taken it, work, comment findings as you go.\n\nCURRENTLY RUNNING (do not touch these files):\n- PPY-a10206 + PPY-88f77b - IR ingestion, Pretext projection, Markus renderer, real published pages. Touches lib/, renderers/. AVOID.\n- PPY-5e8072 - Pilobil.us visual design. Touches /Users/home/Projects/Pilobol.us + Markus CSS. AVOID.\n\nAVAILABLE NOW, ordered by value:\n\n1. PPY-6b4094 - Deploy Papyrus to AWS, report rough edges. HIGHEST VALUE of the available set. We currently cannot tell real regressions from environment noise: 'npm run build' fails identically on origin/develop and on our branch because no AppSync backend is reachable. A real deployment is the only way to get a trustworthy baseline. Creates real AWS resources - use a sandbox, record teardown, never touch production. Model: Sonnet or better (judgment-heavy, unpredictable failure modes).\n\n2. PPY-fd8468 - Repair the BDD environment. Two known pre-existing causes: features/operator-cli.feature has ZERO cucumber-js step definitions (it targets 'poetry run behave'), and console scenarios lack seeded GraphQL data. Coordinate with PPY-6b4094 - a real backend may fix the second outright. Model: Sonnet.\n\n3. PPY-61dc8f - Persisted reader setting 'newspaper' silently resets after the newsprint rename. Small, tightly specified, disjoint files (amplify/functions/reader-settings/). GOOD HAIKU CANDIDATE - the fix is spelled out (accept the old value as a deprecated alias normalizing to newsprint, plus a test). Verify the premise first: confirm persisted data actually exists before migrating an empty table.\n\n4. PPY-f25738 - Decide the lib/ -> renderers/ layering inversion. Genuinely a judgment call, not mechanical. Best deferred until PPY-eca592 lands, since option (b) needs a resolvable active renderer. Model: Sonnet or better. LOW priority.\n\nSTILL BLOCKED (do not start):\n- PPY-eca592 (renderer config discriminated union) - would collide head-on with the running a10206/88f77b work. Wait.\n- PPY-b794e1 (migrate existing content) - needs a10206's projection to exist first.\n- PPY-10e4cd (Pilobil PoC) - needs 88f77b + eca592.\n\nMODEL GUIDANCE FROM RYAN: use Haiku where the work is simple BECAUSE the task is already spelled out exactly. Use Sonnet or better where failure modes are unpredictable (deployment, environment repair) or where real judgment is required (design, architecture decisions). Do not use a small model just because an issue is short - use it when the issue is UNAMBIGUOUS.\n\nSTANDING RULES: do not push, do not open PRs, do not close your own issue, commit in small reviewable increments rather than leaving a large uncommitted tree, and re-run verification rather than trusting a summary."
+        }
+      ],
+      "created_at": "2026-09-06T13:26:03.021077Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+      "labels": [],
+      "parent": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+      "priority": 2,
+      "status": "open",
+      "title": "Parallel track: deployment, design, and environment hardening",
+      "type": "epic",
+      "updated_at": "2026-09-06T13:29:35.403143Z"
     },
     {
       "assignee": null,
@@ -1384,10 +1543,13 @@
       ],
       "created_at": "2026-09-06T12:43:02.729828Z",
       "creator": null,
-      "custom": {},
+      "custom": {
+        "project_label": "PPY",
+        "source": "shared"
+      },
       "dependencies": [
         {
-          "target": "PPY-d79ff2",
+          "target": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
           "type": "blocked-by"
         }
       ],
@@ -1400,6 +1562,32 @@
       "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
       "type": "task",
       "updated_at": "2026-09-06T12:45:16.872331Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:27:02.326324Z",
+          "id": "a8500f37-7368-4e4c-bc90-32213d328e50",
+          "text": "DESIGN DECISION raised by the agent that did PPY-d79ff2. Low priority, but record the call rather than leaving it implicit.\n\nlib/site-brand.ts now imports PRETEXT_LAYOUTS from renderers/pretext/layouts.ts, so getPresentationChoices() uses one real source of truth instead of a duplicated literal array. That inverts the usual layering: lib/ (shared) now depends on renderers/ (an implementation).\n\nThe agent confirmed there is no import cycle (layouts.ts imports only content-types, as a type). The tradeoff is real either way: the duplicate literal was a genuine correctness hazard, but lib/ depending on a specific renderer is exactly the coupling this initiative exists to remove - and it gets worse when a second renderer lands.\n\nOPTIONS: (a) leave it and accept the inversion; (b) have each renderer declare its layouts through the Renderer interface and let site-brand ask the ACTIVE renderer, which fits the architecture better and removes the static dependency; (c) move the canonical list to lib/ and have the Pretext renderer import it downward.\n\n(b) is most aligned with where this is going. Decide once the config work in PPY-eca592 lands, since that is where the active renderer becomes resolvable."
+        }
+      ],
+      "created_at": "2026-09-06T13:26:03.082699Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-f25738ae-3891-43e5-8d5c-1ef28e61847b",
+      "labels": [],
+      "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+      "priority": 3,
+      "status": "open",
+      "title": "Decide layering: lib/site-brand.ts imports from renderers/pretext/layouts.ts",
+      "type": "task",
+      "updated_at": "2026-09-06T13:27:02.326324Z"
     },
     {
       "assignee": null,
@@ -1462,6 +1650,39 @@
     },
     {
       "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:27:02.315387Z",
+          "id": "e56bbd48-1aea-40d6-a4d9-a6967d1906af",
+          "text": "GOAL: make the BDD suite trustworthy so real regressions are distinguishable from environment noise.\n\nMEASURED TODAY on feature/renderer-architecture: 117 scenarios - 2 passed, 39 failed, 27 undefined, 49 skipped. A baseline run on origin/develop is needed for comparison and was still running when this was filed; get that number first.\n\nTWO KNOWN CAUSES, both PRE-EXISTING and unrelated to the renderer work:\n1. features/operator-cli.feature has ZERO cucumber-js step definitions. It is written for 'poetry run behave', a different runner, but cucumber-js picks it up and reports 27 undefined steps. Either exclude it from the cucumber-js profile (cucumber.js) or move it under the behave tree. Decide which is correct and say why.\n2. Newsroom console scenarios time out waiting for [data-news-desk] because there is no seeded GraphQL data behind the local/synthetic backend.\n\nSCOPE: fix (1); for (2) either provide deterministic local seed data or tag those scenarios so they skip cleanly with an explicit reason rather than failing. A suite where failure is the normal state teaches everyone to ignore it.\n\nACCEPTANCE: a documented command that yields a green (or explicitly-and-legibly-skipped) run, and a recorded baseline number in a comment here.\n\nCOORDINATE: PPY-6b4094 (AWS deploy) may solve (2) outright by providing a real backend. Check that issue before building elaborate local seeding - and comment there if you find the two overlap."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T13:32:30.568773Z",
+          "id": "03dae56a-9f49-47f9-b3f5-142adf636702",
+          "text": "HELD, NOT ABANDONED - deliberately left in the ready queue rather than dispatched.\n\nREASON: PPY-6b4094 (AWS deploy) is running NOW and may resolve half of this issue outright by providing a real backend with seeded data. Running both at once means neither can coordinate, and this issue's spec explicitly says to check 6b4094 first before building elaborate local seeding.\n\nPICK THIS UP WHEN: PPY-6b4094 has reported its findings. Then you will know whether you are fixing (1) only - the operator-cli.feature runner mismatch - or both (1) and (2).\n\nThe (1) half is independent of all that and safe to do any time: features/operator-cli.feature has ZERO cucumber-js step definitions because it targets 'poetry run behave'. Either exclude it from the cucumber.js profile or move it under the behave tree. That alone removes 27 phantom 'undefined' steps from every run."
+        }
+      ],
+      "created_at": "2026-09-06T13:26:03.060359Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "",
+      "id": "PPY-fd84684a-8a7d-4bde-9db3-6a9cb65ea02b",
+      "labels": [],
+      "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+      "priority": 2,
+      "status": "open",
+      "title": "Repair BDD environment: operator-cli.feature has no cucumber steps; no seeded local data",
+      "type": "task",
+      "updated_at": "2026-09-06T13:32:30.568773Z"
+    },
+    {
+      "assignee": null,
       "closed_at": "2026-08-29T05:37:57.954133Z",
       "comments": [
         {
@@ -1521,7 +1742,7 @@
     "PPY-826729a8-13ce-4df1-a3e7-39da475d351a": [
       "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad"
     ],
-    "PPY-88f77b": [
+    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4": [
       "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0"
     ],
     "PPY-962447c5-b0e4-4812-b17c-48f2fa528229": [
@@ -1530,7 +1751,7 @@
     "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab": [
       "PPY-baa4231a-802c-4019-96c2-3c81b54002df"
     ],
-    "PPY-a10206": [
+    "PPY-a1020691-0271-4514-8fdf-f8d69339731f": [
       "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca"
     ],
     "PPY-a8566745-92a8-4bea-a953-0de1495646d5": [
@@ -1539,7 +1760,7 @@
     "PPY-d0931707-028e-4263-9fcc-0987ad515209": [
       "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89"
     ],
-    "PPY-d79ff2": [
+    "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0": [
       "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
       "PPY-a1020691-0271-4514-8fdf-f8d69339731f",
       "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad"
@@ -1547,7 +1768,7 @@
     "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89": [
       "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab"
     ],
-    "PPY-eca592": [
+    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad": [
       "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0"
     ]
   },

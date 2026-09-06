@@ -24,10 +24,17 @@
       "text": "=== READY QUEUE - PICK UP FROM HERE IF THE ORCHESTRATOR IS THROTTLED ===\n\nThese are specced, unblocked, and deliberately chosen NOT to collide with the renderer critical path. Each issue's own comment is the authoritative spec. Take one, comment that you have taken it, work, comment findings as you go.\n\nCURRENTLY RUNNING (do not touch these files):\n- PPY-a10206 + PPY-88f77b - IR ingestion, Pretext projection, Markus renderer, real published pages. Touches lib/, renderers/. AVOID.\n- PPY-5e8072 - Pilobil.us visual design. Touches /Users/home/Projects/Pilobol.us + Markus CSS. AVOID.\n\nAVAILABLE NOW, ordered by value:\n\n1. PPY-6b4094 - Deploy Papyrus to AWS, report rough edges. HIGHEST VALUE of the available set. We currently cannot tell real regressions from environment noise: 'npm run build' fails identically on origin/develop and on our branch because no AppSync backend is reachable. A real deployment is the only way to get a trustworthy baseline. Creates real AWS resources - use a sandbox, record teardown, never touch production. Model: Sonnet or better (judgment-heavy, unpredictable failure modes).\n\n2. PPY-fd8468 - Repair the BDD environment. Two known pre-existing causes: features/operator-cli.feature has ZERO cucumber-js step definitions (it targets 'poetry run behave'), and console scenarios lack seeded GraphQL data. Coordinate with PPY-6b4094 - a real backend may fix the second outright. Model: Sonnet.\n\n3. PPY-61dc8f - Persisted reader setting 'newspaper' silently resets after the newsprint rename. Small, tightly specified, disjoint files (amplify/functions/reader-settings/). GOOD HAIKU CANDIDATE - the fix is spelled out (accept the old value as a deprecated alias normalizing to newsprint, plus a test). Verify the premise first: confirm persisted data actually exists before migrating an empty table.\n\n4. PPY-f25738 - Decide the lib/ -> renderers/ layering inversion. Genuinely a judgment call, not mechanical. Best deferred until PPY-eca592 lands, since option (b) needs a resolvable active renderer. Model: Sonnet or better. LOW priority.\n\nSTILL BLOCKED (do not start):\n- PPY-eca592 (renderer config discriminated union) - would collide head-on with the running a10206/88f77b work. Wait.\n- PPY-b794e1 (migrate existing content) - needs a10206's projection to exist first.\n- PPY-10e4cd (Pilobil PoC) - needs 88f77b + eca592.\n\nMODEL GUIDANCE FROM RYAN: use Haiku where the work is simple BECAUSE the task is already spelled out exactly. Use Sonnet or better where failure modes are unpredictable (deployment, environment repair) or where real judgment is required (design, architecture decisions). Do not use a small model just because an issue is short - use it when the issue is UNAMBIGUOUS.\n\nSTANDING RULES: do not push, do not open PRs, do not close your own issue, commit in small reviewable increments rather than leaving a large uncommitted tree, and re-run verification rather than trusting a summary.",
       "created_at": "2026-09-06T13:29:35.403143Z",
       "comment_type": "default"
+    },
+    {
+      "id": "65ba4a17-efaf-4668-ae00-93801c1eeecc",
+      "author": "home",
+      "text": "Filed PPY-17fcfc: live pilobil.us static deploy + Route 53. That was not in the original side-track. 5e8072 (design) and 10e4cd (two-renderer PoC) stay local/browser; 6b4094 stays Papyrus Amplify sandbox. Do not put Markus publications on the Papyrus WEB_COMPUTE SSR app.",
+      "created_at": "2026-09-06T14:06:03.792668Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.021077Z",
-  "updated_at": "2026-09-06T13:29:35.403143Z",
+  "updated_at": "2026-09-06T14:06:03.792668Z",
   "closed_at": null,
   "custom": {}
 }

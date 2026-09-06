@@ -17,10 +17,17 @@
       "text": "GOAL: the visual design for Pilobil.us as a Markus-rendered publication. Fully parallel to the renderer plumbing - it needs no Papyrus TypeScript at all.\n\nCONTEXT: Pilobil.us ('a fungus among us') is a Papyrus pod at /Users/home/Projects/Pilobol.us. Read doctrine/pilobil.md there for editorial voice. It will render through Markus (Markdown + semantic directives -> static HTML), NOT through the Pretext layout solver.\n\nWHY YOU CAN START NOW: Markus renders standalone. 'markus' is installed (/Users/home/miniconda3/bin/markus) and /Users/home/Projects/Markus has the source, 23 themes in src/markusmd/themes/, and tokens as --markus-* CSS custom properties. You can author Markdown, run 'markus convert', and iterate on CSS in a browser without waiting on anything.\n\nSCOPE:\n1. Design the Pilobil.us look: masthead, typography, color, section treatment, article page, index page.\n2. Deliver it as a SITE CSS LAYER over Markus's tokens - redefine --markus-* rather than fighting Markus's selectors. Either pick and adapt an existing theme or write a new one; say which and why.\n3. CASCADE RULE (decided, non-negotiable): wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically. Do NOT rely on upstream Markus happening not to use @layer - that is a bet on someone else's future commits.\n4. Design for BOTH light and dark. Markus themes carry both; do not ship a design that only works in one.\n5. Exercise the real vocabulary in your sample page: pull-quote, card-grid/card, two-up, figure, callout, aside, metric. These constructs are the whole point of the architecture - a plain-prose mockup proves nothing.\n6. Deliverable: real HTML+CSS openable in a browser, plus the Markdown source that produced it. Screenshots alone are not enough.\n\nDO NOT: touch lib/renderer.ts, renderers/pretext/, or any Papyrus route. This is CSS + Markdown + Markus.",
       "created_at": "2026-09-06T13:26:43.310401Z",
       "comment_type": "default"
+    },
+    {
+      "id": "457e027c-116a-48cc-b14f-a5213cf1ad06",
+      "author": "home",
+      "text": "Live hosting is out of scope here. PPY-17fcfc owns Route 53 + static CI for pilobil.us. Keep this issue to the local HTML/CSS/Markdown deliverable.",
+      "created_at": "2026-09-06T14:06:03.819001Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.046588Z",
-  "updated_at": "2026-09-06T13:28:25.839836Z",
+  "updated_at": "2026-09-06T14:06:03.819001Z",
   "closed_at": null,
   "custom": {}
 }
