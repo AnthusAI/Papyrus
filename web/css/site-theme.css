@@ -1,0 +1,64 @@
+/* Site theme layer — unlayered so it wins over vendored @layer markus CSS. */
+
+:root {
+  --markus-accent: #3d6b4f;
+}
+
+.markus-site-masthead {
+  border-bottom: 1px solid color-mix(in srgb, var(--markus-ink, #111) 12%, transparent);
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem 1rem;
+}
+
+.markus-site-wordmark {
+  font-family: var(--markus-serif, Georgia, serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
+}
+
+.markus-site-wordmark a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.markus-site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.markus-site-nav a {
+  color: var(--markus-accent, #3d6b4f);
+  font-family: var(--markus-sans, system-ui, sans-serif);
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+
+.markus-site-nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.markus-site-footer {
+  border-top: 1px solid color-mix(in srgb, var(--markus-ink, #111) 12%, transparent);
+  color: color-mix(in srgb, var(--markus-ink, #111) 65%, transparent);
+  font-family: var(--markus-sans, system-ui, sans-serif);
+  font-size: 0.875rem;
+  margin-top: 3rem;
+  padding: 1.5rem;
+}
+
+.markus-site main {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 0 1.5rem 2rem;
+}
+
+.markus-body {
+  background: var(--markus-paper, #faf9f7);
+  color: var(--markus-ink, #1a1a1a);
+  margin: 0;
+}
