@@ -40,10 +40,17 @@
       "text": "Output A accepted. Output B blocked: this branch tracks .papyrus-production-workspace so npm run dev requires production amplify_outputs. Retrying Pretext via npx next dev plus personal sandbox outputs (ppy-6b4094 stack). Issue stays open.",
       "created_at": "2026-09-06T15:27:19.557172Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3764ede4-7570-4159-a2e5-d59413c277ff",
+      "author": "home",
+      "text": "Landed on feature/renderer-architecture as e48afed (PR #63). Adapter, sample.md, Markus static path, and pilobol-sample layoutPlan (only slug sample) are on the branch to build on. Visual design is a separate track; issue stays open.",
+      "created_at": "2026-09-06T15:33:19.273754Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.752434Z",
-  "updated_at": "2026-09-06T15:27:19.557172Z",
+  "updated_at": "2026-09-06T15:33:19.273754Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
