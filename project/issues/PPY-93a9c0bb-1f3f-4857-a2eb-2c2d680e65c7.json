@@ -31,10 +31,17 @@
       "text": "Ryan: static Amplify WEB is a Papyrus hosting *option*, not a Pilobil fork. Hosting is a sibling axis of Renderer × Layout × Publication. PPY-17fcfc retitled and moved under PPY-92f846. Anti-pattern: a per-publication Papyrus GitHub repo (the Threat Intelligence Amplify app). Docs belong in Papyrus.",
       "created_at": "2026-09-06T14:12:08.462786Z",
       "comment_type": "default"
+    },
+    {
+      "id": "cbc91628-f363-4abb-b68b-e83145c2585a",
+      "author": "home",
+      "text": "Domain correction: live hostname is **pilobol.us**, not pilobil.us. Doctrine had the typo. PPY-17fcfc updated; planner notified.",
+      "created_at": "2026-09-06T14:14:16.292857Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:09:05.786234Z",
-  "updated_at": "2026-09-06T14:12:08.462786Z",
+  "updated_at": "2026-09-06T14:14:16.292857Z",
   "closed_at": null,
   "custom": {}
 }
