@@ -10,6 +10,7 @@ function buildCapabilities(raw) {
   const forcedPresentation = raw.forcedPresentation || null;
   return {
     siteBrand: raw.siteBrand ?? "papyrus",
+    rendererKind: raw.rendererKind ?? "pretext",
     defaultPresentation: raw.defaultPresentation ?? "newsprint",
     forcedPresentation,
     presentationChoices,
@@ -24,6 +25,7 @@ function readCapabilitiesFromDocument() {
   const root = document.documentElement;
   return {
     siteBrand: root.dataset.siteBrand ?? "papyrus",
+    rendererKind: root.dataset.rendererKind ?? "pretext",
     defaultPresentation: root.dataset.defaultPresentation ?? "newsprint",
     forcedPresentation: root.dataset.forcedPresentation ?? null,
     presentationChoices: root.dataset.presentationChoices ?? "",

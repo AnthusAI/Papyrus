@@ -1,9 +1,12 @@
-import { pretextRenderer } from "../renderers/pretext";
+import { getSiteRenderer } from "../lib/site-renderer";
 import { contentRepository, getScenarioIdParam } from "../lib/content-repository";
 import type { EditionContent } from "../lib/content-types";
 import { createEditionSectionPlan } from "../lib/edition-sections";
 import { getEditionDatePath } from "../lib/edition-routes";
-import { normalizeEditionLayoutPlan } from "../lib/layout-plan";
+import {
+  EMPTY_EDITION_PLACEHOLDER_SLUG,
+  buildEmptyEditionLayoutPlan,
+} from "../lib/empty-edition-layout-plan";
 import {
   loadPublicPlaceholderSections,
   loadPublicPlaceholderTopics,
@@ -26,15 +29,16 @@ type HomePageProps = {
 };
 
 export default async function Home({ searchParams }: HomePageProps) {
+  const siteRenderer = getSiteRenderer();
   const resolvedSearchParams = await searchParams;
   const scenarioId = getScenarioIdParam(resolvedSearchParams?.scenario);
   if (!scenarioId) {
     if (hasOAuthRedirectParams(resolvedSearchParams)) {
       const mastheadHomeHref = await loadFirstPublishedEditionPath();
       const content = await loadLatestGraphQLEdition();
-      if (!content || content.items.length === 0) return <pretextRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
+      if (!content || content.items.length === 0) return <siteRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
       return (
-        <pretextRenderer.renderEdition
+        <siteRenderer.renderEdition
           content={content}
           editionBasePath={getEditionDatePath(content.editionDate)}
           mastheadHomeHref={mastheadHomeHref}
@@ -44,12 +48,12 @@ export default async function Home({ searchParams }: HomePageProps) {
 
     const latestEdition = await contentRepository.getLatestPublishedEdition();
     if (latestEdition) redirect(getEditionDatePath(latestEdition.editionDate));
-    return <pretextRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
+    return <siteRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
   }
 
   const content = await loadHomeContent(scenarioId);
-  if (content.items.length === 0) return <pretextRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
-  return <pretextRenderer.renderEdition content={content} />;
+  if (content.items.length === 0) return <siteRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
+  return <siteRenderer.renderEdition content={content} />;
 }
 
 async function loadLatestGraphQLEdition(): Promise<EditionContent | null> {
@@ -74,7 +78,7 @@ async function loadHomeContent(scenarioId: string | null): Promise<EditionConten
 }
 
 function createEmptyGraphQLEdition(): EditionContent {
-  const placeholderSlug = "empty-edition-placeholder";
+  const placeholderSlug = EMPTY_EDITION_PLACEHOLDER_SLUG;
   const configuredSections = loadPublicPlaceholderSections();
   const publicTopics = loadPublicPlaceholderTopics();
   const sectionItems = createPlaceholderSectionItems(configuredSections);
@@ -112,84 +116,13 @@ function createEmptyGraphQLEdition(): EditionContent {
     description: "No published GraphQL edition is available yet.",
     items,
     sections: createEditionSectionPlan(items),
-    layoutPlan: normalizeEditionLayoutPlan({
-      pages: [
-        {
-          id: "page-1",
-          pageNumber: 1,
-          presetId: "front.mosaic",
-          grid: { columns: { min: 1, preferred: 6, max: 6 } },
-          regions: [
-            {
-              id: "empty-front-page",
-              type: "fullPage",
-              localGrid: { columns: { min: 1, preferred: 6, max: 6 } },
-              blocks: [
-                {
-                  id: "empty-edition-placeholder-front",
-                  type: "articleFrame",
-                  presetId: "front.teaser",
-                  itemId: placeholderSlug,
-                  flowKey: placeholderSlug,
-                  startCursor: "beginning",
-                  role: "primary",
-                  editorialPriority: "primary",
-                  size: { shrinkToContent: true },
-                  typography: { headlineScale: "feature" },
-                  span: { min: 1, preferred: 6, max: 6 },
-                  localGrid: { columns: { min: 1, preferred: 6, max: 6 } },
-                  media: [],
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: "page-2",
-          pageNumber: 2,
-          presetId: "page.full",
-          grid: { columns: { min: 1, preferred: 6, max: 6 } },
-          regions: [
-            {
-              id: "empty-sections-page",
-              type: "fullPage",
-              size: { shrinkToContent: true },
-              localGrid: { columns: { min: 1, preferred: 6, max: 6 } },
-              blocks: [
-                {
-                  id: "empty-edition-sections-stack",
-                  type: "itemStack",
-                  title: "Sections",
-                  itemIds: [...sectionItems.map((item) => item.slug), sectionsCta.slug],
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: "page-3",
-          pageNumber: 3,
-          presetId: "page.full",
-          grid: { columns: { min: 1, preferred: 6, max: 6 } },
-          regions: [
-            {
-              id: "empty-topics-page",
-              type: "fullPage",
-              size: { shrinkToContent: true },
-              localGrid: { columns: { min: 1, preferred: 6, max: 6 } },
-              blocks: [
-                {
-                  id: "empty-edition-topics-stack",
-                  type: "itemStack",
-                  title: "Topics",
-                  itemIds: [...topicItems.map((item) => item.slug), topicsCta.slug],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    }, "EmptyGraphQLEdition.layoutPlan"),
+    layoutPlan: buildEmptyEditionLayoutPlan({
+      placeholderSlug,
+      sectionItemSlugs: sectionItems.map((item) => item.slug),
+      sectionsCtaSlug: sectionsCta.slug,
+      topicItemSlugs: topicItems.map((item) => item.slug),
+      topicsCtaSlug: topicsCta.slug,
+    }),
   };
 }
 

@@ -1,8 +1,11 @@
 # Pluggable publication front ends (Pretext + Markus)
 
-Status: **Design** (with a minimal interface/config spike in `lib/publisher.ts`).
-Kanbus: PPY-93a9c0 (initiative) → PPY-92f846 (epic) → PPY-4db888 (this task).
-Branch: `cursor/feature/PPY-4db888-pluggable-publishers-markus-8e6b` → PR into `develop`.
+Status: **Partially implemented** on `feature/renderer-architecture`. Renderer
+contract + config union landed in PPY-d79ff2 / PPY-eca592; Markus static build
+in PPY-88f77b (#60). This doc mixes historical design notes with the current
+shape — when they disagree, trust `lib/renderer-config.ts` and
+`lib/site-brand.ts`.
+Kanbus: PPY-93a9c0 (initiative) → PPY-92f846 (epic).
 
 ## 1. Goal and non-goals
 
@@ -14,75 +17,86 @@ swappable front ends:
 2. **Markus** — Anthus-flavored Markdown → static HTML, themed with Markus CSS,
    with per-site CSS layers on top (the path Pilobil.us needs first).
 
-The first consumer is **Pilobil.us**, a local Papyrus pod that is KB-ready but
-cannot publish today because Papyrus only ships the Pretext publication type.
+The first consumer is **Pilobol.us** (`pilobol.us`, brand id `pilobol-us`), a
+local Papyrus pod that is KB-ready but cannot publish through the Pretext
+Next.js reader path.
 
 **Non-goals.**
 
-- Do **not** rip out Pretext. It stays as one publisher plugin.
+- Do **not** rip out Pretext. It stays as one renderer (`kind: "pretext"`).
 - Do **not** invent a second content model that only Markus understands. Both
-  publishers consume the same standard `EditionContent` / `PublicationItem` shape.
-- Do **not** ship Pilobil.us live in this design. This is the design + a stub.
+  renderers consume the same standard `EditionContent` / `PublicationItem` shape
+  where applicable; Markus static builds read committed Markdown under
+  `web/content/` and do not require a fake `EditionLayoutPlan`.
+- Do **not** ship Pilobol.us live in this design. Static build path exists;
+  production deploy is a separate issue.
 - Do **not** replace the Amplify/GraphQL CMS. Markus is a *render* path; the
   content source of truth stays where it is (GraphQL, or a local pod content
   directory for static-only pods).
 
 ## 2. How the Pretext path actually works today (verified)
 
-Grounded in the current `develop` checkout, not assumption.
+Grounded in `feature/renderer-architecture` after PPY-eca592, not the pre-union
+`develop` shape.
 
-### 2.1 Site brand is a compile-time TS registry, not config
+### 2.1 Site brand is a compile-time TS registry with `rendererConfig`
 
 `lib/site-brand.ts` defines a closed `SiteBrandId` union and a `SITE_BRANDS`
 record resolved once at module load from `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` /
 `PAPYRUS_SITE_BRAND`:
 
-```4:79:lib/site-brand.ts
-export type SiteBrandId = "papyrus" | "threat-intelligence";
+```ts
+export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us";
+
+type RendererConfig =
+  | { kind: "pretext"; layout: "newsprint" | "blog" | "magazine"; layoutPlan: EditionLayoutPlan }
+  | { kind: "markus"; theme: string };
+
+// Sibling type only — not a required SiteBrand field (PPY-eca592)
+type HostingConfig = { kind: "amplify-ssr" } | { kind: "amplify-static" };
+
 const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
-  papyrus: { /* ... */ defaultPresentation: "newspaper", /* ... */ },
-  "threat-intelligence": threatIntelligenceBrand,
+  papyrus: {
+    rendererConfig: { kind: "pretext", layout: "newsprint", layoutPlan: /* empty-edition placeholder */ },
+    /* ... */
+  },
+  "threat-intelligence": {
+    rendererConfig: { kind: "pretext", layout: "blog", layoutPlan: /* ... */ },
+    /* ... */
+  },
+  "pilobol-us": {
+    rendererConfig: { kind: "markus", theme: "hackerman" },
+    /* ... */
+  },
 };
-export const SITE_BRAND = SITE_BRANDS[resolveSiteBrandId()];
 ```
 
-`publications/threat_intelligence/brand.ts` exports `threatIntelligenceBrand`
-and is imported directly by `lib/site-brand.ts`. A publication package is
-therefore **brand + theme.css + seed JSON + optional React components**, registered
-by hand in the `SITE_BRANDS` map. There is no plugin loader; adding a brand
-means editing `lib/site-brand.ts`.
+`publications/*/brand.ts` exports per-publication `SiteBrand` records imported
+by `lib/site-brand.ts`. There is no plugin loader; adding a brand means editing
+the `SITE_BRANDS` map.
 
 `papyrus-config.example.yaml` / `.papyrus/config.yaml` is **backend-only**
 (steering paths, public site URL, OpenAI). It does **not** drive the reader or
-the site brand. `PAPYRUS_DEFAULT_PRESENTATION` does not exist; default
-presentation lives on `SITE_BRAND.defaultPresentation`.
+site brand. Reader layout choice is derived from `SITE_BRAND.rendererConfig`
+(pretext branch only). Persisted reader-settings still use the `presentation`
+storage key (PPY-61dc8f).
 
-### 2.2 Presentation format is a closed enum, branched in one component
+### 2.2 Pretext layout vs renderer dispatch
 
-`lib/content-types.ts`:
+**Renderer** (`pretext` | `markus`) is selected by `SiteBrand.rendererConfig`.
+Dispatch lives at the **app-shell seam** (`lib/site-renderer.ts`,
+`app/layout.tsx`, `app/*` routes): `getSiteRenderer()` returns the Pretext
+renderer or throws for Markus — Markus never enters React and
+`renderers/markus/stubs.tsx` is not wired into Next routes.
 
-```7:7:lib/content-types.ts
-export type EditionPresentationFormat = "newspaper" | "blog" | "magazine";
-```
+**Layout** (`newsprint` | `blog` | `magazine`, `PretextLayout` in
+`lib/renderer-config.ts`) is Pretext-internal. `renderers/pretext/presentation-shell.tsx`
+switches layouts only; it does not choose the renderer kind.
 
-`components/presentation-shell.tsx` is the single renderer router. It hardcodes
-three branches and imports TI components unconditionally:
-
-```79:108:components/presentation-shell.tsx
-  if (activePresentation === "newspaper") {
-    return ( /* <Newspaper ... /> */ );
-  }
-  return ( /* <BlogPresentation /> | <MagazinePresentation /> */ );
-```
-
-```20:20:components/presentation-shell.tsx
-import { BlogPageBackground } from "../publications/threat_intelligence/blog-defense/page-background";
-```
-
-There is **no publisher plugin interface, no renderer registry, no site-type
-strategy enum**. The nearest existing seam is `EditionContent.presentationPlans`
-(`lib/content-types.ts:52`), which is **declared but unused** anywhere in the
-codebase — a ready-made hook for per-publisher plans.
+`EditionContent.presentationPlans` was **deleted** (unused). Per-edition
+`EditionContent.layoutPlan` remains the GraphQL Pretext plan; the pretext
+`rendererConfig.layoutPlan` on `SiteBrand` is the **empty-edition placeholder**
+template (`lib/empty-edition-layout-plan.ts`), not Markus geometry.
 
 ### 2.3 Pretext is a client-side dependency
 
@@ -107,10 +121,9 @@ React only renders solved objects (`MeasuredLines` at
 `EditionLayoutPlan`). Reads use `authMode: "identityPool"` (guest IAM).
 
 `Edition.layoutPlan` is `a.json()` on the GraphQL model
-(`amplify/data/resource.ts:1854`). `presentationPlans` / `defaultPresentation`
-are **not** separate GraphQL fields — only `layoutPlan` and `metadata` JSON
-exist, so per-publisher plans would ride inside `layoutPlan` or `metadata`
-without a schema change.
+(`amplify/data/resource.ts:1854`). Only `layoutPlan` and `metadata` JSON exist
+on the edition record — layout is not a separate GraphQL field. Markus static
+builds do not consume `Edition.layoutPlan`.
 
 ### 2.5 Deploy is SSR, not static export
 
@@ -157,231 +170,159 @@ From the AnthusAI/Markus repo (`pyproject.toml`, `cli.py`, `api.py`,
   (PyPI JSON 404 at research time). Plan to install from git until confirmed.
 
 **Implication:** Markus fits Papyrus's Python-first backend rule naturally. A
-Markus publisher is a **Python build step** (Markdown → HTML fragments) plus
-**vendored CSS** plus a thin Next.js render shell that mounts the fragments and
-layers site CSS on top. It does **not** need Pretext, the client solver, or
+Markus site is a **Python static build** (`poetry run papyrus renderers markus-build`
+→ `web/dist/`) plus vendored Markus CSS plus per-site theme CSS. It does **not**
+need Pretext, the client solver, Next.js reader routes, or fake
 `EditionLayoutPlan` geometry.
 
-## 4. Proposed publisher plugin interface
+## 4. Renderer config (landed — PPY-eca592)
 
-Introduce a **publisher** axis orthogonal to the existing **presentation** axis.
-
-- *Presentation* (`newspaper` | `blog` | `magazine`) stays a Pretext-internal
-  concern. It is only meaningful when the publisher is `pretext`.
-- *Publisher* (`pretext` | `markus`) decides **which render pipeline** runs and
-  **where geometry is owned** (client solver vs. build-time static HTML).
-
-### 4.1 The `Publisher` descriptor (spiked in `lib/publisher.ts`)
+One field on `SiteBrand` selects the whole site's renderer. Invalid combinations
+are unrepresentable via a discriminated union in `lib/renderer-config.ts`:
 
 ```ts
-export type PublisherId = "pretext" | "markus";
-export type PublisherRuntime = "client-solver" | "static-html";
-export type Publisher = {
-  id: PublisherId;
-  runtime: PublisherRuntime;
-  label: string;
-  /** True when this publisher needs the Pretext client solver + EditionLayoutPlan. */
-  requiresPretext: boolean;
-  /** True when this publisher emits static HTML at build time. */
-  staticOutput: boolean;
-};
-export const PUBLISHERS: Record<PublisherId, Publisher> = { /* ... */ };
-export function resolvePublisher(id: PublisherId | string | undefined): Publisher;
+export type RendererConfig =
+  | { kind: "pretext"; layout: "newsprint" | "blog" | "magazine"; layoutPlan: EditionLayoutPlan }
+  | { kind: "markus"; theme: string };
+
+/** Sibling deploy target — type-only; not a required SiteBrand field yet. */
+export type HostingConfig =
+  | { kind: "amplify-ssr" }
+  | { kind: "amplify-static" };
 ```
 
-This is a **metadata-only registry** in the spike — it describes the two
-publishers but is **not yet wired** into `PresentationShell` or any route. The
-design below specifies where wiring lands.
+Nomenclature (decided on PPY-d79ff2 / PPY-eca592):
 
-### 4.2 Where the publisher is configured
+- **Renderer** (`pretext` | `markus`) — the swappable system that turns content
+  into a site.
+- **Layout** (`newsprint` | `blog` | `magazine`) — the look **within** Pretext
+  only (`PretextLayout`). Not a concept Markus must understand.
+- Do **not** use: `publisher`, `defaultPresentation`, `forcedPresentation`, or
+  independent enums whose combinations are invalid (the PR #57 anti-pattern).
 
-Add `publisher?: PublisherId` to `SiteBrand` (default `"pretext"`), resolved
-exactly like `defaultPresentation`:
+### 4.1 The `Renderer` interface (`lib/renderer.ts`)
 
-- `lib/site-brand.ts` gains `publisher` on `SiteBrand` and a
-  `resolvePublisher(SITE_BRAND.publisher)` accessor.
-- A publication package (e.g. `publications/pilobil/brand.ts`) sets
-  `publisher: "markus"`.
-- The build reads it the same way it reads `SITE_BRAND.id` today (compile-time
-  TS record + env-selected brand). No new config file format required.
+Real operations retrofitted from existing Pretext call sites (PPY-d79ff2):
+`renderEdition`, `renderArticle`, `renderItem`, `stylesheets()`, `supportsLayout()`.
+Pretext lives under `renderers/pretext/`. Markus stubs under `renderers/markus/`
+satisfy the type but are **not** mounted in Next.js.
 
-For **local pods** that are static-only and do not run Amplify, the same
-`PAPYRUS_SITE_BRAND` env selects a brand whose `publisher` is `"markus"`. The
-content source for such a pod is a **pod content directory** (see §5), not
-GraphQL.
+### 4.2 Where renderer config is resolved
 
-### 4.3 Where the publisher is consumed (the wiring plan, not in this PR)
+- `SiteBrand.rendererConfig` on each brand record in `lib/site-brand.ts`.
+- Env `PAPYRUS_SITE_BRAND` / `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` selects the brand
+  at compile time (same as today).
+- Brand mappings: **Papyrus** → pretext / `newsprint`; **Threat Intelligence** →
+  pretext / `blog` (locked); **Pilobol.us** (`pilobol-us`) → markus /
+  `hackerman`.
 
-`components/presentation-shell.tsx` becomes a **publisher dispatch**:
+### 4.3 Where the renderer is consumed (landed)
+
+**Not** inside `presentation-shell.tsx`. App-shell seam only:
 
 ```ts
-const publisher = resolvePublisher(SITE_BRAND.publisher);
-if (publisher.runtime === "client-solver") {
-  // existing Pretext path: newspaper | blog | magazine branches
-} else {
-  // static path: render pre-built Markus HTML fragments + layered CSS
-}
+// lib/site-renderer.ts
+export function assertPretextSite(): void;  // throws for kind === "markus"
+export function getSiteRenderer(): Renderer; // pretext only; throws for markus
 ```
 
-The static branch is **out of scope for this PR** — it is the "what to build
-next" itemized in §8. The spike only lands the descriptor + config enum so the
-shape is concrete and reviewable.
+- `app/layout.tsx` calls `assertPretextSite()` — Markus brands fail fast in Next.
+- Reader `app/*` routes call `getSiteRenderer()` → `pretextRenderer`.
+- Markus production path: `poetry run papyrus renderers markus-build` → serve
+  `web/dist/` statically. **No Next.js Markus preview.**
 
-## 5. Standard pod content structure (one model, two publishers)
+## 5. Standard content structure (one model, two renderers)
 
-Both publishers read the same `EditionContent` / `PublicationItem` shape. The
-only difference is **where the bytes come from** and **how they are rendered**.
+Both renderers can consume the same `EditionContent` / `PublicationItem` shape
+where applicable. Markus static builds read `web/content/` directly.
 
-For a **local static pod** (Pilobil), introduce a `PodContentRepository`
-implementing the existing `ContentRepository` interface
-(`lib/content-types.ts:92`) that reads a pod directory instead of GraphQL:
+For a **local static pod** (Pilobol.us), Markus reads committed Markdown under
+`web/content/` (see PPY-88f77b). A future `PodContentRepository` may implement
+`ContentRepository` for pod-local edition JSON; that is not required for the
+static build path today.
 
 ```
-publications/pilobil/                 # one publication package
-  brand.ts                            # SiteBrand with publisher: "markus"
+publications/pilobol_us/              # publication package (brand id: pilobol-us)
+  brand.ts                            # SiteBrand with rendererConfig: { kind: "markus", theme: "hackerman" }
   theme.css                           # site CSS layer (overrides --markus-*)
+web/
   content/
-    editions/
-      2026-09-06.json                 # EditionContent (items + layoutPlan + metadata)
     articles/
-      <slug>.md                       # Markus Markdown body for an article item
-    assets/
-      <asset-id>.(png|jpg|mp4)        # local media; static pod serves these directly
-    markus/                           # vendored Markus CSS (markus.css + themes/*.css)
-  build/                              # gitignored build output (HTML fragments)
+      <slug>.md                       # Markus Markdown sources
+  css/
+    site-theme.css                    # site theme layer
+  dist/                               # gitignored — output of `papyrus renderers markus-build`
 ```
 
 Rules:
 
-- `content/editions/<date>.json` is **the same `EditionContent` shape** the
-  GraphQL repository returns (`PublicationItem[]` + `EditionLayoutPlan` +
-  metadata). For Markus, `layoutPlan` may be a minimal plan (one page, one
-  region, one `articleFrame` per item) because Markus does not consume solver
-  geometry — but it is still a valid `EditionLayoutPlan` so the same Zod
-  validation and the same authoring tools apply.
-- `content/articles/<slug>.md` holds the **Markus Markdown body** for an
-  article item. The `PublicationItem` for that slug references it by slug; the
-  Markus publisher reads the `.md`, runs `markus convert --fragment --no-css`,
-  and mounts the resulting `<article class="markus-document">` fragment.
-- `content/assets/` is served as-is by the static pod (no signed URLs). The
-  `MediaAsset.storagePath` for a pod item points here; the Markus publisher
-  rewrites it to the final public path before emitting HTML.
-- `markus/` is **vendored** from the installed `markusmd` package
-  (`markusmd/static/`) at install time, not hotlinked from the demo GitHub
-  Pages URL (that is not a versioned CDN).
-- `theme.css` is the **site CSS layer**: it redefines `--markus-*` tokens and
-  adds Pilobil-specific rules. Because Markus uses no `@layer`, the site layer
-  wins by either redefining tokens on `:root` / `.markus-document` or by
-  wrapping vendored Markus CSS in `@layer markus { … }` and leaving the site
-  layer unlayered.
+- Pretext editions from GraphQL carry `EditionContent.layoutPlan` per edition.
+  Markus static builds **do not** require a fake `EditionLayoutPlan` — they read
+  `web/content/articles/*.md` directly.
+- `web/content/articles/<slug>.md` holds Markus Markdown; `papyrus renderers
+  markus-build` emits static HTML under `web/dist/`.
+- Site CSS layers on top of vendored Markus CSS (`web/dist/css/markus-vendor.css`
+  + `web/dist/css/site-theme.css`).
 
-This keeps **one content model**. A Markus pod is not a parallel schema; it is
-the same `EditionContent` with a different `ContentRepository` and a different
-publisher.
-
-## 6. Markus static pipeline
+## 6. Markus static pipeline (landed — PPY-88f77b)
 
 ```
-                +---------------------------------------------------+
-   pod content  | publications/pilobil/content/{editions,articles,assets} |
-                +---------------------------------------------------+
-                                        |
-                                        v
-              +--------------------------------------------+
-              | PodContentRepository (ContentRepository)     |
-              |   reads editions/<date>.json + articles/*.md |
-              |   -> EditionContent (PublicationItem[]+plan)  |
-              +--------------------------------------------+
-                                        |
-                                        v
-              +--------------------------------------------+
-              | MarkusPublisher.build(edition)  (Python)     |
-              |   for each article item:                      |
-              |     markus convert articles/<slug>.md        |
-              |       --fragment --no-css --theme <name>      |
-              |       -> build/fragments/<slug>.html          |
-              |   resolve asset storagePath -> /assets/...   |
-              |   emit build/manifest.json (slug -> fragment)  |
-              +--------------------------------------------+
-                                        |
-                                        v
-              +--------------------------------------------+
-              | Next.js render shell (publisher=markus)       |
-              |   loads build/fragments/<slug>.html           |
-              |   mounts <article class="markus-document">     |
-              |   loads vendored markus.css + themes/<name>.css |
-              |   loads publications/pilobil/theme.css (site) |
-              +--------------------------------------------+
-                                        |
-                                        v
-                static HTML site (Pilobil.us)
+web/content/articles/*.md
+        |
+        v
+poetry run papyrus renderers markus-build --theme <name>
+        |
+        v
+web/dist/          (static HTML + css/markus-vendor.css + css/site-theme.css)
+        |
+        v
+plain static file server (not Next.js)
 ```
 
 Key points:
 
-1. **Build-time Python step** (`poetry run papyrus publishers markus build
-   --edition <date>` or similar) produces HTML fragments per article. This is
-   the only place Markus is invoked. It fits the Python-first rule and keeps
-   Markus out of the Next.js bundle.
-2. **No Pretext, no client solver** on the Markus path. `buildNewspaperLayout`
-   and `layoutAllTextLines` are not imported by the Markus render shell.
-3. **CSS layering** (cascade order, lowest to highest):
-   1. vendored `markus.css` (base `--markus-*` tokens + element styles)
-   2. vendored `themes/<name>.css` (theme token overrides)
-   3. `publications/pilobil/theme.css` (site layer — Pilobil brand tokens,
-      masthead, footer, per-section accents)
-4. **Static deploy**: the Markus path produces a site that can be served as
-   pure static files (fragments + CSS + assets + index). It does **not** need
-   the Amplify SSR `.next` pipeline. A pod can deploy via GitHub Pages, S3 +
-   CloudFront, or any static host. (Next.js is still used as the render shell
-   during dev/preview, but the *output* of the Markus build is static HTML.)
+1. **Build-time Python step only.** `papyrus renderers markus-build` is the
+   Markus entry point. No Next.js route mounts Markus output.
+2. **No Pretext, no client solver, no React hydration** on the Markus path.
+3. **CSS layering:** vendored Markus CSS → theme CSS → site `site-theme.css`.
+4. **Static deploy** is a separate concern (`HostingConfig` type documents
+   `amplify-static` vs `amplify-ssr`; wiring is follow-up). Markus output is
+   servable as pure static files from `web/dist/`.
 
-## 7. Migration / coexistence; how Pilobil opts in
+## 7. Migration / coexistence; how Pilobol.us opts in
 
-Coexistence is the default posture: Pretext and Markus share the content model
-and differ only at the publisher seam. Nothing about the existing `papyrus` or
-`threat-intelligence` brands changes.
+Coexistence is the default posture: Pretext and Markus differ at the
+`rendererConfig` seam. Nothing about the existing `papyrus` or
+`threat-intelligence` Pretext brands changes.
 
-### 7.1 Phased rollout
+### 7.1 Phased rollout (updated)
 
-**Phase 0 — this PR (design + stub).** Land `lib/publisher.ts` descriptor +
-`PublisherId` enum + this doc. No runtime behavior changes. Pretext path
-untouched.
+**Done — renderer contract (PPY-d79ff2).** `lib/renderer.ts`, Pretext under
+`renderers/pretext/`, TI imports decoupled.
 
-**Phase 1 — wire the dispatch + decouple TI imports.** Add `publisher` to
-`SiteBrand`; make `PresentationShell` a publisher dispatch (Pretext branch
-unchanged, Markus branch returns a placeholder). Make the
-`publications/threat_intelligence/*` imports in
-`components/presentation-shell.tsx` and `components/article-page.tsx`
-brand-conditional so a second publication can load without TI. Add
-`PodContentRepository` (reads `publications/<pod>/content/`).
+**Done — Markus static build (PPY-88f77b / #60).** `papyrus renderers markus-build`
+→ `web/dist/`.
 
-**Phase 2 — Markus build step.** Add `poetry run papyrus publishers markus
-build` (Python) that runs `markus convert` per article, vendors Markus CSS,
-and emits `build/manifest.json`. Add the Markus render shell (mounts fragments,
-loads layered CSS). Add a `publications/pilobil/` skeleton (brand.ts with
-`publisher: "markus"`, theme.css, empty content/).
+**Done — config union (PPY-eca592).** `SiteBrand.rendererConfig` discriminated
+union; `pilobol-us` brand; app-shell dispatch; no Next.js Markus path.
 
-**Phase 3 — Pilobil content + static deploy.** Author Pilobil edition JSON +
-article Markdown, run the Markus build, deploy static output. This is where
-Pilobil.us actually goes live — out of scope for this design.
+**Next — static hosting.** Wire `HostingConfig` (`amplify-static` for Pilobol.us)
+without reintroducing required-but-ignored fields. Separate from renderer config.
 
-### 7.2 How Pilobil opts in (concrete)
+**Next — pod content repository.** Optional `PodContentRepository` for local
+edition JSON if GraphQL-less pods need it.
 
-1. Create `publications/pilobil/brand.ts` exporting a `SiteBrand` with
-   `id: "pilobil"`, `publisher: "markus"`, `defaultPresentation: "newspaper"`
-   (presentation is ignored on the Markus path but the field is required).
-2. Register it in `lib/site-brand.ts` `SITE_BRANDS` and in
-   `normalizeSiteBrandId`.
-3. Add `PAPYRUS_SITE_BRAND=pilobil` to the pod's `.env` (local) or deploy env.
-4. Add `publications/pilobil/content/editions/<date>.json` +
-   `content/articles/<slug>.md` + `content/assets/`.
-5. Run `poetry run papyrus publishers markus build --edition <date>` to emit
-   `publications/pilobil/build/`.
-6. Run/preview with `npm run dev` (Markus render shell mounts fragments); deploy
-   the static `build/` output to the chosen static host.
+### 7.2 How Pilobol.us opts in (concrete)
 
-No GraphQL, no Amplify, no signed URLs, no Pretext — by construction.
+1. `publications/pilobol_us/brand.ts` is registered in `SITE_BRANDS` as
+   `pilobol-us` with `rendererConfig: { kind: "markus", theme: "hackerman" }`.
+2. Set `PAPYRUS_SITE_BRAND=pilobol-us` in the pod's deploy env.
+3. Author Markdown under `web/content/articles/<slug>.md`.
+4. Run `poetry run papyrus renderers markus-build --theme hackerman`.
+5. Serve `web/dist/` with a static host. **Do not** run `next dev` / `next build`
+   for the Markus site — `assertPretextSite()` rejects Markus brands in Next.
+
+No fake `layoutPlan`, no `defaultPresentation`, no Next.js reader shell.
 
 ### 7.3 What stays shared
 
@@ -389,54 +330,24 @@ No GraphQL, no Amplify, no signed URLs, no Pretext — by construction.
   `lib/layout-plan.ts` (Zod validation), `lib/edition-routes.ts`,
   `lib/edition-sections.ts` — all shared. A Markus pod reuses the same item
   types, the same plan schema (minimal plan), the same route helpers.
-- The CLI authoring lane (`poetry run papyrus`) is shared; a future
-  `publishers markus` command group joins the existing `content` / `editions`
-  groups.
-- BDD capabilities (`features/support/capabilities.js`) extend naturally: add a
-  `data-publisher` attribute on `<html>` alongside `data-site-brand` so
-  Markus-only scenarios can skip and Pretext-only scenarios can skip.
+- The CLI authoring lane (`poetry run papyrus`) is shared; the Markus static
+  build is `papyrus renderers markus-build`.
+- BDD capabilities (`features/support/capabilities.js`) expose `data-renderer-kind`
+  on `<html>` alongside `data-site-brand` and presentation attributes.
 
 ## 8. What to build next (for Ryan)
 
 Ordered, smallest dependency first:
 
-1. **Wire the publisher dispatch.** Add `publisher` to `SiteBrand` +
-  `resolvePublisher`; branch `PresentationShell` on `publisher.runtime`. Keep
-  the Pretext branch byte-identical. Markus branch returns a "Markus publisher
-  not yet implemented" placeholder component. (TS only, no Python.)
-2. **Decouple `publications/threat_intelligence/*` imports** in
-  `components/presentation-shell.tsx` (`BlogPageBackground`,
-  `PictogramFigure`) and `components/article-page.tsx` (`PictogramFigure`).
-  Make them brand-conditional or move into the TI publication package's own
-  component surface, so a non-TI brand loads cleanly. Verify
-  `npm run lint && npm run typecheck && npm run build` and the canonical BDD
-  suite still pass.
-3. **Add `PodContentRepository`** implementing `ContentRepository`
-  (`lib/content-types.ts:92`) reading `publications/<pod>/content/`. Wire it
-  into `lib/content-repository.ts` behind a content-source switch (e.g.
-  `PAPYRUS_CONTENT_SOURCE=pod` + `PAPYRUS_PUBLICATION=pilobil`). This is the
-  cleanest place to honor the existing `PAPYRUS_CONTENT_SOURCE` env that
-  `amplify.yml` already greps.
-4. **Vendor Markus CSS.** Add a `scripts/vendor-markus-css.mjs` (or Python) that
-  copies `markusmd/static/markus.css` + `themes/*.css` into
-  `publications/<pod>/markus/` from the installed `markusmd` package. Confirm
-  `anthus-markus` installs (try `pip install anthus-markus`; fall back to
-  `pip install git+https://github.com/AnthusAI/Markus.git`).
-5. **Markus build command.** Add `poetry run papyrus publishers markus build
-  --edition <date>` in `src/papyrus_content/` that iterates article items, runs
-  `markus convert --fragment --no-css --theme <name>`, rewrites asset paths,
-  and writes `build/fragments/<slug>.html` + `build/manifest.json`.
-6. **Markus render shell.** A `components/markus-presentation.tsx` that reads
-  the manifest, mounts fragments via `dangerouslySetInnerHTML` (fragments are
-  build-time, trusted, and validated by `markus validate`), and loads the
-  three CSS layers. Wire it as the Markus branch of `PresentationShell`.
-7. **Pilobil skeleton.** `publications/pilobil/{brand.ts,theme.css,content/}`
-  with one stub edition + one stub article, to prove the path end to end.
-8. **Static export target.** Decide whether Markus output is (a) a separate
-  static folder built by the Python step and deployed directly, or (b) a
-  Next.js `output: 'export'` profile for the Markus brand. (a) is simpler and
-  keeps Next.js out of the static deploy; (b) reuses Next routing. Recommend
-  (a) for the first Pilobil cut.
+1. **Static hosting for Pilobol.us.** Wire `HostingConfig` (`amplify-static`) in
+   CI/deploy without adding a required-but-ignored field on `SiteBrand`. Keep
+   Pretext sites on Amplify SSR.
+2. **Pod content repository (optional).** `PodContentRepository` for local
+   edition JSON if needed; Markus static path already reads `web/content/`.
+3. **Pilobol.us content + static deploy.** Author article Markdown, run
+   `papyrus renderers markus-build`, deploy `web/dist/`.
+4. **BDD gating by renderer.** Extend scenario tags to skip Markus-only or
+   Pretext-only cases using `data-renderer-kind`.
 
 ## 9. Decisions needed / unknowns
 
@@ -449,10 +360,10 @@ Ordered, smallest dependency first:
   `Item` rows and emit Markdown for the Markus build? The design assumes
   Markdown-first for static pods; the GraphQL-first option is viable but adds a
   Markdown emission step. **Decision needed from Ryan/Pilobil.**
-- **`layoutPlan` for Markus.** Is a minimal one-page plan acceptable, or should
-  Markus introduce its own plan preset (e.g. `page.markus`) in
-  `lib/layout-plan.ts`? Minimal plan is simpler; a named preset is more
-  legible. Recommend a named `page.markus` preset added to `PAGE_PRESETS`.
+- **`layoutPlan` for Markus.** **Decided (PPY-eca592):** Markus does not use
+  `EditionLayoutPlan`. Pretext editions keep per-edition `layoutPlan` from
+  GraphQL; the pretext `rendererConfig.layoutPlan` on `SiteBrand` is only the
+  empty-edition placeholder. Do not invent `page.markus` presets or fake plans.
 - **Theme switching.** Does Pilobil need runtime theme switching (the demo's
   `localStorage['markus-theme']` switcher), or one baked theme per pod?
   Recommend one baked theme per pod for v1.
@@ -460,24 +371,21 @@ Ordered, smallest dependency first:
   needs embedded HTML, decide whether to pass `--allow-html` (sanitizer
   implications) or stay in the directive vocabulary. Recommend staying in the
   vocabulary.
-- **Static deploy shape.** Confirm (a) Python-built static folder vs (b)
-  Next.js `output: 'export'`. See §8 item 8.
-- **BDD brand gating.** Should `data-publisher` be added to `<html>` in
-  `app/layout.tsx` and to `features/support/capabilities.js` so scenarios can
-  gate by publisher? Recommend yes, in Phase 1.
-- **`presentationPlans` field.** The existing unused
-  `EditionContent.presentationPlans` (`lib/content-types.ts:52`) is a natural
-  home for per-publisher plan blobs. Decide whether to repurpose it for
-  Markus-specific plan data or leave Markus on `layoutPlan` only.
+- **Static deploy shape.** **Decided:** Python-built `web/dist/` served as
+  static files (not Next.js `output: 'export'`). `HostingConfig` documents
+  `amplify-static` vs `amplify-ssr`; deploy wiring is follow-up.
+- **BDD brand gating.** `data-renderer-kind` landed on `<html>` (PPY-eca592).
+- **`presentationPlans` field.** **Decided (PPY-eca592):** deleted (unused).
+  Renderer-specific config lives on `SiteBrand.rendererConfig`, not edition JSON.
 
 ## 10. Out of scope
 
-- Shipping Pilobil.us live (Phase 3).
+- Shipping Pilobol.us live (static deploy wiring).
 - Replacing Pretext.
 - A second content model.
-- A runtime plugin loader / dynamic publisher registration. Publishers are a
-  compile-time TS registry, mirroring `SITE_BRANDS`. Dynamic loading is not
-  needed for two known publishers.
+- A Next.js Markus preview or render shell.
+- A runtime plugin loader / dynamic renderer registration. Renderers are a
+  compile-time TS registry, mirroring `SITE_BRANDS`.
 - Markus `site` command reuse (it is demo-specific).
 - A Markus npm package (Markus is Python; no JS surface to consume).
 

@@ -1,15 +1,16 @@
 import { notFound, redirect } from "next/navigation";
-import { pretextRenderer, type PresentationTarget } from "../../../../renderers/pretext";
+import { getSiteRenderer } from "../../../../lib/site-renderer";
+import type { PresentationTarget } from "../../../../renderers/pretext";
 import { loadCachedEditionContent } from "../../../../lib/cached-content-repository";
 import { parseEditionDateRoute } from "../../../../lib/edition-routes";
-import type { EditionPresentationFormat } from "../../../../lib/content-types";
+import type { PretextLayout } from "../../../../lib/renderer-config";
 
 type EditionRoutePageProps = {
   year: string;
   month: string;
   day: string;
   initialPageNumber?: number;
-  lockedPresentation?: EditionPresentationFormat;
+  lockedPresentation?: PretextLayout;
   target?: PresentationTarget;
 };
 
@@ -31,8 +32,9 @@ export async function EditionRoutePage({
     });
     if (initialPageNumber < 1 || initialPageNumber > content.layoutPlan.pages.length) notFound();
     if (target.kind === "section" && !content.sections.some((section) => section.key === target.sectionKey)) notFound();
+    const siteRenderer = getSiteRenderer();
     return (
-      <pretextRenderer.renderEdition
+      <siteRenderer.renderEdition
         content={content}
         editionBasePath={route.canonicalPath}
         initialPageNumber={initialPageNumber}

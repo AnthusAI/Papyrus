@@ -1,4 +1,5 @@
 import type { SiteBrand } from "../../lib/site-brand";
+import { buildDefaultEmptyEditionLayoutPlan } from "../../lib/empty-edition-layout-plan";
 
 export const threatIntelligenceBrand: SiteBrand = {
   id: "threat-intelligence",
@@ -10,8 +11,11 @@ export const threatIntelligenceBrand: SiteBrand = {
   backToHomeLabel: "Back to Threat Intelligence",
   articleTitleSuffix: "Threat Intelligence",
   placeholderByline: "Anthus AI Solutions",
-  defaultPresentation: "blog",
-  forcedPresentation: "blog",
+  rendererConfig: {
+    kind: "pretext",
+    layout: "blog",
+    layoutPlan: buildDefaultEmptyEditionLayoutPlan(),
+  },
   textFont: 'system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif',
   footerTitle: "ANTHUS THREAT INTELLIGENCE",
   footerSubtitleOverride: "",

@@ -16,7 +16,7 @@ import {
 import type { EditionContent, EditionPresentationFormat, EditionSection } from "../../lib/content-types";
 import type { ArticleVideoAsset } from "../../lib/articles";
 import type { PresentationTarget, RenderEditionProps } from "../../lib/renderer";
-import { SITE_BRAND, enforcePresentation } from "../../lib/site-brand";
+import { SITE_BRAND, enforcePresentation, getDefaultPretextLayout } from "../../lib/site-brand";
 import { ArticleVideoFigure } from "../../components/article-video";
 import { BlogPageBackground as ThreatIntelligenceBlogPageBackground } from "../../publications/threat_intelligence/blog-defense/page-background";
 import { BlogPageBackground as GenericBlogPageBackground } from "../../components/blog-page-background";
@@ -60,7 +60,7 @@ export function PresentationShell({
   lockedPresentation,
   target = { kind: "edition" },
 }: PresentationShellProps) {
-  const defaultPresentation = enforcePresentation(content.defaultPresentation ?? SITE_BRAND.defaultPresentation);
+  const defaultPresentation = enforcePresentation(getDefaultPretextLayout());
   const [preferredPresentation, setPreferredPresentation] = useState<EditionPresentationFormat>(defaultPresentation);
   const activePresentation = enforcePresentation(lockedPresentation ?? preferredPresentation);
   const targetSection = target.kind === "section" ? findEditionSection(content.sections, target.sectionKey) : undefined;

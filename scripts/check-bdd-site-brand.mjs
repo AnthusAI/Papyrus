@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 const baseUrl = process.env.PAPYRUS_BASE_URL ?? "http://127.0.0.1:3001";
+const probePath = process.env.PAPYRUS_BDD_PROBE_PATH ?? "/?scenario=current-edition";
 const requireCanonical = process.env.PAPYRUS_BDD_REQUIRE_CANONICAL_BRAND === "1";
 
 function parseAttributes(html) {
   const read = (name) => html.match(new RegExp(`data-${name}="([^"]*)"`))?.[1] ?? null;
   return {
     siteBrand: read("site-brand"),
+    rendererKind: read("renderer-kind"),
     defaultPresentation: read("default-presentation"),
     forcedPresentation: read("forced-presentation"),
     presentationChoices: (read("presentation-choices") ?? "")
@@ -19,14 +21,14 @@ function parseAttributes(html) {
 async function main() {
   let response;
   try {
-    response = await fetch(baseUrl, { redirect: "follow" });
+    response = await fetch(`${baseUrl}${probePath}`, { redirect: "follow" });
   } catch (error) {
     console.error(`Failed to reach ${baseUrl}: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 
   if (!response.ok) {
-    console.error(`Expected ${baseUrl} to respond successfully; received HTTP ${response.status}`);
+    console.error(`Expected ${baseUrl}${probePath} to respond successfully; received HTTP ${response.status}`);
     process.exit(1);
   }
 
@@ -37,6 +39,7 @@ async function main() {
 
   console.log(
     `BDD site profile: brand=${attributes.siteBrand ?? "unknown"} `
+    + `renderer=${attributes.rendererKind ?? "unknown"} `
     + `default=${attributes.defaultPresentation ?? "unknown"} `
     + `forced=${attributes.forcedPresentation ?? "none"} `
     + `choices=${attributes.presentationChoices.join("|") || "none"}`,

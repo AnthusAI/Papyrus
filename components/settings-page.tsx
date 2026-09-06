@@ -3,7 +3,7 @@
 import { signOut } from "aws-amplify/auth";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SITE_BRAND } from "../lib/site-brand";
+import { SITE_BRAND, getForcedPresentation } from "../lib/site-brand";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
 import {
@@ -33,7 +33,7 @@ export function SettingsPage() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const userEditedRef = useRef(false);
-  const presentationLocked = Boolean(SITE_BRAND.forcedPresentation);
+  const presentationLocked = Boolean(getForcedPresentation());
 
   const refreshSettings = useCallback(async () => {
     userEditedRef.current = false;

@@ -1,4 +1,4 @@
-import type { EditionPresentationFormat } from "../../lib/content-types";
+import type { PretextLayout } from "../../lib/renderer-config";
 
 /**
  * Layout ("newsprint" | "blog" | "magazine") is Pretext-internal: it is the
@@ -9,8 +9,8 @@ import type { EditionPresentationFormat } from "../../lib/content-types";
  * so "layouts the app can choose from" and "layouts Pretext supports" are
  * the same list).
  */
-export const PRETEXT_LAYOUTS: readonly EditionPresentationFormat[] = ["newsprint", "blog", "magazine"];
+export const PRETEXT_LAYOUTS: readonly PretextLayout[] = ["newsprint", "blog", "magazine"];
 
-export function pretextSupportsLayout(layout: EditionPresentationFormat): boolean {
+export function pretextSupportsLayout(layout: PretextLayout): boolean {
   return PRETEXT_LAYOUTS.includes(layout);
 }
