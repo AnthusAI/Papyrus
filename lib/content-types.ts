@@ -4,7 +4,7 @@ import type { PublicationItem } from "./publication-items";
 
 export type ContentSource = "scenario" | "graphql";
 
-export type EditionPresentationFormat = "newspaper" | "blog" | "magazine";
+export type EditionPresentationFormat = "newsprint" | "blog" | "magazine";
 
 export type EditionSection = {
   key: string;

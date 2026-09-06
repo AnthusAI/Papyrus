@@ -33,7 +33,7 @@ async function main() {
   const html = await response.text();
   const attributes = parseAttributes(html);
   const allowsPresentationChoice = attributes.presentationChoices.length > 1;
-  const supportsNewspaper = attributes.presentationChoices.includes("newspaper");
+  const supportsNewsprint = attributes.presentationChoices.includes("newsprint");
 
   console.log(
     `BDD site profile: brand=${attributes.siteBrand ?? "unknown"} `
@@ -43,8 +43,8 @@ async function main() {
   );
 
   if (!requireCanonical) {
-    if (!supportsNewspaper) {
-      console.log("Note: newspaper layout scenarios tagged @newspaper will skip on this site profile.");
+    if (!supportsNewsprint) {
+      console.log("Note: newsprint layout scenarios tagged @newsprint will skip on this site profile.");
     }
     if (!allowsPresentationChoice) {
       console.log("Note: presentation settings scenarios tagged @presentation-choice will skip on this site profile.");
@@ -60,8 +60,8 @@ async function main() {
     process.exit(1);
   }
 
-  if (!supportsNewspaper) {
-    console.error("Canonical BDD requires newspaper presentation support on the running server.");
+  if (!supportsNewsprint) {
+    console.error("Canonical BDD requires newsprint presentation support on the running server.");
     process.exit(1);
   }
 

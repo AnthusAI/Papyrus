@@ -1,4 +1,4 @@
-@newspaper
+@newsprint
 Feature: Newspaper layout scenarios
   Layout scenarios are durable examples of newspaper behavior.
   They verify both the solver's decisions and the rendered page geometry.

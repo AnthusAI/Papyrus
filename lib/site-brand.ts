@@ -1,5 +1,6 @@
 import type { EditionPresentationFormat } from "./content-types";
 import { threatIntelligenceBrand } from "../publications/threat_intelligence/brand";
+import { PRETEXT_LAYOUTS } from "../renderers/pretext/layouts";
 
 export type SiteBrandId = "papyrus" | "threat-intelligence";
 
@@ -37,7 +38,7 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     backToHomeLabel: "Back to Papyrus",
     articleTitleSuffix: "Papyrus",
     placeholderByline: "Papyrus",
-    defaultPresentation: "newspaper",
+    defaultPresentation: "newsprint",
     textFont: SERIF_TEXT_FONT,
     mastheadWordSplit: false,
     mastheadDateFormat: "raw",
@@ -75,5 +76,5 @@ export function enforcePresentation(presentation: EditionPresentationFormat): Ed
 export function getPresentationChoices(): EditionPresentationFormat[] {
   return SITE_BRAND.forcedPresentation
     ? [SITE_BRAND.forcedPresentation]
-    : ["newspaper", "blog", "magazine"];
+    : [...PRETEXT_LAYOUTS];
 }

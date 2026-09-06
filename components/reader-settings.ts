@@ -60,7 +60,7 @@ const ALL_PRESENTATION_OPTIONS: Array<{
   description: string;
 }> = [
   {
-    value: "newspaper",
+    value: "newsprint",
     label: "Newspaper",
     description: "Planned pages, feature headlines, and exact continuations.",
   },
@@ -268,7 +268,7 @@ function parseStoredSettings(value: string | null): Partial<ReaderSettings> | nu
 
 function normalizePresentation(value: unknown): EditionPresentationFormat {
   const normalized =
-    value === "blog" || value === "magazine" || value === "newspaper"
+    value === "blog" || value === "magazine" || value === "newsprint"
       ? value
       : DEFAULT_READER_SETTINGS.presentation;
   return enforcePresentation(normalized);
@@ -283,7 +283,7 @@ function normalizeMotion(value: unknown): ReaderMotionSetting {
 }
 
 function readPresentationValue(value: string | null | undefined): EditionPresentationFormat | null {
-  if (value !== "newspaper" && value !== "blog" && value !== "magazine") return null;
+  if (value !== "newsprint" && value !== "blog" && value !== "magazine") return null;
   return enforcePresentation(value);
 }
 

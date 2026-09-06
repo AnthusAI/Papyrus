@@ -67,7 +67,7 @@ class PapyrusWorld {
     await this.openEditionScenario(scenarioId, width, height);
   }
 
-  async openNewspaperScenario(scenarioId, width, height) {
+  async openNewsprintScenario(scenarioId, width, height) {
     this.currentScenarioId = scenarioId;
     await this.openPath(`/?scenario=${encodeURIComponent(scenarioId)}`, width, height);
     await this.page.waitForFunction(

@@ -10,11 +10,11 @@ function buildCapabilities(raw) {
   const forcedPresentation = raw.forcedPresentation || null;
   return {
     siteBrand: raw.siteBrand ?? "papyrus",
-    defaultPresentation: raw.defaultPresentation ?? "newspaper",
+    defaultPresentation: raw.defaultPresentation ?? "newsprint",
     forcedPresentation,
     presentationChoices,
     allowsPresentationChoice: presentationChoices.length > 1,
-    supportsNewspaper: presentationChoices.includes("newspaper"),
+    supportsNewsprint: presentationChoices.includes("newsprint"),
     supportsBlog: presentationChoices.includes("blog"),
     supportsMagazine: presentationChoices.includes("magazine"),
   };
@@ -24,7 +24,7 @@ function readCapabilitiesFromDocument() {
   const root = document.documentElement;
   return {
     siteBrand: root.dataset.siteBrand ?? "papyrus",
-    defaultPresentation: root.dataset.defaultPresentation ?? "newspaper",
+    defaultPresentation: root.dataset.defaultPresentation ?? "newsprint",
     forcedPresentation: root.dataset.forcedPresentation ?? null,
     presentationChoices: root.dataset.presentationChoices ?? "",
   };
@@ -44,8 +44,8 @@ function assertCapability(world, capability) {
   if (capability === "presentation-choice" && !capabilities.allowsPresentationChoice) {
     return `Site brand "${capabilities.siteBrand}" does not allow presentation format choice`;
   }
-  if (capability === "newspaper" && !capabilities.supportsNewspaper) {
-    return `Site brand "${capabilities.siteBrand}" does not support the newspaper presentation`;
+  if (capability === "newsprint" && !capabilities.supportsNewsprint) {
+    return `Site brand "${capabilities.siteBrand}" does not support the newsprint presentation`;
   }
   if (capability === "blog" && !capabilities.supportsBlog) {
     return `Site brand "${capabilities.siteBrand}" does not support the blog presentation`;
@@ -65,7 +65,7 @@ function requireCapability(world, capability) {
 
 function getEffectivePresentation(world) {
   const capabilities = world.capabilities;
-  if (!capabilities) return "newspaper";
+  if (!capabilities) return "newsprint";
   return capabilities.forcedPresentation ?? capabilities.defaultPresentation;
 }
 
@@ -86,8 +86,8 @@ function getRequiredCapabilities(tags = []) {
     return explicitPresentationTags;
   }
 
-  if (scenarioRequiresCapability(tags, "newspaper")) {
-    return ["newspaper"];
+  if (scenarioRequiresCapability(tags, "newsprint")) {
+    return ["newsprint"];
   }
 
   return [];

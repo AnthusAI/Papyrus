@@ -1,4 +1,4 @@
-import { PresentationShell } from "../components/presentation-shell";
+import { pretextRenderer } from "../renderers/pretext";
 import { contentRepository, getScenarioIdParam } from "../lib/content-repository";
 import type { EditionContent } from "../lib/content-types";
 import { createEditionSectionPlan } from "../lib/edition-sections";
@@ -32,9 +32,9 @@ export default async function Home({ searchParams }: HomePageProps) {
     if (hasOAuthRedirectParams(resolvedSearchParams)) {
       const mastheadHomeHref = await loadFirstPublishedEditionPath();
       const content = await loadLatestGraphQLEdition();
-      if (!content || content.items.length === 0) return <PresentationShell content={createEmptyGraphQLEdition()} />;
+      if (!content || content.items.length === 0) return <pretextRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
       return (
-        <PresentationShell
+        <pretextRenderer.renderEdition
           content={content}
           editionBasePath={getEditionDatePath(content.editionDate)}
           mastheadHomeHref={mastheadHomeHref}
@@ -44,12 +44,12 @@ export default async function Home({ searchParams }: HomePageProps) {
 
     const latestEdition = await contentRepository.getLatestPublishedEdition();
     if (latestEdition) redirect(getEditionDatePath(latestEdition.editionDate));
-    return <PresentationShell content={createEmptyGraphQLEdition()} />;
+    return <pretextRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
   }
 
   const content = await loadHomeContent(scenarioId);
-  if (content.items.length === 0) return <PresentationShell content={createEmptyGraphQLEdition()} />;
-  return <PresentationShell content={content} />;
+  if (content.items.length === 0) return <pretextRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
+  return <pretextRenderer.renderEdition content={content} />;
 }
 
 async function loadLatestGraphQLEdition(): Promise<EditionContent | null> {

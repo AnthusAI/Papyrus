@@ -3,38 +3,40 @@
 import Link from "next/link";
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { findEditionSection, getEditionSectionItems } from "../lib/edition-sections";
-import { getEditionSectionPath } from "../lib/edition-routes";
-import { buildPresentationFooterEntries, type PresentationFooterEntry } from "../lib/presentation-footer";
-import { layoutAllTextLines, prepareWithSegments, type TextLine } from "../lib/pretext-layout";
-import { truncateWords } from "../lib/excerpts";
+import { findEditionSection, getEditionSectionItems } from "../../lib/edition-sections";
+import { getEditionSectionPath } from "../../lib/edition-routes";
+import { buildPresentationFooterEntries, type PresentationFooterEntry } from "../../lib/presentation-footer";
+import { layoutAllTextLines, prepareWithSegments, type TextLine } from "../../lib/pretext-layout";
+import { truncateWords } from "../../lib/excerpts";
 import {
   getPublicationItemImageAssets,
   getPublicationItemVideoAsset,
   type PublicationItem,
-} from "../lib/publication-items";
-import type { EditionContent, EditionPresentationFormat, EditionSection } from "../lib/content-types";
-import type { ArticleVideoAsset } from "../lib/articles";
-import { SITE_BRAND, enforcePresentation } from "../lib/site-brand";
-import { ArticleVideoFigure } from "./article-video";
-import { BlogPageBackground } from "../publications/threat_intelligence/blog-defense/page-background";
-import { Newspaper } from "./newspaper";
-import { PictogramFigure } from "../publications/threat_intelligence/pictograms/figure";
-import { PresentationFooter } from "./presentation-footer";
-import { readLocalReaderSettings, resolveReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
+} from "../../lib/publication-items";
+import type { EditionContent, EditionPresentationFormat, EditionSection } from "../../lib/content-types";
+import type { ArticleVideoAsset } from "../../lib/articles";
+import type { PresentationTarget, RenderEditionProps } from "../../lib/renderer";
+import { SITE_BRAND, enforcePresentation } from "../../lib/site-brand";
+import { ArticleVideoFigure } from "../../components/article-video";
+import { BlogPageBackground as ThreatIntelligenceBlogPageBackground } from "../../publications/threat_intelligence/blog-defense/page-background";
+import { BlogPageBackground as GenericBlogPageBackground } from "../../components/blog-page-background";
+import { Newspaper } from "../../components/newspaper";
+import { PictogramFigure as ThreatIntelligencePictogramFigure } from "../../publications/threat_intelligence/pictograms/figure";
+import { PictogramFigure as GenericPictogramFigure } from "../../components/pictogram-figure";
+import { PresentationFooter } from "../../components/presentation-footer";
+import { readLocalReaderSettings, resolveReaderSettings, subscribeReaderSettingsChanges } from "../../components/reader-settings";
 
-type PresentationShellProps = {
-  content: EditionContent;
-  editionBasePath?: string;
-  mastheadHomeHref?: string;
-  initialPageNumber?: number;
-  lockedPresentation?: EditionPresentationFormat;
-  target?: PresentationTarget;
-};
+// Threat Intelligence supplies its own blog background and figure media; any
+// other publication gets the generic fallback (components/). This is the
+// coupling docs/pluggable-publishers.md section 2.6 flags, decoupled here
+// per PPY-d79ff2 by making the choice publication-conditional instead of
+// hardcoded.
+const BlogPageBackground = SITE_BRAND.id === "threat-intelligence" ? ThreatIntelligenceBlogPageBackground : GenericBlogPageBackground;
+const PictogramFigure = SITE_BRAND.id === "threat-intelligence" ? ThreatIntelligencePictogramFigure : GenericPictogramFigure;
 
-export type PresentationTarget =
-  | { kind: "edition" }
-  | { kind: "section"; sectionKey: string };
+export type { PresentationTarget };
+
+type PresentationShellProps = RenderEditionProps;
 
 const PRESENTATION_TEXT_FONT = SITE_BRAND.textFont;
 const BLOG_TEXT_STYLE = {
@@ -76,7 +78,7 @@ export function PresentationShell({
     return unsubscribe;
   }, [lockedPresentation]);
 
-  if (activePresentation === "newspaper") {
+  if (activePresentation === "newsprint") {
     return (
       <PresentationFrame>
         <Newspaper

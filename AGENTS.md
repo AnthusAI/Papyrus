@@ -926,7 +926,7 @@ Use `PAPYRUS_BASE_URL` for another server. Use `PAPYRUS_HEADLESS=false` or
 Frontend BDD is site-brand aware. The running app exposes reader capabilities on
 `<html>` through `data-site-brand`, `data-default-presentation`,
 `data-forced-presentation`, and `data-presentation-choices`. Scenarios declare
-requirements with tags such as `@newspaper`, `@blog`, `@presentation-choice`,
+requirements with tags such as `@newsprint`, `@blog`, `@presentation-choice`,
 and `@brand-agnostic`; incompatible scenarios skip automatically on locked fork
 brands instead of failing during setup.
 

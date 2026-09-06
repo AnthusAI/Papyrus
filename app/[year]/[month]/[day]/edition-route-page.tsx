@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { PresentationShell, type PresentationTarget } from "../../../../components/presentation-shell";
+import { pretextRenderer, type PresentationTarget } from "../../../../renderers/pretext";
 import { loadCachedEditionContent } from "../../../../lib/cached-content-repository";
 import { parseEditionDateRoute } from "../../../../lib/edition-routes";
 import type { EditionPresentationFormat } from "../../../../lib/content-types";
@@ -32,7 +32,7 @@ export async function EditionRoutePage({
     if (initialPageNumber < 1 || initialPageNumber > content.layoutPlan.pages.length) notFound();
     if (target.kind === "section" && !content.sections.some((section) => section.key === target.sectionKey)) notFound();
     return (
-      <PresentationShell
+      <pretextRenderer.renderEdition
         content={content}
         editionBasePath={route.canonicalPath}
         initialPageNumber={initialPageNumber}

@@ -24,7 +24,7 @@ export default async function EditionPageRoute({ params }: EditionPageRouteProps
     <EditionRoutePage
       day={day}
       initialPageNumber={route.pageNumber}
-      lockedPresentation={SITE_BRAND.forcedPresentation ?? "newspaper"}
+      lockedPresentation={SITE_BRAND.forcedPresentation ?? "newsprint"}
       month={month}
       year={year}
     />

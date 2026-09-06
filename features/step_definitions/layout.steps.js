@@ -6,12 +6,12 @@ const { Given, Then, When } = require("@cucumber/cucumber");
 
 Given("I open the {string} layout scenario at {int} by {int}", async function (scenarioId, width, height) {
   const pendingPresentation = this.pendingReaderSettings?.presentation;
-  if (pendingPresentation && pendingPresentation !== "newspaper") {
+  if (pendingPresentation && pendingPresentation !== "newsprint") {
     await this.openPresentationScenario(scenarioId, pendingPresentation, width, height);
     return;
   }
-  if (this.capabilities?.supportsNewspaper) {
-    await this.openNewspaperScenario(scenarioId, width, height);
+  if (this.capabilities?.supportsNewsprint) {
+    await this.openNewsprintScenario(scenarioId, width, height);
   } else {
     await this.openEditionScenario(scenarioId, width, height);
   }
@@ -168,7 +168,7 @@ When("I open the {string} layout scenario in the same browser", async function (
     }
   });
   const pendingPresentation = this.pendingReaderSettings?.presentation ?? storedPresentation;
-  if (pendingPresentation && pendingPresentation !== "newspaper") {
+  if (pendingPresentation && pendingPresentation !== "newsprint") {
     await page.waitForFunction(
       ({ expectedScenarioId, expectedPresentation }) => (
         window.__PAPYRUS_SCENARIO__ === expectedScenarioId &&
@@ -1865,7 +1865,7 @@ Then("no Newsroom appendix pages should render", async function () {
 
 Then("the front page footer should not link to the newsroom", async function () {
   const page = requirePage(this);
-  if (!this.capabilities?.supportsNewspaper) {
+  if (!this.capabilities?.supportsNewsprint) {
     return;
   }
   await page.waitForFunction(() => window.__PAPYRUS_LAYOUT__ && document.querySelector(".front-footer"));
@@ -2071,7 +2071,7 @@ Then("the active presentation should be {string}", async function (expectedPrese
   const page = requirePage(this);
   const normalized = expectedPresentation.toLowerCase();
   await page.waitForFunction((presentation) => {
-    if (presentation === "newspaper") return Boolean(document.querySelector(".site-shell"));
+    if (presentation === "newsprint") return Boolean(document.querySelector(".site-shell"));
     return document.querySelector("[data-presentation-engine]")?.getAttribute("data-presentation-engine") === presentation;
   }, normalized, { timeout: 10_000 });
 });
@@ -4354,7 +4354,7 @@ Then("the active page should swap raster image sources between light and dark th
     };
 
     const applyTheme = (theme) => {
-      const next = JSON.stringify({ theme, presentation: "newspaper", motion: "standard" });
+      const next = JSON.stringify({ theme, presentation: "newsprint", motion: "standard" });
       window.localStorage.setItem("papyrus:reader-settings", next);
       window.dispatchEvent(new CustomEvent("papyrus:settings-changed"));
     };

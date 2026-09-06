@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ArticlePageView } from "../../../components/article-page";
+import { pretextRenderer } from "../../../renderers/pretext";
 import { getCachedArticle } from "../../../lib/cached-content-repository";
 import { generateArticleStaticParams } from "../../../lib/reader-static-params";
 import { SITE_BRAND } from "../../../lib/site-brand";
@@ -30,5 +30,5 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
   const article = await getCachedArticle(slug);
   if (!article) notFound();
 
-  return <ArticlePageView article={article} backHref="/" />;
+  return <pretextRenderer.renderArticle article={article} backHref="/" />;
 }
