@@ -24,10 +24,17 @@
       "text": "Live hosting is out of scope here. PPY-17fcfc owns Route 53 + static CI for pilobil.us. Keep this issue to the local HTML/CSS/Markdown deliverable.",
       "created_at": "2026-09-06T14:06:03.819001Z",
       "comment_type": "default"
+    },
+    {
+      "id": "aad1e7c8-2ec1-4386-a7bb-5471b1fad575",
+      "author": "home",
+      "text": "PPY-17fcfc consumed leftover `web/` from the primary clone (rsync into worktree `cursor/feature/PPY-17fcfc-amplify-static-3af6`). Design unchanged except publication/domain spelling: Pilobil.us/pilobil.us → Pilobol.us/pilobol.us in build shell, content, and doctrine. Hosting (amplify.yml, Amplify WEB app) is 17fcfc scope.",
+      "created_at": "2026-09-06T14:20:43.196425Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.046588Z",
-  "updated_at": "2026-09-06T14:06:03.819001Z",
+  "updated_at": "2026-09-06T14:20:43.196425Z",
   "closed_at": null,
   "custom": {}
 }

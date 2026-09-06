@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-09-06T13:57:36Z",
+  "built_at": "2026-09-06T14:25:36Z",
   "file_mtimes": {
     "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45.json": 1788698550.102527,
     "PPY-02fac757-0b66-4c0c-9932-8117cc974969.json": 1788698550.102607,
@@ -9,6 +9,7 @@
     "PPY-0d667350-c31a-484f-bbee-7b2d08549188.json": 1788698550.102836,
     "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788700648.729037,
     "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146.json": 1788698550.102898,
+    "PPY-17fcfc3a-7eab-4332-9fa5-125b090d948b.json": 1788704500.974643,
     "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a.json": 1788698550.102974,
     "PPY-20250557-b002-4aff-969f-a29479b4df13.json": 1788698550.103055,
     "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1.json": 1788698550.103124,
@@ -26,7 +27,7 @@
     "PPY-58e74049-7747-49ed-a920-a11b2ae888b1.json": 1788698550.104042,
     "PPY-59ade493-23e0-4b72-aa79-1227f3aa28ca.json": 1788698330.233288,
     "PPY-5d2bddb5-2073-4313-b633-6e96e5741972.json": 1788698550.104163,
-    "PPY-5e8072d4-d940-478b-8140-29d7b1f54069.json": 1788701305.839945,
+    "PPY-5e8072d4-d940-478b-8140-29d7b1f54069.json": 1788704443.196564,
     "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81.json": 1788698550.104232,
     "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896.json": 1788701484.031232,
     "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad.json": 1788698550.104299,
@@ -37,8 +38,8 @@
     "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f.json": 1788698550.104575,
     "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788701305.827914,
     "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5.json": 1788698550.104634,
-    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788700648.72945,
-    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788701587.916166,
+    "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788703928.477139,
+    "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788704056.29302,
     "PPY-962447c5-b0e4-4812-b17c-48f2fa528229.json": 1788698550.104825,
     "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8.json": 1788698550.104903,
     "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e.json": 1788698550.104971,
@@ -55,10 +56,10 @@
     "PPY-d0931707-028e-4263-9fcc-0987ad515209.json": 1788698550.105561,
     "PPY-d3e17943-4e13-44c7-855a-3da2e85626e3.json": 1788698550.105626,
     "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0.json": 1788701245.713266,
-    "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab.json": 1788701375.403272,
+    "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab.json": 1788703928.503592,
     "PPY-eba77dff-689a-443d-8ecf-247bc6dfbb89.json": 1788698550.105696,
     "PPY-ebf0b626-d098-473e-8e3e-f0a98b79a940.json": 1788698550.105759,
-    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788700648.730413,
+    "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad.json": 1788703928.490858,
     "PPY-f25738ae-3891-43e5-8d5c-1ef28e61847b.json": 1788701222.326444,
     "PPY-f7b389e7-8b81-4fa1-a0ab-9644d56fc735.json": 1788698550.105839,
     "PPY-f9b3e156-cc80-4486-8ff7-4957e03748cf.json": 1788698550.105908,
@@ -261,6 +262,109 @@
       "title": "Coach and enforce story-stage prerequisites",
       "type": "story",
       "updated_at": "2026-08-27T13:27:01.124442Z"
+    },
+    {
+      "assignee": null,
+      "closed_at": null,
+      "comments": [
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:12:24.019823Z",
+          "id": "e83f6a4a-5ea2-4d84-a7f3-f2bc56ffc66e",
+          "text": "Picked up. Composer 2.5 planning in an isolated worktree. Do not implement until the plan is approved. Leftover uncommitted Pilobol.us/web/ from the dead 5e8072 agent is on disk in the primary clone — recover, do not duplicate blindly."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:13:43.901019Z",
+          "id": "368943f0-01cf-4e8b-b3cc-5ed113748e87",
+          "text": "## Plan (Composer 2.5 planner — NOT authorized to implement)\n\n### Worktrees & branches (manager must verify before authorize)\n| Repo | Worktree path | Branch |\n|------|---------------|--------|\n| Papyrus (docs/templates) | `/Users/home/Projects/Papyrus-worktrees/PPY-17fcfc-site-hosting` | `cursor/feature/PPY-17fcfc-site-hosting-3af6` |\n| Pilobol.us (deploy) | `/Users/home/Projects/Pilobol.us-worktrees/PPY-17fcfc-static-hosting` | `cursor/feature/PPY-17fcfc-amplify-static-3af6` |\n\nBranch both from `origin/develop` (Papyrus) and `origin/main` (Pilobol.us). Never code in primary clones (`/Users/home/Projects/Papyrus`, `/Users/home/Projects/Pilobol.us`).\n\n### Papyrus deliverables (docs + templates only)\n- `docs/site-hosting.md` — Hosting as sibling axis (Renderer × Layout × Publication × **Hosting**); document `HostingConfig` union (`amplify-ssr` | `amplify-static`, open for future kinds); WEB vs WEB_COMPUTE; artifact models; intended pairings (ssr+pretext, static+markus); Route 53/custom domains; how a publication opts in; anti-patterns (TI fork, cargo-cult SSR yml, pod-only docs).\n- `docs/hosting/amplify-static.yml.example` — Minimal WEB-platform build spec (Python `web/build.py`, artifact `web/dist`).\n- `docs/hosting/amplify-ssr.yml.example` — Pointer-only to root `amplify.yml` pattern (WEB_COMPUTE + `ampx pipeline-deploy` + `.next`); not for Markus pods.\n- `AGENTS.md` — Short pointer + explicit warning: do not copy Papyrus SSR `amplify.yml` onto Markus static sites.\n- PR → `develop`. **No** `lib/site-brand.ts`, **no** `lib/renderer.ts`, **no** renderer code.\n\n### Pilobol.us proof (consume PPY-5e8072 leftover)\n- **Recover** uncommitted `web/` from primary clone via `rsync -a` into worktree only; do not `git add` in primary clone.\n- Add `web/dist/` to `.gitignore`; CI builds HTML from `content/` + `build.py`.\n- Add repo-root `amplify.yml` matching Papyrus static template; pin `markus` install for Amplify (PyPI or git ref — document cross-repo hazard).\n- `build.py` already uses `markus convert --fragment --no-css` (no `--allow-html`).\n- PR → `main`; connect new Amplify app to this repo.\n\n### AWS steps (strict order)\n1. Read `AGENTS.local.md` preflight.\n2. **Route 53 first:** create public hosted zone `pilobil.us` (doctrine spelling; repo is Pilobol.us).\n3. **Kanbus comment NS records for Ryan** (parallel propagation).\n4. Create **new** Amplify Hosting app, platform **WEB** (not WEB_COMPUTE), **not** `dbsyytcm9drqa` / p.apyr.us.\n5. Connect `AnthusAI/Pilobol.us`, branch `main`, use repo `amplify.yml`.\n6. Verify deploy on Amplify default domain (`*.amplifyapp.com`).\n7. Attach custom domains `pilobil.us` + `www.pilobil.us` (Amplify creates alias records in the zone).\n8. After Ryan sets registrar NS → verify `https://pilobil.us`.\n\n**Amplify WEB settings:** artifact `web/dist`; build `cd web && python3 build.py`; preBuild installs `markus`; no backend phase; no `ampx pipeline-deploy`; no Next.js.\n\n### Out of scope\nHostingConfig TypeScript (PPY-eca592); Pretext static; p.apyr.us; renderer files; redoing PPY-5e8072 design; GitHub Pages/S3 (mention only); closing this issue.\n\n### Acceptance\n- Papyrus docs + AGENTS pointer merged to develop.\n- Zone exists; NS commented here.\n- Git push publishes Markus HTML to reachable URL (default domain before NS; `https://pilobil.us` after).\n- Forbidden paths untouched; no TI-style Papyrus fork.\n\n### Inversion failures\nTI fork (separate Papyrus repo + WEB_COMPUTE); docs only in pod; SSR `amplify.yml` on Markus; editing `site-brand.ts` during eca592; domain typo `pilobol.us` vs `pilobil.us`.\n\nAwaiting manager approval before implementation."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:14:05.653133Z",
+          "id": "1f7b3cf8-79ac-4b21-ad72-66cbca8e73d2",
+          "text": "DOMAIN CORRECTION from Ryan: the live domain is **pilobol.us**, not pilobil.us. That was a typo (including in doctrine). Do not create a pilobil.us zone. Fix doctrine/docs you touch. If a plan already says pilobil.us, rewrite it."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:14:16.293017Z",
+          "id": "fef8f7eb-2c41-4850-9f71-0c3babce4a4e",
+          "text": "Plan corrected per Ryan domain binding (**pilobol.us** — public domain; **pilobil.us** was the typo). Prior plan comment [368943] is superseded on domain/DNS items.\n\n**Binding:** Route 53 hosted zone `pilobol.us` only. Do **not** create `pilobil.us`. Amplify custom domains: `pilobol.us` + `www.pilobol.us`. Acceptance URL: `https://pilobol.us`.\n\n**Doctrine:** `Pilobol.us/doctrine/pilobil.md` spells the domain wrong; fix content when touched in the Pilobol.us worktree (filename may stay). Leftover `web/` from PPY-5e8072 likely has the same typo in masthead/footer HTML — correct to **Pilobol.us** / **pilobol.us** during deploy prep, without redoing design.\n\n**Inversion (corrected):** creating a `pilobil.us` zone or shipping `https://pilobil.us` — that is the failure mode, not the target.\n\nAll other plan elements unchanged (worktrees, branches, Papyrus docs-only deliverables, Amplify WEB platform, no p.apyr.us). Still plan-only; no AWS until authorized."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:14:50.660614Z",
+          "id": "827fb2f0-a120-4501-b3b8-861981dd680b",
+          "text": "Plan review: **not approved**.\n\nThe plan inverts Ryan's domain correction. Live hostname is **pilobol.us**. `pilobil.us` was the typo (including doctrine). Do not create a `pilobil.us` zone. Rewrite the plan: Route 53, Amplify custom domain, acceptance URL, mermaid, and the inversion table all say **pilobol.us**. Fix doctrine spelling if you touch that file.\n\nSecond hole before authorize: Amplify CI cannot use the local editable Markus tree (`feature/document-ir`, unpushed). Name a pin that CI can actually install (PyPI version that already has `convert`, or a **pushed** Markus ref). Do not assume the worker laptop's PATH.\n\nWorktrees/branches and the Papyrus-docs-vs-pod split are otherwise sound. Do not implement. Rewrite the plan, then stop."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:16:46.367467Z",
+          "id": "c5fc25b3-fc64-43c7-9cd1-d524400551b1",
+          "text": "## Amplify CI Markus install pin (verified)\n\n**PyPI: not available.** `anthus-markus` is not published on PyPI (pypi.org returns 404). There is no `pip install anthus-markus==…` pin today. Unrelated PyPI package `markus` (5.x) is a different project.\n\n**Chosen pin (git tag on origin — no push prerequisite):**\n\n```yaml\nfrontend:\n  phases:\n    preBuild:\n      commands:\n        - pip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\n```\n\n- Tag `v0.5.0` is on `origin` → commit `a2722628e0d5db9e024139db002a8f0a5e32dd29` (= current `main`).\n- `markus --version` → `0.5.0`.\n- CLI has `markus convert --fragment --no-css` (and `--allow-html`; build.py omits it).\n- Verified in a clean venv: converts all three leftover `web/content/*.md` files; `python3 web/build.py` completes.\n\n**Immutable SHA equivalent (same bits as v0.5.0):** `git+https://github.com/AnthusAI/Markus@a2722628e0d5db9e024139db002a8f0a5e32dd29`\n\n**feature/document-ir: not required for PPY-17fcfc.** That branch is local-only (not on origin). Its IR/ISO-date work is for Papyrus renderer integration, not static `markus convert`. Do **not** block hosting on pushing document-ir.\n\nStill plan-only; no AWS/worktrees/code."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:17:58.842052Z",
+          "id": "064a1daf-ebf7-4850-adb3-76d159d23f41",
+          "text": "Plan **approved** except implementation is not authorized yet.\n\nIndependent checks: `anthus-markus` is not on PyPI; tag `v0.5.0` on origin is `a272262`; a clean venv `pip install git+https://github.com/AnthusAI/Markus@v0.5.0` runs `markus convert --fragment --no-css` on the leftover sample. Pin is `v0.5.0` (SHA equivalent allowed). Do not install PyPI `markus`. Do not wait on `feature/document-ir`.\n\nDomain remains **pilobol.us**. Next step is **worktree setup only** — no docs, no AWS, no code — then stop so the manager can verify the trees."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:18:18.440957Z",
+          "id": "6c79a9c7-3ebd-44a4-933e-cda059c4ce8f",
+          "text": "Worktrees created (plan approved; implementation not started).\n\n**Papyrus** — `/Users/home/Projects/Papyrus-worktrees/PPY-17fcfc-site-hosting`\n- branch: `cursor/feature/PPY-17fcfc-site-hosting-3af6`\n- HEAD: `fb53e75b8982c51f7b28a7d9881c804e5915c88a` (`origin/develop`)\n\n**Pilobol.us** — `/Users/home/Projects/Pilobol.us-worktrees/PPY-17fcfc-static-hosting`\n- branch: `cursor/feature/PPY-17fcfc-amplify-static-3af6`\n- HEAD: `40ad641e1b397606699bd2c9589b6007139fc4b3` (`origin/main`)\n\nPrimary clones untouched (no `git add`). Ready for implementer authorization."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:18:51.968979Z",
+          "id": "690122ad-f14e-4889-997d-aa9a851d8fa2",
+          "text": "Route 53 public hosted zone **pilobol.us** created so Ryan can set registrar nameservers now (propagation while Amplify/static CI continues).\n\n- Hosted zone ID: `Z09961547QX1VHIXOBD7`\n- Account: `335163751677`\n- **Not** `pilobil.us` — no zone for that name.\n\nSet the domain's nameservers at the registrar to:\n\n1. `ns-544.awsdns-04.net`\n2. `ns-1358.awsdns-41.org`\n3. `ns-1751.awsdns-26.co.uk`\n4. `ns-404.awsdns-50.com`\n\nApex/www records will be added when the Amplify `WEB` app is attached. Until then the zone is empty except NS/SOA — that is expected."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:19:55.481555Z",
+          "id": "5a330107-e053-431e-a942-a2e0dc28035f",
+          "text": "Worktrees verified by manager. Implementation authorized. Hosted zone already exists (Z09961547QX1VHIXOBD7 / pilobol.us) — do not create another. NS already handed to Ryan. Pin Markus @v0.5.0. Comment progress; do not close this issue."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:20:03.268166Z",
+          "id": "cea98b7f-085e-4482-95ec-9daa6094697d",
+          "text": "Implementation started in verified worktrees. Papyrus docs + Pilobol.us deploy + Amplify WEB app (zone Z09961547QX1VHIXOBD7 already exists)."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:21:40.974466Z",
+          "id": "76debd7e-85ea-4817-8383-f71dc791dde6",
+          "text": "## Implementation progress\n\n### Papyrus docs PR (not merged)\n- Branch: `cursor/feature/PPY-17fcfc-site-hosting-3af6`\n- PR: https://github.com/AnthusAI/Papyrus/pull/58 → `develop`\n- Files: `docs/site-hosting.md`, `docs/hosting/amplify-static.yml.example`, `docs/hosting/amplify-ssr.yml.example`, `AGENTS.md` pointer\n\n### Pilobol.us deploy PR (not merged)\n- Branch: `cursor/feature/PPY-17fcfc-amplify-static-3af6`\n- PR: https://github.com/AnthusAI/Pilobol.us/pull/1 → `main`\n- `web/` from PPY-5e8072 (spelling fixes only); `amplify.yml` with Markus `@v0.5.0`; `web/dist/` gitignored\n\n### Amplify WEB app (new — not p.apyr.us / dbsyytcm9drqa)\n- **App ID:** `d1od6t7lzbwanr`\n- **Platform:** WEB\n- **Default URL (live, manual deploy job 1 SUCCEED):** https://main.d1od6t7lzbwanr.amplifyapp.com/\n- **Production branch:** `main` (manual zip deploy of locally built `web/dist` for now)\n\n### Custom domain (zone Z09961547QX1VHIXOBD7 — pre-existing)\n- Domain association: `pilobol.us` + `www` → branch `main`\n- Status: `REQUESTING_CERTIFICATE` (awaiting registrar NS propagation Ryan is doing)\n- Route 53 records Amplify created:\n  - apex `pilobol.us` A alias → `d3tottbx4vximc.cloudfront.net`\n  - `www.pilobol.us` CNAME → `d3tottbx4vximc.cloudfront.net`\n- `https://pilobol.us` pending NS + ACM\n\n### GitHub CI connection — needs human OAuth\n`aws amplify update-app --repository` requires a valid GitHub token. To wire push-to-deploy after PR #1 merges:\n1. AWS Console → Amplify → app **pilobol-us** (`d1od6t7lzbwanr`)\n2. **Hosting** → **Connect repository** → authorize GitHub\n3. Repo `AnthusAI/Pilobol.us`, branch `main`, use root `amplify.yml`\n4. First CI build replaces manual deploy artifact\n\nIssue left open per instructions."
+        }
+      ],
+      "created_at": "2026-09-06T14:05:42.812329Z",
+      "creator": null,
+      "custom": {},
+      "dependencies": [],
+      "description": "## Goal\n\nHosting is a **Papyrus site configuration option**, not a per-publication fork.\n\nPilobol.us is the first publication that *uses* the static option. It is not a special Papyrus checkout, not a second product repo in the Threat Intelligence shape (`github.com/anthusai/threat-intelligence` + its own Amplify `WEB_COMPUTE` app), and not a one-off README in the pod.\n\n## Axes (do not collapse them)\n\nAlready decided: Renderer (`pretext` | `markus`) × Layout (Pretext-only: `newsprint` | `blog` | `magazine`) × Publication (the title).\n\nAdd **Hosting** as a sibling axis, documented in Papyrus:\n\n```text\ntype HostingConfig =\n  | { kind: \"amplify-ssr\" }      // Amplify platform WEB_COMPUTE. Next.js. GraphQL at request time. Content can change without rebuilding HTML.\n  | { kind: \"amplify-static\" }   // Amplify platform WEB. Build emits a folder of HTML/CSS/assets. New copy = new build.\n```\n\nLeave the union open for later kinds (GitHub Pages, S3+CloudFront) without implementing them. Invalid combos can exist in theory (pretext + static is a poor fit today); document the intended pairings rather than inventing a fake static Pretext pipeline.\n\nIntended pairings:\n- **amplify-ssr** + pretext — p.apyr.us / Threat Intelligence today\n- **amplify-static** + markus — pilobol.us, and any future Markus publication\n\n## Domain (decided — do not relitigate)\n\nThe public domain is **pilobol.us** (publication **Pilobol.us**, git repo `AnthusAI/Pilobol.us`).\n\n`pilobil.us` was a typo (including in `Pilobol.us/doctrine/pilobil.md`). Do not create a `pilobil.us` hosted zone. Fix that typo in doctrine/docs as part of this work where you touch them.\n\n## Papyrus deliverable (this is the point)\n\nDocument the option **in the Papyrus repo**, not only in the pod:\n\n- A runnable hosting doc under `docs/` (new file, e.g. `docs/site-hosting.md`) that explains both kinds, when to choose which, Amplify platform values (`WEB` vs `WEB_COMPUTE`), what the build artifact is, custom domains / Route 53, and how a new publication opts in.\n- A pointer from `AGENTS.md` so agents do not cargo-cult the SSR `amplify.yml` onto a Markus site.\n- Any committed config/examples (sample `amplify.yml` for the static kind, env vars) live in Papyrus as the template. The publication repo consumes that pattern; it does not invent a private one.\n\nDo **not** edit `lib/site-brand.ts` / renderer dispatch in this issue if PPY-eca592 / PPY-a10206 are still in flight on those files. Record the intended `HostingConfig` shape in the doc so eca592 can absorb it as a sibling of `RendererConfig` rather than a second independent enum. Do not add a required-but-ignored field.\n\n## Pilobol.us is the proof, not the product\n\n1. Create Route 53 public hosted zone **pilobol.us**. Comment NS records here for Ryan. Do this first so propagation runs in parallel.\n2. Stand up Amplify Hosting **platform `WEB`** using the Papyrus-documented static pattern. Build = Markus static output (`web/dist` or the Papyrus-defined equivalent). Not `WEB_COMPUTE`, not `ampx pipeline-deploy`, not the Papyrus app `dbsyytcm9drqa`.\n3. Attach `pilobol.us` + `www` once the zone exists. Amplify default domain is acceptable until NS propagate.\n4. CI builds from repo-committed Markdown with `markus convert --allow-html` off.\n\n## Constraints\n\n- Do not fork Papyrus. Do not create a publication-specific Papyrus GitHub repo.\n- Do not deploy to or modify p.apyr.us production.\n- Do not touch `lib/renderer.ts` or `renderers/pretext/`.\n- Record teardown for anything that is not the lasting hosted zone / production static app.\n- Do not close this issue yourself.\n\n## Acceptance\n\n- Papyrus `docs/` (+ AGENTS.md pointer) describes hosting kinds so a later publication can choose `amplify-static` without copying Pilobol by folklore.\n- Hosted zone exists for **pilobol.us**; NS records are in a Kanbus comment.\n- A push publishes Markus HTML to a reachable URL via the documented static option.\n- After Ryan sets nameservers, `https://pilobol.us` serves that site.",
+      "id": "PPY-17fcfc3a-7eab-4332-9fa5-125b090d948b",
+      "labels": [],
+      "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+      "priority": 1,
+      "status": "in_progress",
+      "title": "Site hosting options: Amplify static WEB, proven on pilobil.us",
+      "type": "task",
+      "updated_at": "2026-09-06T14:21:40.974466Z"
     },
     {
       "assignee": null,
@@ -719,6 +823,20 @@
           "created_at": "2026-09-06T13:26:43.310401Z",
           "id": "516e097b-b2e5-4bfc-9022-d24559e37ad4",
           "text": "GOAL: the visual design for Pilobil.us as a Markus-rendered publication. Fully parallel to the renderer plumbing - it needs no Papyrus TypeScript at all.\n\nCONTEXT: Pilobil.us ('a fungus among us') is a Papyrus pod at /Users/home/Projects/Pilobol.us. Read doctrine/pilobil.md there for editorial voice. It will render through Markus (Markdown + semantic directives -> static HTML), NOT through the Pretext layout solver.\n\nWHY YOU CAN START NOW: Markus renders standalone. 'markus' is installed (/Users/home/miniconda3/bin/markus) and /Users/home/Projects/Markus has the source, 23 themes in src/markusmd/themes/, and tokens as --markus-* CSS custom properties. You can author Markdown, run 'markus convert', and iterate on CSS in a browser without waiting on anything.\n\nSCOPE:\n1. Design the Pilobil.us look: masthead, typography, color, section treatment, article page, index page.\n2. Deliver it as a SITE CSS LAYER over Markus's tokens - redefine --markus-* rather than fighting Markus's selectors. Either pick and adapt an existing theme or write a new one; say which and why.\n3. CASCADE RULE (decided, non-negotiable): wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically. Do NOT rely on upstream Markus happening not to use @layer - that is a bet on someone else's future commits.\n4. Design for BOTH light and dark. Markus themes carry both; do not ship a design that only works in one.\n5. Exercise the real vocabulary in your sample page: pull-quote, card-grid/card, two-up, figure, callout, aside, metric. These constructs are the whole point of the architecture - a plain-prose mockup proves nothing.\n6. Deliverable: real HTML+CSS openable in a browser, plus the Markdown source that produced it. Screenshots alone are not enough.\n\nDO NOT: touch lib/renderer.ts, renderers/pretext/, or any Papyrus route. This is CSS + Markdown + Markus."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:06:03.819001Z",
+          "id": "457e027c-116a-48cc-b14f-a5213cf1ad06",
+          "text": "Live hosting is out of scope here. PPY-17fcfc owns Route 53 + static CI for pilobil.us. Keep this issue to the local HTML/CSS/Markdown deliverable."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:20:43.196425Z",
+          "id": "aad1e7c8-2ec1-4386-a7bb-5471b1fad575",
+          "text": "PPY-17fcfc consumed leftover `web/` from the primary clone (rsync into worktree `cursor/feature/PPY-17fcfc-amplify-static-3af6`). Design unchanged except publication/domain spelling: Pilobil.us/pilobil.us → Pilobol.us/pilobol.us in build shell, content, and doctrine. Hosting (amplify.yml, Amplify WEB app) is 17fcfc scope."
         }
       ],
       "created_at": "2026-09-06T13:26:03.046588Z",
@@ -733,7 +851,7 @@
       "status": "in_progress",
       "title": "Visual web design for the Pilobil.us publication",
       "type": "task",
-      "updated_at": "2026-09-06T13:28:25.839836Z"
+      "updated_at": "2026-09-06T14:20:43.196425Z"
     },
     {
       "assignee": null,
@@ -1008,6 +1126,13 @@
           "created_at": "2026-09-06T13:11:20.336964Z",
           "id": "a02dc4b8-9ff4-464d-affb-b460ef43ee51",
           "text": "=== HANDOFF / CURRENT STATE (2026-09-06) - READ THIS FIRST IF YOU ARE PICKING UP COLD ===\n\nWHERE THE WORK LIVES\n- Papyrus: /Users/home/Projects/Papyrus, branch feature/renderer-architecture, branched off PR #57's head (so it BUILDS ON #57 rather than diverging). 3 commits ahead of origin/develop, two of which are #57's own.\n- Markus:  /Users/home/Projects/Markus,  branch feature/document-ir, 5 commits ahead of origin/main.\n- NOTHING IS PUSHED. Neither branch exists on origin. Do not push without Ryan saying so.\n- Ryan endorsed working DIRECTLY in AnthusAI/Papyrus. Not a fork. Goal is to improve Papyrus itself.\n\nCROSS-REPO HAZARD: the Papyrus work depends on Markus branch feature/document-ir, which is UNPUSHED and local-only. Another machine will not have it. The Markus repo is also pip-installed editable into the active Python (/Users/home/miniconda3), so 'markus' on PATH runs that working tree. If you are on a different box, you must reproduce the Markus branch first or nothing downstream works.\n\nNOMENCLATURE - DECIDED BY RYAN, DO NOT RELITIGATE\n- Renderer = the swappable system: 'pretext' | 'markus'\n- Layout = the look WITHIN Pretext: 'newsprint' | 'blog' | 'magazine' (old value 'newspaper' is renamed to 'newsprint')\n- Publication = the title/property: P.apyr.us, Threat Intelligence, Pilobil.us\n- BANNED for these concepts: publisher, publication type, front end, press, site type.\n\nARCHITECTURE THESIS - PROVEN, NOT ASSUMED\nMarkus's directive vocabulary IS the Papyrus content schema. Verified facts:\n- Papyrus Article.body is string[] (flat plain-text paragraphs) and pullQuotes is a SEPARATE side-channel array with no position in the body.\n- Markus's vocabulary (pull-quote, card-grid, card, two-up, column, figure, callout, details, aside, metric, timeline) is a strict SUPERSET and is POSITIONAL.\nSo: canonical body becomes Markus Markdown; pullQuotes[] dies as a schema concept; Pretext consumes a LOSSY PROJECTION of the IR.\nI prototyped that projection against the real IR and it works - see PPY-a10206 for the verified output and the algorithm. Degradation rule: any directive Pretext cannot express recurses into its children so content is preserved inline and NOTHING is silently dropped.\n\nWHAT PR #57 GOT WRONG (do not revert to it)\n- lib/publisher.ts is metadata-only with no operations; all fields are pure functions of id; 'requiresPretext' bakes an implementation name into a generic interface. Being deleted.\n- It dispatches inside components/presentation-shell.tsx, forcing a build-time static renderer through a runtime React component. The seam must be ABOVE the component.\n- It has required-but-ignored config (defaultPresentation on a Markus site, a fake EditionLayoutPlan). Fixed by a discriminated union - see PPY-eca592.\n- It claims 'markus validate' makes fragments safe to mount. It does not; it validates directive vocabulary, not XSS. Real invariant is build-from-repo-committed-Markdown with --allow-html off.\n- Its 'is anthus-markus on PyPI' unknown is RESOLVED: markus is installed and working.\n\nVERIFICATION STANDARD - APPLY IT\nDo not accept subagent reports at face value; re-run their checks. Two of two reports so far contained undisclosed inaccuracies (one silently downgraded the package version 0.4.0->0.1.0 in two files; one claimed a diff covered '8 files' in directories holding 4). Check 'git diff --stat' for files the task had no business touching.\n\nSTATUS\n- kanbus-37dd9a (Markus doc IR) CLOSED, reviewed. markus ast now emits typed versioned IR, schema_version 1.\n- kanbus-dacb70 (front-matter date serialization) CLOSED, reviewed.\n- kanbus-2ecaf7 (bare HH:MM:SS silently becomes int 48600 via YAML 1.1 sexagesimal) IN PROGRESS.\n- PPY-d79ff2 (Renderer interface + Pretext retrofit) IN PROGRESS - blocks everything else in Papyrus.\n- PPY-a10206, PPY-88f77b, PPY-eca592 queued behind d79ff2. PPY-b794e1 behind a10206. PPY-10e4cd behind 88f77b+eca592.\n\nGOAL: a real proof of concept that actually publishes actual pages. Acceptance for PPY-10e4cd is one Markdown article exercising pull-quote AND a multi-column construct AND a figure, rendered through BOTH renderers from the same source, both openable in a browser."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:12:08.476746Z",
+          "id": "a677aa80-b5f4-43eb-aaaa-1adbd845cd1c",
+          "text": "Hosting is now in scope as a documented site configuration option (PPY-17fcfc). Discriminated union sibling of RendererConfig: amplify-ssr (WEB_COMPUTE) | amplify-static (WEB). Do not bake SSR into the Markus path. eca592 should absorb HostingConfig when it lands, not grow a required-but-ignored field."
         }
       ],
       "created_at": "2026-09-06T12:09:07.764545Z",
@@ -1022,7 +1147,7 @@
       "status": "open",
       "title": "Canonical content schema (Markus vocabulary) + Renderer interface",
       "type": "epic",
-      "updated_at": "2026-09-06T13:11:20.336964Z"
+      "updated_at": "2026-09-06T14:12:08.476746Z"
     },
     {
       "assignee": null,
@@ -1034,6 +1159,27 @@
           "created_at": "2026-09-06T13:33:07.915747Z",
           "id": "ffdb529d-6991-40e0-b13b-ddc2171fde2c",
           "text": "=== ORCHESTRATOR HANDOFF - 2026-09-06, written expecting imminent rate-limit cutoff ===\n=== IF YOU ARE PICKING UP COLD, THIS IS THE ENTRY POINT. ===\n\nTHE GOAL: a working proof of concept that ACTUALLY PUBLISHES ACTUAL PAGES. Not a design doc, not a stub. Ryan chose a MAXIMALIST rearchitecture explicitly: do not avoid big changes for expediency, and it is acceptable to go back and fix existing Papyrus and Threat Intelligence content.\n\nTHE THESIS, PROVEN NOT ASSUMED:\nMarkus's directive vocabulary IS the Papyrus content schema. Papyrus Article.body is string[] (flat plain-text paragraphs) with pullQuotes[] as a side-channel array having NO position in the prose. Markus's vocabulary is a strict superset AND positional. So: one Markdown source, two renderers. Markus renders at full fidelity; Pretext consumes a LOSSY PROJECTION. I verified this end to end against the real IR - the working algorithm and its output are in PPY-a10206.\nDEGRADATION RULE, NON-NEGOTIABLE: any directive Pretext cannot express recurses into its children so content is preserved inline. NOTHING is ever silently dropped.\n\nNOMENCLATURE - DECIDED BY RYAN, DO NOT RELITIGATE:\nRenderer (pretext|markus) x Layout (newsprint|blog|magazine, Pretext-internal) x Publication (the title/property).\nBANNED: publisher, publication type, front end, press, site type.\n\nSTATE OF THE WORLD:\n- Papyrus /Users/home/Projects/Papyrus branch feature/renderer-architecture. Built ON TOP of PR #57's head.\n- Markus /Users/home/Projects/Markus branch feature/document-ir. Pip-installed editable, so 'markus' on PATH runs that tree.\n- NOTHING IS PUSHED anywhere. Neither branch exists on origin. Ryan endorsed working DIRECTLY in AnthusAI/Papyrus - not a fork - but has NOT authorized any push. Do not push without him saying so.\n- CROSS-REPO HAZARD: Papyrus depends on the UNPUSHED Markus branch. Another machine will not have it.\n\nDONE AND REVIEWED:\n- kanbus-37dd9a: Markus typed document IR (schema_version 1). Block nodes and directives as ordered peers, typed inline nodes. Inline code spans are 'code_span', distinct from block 'code'.\n- kanbus-dacb70: front-matter date/datetime serialize to ISO 8601; unrepresentable types raise a named error instead of a silent fallback.\n- kanbus-2ecaf7: bare HH:MM:SS no longer silently becomes int 48600 (PyYAML YAML-1.1 sexagesimal). Fixed surgically; octal/hex/bool/date all verified unchanged.\n- PPY-d79ff2: Renderer interface + Pretext retrofitted onto it (commit f9b073f). lib/publisher.ts DELETED. Five call sites go THROUGH the interface. lint + typecheck clean.\n\nRUNNING RIGHT NOW (do not duplicate, avoid these files):\n- PPY-a10206 + PPY-88f77b: IR ingestion, Pretext projection, Markus renderer, REAL PUBLISHED PAGES. Touches lib/, renderers/. THIS IS THE CRITICAL PATH.\n- PPY-6b4094: AWS deployment + real baseline. Touches amplify/, docs/.\n- PPY-61dc8f: reader-settings newspaper->newsprint alias (Haiku). Touches amplify/functions/reader-settings/.\n- PPY-5e8072: Pilobil.us visual design. Touches /Users/home/Projects/Pilobol.us + Markus CSS.\n\nREADY QUEUE + MODEL GUIDANCE: see PPY-da6f1f.\n\nTWO ENVIRONMENT FACTS THAT WILL WASTE YOUR TIME IF YOU DO NOT KNOW THEM:\n1. 'npm run build' FAILS at 'Collecting page data' (TypeError: Cannot convert undefined or null to object). This is IDENTICAL on origin/develop. PRE-EXISTING and environmental - no reachable AppSync backend. Do not chase it; PPY-6b4094 owns it.\n2. BDD: 117 scenarios, ~39 failed, 27 undefined. Two pre-existing causes - operator-cli.feature has zero cucumber-js step definitions (it targets behave), and console scenarios have no seeded data. PPY-fd8468 owns it, deliberately HELD until 6b4094 reports.\nAlso: typecheck passes partly because a synthetic gitignored amplify_outputs.json exists locally. Do not read 'typecheck clean' as evidence the Amplify wiring is healthy.\n\nWORKING STANDARD, LEARNED THE HARD WAY: do not accept subagent reports at face value - re-run their checks. Three of four reports so far contained an undisclosed inaccuracy (a silent package-version downgrade 0.4.0->0.1.0; a diff claimed to cover '8 files' in directories holding 4; an unreachable code path claimed as handled). All were caught only by re-running. Check 'git diff --stat' for files the task had no business touching.\n\nWHAT #57 GOT WRONG - do not revert toward it: metadata-only registry with no operations; requiresPretext baking an implementation name into a generic interface; dispatch inside a React component forcing a build-time renderer through a runtime path; required-but-ignored config; and the false claim that 'markus validate' makes fragments safe to mount (it validates vocabulary, not XSS)."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:06:03.806777Z",
+          "id": "6f375e65-6a67-4a8f-b887-b3593768346b",
+          "text": "Gap closed: live DNS/CI for Pilobil.us was not in the initiative. Filed PPY-17fcfc under da6f1f. Doctrine domain is pilobil.us; no hosted zone exists yet. Existing live publications (p.apyr.us, threat-intelligence.anth.us) are Amplify WEB_COMPUTE SSR — the wrong pipeline for a Markus static site."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:12:08.462786Z",
+          "id": "b9a412f4-3cfb-4256-a6cd-184b75ee28be",
+          "text": "Ryan: static Amplify WEB is a Papyrus hosting *option*, not a Pilobil fork. Hosting is a sibling axis of Renderer × Layout × Publication. PPY-17fcfc retitled and moved under PPY-92f846. Anti-pattern: a per-publication Papyrus GitHub repo (the Threat Intelligence Amplify app). Docs belong in Papyrus."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:14:16.292857Z",
+          "id": "cbc91628-f363-4abb-b68b-e83145c2585a",
+          "text": "Domain correction: live hostname is **pilobol.us**, not pilobil.us. Doctrine had the typo. PPY-17fcfc updated; planner notified."
         }
       ],
       "created_at": "2026-09-06T12:09:05.786234Z",
@@ -1048,7 +1194,7 @@
       "status": "open",
       "title": "Renderer architecture: one content schema, swappable renderers",
       "type": "initiative",
-      "updated_at": "2026-09-06T13:33:07.915747Z"
+      "updated_at": "2026-09-06T14:14:16.292857Z"
     },
     {
       "assignee": null,
@@ -1469,6 +1615,20 @@
           "created_at": "2026-09-06T13:29:35.403143Z",
           "id": "b81f7e3f-e682-4b3d-b320-850c36512a88",
           "text": "=== READY QUEUE - PICK UP FROM HERE IF THE ORCHESTRATOR IS THROTTLED ===\n\nThese are specced, unblocked, and deliberately chosen NOT to collide with the renderer critical path. Each issue's own comment is the authoritative spec. Take one, comment that you have taken it, work, comment findings as you go.\n\nCURRENTLY RUNNING (do not touch these files):\n- PPY-a10206 + PPY-88f77b - IR ingestion, Pretext projection, Markus renderer, real published pages. Touches lib/, renderers/. AVOID.\n- PPY-5e8072 - Pilobil.us visual design. Touches /Users/home/Projects/Pilobol.us + Markus CSS. AVOID.\n\nAVAILABLE NOW, ordered by value:\n\n1. PPY-6b4094 - Deploy Papyrus to AWS, report rough edges. HIGHEST VALUE of the available set. We currently cannot tell real regressions from environment noise: 'npm run build' fails identically on origin/develop and on our branch because no AppSync backend is reachable. A real deployment is the only way to get a trustworthy baseline. Creates real AWS resources - use a sandbox, record teardown, never touch production. Model: Sonnet or better (judgment-heavy, unpredictable failure modes).\n\n2. PPY-fd8468 - Repair the BDD environment. Two known pre-existing causes: features/operator-cli.feature has ZERO cucumber-js step definitions (it targets 'poetry run behave'), and console scenarios lack seeded GraphQL data. Coordinate with PPY-6b4094 - a real backend may fix the second outright. Model: Sonnet.\n\n3. PPY-61dc8f - Persisted reader setting 'newspaper' silently resets after the newsprint rename. Small, tightly specified, disjoint files (amplify/functions/reader-settings/). GOOD HAIKU CANDIDATE - the fix is spelled out (accept the old value as a deprecated alias normalizing to newsprint, plus a test). Verify the premise first: confirm persisted data actually exists before migrating an empty table.\n\n4. PPY-f25738 - Decide the lib/ -> renderers/ layering inversion. Genuinely a judgment call, not mechanical. Best deferred until PPY-eca592 lands, since option (b) needs a resolvable active renderer. Model: Sonnet or better. LOW priority.\n\nSTILL BLOCKED (do not start):\n- PPY-eca592 (renderer config discriminated union) - would collide head-on with the running a10206/88f77b work. Wait.\n- PPY-b794e1 (migrate existing content) - needs a10206's projection to exist first.\n- PPY-10e4cd (Pilobil PoC) - needs 88f77b + eca592.\n\nMODEL GUIDANCE FROM RYAN: use Haiku where the work is simple BECAUSE the task is already spelled out exactly. Use Sonnet or better where failure modes are unpredictable (deployment, environment repair) or where real judgment is required (design, architecture decisions). Do not use a small model just because an issue is short - use it when the issue is UNAMBIGUOUS.\n\nSTANDING RULES: do not push, do not open PRs, do not close your own issue, commit in small reviewable increments rather than leaving a large uncommitted tree, and re-run verification rather than trusting a summary."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:06:03.792668Z",
+          "id": "65ba4a17-efaf-4668-ae00-93801c1eeecc",
+          "text": "Filed PPY-17fcfc: live pilobil.us static deploy + Route 53. That was not in the original side-track. 5e8072 (design) and 10e4cd (two-renderer PoC) stay local/browser; 6b4094 stays Papyrus Amplify sandbox. Do not put Markus publications on the Papyrus WEB_COMPUTE SSR app."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:12:08.503473Z",
+          "id": "023e28b5-3eec-4315-bc8b-70e7779d65e5",
+          "text": "PPY-17fcfc moved to parent PPY-92f846: it is a Papyrus hosting-option + docs task, not side-track sandbox work. PPY-6b4094 remains the Amplify sandbox for the newsroom app."
         }
       ],
       "created_at": "2026-09-06T13:26:03.021077Z",
@@ -1483,7 +1643,7 @@
       "status": "open",
       "title": "Parallel track: deployment, design, and environment hardening",
       "type": "epic",
-      "updated_at": "2026-09-06T13:29:35.403143Z"
+      "updated_at": "2026-09-06T14:12:08.503473Z"
     },
     {
       "assignee": null,
@@ -1539,6 +1699,13 @@
           "created_at": "2026-09-06T12:45:16.872331Z",
           "id": "02327261-2adf-483e-ba7e-3fcf2a8600b1",
           "text": "GOAL: one config toggle switches the whole site's renderer. This is the user-facing point of the initiative.\n\nPROBLEM WITH PR #57's SHAPE: it puts 'publisher' and 'defaultPresentation' on SiteBrand as two INDEPENDENT enums, most of whose combinations are invalid. Its own section 7.2 then has Pilobil set defaultPresentation: 'newspaper' because 'the field is required' - and then ignores it. Required-but-ignored config is how config rots. Same problem with layoutPlan: PR #57 has Markus emit a fake EditionLayoutPlan it never reads, and section 9 proposes making it worse with a 'page.markus' preset - inventing geometry to satisfy a schema that should not apply.\n\nREQUIRED SHAPE - discriminated union, so invalid states are unrepresentable:\n\n  type RendererConfig =\n    | { kind: \"pretext\"; layout: \"newsprint\" | \"blog\" | \"magazine\"; layoutPlan: EditionLayoutPlan }\n    | { kind: \"markus\"; theme: string };\n\nThis: (a) makes it literally one field to toggle, (b) moves Pretext geometry INSIDE the Pretext branch where it belongs, (c) eliminates every required-but-ignored field.\n\nSCOPE:\n1. Add rendererConfig to SiteBrand as above. Remove the standalone presentation enum and EditionContent.defaultPresentation where it is now redundant.\n2. layoutPlan moves under the pretext branch. EditionContent.presentationPlans (declared but UNUSED anywhere in the codebase - verified) should be deleted or repurposed as the per-renderer slot; decide and justify.\n3. Wire the dispatch at the app-shell level, NOT inside a React component. PR #57 dispatches inside components/presentation-shell.tsx, which forces a build-time static renderer to enter through a runtime React component. Markus needs no React and no hydration. Put the seam above the component.\n4. Papyrus -> newsprint, Threat Intelligence -> blog, Pilobil.us -> markus, all via this one field."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:12:08.490343Z",
+          "id": "39f4bed7-9f13-42dd-bdac-3fd29a960923",
+          "text": "When RendererConfig lands, leave room for a sibling HostingConfig (amplify-ssr | amplify-static). Do not implement hosting in this issue. Do not add a required hosting field that Markus ignores. PPY-17fcfc documents the option and proves static WEB on pilobil.us; absorb the type here later."
         }
       ],
       "created_at": "2026-09-06T12:43:02.729828Z",
@@ -1561,7 +1728,7 @@
       "status": "open",
       "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
       "type": "task",
-      "updated_at": "2026-09-06T12:45:16.872331Z"
+      "updated_at": "2026-09-06T14:12:08.490343Z"
     },
     {
       "assignee": null,

@@ -80,10 +80,31 @@
       "text": "Worktrees verified by manager. Implementation authorized. Hosted zone already exists (Z09961547QX1VHIXOBD7 / pilobol.us) — do not create another. NS already handed to Ryan. Pin Markus @v0.5.0. Comment progress; do not close this issue.",
       "created_at": "2026-09-06T14:19:55.481555Z",
       "comment_type": "default"
+    },
+    {
+      "id": "cea98b7f-085e-4482-95ec-9daa6094697d",
+      "author": "home",
+      "text": "Implementation started in verified worktrees. Papyrus docs + Pilobol.us deploy + Amplify WEB app (zone Z09961547QX1VHIXOBD7 already exists).",
+      "created_at": "2026-09-06T14:20:03.268166Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "76debd7e-85ea-4817-8383-f71dc791dde6",
+      "author": "home",
+      "text": "## Implementation progress\n\n### Papyrus docs PR (not merged)\n- Branch: `cursor/feature/PPY-17fcfc-site-hosting-3af6`\n- PR: https://github.com/AnthusAI/Papyrus/pull/58 → `develop`\n- Files: `docs/site-hosting.md`, `docs/hosting/amplify-static.yml.example`, `docs/hosting/amplify-ssr.yml.example`, `AGENTS.md` pointer\n\n### Pilobol.us deploy PR (not merged)\n- Branch: `cursor/feature/PPY-17fcfc-amplify-static-3af6`\n- PR: https://github.com/AnthusAI/Pilobol.us/pull/1 → `main`\n- `web/` from PPY-5e8072 (spelling fixes only); `amplify.yml` with Markus `@v0.5.0`; `web/dist/` gitignored\n\n### Amplify WEB app (new — not p.apyr.us / dbsyytcm9drqa)\n- **App ID:** `d1od6t7lzbwanr`\n- **Platform:** WEB\n- **Default URL (live, manual deploy job 1 SUCCEED):** https://main.d1od6t7lzbwanr.amplifyapp.com/\n- **Production branch:** `main` (manual zip deploy of locally built `web/dist` for now)\n\n### Custom domain (zone Z09961547QX1VHIXOBD7 — pre-existing)\n- Domain association: `pilobol.us` + `www` → branch `main`\n- Status: `REQUESTING_CERTIFICATE` (awaiting registrar NS propagation Ryan is doing)\n- Route 53 records Amplify created:\n  - apex `pilobol.us` A alias → `d3tottbx4vximc.cloudfront.net`\n  - `www.pilobol.us` CNAME → `d3tottbx4vximc.cloudfront.net`\n- `https://pilobol.us` pending NS + ACM\n\n### GitHub CI connection — needs human OAuth\n`aws amplify update-app --repository` requires a valid GitHub token. To wire push-to-deploy after PR #1 merges:\n1. AWS Console → Amplify → app **pilobol-us** (`d1od6t7lzbwanr`)\n2. **Hosting** → **Connect repository** → authorize GitHub\n3. Repo `AnthusAI/Pilobol.us`, branch `main`, use root `amplify.yml`\n4. First CI build replaces manual deploy artifact\n\nIssue left open per instructions.",
+      "created_at": "2026-09-06T14:21:40.974466Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2036262d-c2a0-48f7-910c-cbf598c699e0",
+      "author": "home",
+      "text": "Ryan set registrar NS. Public resolvers still show GoDaddy (expected). ACM CNAME is already in zone Z09961547QX1VHIXOBD7 — no registrar CNAME. Default site is live at https://main.d1od6t7lzbwanr.amplifyapp.com/ (WEB, HTTP 200). Custom https://pilobol.us waits on NS. GitHub repo still disconnected (human OAuth) — push-to-deploy not on yet; current deploy is the manual artifact.",
+      "created_at": "2026-09-06T14:25:51.029929Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T14:05:42.812329Z",
-  "updated_at": "2026-09-06T14:19:55.481555Z",
+  "updated_at": "2026-09-06T14:25:51.029929Z",
   "closed_at": null,
   "custom": {}
 }
