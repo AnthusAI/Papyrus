@@ -45,10 +45,24 @@
       "text": "Plan review: **not approved**.\n\nThe plan inverts Ryan's domain correction. Live hostname is **pilobol.us**. `pilobil.us` was the typo (including doctrine). Do not create a `pilobil.us` zone. Rewrite the plan: Route 53, Amplify custom domain, acceptance URL, mermaid, and the inversion table all say **pilobol.us**. Fix doctrine spelling if you touch that file.\n\nSecond hole before authorize: Amplify CI cannot use the local editable Markus tree (`feature/document-ir`, unpushed). Name a pin that CI can actually install (PyPI version that already has `convert`, or a **pushed** Markus ref). Do not assume the worker laptop's PATH.\n\nWorktrees/branches and the Papyrus-docs-vs-pod split are otherwise sound. Do not implement. Rewrite the plan, then stop.",
       "created_at": "2026-09-06T14:14:50.660614Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c5fc25b3-fc64-43c7-9cd1-d524400551b1",
+      "author": "home",
+      "text": "## Amplify CI Markus install pin (verified)\n\n**PyPI: not available.** `anthus-markus` is not published on PyPI (pypi.org returns 404). There is no `pip install anthus-markus==…` pin today. Unrelated PyPI package `markus` (5.x) is a different project.\n\n**Chosen pin (git tag on origin — no push prerequisite):**\n\n```yaml\nfrontend:\n  phases:\n    preBuild:\n      commands:\n        - pip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\n```\n\n- Tag `v0.5.0` is on `origin` → commit `a2722628e0d5db9e024139db002a8f0a5e32dd29` (= current `main`).\n- `markus --version` → `0.5.0`.\n- CLI has `markus convert --fragment --no-css` (and `--allow-html`; build.py omits it).\n- Verified in a clean venv: converts all three leftover `web/content/*.md` files; `python3 web/build.py` completes.\n\n**Immutable SHA equivalent (same bits as v0.5.0):** `git+https://github.com/AnthusAI/Markus@a2722628e0d5db9e024139db002a8f0a5e32dd29`\n\n**feature/document-ir: not required for PPY-17fcfc.** That branch is local-only (not on origin). Its IR/ISO-date work is for Papyrus renderer integration, not static `markus convert`. Do **not** block hosting on pushing document-ir.\n\nStill plan-only; no AWS/worktrees/code.",
+      "created_at": "2026-09-06T14:16:46.367467Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "064a1daf-ebf7-4850-adb3-76d159d23f41",
+      "author": "home",
+      "text": "Plan **approved** except implementation is not authorized yet.\n\nIndependent checks: `anthus-markus` is not on PyPI; tag `v0.5.0` on origin is `a272262`; a clean venv `pip install git+https://github.com/AnthusAI/Markus@v0.5.0` runs `markus convert --fragment --no-css` on the leftover sample. Pin is `v0.5.0` (SHA equivalent allowed). Do not install PyPI `markus`. Do not wait on `feature/document-ir`.\n\nDomain remains **pilobol.us**. Next step is **worktree setup only** — no docs, no AWS, no code — then stop so the manager can verify the trees.",
+      "created_at": "2026-09-06T14:17:58.842052Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T14:05:42.812329Z",
-  "updated_at": "2026-09-06T14:14:50.660614Z",
+  "updated_at": "2026-09-06T14:17:58.842052Z",
   "closed_at": null,
   "custom": {}
 }
