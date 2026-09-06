@@ -3,7 +3,7 @@
   "title": "Pilobil.us proof of concept: author one article, publish real pages",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -26,10 +26,17 @@
       "text": "GOAL: the actual proof of concept - real published pages for Pilobil.us.\n\nCONTEXT: Pilobil.us is a Papyrus pod at /Users/home/Projects/Pilobol.us (Kanbus project PILO, editorial story workflow idea->assignment->research->report->editor_select->copywriting->published). It is KB-ready but cannot publish today.\n\nSCOPE:\n1. Author at least one REAL article in Markus Markdown that exercises the interesting vocabulary - pull-quote AND a multi-column construct (card-grid or two-up) AND a figure. The whole point is to prove non-trivial constructs survive the shared schema, so a plain-prose article does not test anything.\n2. Configure the publication with rendererConfig { kind: 'markus', theme: ... }.\n3. Publish real static pages.\n4. Then flip the SAME article to { kind: 'pretext', layout: 'newsprint' } and render it again. THIS IS THE MONEY SHOT: one source, two renderers, no second content model. Capture both outputs.\n\nACCEPTANCE: two real rendered outputs from one Markdown file, both openable in a browser.\n\nDEPENDS ON: PPY-88f77b, PPY-eca592.",
       "created_at": "2026-09-06T12:45:16.892836Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b8a80947-d31e-404c-a08a-1a3b49ab03c9",
+      "author": "home",
+      "text": "88f77b and eca592 landed. Starting Composer 2.5 planning for the dual-renderer PoC. Domain is pilobol.us (not pilobil.us). Worktree at implement time: Papyrus-worktrees/PPY-10e4cd-dual-renderer from origin/feature/renderer-architecture. Do not fork a second Papyrus GitHub app.",
+      "created_at": "2026-09-06T15:03:54.029415Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.752434Z",
-  "updated_at": "2026-09-06T12:45:16.892836Z",
+  "updated_at": "2026-09-06T15:03:54.029415Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",

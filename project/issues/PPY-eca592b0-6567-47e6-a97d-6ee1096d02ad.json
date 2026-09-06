@@ -3,7 +3,7 @@
   "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -91,11 +91,18 @@
         "model": "composer-2.5",
         "name": "Composer 2.5"
       }
+    },
+    {
+      "id": "19b7cec3-6d79-4a3b-92e4-6e2f3bfdcafe",
+      "author": "home",
+      "text": "Acceptance PASS. Merged PR #61 into feature/renderer-architecture as 5961d54. TI blog lock remains a brand-id special case (not a DoD miss). Worker: remove worktree Papyrus-worktrees/PPY-eca592-renderer-config.",
+      "created_at": "2026-09-06T15:03:54.000305Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.729828Z",
-  "updated_at": "2026-09-06T15:02:19.394921Z",
-  "closed_at": null,
+  "updated_at": "2026-09-06T15:03:54.010648Z",
+  "closed_at": "2026-09-06T15:03:54.010648Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
