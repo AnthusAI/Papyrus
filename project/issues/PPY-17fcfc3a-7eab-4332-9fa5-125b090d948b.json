@@ -3,16 +3,24 @@
   "title": "Site hosting options: Amplify static WEB, proven on pilobil.us",
   "description": "## Goal\n\nHosting is a **Papyrus site configuration option**, not a per-publication fork.\n\nPilobil.us is the first publication that *uses* the static option. It is not a special Papyrus checkout, not a second product repo in the Threat Intelligence shape (`github.com/anthusai/threat-intelligence` + its own Amplify `WEB_COMPUTE` app), and not a one-off README in the pod.\n\n## Axes (do not collapse them)\n\nAlready decided: Renderer (`pretext` | `markus`) × Layout (Pretext-only: `newsprint` | `blog` | `magazine`) × Publication (the title).\n\nAdd **Hosting** as a sibling axis, documented in Papyrus:\n\n```text\ntype HostingConfig =\n  | { kind: \"amplify-ssr\" }      // Amplify platform WEB_COMPUTE. Next.js. GraphQL at request time. Content can change without rebuilding HTML.\n  | { kind: \"amplify-static\" }   // Amplify platform WEB. Build emits a folder of HTML/CSS/assets. New copy = new build.\n```\n\nLeave the union open for later kinds (GitHub Pages, S3+CloudFront) without implementing them. Invalid combos can exist in theory (pretext + static is a poor fit today); document the intended pairings rather than inventing a fake static Pretext pipeline.\n\nIntended pairings:\n- **amplify-ssr** + pretext — p.apyr.us / Threat Intelligence today\n- **amplify-static** + markus — pilobil.us, and any future Markus publication\n\n## Papyrus deliverable (this is the point)\n\nDocument the option **in the Papyrus repo**, not only in the pod:\n\n- A runnable hosting doc under `docs/` (new file, e.g. `docs/site-hosting.md`) that explains both kinds, when to choose which, Amplify platform values (`WEB` vs `WEB_COMPUTE`), what the build artifact is, custom domains / Route 53, and how a new publication opts in.\n- A pointer from `AGENTS.md` so agents do not cargo-cult the SSR `amplify.yml` onto a Markus site.\n- Any committed config/examples (sample `amplify.yml` for the static kind, env vars) live in Papyrus as the template. The publication repo consumes that pattern; it does not invent a private one.\n\nDo **not** edit `lib/site-brand.ts` / renderer dispatch in this issue if PPY-eca592 / PPY-a10206 are still in flight on those files. Record the intended `HostingConfig` shape in the doc so eca592 can absorb it as a sibling of `RendererConfig` rather than a second independent enum. Do not add a required-but-ignored field.\n\n## Pilobil.us is the proof, not the product\n\n1. Create Route 53 public hosted zone **pilobil.us** (doctrine spelling; repo is `Pilobol.us`). Comment NS records here for Ryan. Do this first so propagation runs in parallel.\n2. Stand up Amplify Hosting **platform `WEB`** using the Papyrus-documented static pattern. Build = Markus static output (`web/dist` or the Papyrus-defined equivalent). Not `WEB_COMPUTE`, not `ampx pipeline-deploy`, not the Papyrus app `dbsyytcm9drqa`.\n3. Attach `pilobil.us` + `www` once the zone exists. Amplify default domain is acceptable until NS propagate.\n4. CI builds from repo-committed Markdown with `markus convert --allow-html` off.\n\n## Constraints\n\n- Do not fork Papyrus. Do not create a publication-specific Papyrus GitHub repo.\n- Do not deploy to or modify p.apyr.us production.\n- Do not touch `lib/renderer.ts` or `renderers/pretext/`.\n- Record teardown for anything that is not the lasting hosted zone / production static app.\n- Do not close this issue yourself.\n\n## Acceptance\n\n- Papyrus `docs/` (+ AGENTS.md pointer) describes hosting kinds so a later publication can choose `amplify-static` without copying Pilobil by folklore.\n- Hosted zone exists; NS records are in a Kanbus comment.\n- A push publishes Markus HTML to a reachable URL via the documented static option.\n- After Ryan sets nameservers, `https://pilobil.us` serves that site.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e83f6a4a-5ea2-4d84-a7f3-f2bc56ffc66e",
+      "author": "home",
+      "text": "Picked up. Composer 2.5 planning in an isolated worktree. Do not implement until the plan is approved. Leftover uncommitted Pilobol.us/web/ from the dead 5e8072 agent is on disk in the primary clone — recover, do not duplicate blindly.",
+      "created_at": "2026-09-06T14:12:24.019823Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-09-06T14:05:42.812329Z",
-  "updated_at": "2026-09-06T14:11:59.771292Z",
+  "updated_at": "2026-09-06T14:12:24.019823Z",
   "closed_at": null,
   "custom": {}
 }
