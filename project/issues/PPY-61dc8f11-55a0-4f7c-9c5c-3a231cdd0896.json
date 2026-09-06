@@ -3,7 +3,7 @@
   "title": "Persisted reader setting 'newspaper' silently resets after newsprint rename",
   "description": "",
   "type": "bug",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -20,7 +20,7 @@
     }
   ],
   "created_at": "2026-09-06T13:26:03.071325Z",
-  "updated_at": "2026-09-06T13:26:43.321584Z",
+  "updated_at": "2026-09-06T13:31:24.031104Z",
   "closed_at": null,
   "custom": {}
 }

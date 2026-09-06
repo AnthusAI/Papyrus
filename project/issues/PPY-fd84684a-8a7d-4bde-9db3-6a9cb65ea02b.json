@@ -3,7 +3,7 @@
   "title": "Repair BDD environment: operator-cli.feature has no cucumber steps; no seeded local data",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -20,7 +20,7 @@
     }
   ],
   "created_at": "2026-09-06T13:26:03.060359Z",
-  "updated_at": "2026-09-06T13:27:02.315387Z",
+  "updated_at": "2026-09-06T13:31:24.016275Z",
   "closed_at": null,
   "custom": {}
 }

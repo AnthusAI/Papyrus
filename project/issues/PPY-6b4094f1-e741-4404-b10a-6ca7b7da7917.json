@@ -3,7 +3,7 @@
   "title": "Deploy Papyrus to AWS and report rough edges",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -20,7 +20,7 @@
     }
   ],
   "created_at": "2026-09-06T13:26:03.034022Z",
-  "updated_at": "2026-09-06T13:26:23.457276Z",
+  "updated_at": "2026-09-06T13:31:24.003877Z",
   "closed_at": null,
   "custom": {}
 }
