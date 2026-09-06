@@ -3,7 +3,7 @@
   "title": "Document IR ingestion + Pretext projection",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -64,11 +64,25 @@
       "text": "Worktree verified (a89deab, has Renderer interface). Implementation authorized. Rsync leftovers from primary clone into this worktree only. Round-trip agent-procedure-patterns is required. Do not close.",
       "created_at": "2026-09-06T14:31:53.211323Z",
       "comment_type": "default"
+    },
+    {
+      "id": "465de588-fa12-4d9a-be7f-1fb4639ab9e7",
+      "author": "home",
+      "text": "Implementation complete in worktree. PR opened.\n\n- **Worktree:** `/Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection`\n- **Branch:** `cursor/feature/PPY-a10206-pretext-projection-3af6`\n- **Commit:** `ab94cae` — feat: Markus document IR types and Pretext projection (PPY-a10206)\n- **PR:** https://github.com/AnthusAI/Papyrus/pull/59 (base: `feature/renderer-architecture`)\n\n### Deliverables\n- `lib/markus-ir.ts` — typed IR + `parseMarkusDocument` / `MarkusSchemaVersionError` (`schema_version: 1`; `code_span` ≠ block `code`)\n- `lib/markus-projection.ts` — `projectMarkusDocumentToPretext` with degradation rule (unknown directives recurse; leaf directives stringify attributes; nothing silently dropped)\n- `scripts/fixtures/markus-sample.{md,ast.json}` — re-captured via live `markus ast`\n- `scripts/fixtures/agent-procedure-patterns.{md,ast.json}` — seed article round-trip fixture (`markus validate` ok)\n- `scripts/test-markus-projection.ts` + `npm run test:markus-projection`\n\n### Verification (worktree)\n```\n$ npm run typecheck\n> tsc --noEmit\n(exit 0)\n\n$ npm run lint -- lib/markus-ir.ts lib/markus-projection.ts scripts/test-markus-projection.ts\n(exit 0)\n\n$ npm run test:markus-projection\nMarkus -> Pretext projection tests passed.\n(exit 0)\n```\n\nRound-trip: `agent-procedure-patterns` projection `body` and `pullQuotes` deep-equal `lib/articles.ts` seed article.\n\n`npm run build` not run (pre-existing AppSync failure, PPY-6b4094).\n\nPrimary clone untouched — leftovers still uncommitted there.",
+      "created_at": "2026-09-06T14:34:44.197608Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "3790caea-ac4f-46f7-98f5-458c2c79d16f",
+      "author": "home",
+      "text": "Landed in PR #59 (squash 5a826a6 into feature/renderer-architecture). Independently verified typecheck, lint, and test:markus-projection including agent-procedure-patterns round-trip. Diff limited to lib/markus-*.ts, scripts/, package.json.",
+      "created_at": "2026-09-06T14:36:03.445504Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.708614Z",
-  "updated_at": "2026-09-06T14:31:53.211323Z",
-  "closed_at": null,
+  "updated_at": "2026-09-06T14:36:03.458811Z",
+  "closed_at": "2026-09-06T14:36:03.458811Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

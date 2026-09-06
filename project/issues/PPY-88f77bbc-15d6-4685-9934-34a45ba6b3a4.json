@@ -22,10 +22,17 @@
       "text": "GOAL: the Markus renderer, producing REAL viewable static pages. This is the task that makes the PoC real.\n\nSCOPE:\n1. Implement the Renderer interface (from PPY-d79ff2) for Markus.\n2. Build step in Python (Papyrus is Python-first on the backend; markus is already installed at /Users/home/miniconda3/bin/markus - the PR's 'PyPI unverified' question is RESOLVED, anthus-markus is installed and working).\n3. Emit real static HTML pages: markus convert --fragment --no-css per article, plus a page shell, plus CSS.\n4. CSS CASCADE - do NOT rely on upstream Markus not using @layer (PR #57 does; that is a bet on someone else's future commits). Wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically.\n5. ONE PATH ONLY. PR #57 proposed a Python-built static output AND a Next.js dev/preview shell - that means what you preview is not what you ship. Build the static site and serve it with a plain static server.\n6. SECURITY: fragments get mounted as trusted HTML. 'markus validate' checks DIRECTIVE VOCABULARY, not XSS - it is not a security control and PR #57 wrongly implies it is. The real invariant is: fragments are built in CI from repo-committed Markdown with --allow-html OFF. Assert that at build time, do not just comment it.\n\nACCEPTANCE: I can open a real generated HTML file in a browser and see a correctly rendered article. Not a placeholder.",
       "created_at": "2026-09-06T12:44:51.948723Z",
       "comment_type": "default"
+    },
+    {
+      "id": "640f9248-7d96-4c91-a26a-b9ff5899f844",
+      "author": "home",
+      "text": "PPY-a10206 projection landed (#59). Markus renderer is unblocked on the Renderer interface (d79ff2) and can proceed in its own worktree. Composer 2.5 planning first.",
+      "created_at": "2026-09-06T14:35:49.749641Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.719307Z",
-  "updated_at": "2026-09-06T13:28:25.827763Z",
+  "updated_at": "2026-09-06T14:35:49.749641Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
