@@ -3,7 +3,7 @@
   "title": "Visual web design for the Pilobil.us publication",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -20,7 +20,7 @@
     }
   ],
   "created_at": "2026-09-06T13:26:03.046588Z",
-  "updated_at": "2026-09-06T13:26:43.310401Z",
+  "updated_at": "2026-09-06T13:28:25.839836Z",
   "closed_at": null,
   "custom": {}
 }
