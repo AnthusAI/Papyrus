@@ -1,8 +1,10 @@
 ---
 title: Agents work better with less freedom
+deck: One Markus source, two renderers — Markus static and Pretext newsprint.
 authors:
   - Ada Lovelace
 date: 2026-09-06
+section: Pilobol.us
 ---
 
 Developers are learning that reliable agents need less freedom, not more.
