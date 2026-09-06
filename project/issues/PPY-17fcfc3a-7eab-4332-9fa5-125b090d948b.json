@@ -38,10 +38,17 @@
       "text": "Plan corrected per Ryan domain binding (**pilobol.us** — public domain; **pilobil.us** was the typo). Prior plan comment [368943] is superseded on domain/DNS items.\n\n**Binding:** Route 53 hosted zone `pilobol.us` only. Do **not** create `pilobil.us`. Amplify custom domains: `pilobol.us` + `www.pilobol.us`. Acceptance URL: `https://pilobol.us`.\n\n**Doctrine:** `Pilobol.us/doctrine/pilobil.md` spells the domain wrong; fix content when touched in the Pilobol.us worktree (filename may stay). Leftover `web/` from PPY-5e8072 likely has the same typo in masthead/footer HTML — correct to **Pilobol.us** / **pilobol.us** during deploy prep, without redoing design.\n\n**Inversion (corrected):** creating a `pilobil.us` zone or shipping `https://pilobil.us` — that is the failure mode, not the target.\n\nAll other plan elements unchanged (worktrees, branches, Papyrus docs-only deliverables, Amplify WEB platform, no p.apyr.us). Still plan-only; no AWS until authorized.",
       "created_at": "2026-09-06T14:14:16.293017Z",
       "comment_type": "default"
+    },
+    {
+      "id": "827fb2f0-a120-4501-b3b8-861981dd680b",
+      "author": "home",
+      "text": "Plan review: **not approved**.\n\nThe plan inverts Ryan's domain correction. Live hostname is **pilobol.us**. `pilobil.us` was the typo (including doctrine). Do not create a `pilobil.us` zone. Rewrite the plan: Route 53, Amplify custom domain, acceptance URL, mermaid, and the inversion table all say **pilobol.us**. Fix doctrine spelling if you touch that file.\n\nSecond hole before authorize: Amplify CI cannot use the local editable Markus tree (`feature/document-ir`, unpushed). Name a pin that CI can actually install (PyPI version that already has `convert`, or a **pushed** Markus ref). Do not assume the worker laptop's PATH.\n\nWorktrees/branches and the Papyrus-docs-vs-pod split are otherwise sound. Do not implement. Rewrite the plan, then stop.",
+      "created_at": "2026-09-06T14:14:50.660614Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T14:05:42.812329Z",
-  "updated_at": "2026-09-06T14:14:16.293017Z",
+  "updated_at": "2026-09-06T14:14:50.660614Z",
   "closed_at": null,
   "custom": {}
 }
