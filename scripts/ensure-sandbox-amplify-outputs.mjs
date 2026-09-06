@@ -56,11 +56,11 @@ function shouldKeepProductionAmplifyOutputs() {
 function generateSandboxOutputs() {
   const env = {
     ...process.env,
-    AWS_PROFILE: process.env.AWS_PROFILE || "Ryan",
     AWS_REGION: process.env.AWS_REGION || "us-east-1",
   };
+  const profileLabel = env.AWS_PROFILE?.trim() || "(default credential chain)";
   console.log(
-    `[papyrus] Generating sandbox amplify_outputs.json from stack ${sandboxStack} (AWS_PROFILE=${env.AWS_PROFILE}).`,
+    `[papyrus] Generating sandbox amplify_outputs.json from stack ${sandboxStack} (AWS_PROFILE=${profileLabel}).`,
   );
   const result = spawnSync(
     "npx",
@@ -137,6 +137,16 @@ function main() {
     console.log(
       `[papyrus] amplify_outputs.json already targets sandbox (${graphqlUrl || "no graphql url"}).`,
     );
+    syncEnvGraphqlEndpoint();
+    return;
+  }
+
+  // Personal sandboxes use different AppSync/Cognito ids than the legacy Ryan sandbox.
+  if (!isProduction && graphqlUrl) {
+    console.log(
+      `[papyrus] amplify_outputs.json targets non-production backend (${graphqlUrl}).`,
+    );
+    syncEnvGraphqlEndpoint();
     return;
   }
 
