@@ -1,0 +1,26 @@
+{
+  "id": "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917",
+  "title": "Deploy Papyrus to AWS and report rough edges",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8c862ec8-db3e-43c3-9bd4-b26838dc7e31",
+      "author": "home",
+      "text": "GOAL: actually deploy Papyrus to AWS, find what breaks, fix what you can, and report every rough edge.\n\nWHY THIS IS VALUABLE NOW: local verification is blocked on a missing backend and we have been unable to distinguish real regressions from environment gaps. Concretely, verified today:\n- 'npm run build' FAILS at 'Collecting page data' with 'TypeError: Cannot convert undefined or null to object' in listPublishedEditions / listArticleSlugs. I confirmed this failure is IDENTICAL on origin/develop, so it is PRE-EXISTING and environmental - the build fetches live AppSync data and there is no reachable backend.\n- BDD needs a synthetic amplify_outputs.json plus a dev server, and most failures are 'no seeded GraphQL data', not real defects.\nA real deployment is the only way to get a trustworthy green baseline.\n\nSCOPE:\n1. Deploy the Amplify backend (amplify/ - Gen 2, see amplify.yml and package.json scripts such as outputs:sandbox). Get a real amplify_outputs.json.\n2. Get 'npm run build' to actually succeed against it. Document every step that was not already written down.\n3. Run the BDD suite against the deployed backend and record the REAL baseline: how many scenarios pass when the environment is correct. That number is what future work gets compared against.\n4. Fix rough edges you hit, in small reviewable commits, and log each one as a comment here as you go.\n5. Write down the working procedure (a runnable doc under docs/) so the next person does not rediscover it.\n\nCONSTRAINTS: do not touch lib/renderer.ts or renderers/pretext/. If deployment reveals a defect in the renderer refactor, comment on PPY-d79ff2 and PPY-92f846 rather than editing.\n\nCOST/SAFETY: this creates real AWS resources. Prefer an Amplify sandbox over anything shared. Record exactly what you created and how to tear it down. Do NOT deploy to or modify any production environment, and do not put credentials in the repo.",
+      "created_at": "2026-09-06T13:26:23.457276Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T13:26:03.034022Z",
+  "updated_at": "2026-09-06T13:26:23.457276Z",
+  "closed_at": null,
+  "custom": {}
+}

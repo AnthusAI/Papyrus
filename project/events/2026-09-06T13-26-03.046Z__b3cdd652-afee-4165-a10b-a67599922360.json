@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b3cdd652-afee-4165-a10b-a67599922360",
+  "issue_id": "PPY-5e8072d4-d940-478b-8140-29d7b1f54069",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T13:26:03.046Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+    "priority": 1,
+    "status": "open",
+    "title": "Visual web design for the Pilobil.us publication"
+  }
+}

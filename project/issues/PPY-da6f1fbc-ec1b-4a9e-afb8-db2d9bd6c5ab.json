@@ -1,0 +1,26 @@
+{
+  "id": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+  "title": "Parallel track: deployment, design, and environment hardening",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a6ff8852-22de-47f0-8ae7-fece1e59c50a",
+      "author": "home",
+      "text": "PURPOSE: work that can proceed INDEPENDENTLY of the renderer critical path (PPY-92f846), so a swarm of agents can make progress while the orchestrating session is rate-limited.\n\nRULES FOR ANYONE PICKING UP FROM THIS EPIC:\n- Read PPY-92f846's HANDOFF comment first for repo/branch/push state and the decided nomenclature (Renderer x Layout). Do not relitigate settled decisions.\n- These tasks are deliberately scoped to NOT collide with the renderer work. Do not refactor lib/renderer.ts or renderers/pretext/ from here; if you must, comment on PPY-92f846 instead of editing.\n- Report findings as Kanbus comments as you go, not only at the end. The orchestrator may be throttled; Kanbus is the shared state.\n- Do not push and do not open PRs without Ryan's explicit say-so. Everything is local on feature/renderer-architecture (Papyrus) and feature/document-ir (Markus), neither pushed.\n- Ryan endorsed working directly in AnthusAI/Papyrus. Not a fork.\n- Do not close your own issue; comment your findings and leave it for review.",
+      "created_at": "2026-09-06T13:26:23.445861Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T13:26:03.021077Z",
+  "updated_at": "2026-09-06T13:26:23.445861Z",
+  "closed_at": null,
+  "custom": {}
+}

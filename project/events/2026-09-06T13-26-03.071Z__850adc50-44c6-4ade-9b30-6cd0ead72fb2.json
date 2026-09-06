@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "850adc50-44c6-4ade-9b30-6cd0ead72fb2",
+  "issue_id": "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T13:26:03.071Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "bug",
+    "labels": [],
+    "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+    "priority": 1,
+    "status": "open",
+    "title": "Persisted reader setting 'newspaper' silently resets after newsprint rename"
+  }
+}
