@@ -31,10 +31,17 @@
       "text": "Filed PPY-17fcfc: live pilobil.us static deploy + Route 53. That was not in the original side-track. 5e8072 (design) and 10e4cd (two-renderer PoC) stay local/browser; 6b4094 stays Papyrus Amplify sandbox. Do not put Markus publications on the Papyrus WEB_COMPUTE SSR app.",
       "created_at": "2026-09-06T14:06:03.792668Z",
       "comment_type": "default"
+    },
+    {
+      "id": "023e28b5-3eec-4315-bc8b-70e7779d65e5",
+      "author": "home",
+      "text": "PPY-17fcfc moved to parent PPY-92f846: it is a Papyrus hosting-option + docs task, not side-track sandbox work. PPY-6b4094 remains the Amplify sandbox for the newsroom app.",
+      "created_at": "2026-09-06T14:12:08.503473Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.021077Z",
-  "updated_at": "2026-09-06T14:06:03.792668Z",
+  "updated_at": "2026-09-06T14:12:08.503473Z",
   "closed_at": null,
   "custom": {}
 }

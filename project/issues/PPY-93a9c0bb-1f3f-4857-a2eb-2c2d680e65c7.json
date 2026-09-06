@@ -24,10 +24,17 @@
       "text": "Gap closed: live DNS/CI for Pilobil.us was not in the initiative. Filed PPY-17fcfc under da6f1f. Doctrine domain is pilobil.us; no hosted zone exists yet. Existing live publications (p.apyr.us, threat-intelligence.anth.us) are Amplify WEB_COMPUTE SSR — the wrong pipeline for a Markus static site.",
       "created_at": "2026-09-06T14:06:03.806777Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b9a412f4-3cfb-4256-a6cd-184b75ee28be",
+      "author": "home",
+      "text": "Ryan: static Amplify WEB is a Papyrus hosting *option*, not a Pilobil fork. Hosting is a sibling axis of Renderer × Layout × Publication. PPY-17fcfc retitled and moved under PPY-92f846. Anti-pattern: a per-publication Papyrus GitHub repo (the Threat Intelligence Amplify app). Docs belong in Papyrus.",
+      "created_at": "2026-09-06T14:12:08.462786Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:09:05.786234Z",
-  "updated_at": "2026-09-06T14:06:03.806777Z",
+  "updated_at": "2026-09-06T14:12:08.462786Z",
   "closed_at": null,
   "custom": {}
 }

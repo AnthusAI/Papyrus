@@ -22,10 +22,17 @@
       "text": "GOAL: one config toggle switches the whole site's renderer. This is the user-facing point of the initiative.\n\nPROBLEM WITH PR #57's SHAPE: it puts 'publisher' and 'defaultPresentation' on SiteBrand as two INDEPENDENT enums, most of whose combinations are invalid. Its own section 7.2 then has Pilobil set defaultPresentation: 'newspaper' because 'the field is required' - and then ignores it. Required-but-ignored config is how config rots. Same problem with layoutPlan: PR #57 has Markus emit a fake EditionLayoutPlan it never reads, and section 9 proposes making it worse with a 'page.markus' preset - inventing geometry to satisfy a schema that should not apply.\n\nREQUIRED SHAPE - discriminated union, so invalid states are unrepresentable:\n\n  type RendererConfig =\n    | { kind: \"pretext\"; layout: \"newsprint\" | \"blog\" | \"magazine\"; layoutPlan: EditionLayoutPlan }\n    | { kind: \"markus\"; theme: string };\n\nThis: (a) makes it literally one field to toggle, (b) moves Pretext geometry INSIDE the Pretext branch where it belongs, (c) eliminates every required-but-ignored field.\n\nSCOPE:\n1. Add rendererConfig to SiteBrand as above. Remove the standalone presentation enum and EditionContent.defaultPresentation where it is now redundant.\n2. layoutPlan moves under the pretext branch. EditionContent.presentationPlans (declared but UNUSED anywhere in the codebase - verified) should be deleted or repurposed as the per-renderer slot; decide and justify.\n3. Wire the dispatch at the app-shell level, NOT inside a React component. PR #57 dispatches inside components/presentation-shell.tsx, which forces a build-time static renderer to enter through a runtime React component. Markus needs no React and no hydration. Put the seam above the component.\n4. Papyrus -> newsprint, Threat Intelligence -> blog, Pilobil.us -> markus, all via this one field.",
       "created_at": "2026-09-06T12:45:16.872331Z",
       "comment_type": "default"
+    },
+    {
+      "id": "39f4bed7-9f13-42dd-bdac-3fd29a960923",
+      "author": "home",
+      "text": "When RendererConfig lands, leave room for a sibling HostingConfig (amplify-ssr | amplify-static). Do not implement hosting in this issue. Do not add a required hosting field that Markus ignores. PPY-17fcfc documents the option and proves static WEB on pilobil.us; absorb the type here later.",
+      "created_at": "2026-09-06T14:12:08.490343Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.729828Z",
-  "updated_at": "2026-09-06T12:45:16.872331Z",
+  "updated_at": "2026-09-06T14:12:08.490343Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
