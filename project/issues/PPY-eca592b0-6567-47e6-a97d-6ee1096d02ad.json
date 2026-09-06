@@ -3,7 +3,7 @@
   "title": "Renderer config: SiteBrand discriminated union; retire presentation enum",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -29,10 +29,17 @@
       "text": "When RendererConfig lands, leave room for a sibling HostingConfig (amplify-ssr | amplify-static). Do not implement hosting in this issue. Do not add a required hosting field that Markus ignores. PPY-17fcfc documents the option and proves static WEB on pilobil.us; absorb the type here later.",
       "created_at": "2026-09-06T14:12:08.490343Z",
       "comment_type": "default"
+    },
+    {
+      "id": "74dc7dc5-c7ee-4d78-9fac-e35baad59512",
+      "author": "home",
+      "text": "88f77b landed (d9f703b / PR #60). Starting Composer 2.5 planning for RendererConfig discriminated union. Worktree to be created at implement time: Papyrus-worktrees/PPY-eca592-renderer-config on cursor/feature/PPY-eca592-renderer-config-3af6 from origin/feature/renderer-architecture. HostingConfig stays a sibling type, not a required-but-ignored field.",
+      "created_at": "2026-09-06T14:48:41.199224Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.729828Z",
-  "updated_at": "2026-09-06T14:12:08.490343Z",
+  "updated_at": "2026-09-06T14:48:41.199224Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",

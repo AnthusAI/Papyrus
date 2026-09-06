@@ -3,7 +3,7 @@
   "title": "Markus renderer: publish real static pages",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -98,11 +98,18 @@
         "model": "Composer 2.5",
         "name": "implementation agent"
       }
+    },
+    {
+      "id": "cde01bc2-0e87-4b85-9bbe-9da5f5c66c70",
+      "author": "home",
+      "text": "Acceptance PASS (static sample + second-note, desktop and mobile). Merged PR #60 into feature/renderer-architecture as d9f703b. Theme contrast in hackerman is later polish, not a DoD miss. Worker: remove worktree Papyrus-worktrees/PPY-88f77b-markus-renderer and the local branch.",
+      "created_at": "2026-09-06T14:48:41.165350Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.719307Z",
-  "updated_at": "2026-09-06T14:44:53.064575Z",
-  "closed_at": null,
+  "updated_at": "2026-09-06T14:48:41.176536Z",
+  "closed_at": "2026-09-06T14:48:41.176536Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
