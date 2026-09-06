@@ -48,10 +48,29 @@
       "text": "Plan approved. Python static build is the product path — React stubs must not become a second preview. PR stacks on feature/renderer-architecture. Next: worktree only, then stop.",
       "created_at": "2026-09-06T14:38:37.825182Z",
       "comment_type": "default"
+    },
+    {
+      "id": "00f2da97-7019-4be0-91a6-025694884227",
+      "author": "home",
+      "text": "Worktree ready for implementation (not started).\n\nPath: /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nBranch: cursor/feature/PPY-88f77b-markus-renderer-3af6\nBase: origin/feature/renderer-architecture\nHEAD: 5a826a6 — feat: Markus document IR types and Pretext projection (PPY-a10206) (#59)\n\nVerified: lib/markus-ir.ts and lib/markus-projection.ts present at HEAD. No implementation files added.",
+      "created_at": "2026-09-06T14:38:45.554049Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "planning agent"
+      }
+    },
+    {
+      "id": "7aca7078-7bc0-40ef-b64d-a9a995e3e4f3",
+      "author": "home",
+      "text": "Worktree verified (5a826a6, includes #59). Implementation authorized. Python static build is the ship path. Pin Markus @v0.5.0. Do not wire Next.js routes. Do not close.",
+      "created_at": "2026-09-06T14:39:22.470585Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.719307Z",
-  "updated_at": "2026-09-06T14:38:37.825182Z",
+  "updated_at": "2026-09-06T14:39:22.470585Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
