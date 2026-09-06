@@ -67,10 +67,34 @@
         "model": "composer-2.5",
         "name": "Composer 2.5"
       }
+    },
+    {
+      "id": "cfd85d1d-367c-4d30-9ee4-06f7f810def8",
+      "author": "home",
+      "text": "Implementation complete. PR: https://github.com/AnthusAI/Papyrus/pull/61\n\nBranch: cursor/feature/PPY-eca592-renderer-config-3af6 (565b0d2)\nWorktree: /Users/home/Projects/Papyrus-worktrees/PPY-eca592-renderer-config\n\nGates:\n- npm run lint: pass\n- npm run typecheck: pre-existing amplify_outputs.json missing only\n- npm run test:renderer-config: pass\n- npm run test:bdd:check-brand: pass (renderer=pretext, default=newsprint, choices=newsprint|blog|magazine)\n- markus-build: not re-run (no Python changes; markusmd unavailable in agent env)\n\nWorktree retained pending manager close + acceptance.",
+      "created_at": "2026-09-06T14:59:13.213666Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "composer-2.5",
+        "name": "Composer 2.5"
+      }
+    },
+    {
+      "id": "da26f2db-6034-43ac-814e-d6cab6627a64",
+      "author": "home",
+      "text": "Doc revision pushed: ac9c744 — updated docs/pluggable-publishers.md to match landed RendererConfig union (pretext|markus, pilobol-us, newsprint, HostingConfig type-only, markus-build not Next). Replaces PR #57 publisher/defaultPresentation/newspaper/pilobil anti-patterns. PR #61 updated.",
+      "created_at": "2026-09-06T15:02:19.394921Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "composer-2.5",
+        "name": "Composer 2.5"
+      }
     }
   ],
   "created_at": "2026-09-06T12:43:02.729828Z",
-  "updated_at": "2026-09-06T14:52:08.043406Z",
+  "updated_at": "2026-09-06T15:02:19.394921Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",

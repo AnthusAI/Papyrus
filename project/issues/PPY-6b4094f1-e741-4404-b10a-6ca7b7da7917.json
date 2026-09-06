@@ -84,10 +84,17 @@
       "text": "First deploy failed: missing `GOOGLE_CLIENT_ID` secret (auth stack rolled back). Setting sandbox secrets + redeploying with `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`. Stack was `amplify-papyrus-ppy6b4094-sandbox-e7c1507645` (ROLLBACK_COMPLETE).",
       "created_at": "2026-09-06T14:42:51.701338Z",
       "comment_type": "default"
+    },
+    {
+      "id": "75f5e664-148c-482f-9876-e5dbdf413258",
+      "author": "home",
+      "text": "Sandbox deploy **succeeded** (identifier `ppy-6b4094`). Stack `amplify-papyrus-ppy6b4094-sandbox-e7c1507645`. Seed OK (12 articles). `npm run build` **passed** against live AppSync. Running BDD baseline next.",
+      "created_at": "2026-09-06T14:58:55.552897Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.034022Z",
-  "updated_at": "2026-09-06T14:42:51.701338Z",
+  "updated_at": "2026-09-06T14:58:55.552897Z",
   "closed_at": null,
   "custom": {}
 }
