@@ -42,10 +42,24 @@
       "text": "Plan approved with one hard constraint: do **not** use `AWS_PROFILE=Ryan` or Ryan’s existing sandbox stack. Default chain, account 335163751677, identifier `ppy-6b4094-sandbox` only. Treat hardcoded Ryan defaults in `ensure-sandbox-amplify-outputs.mjs` / `.env.example` as rough edges to document (and override via env), not as the stack to attach.\n\nNo `.env` in this checkout. If seed fails, record it; still deploy sandbox and try `npm run build` against those outputs.\n\nNext: worktree only, then stop.",
       "created_at": "2026-09-06T14:28:47.618466Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8209e98b-7657-488c-8218-a12f8479e8ba",
+      "author": "home",
+      "text": "Worktree ready for sandbox deploy.\n\n- **Path:** `/Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox`\n- **Branch:** `cursor/chore/PPY-6b4094-sandbox-baseline-3af6`\n- **HEAD:** `93b3195` — docs: site hosting options for amplify-ssr and amplify-static (#58)\n- **Constraint:** default AWS chain only; sandbox identifier `ppy-6b4094-sandbox`; never `AWS_PROFILE=Ryan` or Ryan's existing sandbox stack.",
+      "created_at": "2026-09-06T14:28:55.134946Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f1a0dad0-b081-4f33-98ae-b7875b33c1bd",
+      "author": "home",
+      "text": "Worktree verified (93b3195 on origin/develop). Implementation authorized. Identifier ppy-6b4094-sandbox. Default AWS chain. Do not attach Ryan’s stack. Comment teardown inventory as you go. Do not close.",
+      "created_at": "2026-09-06T14:29:24.051528Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.034022Z",
-  "updated_at": "2026-09-06T14:28:47.618466Z",
+  "updated_at": "2026-09-06T14:29:24.051528Z",
   "closed_at": null,
   "custom": {}
 }
