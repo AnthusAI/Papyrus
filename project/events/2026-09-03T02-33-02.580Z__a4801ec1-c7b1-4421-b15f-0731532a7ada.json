@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a4801ec1-c7b1-4421-b15f-0731532a7ada",
+  "issue_id": "PPY-c559ade5-31e7-4a0d-8018-7e9a61018afb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-03T02:33:02.580Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Non-LLM periphery/adjacency scout for the knowledge graph (plan only)",
+    "description": "PLAN ONLY. No runtime work. Ryan wants quantitative, NON-LLM graph methods to find things ADJACENT to the Papyrus knowledge base that sit toward the OUTER PERIPHERY of the graph, not the dense middle the catalog already clusters on. Output is a human-reviewable suggestion list that feeds the include/exclude gate (PPY-9272c8). A high score must never auto-accept a source. Wiki is not evidence.\n\nFeasibility verdict: FEASIBLE. The graph is real, typed, attributed, and already has graph-analytics plumbing (weighted PageRank, relation-type weighting, in-memory graph builder, signals CLI). Every existing metric ranks toward the CENTER (PageRank, popularity, trending, authority). Nothing surfaces the periphery. That is the gap. Primary risk is corpus size (the architecture doc warns the corpus is small because of the human curation gate); periphery shells on a small graph are noisy, so measure before shipping and report stability.\n\nSee comments for: the graph we run on, candidate algorithms, data inventory (have vs add), the recommended first feature, and risks.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+    "labels": []
+  }
+}
