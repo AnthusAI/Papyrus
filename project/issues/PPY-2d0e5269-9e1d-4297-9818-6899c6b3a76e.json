@@ -1,0 +1,26 @@
+{
+  "id": "PPY-2d0e5269-9e1d-4297-9818-6899c6b3a76e",
+  "title": "build.py global HTML unescape defeats Markus escaping (XSS vector)",
+  "description": "",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0f035982-4117-4d85-8a0f-4fe8c5bda061",
+      "author": "home",
+      "text": "Found in /Users/home/Projects/Pilobol.us/web/build.py (now committed as c9a8823 to preserve at-risk work; committing it did NOT bless it).\n\nTHE CODE:\n  out = result.stdout.replace(\"&lt;\", \"<\").replace(\"&gt;\", \">\").replace(\"&quot;\", '\\\"')\n\nThis globally un-escapes ALL Markus output after 'markus convert --fragment --no-css'. It does not distinguish content the author intended as markup from content Markus deliberately escaped.\n\nWHY IT IS A REAL VECTOR: Markus runs with raw HTML DISABLED by default, and escapes literal angle brackets in prose precisely so a Markdown author cannot inject markup. This line reverses that decision for every character of every document. Any author writing a literal <script> in an article body gets live markup in the published page. The output is then mounted as trusted HTML.\n\nIt also directly contradicts the invariant recorded on PPY-88f77b: 'fragments are trusted because they are built from repo-committed Markdown with --allow-html OFF.' That invariant is false while this line exists - the pipeline is no longer honoring Markus's escaping regardless of the flag.\n\nWHY IT WAS PROBABLY ADDED: the effects pages (physarum, reaction-diffusion, cellular-automata) need to embed <canvas> and <script>. A blanket unescape is the quickest way to get that through.\n\nCORRECT FIXES (pick one, do not keep the unescape):\n(a) Add a Markus directive for embedded interactive media, so the escape hatch is explicit, validated, and part of the vocabulary. Best long-term - it is exactly what the directive registry is for, and it keeps the content model honest.\n(b) Keep effect scaffolding in the PAGE SHELL in build.py (which is trusted Python, not author content) and have the Markdown only name which effect to mount. Smallest change.\n(c) Run those specific pages with --allow-html and a sanitizer, accepting a narrower blast radius. Weakest.\n\nRecommend (b) now and (a) as the durable answer.\n\nNOTE: the deploy branch's build.py (cursor/feature/PPY-17fcfc-amplify-static-3af6) does NOT contain this line. Production is not currently exposed. This is in the divergent local copy - see the reconciliation issue.",
+      "created_at": "2026-09-06T17:25:26.733549Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T17:25:26.709982Z",
+  "updated_at": "2026-09-06T17:25:26.733549Z",
+  "closed_at": null,
+  "custom": {}
+}

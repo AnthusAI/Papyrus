@@ -1,0 +1,26 @@
+{
+  "id": "PPY-a2c7166d-27b8-4807-b646-bbd207cf3b6a",
+  "title": "Reconcile diverged Pilobol.us build.py: effects work vs deploy branch",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "370b6e6a-a0a5-4558-9d7b-39d6880abebc",
+      "author": "home",
+      "text": "Two copies of /web/build.py have diverged and BOTH have something the other needs. Neither is a superset. Do not blindly take either side.\n\nCOPY A - Pilobol.us main branch, commit c9a8823 (rescued from untracked; was committed nowhere before today):\n  + the generative effects work: physarum-v17/v5, reaction-diffusion, cellular-automata, background-manager, cinematic-gallery, organic-image, the effects/ pages, sample imagery, pilobil-theme-v10.css (~5,200 lines)\n  + an 'Effects Index' nav item\n  - still says 'Pilobil.us' - the SUPERSEDED spelling. Decided name is Pilobol.us (see PPY-17fcfc: 'The public domain is pilobol.us ... do not relitigate').\n  - NO theme-toggle script\n  - NEVER copies assets/ or css/ into dist/ - so a clean build from this copy yields HTML with no styles and no JS\n  - globally un-escapes &lt; &gt; &quot; in Markus output - see PPY-2d0e52, must not survive reconciliation\n\nCOPY B - Pilobol.us-worktrees/PPY-17fcfc-static-hosting, branch cursor/feature/PPY-17fcfc-amplify-static-3af6 (what production deploys):\n  + correct 'Pilobol.us' spelling throughout\n  + theme-toggle script (verified working in a browser: data-theme flips, localStorage 'pilobil-theme' persists across navigation)\n  + DOES copy assets/ and css/ into dist/ (lines ~124-130)\n  + has amplify.yml\n  - NONE of the effects work\n\nCONSEQUENCE OF THE MISSING COPY STEP: I ran copy A's build.py. It emitted 20 files, but dist/assets/ still contained a STALE physarum-v8.js while background-manager.js requests physarum-v17.js, which was never copied. The effect is broken in that build output. dist only looked right because earlier one-shot scripts had hand-copied files into it. Copy A's dist is not reproducible from copy A's build.py.\n\nTARGET: one build.py with copy B's correctness (name, theme toggle, asset/css copy, amplify.yml) PLUS copy A's effects, and WITHOUT the unescape hack - replace it per PPY-2d0e52 option (b): put effect scaffolding in the trusted page shell and let Markdown only name the effect to mount.\n\nACCEPTANCE: rm -rf web/dist && python3 web/build.py produces a complete, correct site - styles present, physarum-v17 present and loading, theme toggle working, 'Pilobol.us' spelling throughout - with no manual file copying.",
+      "created_at": "2026-09-06T17:25:45.893978Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T17:25:45.879304Z",
+  "updated_at": "2026-09-06T17:25:45.893978Z",
+  "closed_at": null,
+  "custom": {}
+}

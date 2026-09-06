@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fac983e3-6c93-4f2d-9c08-22a8815f8c3d",
+  "issue_id": "PPY-a2c7166d-27b8-4807-b646-bbd207cf3b6a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T17:25:45.879Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "",
+    "issue_type": "task",
+    "labels": [],
+    "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+    "priority": 1,
+    "status": "open",
+    "title": "Reconcile diverged Pilobol.us build.py: effects work vs deploy branch"
+  }
+}
