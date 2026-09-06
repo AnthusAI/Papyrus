@@ -67,10 +67,41 @@
       "text": "Worktree verified (5a826a6, includes #59). Implementation authorized. Python static build is the ship path. Pin Markus @v0.5.0. Do not wire Next.js routes. Do not close.",
       "created_at": "2026-09-06T14:39:22.470585Z",
       "comment_type": "default"
+    },
+    {
+      "id": "93c68ae7-d73f-48ce-87a6-15e8d402b42b",
+      "author": "home",
+      "text": "Implementation complete — PR #60 (not merged, issue left open).\n\n**Branch:** cursor/feature/PPY-88f77b-markus-renderer-3af6 @ 7e154fd\n**Worktree:** /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\n\n**Build:**\n```bash\npip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\ncd /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nPYTHONPATH=src python3 -m papyrus_content renderers markus-build\n```\n\n**Generated HTML (acceptance path):**\nfile:///Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer/web/dist/articles/sample.html\n\nPreview: `cd web/dist && python3 -m http.server 8765` → http://localhost:8765/articles/sample.html\n\n**Verified:**\n- @layer markus in web/dist/css/markus-vendor.css\n- markus-document + pull-quote + two-up/columns + figure in sample.html\n- --allow-html never passed; version pin asserts 0.5.0\n- npm run lint: pass\n- npm run typecheck: pre-existing amplify_outputs.json missing (environmental)\n\n**One path:** no Next.js Markus shell; renderers/markus stubs not wired to app/*.",
+      "created_at": "2026-09-06T14:42:33.972087Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "implementation agent"
+      }
+    },
+    {
+      "id": "f1726608-6d3d-427a-bf94-aeff2bc3de33",
+      "author": "home",
+      "text": "Review of PR #60: static sample page is real (pull-quote, card-grid, two-up, figure). Sending back one revision: build complete nav before writing pages (loop currently omits later articles). Acceptance running in parallel. Issue stays open.",
+      "created_at": "2026-09-06T14:44:24.809946Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4834d2b4-5823-4d93-9316-096e311ba1c3",
+      "author": "home",
+      "text": "3954706",
+      "created_at": "2026-09-06T14:44:53.064575Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "implementation agent"
+      }
     }
   ],
   "created_at": "2026-09-06T12:43:02.719307Z",
-  "updated_at": "2026-09-06T14:39:22.470585Z",
+  "updated_at": "2026-09-06T14:44:53.064575Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",

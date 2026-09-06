@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-09-06T14:25:36Z",
+  "built_at": "2026-09-06T14:42:56Z",
   "file_mtimes": {
     "PPY-0109a2fd-fc62-4603-a769-ff58a790ae45.json": 1788698550.102527,
     "PPY-02fac757-0b66-4c0c-9932-8117cc974969.json": 1788698550.102607,
@@ -9,7 +9,7 @@
     "PPY-0d667350-c31a-484f-bbee-7b2d08549188.json": 1788698550.102836,
     "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0.json": 1788700648.729037,
     "PPY-13bf6d64-2c2f-4f2a-85ca-d773cb1aa146.json": 1788698550.102898,
-    "PPY-17fcfc3a-7eab-4332-9fa5-125b090d948b.json": 1788704500.974643,
+    "PPY-17fcfc3a-7eab-4332-9fa5-125b090d948b.json": 1788704842.653187,
     "PPY-1e058b9a-cd5d-412d-90b7-ec79eb68df2a.json": 1788698550.102974,
     "PPY-20250557-b002-4aff-969f-a29479b4df13.json": 1788698550.103055,
     "PPY-244ed634-698f-4809-91ee-f0ea7b99d2b1.json": 1788698550.103124,
@@ -31,12 +31,12 @@
     "PPY-5fabc2e4-a40e-45e6-9c29-50bbd7d53f81.json": 1788698550.104232,
     "PPY-61dc8f11-55a0-4f7c-9c5c-3a231cdd0896.json": 1788701484.031232,
     "PPY-68b697ce-5da0-48be-a9a1-9ea822a48cad.json": 1788698550.104299,
-    "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917.json": 1788701484.003996,
+    "PPY-6b4094f1-e741-4404-b10a-6ca7b7da7917.json": 1788705771.70149,
     "PPY-7625aa03-b6c8-453c-83ee-b587370a1035.json": 1788698550.104365,
     "PPY-7b85184d-6593-4f9b-bcce-55db28936160.json": 1788698550.104435,
     "PPY-826729a8-13ce-4df1-a3e7-39da475d351a.json": 1788698550.104502,
     "PPY-873378f5-7091-4a7f-b9c4-5a7cd75de09f.json": 1788698550.104575,
-    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788701305.827914,
+    "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4.json": 1788705753.972255,
     "PPY-9272c873-1903-4fe7-9ded-3a1fe0d975b5.json": 1788698550.104634,
     "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc.json": 1788703928.477139,
     "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7.json": 1788704056.29302,
@@ -44,7 +44,7 @@
     "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8.json": 1788698550.104903,
     "PPY-97625fd5-df41-45f3-90a9-f1024a52e05e.json": 1788698550.104971,
     "PPY-9e8f2e78-8382-4c8b-926a-97affe6689ab.json": 1788698550.105029,
-    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788701305.813314,
+    "PPY-a1020691-0271-4514-8fdf-f8d69339731f.json": 1788705424.517259,
     "PPY-a5399203-659e-47a7-a62c-3c99cbc20ae9.json": 1788698550.105089,
     "PPY-a8566745-92a8-4bea-a953-0de1495646d5.json": 1788698550.105164,
     "PPY-aa6f0a4e-0297-4993-8862-1f79ffc2ba99.json": 1788698550.105236,
@@ -350,6 +350,20 @@
           "created_at": "2026-09-06T14:21:40.974466Z",
           "id": "76debd7e-85ea-4817-8383-f71dc791dde6",
           "text": "## Implementation progress\n\n### Papyrus docs PR (not merged)\n- Branch: `cursor/feature/PPY-17fcfc-site-hosting-3af6`\n- PR: https://github.com/AnthusAI/Papyrus/pull/58 → `develop`\n- Files: `docs/site-hosting.md`, `docs/hosting/amplify-static.yml.example`, `docs/hosting/amplify-ssr.yml.example`, `AGENTS.md` pointer\n\n### Pilobol.us deploy PR (not merged)\n- Branch: `cursor/feature/PPY-17fcfc-amplify-static-3af6`\n- PR: https://github.com/AnthusAI/Pilobol.us/pull/1 → `main`\n- `web/` from PPY-5e8072 (spelling fixes only); `amplify.yml` with Markus `@v0.5.0`; `web/dist/` gitignored\n\n### Amplify WEB app (new — not p.apyr.us / dbsyytcm9drqa)\n- **App ID:** `d1od6t7lzbwanr`\n- **Platform:** WEB\n- **Default URL (live, manual deploy job 1 SUCCEED):** https://main.d1od6t7lzbwanr.amplifyapp.com/\n- **Production branch:** `main` (manual zip deploy of locally built `web/dist` for now)\n\n### Custom domain (zone Z09961547QX1VHIXOBD7 — pre-existing)\n- Domain association: `pilobol.us` + `www` → branch `main`\n- Status: `REQUESTING_CERTIFICATE` (awaiting registrar NS propagation Ryan is doing)\n- Route 53 records Amplify created:\n  - apex `pilobol.us` A alias → `d3tottbx4vximc.cloudfront.net`\n  - `www.pilobol.us` CNAME → `d3tottbx4vximc.cloudfront.net`\n- `https://pilobol.us` pending NS + ACM\n\n### GitHub CI connection — needs human OAuth\n`aws amplify update-app --repository` requires a valid GitHub token. To wire push-to-deploy after PR #1 merges:\n1. AWS Console → Amplify → app **pilobol-us** (`d1od6t7lzbwanr`)\n2. **Hosting** → **Connect repository** → authorize GitHub\n3. Repo `AnthusAI/Pilobol.us`, branch `main`, use root `amplify.yml`\n4. First CI build replaces manual deploy artifact\n\nIssue left open per instructions."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:25:51.029929Z",
+          "id": "2036262d-c2a0-48f7-910c-cbf598c699e0",
+          "text": "Ryan set registrar NS. Public resolvers still show GoDaddy (expected). ACM CNAME is already in zone Z09961547QX1VHIXOBD7 — no registrar CNAME. Default site is live at https://main.d1od6t7lzbwanr.amplifyapp.com/ (WEB, HTTP 200). Custom https://pilobol.us waits on NS. GitHub repo still disconnected (human OAuth) — push-to-deploy not on yet; current deploy is the manual artifact."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:27:22.652973Z",
+          "id": "9227b23e-c2e6-4b05-833e-005011cf6d6b",
+          "text": "## Acceptance review — live Markus static site (Composer 2.5)\n\n**Primary URL tested:** https://main.d1od6t7lzbwanr.amplifyapp.com/\n\n### Custom domains (expected not ready — not filed as product bugs)\n- **pilobol.us** — HTTP 200 but serves GoDaddy placeholder (`/lander` redirect). Not the Markus build.\n- **www.pilobol.us** — Does not serve the site (SSL/connect failure / CloudFront error). DNS still not pointed at Amplify.\n\n### Front page ✅\n- Loads HTTP 200 with styled HTML (not raw/unstyled).\n- Wordmark is **Pilobol.us** in `<title>`, masthead, and body copy. No reader-facing **Pilobil.us** typo found (internal asset `pilobil-theme.css` filename only).\n\n### Articles ✅\nBoth open and render with CSS:\n- `/articles/fungus-among-us.html` — 200, full article content + assets (e.g. mycelium SVG 200)\n- `/articles/infiltrated-circle.html` — 200, full article content\n\nNote: bare paths `/fungus-among-us/` and `/infiltrated-circle/` return 404; live links on the home page use the `.html` paths above.\n\n### Markus directives ✅ (site-wide)\nOn **fungus-among-us**: pull-quote, card-grid, card, two-up, figure, callout, aside, metric — all present in markup.\nOn **infiltrated-circle**: pull-quote, callout (+ timeline). Remaining directive types are demonstrated on the other piece; a reader visiting both sees the full set.\n\n### CSS ✅\n- `css/markus-vendor.css` — 200\n- `css/pilobil-theme.css` — 200, includes `data-theme=\"dark\"` / `data-theme=\"light\"` rules\n\n### Theme toggle ⚠️ not visually verified\n- Masthead **Dark mode** button and inline JS (`data-pilo-theme-toggle`, `localStorage` key `pilobil-theme`) are present on all pages checked.\n- No browser automation available in this run — could not confirm click toggles appearance or persistence.\n\n### Mobile viewport ⚠️ not visually verified\n- `viewport` meta tag present; responsive `@media` rules exist in both CSS files.\n- Narrow-width layout not rendered/tested without browser tools.\n\n---\n\n**Verdict: Approve to continue on PPY-17fcfc** for the Amplify staging URL. Blockers for public launch remain custom-domain DNS (pilobol.us / www) and optional follow-ups: clean URL paths, visual QA of theme toggle + mobile layout."
         }
       ],
       "created_at": "2026-09-06T14:05:42.812329Z",
@@ -364,7 +378,7 @@
       "status": "in_progress",
       "title": "Site hosting options: Amplify static WEB, proven on pilobil.us",
       "type": "task",
-      "updated_at": "2026-09-06T14:21:40.974466Z"
+      "updated_at": "2026-09-06T14:27:22.652973Z"
     },
     {
       "assignee": null,
@@ -953,6 +967,73 @@
           "created_at": "2026-09-06T13:26:23.457276Z",
           "id": "8c862ec8-db3e-43c3-9bd4-b26838dc7e31",
           "text": "GOAL: actually deploy Papyrus to AWS, find what breaks, fix what you can, and report every rough edge.\n\nWHY THIS IS VALUABLE NOW: local verification is blocked on a missing backend and we have been unable to distinguish real regressions from environment gaps. Concretely, verified today:\n- 'npm run build' FAILS at 'Collecting page data' with 'TypeError: Cannot convert undefined or null to object' in listPublishedEditions / listArticleSlugs. I confirmed this failure is IDENTICAL on origin/develop, so it is PRE-EXISTING and environmental - the build fetches live AppSync data and there is no reachable backend.\n- BDD needs a synthetic amplify_outputs.json plus a dev server, and most failures are 'no seeded GraphQL data', not real defects.\nA real deployment is the only way to get a trustworthy green baseline.\n\nSCOPE:\n1. Deploy the Amplify backend (amplify/ - Gen 2, see amplify.yml and package.json scripts such as outputs:sandbox). Get a real amplify_outputs.json.\n2. Get 'npm run build' to actually succeed against it. Document every step that was not already written down.\n3. Run the BDD suite against the deployed backend and record the REAL baseline: how many scenarios pass when the environment is correct. That number is what future work gets compared against.\n4. Fix rough edges you hit, in small reviewable commits, and log each one as a comment here as you go.\n5. Write down the working procedure (a runnable doc under docs/) so the next person does not rediscover it.\n\nCONSTRAINTS: do not touch lib/renderer.ts or renderers/pretext/. If deployment reveals a defect in the renderer refactor, comment on PPY-d79ff2 and PPY-92f846 rather than editing.\n\nCOST/SAFETY: this creates real AWS resources. Prefer an Amplify sandbox over anything shared. Record exactly what you created and how to tear it down. Do NOT deploy to or modify any production environment, and do not put credentials in the repo."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:26:17.893833Z",
+          "id": "09071bcc-8929-4cf2-959c-2279a7cca60f",
+          "text": "Restarting after throttle. Previous agent produced nothing durable. Amplify sandbox only; never touch p.apyr.us (dbsyytcm9drqa) or pilobol.us (d1od6t7lzbwanr). Composer 2.5 planning first."
+        },
+        {
+          "agent": {
+            "model": "Composer 2.5",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:27:40.823078Z",
+          "id": "fe131ec3-80a8-412b-b679-a2f8f3675cb0",
+          "text": "## PPY-6b4094 implementation plan (Composer 2.5)\n\n**Agent:** planning pass only — no sandbox created, no code, no commits in this turn.\n\n### Goal\n\nStand up a **personal Amplify Gen 2 sandbox** in AWS account `335163751677` so `npm run build` and frontend BDD can reach a real AppSync backend. Record what was created, how to tear it down, and every rough edge in `docs/`. Establish the **real BDD pass/fail baseline** against seeded sandbox data.\n\n### Worktree (implementer creates; not created in planning pass)\n\n| Item | Value |\n|------|-------|\n| Path | `/Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox` |\n| Branch | `cursor/chore/PPY-6b4094-sandbox-baseline-3af6` |\n| Base | `origin/develop` |\n| Never use | primary clone `/Users/home/Projects/Papyrus` |\n\n```bash\n# From any clone with origin/develop\ngit fetch origin develop\ngit worktree add -b cursor/chore/PPY-6b4094-sandbox-baseline-3af6 \\\n  /Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox origin/develop\ncd /Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox\n```\n\n### AGENTS.local.md absent — substitute preflight\n\n`AGENTS.md` requires `AGENTS.local.md` before cloud commands; it is **missing** from this checkout. Proceed with explicit substitutes and document the gap:\n\n1. **AWS profile:** default credential chain (no `AWS_PROFILE` set → account `335163751677` root, verified).\n2. **Region:** `AWS_REGION=us-east-1` (already in `~/.aws/config`).\n3. **Preflight checks** (run before any `ampx` command):\n   ```bash\n   aws sts get-caller-identity   # MUST be 335163751677\n   aws configure get region        # MUST be us-east-1\n   ```\n4. **Export for all sandbox/build/BDD work:**\n   ```bash\n   export AWS_REGION=us-east-1\n   # Do NOT set AWS_PROFILE unless a named profile is required; default chain is logged in.\n   ```\n5. **Override Ryan-specific defaults** in repo scripts (rough edge #1):\n   - `scripts/ensure-sandbox-amplify-outputs.mjs` defaults `AWS_PROFILE=Ryan` and stack `amplify-papyrus-ryan-sandbox-adcd88a186`.\n   - After sandbox deploy, set `PAPYRUS_SANDBOX_AMPLIFY_STACK=<your-new-stack-name>` in worktree `.env` before `npm run outputs:sandbox` / `npm run dev`.\n   - Never point outputs at production hosts (`64hviw…` AppSync, pool `us-east-1_40Uot7WSv`).\n\n### Hard safety guardrails\n\n| Forbidden | Identifier |\n|-----------|------------|\n| Production Amplify app | `dbsyytcm9drqa` / p.apyr.us |\n| Pilobol.us static app | `d1od6t7lzbwanr` / hosted zone `Z09961547QX1VHIXOBD7` |\n| Commands | `ampx pipeline-deploy`, any prod stack modify, Route53 changes on prod zone |\n\n**Before every AWS/Amplify command:** confirm caller identity is `335163751677` and stack/app identifiers are sandbox-scoped.\n\n**Out of scope for code edits:** `lib/renderer.ts`, `renderers/pretext/`. Renderer defects → comment on PPY-d79ff2 / PPY-92f846.\n\n### Phase 0 — Worktree bootstrap\n\n1. Create worktree + branch (above).\n2. `npm ci` and `poetry install` in worktree.\n3. Copy `.env` from `.env.example`; set seed credentials (`PAPYRUS_SEED_*` from example defaults are fine for sandbox).\n4. If CLI authoring/JWT needed later: `poetry run papyrus auth refresh-jwt --write-env .env` against **sandbox** SSM path (discovered after deploy), not production SSM under `dbsyytcm9drqa`.\n5. Optional: symlink or `PAPYRUS_CONFIG` to main clone `.papyrus/config.yaml` if video/Tavily dogfood is needed (not required for build+BDD baseline).\n\n### Phase 1 — Deploy personal Amplify sandbox\n\n```bash\ncd /Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox\nexport AWS_REGION=us-east-1\n\n# One-shot deploy (no watch). Use a distinct identifier to avoid colliding with Ryan's sandbox:\nnpx ampx sandbox --once --identifier ppy-6b4094-sandbox --profile default\n# Or omit --profile if default chain is intended.\n```\n\n**Wait** until deploy completes and `amplify_outputs.json` is written to worktree root.\n\n**Record immediately** (for teardown doc):\n- Sandbox identifier (`ppy-6b4094-sandbox`)\n- CloudFormation stack name (from console or `aws cloudformation list-stacks`)\n- AppSync GraphQL URL + API id\n- Cognito user pool id\n- S3 media bucket name\n- Lambda function name prefixes\n- Estimated monthly cost note (personal sandbox; delete when done)\n\nSet in `.env`:\n```\nPAPYRUS_SANDBOX_AMPLIFY_STACK=<stack-name-from-deploy>\n```\n\nRegenerate outputs explicitly:\n```bash\nnpm run outputs:sandbox   # after PAPYRUS_SANDBOX_AMPLIFY_STACK is set\n```\n\n**Do not** run `ampx pipeline-deploy`.\n\n### Phase 2 — Seed sandbox content\n\n```bash\nnpm run seed:amplify\n# If identifier was used:\n# npx ampx sandbox seed --identifier ppy-6b4094-sandbox\n```\n\nSeed loads fixture edition from `amplify/seed/` (profile `threat-intelligence` by default), uploads media, creates published `Edition` + `Item` rows with `publishedAt`.\n\nVerify:\n```bash\npoetry run papyrus ops content inspect\npoetry run papyrus ops content list articles\n```\n\n### Phase 3 — `npm run build` against live AppSync\n\nRoot cause of current failure (confirmed on `origin/develop`): `next build` runs `generateEditionDateStaticParams` / `generateArticleStaticParams` which call `listPublishedEditions` / `listArticleSlugs` via `graphql-content-repository.ts` at **build time** (not dev-only). Without reachable AppSync + valid `amplify_outputs.json`, build dies with `TypeError: Cannot convert undefined or null to object`.\n\n```bash\n# Ensure amplify_outputs.json is sandbox (not production)\nnpm run build\n```\n\n**Success criteria:** build completes without GraphQL null errors.\n\nIf build still fails after seed:\n- Confirm `amplify_outputs.json` auth/data sections populated.\n- Confirm seeded edition has `status=published`, `editionDate`, `publishedAt`.\n- Confirm identity-pool guest read auth works (reader uses `authMode: identityPool`).\n- Log failure verbatim as rough edge; fix only if sandbox/deploy/seed/doc issue — not renderer.\n\n### Phase 4 — BDD baseline\n\nBDD needs a **running dev server** with real `amplify_outputs.json` (not synthetic stub).\n\n**Terminal A — canonical newspaper profile:**\n```bash\nexport $(grep -v '^#' config/bdd-canonical.env.example | xargs)\nnpm run dev:127   # port 3001, sandbox outputs via ensure-sandbox script\n```\n\n**Terminal B — run suite:**\n```bash\nexport PAPYRUS_BASE_URL=http://127.0.0.1:3001\nnpm run test:bdd:check-brand\nnpm run test:bdd:canonical 2>&1 | tee /tmp/ppy-6b4094-bdd-baseline.log\n```\n\n**Record in issue comment + docs:**\n- Total scenarios / passed / failed / skipped (tag-based skips expected on non-canonical brands)\n- Cucumber summary line\n- Any failures that are **real defects** vs **missing seed data** vs **environment**\n\nOptional secondary runs (lower priority):\n- `npm run test:bdd` (fork brand — newspaper scenarios skip)\n- `npm run test:bdd:operator-cli` (needs JWT + endpoint in `.env`)\n\nDo **not** block baseline on `test:bdd:agent-live` unless time permits (live-agent is sandbox-oriented but heavier).\n\n### Phase 5 — Fix rough edges (small PRs)\n\nFor each fixable rough edge:\n1. Small focused commit on `cursor/chore/PPY-6b4094-sandbox-baseline-3af6`.\n2. Comment on PPY-6b4094 with what broke and what changed.\n3. Open PR → `develop`.\n\nLikely doc/fix candidates (discovered during planning):\n1. `AGENTS.local.md` missing — add `docs/aws-sandbox-personal.md` with default-profile/us-east-1 preflight.\n2. `ensure-sandbox-amplify-outputs.mjs` hardcodes `AWS_PROFILE=Ryan` + Ryan stack — document `PAPYRUS_SANDBOX_AMPLIFY_STACK` requirement; consider PR to stop defaulting foreign profile when unset.\n3. Build-time GraphQL dependency undocumented — document that `npm run build` requires live backend or pre-generated static params strategy.\n4. `.env.example` references Ryan sandbox ids — add note that new sandboxes get new stack/pool/graphql ids.\n5. BDD canonical brand vs threat-intelligence default in `.env.example` — document which env to source for full regression.\n\n### Phase 6 — Deliverable doc\n\nAdd **`docs/aws-sandbox-personal.md`** (runnable runbook) covering:\n- Prerequisites (Node, Poetry, AWS account, no `AGENTS.local.md` workaround)\n- Worktree + branch naming\n- Sandbox deploy (`ampx sandbox --once --identifier …`)\n- `PAPYRUS_SANDBOX_AMPLIFY_STACK` + `outputs:sandbox`\n- Seed + verify commands\n- Build + BDD baseline commands\n- JWT/CLI authoring (sandbox SSM path pattern)\n- **Teardown section** with exact resources and:\n  ```bash\n  npx ampx sandbox delete --identifier ppy-6b4094-sandbox -y\n  ```\n- Safety checklist (production app ids to never touch)\n\n### Teardown inventory template\n\nFill during deploy and paste into doc + final issue comment:\n\n```\nSandbox identifier: ppy-6b4094-sandbox\nAWS account: 335163751677\nRegion: us-east-1\nCFN stack: <fill>\nAppSync URL: <fill>\nUser pool: <fill>\nS3 bucket: <fill>\nCreated: <date>\nDelete command: npx ampx sandbox delete --identifier ppy-6b4094-sandbox -y\n```\n\n### Verification matrix\n\n| Check | Command | Expected |\n|-------|---------|----------|\n| AWS account | `aws sts get-caller-identity` | `335163751677` |\n| Sandbox outputs | inspect `amplify_outputs.json` | sandbox graphql/pool, not `64hviw` / `40Uot7WSv` |\n| Seed | `poetry run papyrus ops content list articles` | ≥1 published article |\n| Build | `npm run build` | exit 0 |\n| BDD brand | `npm run test:bdd:check-brand` | canonical papyrus |\n| BDD baseline | `npm run test:bdd:canonical` | record pass/fail counts |\n\n### Git / Kanbus hygiene\n\n- Implementation commits on feature branch only; PR to `develop`.\n- Progress comments on PPY-6b4094 as work proceeds.\n- **Do not close** PPY-6b4094 until doc + baseline + PR land.\n- Parent epic: PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab\n\n### Planning-pass stop\n\nPlanning complete. Next agent: create worktree, execute Phases 0–6.\n"
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:28:47.618466Z",
+          "id": "2345e6a7-f0f7-4f4a-9cea-3b19c28bef5f",
+          "text": "Plan approved with one hard constraint: do **not** use `AWS_PROFILE=Ryan` or Ryan’s existing sandbox stack. Default chain, account 335163751677, identifier `ppy-6b4094-sandbox` only. Treat hardcoded Ryan defaults in `ensure-sandbox-amplify-outputs.mjs` / `.env.example` as rough edges to document (and override via env), not as the stack to attach.\n\nNo `.env` in this checkout. If seed fails, record it; still deploy sandbox and try `npm run build` against those outputs.\n\nNext: worktree only, then stop."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:28:55.134946Z",
+          "id": "8209e98b-7657-488c-8218-a12f8479e8ba",
+          "text": "Worktree ready for sandbox deploy.\n\n- **Path:** `/Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox`\n- **Branch:** `cursor/chore/PPY-6b4094-sandbox-baseline-3af6`\n- **HEAD:** `93b3195` — docs: site hosting options for amplify-ssr and amplify-static (#58)\n- **Constraint:** default AWS chain only; sandbox identifier `ppy-6b4094-sandbox`; never `AWS_PROFILE=Ryan` or Ryan's existing sandbox stack."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:29:24.051528Z",
+          "id": "f1a0dad0-b081-4f33-98ae-b7875b33c1bd",
+          "text": "Worktree verified (93b3195 on origin/develop). Implementation authorized. Identifier ppy-6b4094-sandbox. Default AWS chain. Do not attach Ryan’s stack. Comment teardown inventory as you go. Do not close."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:29:33.774035Z",
+          "id": "b8621a71-d3d4-44d7-892c-411fd2e247f5",
+          "text": "Implementation started in worktree `/Users/home/Projects/Papyrus-worktrees/PPY-6b4094-sandbox`. AWS preflight OK (account 335163751677, us-east-1). Bootstrapping deps + deploying sandbox identifier `ppy-6b4094-sandbox`."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:30:36.622152Z",
+          "id": "e0c65de1-0f70-41b5-8ce3-448ab2af7ec2",
+          "text": "Rough edge: Amplify rejects identifier `ppy-6b4094-sandbox` (>15 chars). Redeploying with `ppy-6b4094` (10 chars, same issue id)."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:35:43.358688Z",
+          "id": "831bee2b-2574-4017-8eb7-1df347a874bc",
+          "text": "Sandbox deploy in progress (identifier `ppy-6b4094`). Currently building Lambda container images via CDK — still running after ~5 min."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:42:51.701338Z",
+          "id": "6b093984-7530-4545-ab2d-d5a8213d29c4",
+          "text": "First deploy failed: missing `GOOGLE_CLIENT_ID` secret (auth stack rolled back). Setting sandbox secrets + redeploying with `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`. Stack was `amplify-papyrus-ppy6b4094-sandbox-e7c1507645` (ROLLBACK_COMPLETE)."
         }
       ],
       "created_at": "2026-09-06T13:26:03.034022Z",
@@ -967,7 +1048,7 @@
       "status": "in_progress",
       "title": "Deploy Papyrus to AWS and report rough edges",
       "type": "task",
-      "updated_at": "2026-09-06T13:31:24.003877Z"
+      "updated_at": "2026-09-06T14:42:51.701338Z"
     },
     {
       "assignee": null,
@@ -1074,6 +1155,63 @@
           "created_at": "2026-09-06T12:44:51.948723Z",
           "id": "041d43df-f234-4570-902e-42083ba0d53c",
           "text": "GOAL: the Markus renderer, producing REAL viewable static pages. This is the task that makes the PoC real.\n\nSCOPE:\n1. Implement the Renderer interface (from PPY-d79ff2) for Markus.\n2. Build step in Python (Papyrus is Python-first on the backend; markus is already installed at /Users/home/miniconda3/bin/markus - the PR's 'PyPI unverified' question is RESOLVED, anthus-markus is installed and working).\n3. Emit real static HTML pages: markus convert --fragment --no-css per article, plus a page shell, plus CSS.\n4. CSS CASCADE - do NOT rely on upstream Markus not using @layer (PR #57 does; that is a bet on someone else's future commits). Wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically.\n5. ONE PATH ONLY. PR #57 proposed a Python-built static output AND a Next.js dev/preview shell - that means what you preview is not what you ship. Build the static site and serve it with a plain static server.\n6. SECURITY: fragments get mounted as trusted HTML. 'markus validate' checks DIRECTIVE VOCABULARY, not XSS - it is not a security control and PR #57 wrongly implies it is. The real invariant is: fragments are built in CI from repo-committed Markdown with --allow-html OFF. Assert that at build time, do not just comment it.\n\nACCEPTANCE: I can open a real generated HTML file in a browser and see a correctly rendered article. Not a placeholder."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:35:49.749641Z",
+          "id": "640f9248-7d96-4c91-a26a-b9ff5899f844",
+          "text": "PPY-a10206 projection landed (#59). Markus renderer is unblocked on the Renderer interface (d79ff2) and can proceed in its own worktree. Composer 2.5 planning first."
+        },
+        {
+          "agent": {
+            "model": "Composer 2.5",
+            "name": "planning agent",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:37:51.877830Z",
+          "id": "aa7265dc-c61a-491f-a946-7757fdcd33da",
+          "text": "## Composer 2.5 implementation plan — PPY-88f77b Markus renderer\n\n**Agent:** planning (no code this turn)  \n**Base branch:** `origin/feature/renderer-architecture` (includes PPY-a10206 / PR #59)  \n**Worktree (create at implement time, not now):**  \n`/Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer`  \n**Feature branch:** `cursor/feature/PPY-88f77b-markus-renderer-3af6`\n\n---\n\n### Goal (restated)\n\nMake the Markus renderer **real**: a Python build emits **complete static HTML pages** (article fragment + page shell + layered CSS) that open correctly in a browser. This is the Papyrus framework implementation of the `Renderer` interface — **not** a second copy of `AnthusAI/Pilobol.us/web/build.py`.\n\n**Acceptance:** open a generated `.html` file (or `web/dist/` via `python -m http.server`) and see a correctly rendered Markus article — not a placeholder, not a Next.js-only preview.\n\n---\n\n### Architectural decision: one path only\n\nPR #57’s failure mode was **two pipelines** (Python static output *and* a Next.js dev shell that re-rendered differently). This task rejects that.\n\n| Layer | Responsibility |\n| --- | --- |\n| **Python build (canonical)** | `markus convert --fragment --no-css` per Markdown source → wrap in HTML shell → copy assets → write `web/dist/` |\n| **Preview / deploy** | Serve `web/dist/` with a plain static server (`python -m http.server`, Amplify `WEB` per `docs/site-hosting.md`) |\n| **TS `renderers/markus/` (interface compliance)** | Export `markusRenderer: Renderer` with `supportsLayout → false`, `stylesheets()` listing the same CSS files the shell links. React component slots exist for the contract but **are not wired into `app/*` routes in this task** and must not implement a second render path. |\n\nDo **not** add a Markus branch to `PresentationShell`, do **not** mount fragments via `dangerouslySetInnerHTML` in Next for “local preview”, do **not** add `next export` / SSR routes for Markus in this PR.\n\nReference only: `Pilobol.us/web/build.py` shows the shell + `markus convert` pattern; reimplement that logic **inside Papyrus** under `src/papyrus_content/`, parameterized for publication content dirs.\n\n---\n\n### Dependencies already landed (do not redo)\n\n- **PPY-d79ff2 (closed):** `lib/renderer.ts` + `renderers/pretext/` retrofit. **Do not edit** `lib/renderer.ts` or `renderers/pretext/` except importing the interface from Markus code.\n- **PPY-a10206 / PR #59 (closed):** `lib/markus-ir.ts`, `lib/markus-projection.ts`, fixtures — for Pretext projection only; Markus **build** reads committed `.md` and calls the CLI, not the TS projection.\n- **PPY-17fcfc (in parallel):** `amplify-static` + Markus `@v0.5.0` pin documented on `origin/cursor/feature/PPY-17fcfc-site-hosting-3af6`. Align pin here; do not invent a different version.\n\n---\n\n### Collision avoidance\n\n| Issue | Constraint |\n| --- | --- |\n| **PPY-6b4094** | Sandbox deploy worktree `PPY-6b4094-sandbox`. Do not touch `lib/renderer.ts`, `renderers/pretext/`, or Amplify sandbox deploy. |\n| **PPY-17fcfc** | Hosting templates / DNS / Amplify app creation stay in 17fcfc. 88f77b delivers the **Papyrus build command + dist output** that 17fcfc’s `amplify-static.yml.example` will invoke. |\n| **Pilobol.us pod** | Do not fork or modify `AnthusAI/Pilobol.us`. |\n\n---\n\n### Proposed file layout (Papyrus repo)\n\n```text\nsrc/papyrus_content/\n  markus_renderer/\n    __init__.py\n    build.py           # orchestrates full site build → web/dist/\n    convert.py           # subprocess wrapper: markus convert (pinned, no --allow-html)\n    vendor_css.py        # copy markusmd/static → dist/css, wrap in @layer markus { … }\n    shell.py             # HTML page template (masthead/nav/footer links CSS)\n    security.py          # build-time invariants (allow-html OFF, version pin)\n\nrenderers/markus/\n  index.ts               # export markusRenderer: Renderer\n  stubs.tsx              # minimal components satisfying interface (not route-wired)\n\nweb/                     # PoC static-site **source** (committed)\n  content/\n    articles/\n      sample.md          # extend scripts/fixtures/markus-sample.md (+ asset ref)\n    assets/              # diagram.png etc.\n  css/\n    site-theme.css       # site layer (unlayered — wins over @layer markus)\n  dist/                  # gitignored build output\n\nscripts/\n  vendor-markus-css.py   # optional thin CLI; may live entirely in vendor_css.py\n```\n\n**CLI surface:** `poetry run papyrus renderers markus build [--content web/content] [--out web/dist] [--theme <name>]`\n\nAdd `renderers:markus-build` (or `renderers:markus build` per existing `group:command` dispatch) to `PORTED_COMMANDS` in `cli.py`.\n\n---\n\n### Implementation phases (implementer order)\n\n#### Phase 1 — Markus pin + vendor CSS (`@layer markus`)\n\n1. **Pin `@v0.5.0`** — match 17fcfc: `pip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"`. Add optional Poetry dependency group or document in build preflight; **assert** `markus --version` reports `0.5.0` at build start (fail loudly on mismatch — local env currently has 0.4.0).\n2. **`vendor_css.py`** — copy from installed `markusmd/static/`:\n   - `markus.css` + selected `themes/<theme>.css` (default theme TBD; Pilobol uses bundled vendor file — pick one baked theme for PoC, no runtime switcher required).\n   - Concatenate/wrap: `@layer markus { …original file contents… }` for **each** vendored file before writing `dist/css/markus-vendor.css` (single bundle) or separate layered files.\n3. **Site CSS** — copy `web/css/site-theme.css` → `dist/css/site-theme.css` **without** `@layer` so it wins deterministically regardless of upstream Markus adding `@layer` later.\n\n#### Phase 2 — Secure convert wrapper\n\n1. **`convert.py`** — subprocess:\n   ```text\n   markus convert <src.md> --fragment --no-css [--theme <name>]\n   ```\n   - **Never pass `--allow-html`.**\n   - `security.py`: assert argv excludes `--allow-html`; optionally scan subprocess environment; **do not** treat `markus validate` as a security gate (vocabulary check only — comment that in code, don’t call it for “safety”).\n2. Capture stdout fragment; fail build on non-zero exit with stderr surfaced.\n\n#### Phase 3 — Page shell + site build\n\n1. **`shell.py`** — emit complete `<!DOCTYPE html>` documents (head links `css/markus-vendor.css` then `css/site-theme.css`; body wraps fragment in `<main>` with minimal masthead/footer). Follow Pilobol shell structure as reference, generic Papyrus branding for PoC.\n2. **`build.py`** — for each `web/content/articles/*.md`:\n   - run convert → fragment\n   - resolve relative asset paths in Markdown (`figure src`) to `dist/assets/` (copy sources from `web/content/assets/`)\n   - write `dist/articles/<slug>.html`\n   - optional `dist/index.html` listing articles (nice for acceptance, not required if one article suffices)\n3. Idempotent: recreate `dist/` each run; add `web/dist/` to `.gitignore` if missing.\n\n#### Phase 4 — TS Renderer interface (no route wiring)\n\n1. **`renderers/markus/index.ts`**:\n   - `id: \"markus\"`\n   - `supportsLayout: () => false` for all Pretext layouts\n   - `stylesheets: () => [\"css/markus-vendor.css\", \"css/site-theme.css\"]` (paths relative to static root — same as shell)\n   - `renderEdition` / `renderArticle` / `renderItem`: export stub components (e.g. render a clear static-only message, or no-op fragment) — **must not** invoke Pretext, **must not** re-run Markus in the browser\n2. **Do not** change `app/page.tsx` or other routes to import `markusRenderer` — dispatch wiring is **PPY-eca592** / later.\n\n#### Phase 5 — PoC content\n\n1. Commit `web/content/articles/sample.md` based on `scripts/fixtures/markus-sample.md` (pull-quote + card-grid + figure) with a real asset under `web/content/assets/`.\n2. Ensure generated HTML shows directives rendered (figure img resolves, pull-quote styled, card-grid degrades visually via Markus CSS).\n\n---\n\n### Security invariants (build-time, asserted — not commented)\n\n| Invariant | Enforcement |\n| --- | --- |\n| `--allow-html` OFF | Never in subprocess argv; build fails if flag detected in wrapper or config |\n| Fragments trusted only because source is repo-committed Markdown built in CI | Document in `security.py`; no runtime sanitization theater |\n| `markus validate` | **Not** used as XSS/security control; optional dev-only vocabulary check at most |\n\n---\n\n### Verification checklist (implementer must re-run, not trust subagent reports)\n\n```bash\n# 1. Pin + build\npip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\npoetry run papyrus renderers markus build --content web/content --out web/dist\n\n# 2. Inspect output\ntest -f web/dist/articles/sample.html\ngrep -q 'class=\"markus-document\"' web/dist/articles/sample.html\ngrep -q '@layer markus' web/dist/css/markus-vendor.css\n! grep -q '--allow-html' src/papyrus_content/markus_renderer/convert.py  # sanity\n\n# 3. Browser acceptance\ncd web/dist && python3 -m http.server 8765\n# open http://localhost:8765/articles/sample.html — rendered article, not placeholder\n\n# 4. TS hygiene (stub renderer only)\nnpm run lint && npm run typecheck\n\n# 5. Scope audit\ngit diff --stat   # expect ONLY markus_renderer/, renderers/markus/, web/, cli.py, .gitignore, pyproject optional dep\n```\n\nReport exact command output in issue comments. Pre-existing `npm run build` AppSync failure on `develop` is environmental (PPY-6b4094) — not a gate for this task.\n\n---\n\n### Out of scope (explicit)\n\n- `SiteBrand.renderer` / `HostingConfig` discriminated union (**PPY-eca592**)\n- Amplify app, DNS, `amplify.yml` deploy (**PPY-17fcfc**)\n- `PodContentRepository`, GraphQL Markdown emission, edition index pages\n- Wiring `markusRenderer` into Next.js routes or `PresentationShell`\n- Dual-renderer proof article (**PPY-10e4cd** — blocked on 88f77b + eca592)\n- Runtime theme switcher (Pilobol has one; v1 uses one baked theme)\n- `markus site` command reuse (demo-specific)\n\n---\n\n### Risks / decisions for implementer\n\n1. **Markus 0.5.0 vs local 0.4.0** — build preflight must fail on wrong version; CI will install from git tag.\n2. **Theme choice** — pick one default (e.g. from Markus `themes/`) for PoC; document in build `--theme` flag.\n3. **Renderer React stubs** — minimal but typed; avoid importing Pretext or `@chenglou/pretext`.\n4. **Edition pages** — v1 can ship single-article proof; multi-page edition shell deferred to 10e4cd unless trivial to add from content dir glob.\n\n---\n\n### PR target\n\nOpen PR into `feature/renderer-architecture` (or `develop` per orchestrator — confirm before push). Include verification notes + screenshot path or `file://` path to generated HTML. Do **not** close PPY-88f77b until human review.\n"
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:38:37.825182Z",
+          "id": "f3b98d77-39e4-4e01-9d05-3322c3e94fd4",
+          "text": "Plan approved. Python static build is the product path — React stubs must not become a second preview. PR stacks on feature/renderer-architecture. Next: worktree only, then stop."
+        },
+        {
+          "agent": {
+            "model": "Composer 2.5",
+            "name": "planning agent",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:38:45.554049Z",
+          "id": "00f2da97-7019-4be0-91a6-025694884227",
+          "text": "Worktree ready for implementation (not started).\n\nPath: /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nBranch: cursor/feature/PPY-88f77b-markus-renderer-3af6\nBase: origin/feature/renderer-architecture\nHEAD: 5a826a6 — feat: Markus document IR types and Pretext projection (PPY-a10206) (#59)\n\nVerified: lib/markus-ir.ts and lib/markus-projection.ts present at HEAD. No implementation files added."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:39:22.470585Z",
+          "id": "7aca7078-7bc0-40ef-b64d-a9a995e3e4f3",
+          "text": "Worktree verified (5a826a6, includes #59). Implementation authorized. Python static build is the ship path. Pin Markus @v0.5.0. Do not wire Next.js routes. Do not close."
+        },
+        {
+          "agent": {
+            "model": "Composer 2.5",
+            "name": "implementation agent",
+            "platform": "cursor"
+          },
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:42:33.972087Z",
+          "id": "93c68ae7-d73f-48ce-87a6-15e8d402b42b",
+          "text": "Implementation complete — PR #60 (not merged, issue left open).\n\n**Branch:** cursor/feature/PPY-88f77b-markus-renderer-3af6 @ 7e154fd\n**Worktree:** /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\n\n**Build:**\n```bash\npip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\ncd /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nPYTHONPATH=src python3 -m papyrus_content renderers markus-build\n```\n\n**Generated HTML (acceptance path):**\nfile:///Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer/web/dist/articles/sample.html\n\nPreview: `cd web/dist && python3 -m http.server 8765` → http://localhost:8765/articles/sample.html\n\n**Verified:**\n- @layer markus in web/dist/css/markus-vendor.css\n- markus-document + pull-quote + two-up/columns + figure in sample.html\n- --allow-html never passed; version pin asserts 0.5.0\n- npm run lint: pass\n- npm run typecheck: pre-existing amplify_outputs.json missing (environmental)\n\n**One path:** no Next.js Markus shell; renderers/markus stubs not wired to app/*."
         }
       ],
       "created_at": "2026-09-06T12:43:02.719307Z",
@@ -1096,7 +1234,7 @@
       "status": "in_progress",
       "title": "Markus renderer: publish real static pages",
       "type": "task",
-      "updated_at": "2026-09-06T13:28:25.827763Z"
+      "updated_at": "2026-09-06T14:42:33.972087Z"
     },
     {
       "assignee": null,
@@ -1298,7 +1436,7 @@
     },
     {
       "assignee": null,
-      "closed_at": null,
+      "closed_at": "2026-09-06T14:36:03.458811Z",
       "comments": [
         {
           "author": "home",
@@ -1313,6 +1451,62 @@
           "created_at": "2026-09-06T12:57:32.724398Z",
           "id": "b65ee653-af9c-4454-ba19-480c1db88daf",
           "text": "UNBLOCKED ON THE MARKUS SIDE: kanbus-37dd9a is landed and reviewed (Markus repo, branch feature/document-ir). 'markus ast' now emits a typed, versioned IR - schema_version: 1, front matter parsed, and block nodes (heading/paragraph/list/blockquote/code/table/thematic_break/html) sitting as ordered PEERS of directive nodes in one children[]. Inline content is typed too (text/emphasis/strong/strikethrough/code_span/link/image/breaks).\n\nNOTE: inline code spans are type 'code_span', distinct from block-level 'code'. Do not conflate them in the TS types.\n\nI PROTOTYPED THE PROJECTION AGAINST THE REAL IR - it works. Verified output for an article with front matter + pull-quote + card-grid:\n\n  body (string[]):\n    'Developers are learning that reliable agents need less freedom, not more.'\n    'Across demos and tool launches, builders kept circling the same answer.'\n    'Planning state'\n    'Read-only tools.'\n    'Implementation state'\n    'Edit tools.'\n    'The lesson is not that agents are over.'\n  pullQuotes: ['The practical breakthrough is not giving agents a bigger sandbox.']\n  degraded directives (content preserved inline): ['card-grid','card','card']\n\nThe algorithm: walk children in order; paragraph -> push inline_text() to body; heading -> push its text to body; directive pull-quote -> push to pullQuotes; ANY OTHER directive -> recurse into its children so content is preserved inline and NOTHING is silently dropped. That last rule is the important one and it is the documented degradation policy.\n\nPort this to TypeScript against the typed IR. The Python prototype is a proof of shape, not the deliverable.\n\nSTILL BLOCKED BY: PPY-d79ff2 (Renderer interface) - the projection needs somewhere to live."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:26:17.874408Z",
+          "id": "2b6ce196-76e6-4265-8c3b-e1b92f352263",
+          "text": "Restarting after throttle. Previous agent died leaving uncommitted lib/markus-ir.ts, lib/markus-projection.ts, scripts/fixtures/, scripts/test-markus-projection.ts on the Papyrus primary clone. Recover into a worktree — do not git add -A on the primary. Composer 2.5 planning first."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:27:34.514178Z",
+          "id": "3d64c95f-3c2e-4a67-8812-0b1f72129e0e",
+          "text": "## PPY-a10206 implementation plan (Composer 2.5 — PLAN ONLY)\n\n**Status:** Ready to implement in an isolated worktree. Blocker PPY-d79ff2 is closed (`f9b073f` on `feature/renderer-architecture`). Markus document IR (`kanbus-37dd9a`, `schema_version: 1`) is landed on Markus `feature/document-ir`.\n\n---\n\n### Nomenclature (do not relitigate)\n\nPer PPY-93a9c0 / PPY-92f846:\n\n- **Renderer** = swappable pipeline (`pretext` | `markus`)\n- **Layout** = Pretext-internal look (`newsprint` | `blog` | `magazine`)\n- **Publication** = title/property (P.apyr.us, Threat Intelligence, Pilobol.us)\n\nThis task delivers the **Pretext projection layer** (IR → flat solver inputs). It does **not** implement a Renderer, change `lib/renderer.ts`, or touch `renderers/pretext/`.\n\n---\n\n### Worktree (create only when authorized)\n\n| | |\n|---|---|\n| **Path** | `/Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection` |\n| **Branch** | `cursor/feature/PPY-a10206-pretext-projection-3af6` |\n| **Base** | `origin/feature/renderer-architecture` (after `git fetch origin feature/renderer-architecture`) |\n\n**Never implement in the primary clone** (`/Users/home/Projects/Papyrus`) — it has dirty leftovers from a dead agent.\n\n```bash\ncd /Users/home/Projects/Papyrus\ngit fetch origin feature/renderer-architecture\ngit worktree add -b cursor/feature/PPY-a10206-pretext-projection-3af6 \\\n  /Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection \\\n  origin/feature/renderer-architecture\n```\n\n---\n\n### Step 0 — Recover leftovers (rsync, then review; do not trust blindly)\n\nFrom primary clone → worktree:\n\n```bash\nrsync -av \\\n  /Users/home/Projects/Papyrus/lib/markus-ir.ts \\\n  /Users/home/Projects/Papyrus/lib/markus-projection.ts \\\n  /Users/home/Projects/Papyrus/scripts/test-markus-projection.ts \\\n  /Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection/lib/ \\\n  # (adjust paths: fixtures go to scripts/fixtures/)\nrsync -av /Users/home/Projects/Papyrus/scripts/fixtures/ \\\n  /Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection/scripts/fixtures/\n# package.json: cherry-pick only the test:markus-projection script line\n```\n\n**Review checklist against issue requirements:**\n\n| Requirement | Leftover status | Action |\n|---|---|---|\n| Typed IR from real `markus ast` output, not hand-invented | `lib/markus-ir.ts` + `scripts/fixtures/markus-sample.ast.json` | Re-capture fixture with live `markus ast` on Markus `feature/document-ir`; diff against committed JSON |\n| `schema_version: 1` fail-loud boundary | `parseMarkusDocument` + `MarkusSchemaVersionError` | Keep; test already asserts mismatch throws |\n| `code_span` (inline) ≠ `code` (block) | Separate types + test assertion on sample | Keep; verify against `markusmd/blocks.py` `CodeSpan` vs `CodeBlock` |\n| Degradation: directives Pretext can't express → recurse children; nothing silently dropped | `directiveDegradedText` + `leafDirectiveText` fallback | Keep; add explicit test that degraded directive names are surfaced if we want observability (optional `degradedDirectives: string[]` — only if useful for PPY-b794e1 migration script, not required for solver) |\n| `pull-quote` → `pullQuotes[]` (not body) | Implemented | Keep |\n| `figure` → `images[]` as `ArticleImageAsset` | Implemented | Keep |\n| Round-trip: migrated article projects to same `body: string[]` | **GAP** — sample fixture only, no seed-article round-trip | **Must add** (see Step 2) |\n\nLeftover smoke test already passes on primary clone: `npm run test:markus-projection` ✅\n\n---\n\n### Step 1 — Deliverables (in scope)\n\n**New modules (lib/, no renderer wiring yet):**\n\n1. **`lib/markus-ir.ts`** — TS mirror of Markus `Document.to_dict()` shape:\n   - `MARKUS_IR_SCHEMA_VERSION = 1`\n   - Inline union: `text | emphasis | strong | strikethrough | code_span | link | image | soft_break | hard_break | html_inline`\n   - Block union: `heading | paragraph | list | blockquote | code | thematic_break | html | table`\n   - Directive nodes as ordered peers in `children[]`\n   - `parseMarkusDocument(raw)` — only untyped ingress point; throws `MarkusSchemaVersionError` on mismatch\n\n2. **`lib/markus-projection.ts`** — `projectMarkusDocumentToPretext()`:\n   - Output: `{ body: string[]; pullQuotes: string[]; images: ArticleImageAsset[] }`\n   - Walk `document.children` in order\n   - **Lossy by design** — document the policy in module header (already drafted)\n   - **Non-negotiable degradation rule:** any directive Pretext cannot render (`card-grid`, `two-up`, `callout`, …) recurses into children; leaf directives (`metric`, `video`) degrade to stringified attributes; never silently drop\n\n**Tests & fixtures:**\n\n3. **`scripts/fixtures/markus-sample.md`** + **`markus-sample.ast.json`** — directive mix fixture (pull-quote, card-grid, two-up, figure, inline `code_span` vs block `code`). Regenerate `.ast.json` via `markus ast` (not hand-edited).\n\n4. **`scripts/test-markus-projection.ts`** + **`package.json`** script `test:markus-projection`\n\n---\n\n### Step 2 — Close the round-trip gap (required for acceptance)\n\nIssue acceptance: *\"an existing article migrated to Markdown must project back to the SAME `body: string[]` it has today\"* (regression proof for PPY-b794e1).\n\nThe synthetic `markus-sample` proves directive degradation shape but is **not** a seed-article round-trip.\n\n**Add:**\n\n- `scripts/fixtures/agent-procedure-patterns.md` — Markus Markdown migration of `lib/articles.ts` → `articles[0]` (`slug: \"agent-procedure-patterns\"`). Pull quotes become positional `:::pull-quote` directives; body paragraphs map 1:1. Must pass `markus validate`.\n- `scripts/fixtures/agent-procedure-patterns.ast.json` — `markus ast` capture\n- Extend `scripts/test-markus-projection.ts`:\n  - `projectMarkusJsonToPretext(ast)` → `body` deep-equals `articles[0].body`\n  - `pullQuotes` deep-equals `articles[0].pullQuotes`\n  - Assert pull-quote text does **not** also appear in `body` (side-channel invariant)\n\nIf editorial positioning makes exact `body[]` match impossible for the full article, start with a **minimal excerpt fixture** cut from that article (N paragraphs + 1 pull-quote) where migration is unambiguous — but prefer the full `agent-procedure-patterns` article since it is all plain paragraphs (no lists/tables to flatten differently).\n\n---\n\n### Step 3 — Verification (re-run locally; do not trust subagent reports)\n\nIn the worktree only:\n\n```bash\nnpm run typecheck\nnpm run lint\nnpm run test:markus-projection\n```\n\n**Cross-repo preflight:** Markus `feature/document-ir` pip-installed editable; `markus ast --version` / `markus ast scripts/fixtures/markus-sample.md` must succeed before trusting fixtures.\n\n**Do not chase:** `npm run build` Collecting-page-data failure (pre-existing, no AppSync backend — PPY-6b4094).\n\n---\n\n### Step 4 — Commit & PR (when authorized)\n\n- Branch: `cursor/feature/PPY-a10206-pretext-projection-3af6`\n- One focused commit (or two: lib + tests/fixtures)\n- PR into `develop` (or stack on `feature/renderer-architecture` per Ryan's push policy — **do not push without explicit authorization**)\n- `git diff --stat` sanity: only `lib/markus-*.ts`, `scripts/`, `package.json` — nothing in `renderers/`, `amplify/`, `project/`\n\n---\n\n### Explicitly out of scope (this issue)\n\n| Item | Owner |\n|---|---|\n| `lib/renderer.ts` contract changes | — |\n| `renderers/pretext/` rewrite | — |\n| Markus renderer / static HTML build | PPY-88f77b |\n| `Article.body: string[]` → `string` schema change | PPY-b794e1 |\n| Content migration script | PPY-b794e1 |\n| Wiring projection into `graphql-content-repository` / solver call sites | Follow-on after b794e1 |\n| Hosting / Amplify sandbox | PPY-17fcfc / PPY-6b4094 |\n\n---\n\n### Risks & notes\n\n1. **Cross-repo hazard:** Papyrus depends on unpushed Markus `feature/document-ir`. Fixture regeneration fails on another machine without it.\n2. **Primary clone hygiene:** After rsync, leave primary-clone files untracked/uncommitted — do not `git add -A` on primary.\n3. **List/table flattening:** `blockText` for lists emits one body line per list item; seed articles are paragraph-only today, so round-trip on `agent-procedure-patterns` is safe. Document that list/table round-trip semantics may differ — migration script (b794e1) must account for this.\n4. **`figure` vs `article.image`:** Projection extracts `figure` directives to `images[]`; legacy `Article.image` is unchanged in this task. Full asset unification is b794e1+.\n5. **No `project/` commits** in implementation PR.\n\n---\n\n### Implementation order\n\n1. Create worktree from `origin/feature/renderer-architecture`\n2. Rsync + review leftovers\n3. Re-capture `markus-sample.ast.json` from live `markus ast`\n4. Add seed-article round-trip fixture + test (close acceptance gap)\n5. typecheck → lint → test:markus-projection\n6. Commit, push (when authorized), PR, comment verification results on this issue"
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:28:13.822587Z",
+          "id": "719fe7d9-12b9-40a0-acd7-beaff4e42df5",
+          "text": "Plan approved. Round-trip on agent-procedure-patterns is required, not optional. PR stacks on feature/renderer-architecture (not origin/develop) until that branch lands. Next: worktree only, then stop."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:29:25.613405Z",
+          "id": "7f3ea9c9-2897-46ef-baff-12a37f42fce5",
+          "text": "Worktree created (authorized setup only — no implementation yet).\n\n- **Path:** `/Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection`\n- **Branch:** `cursor/feature/PPY-a10206-pretext-projection-3af6`\n- **Base:** `origin/feature/renderer-architecture`\n- **HEAD:** `a89deab74ccf23fcbb94c8ebd135d9ebca32703c` — chore(project): registrar NS set; 17fcfc waiting on propagation\n\nLeftover rsync not started. No product code changes."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:31:53.211323Z",
+          "id": "756996ab-24bb-4350-b9d6-cd8cf1f1209f",
+          "text": "Worktree verified (a89deab, has Renderer interface). Implementation authorized. Rsync leftovers from primary clone into this worktree only. Round-trip agent-procedure-patterns is required. Do not close."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:34:44.197608Z",
+          "id": "465de588-fa12-4d9a-be7f-1fb4639ab9e7",
+          "text": "Implementation complete in worktree. PR opened.\n\n- **Worktree:** `/Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection`\n- **Branch:** `cursor/feature/PPY-a10206-pretext-projection-3af6`\n- **Commit:** `ab94cae` — feat: Markus document IR types and Pretext projection (PPY-a10206)\n- **PR:** https://github.com/AnthusAI/Papyrus/pull/59 (base: `feature/renderer-architecture`)\n\n### Deliverables\n- `lib/markus-ir.ts` — typed IR + `parseMarkusDocument` / `MarkusSchemaVersionError` (`schema_version: 1`; `code_span` ≠ block `code`)\n- `lib/markus-projection.ts` — `projectMarkusDocumentToPretext` with degradation rule (unknown directives recurse; leaf directives stringify attributes; nothing silently dropped)\n- `scripts/fixtures/markus-sample.{md,ast.json}` — re-captured via live `markus ast`\n- `scripts/fixtures/agent-procedure-patterns.{md,ast.json}` — seed article round-trip fixture (`markus validate` ok)\n- `scripts/test-markus-projection.ts` + `npm run test:markus-projection`\n\n### Verification (worktree)\n```\n$ npm run typecheck\n> tsc --noEmit\n(exit 0)\n\n$ npm run lint -- lib/markus-ir.ts lib/markus-projection.ts scripts/test-markus-projection.ts\n(exit 0)\n\n$ npm run test:markus-projection\nMarkus -> Pretext projection tests passed.\n(exit 0)\n```\n\nRound-trip: `agent-procedure-patterns` projection `body` and `pullQuotes` deep-equal `lib/articles.ts` seed article.\n\n`npm run build` not run (pre-existing AppSync failure, PPY-6b4094).\n\nPrimary clone untouched — leftovers still uncommitted there."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:36:03.445504Z",
+          "id": "3790caea-ac4f-46f7-98f5-458c2c79d16f",
+          "text": "Landed in PR #59 (squash 5a826a6 into feature/renderer-architecture). Independently verified typecheck, lint, and test:markus-projection including agent-procedure-patterns round-trip. Diff limited to lib/markus-*.ts, scripts/, package.json."
+        },
+        {
+          "author": "home",
+          "comment_type": "default",
+          "created_at": "2026-09-06T14:37:04.517085Z",
+          "id": "cfeebda9-7d6e-4a63-a913-93aafb284ddd",
+          "text": "Worktree removed after PR #59 merge.\n\n- `git worktree remove /Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection` — success\n- Local branch `cursor/feature/PPY-a10206-pretext-projection-3af6` deleted"
         }
       ],
       "created_at": "2026-09-06T12:43:02.708614Z",
@@ -1332,10 +1526,10 @@
       "labels": [],
       "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
       "priority": 1,
-      "status": "in_progress",
+      "status": "closed",
       "title": "Document IR ingestion + Pretext projection",
       "type": "task",
-      "updated_at": "2026-09-06T13:28:25.813165Z"
+      "updated_at": "2026-09-06T14:37:04.517085Z"
     },
     {
       "assignee": null,

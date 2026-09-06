@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "f46f2378-224b-45f7-9198-f5327f66bbaf",
+  "issue_id": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+  "event_type": "comment_added",
+  "occurred_at": "2026-09-06T14:44:53.064Z",
+  "actor_id": "home",
+  "payload": {
+    "agent": {
+      "model": "Composer 2.5",
+      "name": "implementation agent",
+      "platform": "cursor"
+    },
+    "comment_author": "home",
+    "comment_id": "4834d2b4-5823-4d93-9316-096e311ba1c3"
+  }
+}

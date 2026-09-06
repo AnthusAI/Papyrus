@@ -77,10 +77,17 @@
       "text": "Sandbox deploy in progress (identifier `ppy-6b4094`). Currently building Lambda container images via CDK — still running after ~5 min.",
       "created_at": "2026-09-06T14:35:43.358688Z",
       "comment_type": "default"
+    },
+    {
+      "id": "6b093984-7530-4545-ab2d-d5a8213d29c4",
+      "author": "home",
+      "text": "First deploy failed: missing `GOOGLE_CLIENT_ID` secret (auth stack rolled back). Setting sandbox secrets + redeploying with `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`. Stack was `amplify-papyrus-ppy6b4094-sandbox-e7c1507645` (ROLLBACK_COMPLETE).",
+      "created_at": "2026-09-06T14:42:51.701338Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.034022Z",
-  "updated_at": "2026-09-06T14:35:43.358688Z",
+  "updated_at": "2026-09-06T14:42:51.701338Z",
   "closed_at": null,
   "custom": {}
 }
