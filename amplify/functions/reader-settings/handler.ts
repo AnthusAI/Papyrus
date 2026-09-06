@@ -223,7 +223,10 @@ function hasStoredReaderSettings(value: unknown): boolean {
 }
 
 function normalizePresentation(value: unknown): ReaderSettings["presentation"] {
-  return value === "blog" || value === "magazine" || value === "newsprint" ? value : DEFAULT_SETTINGS.presentation;
+  if (value === "blog" || value === "magazine" || value === "newsprint") return value;
+  // Handle deprecated "newspaper" value as an alias for "newsprint"
+  if (value === "newspaper") return "newsprint";
+  return DEFAULT_SETTINGS.presentation;
 }
 
 function normalizeTheme(value: unknown): ReaderSettings["theme"] {
