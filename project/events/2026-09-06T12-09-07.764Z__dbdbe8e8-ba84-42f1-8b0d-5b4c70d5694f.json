@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dbdbe8e8-ba84-42f1-8b0d-5b4c70d5694f",
+  "issue_id": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-06T12:09:07.764Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Publisher plugin interface design (Pretext + Markus)",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-93a9c0bb-1f3f-4857-a2eb-2c2d680e65c7",
+    "labels": []
+  }
+}
