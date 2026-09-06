@@ -3,7 +3,7 @@
   "title": "Repair BDD environment: operator-cli.feature has no cucumber steps; no seeded local data",
   "description": "",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "GOAL: make the BDD suite trustworthy so real regressions are distinguishable from environment noise.\n\nMEASURED TODAY on feature/renderer-architecture: 117 scenarios - 2 passed, 39 failed, 27 undefined, 49 skipped. A baseline run on origin/develop is needed for comparison and was still running when this was filed; get that number first.\n\nTWO KNOWN CAUSES, both PRE-EXISTING and unrelated to the renderer work:\n1. features/operator-cli.feature has ZERO cucumber-js step definitions. It is written for 'poetry run behave', a different runner, but cucumber-js picks it up and reports 27 undefined steps. Either exclude it from the cucumber-js profile (cucumber.js) or move it under the behave tree. Decide which is correct and say why.\n2. Newsroom console scenarios time out waiting for [data-news-desk] because there is no seeded GraphQL data behind the local/synthetic backend.\n\nSCOPE: fix (1); for (2) either provide deterministic local seed data or tag those scenarios so they skip cleanly with an explicit reason rather than failing. A suite where failure is the normal state teaches everyone to ignore it.\n\nACCEPTANCE: a documented command that yields a green (or explicitly-and-legibly-skipped) run, and a recorded baseline number in a comment here.\n\nCOORDINATE: PPY-6b4094 (AWS deploy) may solve (2) outright by providing a real backend. Check that issue before building elaborate local seeding - and comment there if you find the two overlap.",
       "created_at": "2026-09-06T13:27:02.315387Z",
       "comment_type": "default"
+    },
+    {
+      "id": "03dae56a-9f49-47f9-b3f5-142adf636702",
+      "author": "home",
+      "text": "HELD, NOT ABANDONED - deliberately left in the ready queue rather than dispatched.\n\nREASON: PPY-6b4094 (AWS deploy) is running NOW and may resolve half of this issue outright by providing a real backend with seeded data. Running both at once means neither can coordinate, and this issue's spec explicitly says to check 6b4094 first before building elaborate local seeding.\n\nPICK THIS UP WHEN: PPY-6b4094 has reported its findings. Then you will know whether you are fixing (1) only - the operator-cli.feature runner mismatch - or both (1) and (2).\n\nThe (1) half is independent of all that and safe to do any time: features/operator-cli.feature has ZERO cucumber-js step definitions because it targets 'poetry run behave'. Either exclude it from the cucumber.js profile or move it under the behave tree. That alone removes 27 phantom 'undefined' steps from every run.",
+      "created_at": "2026-09-06T13:32:30.568773Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.060359Z",
-  "updated_at": "2026-09-06T13:31:24.016275Z",
+  "updated_at": "2026-09-06T13:32:30.568773Z",
   "closed_at": null,
   "custom": {}
 }
