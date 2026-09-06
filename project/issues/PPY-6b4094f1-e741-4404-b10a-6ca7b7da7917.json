@@ -91,10 +91,17 @@
       "text": "Sandbox deploy **succeeded** (identifier `ppy-6b4094`). Stack `amplify-papyrus-ppy6b4094-sandbox-e7c1507645`. Seed OK (12 articles). `npm run build` **passed** against live AppSync. Running BDD baseline next.",
       "created_at": "2026-09-06T14:58:55.552897Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b0d6efe8-2970-4413-bc80-10492362d2df",
+      "author": "home",
+      "text": "Independent check: account 335163751677, stack amplify-papyrus-ppy6b4094-sandbox-e7c1507645 CREATE_COMPLETE, not Ryan/prod. PR #62 is docs + ensure-sandbox no longer defaults AWS_PROFILE=Ryan. Identifier shortened to ppy-6b4094 (Amplify 14-char limit) — accepted. Acceptance running before merge to develop. Issue stays open.",
+      "created_at": "2026-09-06T15:15:42.413342Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T13:26:03.034022Z",
-  "updated_at": "2026-09-06T14:58:55.552897Z",
+  "updated_at": "2026-09-06T15:15:42.413342Z",
   "closed_at": null,
   "custom": {}
 }
