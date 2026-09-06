@@ -50,10 +50,24 @@
       "text": "Plan approved. Round-trip on agent-procedure-patterns is required, not optional. PR stacks on feature/renderer-architecture (not origin/develop) until that branch lands. Next: worktree only, then stop.",
       "created_at": "2026-09-06T14:28:13.822587Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7f3ea9c9-2897-46ef-baff-12a37f42fce5",
+      "author": "home",
+      "text": "Worktree created (authorized setup only — no implementation yet).\n\n- **Path:** `/Users/home/Projects/Papyrus-worktrees/PPY-a10206-projection`\n- **Branch:** `cursor/feature/PPY-a10206-pretext-projection-3af6`\n- **Base:** `origin/feature/renderer-architecture`\n- **HEAD:** `a89deab74ccf23fcbb94c8ebd135d9ebca32703c` — chore(project): registrar NS set; 17fcfc waiting on propagation\n\nLeftover rsync not started. No product code changes.",
+      "created_at": "2026-09-06T14:29:25.613405Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "756996ab-24bb-4350-b9d6-cd8cf1f1209f",
+      "author": "home",
+      "text": "Worktree verified (a89deab, has Renderer interface). Implementation authorized. Rsync leftovers from primary clone into this worktree only. Round-trip agent-procedure-patterns is required. Do not close.",
+      "created_at": "2026-09-06T14:31:53.211323Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T12:43:02.708614Z",
-  "updated_at": "2026-09-06T14:28:13.822587Z",
+  "updated_at": "2026-09-06T14:31:53.211323Z",
   "closed_at": null,
   "custom": {
     "project_label": "PPY",
