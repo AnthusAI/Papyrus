@@ -178,7 +178,18 @@ export function parseReferenceLineageIdFromNewsroomPathname(pathname: string | n
   }
 }
 
-/** Insight thread id from `/newsroom/insights/<id>`. */
+/** Assignment id from `/newsroom/assignments/<id>` (not index-only URLs). */
+export function parseAssignmentIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
+  if (!pathname?.startsWith("/newsroom/assignments/")) return null;
+  const segment = pathname.slice("/newsroom/assignments/".length).split("/")[0]?.trim() ?? "";
+  if (!segment) return null;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function parseInsightThreadIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
   if (!pathname?.startsWith("/newsroom/insights/")) return null;
   const segment = pathname.slice("/newsroom/insights/".length).split("/")[0]?.trim() ?? "";

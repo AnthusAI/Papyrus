@@ -83,6 +83,7 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomReferencesView } from "./newsroom-references-view";
+import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
 import { Button, buttonVariants } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -12918,53 +12919,22 @@ function AssignmentDeskView({
   onCreateAnalysisReindexAssignment: (profile: AnalysisProfileSummary, draft: AnalysisReindexDraft) => void;
   onReviewReportingPacket: (assignment: AssignmentRecord, packet: AssignmentResearchPacketSummary, decision: ReportingPacketReviewDecision, note?: string, targetItemId?: string) => void;
 }) {
-  const [assignmentTypeFilter, setAssignmentTypeFilter] = useState(() => {
+  const [assignmentTypeFilter] = useState(() => {
     if (typeof window === "undefined") return "";
     return readAssignmentsIndexFilters(new URLSearchParams(window.location.search)).type;
   });
-  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState(() => {
+  const [assignmentStatusFilter] = useState(() => {
     if (typeof window === "undefined") return "";
     return readAssignmentsIndexFilters(new URLSearchParams(window.location.search)).status;
   });
   const [isCreateAssignmentOpen, setIsCreateAssignmentOpen] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(initialAssignmentId ?? "");
-  const [isAssignmentDetailOpen, setIsAssignmentDetailOpen] = useState(Boolean(initialAssignmentId));
-  const [assignmentDeskView, setAssignmentDeskView] = useState<AssignmentDeskViewMode>(() => {
+  const [assignmentDeskView] = useState<AssignmentDeskViewMode>(() => {
     if (initialView === "budget") return "budget";
     if (typeof window === "undefined") return "queue";
     const view = readAssignmentsIndexFilters(new URLSearchParams(window.location.search)).view;
     return view === "budget" ? "budget" : "queue";
   });
-  const [assignmentActionNote, setAssignmentActionNote] = useState("");
-  const [reportingMergeTargetItemId, setReportingMergeTargetItemId] = useState("");
-  const syncAssignmentsIndexUrl = useCallback((
-    nextStatus: string,
-    nextType: string,
-    nextView: AssignmentDeskViewMode,
-    replace = true,
-  ) => {
-    if (isDemo || isAssignmentDetailOpen) return;
-    syncBrowserNewsroomIndexUrl(
-      "assignments",
-      effectiveAssignmentsIndexFilters({
-        status: nextStatus,
-        type: nextType,
-        view: nextView,
-      }),
-      { replace },
-    );
-  }, [isAssignmentDetailOpen, isDemo]);
-  useEffect(() => {
-    if (isDemo || isAssignmentDetailOpen || assignmentDeskView === "budget") return;
-    syncAssignmentsIndexUrl(assignmentStatusFilter, assignmentTypeFilter, assignmentDeskView, true);
-  }, [
-    assignmentDeskView,
-    assignmentStatusFilter,
-    assignmentTypeFilter,
-    isAssignmentDetailOpen,
-    isDemo,
-    syncAssignmentsIndexUrl,
-  ]);
   const feed = useNewsroomPagedRows({
     initialItems: assignments,
     enabled: !isDemo,
@@ -12976,42 +12946,22 @@ function AssignmentDeskView({
     }),
   });
   const feedAssignments = isDemo ? assignments : feed.items;
-  const assignmentTypeOptions = useMemo(() => getAssignmentTypeOptions(assignments, summary), [assignments, summary]);
   const typeFilteredAssignments = useMemo(() => (
     assignmentTypeFilter
       ? feedAssignments.filter((assignment) => assignmentTypeKeyForFilter(assignment) === assignmentTypeFilter)
       : feedAssignments
   ), [assignmentTypeFilter, feedAssignments]);
-  const filteredAssignments = useMemo(() => {
-    const filtered = assignmentStatusFilter
-      ? typeFilteredAssignments.filter((assignment) => assignment.status === assignmentStatusFilter)
-      : typeFilteredAssignments;
-    return [...filtered].sort(compareAssignments);
-  }, [assignmentStatusFilter, typeFilteredAssignments]);
-  const filteredMetrics = getAssignmentMetrics(typeFilteredAssignments, summary, assignmentTypeFilter);
-  const totalAssignmentCount = summaryCountFromRecord(summary, "assignments") || assignments.length;
   const requestedAssignmentId = selectedAssignmentId || initialAssignmentId || "";
   const selectedAssignment = requestedAssignmentId
-    ? filteredAssignments.find((assignment) => assignment.id === requestedAssignmentId)
-      ?? typeFilteredAssignments.find((assignment) => assignment.id === requestedAssignmentId)
+    ? typeFilteredAssignments.find((assignment) => assignment.id === requestedAssignmentId)
       ?? feedAssignments.find((assignment) => assignment.id === requestedAssignmentId)
       ?? assignments.find((assignment) => assignment.id === requestedAssignmentId)
       ?? null
     : null;
-  const assignmentKnowledgeQuery = useNewsroomKnowledgeContext(selectedAssignment ? {
-    anchor: { kind: "assignment", id: selectedAssignment.id },
-    title: selectedAssignment.title,
-    subtitle: selectedAssignment.assignmentTypeKey,
-  } : null);
   const selectAssignment = (assignmentId: string) => {
     setSelectedAssignmentId(assignmentId);
-    setIsAssignmentDetailOpen(true);
     pushNewsroomDetailUrl("assignments", assignmentId, isDemo);
   };
-  const selectedAssignmentTerminal = selectedAssignment?.status === "completed" || selectedAssignment?.status === "canceled";
-  const selectedReportingPackets = selectedAssignment ? reportingPacketsForAssignment(selectedAssignment, graph, messages) : [];
-  const selectedReportingPacket = selectedReportingPackets[0] ?? null;
-  const selectedReportingDecision = selectedAssignment ? latestReportingPacketDecisionForAssignment(assignmentEvents, selectedAssignment.id) : null;
   const storyBudget = useMemo(() => buildReportingStoryBudget({
     assignments,
     messages,
@@ -13020,141 +12970,18 @@ function AssignmentDeskView({
     editionSlots,
     newsroomSections,
   }), [assignmentEvents, assignments, editionSlots, messages, newsroomSections, semanticRelations]);
-  const runAssignmentDetailAction = (action: AssignmentAction) => {
-    if (!selectedAssignment) return;
-    onAction(selectedAssignment, action, assignmentActionNote);
-    setAssignmentActionNote("");
-  };
-  const runReportingReviewAction = (decision: ReportingPacketReviewDecision) => {
-    if (!selectedAssignment || !selectedReportingPacket) return;
-    onReviewReportingPacket(selectedAssignment, selectedReportingPacket, decision, assignmentActionNote, reportingMergeTargetItemId);
-    setAssignmentActionNote("");
-  };
-  const selectAssignmentDeskView = (view: AssignmentDeskViewMode) => {
-    setAssignmentDeskView(view);
-    if (typeof window === "undefined" || isDemo) return;
-    syncBrowserNewsroomIndexUrl(
-      "assignments",
-      effectiveAssignmentsIndexFilters({
-        status: assignmentStatusFilter,
-        type: assignmentTypeFilter,
-        view,
-      }),
-      { replace: true },
-    );
-  };
   const runStoryBudgetReviewAction = (candidate: ReportingStoryBudgetCandidate, decision: ReportingPacketReviewDecision) => {
     const assignment = assignments.find((entry) => entry.id === candidate.assignmentId);
     const packet = assignment ? reportingPacketsForAssignment(assignment, graph, messages)[0] : null;
     if (!assignment || !packet) return;
     onReviewReportingPacket(assignment, packet, decision, "", candidate.targetItemId ?? "");
     setSelectedAssignmentId(assignment.id);
-    setIsAssignmentDetailOpen(true);
+    pushNewsroomDetailUrl("assignments", assignment.id, isDemo);
   };
-  const assignmentActions: NewsroomDetailAction[] = selectedAssignment ? [
-    ...(selectedAssignment.status === "open"
-      ? [
-          {
-            key: "claim",
-            label: "Claim",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("claim"),
-          },
-          ...(assignmentExecutionModeForUi(selectedAssignment.assignmentTypeKey) === "immediate"
-            ? [
-                {
-                  key: "retry",
-                  label: "Retry Immediate",
-                  disabled,
-                  onSelect: () => runAssignmentDetailAction("retry"),
-                },
-              ]
-            : []),
-        ]
-      : []),
-    ...(selectedAssignment.status === "claimed"
-      ? [
-          {
-            key: "release",
-            label: "Release",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("release"),
-          },
-        ]
-      : []),
-    ...(!selectedAssignmentTerminal
-      ? [
-          {
-            key: "complete",
-            label: "Complete",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("complete"),
-          },
-          {
-            key: "cancel",
-            label: "Cancel",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("cancel"),
-          },
-        ]
-      : [
-          {
-            key: "reopen",
-            label: "Reopen",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("reopen"),
-          },
-        ]),
-  ] : [];
-  const reportingReviewActions: NewsroomDetailAction[] = selectedAssignment && selectedReportingPacket ? [
-    {
-      key: "reporting-select",
-      label: "Select Packet",
-      disabled,
-      onSelect: () => runReportingReviewAction("select"),
-    },
-    {
-      key: "reporting-brief",
-      label: "Make Brief",
-      disabled,
-      onSelect: () => runReportingReviewAction("brief"),
-    },
-    {
-      key: "reporting-merge",
-      label: "Merge Packet",
-      disabled: disabled || !reportingMergeTargetItemId.trim(),
-      onSelect: () => runReportingReviewAction("merge"),
-    },
-    {
-      key: "reporting-hold",
-      label: "Hold Packet",
-      disabled,
-      onSelect: () => runReportingReviewAction("hold"),
-    },
-    {
-      key: "reporting-kill",
-      label: "Kill Packet",
-      disabled,
-      onSelect: () => runReportingReviewAction("kill"),
-    },
-  ] : [];
-
-  useEffect(() => {
-    if (assignmentTypeFilter && !assignmentTypeOptions.some((option) => option.key === assignmentTypeFilter)) {
-      setAssignmentTypeFilter("");
-    }
-  }, [assignmentTypeFilter, assignmentTypeOptions]);
-
-  useEffect(() => {
-    if (assignmentStatusFilter && !["open", "claimed", "completed", "canceled"].includes(assignmentStatusFilter)) {
-      setAssignmentStatusFilter("");
-    }
-  }, [assignmentStatusFilter]);
-
-  useEffect(() => {
-    setAssignmentActionNote("");
-    setReportingMergeTargetItemId("");
-  }, [selectedAssignment?.id, selectedAssignment?.status]);
+  const reportingPacketSummaryForAssignment = useCallback((assignment: AssignmentRecord) => {
+    const packets = reportingPacketsForAssignment(assignment, graph, messages);
+    return packets[0]?.summary ?? null;
+  }, [graph, messages]);
 
   useEffect(() => {
     if (!isCreateAssignmentOpen) return;
@@ -13167,109 +12994,39 @@ function AssignmentDeskView({
 
   return (
     <>
-      <NewsroomListDetailShell
-        animatedDetail
-        sectionKey="assignments"
-        canExpandDetail={Boolean(selectedAssignment)}
-        detailOpen={isAssignmentDetailOpen}
-        selectionScrollKey={selectedAssignment?.id ?? null}
-        actions={assignmentActions}
-        utilityActions={[assignmentKnowledgeQuery.action, ...reportingReviewActions]}
-        lede={(
-          <NewsroomDeskSectionLede
-            headingId="assignment-management-title"
-            section="assignments"
-            controls={(
-              <div className="news-desk-assignment-create-strip">
-                <div className="news-desk-assignment-view-toggle" role="group" aria-label="Assignment view">
-                  <button
-                    type="button"
-                    data-active={assignmentDeskView === "queue" || undefined}
-                    onClick={() => selectAssignmentDeskView("queue")}
-                  >
-                    Queue
-                  </button>
-                  <button
-                    type="button"
-                    data-active={assignmentDeskView === "budget" || undefined}
-                    onClick={() => selectAssignmentDeskView("budget")}
-                  >
-                    Story Budget
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="news-desk-assignment-create-button"
-                  disabled={disabled}
-                  onClick={() => setIsCreateAssignmentOpen(true)}
-                >
-                  Create Assignment
-                </button>
-              </div>
-            )}
-          />
-        )}
-        list={(
-          <section className="category-steering-section category-steering-section--lead" aria-label="Assignments queue">
-            {assignmentDeskView === "budget" ? (
-              <ReportingStoryBudgetBoard
-                budget={storyBudget}
-                disabled={disabled}
-                onReview={runStoryBudgetReviewAction}
-                onSelect={selectAssignment}
-                selectedAssignmentId={selectedAssignment?.id ?? null}
-              />
-            ) : (
-              <AssignmentManagementGrid
-                assignmentEvents={assignmentEvents}
-                assignments={filteredAssignments}
-                metrics={filteredMetrics}
-                onSelect={selectAssignment}
-                options={assignmentTypeOptions}
-                selectedAssignmentId={selectedAssignment?.id ?? null}
-                statusValue={assignmentStatusFilter}
-                totalCount={totalAssignmentCount}
-                typeValue={assignmentTypeFilter}
-                footerLabel={feed.error ?? undefined}
-                hasMore={!isDemo && feed.hasMore}
-                isLoadingMore={feed.isLoadingMore}
-                onLoadMore={feed.loadMore}
-                onStatusChange={(value) => {
-                  setAssignmentStatusFilter(value);
-                  syncAssignmentsIndexUrl(value, assignmentTypeFilter, assignmentDeskView, true);
-                }}
-                onTypeChange={(value) => {
-                  setAssignmentTypeFilter(value);
-                  syncAssignmentsIndexUrl(assignmentStatusFilter, value, assignmentDeskView, true);
-                }}
-              />
-            )}
-          </section>
-        )}
-        onCloseDetail={() => {
-          setIsAssignmentDetailOpen(false);
-          syncAssignmentsIndexUrl(assignmentStatusFilter, assignmentTypeFilter, assignmentDeskView, true);
-        }}
-        detail={selectedAssignment ? (
-          <AssignmentRow
-            assignment={selectedAssignment}
+      <NewsroomAssignmentsView
+        assignments={typeFilteredAssignments}
+        budgetPanel={(
+          <ReportingStoryBudgetBoard
+            budget={storyBudget}
             disabled={disabled}
-            graph={graph}
-            messages={messages}
-            note={assignmentActionNote}
-            onNoteChange={setAssignmentActionNote}
-            reportingDecision={selectedReportingDecision}
-            reportingMergeTargetItemId={reportingMergeTargetItemId}
-            onReportingMergeTargetItemIdChange={setReportingMergeTargetItemId}
-            knowledgeQuery={assignmentKnowledgeQuery}
+            onReview={runStoryBudgetReviewAction}
+            onSelect={selectAssignment}
+            selectedAssignmentId={selectedAssignment?.id ?? null}
           />
-        ) : (
-          <section className="category-steering-section">
-            <SectionHeader title="Assignment Detail" detail="No assignment selected" />
-            <EmptyRow label="Select an assignment to inspect work details." />
-          </section>
         )}
+        demo={isDemo}
+        disabled={disabled}
+        footerLabel={feed.error ?? undefined}
+        hasMore={!isDemo && feed.hasMore}
+        initialAssignmentId={initialAssignmentId}
+        initialView={assignmentDeskView}
+        isLoadingMore={feed.isLoadingMore}
+        onAction={onAction}
+        onLoadMore={feed.loadMore}
+        onReviewReportingPacket={(assignment, decision, note, targetItemId) => {
+          const packet = reportingPacketsForAssignment(assignment, graph, messages)[0];
+          if (!packet) return;
+          onReviewReportingPacket(assignment, packet, decision, note, targetItemId);
+        }}
+        reportingDecisionForAssignment={(assignmentId) => latestReportingPacketDecisionForAssignment(assignmentEvents, assignmentId)}
+        reportingPacketSummaryForAssignment={reportingPacketSummaryForAssignment}
       />
+      <div className="mt-4 flex justify-end">
+        <Button disabled={disabled} onClick={() => setIsCreateAssignmentOpen(true)} type="button" variant="outline">
+          Create Assignment
+        </Button>
+      </div>
       {isCreateAssignmentOpen ? (
         <div
           className="news-desk-modal"
@@ -13299,7 +13056,6 @@ function AssignmentDeskView({
           </div>
         </div>
       ) : null}
-      {assignmentKnowledgeQuery.dialog}
     </>
   );
 }

@@ -263,8 +263,7 @@ When("I claim assignment {string} with note {string}", async function (assignmen
   const candidate = page.locator(`.news-desk-assignment-row[data-assignment-candidate="${assignmentId}"]`);
   await candidate.waitFor({ state: "visible", timeout: 10_000 });
   await candidate.locator(`[data-assignment-reason="${assignmentId}"]`).fill(note);
-  await page.locator(".news-desk-detail-toggle--actions").click();
-  await page.locator(".newsroom-list-detail-shell__action-menu button", { hasText: "Claim" }).click();
+  await page.locator("[data-news-desk-assignment-claim]").click();
   await page.waitForFunction((id) => {
     const row = document.querySelector(`[data-assignment-candidate="${id}"]`);
     return row?.getAttribute("data-assignment-status") === "claimed";
@@ -278,8 +277,7 @@ When("I complete assignment {string} with note {string}", async function (assign
   const candidate = page.locator(`.news-desk-assignment-row[data-assignment-candidate="${assignmentId}"]`);
   await candidate.waitFor({ state: "visible", timeout: 10_000 });
   await candidate.locator(`[data-assignment-reason="${assignmentId}"]`).fill(note);
-  await page.locator(".news-desk-detail-toggle--actions").click();
-  await page.locator(".newsroom-list-detail-shell__action-menu button", { hasText: "Complete" }).click();
+  await page.locator("[data-news-desk-assignment-complete]").click();
   await page.waitForFunction((id) => {
     const row = document.querySelector(`[data-assignment-candidate="${id}"]`);
     return row?.getAttribute("data-assignment-status") === "completed";
