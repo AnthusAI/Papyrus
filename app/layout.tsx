@@ -5,6 +5,7 @@ import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SITE_BRAND, getPresentationChoices } from "../lib/site-brand";
+import { getSiteStack } from "../lib/site-stack";
 import "./tailwind.css";
 import "./globals.css";
 
@@ -33,6 +34,7 @@ export const metadata: Metadata = {
 };
 
 const presentationChoices = getPresentationChoices();
+const siteStack = getSiteStack(SITE_BRAND);
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -41,8 +43,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       className="light light-theme"
       data-papyrus-theme={defaultTheme}
       data-site-brand={SITE_BRAND.id}
-      data-theme-pack={SITE_BRAND.themePack}
-      data-ops-chrome={SITE_BRAND.opsChrome}
+      data-theme-pack={siteStack.ops.themePack}
+      data-ops-chrome={siteStack.ops.chrome}
+      data-renderer={siteStack.publication.renderer.kind}
       data-default-presentation={SITE_BRAND.defaultPresentation}
       data-presentation-choices={presentationChoices.join(",")}
       {...(SITE_BRAND.forcedPresentation ? { "data-forced-presentation": SITE_BRAND.forcedPresentation } : {})}

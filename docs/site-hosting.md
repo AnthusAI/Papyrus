@@ -55,7 +55,8 @@ lands.
 | `amplify-static` | `markus` | **pilobol.us**, future Markus publications |
 
 These are common pairings, not locks. Ops theme pack and `opsChrome` are chosen
-separately — a Markus reader may still use Shadcn `/newsroom`.
+separately — a Markus reader may still use Shadcn `/newsroom`. Full mix table:
+[site-stacks.md](site-stacks.md).
 
 Invalid combos can exist in theory (`pretext` + static is a poor fit today).
 Document pairings; do not ship a fake static Pretext pipeline.

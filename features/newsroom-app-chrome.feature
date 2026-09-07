@@ -1,7 +1,7 @@
 @brand-agnostic
 Feature: Newsroom Shadcn app chrome
-  The ops desk uses an application shell. Reader newspaper chrome stays on
-  publication pages, not on /newsroom.
+  The ops desk uses an application shell. Reader newspaper / Markus chrome
+  is a separate renderer axis and is not implied by the ops shell.
 
   Scenario: Demo newsroom uses app chrome instead of newsprint
     Given I open the newsroom at 1280 by 900

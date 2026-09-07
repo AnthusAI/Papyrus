@@ -12,7 +12,7 @@ const {
   normalizeSiteBrandId,
   resolveSiteBrandId,
 } = require("../lib/site-brand.ts");
-const { PILOBOL_US_THEME_PACK_TOKENS } = require("../lib/site-stack.ts");
+const { getSiteStack, PILOBOL_US_THEME_PACK_TOKENS } = require("../lib/site-stack.ts");
 
 assert.equal(resolveSiteBrandId("pilobol-us"), "pilobol-us");
 assert.equal(resolveSiteBrandId("pilobolus"), "pilobol-us");
@@ -66,6 +66,34 @@ assert.doesNotMatch(shellSource, /#f1ead9|#3f5d43|#a35a2a|#211d17/i);
 
 const sharedGlobals = fs.readFileSync(path.join(process.cwd(), "app/globals.css"), "utf8");
 assert.doesNotMatch(sharedGlobals, /#f1ead9|#3f5d43|#a35a2a|#211d17|#fbf6ea|#d7cbb2|#4a3548|#8a3324/);
+
+const papyrusStack = getSiteStack(papyrus);
+const pilobolStack = getSiteStack(pilobol);
+assert.equal(papyrusStack.ops.chrome, pilobolStack.ops.chrome);
+assert.equal(papyrusStack.ops.chrome, "app");
+assert.notEqual(papyrusStack.publication.renderer.kind, pilobolStack.publication.renderer.kind);
+
+const mixedPretextOps = getSiteStack({
+  ...pilobol,
+  renderer: { kind: "pretext" },
+});
+assert.equal(mixedPretextOps.ops.themePack, "pilobol-us");
+assert.equal(mixedPretextOps.publication.renderer.kind, "pretext");
+
+const mixedMarkusDefault = getSiteStack({
+  ...papyrus,
+  renderer: { kind: "markus" },
+});
+assert.equal(mixedMarkusDefault.ops.themePack, "papyrus");
+assert.equal(mixedMarkusDefault.publication.renderer.kind, "markus");
+
+const layoutSource = fs.readFileSync(path.join(process.cwd(), "app/layout.tsx"), "utf8");
+assert.match(layoutSource, /data-renderer=\{siteStack\.publication\.renderer\.kind\}/);
+assert.match(layoutSource, /data-theme-pack=\{siteStack\.ops\.themePack\}/);
+assert.match(layoutSource, /data-ops-chrome=\{siteStack\.ops\.chrome\}/);
+assert.doesNotMatch(layoutSource, /data-renderer=\{SITE_BRAND\.(themePack|opsChrome)/);
+
+assert.doesNotMatch(shellSource, /markus|pretext|renderer/i);
 
 const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "publications/papyrus/theme.css"), "utf8");
 assert.match(defaultPackCss, /data-theme-pack="papyrus"/);

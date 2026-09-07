@@ -21,6 +21,7 @@ A Markus reader (Pilobol.us) can use Shadcn ops. A Pretext reader (Papyr.us,
 Threat Intelligence) uses the **same** ops chrome with a different pack.
 Adopting Shadcn ops does not force Markus on the reader.
 
+Pluggable-stack contract (ops vs renderer): [site-stacks.md](site-stacks.md).
 See [site-hosting.md](site-hosting.md) for hosting/renderer pairings.
 
 ## How a pack is selected

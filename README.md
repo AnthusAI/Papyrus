@@ -261,6 +261,7 @@ Papyrus; the Pilobol.us theme file is not loaded at runtime. Typography stays
 on the Shadcn stack. Shared ops components read CSS tokens; they do not
 hard-code publication names or Pilobolus hexes. GraphQL/AppSync remains the
 data source of truth. How to add a pack: [docs/site-theme-packs.md](docs/site-theme-packs.md).
+Ops vs reader renderer are independent: [docs/site-stacks.md](docs/site-stacks.md).
 
 ```bash
 npm run dev

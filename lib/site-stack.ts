@@ -20,6 +20,43 @@ export type HostingConfig =
 
 export type OpsChrome = "newsprint" | "app";
 
+export type SiteOpsStack = {
+  chrome: OpsChrome;
+  themePack: ThemePackId;
+  themeTokens: ThemePackTokens;
+};
+
+export type SitePublicationStack = {
+  renderer: RendererConfig;
+};
+
+/** Ops UI and publication/reader are independently pluggable. */
+export type SiteStack = {
+  ops: SiteOpsStack;
+  publication: SitePublicationStack;
+  hosting: HostingConfig;
+};
+
+export type SiteStackSource = {
+  themePack: ThemePackId;
+  themeTokens: ThemePackTokens;
+  opsChrome: OpsChrome;
+  renderer: RendererConfig;
+  hosting: HostingConfig;
+};
+
+export function getSiteStack(source: SiteStackSource): SiteStack {
+  return {
+    ops: {
+      chrome: source.opsChrome,
+      themePack: source.themePack,
+      themeTokens: source.themeTokens,
+    },
+    publication: { renderer: source.renderer },
+    hosting: source.hosting,
+  };
+}
+
 export type ThemePackPalette = {
   paper: string;
   moss: string;
