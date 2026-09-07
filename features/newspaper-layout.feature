@@ -261,9 +261,9 @@ Feature: Newspaper layout scenarios
     Given I open the topics newsroom at 1280 by 900
     Then the topics desk should render
     And the newsroom should show category proposal queue rows
-    And the newsroom should show accepted subcategories under canonical categories
     And the newsroom should show proposed subcategories under canonical categories
     And the newsroom should offer accept reject defer and edit actions
+    And the newsroom should show accepted subcategories under canonical categories
     And no browser console errors should occur
 
   @brand-agnostic
@@ -319,8 +319,11 @@ Feature: Newspaper layout scenarios
 
     Examples:
       | section     | width | height |
+      | topics      | 1280  | 900    |
       | concepts    | 1280  | 900    |
       | messages    | 1280  | 900    |
+      | references  | 1280  | 900    |
+      | assignments | 1280  | 900    |
 
   @brand-agnostic
   Scenario: Newsroom reference-curation message detail uses the linked reference headline and subheading

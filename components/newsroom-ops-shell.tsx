@@ -209,7 +209,7 @@ export function NewsroomOpsShell({
                     className={cn(
                       "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[0.68rem] font-medium",
                       active
-                        ? "bg-muted/80 text-foreground shadow-sm ring-1 ring-border"
+                        ? "bg-primary text-primary-foreground shadow-sm"
                         : "text-muted-foreground",
                     )}
                     data-news-desk-tab={item.id}

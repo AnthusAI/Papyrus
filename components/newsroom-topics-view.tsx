@@ -313,6 +313,8 @@ export function NewsroomTopicsView({
                 <button
                   aria-current={active ? "true" : undefined}
                   className={newsroomListRowClassName(active)}
+                  data-newsroom-list-row
+                  data-selected={active || undefined}
                   data-newsroom-card
                   data-newsroom-card-id={proposal.id}
                   data-topic-queue-proposal={proposal.id}
