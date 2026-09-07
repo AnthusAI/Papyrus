@@ -13,14 +13,17 @@ A Papyrus publication is configured along **independent** axes:
 
 | Axis | Values (today) | Notes |
 | --- | --- | --- |
-| **Renderer** | `pretext` \| `markus` | Swappable render path |
+| **Theme pack** | `papyrus` \| `threat-intelligence` \| `pilobol-us` | Ops / Shadcn colors. See [site-theme-packs.md](site-theme-packs.md) |
+| **Ops chrome** | `app` \| `newsprint` | Newsroom shell. Independent of renderer |
+| **Renderer** | `pretext` \| `markus` | Publication / reader output only |
 | **Layout** | `newsprint` \| `blog` \| `magazine` | Pretext-internal only |
 | **Publication** | title / property | e.g. P.apyr.us, Threat Intelligence, Pilobol.us |
 | **Hosting** | see `HostingConfig` below | Where built artifacts are served |
 
-Do not fold hosting into renderer choice, and do not invent a per-publication
-Papyrus GitHub fork (the Threat Intelligence shape: separate product repo +
-dedicated `WEB_COMPUTE` app baked into one checkout).
+Do not fold hosting into renderer choice, theme pack into renderer, or ops
+chrome into the reader stack. Do not invent a per-publication Papyrus GitHub
+fork (the Threat Intelligence shape: separate product repo + dedicated
+`WEB_COMPUTE` app baked into one checkout).
 
 ## `HostingConfig` (documented shape)
 
@@ -51,12 +54,15 @@ lands.
 | `amplify-ssr` | `pretext` | p.apyr.us, Threat Intelligence |
 | `amplify-static` | `markus` | **pilobol.us**, future Markus publications |
 
+These are common pairings, not locks. Ops theme pack and `opsChrome` are chosen
+separately — a Markus reader may still use Shadcn `/newsroom`.
+
 Invalid combos can exist in theory (`pretext` + static is a poor fit today).
 Document pairings; do not ship a fake static Pretext pipeline.
 
 ## How a new publication opts in
 
-1. **Choose axes** — renderer, layout (if Pretext), publication identity, hosting kind.
+1. **Choose axes** — theme pack, ops chrome, renderer, layout (if Pretext), publication identity, hosting kind.
 2. **Publication repo** — pod/content repo (e.g. `AnthusAI/Pilobol.us`), not a second
    Papyrus product fork.
 3. **Build spec** — copy the template for your hosting kind:

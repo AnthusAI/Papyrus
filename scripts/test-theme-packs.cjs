@@ -50,9 +50,26 @@ assert.equal(papyrus.hosting.kind, "amplify-ssr");
 assert.equal(papyrus.opsChrome, "app");
 assert.notEqual(papyrus.renderer.kind, pilobol.renderer.kind);
 assert.notEqual(papyrus.hosting.kind, pilobol.hosting.kind);
+assert.notEqual(papyrus.themeTokens.paper, pilobol.themeTokens.paper);
+assert.notEqual(papyrus.themeTokens.moss, pilobol.themeTokens.moss);
+
+const threatIntel = getSiteBrand("threat-intelligence");
+assert.equal(threatIntel.themePack, "threat-intelligence");
+assert.equal(threatIntel.opsChrome, "app");
+assert.equal(threatIntel.renderer.kind, "pretext");
+assert.notEqual(threatIntel.themeTokens.paper, pilobol.themeTokens.paper);
+assert.notEqual(threatIntel.themeTokens.ochre, pilobol.themeTokens.ochre);
 
 const shellSource = fs.readFileSync(path.join(process.cwd(), "components/newsroom-app-shell.tsx"), "utf8");
 assert.doesNotMatch(shellSource, /pilobol|threat-intelligence|papyrus/i);
+assert.doesNotMatch(shellSource, /#f1ead9|#3f5d43|#a35a2a|#211d17/i);
+
+const sharedGlobals = fs.readFileSync(path.join(process.cwd(), "app/globals.css"), "utf8");
+assert.doesNotMatch(sharedGlobals, /#f1ead9|#3f5d43|#a35a2a|#211d17|#fbf6ea|#d7cbb2|#4a3548|#8a3324/);
+
+const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "publications/papyrus/theme.css"), "utf8");
+assert.match(defaultPackCss, /data-theme-pack="papyrus"/);
+assert.match(defaultPackCss, /--theme-paper:\s*var\(--background\)/);
 
 const themeCss = fs.readFileSync(path.join(process.cwd(), "publications/pilobol_us/theme.css"), "utf8");
 assert.match(themeCss, /--theme-paper:\s*#f1ead9/);

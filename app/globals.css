@@ -1,4 +1,5 @@
 @import "../publications/threat_intelligence/theme.css";
+@import "../publications/papyrus/theme.css";
 @import "../publications/pilobol_us/theme.css";
 
 @import "tailwindcss";
@@ -10128,6 +10129,7 @@ img {
   flex-wrap: wrap;
 }
 
+/* Shared ops chrome. Token-only: no publication names or pack hexes. */
 .news-desk-shell.newsroom-app-shell,
 .newsroom-app-shell {
   --newsroom-app-sidebar: 16.5rem;

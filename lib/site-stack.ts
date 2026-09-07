@@ -1,3 +1,13 @@
+/**
+ * Independent site-stack axes. Do not collapse these into one "brand mode".
+ * - themePack / themeTokens: ops + shared Shadcn colors
+ * - opsChrome: newsroom shell (app vs newsprint)
+ * - renderer: publication / reader output (pretext vs markus)
+ * - hosting: where the built site is served
+ *
+ * Shared ops components consume CSS variables only. Pilobolus is the first
+ * extra pack, not the platform default (that remains `papyrus`).
+ */
 export type ThemePackId = "papyrus" | "threat-intelligence" | "pilobol-us";
 
 export type RendererConfig = {

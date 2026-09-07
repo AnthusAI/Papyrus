@@ -252,13 +252,15 @@ with a header and section nav. Inner desks (Topics, References, Assignments)
 are unchanged in this foundation slice.
 
 Tenant theme packs live on `SiteBrand` (`themePack`, moss/ochre/paper tokens,
-independent `renderer` and `hosting`). Pilobol.us is the first extra pack
-(`PAPYRUS_SITE_BRAND=pilobol-us`) and maps the Markus fungus-among-us palette
-(paper `#f1ead9`, moss `#3f5d43`, ochre `#a35a2a`, plus dark counterparts)
-into Shadcn CSS variables. Colors are copied into Papyrus; the Pilobol.us
-theme file is not loaded at runtime. Typography stays on the Shadcn stack.
-Shared ops components read CSS tokens; they do not hard-code publication
-names. GraphQL/AppSync remains the data source of truth.
+independent `renderer`, `hosting`, and `opsChrome`). Papyr.us, Threat
+Intelligence, and Pilobol.us reuse the same `/newsroom` chrome. Pilobol.us is
+the first extra pack (`PAPYRUS_SITE_BRAND=pilobol-us`) and maps the Markus
+fungus-among-us palette (paper `#f1ead9`, moss `#3f5d43`, ochre `#a35a2a`,
+plus dark counterparts) into Shadcn CSS variables. Colors are copied into
+Papyrus; the Pilobol.us theme file is not loaded at runtime. Typography stays
+on the Shadcn stack. Shared ops components read CSS tokens; they do not
+hard-code publication names or Pilobolus hexes. GraphQL/AppSync remains the
+data source of truth. How to add a pack: [docs/site-theme-packs.md](docs/site-theme-packs.md).
 
 ```bash
 npm run dev

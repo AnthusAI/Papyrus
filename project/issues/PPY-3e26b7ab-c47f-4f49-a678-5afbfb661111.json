@@ -37,10 +37,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "65415a93-c424-4914-ac2e-ceabc7fb85ae",
+      "author": "ubuntu",
+      "text": "Feature: Multi-site newsroom theme packs\n\nScenario: Every publication reuses the same ops chrome\n  Given Papyrus, Threat Intelligence, and Pilobol.us site brands\n  When each brand is resolved\n  Then each has its own themePack and themeTokens\n  And all three use opsChrome app\n  And renderer and hosting stay independently configured\n\nScenario: Shared ops primitives stay pack-agnostic\n  Given the newsroom app shell and shared globals\n  Then they contain no Pilobolus hexes\n  And the shell contains no publication brand names\n  And the default papyrus pack only aliases Shadcn tokens\n\nPilobolus remains the first extra pack (PAPYRUS_SITE_BRAND=pilobol-us), not the platform default. Contract: docs/site-theme-packs.md",
+      "created_at": "2026-09-07T20:11:25.910757Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-09-07T20:00:45.886125Z",
-  "updated_at": "2026-09-07T20:08:26.692660Z",
+  "updated_at": "2026-09-07T20:11:25.910821Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { cn } from "../lib/utils";
 
+/** Shared newsroom chrome. Consume Shadcn / --theme-* tokens only; no pack names. */
+
 type NewsroomAppShellProps = {
   children: ReactNode;
   className?: string;
