@@ -233,10 +233,12 @@ When("I follow the newsroom tab for {string}", async function (label) {
 
 When("I follow the newsroom overview link for {string}", async function (label) {
   const page = requirePage(this);
-  const link = page.locator(".news-desk-ledger-item", { hasText: label }).first();
+  const sectionId = getNewsroomSectionId(label);
+  const destinationKey = sectionId === "topics" ? "topics" : sectionId;
+  const link = page.locator(`[data-newsroom-ops-destination="${destinationKey}"]`).first();
   await link.waitFor({ state: "visible", timeout: 10_000 });
   await link.click();
-  await waitForNewsroomSection(page, getNewsroomSectionId(label));
+  await waitForNewsroomSection(page, sectionId);
 });
 
 When("I update the first newsroom category name to {string}", async function (name) {
@@ -424,47 +426,24 @@ Then("the active newsroom section should be {string}", async function (sectionId
 Then("the newsroom should show the knowledge overview", async function () {
   const page = requirePage(this);
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-home]").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-newsroom-overview-feeds]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-overview-section='messages']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-overview-section='assignments']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-overview-section='references']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-overview-section='messages'] h2", { hasText: "Forum" }).waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-overview-section='assignments'] h2", { hasText: "Assignments" }).waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-overview-section='references'] h2", { hasText: "References" }).waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-destination='references']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-destination='assignments']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-destination='messages']").waitFor({ state: "visible", timeout: 10_000 });
 });
 
-Then("the newsroom overview should show newspaper sections", async function () {
-  const report = await requirePage(this).evaluate(() => {
-    const expected = [
-      ["messages", "/newsroom/messages"],
-      ["assignments", "/newsroom/assignments"],
-      ["references", "/newsroom/references"],
-    ];
-    return expected.map(([section, path]) => {
-      const root = document.querySelector(`[data-newsroom-overview-section="${section}"]`);
-      const cards = Array.from(root?.querySelectorAll("[data-newsroom-overview-section-card]") ?? []);
-      const more = root?.querySelector("[data-newsroom-overview-more]");
-      const moreUrl = more?.getAttribute("href") ? new URL(more.getAttribute("href"), window.location.href) : null;
-      return {
-        cardCount: cards.length,
-        morePath: moreUrl?.pathname ?? null,
-        moreSearch: moreUrl?.search ?? "",
-        path,
-        section,
-        spans: cards.map((card) => card.getAttribute("data-newsroom-card-span")),
-        title: root?.querySelector("h2")?.textContent?.trim() ?? null,
-      };
-    });
-  });
-  for (const section of report) {
-    assert.equal(section.morePath, section.path, `Expected ${section.section} More link to route to its desk`);
-    assert.ok(section.cardCount > 0, `Expected ${section.section} overview section to render cards`);
-    assert.ok(section.cardCount <= 4, `Expected ${section.section} overview section to render up to four cards`);
-    assert.equal(section.spans[0], "2x2", `Expected ${section.section} lead card to be 2x2`);
-    if (section.cardCount >= 4) {
-      assert.equal(section.spans[3], "2x1", `Expected ${section.section} secondary card to be 2x1`);
-    }
-  }
+Then("the newsroom ops desks should render as cards", async function () {
+  const page = requirePage(this);
+  await page.locator("[data-newsroom-ops-desks]").waitFor({ state: "visible", timeout: 10_000 });
+  const count = await page.locator("[data-newsroom-ops-desk]").count();
+  assert.ok(count > 0, "Expected at least one desk card on the ops home");
+});
+
+Then("the newsroom ops desks should not render on overview-only surfaces", async function () {
+  const page = requirePage(this);
+  await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
+  assert.equal(await page.locator("[data-newsroom-ops-desks]").count(), 0);
 });
 
 Then("newsroom overview section headers should follow the vertical rhythm", async function () {

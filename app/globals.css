@@ -10244,4 +10244,24 @@ img {
   }
 }
 
+/* Ops app chrome: sans-only content surfaces; moss primary on navigation/actions */
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h1,
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h2,
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h3,
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] .story-label {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-newsroom-chrome="app"] [data-category-steering] {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-theme-pack="pilobol-us"] [data-newsroom-ops-shell="true"] a:focus-visible,
+[data-theme-pack="pilobol-us"] [data-newsroom-ops-shell="true"] button:focus-visible {
+  --tw-ring-color: var(--theme-moss);
+}
 

@@ -81,6 +81,8 @@ import { cn } from "../lib/utils";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
+import { NewsroomOpsOverview } from "./newsroom-ops-overview";
+import { NewsroomReferencesView } from "./newsroom-references-view";
 import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
 import { Button, buttonVariants } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -3062,12 +3064,12 @@ function NewsDeskDashboard({
           />
         ) : null}
         {!isSectionPage && activeTab === "overview" ? (
-          <OverviewDeskView
+          <NewsroomOpsOverview
             assignments={assignments}
-            dashboard={dashboard}
-            initialForumThreadId={initialSelection.forumThread}
-            isDemo={Boolean(dashboard.isDemo)}
+            demo={Boolean(dashboard.isDemo)}
+            messages={messages}
             newsroomSections={newsroomSections}
+            references={references}
           />
         ) : null}
         {!isSectionPage && activeTab === "search" ? (
@@ -3144,38 +3146,12 @@ function NewsDeskDashboard({
           />
         ) : null}
         {!isSectionPage && activeTab === "references" ? (
-          <ReferencesDeskView
-            categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
-            categorySets={categorySets}
-            corpora={corpora}
-            curationRunsByLineage={referenceCurationRunsByLineage}
-            graph={graph}
-            initialCategoryLineageId={initialSelection.category}
-            initialReferenceLineageId={initialSelection.reference}
-            isDemo={Boolean(dashboard.isDemo)}
-            deepLinkFetchEnabled={
-              authState.status === "signedIn"
-              && (
-                Boolean(initialSelection.reference)
-                || Boolean(pathnameReferenceLineageId)
-                || hasHydratedReferences
-              )
-            }
-            qualityActionState={referenceQualityActionState}
-            references={references}
-            referenceAttachments={referenceAttachments}
-            realtimeError={referencesRealtimeError}
-            realtimeStatus={referencesRealtimeStatus}
-            semanticRelations={semanticRelations}
-            summary={summary}
+          <NewsroomReferencesView
+            demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
-            onMoveCorpus={runReferenceCorpusMove}
-            onReview={runReferenceCurationAction}
-            onStartCuration={runReferenceCurationStart}
-            onSetQualityRating={runReferenceQualityRating}
-            onCreateInsight={createInsight}
-            onReviewTopicLabel={runReferenceTopicLabelAction}
-            onHydrateReference={hydrateReferenceFromRoute}
+            initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
+            onReview={(reference, action) => runReferenceCurationAction(reference, action)}
+            references={references}
           />
         ) : null}
         {!isSectionPage && activeTab === "insights" ? (

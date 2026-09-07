@@ -58,7 +58,7 @@ function TabsList({
     <div
       aria-orientation="horizontal"
       className={cn(
-        "inline-flex h-9 w-fit items-center rounded-lg bg-[rgb(var(--ink-solid-rgb)_/_0.06)] p-1 text-[rgb(var(--ink-solid-rgb)_/_0.7)]",
+        "inline-flex h-9 w-fit items-center rounded-lg bg-muted/50 p-1 text-muted-foreground",
         className,
       )}
       role="tablist"
@@ -82,8 +82,8 @@ function TabsTrigger({
         "inline-flex min-w-[7rem] items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink-solid-rgb)_/_0.18)]",
         active
-          ? "bg-[rgb(var(--paper-rgb)_/_0.96)] text-[rgb(var(--ink-solid-rgb)_/_0.96)] shadow-sm"
-          : "text-[rgb(var(--ink-solid-rgb)_/_0.6)] hover:text-[rgb(var(--ink-solid-rgb)_/_0.86)]",
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
         className,
       )}
       data-state={active ? "active" : "inactive"}

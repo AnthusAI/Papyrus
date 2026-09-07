@@ -95,8 +95,9 @@ function SidebarNavLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        buttonVariants({ variant: active ? "secondary" : "ghost", size: "default" }),
+        buttonVariants({ variant: active ? "default" : "ghost", size: "default" }),
         "h-auto min-h-11 w-full justify-start gap-3 px-3 py-2.5 text-left font-normal",
+        active && "shadow-sm",
       )}
       data-news-desk-tab={item.id}
       href={getNewsroomNavHref(item.href, demo)}
@@ -201,7 +202,7 @@ export function NewsroomOpsShell({
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[0.68rem] font-medium",
-                      active ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                      active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground",
                     )}
                     data-news-desk-tab={item.id}
                     href={getNewsroomNavHref(item.href, demo)}
