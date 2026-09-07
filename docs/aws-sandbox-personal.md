@@ -28,6 +28,9 @@ node -v && npm -v               # Node 20+ recommended
 `AGENTS.local.md` is optional; when missing, use the default AWS credential chain and
 `AWS_REGION=us-east-1`.
 
+For **Cursor Cloud Agents** targeting Ryan's existing sandbox (not a new personal
+stack), see [`docs/cursor-cloud-agent-ryan-sandbox.md`](cursor-cloud-agent-ryan-sandbox.md).
+
 ## Worktree
 
 ```bash

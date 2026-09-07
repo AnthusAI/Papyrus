@@ -1,0 +1,21 @@
+schemaVersion: 1
+profiles:
+  - key: pilobol-us-topic-granularity
+    title: Pilobolus Topic Granularity Sweep
+    description: Compare topic granularity for the Pilobolus field-notes corpus before proposing steering-tree changes.
+    scope: global-topic-model
+    defaultMode: generated-analysis-rebuild
+    corpusKey: pilobol-us
+    classifierId: pilobol-us
+    configurationName: pilobol-us-global-granularity
+    biblicus:
+      configurations:
+        - configurations/topic-modeling/pilobol-us-granularity.yml
+    defaults:
+      extractionSnapshot: pipeline:pilobol-us-field-notes-snapshot
+      targetTopicRange: "6:12"
+    allowedOverrides:
+      - targetTopicRange
+    expectedOutputs:
+      - topic-granularity-sweep
+      - steering-proposals
