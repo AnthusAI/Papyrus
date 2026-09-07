@@ -112,7 +112,7 @@ function SidebarNavLink({
       <NavCountBadge countState={countState} />
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium">{item.label}</span>
-        <span className="block text-xs text-muted-foreground">{item.detail}</span>
+        <span className={cn("block text-xs", active ? "text-foreground/70" : "text-muted-foreground")}>{item.detail}</span>
       </span>
     </Link>
   );

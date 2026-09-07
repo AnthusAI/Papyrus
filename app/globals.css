@@ -10289,6 +10289,11 @@ img {
   color: var(--foreground);
 }
 
+[data-newsroom-chrome="app"] [role="tab"][aria-selected="true"] {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--foreground);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
   :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
