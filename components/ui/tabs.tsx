@@ -82,8 +82,8 @@ function TabsTrigger({
         "inline-flex min-w-[7rem] items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ink-solid-rgb)_/_0.18)]",
         active
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
+          ? "bg-primary/10 text-foreground shadow-none ring-1 ring-primary/15"
+          : "text-muted-foreground hover:bg-primary/5 hover:text-foreground",
         className,
       )}
       data-state={active ? "active" : "inactive"}

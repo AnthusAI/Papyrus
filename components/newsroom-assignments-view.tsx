@@ -37,6 +37,7 @@ import {
   syncBrowserNewsroomIndexUrl,
 } from "../lib/newsroom-index-filters";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
+import { newsroomListRowClassName, NEWSROOM_SIDEBAR_NAV_ACTIVE } from "../lib/newsroom-list-selection";
 import { cn } from "../lib/utils";
 
 export type AssignmentDeskViewMode = "queue" | "budget";
@@ -474,20 +475,22 @@ export function NewsroomAssignmentsView({
           </div>
           <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-1" role="group" aria-label="Assignment view">
             <Button
+              className={viewMode === "queue" ? NEWSROOM_SIDEBAR_NAV_ACTIVE : undefined}
               data-active={viewMode === "queue" || undefined}
               onClick={() => selectViewMode("queue")}
               size="sm"
               type="button"
-              variant={viewMode === "queue" ? "default" : "ghost"}
+              variant="ghost"
             >
               Queue
             </Button>
             <Button
+              className={viewMode === "budget" ? NEWSROOM_SIDEBAR_NAV_ACTIVE : undefined}
               data-active={viewMode === "budget" || undefined}
               onClick={() => selectViewMode("budget")}
               size="sm"
               type="button"
-              variant={viewMode === "budget" ? "default" : "ghost"}
+              variant="ghost"
             >
               Story Budget
             </Button>
@@ -526,10 +529,9 @@ export function NewsroomAssignmentsView({
                   return (
                     <button
                       aria-current={active ? "true" : undefined}
-                      className={cn(
-                        "w-full rounded-xl border bg-card p-4 text-left transition-colors",
-                        active ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/30",
-                      )}
+                      className={newsroomListRowClassName(active)}
+                      data-newsroom-list-row
+                      data-selected={active || undefined}
                       data-assignment-candidate={assignment.id}
                       data-assignment-status={assignment.status}
                       data-newsroom-card

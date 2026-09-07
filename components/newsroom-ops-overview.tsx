@@ -7,6 +7,7 @@ import {
   MessageSquareIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +27,7 @@ import {
   isEnabledNewsroomSection,
   sortNewsroomSections,
 } from "../lib/newsroom-sections";
-import { cn } from "../lib/utils";
+import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
 
 type NewsroomOpsOverviewProps = {
   assignments: AssignmentRecord[];
@@ -63,6 +64,7 @@ export function NewsroomOpsOverview({
   newsroomSections,
   references,
 }: NewsroomOpsOverviewProps) {
+  const pathname = usePathname();
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
   const referenceCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
   const pendingReferences = useMemo(
@@ -142,10 +144,14 @@ export function NewsroomOpsOverview({
               {pendingReferences.map((reference) => {
                 const lineageId = referenceLineageId(reference);
                 const href = getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo);
+                const active = pathname === href || pathname.startsWith(`${href}/`);
                 return (
                   <Link
-                    className="flex items-start gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-primary/30 hover:bg-muted/30"
+                    aria-current={active ? "true" : undefined}
+                    className={newsroomInboxRowClassName(active)}
                     data-newsroom-inbox-item="reference"
+                    data-newsroom-list-row
+                    data-selected={active || undefined}
                     data-newsroom-card
                     data-newsroom-card-id={lineageId}
                     href={href}
@@ -161,10 +167,14 @@ export function NewsroomOpsOverview({
               })}
               {attentionAssignments.map((assignment) => {
                 const href = getNewsroomNavHref(`/newsroom/assignments/${encodeURIComponent(assignment.id)}`, demo);
+                const active = pathname === href || pathname.startsWith(`${href}/`);
                 return (
                   <Link
-                    className="flex items-start gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:border-primary/30 hover:bg-muted/30"
+                    aria-current={active ? "true" : undefined}
+                    className={newsroomInboxRowClassName(active)}
                     data-newsroom-inbox-item="assignment"
+                    data-newsroom-list-row
+                    data-selected={active || undefined}
                     href={href}
                     key={assignment.id}
                   >

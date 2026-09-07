@@ -43,7 +43,7 @@ import {
   type ReferenceStatusFilter,
 } from "../lib/newsroom-references";
 import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
-import { cn } from "../lib/utils";
+import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 
 type NewsroomReferencesViewProps = {
   demo?: boolean;
@@ -350,10 +350,9 @@ export function NewsroomReferencesView({
               return (
                 <button
                   aria-current={active ? "true" : undefined}
-                  className={cn(
-                    "w-full rounded-xl border bg-card p-4 text-left transition-colors",
-                    active ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/30",
-                  )}
+                  className={newsroomListRowClassName(active)}
+                  data-newsroom-list-row
+                  data-selected={active || undefined}
                   data-newsroom-card
                   data-newsroom-card-id={lineageId}
                   key={lineageId}

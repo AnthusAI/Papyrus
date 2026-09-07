@@ -27,6 +27,10 @@ import {
   NEWSROOM_OPS_NAV,
   type NewsroomNavTabId,
 } from "../lib/newsroom-nav";
+import {
+  NEWSROOM_SIDEBAR_NAV_ACTIVE,
+  NEWSROOM_SIDEBAR_NAV_INACTIVE,
+} from "../lib/newsroom-list-selection";
 import { cn } from "../lib/utils";
 
 export type NewsroomNavCount = {
@@ -95,9 +99,9 @@ function SidebarNavLink({
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        buttonVariants({ variant: active ? "default" : "ghost", size: "default" }),
+        buttonVariants({ variant: "ghost", size: "default" }),
         "h-auto min-h-11 w-full justify-start gap-3 px-3 py-2.5 text-left font-normal",
-        active && "shadow-sm",
+        active ? NEWSROOM_SIDEBAR_NAV_ACTIVE : NEWSROOM_SIDEBAR_NAV_INACTIVE,
       )}
       data-news-desk-tab={item.id}
       href={getNewsroomNavHref(item.href, demo)}
