@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 from dataclasses import dataclass, field
 
 
@@ -81,10 +82,21 @@ def render_page(
     script_html = ""
     if chrome.scripts:
         tags = [
-            f'<script src="{html.escape(prefix + src, quote=True)}"></script>'
+            f'<script src="{html.escape(prefix + src, quote=True)}{suffix}"></script>'
             for src in chrome.scripts
         ]
         script_html = "\n" + "\n".join(tags)
+        # Exposed so a chrome script that itself picks and injects a *further*
+        # script at runtime (background-manager.js choosing one of the
+        # effect scripts) can carry the same cache-busting version onto that
+        # dynamic src -- otherwise only the scripts named here are versioned,
+        # and anything they load themselves keeps getting served stale.
+        if css_version:
+            version_json = json.dumps(css_version)
+            script_html = (
+                f"\n<script>window.__markusAssetVersion = {version_json};</script>"
+                + script_html
+            )
 
     footer_inner = chrome.footer_html or _DEFAULT_FOOTER
 

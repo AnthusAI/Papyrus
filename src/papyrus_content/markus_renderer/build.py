@@ -76,7 +76,21 @@ def _discover_section(content_dir: Path, section: str) -> list[tuple[str, Path]]
 
 
 def _build_nav_items(articles: list[tuple[str, Path]]) -> list[NavItem]:
+    """One nav link per article -- fine for a handful of articles (Papyrus's
+    own site has 2), but floods the header once a publication has a real
+    archive of stories. If the articles directory has its own ``index.md``
+    (a hand-authored archive/"Stories" page), treat THAT as the one nav entry
+    for articles instead of listing every single one -- the index page is
+    where individual stories get linked from. Publications with no such
+    index.md keep the original one-link-per-article behavior unchanged.
+    """
     nav_items = [NavItem("Home", "index.html")]
+    index_entry = next((a for a in articles if a[0] == "index"), None)
+    if index_entry is not None:
+        slug, source = index_entry
+        title = _read_title(source, "Stories")
+        nav_items.append(NavItem(title, f"articles/{slug}.html"))
+        return nav_items
     for slug, source in articles:
         title = _read_title(source, slug.replace("-", " ").title())
         nav_items.append(NavItem(title, f"articles/{slug}.html"))
@@ -142,8 +156,9 @@ def build_markus_site(
 
     _copy_tree(content_root / "assets", output_root / "assets")
 
-    # Derived from the emitted stylesheets so any CSS change yields a new URL.
-    css_version = _css_version(output_root / "css")
+    # Derived from the emitted stylesheets AND scripts so any change to
+    # either yields a new URL (see _css_version's docstring).
+    css_version = _css_version(output_root / "css", output_root / "assets")
 
     nav_items = _build_nav_items(articles)
     built_pages: list[Path] = []
@@ -229,19 +244,32 @@ def build_markus_site(
     return BuildResult(content_dir=content_root, out_dir=output_root, pages=built_pages)
 
 
-def _css_version(css_dir: Path) -> str:
-    """Cache-busting token: a short hash of the emitted stylesheets' CONTENT.
+def _css_version(css_dir: Path, assets_dir: Path | None = None) -> str:
+    """Cache-busting token: a short hash of the emitted stylesheets' AND
+    scripts' CONTENT.
 
     Deliberately not an mtime. Second-granularity mtimes collide when two
     builds land in the same second, and the browser then keeps serving the
     stale stylesheet from cache while the URL looks unchanged -- which is
     exactly how a real CSS fix appeared not to work during development.
-    Hashing content means the URL changes if and only if the CSS changed.
+    Hashing content means the URL changes if and only if the content did.
+
+    This same token versions every <script> tag the shell emits (see
+    shell.py's render_page and its window.__markusAssetVersion), not just
+    stylesheets -- it was CSS-only at first, which meant a JS-only edit left
+    the version unchanged and browsers kept serving stale cached copies of
+    the exact scripts that had just been fixed. assets_dir is walked
+    recursively so it also covers scripts under subdirectories.
     """
     digest = hashlib.sha256()
     for path in sorted(css_dir.glob("*.css")):
         digest.update(path.name.encode("utf-8"))
         digest.update(path.read_bytes())
+    if assets_dir is not None and assets_dir.is_dir():
+        for path in sorted(assets_dir.rglob("*")):
+            if path.is_file():
+                digest.update(str(path.relative_to(assets_dir)).encode("utf-8"))
+                digest.update(path.read_bytes())
     return digest.hexdigest()[:12]
 
 
