@@ -1,0 +1,21 @@
+{
+  "id": "PPY-10a06f17-0884-4642-993d-db52a0c75215",
+  "title": "Implement Shadcn /newsroom/steer desk",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2b7fd03-c64c-4a9a-a406-8df03df2c9c6",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-09-07T19:54:59.058761Z",
+  "updated_at": "2026-09-07T20:00:45.105469Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

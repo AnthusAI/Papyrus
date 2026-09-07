@@ -1,0 +1,40 @@
+{
+  "id": "PPY-88775351-689c-4460-a1c0-78fcf98d9e86",
+  "title": "Evolve /newsroom chrome to Shadcn app feel (PPY-cdeedf)",
+  "description": "",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6b2a3448-4805-4394-bc18-cf2f6cdd6c2c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "126f3408-8d2f-4d7c-85bd-6a3d5a0fc93d",
+      "author": "ubuntu",
+      "text": "Feature: Newsroom Shadcn app chrome\n  Scenario: Demo newsroom uses app chrome instead of newsprint\n    Given I open the newsroom at 1280 by 900\n    Then I should see the newsroom app shell\n    And I should not see a newspaper masthead or paper page in the newsroom chrome\n    And operational tabs remain available on the overview\n\n  Scenario: Deep section pages still omit operational tabs\n    Given I open the edition path \"/newsroom/sections/news?demo=1\" at 1280 by 900\n    Then the deep newsroom section page should omit operational tabs",
+      "created_at": "2026-09-07T20:00:53.169165Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "cad5af5d-fd0a-443d-9703-3bcd07dad67a",
+      "author": "ubuntu",
+      "text": "Replaced newsroom paper-page/masthead chrome with NewsroomAppShell (header + section nav). Deep /newsroom/sections pages still omit operational tabs. Inner Topics/References/Assignments desks are unchanged. BDD: features/newsroom-app-chrome.feature.",
+      "created_at": "2026-09-07T20:04:54.208853Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-07T20:00:46.305314Z",
+  "updated_at": "2026-09-07T20:04:54.208914Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

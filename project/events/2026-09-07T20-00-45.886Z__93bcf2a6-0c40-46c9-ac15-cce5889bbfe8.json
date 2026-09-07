@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "93bcf2a6-0c40-46c9-ac15-cce5889bbfe8",
+  "issue_id": "PPY-3e26b7ab-c47f-4f49-a678-5afbfb661111",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-07T20:00:45.886Z",
+  "actor_id": "ubuntu",
+  "payload": {
+    "title": "Tenant theme packs + multi-site config (PPY-5a5570)",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6b2a3448-4805-4394-bc18-cf2f6cdd6c2c",
+    "labels": []
+  }
+}

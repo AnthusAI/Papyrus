@@ -1,0 +1,40 @@
+{
+  "id": "PPY-e2b7fd03-c64c-4a9a-a406-8df03df2c9c6",
+  "title": "Newsroom Shadcn steering desk",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7f2b03ba-45a0-4a3c-93b1-7ed59ad45f69",
+      "author": "ubuntu",
+      "text": "As an editor, I want a traditional Shadcn newsroom steering desk, so that I can browse references and assignments and accept or reject taxonomy/ontology proposals without newspaper chrome.\n\nAcceptance client: Pilobol.us (publication pilobol-us). Implementation lives in AnthusAI/Papyrus at /newsroom/steer.\n\nOut of scope:\n- Implementing the UI inside Pilobol.us\n- Replacing the existing newspaper /newsroom workspace\n- Changing Pretext/reader layout\n- New GraphQL models or a parallel CMS\n\nDefinition of Done:\n- /newsroom/steer is a Shadcn app surface (not newsprint)\n- References list with pending/accepted/rejected filters\n- Steering-relevant assignments list\n- Proposal yes/no voting writes append-only decisions via reviewSteeringProposal (demo local; live userPool)\n- Reference accept/reject via reviewReferenceCuration\n- Existing /newsroom newspaper workflows remain\n- Runnable instructions in README/PR for Pilobol acceptance",
+      "created_at": "2026-09-07T19:54:57.879704Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "c2a2f25b-8d8c-4f5a-a809-28f95769e82b",
+      "author": "ubuntu",
+      "text": "Scope correction from PM: this epic is not the foundation PR. PPY-43704a owns dispatch. This PR will implement only PPY-5a5570 (tenant theme packs) and PPY-cdeedf (newsroom Shadcn chrome). References inbox, proposal votes, concepts, catalog, and pluggable-stack wiring are later children \u2014 not in this PR.",
+      "created_at": "2026-09-07T20:00:38.810294Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-07T19:54:49.860323Z",
+  "updated_at": "2026-09-07T20:00:45.547835Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

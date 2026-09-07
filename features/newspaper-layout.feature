@@ -43,8 +43,6 @@ Feature: Newspaper layout scenarios
   Scenario Outline: Masthead nameplates step down on column breakpoints
     Given I open the "current-edition" layout scenario at <width> by <height>
     Then the masthead should use <mastheadRows> rhythm rows with <titleRows> title rows and fit the page width
-    Given I open the newsroom at <width> by <height>
-    Then the masthead should use <mastheadRows> rhythm rows with <titleRows> title rows and fit the page width
     And no browser console errors should occur
 
     Examples:
@@ -54,11 +52,11 @@ Feature: Newspaper layout scenarios
       | 390   | 900    | 4            | 2         |
 
   @brand-agnostic
-  Scenario: Newsroom top shell responds to constrained container width
+  Scenario: Newsroom top shell stays app chrome at constrained width
     Given I open the newsroom at 1280 by 900
     And I constrain the newsroom shell width to 760 pixels
-    Then the newsroom masthead should fit width and align to rhythm rows
-    And the newsroom tabs should use 3 columns
+    Then I should see the newsroom app shell
+    And I should not see a newspaper masthead or paper page in the newsroom chrome
     And no browser console errors should occur
 
   Scenario: Front page masthead uses the edition title

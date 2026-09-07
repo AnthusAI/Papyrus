@@ -243,7 +243,29 @@ Papyrus has three distinct GraphQL auth lanes:
 taxonomy steering tab. `Sections` is the operational desk surface backed by
 `NewsroomSection` doctrine and budgets. `Doctrine` is the publication-wide
 mission and policies surface. The page is driven by the configured corpora for
-the publication, not by hard-coded corpus names. Papyrus owns the human steering
+the publication, not by hard-coded corpus names.
+
+`/newsroom` chrome is an application shell (Shadcn tokens and sans fonts), not
+the Pretext newspaper masthead. Reader pages keep newsprint/Pretext. Before:
+ops sat inside `.paper-page` / `.masthead`. After: `[data-newsroom-chrome=app]`
+with a header and section nav. Inner desks (Topics, References, Assignments)
+are unchanged in this foundation slice.
+
+Tenant theme packs live on `SiteBrand` (`themePack`, moss/ochre/paper tokens,
+independent `renderer` and `hosting`). Pilobol.us is the first extra pack
+(`PAPYRUS_SITE_BRAND=pilobol-us`). Shared ops components read CSS tokens; they
+do not hard-code publication names. GraphQL/AppSync remains the data source of
+truth.
+
+```bash
+npm run dev
+# or: npm run dev:127
+```
+
+Then open [http://127.0.0.1:3001/newsroom?demo=1](http://127.0.0.1:3001/newsroom?demo=1).
+Set `PAPYRUS_SITE_BRAND=pilobol-us` to apply the moss/ochre/paper pack.
+
+Papyrus owns the human steering
 state in GraphQL: knowledge corpora,
 import runs, artifacts, accepted category sets, strict-tree categories, private
 `Reference` metadata, private `SemanticRelation` links, proposals, and

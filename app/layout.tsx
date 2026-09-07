@@ -41,6 +41,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       className="light light-theme"
       data-papyrus-theme={defaultTheme}
       data-site-brand={SITE_BRAND.id}
+      data-theme-pack={SITE_BRAND.themePack}
+      data-ops-chrome={SITE_BRAND.opsChrome}
       data-default-presentation={SITE_BRAND.defaultPresentation}
       data-presentation-choices={presentationChoices.join(",")}
       {...(SITE_BRAND.forcedPresentation ? { "data-forced-presentation": SITE_BRAND.forcedPresentation } : {})}

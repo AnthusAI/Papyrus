@@ -1,0 +1,32 @@
+/* Tenant theme pack: moss / ochre / paper tokens. Shared ops chrome reads these
+   custom properties, not publication names. */
+
+:root[data-theme-pack="pilobol-us"],
+:root[data-site-brand="pilobol-us"] {
+  color-scheme: light;
+  --theme-paper: #f4efe4;
+  --theme-moss: #3f5d4a;
+  --theme-ochre: #c4843a;
+  --theme-ink: #2c2a24;
+  --background: var(--theme-paper);
+  --foreground: var(--theme-ink);
+  --foreground-strong: var(--theme-ink);
+  --foreground-muted: color-mix(in srgb, var(--theme-ink) 68%, var(--theme-paper));
+  --card: color-mix(in srgb, var(--theme-paper) 88%, white);
+  --card-foreground: var(--theme-ink);
+  --popover: var(--card);
+  --popover-foreground: var(--theme-ink);
+  --primary: var(--theme-moss);
+  --primary-foreground: var(--theme-paper);
+  --secondary: color-mix(in srgb, var(--theme-moss) 12%, var(--theme-paper));
+  --secondary-foreground: var(--theme-moss);
+  --muted: color-mix(in srgb, var(--theme-ochre) 14%, var(--theme-paper));
+  --muted-foreground: color-mix(in srgb, var(--theme-ink) 62%, var(--theme-paper));
+  --accent: var(--theme-ochre);
+  --accent-foreground: var(--theme-paper);
+  --border: color-mix(in srgb, var(--theme-moss) 22%, var(--theme-paper));
+  --input: var(--border);
+  --ring: var(--theme-moss);
+  --surface: var(--card);
+  --surface-foreground: var(--theme-ink);
+}

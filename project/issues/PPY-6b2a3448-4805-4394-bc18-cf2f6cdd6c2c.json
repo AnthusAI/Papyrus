@@ -1,0 +1,31 @@
+{
+  "id": "PPY-6b2a3448-4805-4394-bc18-cf2f6cdd6c2c",
+  "title": "Newsroom ops foundation (PPY-43704a)",
+  "description": "",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "786f6068-8c16-4a24-9a1e-106d146af540",
+      "author": "ubuntu",
+      "text": "As an editor, I want Papyrus newsroom ops chrome and tenant theme packs, so that publications like Pilobol.us can run a Shadcn ops desk without newspaper/Pretext chrome, while GraphQL stays the source of truth.\n\nThis epic implements the PM's PPY-43704a foundation slice only:\n- PPY-5a5570 / PPY-3e26b7 theme packs + multi-site config\n- PPY-cdeedf / PPY-887753 newsroom Shadcn shell\n\nOut of scope: refs inbox, topics votes, concepts, catalog, pluggable-stack wiring.",
+      "created_at": "2026-09-07T20:00:52.397729Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-07T20:00:39.915256Z",
+  "updated_at": "2026-09-07T20:00:52.397824Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

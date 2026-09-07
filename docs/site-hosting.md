@@ -1,7 +1,8 @@
 # Site hosting options
 
-Status: **Documented pattern** (types land in `SiteBrand` via PPY-eca592; this file
-is the source of truth until then).
+Status: **Config types live on `SiteBrand`** (`renderer`, `hosting`, `themePack`,
+`opsChrome` in `lib/site-brand.ts`). This file remains the hosting runbook.
+Markus/static build wiring is still a later child — config is not a renderer.
 
 Kanbus: PPY-17fcfc. First proof: [Pilobol.us](https://github.com/AnthusAI/Pilobol.us)
 on **pilobol.us** (Amplify platform `WEB`).

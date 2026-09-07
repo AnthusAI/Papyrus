@@ -1,4 +1,5 @@
 import type { SiteBrand } from "../../lib/site-brand";
+import { DEFAULT_THEME_PACK_TOKENS } from "../../lib/site-stack";
 
 export const threatIntelligenceBrand: SiteBrand = {
   id: "threat-intelligence",
@@ -20,4 +21,15 @@ export const threatIntelligenceBrand: SiteBrand = {
   mastheadSource: "brand",
   sectionLinkStrategy: "anchor",
   defaultVideoCredit: "Anthus Threat Intelligence video",
+  themePack: "threat-intelligence",
+  themeTokens: {
+    ...DEFAULT_THEME_PACK_TOKENS,
+    paper: "#f5f0e6",
+    moss: "#1c1917",
+    ochre: "#ea580c",
+    ink: "#44403c",
+  },
+  renderer: { kind: "pretext" },
+  hosting: { kind: "amplify-ssr" },
+  opsChrome: "app",
 };

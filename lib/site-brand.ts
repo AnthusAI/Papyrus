@@ -1,7 +1,16 @@
 import type { EditionPresentationFormat } from "./content-types";
 import { threatIntelligenceBrand } from "../publications/threat_intelligence/brand";
+import { pilobolUsBrand } from "../publications/pilobol_us/brand";
+import {
+  DEFAULT_THEME_PACK_TOKENS,
+  type HostingConfig,
+  type OpsChrome,
+  type RendererConfig,
+  type ThemePackId,
+  type ThemePackTokens,
+} from "./site-stack";
 
-export type SiteBrandId = "papyrus" | "threat-intelligence";
+export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us";
 
 export type SiteBrand = {
   id: SiteBrandId;
@@ -23,6 +32,11 @@ export type SiteBrand = {
   mastheadSource: "edition" | "brand";
   sectionLinkStrategy: "route" | "anchor";
   defaultVideoCredit?: string;
+  themePack: ThemePackId;
+  themeTokens: ThemePackTokens;
+  renderer: RendererConfig;
+  hosting: HostingConfig;
+  opsChrome: OpsChrome;
 };
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
@@ -43,30 +57,41 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     mastheadDateFormat: "raw",
     mastheadSource: "edition",
     sectionLinkStrategy: "route",
+    themePack: "papyrus",
+    themeTokens: DEFAULT_THEME_PACK_TOKENS,
+    renderer: { kind: "pretext" },
+    hosting: { kind: "amplify-ssr" },
+    opsChrome: "app",
   },
   "threat-intelligence": threatIntelligenceBrand,
+  "pilobol-us": pilobolUsBrand,
 };
 
-function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
+export function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
   if (!value) return null;
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase().replace(/[._]/g, "-");
   if (!normalized) return null;
   if (normalized === "papyrus") return "papyrus";
-  if (normalized === "threat-intelligence" || normalized === "threat_intelligence" || normalized === "anthus") {
+  if (normalized === "threat-intelligence" || normalized === "threat-intel" || normalized === "anthus") {
     return "threat-intelligence";
+  }
+  if (normalized === "pilobol-us" || normalized === "pilobolus" || normalized === "pilobol") {
+    return "pilobol-us";
   }
   return null;
 }
 
-function resolveSiteBrandId(): SiteBrandId {
-  const configured = normalizeSiteBrandId(
-    process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND
-      ?? process.env.PAPYRUS_SITE_BRAND,
-  );
-  return configured ?? "papyrus";
+export function resolveSiteBrandId(
+  raw: string | undefined | null = process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND ?? process.env.PAPYRUS_SITE_BRAND,
+): SiteBrandId {
+  return normalizeSiteBrandId(raw) ?? "papyrus";
 }
 
-export const SITE_BRAND = SITE_BRANDS[resolveSiteBrandId()];
+export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand {
+  return SITE_BRANDS[id];
+}
+
+export const SITE_BRAND = getSiteBrand();
 
 export function enforcePresentation(presentation: EditionPresentationFormat): EditionPresentationFormat {
   return SITE_BRAND.forcedPresentation ?? presentation;

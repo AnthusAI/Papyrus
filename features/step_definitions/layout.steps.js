@@ -43,6 +43,26 @@ Given("I open the newsroom at {int} by {int}", async function (width, height) {
   await requirePage(this).waitForSelector("[data-news-desk]", { state: "visible", timeout: 15_000 });
 });
 
+Then("I should see the newsroom app shell", async function () {
+  const page = requirePage(this);
+  await page.waitForSelector("[data-newsroom-chrome='app']", { state: "visible", timeout: 15_000 });
+  await page.waitForSelector(".newsroom-app-shell__header", { state: "visible", timeout: 15_000 });
+  const title = await page.locator(".newsroom-app-shell__title").innerText();
+  assert.match(title, /Newsroom|News/i);
+});
+
+Then("I should not see a newspaper masthead or paper page in the newsroom chrome", async function () {
+  const page = requirePage(this);
+  const chrome = await page.evaluate(() => ({
+    paperPage: Boolean(document.querySelector("[data-news-desk] .paper-page, [data-news-desk-access] .paper-page")),
+    masthead: Boolean(document.querySelector("[data-news-desk] .masthead, [data-news-desk-access] .masthead, .news-desk-masthead")),
+    appShell: Boolean(document.querySelector("[data-newsroom-chrome='app']")),
+  }));
+  assert.equal(chrome.appShell, true, "Expected newsroom app chrome");
+  assert.equal(chrome.paperPage, false, "Expected no paper-page wrapper in newsroom chrome");
+  assert.equal(chrome.masthead, false, "Expected no newspaper masthead in newsroom chrome");
+});
+
 Given("I constrain the newsroom shell width to {int} pixels", async function (width) {
   const page = requirePage(this);
   await page.waitForSelector("[data-news-desk]", { state: "visible", timeout: 15_000 });

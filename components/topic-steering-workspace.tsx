@@ -78,6 +78,7 @@ import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
+import { NewsroomAppShell } from "./newsroom-app-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import {
   DropdownMenu,
@@ -3254,8 +3255,9 @@ function NewsDeskDashboard({
 
   return (
     <main
-      className="site-shell news-desk-shell"
+      className="site-shell news-desk-shell newsroom-app-shell"
       data-news-desk
+      data-newsroom-chrome="app"
       data-category-steering
       data-category-steering-demo={dashboard.isDemo ? "true" : "false"}
       data-news-desk-refreshing={isRefreshing ? "true" : "false"}
@@ -3271,38 +3273,30 @@ function NewsDeskDashboard({
             : topBarSearchControl.open,
         } : null}
       />
-      <section className="scroll-edition news-desk-edition">
-        <div className="paper-page paper-page--front paper-page--active">
-          <article className="paper-page-content paper-page-content--front news-desk-page" aria-labelledby="news-desk-title">
-	        <header className="masthead news-desk-masthead">
-	          <div className="masthead__rule" />
-	          <h1 id="news-desk-title">
-	            {isSectionPage ? mastheadTitle : <Link href={getNewsDeskTabHref("/newsroom", dashboard.isDemo)}>NEWSROOM</Link>}
-	          </h1>
-		          <div className="masthead__meta" aria-label="Newsroom edition status">
-	            <span><NewsDeskDrawerTrigger controller={drawerController} /></span>
-	            <span aria-hidden="true" className="masthead__meta-placeholder">&nbsp;</span>
-	            <span>{dashboard.isDemo ? "Demo Desk" : <Link className="news-desk-auth-control-link" href="/settings">Settings</Link>}</span>
-	          </div>
-	        </header>
-        <NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} demo={dashboard.isDemo} />
-
-        {!isSectionPage && activeTab === "overview" ? (
-          <nav className="news-desk-tabs" aria-label="Newsroom sections">
-            {NEWS_DESK_TABS.map((tab) => (
-              <NewsDeskTabLink
-                key={tab.id}
-                active={tab.id === activeTab}
-                count={tabCounts[tab.id]}
-                countSlot={tab.id !== "administration"}
-                countVisible={tab.id === "administration" || summaryStatus !== "loading"}
-                countMissing={tab.id !== "administration" && summaryStatus === "missing"}
-                demo={dashboard.isDemo}
-                tab={tab}
-              />
-            ))}
-          </nav>
-        ) : null}
+      <NewsroomAppShell
+        labelledBy="news-desk-title"
+        title={isSectionPage ? mastheadTitle : <Link href={getNewsDeskTabHref("/newsroom", dashboard.isDemo)}>Newsroom</Link>}
+        headerTrailing={(
+          <>
+            <NewsDeskDrawerTrigger controller={drawerController} />
+            <span>{dashboard.isDemo ? "Demo desk" : <Link className="news-desk-auth-control-link" href="/settings">Settings</Link>}</span>
+          </>
+        )}
+        showNavigation={!isSectionPage}
+        navigation={NEWS_DESK_TABS.map((tab) => (
+          <NewsDeskTabLink
+            key={tab.id}
+            active={tab.id === activeTab}
+            count={tabCounts[tab.id]}
+            countSlot={tab.id !== "administration"}
+            countVisible={tab.id === "administration" || summaryStatus !== "loading"}
+            countMissing={tab.id !== "administration" && summaryStatus === "missing"}
+            demo={dashboard.isDemo}
+            tab={tab}
+          />
+        ))}
+        drawer={<NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} demo={dashboard.isDemo} />}
+      >
 
         {activeTab !== "overview" && activeTab !== "assignments" && activeTab !== "messages" && activeTab !== "references" && activeTab !== "topics" && activeTab !== "concepts" && activeTab !== "search" ? (
           <section className="news-desk-lede-grid" aria-label="Newsroom overview">
@@ -3534,9 +3528,7 @@ function NewsDeskDashboard({
           />
         ) : null}
         {topBarSearchControl.dialog}
-          </article>
-        </div>
-      </section>
+      </NewsroomAppShell>
     </main>
   );
 }
@@ -16458,54 +16450,47 @@ function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDes
 
   return (
     <main
-      className="site-shell news-desk-shell"
+      className="site-shell news-desk-shell newsroom-app-shell"
       data-news-desk-access={accessPhase}
+      data-newsroom-chrome="app"
       data-news-desk-drawer-docked={drawerController.isDocked ? "true" : "false"}
       data-news-desk-drawer-open={drawerController.open ? "true" : "false"}
       data-rhythm-overlay={showRhythmOverlay ? "true" : "false"}
     >
       <NewsroomProgressBackLink />
-      <section className="scroll-edition news-desk-edition">
-        <div className="paper-page paper-page--front paper-page--active">
-          <article className="paper-page-content paper-page-content--front news-desk-page news-desk-page--gate" aria-labelledby="news-desk-access-title">
-	            <header className="masthead news-desk-masthead">
-	              <div className="masthead__rule" />
-	              <h1 id="news-desk-access-title">
-	                <span>NEWSROOM</span>
-	              </h1>
-		            <div className="masthead__meta" aria-label="Newsroom edition status">
-	              <span><NewsDeskDrawerTrigger controller={drawerController} /></span>
-	              <span aria-hidden="true" className="masthead__meta-placeholder">&nbsp;</span>
-	              <span><Link className="news-desk-auth-control-link" href="/settings">Settings</Link></span>
-	            </div>
-	            </header>
-            <NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} />
-            {showSectionTabs ? (
-              <nav className="news-desk-tabs" aria-label="Newsroom sections">
-                {NEWS_DESK_TABS.map((tab) => (
-                  <NewsDeskTabLink
-                    key={tab.id}
-                    active={false}
-                    count={0}
-                    countSlot={tab.id !== "administration"}
-                    countVisible={false}
-                    tab={tab}
-                  />
-                ))}
-              </nav>
-            ) : null}
-            <section className="news-desk-access-panel" aria-live="polite" data-news-desk-access-phase={accessPhase}>
-              <div className="news-desk-access-panel__copy" key={`copy-${accessPhase}`}>
-                <p className="story-label">Access</p>
-                <h2>{formatAccessTitle(shell)}</h2>
-                <p>{formatAccessDetail(shell)}</p>
-                {shell?.error ? <p className="news-desk-access-panel__error">{shell.error}</p> : null}
-                <p className="news-desk-access-panel__auth">{formatAccessActionDetail(shell)}</p>
-              </div>
-            </section>
-          </article>
-        </div>
-      </section>
+      <NewsroomAppShell
+        contentClassName="news-desk-page--gate"
+        labelledBy="news-desk-access-title"
+        title={<span>Newsroom</span>}
+        headerTrailing={(
+          <>
+            <NewsDeskDrawerTrigger controller={drawerController} />
+            <Link className="news-desk-auth-control-link" href="/settings">Settings</Link>
+          </>
+        )}
+        showNavigation={showSectionTabs}
+        navigation={NEWS_DESK_TABS.map((tab) => (
+          <NewsDeskTabLink
+            key={tab.id}
+            active={false}
+            count={0}
+            countSlot={tab.id !== "administration"}
+            countVisible={false}
+            tab={tab}
+          />
+        ))}
+        drawer={<NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} />}
+      >
+        <section className="news-desk-access-panel" aria-live="polite" data-news-desk-access-phase={accessPhase}>
+          <div className="news-desk-access-panel__copy" key={`copy-${accessPhase}`}>
+            <p className="story-label">Access</p>
+            <h2>{formatAccessTitle(shell)}</h2>
+            <p>{formatAccessDetail(shell)}</p>
+            {shell?.error ? <p className="news-desk-access-panel__error">{shell.error}</p> : null}
+            <p className="news-desk-access-panel__auth">{formatAccessActionDetail(shell)}</p>
+          </div>
+        </section>
+      </NewsroomAppShell>
     </main>
   );
 }
