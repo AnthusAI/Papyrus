@@ -4,7 +4,7 @@ Papyrus newsroom (`/newsroom`) is a **platform** surface. It is not a
 Pilobolus app. Every publication reuses the same Shadcn ops chrome and
 customizes appearance through a **theme pack** on `SiteBrand`.
 
-Kanbus: PPY-3e26b7 (PM: PPY-5a5570). Acceptance client: Pilobol.us.
+Kanbus: PPY-43704a / PPY-5a5570. Acceptance client: Pilobol.us.
 
 ## Independent axes (do not collapse them)
 

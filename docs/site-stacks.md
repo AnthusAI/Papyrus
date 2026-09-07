@@ -8,7 +8,7 @@ pages while using Shadcn `/newsroom` for steering — or any other mix. Pilobolu
 choosing Markus does **not** imply a Pilobolus-only ops UI. Adopting Shadcn
 ops does **not** force Markus on the reader.
 
-Kanbus: PPY-6b2a34 / PPY-3e26b7. Related: [site-theme-packs.md](site-theme-packs.md),
+Kanbus: PPY-43704a / PPY-5a5570. Related: [site-theme-packs.md](site-theme-packs.md),
 [site-hosting.md](site-hosting.md).
 
 ## Config seam (`SiteStack`)
