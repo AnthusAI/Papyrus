@@ -253,9 +253,12 @@ are unchanged in this foundation slice.
 
 Tenant theme packs live on `SiteBrand` (`themePack`, moss/ochre/paper tokens,
 independent `renderer` and `hosting`). Pilobol.us is the first extra pack
-(`PAPYRUS_SITE_BRAND=pilobol-us`). Shared ops components read CSS tokens; they
-do not hard-code publication names. GraphQL/AppSync remains the data source of
-truth.
+(`PAPYRUS_SITE_BRAND=pilobol-us`) and maps the Markus fungus-among-us palette
+(paper `#f1ead9`, moss `#3f5d43`, ochre `#a35a2a`, plus dark counterparts)
+into Shadcn CSS variables. Colors are copied into Papyrus; the Pilobol.us
+theme file is not loaded at runtime. Typography stays on the Shadcn stack.
+Shared ops components read CSS tokens; they do not hard-code publication
+names. GraphQL/AppSync remains the data source of truth.
 
 ```bash
 npm run dev
@@ -263,7 +266,7 @@ npm run dev
 ```
 
 Then open [http://127.0.0.1:3001/newsroom?demo=1](http://127.0.0.1:3001/newsroom?demo=1).
-Set `PAPYRUS_SITE_BRAND=pilobol-us` to apply the moss/ochre/paper pack.
+Set `PAPYRUS_SITE_BRAND=pilobol-us` to apply the official Pilobolus palette.
 
 Papyrus owns the human steering
 state in GraphQL: knowledge corpora,

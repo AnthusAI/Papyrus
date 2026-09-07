@@ -1,32 +1,140 @@
-/* Tenant theme pack: moss / ochre / paper tokens. Shared ops chrome reads these
-   custom properties, not publication names. */
+/* Pilobolus theme pack — colors only.
+   Hex values are copied from AnthusAI/Pilobol.us `web/css/pilobil-theme-v10.css`
+   (`pilobil-` spelling is the live filename; a `pilobol-theme-v10.css` rename
+   may follow). That file is not loaded at runtime.
+   Shadcn owns typography. Do not set a font stack here. */
 
 :root[data-theme-pack="pilobol-us"],
 :root[data-site-brand="pilobol-us"] {
   color-scheme: light;
-  --theme-paper: #f4efe4;
-  --theme-moss: #3f5d4a;
-  --theme-ochre: #c4843a;
-  --theme-ink: #2c2a24;
+  --theme-ink: #211d17;
+  --theme-muted: #6b6153;
+  --theme-paper: #f1ead9;
+  --theme-card: #fbf6ea;
+  --theme-line: #d7cbb2;
+  --theme-moss: #3f5d43;
+  --theme-ochre: #a35a2a;
+  --theme-quote: #4a3548;
+  --theme-tip: #4f6b3a;
+  --theme-caution: #8a3324;
+  --theme-stage: #ddd4bf;
   --background: var(--theme-paper);
   --foreground: var(--theme-ink);
   --foreground-strong: var(--theme-ink);
-  --foreground-muted: color-mix(in srgb, var(--theme-ink) 68%, var(--theme-paper));
-  --card: color-mix(in srgb, var(--theme-paper) 88%, white);
+  --foreground-muted: var(--theme-muted);
+  --card: var(--theme-card);
   --card-foreground: var(--theme-ink);
-  --popover: var(--card);
+  --popover: var(--theme-card);
   --popover-foreground: var(--theme-ink);
   --primary: var(--theme-moss);
   --primary-foreground: var(--theme-paper);
-  --secondary: color-mix(in srgb, var(--theme-moss) 12%, var(--theme-paper));
-  --secondary-foreground: var(--theme-moss);
-  --muted: color-mix(in srgb, var(--theme-ochre) 14%, var(--theme-paper));
-  --muted-foreground: color-mix(in srgb, var(--theme-ink) 62%, var(--theme-paper));
+  --secondary: var(--theme-stage);
+  --secondary-foreground: var(--theme-ink);
+  --muted: var(--theme-stage);
+  --muted-foreground: var(--theme-muted);
   --accent: var(--theme-ochre);
   --accent-foreground: var(--theme-paper);
-  --border: color-mix(in srgb, var(--theme-moss) 22%, var(--theme-paper));
-  --input: var(--border);
+  --border: var(--theme-line);
+  --input: var(--theme-line);
   --ring: var(--theme-moss);
-  --surface: var(--card);
+  --destructive: var(--theme-caution);
+  --destructive-foreground: var(--theme-paper);
+  --danger: var(--theme-caution);
+  --danger-foreground: var(--theme-paper);
+  --surface: var(--theme-card);
   --surface-foreground: var(--theme-ink);
+  --paper: var(--theme-paper);
+  --ink: var(--theme-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme-pack="pilobol-us"]:not([data-papyrus-theme="light"]):not(.light-theme),
+  :root[data-site-brand="pilobol-us"]:not([data-papyrus-theme="light"]):not(.light-theme) {
+    color-scheme: dark;
+    --theme-ink: #dfded0;
+    --theme-muted: #8b9184;
+    --theme-paper: #14170f;
+    --theme-card: #1c2117;
+    --theme-line: #333b2a;
+    --theme-moss: #b7d18a;
+    --theme-ochre: #d0895a;
+    --theme-quote: #b7a3c4;
+    --theme-tip: #9fce7a;
+    --theme-caution: #d17e6e;
+    --theme-stage: #0d0f0a;
+    --background: var(--theme-paper);
+    --foreground: var(--theme-ink);
+    --foreground-strong: var(--theme-ink);
+    --foreground-muted: var(--theme-muted);
+    --card: var(--theme-card);
+    --card-foreground: var(--theme-ink);
+    --popover: var(--theme-card);
+    --popover-foreground: var(--theme-ink);
+    --primary: var(--theme-moss);
+    --primary-foreground: var(--theme-stage);
+    --secondary: var(--theme-card);
+    --secondary-foreground: var(--theme-ink);
+    --muted: var(--theme-card);
+    --muted-foreground: var(--theme-muted);
+    --accent: var(--theme-ochre);
+    --accent-foreground: var(--theme-stage);
+    --border: var(--theme-line);
+    --input: var(--theme-line);
+    --ring: var(--theme-moss);
+    --destructive: var(--theme-caution);
+    --destructive-foreground: var(--theme-stage);
+    --danger: var(--theme-caution);
+    --danger-foreground: var(--theme-stage);
+    --surface: var(--theme-card);
+    --surface-foreground: var(--theme-ink);
+    --paper: var(--theme-paper);
+    --ink: var(--theme-ink);
+  }
+}
+
+:root.dark[data-theme-pack="pilobol-us"],
+:root.dark-theme[data-theme-pack="pilobol-us"],
+:root[data-theme-pack="pilobol-us"][data-papyrus-theme="dark"],
+:root.dark[data-site-brand="pilobol-us"],
+:root.dark-theme[data-site-brand="pilobol-us"],
+:root[data-site-brand="pilobol-us"][data-papyrus-theme="dark"] {
+  color-scheme: dark;
+  --theme-ink: #dfded0;
+  --theme-muted: #8b9184;
+  --theme-paper: #14170f;
+  --theme-card: #1c2117;
+  --theme-line: #333b2a;
+  --theme-moss: #b7d18a;
+  --theme-ochre: #d0895a;
+  --theme-quote: #b7a3c4;
+  --theme-tip: #9fce7a;
+  --theme-caution: #d17e6e;
+  --theme-stage: #0d0f0a;
+  --background: var(--theme-paper);
+  --foreground: var(--theme-ink);
+  --foreground-strong: var(--theme-ink);
+  --foreground-muted: var(--theme-muted);
+  --card: var(--theme-card);
+  --card-foreground: var(--theme-ink);
+  --popover: var(--theme-card);
+  --popover-foreground: var(--theme-ink);
+  --primary: var(--theme-moss);
+  --primary-foreground: var(--theme-stage);
+  --secondary: var(--theme-card);
+  --secondary-foreground: var(--theme-ink);
+  --muted: var(--theme-card);
+  --muted-foreground: var(--theme-muted);
+  --accent: var(--theme-ochre);
+  --accent-foreground: var(--theme-stage);
+  --border: var(--theme-line);
+  --input: var(--theme-line);
+  --ring: var(--theme-moss);
+  --destructive: var(--theme-caution);
+  --destructive-foreground: var(--theme-stage);
+  --danger: var(--theme-caution);
+  --danger-foreground: var(--theme-stage);
+  --surface: var(--theme-card);
+  --surface-foreground: var(--theme-ink);
+  --paper: var(--theme-paper);
+  --ink: var(--theme-ink);
 }

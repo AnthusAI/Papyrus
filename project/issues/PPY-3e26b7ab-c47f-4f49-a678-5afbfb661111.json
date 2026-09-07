@@ -28,10 +28,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "f322aae3-3aae-4691-9c6a-6d060ce1a117",
+      "author": "ubuntu",
+      "text": "Feature: Official Pilobolus palette on Shadcn tokens\n\nScenario: Pilobol-us maps Markus fungus-among-us colors, not custom fonts\n  Given PAPYRUS_SITE_BRAND is pilobol-us\n  When the theme pack is applied\n  Then paper is #f1ead9, moss is #3f5d43, ochre is #a35a2a, ink is #211d17\n  And card, line, muted, quote, tip, caution, and stage match pilobil-theme-v10.css\n  And dark counterparts apply under html.dark / data-papyrus-theme=dark / prefers-color-scheme\n  And Shadcn CSS variables use those colors\n  And the pack does not set a font stack\n\nCopied from AnthusAI/Pilobol.us web/css/pilobil-theme-v10.css into publications/pilobol_us/theme.css. No runtime dependency on that file.",
+      "created_at": "2026-09-07T20:08:26.692598Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-09-07T20:00:45.886125Z",
-  "updated_at": "2026-09-07T20:04:53.786226Z",
+  "updated_at": "2026-09-07T20:08:26.692660Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
