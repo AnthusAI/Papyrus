@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NewsDeskWorkspace, type NewsDeskTab } from "./topic-steering-workspace";
 import {
   createDemoCategorySteeringDashboard,
@@ -5,6 +6,13 @@ import {
   loadCategorySteeringDashboard,
   loadConfiguredCorpusSummaries,
 } from "../lib/category-repository";
+import {
+  BRAND_OVERRIDE_COOKIE,
+  getBrandAnalysisProfilesPath,
+  getBrandNewsroomSectionsConfigPath,
+  getBrandSteeringConfigPath,
+  resolveActiveSiteBrand,
+} from "../lib/site-brand-tenant";
 
 export type NewsDeskPageProps = {
   sectionPageId?: string | null;
@@ -55,9 +63,13 @@ export async function NewsDeskPage({ section: routeSection, sectionPageId, selec
     forumThread: routeSelection.forumThread,
   };
   const useDemoDashboard = getFirstSearchParam(resolvedSearchParams, "demo") === "1";
-  const analysisProfiles = await loadAnalysisProfileSummaries();
-  const configuredCorpora = await loadConfiguredCorpusSummaries();
-  const dashboard = useDemoDashboard ? createDemoCategorySteeringDashboard() : await loadCategorySteeringDashboard();
+  const brandOverride = (await cookies()).get(BRAND_OVERRIDE_COOKIE)?.value ?? null;
+  const brand = resolveActiveSiteBrand(brandOverride);
+  const analysisProfiles = await loadAnalysisProfileSummaries(getBrandAnalysisProfilesPath(brand));
+  const configuredCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(brand));
+  const dashboard = useDemoDashboard
+    ? createDemoCategorySteeringDashboard(brand.id, getBrandNewsroomSectionsConfigPath(brand))
+    : await loadCategorySteeringDashboard();
   return <NewsDeskWorkspace analysisProfiles={analysisProfiles} configuredCorpora={configuredCorpora} dashboard={dashboard} initialSelection={initialSelection} initialTab={initialTab} sectionPageId={sectionPageId ?? null} />;
 }
 

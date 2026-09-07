@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
+import { applyPilobolusDemoDashboardContent } from "./newsroom-demo-dashboard";
 import { getNewsroomDemoProfile, isPilobolusDemoBrand } from "./newsroom-demo-profile";
+import { resolveSiteBrandId, type SiteBrandId } from "./site-brand";
 
 export { createEmptyCategorySteeringDashboard };
 
@@ -198,12 +200,13 @@ export type ProcedureRunRecord = {
   newsroomFeedKey?: string | null;
 };
 
-const NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
+const DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
 const NEWSROOM_SECTION_TYPES = new Set<NewsroomSectionType>(["canonical", "floating", "rotating"]);
-let newsroomSectionSeedRowsCache: Array<Omit<NewsroomSectionRecord, "sortOrder" | "enabled" | "enabledStatus" | "createdAt" | "updatedAt"> & {
+type NewsroomSectionSeedRow = Omit<NewsroomSectionRecord, "sortOrder" | "enabled" | "enabledStatus" | "createdAt" | "updatedAt"> & {
   enabled: boolean;
   sortOrder: number;
-}> | null = null;
+};
+const newsroomSectionSeedRowsCache = new Map<string, NewsroomSectionSeedRow[]>();
 
 export type SteeringProposal = {
   id: string;
@@ -906,8 +909,8 @@ function sortProposals(proposals: CategorySteeringProposal[]): CategorySteeringP
   });
 }
 
-function defaultNewsroomSections(importedAt: string): NewsroomSectionRecord[] {
-  return loadNewsroomSectionSeedRows().map((row, index) => ({
+function defaultNewsroomSections(importedAt: string, sectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH): NewsroomSectionRecord[] {
+  return loadNewsroomSectionSeedRows(sectionsConfigPath).map((row, index) => ({
     ...row,
     enabledStatus: "enabled",
     sortOrder: Number.isInteger(row.sortOrder) && row.sortOrder > 0 ? row.sortOrder : index + 1,
@@ -916,35 +919,41 @@ function defaultNewsroomSections(importedAt: string): NewsroomSectionRecord[] {
   }));
 }
 
-function loadNewsroomSectionSeedRows() {
-  if (newsroomSectionSeedRowsCache) return newsroomSectionSeedRowsCache;
-  const parsed = YAML.parse(fs.readFileSync(NEWSROOM_SECTIONS_CONFIG_PATH, "utf8")) as {
+function loadNewsroomSectionSeedRows(sectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH) {
+  const cached = newsroomSectionSeedRowsCache.get(sectionsConfigPath);
+  if (cached) return cached;
+  const parsed = YAML.parse(fs.readFileSync(sectionsConfigPath, "utf8")) as {
     schemaVersion?: number;
     sections?: Array<Record<string, unknown>>;
   };
   if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.sections)) {
-    throw new Error(`Invalid newsroom section seed file: ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+    throw new Error(`Invalid newsroom section seed file: ${sectionsConfigPath}`);
   }
-  newsroomSectionSeedRowsCache = parsed.sections.map((entry, index) => normalizeNewsroomSectionSeedRow(entry, index));
-  return newsroomSectionSeedRowsCache;
+  const rows = parsed.sections.map((entry, index) => normalizeNewsroomSectionSeedRow(entry, index, sectionsConfigPath));
+  newsroomSectionSeedRowsCache.set(sectionsConfigPath, rows);
+  return rows;
 }
 
-function normalizeNewsroomSectionSeedRow(entry: Record<string, unknown>, index: number): Omit<NewsroomSectionRecord, "enabledStatus" | "createdAt" | "updatedAt"> {
+function normalizeNewsroomSectionSeedRow(
+  entry: Record<string, unknown>,
+  index: number,
+  sectionsConfigPath: string,
+): Omit<NewsroomSectionRecord, "enabledStatus" | "createdAt" | "updatedAt"> {
   const id = stringValue(entry.id);
-  if (!id) throw new Error(`Newsroom section at index ${index} is missing id in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+  if (!id) throw new Error(`Newsroom section at index ${index} is missing id in ${sectionsConfigPath}`);
   const title = stringValue(entry.title);
-  if (!title) throw new Error(`Newsroom section '${id}' is missing title in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+  if (!title) throw new Error(`Newsroom section '${id}' is missing title in ${sectionsConfigPath}`);
   const shortTitle = stringValue(entry.shortTitle);
-  if (!shortTitle) throw new Error(`Newsroom section '${id}' is missing shortTitle in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+  if (!shortTitle) throw new Error(`Newsroom section '${id}' is missing shortTitle in ${sectionsConfigPath}`);
   const rawType = stringValue(entry.type).toLowerCase() as NewsroomSectionType;
   if (!NEWSROOM_SECTION_TYPES.has(rawType)) {
-    throw new Error(`Newsroom section '${id}' has unsupported type '${stringValue(entry.type)}' in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+    throw new Error(`Newsroom section '${id}' has unsupported type '${stringValue(entry.type)}' in ${sectionsConfigPath}`);
   }
   const type = rawType === "rotating" ? "floating" : rawType;
   const editorialMission = stringValue(entry.editorialMission);
   const editorialPolicy = stringValue(entry.editorialPolicy);
   if (!editorialMission || !editorialPolicy) {
-    throw new Error(`Newsroom section '${id}' requires editorialMission and editorialPolicy in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+    throw new Error(`Newsroom section '${id}' requires editorialMission and editorialPolicy in ${sectionsConfigPath}`);
   }
   return {
     id,
@@ -963,10 +972,13 @@ function normalizeNewsroomSectionSeedRow(entry: Record<string, unknown>, index: 
   };
 }
 
-export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard {
+export function createDemoCategorySteeringDashboard(
+  brandId: SiteBrandId = resolveSiteBrandId(),
+  newsroomSectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH,
+): CategorySteeringDashboard {
   const importedAt = "2026-05-16T12:00:00.000Z";
-  const profile = getNewsroomDemoProfile();
-  const pilobolus = isPilobolusDemoBrand();
+  const profile = getNewsroomDemoProfile(brandId);
+  const pilobolus = isPilobolusDemoBrand(brandId);
   const corpusId = "knowledge-corpus-demo-canonical";
   const sourceCorpusId = "knowledge-corpus-demo-source";
   const categorySetId = "category-set-demo-canonical";
@@ -982,7 +994,7 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
   const scalingCategoryLineageId = "category-category-set-demo-canonical-category-foundation-model-scaling";
   const historyCategoryLineageId = "category-category-set-demo-source-category-symbolic-connectionist-history";
 
-  return {
+  const dashboard: CategorySteeringDashboard = {
     isDemo: true,
     summary: null,
     canManageUsers: true,
@@ -1694,7 +1706,7 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
         updatedAt: importedAt,
       },
     ],
-    newsroomSections: defaultNewsroomSections(importedAt),
+    newsroomSections: defaultNewsroomSections(importedAt, newsroomSectionsConfigPath),
     procedureDefinitions: [],
     procedureVersions: [],
     procedureRuns: [],
@@ -1886,4 +1898,10 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
     ],
     loadError: null,
   };
+
+  if (pilobolus) {
+    return applyPilobolusDemoDashboardContent(dashboard, profile);
+  }
+
+  return dashboard;
 }

@@ -15,6 +15,15 @@ const {
 } = require("../lib/site-brand.ts");
 const { isDemoAmplifyOutputs } = require("../lib/demo-amplify-outputs.ts");
 const { getNewsroomDemoProfile } = require("../lib/newsroom-demo-profile.ts");
+const {
+  getBrandAnalysisProfilesPath,
+  getBrandSteeringConfigPath,
+  resolveActiveSiteBrand,
+} = require("../lib/site-brand-tenant.ts");
+const {
+  createDemoCategorySteeringDashboard,
+  loadConfiguredCorpusSummaries,
+} = require("../lib/category-repository.ts");
 const { getSiteStack, PILOBOL_US_THEME_PACK_TOKENS } = require("../lib/site-stack.ts");
 
 assert.equal(resolveSiteBrandId("pilobol-us"), "pilobol-us");
@@ -63,6 +72,11 @@ assert.equal(pilobolus.themeTokens.dark.moss, "#b7d18a");
 assert.equal(pilobolus.themeTokens.dark.ochre, "#d0895a");
 assert.equal(pilobolus.themeTokens.dark.ink, "#dfded0");
 assert.equal(pilobolus.themeTokens.dark.caution, "#d17e6e");
+assert.equal(pilobolus.corpusKey, "pilobol-us");
+assert.equal(pilobolus.steeringConfigPath, "corpora/pilobol-us-steering.yml");
+assert.equal(pilobolus.publicationName, "Pilobolus");
+assert.match(getBrandSteeringConfigPath(pilobolus), /pilobol-us-steering\.yml$/);
+assert.match(getBrandAnalysisProfilesPath(pilobolus), /pilobol-us-analysis-profiles\.yml$/);
 
 const papyrus = getSiteBrand("papyrus");
 assert.equal(papyrus.themePack, "papyrus");
@@ -157,7 +171,32 @@ assert.match(ensureScript, /amplify\/fixtures\/demo-amplify-outputs\.json/);
 assert.match(ensureScript, /DEMO-ONLY/);
 assert.match(ensureScript, /installDemoOutputs/);
 
-console.log("theme pack tests passed");
+const newsDeskPageSource = fs.readFileSync(path.join(process.cwd(), "components/news-desk-page.tsx"), "utf8");
+assert.match(newsDeskPageSource, /getBrandSteeringConfigPath\(brand\)/);
+assert.match(newsDeskPageSource, /createDemoCategorySteeringDashboard\(brand\.id/);
+assert.match(newsDeskPageSource, /BRAND_OVERRIDE_COOKIE/);
+
+(async () => {
+  const pilobolusCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(pilobolus));
+  assert.ok(pilobolusCorpora.some((corpus) => /Pilobolus Field Notes Corpus/.test(corpus.name)));
+  assert.ok(!pilobolusCorpora.some((corpus) => /Threat Intelligence|Papyrus publication KB/i.test(corpus.name)));
+
+  const demoDashboard = createDemoCategorySteeringDashboard(
+    "pilobol-us",
+    path.join(process.cwd(), "corpora/pilobol-us-newsroom-sections.yml"),
+  );
+  assert.match(demoDashboard.corpora.find((corpus) => corpus.role === "canonical")?.name ?? "", /Pilobolus Field Notes Corpus/);
+  assert.match(demoDashboard.doctrineRecords[0]?.title ?? "", /Pilobolus Editorial Mission/);
+  assert.match(demoDashboard.references[0]?.title ?? "", /Strangler Fig/);
+  assert.match(demoDashboard.newsroomSections[0]?.shortTitle ?? "", /Fungus Among Us/);
+  assert.ok(!JSON.stringify(demoDashboard).match(/Papyr\.us publication KB|Papyrus publishes bounded editions/i));
+
+  assert.equal(resolveActiveSiteBrand("pilobol-us").id, "pilobol-us");
+  console.log("theme pack tests passed");
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
 
 function registerTypeScriptRequire() {
   if (require.extensions[".ts"]) return;

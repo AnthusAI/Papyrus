@@ -37,6 +37,11 @@ export type SiteBrand = {
   renderer: RendererConfig;
   hosting: HostingConfig;
   opsChrome: OpsChrome;
+  corpusKey: string;
+  steeringConfigPath: string;
+  newsroomSectionsConfigPath: string;
+  analysisProfilesPath: string;
+  publicationName: string;
 };
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
@@ -62,6 +67,11 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     renderer: { kind: "pretext" },
     hosting: { kind: "amplify-ssr" },
     opsChrome: "app",
+    corpusKey: "threat-intelligence",
+    steeringConfigPath: "corpora/papyrus-steering.yml",
+    newsroomSectionsConfigPath: "corpora/papyrus-newsroom-sections.yml",
+    analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
+    publicationName: "Anthus Threat Intelligence",
   },
   "threat-intelligence": threatIntelligenceBrand,
   "pilobol-us": pilobolUsBrand,

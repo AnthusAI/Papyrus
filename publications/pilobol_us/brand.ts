@@ -21,4 +21,9 @@ export const pilobolUsBrand: SiteBrand = {
   renderer: { kind: "markus" },
   hosting: { kind: "amplify-static" },
   opsChrome: "app",
+  corpusKey: "pilobol-us",
+  steeringConfigPath: "corpora/pilobol-us-steering.yml",
+  newsroomSectionsConfigPath: "corpora/pilobol-us-newsroom-sections.yml",
+  analysisProfilesPath: "corpora/pilobol-us-analysis-profiles.yml",
+  publicationName: "Pilobolus",
 };
