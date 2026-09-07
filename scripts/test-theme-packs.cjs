@@ -125,6 +125,20 @@ assert.doesNotMatch(themeCss, /(?:^|[^-])font-family\s*:/);
 assert.doesNotMatch(themeCss, /@font-face/);
 assert.doesNotMatch(themeCss, /Iowan|Source Sans|IBM Plex|markus-serif|markus-sans/i);
 
+const demoOutputs = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "amplify/fixtures/demo-amplify-outputs.json"), "utf8"),
+);
+assert.match(String(demoOutputs.data.url), /nkqutx/);
+assert.equal(demoOutputs.auth.user_pool_id, "us-east-1_WD8fuTRVk");
+assert.match(String(demoOutputs.auth.user_pool_client_id), /demo|fake|stub|not-a-secret/i);
+assert.match(String(demoOutputs.data.api_key), /demo|fake|stub|not-a-secret/i);
+assert.doesNotMatch(JSON.stringify(demoOutputs), /64hviw|us-east-1_40Uot7WSv/);
+
+const ensureScript = fs.readFileSync(path.join(process.cwd(), "scripts/ensure-sandbox-amplify-outputs.mjs"), "utf8");
+assert.match(ensureScript, /amplify\/fixtures\/demo-amplify-outputs\.json/);
+assert.match(ensureScript, /DEMO-ONLY/);
+assert.match(ensureScript, /installDemoOutputs/);
+
 console.log("theme pack tests passed");
 
 function registerTypeScriptRequire() {

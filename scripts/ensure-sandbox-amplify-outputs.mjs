@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputsPath = path.join(repoRoot, "amplify_outputs.json");
+const demoOutputsPath = path.join(repoRoot, "amplify/fixtures/demo-amplify-outputs.json");
 const sandboxStack =
   process.env.PAPYRUS_SANDBOX_AMPLIFY_STACK?.trim() ||
   "amplify-papyrus-ryan-sandbox-adcd88a186";
@@ -78,12 +79,25 @@ function generateSandboxOutputs() {
     { cwd: repoRoot, env, stdio: "inherit" },
   );
   if (result.status !== 0) {
+    if (installDemoOutputs()) return;
     console.error(
       "[papyrus] Failed to generate sandbox amplify_outputs.json. Run `npm run sandbox` or check AWS credentials.",
     );
     process.exit(result.status ?? 1);
   }
   syncEnvGraphqlEndpoint();
+}
+
+function installDemoOutputs() {
+  if (!fs.existsSync(demoOutputsPath)) return false;
+  fs.copyFileSync(demoOutputsPath, outputsPath);
+  console.warn(
+    "[papyrus] ampx generate failed. Copied amplify/fixtures/demo-amplify-outputs.json → amplify_outputs.json.",
+  );
+  console.warn(
+    "[papyrus] DEMO-ONLY: this stub is for offline /newsroom?demo=1 chrome review. It is not a live sandbox and has no real secrets. Do not use it for GraphQL authoring.",
+  );
+  return true;
 }
 
 function syncEnvGraphqlEndpoint() {

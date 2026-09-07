@@ -270,6 +270,7 @@ npm run dev
 
 Then open [http://127.0.0.1:3001/newsroom?demo=1](http://127.0.0.1:3001/newsroom?demo=1).
 Set `PAPYRUS_SITE_BRAND=pilobol-us` to apply the official Pilobolus palette.
+Offline chrome review can use `amplify/fixtures/demo-amplify-outputs.json` when sandbox generate is unavailable (`npm run dev:127` copies that stub into ignored `amplify_outputs.json` and warns that it is demo-only).
 
 Papyrus owns the human steering
 state in GraphQL: knowledge corpora,

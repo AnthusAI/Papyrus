@@ -1,0 +1,15 @@
+{
+  "version": "1.3",
+  "auth": {
+    "user_pool_id": "us-east-1_WD8fuTRVk",
+    "aws_region": "us-east-1",
+    "identity_pool_id": "us-east-1:00000000-demo-4000-8000-000000000000",
+    "user_pool_client_id": "demo-user-pool-client-id-not-a-secret"
+  },
+  "data": {
+    "url": "https://nkqutx.appsync-api.us-east-1.amazonaws.com/graphql",
+    "aws_region": "us-east-1",
+    "default_authorization_type": "AMAZON_COGNITO_USER_POOLS",
+    "api_key": "da2-demoapikeynotasecret000000"
+  }
+}
