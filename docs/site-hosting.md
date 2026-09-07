@@ -17,7 +17,7 @@ A Papyrus publication is configured along **independent** axes:
 | **Ops chrome** | `app` \| `newsprint` | Newsroom shell. Independent of renderer |
 | **Renderer** | `pretext` \| `markus` | Publication / reader output only |
 | **Layout** | `newsprint` \| `blog` \| `magazine` | Pretext-internal only |
-| **Publication** | title / property | e.g. P.apyr.us, Threat Intelligence, Pilobol.us |
+| **Publication** | title / property | e.g. P.apyr.us, Threat Intelligence, Pilobolus |
 | **Hosting** | see `HostingConfig` below | Where built artifacts are served |
 
 Do not fold hosting into renderer choice, theme pack into renderer, or ops
@@ -78,7 +78,7 @@ Document pairings; do not ship a fake static Pretext pipeline.
 6. **CI invariants** — repo-committed Markdown; `markus convert` **without**
    `--allow-html` for static Markus builds.
 
-Example domain: **pilobol.us** (publication **Pilobol.us**, git repo
+Example domain: **pilobol.us** (publication **Pilobolus**, git repo
 `AnthusAI/Pilobol.us`). The old spelling `pilobil.us` was a typo — do not create
 that zone.
 
@@ -123,7 +123,7 @@ at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 | Anti-pattern | Why it fails |
 | --- | --- |
 | Threat Intelligence–style **Papyrus fork** | Second product repo + own `WEB_COMPUTE` app per publication; hosting knowledge lives in folklore |
-| **Pod-only README** | Next agent copies Pilobol by accident; no Papyrus template |
+| **Pod-only README** | Next agent copies Pilobolus by accident; no Papyrus template |
 | **Cargo-cult SSR `amplify.yml`** | Markus site runs `npm run build`, `ampx pipeline-deploy`, ships `.next`; build breaks or wrong stack |
 | **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Markus pods |
 | **Wrong domain zone** (`pilobil.us`) | Typo domain; certs and links diverge from **pilobol.us** |

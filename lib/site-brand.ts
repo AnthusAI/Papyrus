@@ -75,7 +75,7 @@ export function normalizeSiteBrandId(value: string | undefined | null): SiteBran
   if (normalized === "threat-intelligence" || normalized === "threat-intel" || normalized === "anthus") {
     return "threat-intelligence";
   }
-  if (normalized === "pilobol-us" || normalized === "pilobolus" || normalized === "pilobol") {
+  if (normalized === "pilobol-us" || normalized === "pilobolus") {
     return "pilobol-us";
   }
   return null;

@@ -17,48 +17,53 @@ const { getSiteStack, PILOBOL_US_THEME_PACK_TOKENS } = require("../lib/site-stac
 assert.equal(resolveSiteBrandId("pilobol-us"), "pilobol-us");
 assert.equal(resolveSiteBrandId("pilobolus"), "pilobol-us");
 assert.equal(resolveSiteBrandId("pilobol.us"), "pilobol-us");
+assert.equal(normalizeSiteBrandId("pilobol"), null);
+assert.equal(resolveSiteBrandId("pilobol"), "papyrus");
 assert.equal(normalizeSiteBrandId("unknown"), null);
 assert.equal(resolveSiteBrandId("not-a-brand"), "papyrus");
 
-const pilobol = getSiteBrand("pilobol-us");
-assert.equal(pilobol.themePack, "pilobol-us");
-assert.equal(pilobol.opsChrome, "app");
-assert.equal(pilobol.renderer.kind, "markus");
-assert.equal(pilobol.hosting.kind, "amplify-static");
-assert.deepEqual(pilobol.themeTokens, PILOBOL_US_THEME_PACK_TOKENS);
-assert.equal(pilobol.themeTokens.paper, "#f1ead9");
-assert.equal(pilobol.themeTokens.moss, "#3f5d43");
-assert.equal(pilobol.themeTokens.ochre, "#a35a2a");
-assert.equal(pilobol.themeTokens.ink, "#211d17");
-assert.equal(pilobol.themeTokens.card, "#fbf6ea");
-assert.equal(pilobol.themeTokens.line, "#d7cbb2");
-assert.equal(pilobol.themeTokens.muted, "#6b6153");
-assert.equal(pilobol.themeTokens.quote, "#4a3548");
-assert.equal(pilobol.themeTokens.tip, "#4f6b3a");
-assert.equal(pilobol.themeTokens.caution, "#8a3324");
-assert.equal(pilobol.themeTokens.stage, "#ddd4bf");
-assert.equal(pilobol.themeTokens.dark.paper, "#14170f");
-assert.equal(pilobol.themeTokens.dark.moss, "#b7d18a");
-assert.equal(pilobol.themeTokens.dark.ochre, "#d0895a");
-assert.equal(pilobol.themeTokens.dark.ink, "#dfded0");
-assert.equal(pilobol.themeTokens.dark.caution, "#d17e6e");
+const pilobolus = getSiteBrand("pilobol-us");
+assert.equal(pilobolus.appTitle, "Pilobolus");
+assert.match(pilobolus.appDescription, /Pilobolus/);
+assert.match(pilobolus.appDescription, /Pilobol\.us/);
+assert.equal(pilobolus.themePack, "pilobol-us");
+assert.equal(pilobolus.opsChrome, "app");
+assert.equal(pilobolus.renderer.kind, "markus");
+assert.equal(pilobolus.hosting.kind, "amplify-static");
+assert.deepEqual(pilobolus.themeTokens, PILOBOL_US_THEME_PACK_TOKENS);
+assert.equal(pilobolus.themeTokens.paper, "#f1ead9");
+assert.equal(pilobolus.themeTokens.moss, "#3f5d43");
+assert.equal(pilobolus.themeTokens.ochre, "#a35a2a");
+assert.equal(pilobolus.themeTokens.ink, "#211d17");
+assert.equal(pilobolus.themeTokens.card, "#fbf6ea");
+assert.equal(pilobolus.themeTokens.line, "#d7cbb2");
+assert.equal(pilobolus.themeTokens.muted, "#6b6153");
+assert.equal(pilobolus.themeTokens.quote, "#4a3548");
+assert.equal(pilobolus.themeTokens.tip, "#4f6b3a");
+assert.equal(pilobolus.themeTokens.caution, "#8a3324");
+assert.equal(pilobolus.themeTokens.stage, "#ddd4bf");
+assert.equal(pilobolus.themeTokens.dark.paper, "#14170f");
+assert.equal(pilobolus.themeTokens.dark.moss, "#b7d18a");
+assert.equal(pilobolus.themeTokens.dark.ochre, "#d0895a");
+assert.equal(pilobolus.themeTokens.dark.ink, "#dfded0");
+assert.equal(pilobolus.themeTokens.dark.caution, "#d17e6e");
 
 const papyrus = getSiteBrand("papyrus");
 assert.equal(papyrus.themePack, "papyrus");
 assert.equal(papyrus.renderer.kind, "pretext");
 assert.equal(papyrus.hosting.kind, "amplify-ssr");
 assert.equal(papyrus.opsChrome, "app");
-assert.notEqual(papyrus.renderer.kind, pilobol.renderer.kind);
-assert.notEqual(papyrus.hosting.kind, pilobol.hosting.kind);
-assert.notEqual(papyrus.themeTokens.paper, pilobol.themeTokens.paper);
-assert.notEqual(papyrus.themeTokens.moss, pilobol.themeTokens.moss);
+assert.notEqual(papyrus.renderer.kind, pilobolus.renderer.kind);
+assert.notEqual(papyrus.hosting.kind, pilobolus.hosting.kind);
+assert.notEqual(papyrus.themeTokens.paper, pilobolus.themeTokens.paper);
+assert.notEqual(papyrus.themeTokens.moss, pilobolus.themeTokens.moss);
 
 const threatIntel = getSiteBrand("threat-intelligence");
 assert.equal(threatIntel.themePack, "threat-intelligence");
 assert.equal(threatIntel.opsChrome, "app");
 assert.equal(threatIntel.renderer.kind, "pretext");
-assert.notEqual(threatIntel.themeTokens.paper, pilobol.themeTokens.paper);
-assert.notEqual(threatIntel.themeTokens.ochre, pilobol.themeTokens.ochre);
+assert.notEqual(threatIntel.themeTokens.paper, pilobolus.themeTokens.paper);
+assert.notEqual(threatIntel.themeTokens.ochre, pilobolus.themeTokens.ochre);
 
 const shellSource = fs.readFileSync(path.join(process.cwd(), "components/newsroom-app-shell.tsx"), "utf8");
 assert.doesNotMatch(shellSource, /pilobol|threat-intelligence|papyrus/i);
@@ -68,13 +73,13 @@ const sharedGlobals = fs.readFileSync(path.join(process.cwd(), "app/globals.css"
 assert.doesNotMatch(sharedGlobals, /#f1ead9|#3f5d43|#a35a2a|#211d17|#fbf6ea|#d7cbb2|#4a3548|#8a3324/);
 
 const papyrusStack = getSiteStack(papyrus);
-const pilobolStack = getSiteStack(pilobol);
-assert.equal(papyrusStack.ops.chrome, pilobolStack.ops.chrome);
+const pilobolusStack = getSiteStack(pilobolus);
+assert.equal(papyrusStack.ops.chrome, pilobolusStack.ops.chrome);
 assert.equal(papyrusStack.ops.chrome, "app");
-assert.notEqual(papyrusStack.publication.renderer.kind, pilobolStack.publication.renderer.kind);
+assert.notEqual(papyrusStack.publication.renderer.kind, pilobolusStack.publication.renderer.kind);
 
 const mixedPretextOps = getSiteStack({
-  ...pilobol,
+  ...pilobolus,
   renderer: { kind: "pretext" },
 });
 assert.equal(mixedPretextOps.ops.themePack, "pilobol-us");

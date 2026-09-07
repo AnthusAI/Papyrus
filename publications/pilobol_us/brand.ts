@@ -3,13 +3,13 @@ import { PILOBOL_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
 
 export const pilobolUsBrand: SiteBrand = {
   id: "pilobol-us",
-  appTitle: "Pilobol.us",
-  appDescription: "Pilobol.us publication on Papyrus.",
+  appTitle: "Pilobolus",
+  appDescription: "Pilobolus publication on Papyrus (Pilobol.us).",
   mastheadTitle: "PILOBOL.US",
   mastheadSubtitle: "Field notes",
-  backToHomeLabel: "Back to Pilobol.us",
-  articleTitleSuffix: "Pilobol.us",
-  placeholderByline: "Pilobol.us",
+  backToHomeLabel: "Back to Pilobolus",
+  articleTitleSuffix: "Pilobolus",
+  placeholderByline: "Pilobolus",
   defaultPresentation: "magazine",
   textFont: 'ui-sans-serif, system-ui, "Plus Jakarta Sans", sans-serif',
   mastheadWordSplit: false,
