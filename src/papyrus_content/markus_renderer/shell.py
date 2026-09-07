@@ -68,6 +68,12 @@ def render_page(
     nav_html = "\n      ".join(nav_links)
     safe_title = html.escape(title)
     safe_site = html.escape(resolved_site_name)
+    # Avoid "<title>Pilobolus · Pilobolus</title>" when a page's own title
+    # (e.g. a homepage front-matter title matching the site name) is
+    # identical to the site name -- the " · site" suffix exists to
+    # disambiguate a page from the site, which is meaningless when they're
+    # the same string.
+    title_tag = safe_site if title.strip() == resolved_site_name.strip() else f"{safe_title} · {safe_site}"
 
     # Cache-busting query on the stylesheets. Without it a browser serves a
     # stale theme and a CSS fix silently appears not to have worked.
@@ -105,7 +111,7 @@ def render_page(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{safe_title} · {safe_site}</title>
+<title>{title_tag}</title>
 <link rel="stylesheet" href="{prefix}css/markus-vendor.css{suffix}">
 <link rel="stylesheet" href="{prefix}css/site-theme.css{suffix}">
 </head>
