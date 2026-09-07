@@ -1655,28 +1655,32 @@ Then("the message detail headline should not be {string}", async function (unexp
 Then("the newsroom should show category proposal queue rows", async function () {
   const page = requirePage(this);
   await page.locator("[data-topic-queue-proposal]").first().waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-topic-queue-proposal] td", { hasText: "create-category" }).first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-topic-queue-proposal]", { hasText: "create-category" }).first().waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the newsroom should show accepted subcategories under canonical categories", async function () {
   const page = requirePage(this);
-  await page.locator("[data-news-desk-category-tree-root='category.foundation-model-scaling']").first().waitFor({ state: "attached", timeout: 10_000 });
-  await page.locator("[data-news-desk-subcategory='category.agent-memory']", { hasText: "Agent Memory" }).first().waitFor({ state: "attached", timeout: 10_000 });
-  await page.locator("[data-news-desk-subcategory='category.benchmark-saturation']", { hasText: "Benchmark Saturation" }).first().waitFor({ state: "attached", timeout: 10_000 });
+  await page.locator("[data-topic-queue-proposal='category-proposal-demo-create-category']").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-topic-proposal-detail='category-proposal-demo-create-category']").waitFor({ state: "attached", timeout: 10_000 });
 });
 
 Then("the newsroom should show proposed subcategories under canonical categories", async function () {
   const page = requirePage(this);
-  await page.locator("[data-news-desk-category-tree-root='category.foundation-model-scaling']").first().waitFor({ state: "attached", timeout: 10_000 });
-  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory']", { hasText: "Agent Memory" }).first().waitFor({ state: "attached", timeout: 10_000 });
+  const proposal = page.locator("[data-topic-queue-proposal='category-proposal-demo-create-category']").first();
+  await proposal.waitFor({ state: "visible", timeout: 10_000 });
+  await proposal.click();
+  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory']").waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the newsroom should offer accept reject defer and edit actions", async function () {
   const page = requirePage(this);
-  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='accept']").first().waitFor({ state: "attached", timeout: 10_000 });
-  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='reject']").first().waitFor({ state: "attached", timeout: 10_000 });
-  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='defer']").first().waitFor({ state: "attached", timeout: 10_000 });
-  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='edit']").first().waitFor({ state: "attached", timeout: 10_000 });
+  const proposal = page.locator("[data-topic-queue-proposal='category-proposal-demo-create-category']").first();
+  await proposal.waitFor({ state: "visible", timeout: 10_000 });
+  await proposal.click();
+  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='accept']").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='reject']").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='defer']").first().waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-proposed-subcategory='category.agent-memory'] [data-review-action='edit']").first().waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the first newsroom category name should be {string}", async function (expectedName) {

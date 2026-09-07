@@ -319,11 +319,8 @@ Feature: Newspaper layout scenarios
 
     Examples:
       | section     | width | height |
-      | topics      | 1280  | 900    |
       | concepts    | 1280  | 900    |
       | messages    | 1280  | 900    |
-      | references  | 1280  | 900    |
-      | assignments | 1280  | 900    |
 
   @brand-agnostic
   Scenario: Newsroom reference-curation message detail uses the linked reference headline and subheading

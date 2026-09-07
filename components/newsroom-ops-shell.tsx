@@ -6,6 +6,7 @@ import {
   LayoutGridIcon,
   MenuIcon,
   SearchIcon,
+  TagsIcon,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -56,6 +57,7 @@ const MOBILE_TAB_ICONS: Record<string, typeof LayoutGridIcon> = {
   overview: LayoutGridIcon,
   assignments: ClipboardListIcon,
   references: BookOpenIcon,
+  topics: TagsIcon,
 };
 
 function formatCountLabel(count: number | null, missing?: boolean): string {
@@ -196,7 +198,7 @@ export function NewsroomOpsShell({
           className="shrink-0 border-t border-border bg-card/95 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1 md:hidden"
           data-newsroom-ops-bottom-nav
         >
-          <ul className="grid grid-cols-4 gap-1 px-2">
+          <ul className="grid grid-cols-5 gap-1 px-2">
             {mobilePrimary.map((item) => {
               const Icon = MOBILE_TAB_ICONS[item.id] ?? LayoutGridIcon;
               const active = resolvedActiveTab === item.id;
@@ -206,7 +208,9 @@ export function NewsroomOpsShell({
                     aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[0.68rem] font-medium",
-                      active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground",
+                      active
+                        ? "bg-muted/80 text-foreground shadow-sm ring-1 ring-border"
+                        : "text-muted-foreground",
                     )}
                     data-news-desk-tab={item.id}
                     href={getNewsroomNavHref(item.href, demo)}

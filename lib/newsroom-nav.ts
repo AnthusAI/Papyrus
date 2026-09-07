@@ -24,7 +24,7 @@ export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
   { id: "references", label: "References", detail: "Knowledge base", href: "/newsroom/references", mobilePrimary: true },
   { id: "messages", label: "Messages", detail: "Forum", href: "/newsroom/messages" },
   { id: "insights", label: "Insights", detail: "Research threads", href: "/newsroom/insights" },
-  { id: "topics", label: "Topics", detail: "Taxonomy", href: "/newsroom/topics" },
+  { id: "topics", label: "Topics", detail: "Taxonomy", href: "/newsroom/topics", mobilePrimary: true },
   { id: "concepts", label: "Concepts", detail: "Ontology", href: "/newsroom/concepts" },
   { id: "administration", label: "Administration", detail: "Users & policies", href: "/newsroom/administration" },
 ];

@@ -37,6 +37,7 @@ export type NewsDeskPageProps = {
     maxTokens?: string | string[];
     from?: string | string[];
     view?: string | string[];
+    proposal?: string | string[];
   }>;
 };
 
@@ -61,6 +62,7 @@ export async function NewsDeskPage({ section: routeSection, sectionPageId, selec
     searchFrom: getFirstSearchParam(resolvedSearchParams, "from"),
     assignmentView: getFirstSearchParam(resolvedSearchParams, "view"),
     forumThread: routeSelection.forumThread,
+    proposal: getFirstSearchParam(resolvedSearchParams, "proposal"),
   };
   const useDemoDashboard = getFirstSearchParam(resolvedSearchParams, "demo") === "1";
   const brandOverride = (await cookies()).get(BRAND_OVERRIDE_COOKIE)?.value ?? null;

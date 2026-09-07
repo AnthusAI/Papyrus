@@ -84,6 +84,7 @@ import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
+import { NewsroomTopicsView } from "./newsroom-topics-view";
 import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
 import { Button, buttonVariants } from "./ui/button";
 import { Badge } from "./ui/badge";
@@ -405,6 +406,7 @@ export type NewsDeskSelection = {
   searchFrom?: string | null;
   assignmentView?: string | null;
   forumThread?: string | null;
+  proposal?: string | null;
 };
 
 type CategoryReviewResponse = {
@@ -3102,35 +3104,10 @@ function NewsDeskDashboard({
         ) : null}
         {!isSectionPage && activeTab === "topics" ? (
           <TopicsDeskView
-            activeCategoryTree={activeCategoryTree}
-            activeCategorySet={activeCategorySet}
-            analysisProfiles={analysisProfiles}
-            canonicalCategorys={canonicalCategorys}
-            categorySets={categorySets}
-            categorys={categorys}
-            categoryByUid={categoryByUid}
-            categoryKeywords={categoryKeywords}
-            categoryTreeLoadError={categoryTreeLoadError}
-            categoryNodes={activeCategoryTreeNodes}
-            corpora={mergeAnalysisCorpora(configuredCorpora, corpora)}
             disabled={controlsDisabled}
-            graph={graph}
-            initialCategoryLineageId={initialSelection.category}
+            initialProposalId={initialSelection.proposal}
             isDemo={Boolean(dashboard.isDemo)}
-            lexicalSteeringRules={lexicalSteeringRules}
-            references={references}
-            semanticRelations={semanticRelations}
-            onArchiveDraftCategory={archiveDraftTopicCategory}
-            onCategorySave={saveCategory}
-            onCreateAnalysisReindexAssignment={createAnalysisReindexAssignment}
-            onCreateDraftCategory={createDraftTopicCategory}
-            onCreateDraftSet={createTopicCategorySetDraft}
-            onDiscardDraftSet={discardTopicCategorySetDraft}
-            onLexicalRuleCreate={createLexicalSteeringRule}
-            onPromoteDraftSet={promoteTopicCategorySetDraft}
             onProposalAction={runProposalAction}
-            onReviewTopicLabel={runReferenceTopicLabelAction}
-            onUpdateDraftCategory={updateDraftTopicCategory}
             proposals={proposals}
           />
         ) : null}
@@ -5952,511 +5929,41 @@ function CategoryDoctrineEditorCard({
 }
 
 function TopicsDeskView({
-  activeCategoryTree,
-  activeCategorySet,
-  analysisProfiles,
-  canonicalCategorys,
-  categorySets,
-  categorys,
-  categoryByUid,
-  categoryKeywords,
-  categoryTreeLoadError,
-  categoryNodes,
-  corpora,
   disabled,
-  graph,
-  initialCategoryLineageId,
+  initialProposalId,
   isDemo,
-  lexicalSteeringRules,
-  references,
-  semanticRelations,
-  onArchiveDraftCategory,
-  onCategorySave,
-  onCreateAnalysisReindexAssignment,
-  onCreateDraftCategory,
-  onCreateDraftSet,
-  onDiscardDraftSet,
-  onLexicalRuleCreate,
-  onPromoteDraftSet,
   onProposalAction,
-  onReviewTopicLabel,
-  onUpdateDraftCategory,
   proposals,
 }: {
-  activeCategoryTree: CategorySteeringCategoryTree | null;
-  activeCategorySet: CategorySteeringCategorySet | null;
-  analysisProfiles: AnalysisProfileSummary[];
-  canonicalCategorys: CategorySteeringCategory[];
-  categorySets: CategorySteeringCategorySet[];
-  categorys: CategorySteeringCategory[];
-  categoryByUid: Map<string, CategorySteeringCategory>;
-  categoryKeywords: CategoryKeywordRecord[];
-  categoryTreeLoadError: string | null;
-  categoryNodes: CategorySteeringCategoryTreeNode[];
-  corpora: CategorySteeringCorpus[];
   disabled: boolean;
-  graph: SemanticGraph;
-  initialCategoryLineageId?: string | null;
+  initialProposalId?: string | null;
   isDemo?: boolean;
-  lexicalSteeringRules: LexicalSteeringRuleRecord[];
-  references: ReferenceRecord[];
-  semanticRelations: SemanticRelationRecord[];
-  onArchiveDraftCategory: (category: CategorySteeringCategory, note: string) => Promise<boolean> | boolean | void;
-  onCategorySave: (category: CategorySteeringCategory, update: Pick<CategorySteeringCategory, "displayName" | "shortTitle" | "subtitle" | "description">) => void;
-  onCreateAnalysisReindexAssignment: (profile: AnalysisProfileSummary, draft: AnalysisReindexDraft) => void;
-  onCreateDraftCategory: (categorySet: CategorySteeringCategorySet, input: DraftCategoryInput) => Promise<boolean> | boolean | void;
-  onCreateDraftSet: (sourceCategorySet: CategorySteeringCategorySet, displayName: string, note: string) => Promise<string | null> | string | null | void;
-  onDiscardDraftSet: (categorySet: CategorySteeringCategorySet, note: string) => Promise<boolean> | boolean | void;
-  onLexicalRuleCreate: (draft: LexicalRuleDraft) => void;
-  onPromoteDraftSet: (categorySet: CategorySteeringCategorySet, note: string) => Promise<boolean> | boolean | void;
   onProposalAction: (proposal: CategorySteeringProposal, action: ReviewAction, input?: ProposalReviewInput) => void;
-  onReviewTopicLabel: (input: { action: TopicLabelAction; category: CategorySteeringCategory; note?: string | null; reference: ReferenceRecord; sourceRelationId?: string | null }) => void;
-  onUpdateDraftCategory: (category: CategorySteeringCategory, input: DraftCategoryInput) => Promise<boolean> | boolean | void;
   proposals: CategorySteeringProposal[];
 }) {
-  const currentCategorySet = activeCategorySet && isCurrentCategorySet(activeCategorySet) ? activeCategorySet : null;
-  const activeDraftCategorySet = activeDraftForCurrentCategorySet(categorySets, categorys, currentCategorySet);
-  const validCategorySets = [currentCategorySet, activeDraftCategorySet].filter(Boolean) as CategorySteeringCategorySet[];
-  const defaultCategorySetId = currentCategorySet?.id ?? null;
-  const [selectedCategorySetId, setSelectedCategorySetId] = useState<string | null>(activeCategorySet?.id ?? null);
-  const [isCreatingTaxonomyDraft, setIsCreatingTaxonomyDraft] = useState(false);
-  const [topicToolbarError, setTopicToolbarError] = useState<string | null>(null);
-  const [topicDraftModal, setTopicDraftModal] = useState<TopicDraftModalState | null>(null);
   const [topicProposalEdit, setTopicProposalEdit] = useState<TopicProposalEditState | null>(null);
-  const [isTopicToolbarMenuOpen, setIsTopicToolbarMenuOpen] = useState(false);
-  const topicToolbarMenuRef = useRef<HTMLDivElement | null>(null);
-  const selectedCategorySet = resolveTopicWorkspace(validCategorySets, selectedCategorySetId, defaultCategorySetId);
-  const selectedCategorys = useMemo(() => {
-    if (!selectedCategorySet) return [];
-    return categorys.filter((category) => (
-      category.categorySetId === selectedCategorySet.id
-      && category.status !== "deprecated"
-      && category.status !== "archived"
-      && category.versionState !== "superseded"
-    ));
-  }, [categorys, selectedCategorySet]);
-  const selectedCategoryNodes = useMemo(() => {
-    if (selectedCategorySet?.id === activeCategoryTree?.id) return categoryNodes;
-    return selectedCategorys.map(categoryToCategoryTreeNode);
-  }, [activeCategoryTree?.id, categoryNodes, selectedCategorySet?.id, selectedCategorys]);
-  const selectedCategoryByUid = useMemo(() => {
-    const map = new Map<string, CategorySteeringCategory>();
-    for (const category of selectedCategorys) map.set(category.categoryKey, category);
-    return map;
-  }, [selectedCategorys]);
-  const referenceByAnyId = useMemo(() => buildReferenceLookupByAnyId(references), [references]);
-  const categoryQueueProposals = useMemo(() => {
-    const scoped = proposals.filter((proposal) => (
-      proposal.steeringDomain === "category"
-      && (!selectedCategorySet || proposal.categorySetId === selectedCategorySet.id)
-    ));
-    if (scoped.length > 0 || !selectedCategorySet) return scoped;
-    return proposals.filter((proposal) => proposal.steeringDomain === "category");
-  }, [proposals, selectedCategorySet]);
-  const roots = buildCanonicalTopicRoots(selectedCategorys, selectedCategoryNodes, proposals);
-  const subcategoryCount = roots.reduce((count, root) => count + root.subcategorys.length, 0);
-  const proposedSubcategoryCount = roots.reduce((count, root) => count + root.proposedSubcategorys.length, 0);
-  const isDraftMode = selectedCategorySet?.versionState === "draft" || selectedCategorySet?.status === "draft";
-  const initialRootKey = selectInitialRootKey(roots, initialCategoryLineageId);
-  const [selectedRootKey, setSelectedRootKey] = useState<string | null>(initialRootKey);
-  const [focusedCategoryKey, setFocusedCategoryKey] = useState<string | null>(null);
-  const [topicScopeFilter, setTopicScopeFilter] = useState("roots");
-  const [topicMetricFilter, setTopicMetricFilter] = useState("");
-  const [isTopicDetailOpen, setIsTopicDetailOpen] = useState(Boolean(initialCategoryLineageId));
-  const selectedRoot = roots.find((root) => root.category.categoryKey === selectedRootKey) ?? roots[0] ?? null;
-  const focusedNode = selectedRoot
-    ? [categoryToCategoryTreeNode(selectedRoot.category), ...(selectedRoot.node ? [selectedRoot.node] : []), ...selectedRoot.subcategorys]
-      .find((node) => node.categoryKey === focusedCategoryKey)
-      ?? categoryToCategoryTreeNode(selectedRoot.category)
-    : null;
-  const topicKnowledgeQuery = useNewsroomKnowledgeContext(focusedNode ? {
-    anchor: {
-      kind: "category",
-      id: focusedNode.id ?? focusedNode.categoryKey,
-      lineageId: categoryLineageId(focusedNode),
-    },
-    title: focusedNode.displayName,
-    subtitle: focusedNode.categoryKey,
-  } : null);
-  const focusedCategory = focusedNode
-    ? selectedCategorys.find((category) => category.categoryKey === focusedNode.categoryKey) ?? categoryTreeNodeToCategory(focusedNode)
-    : selectedRoot?.category ?? null;
-  const editableCategory = focusedCategoryKey
-    ? selectedCategoryByUid.get(focusedCategoryKey)
-      ?? (selectedRoot?.category.categoryKey === focusedCategoryKey ? selectedRoot.category : undefined)
-    : selectedRoot?.category;
-  const proposalCountByCategoryKey = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const root of roots) {
-      const rootNode = root.node ?? categoryToCategoryTreeNode(root.category);
-      counts.set(
-        rootNode.categoryKey,
-        countRelatedCategoryTreeProposals(rootNode.categoryKey, root.subcategorys, proposals),
-      );
-      for (const subcategory of root.subcategorys) {
-        counts.set(
-          subcategory.categoryKey,
-          countRelatedCategoryTreeProposals(subcategory.categoryKey, [], proposals),
-        );
-      }
-    }
-    return counts;
-  }, [proposals, roots]);
-  const rootWithProposalCount = useMemo(() => (
-    roots.reduce((count, root) => (
-      count + ((proposalCountByCategoryKey.get(root.category.categoryKey) ?? 0) > 0 ? 1 : 0)
-    ), 0)
-  ), [proposalCountByCategoryKey, roots]);
-  const visibleRoots = topicMetricFilter === "withProposals"
-    ? roots.filter((root) => (proposalCountByCategoryKey.get(root.category.categoryKey) ?? 0) > 0)
-    : roots;
-  const visibleTopicCards = useMemo(() => {
-    const entries: Array<{
-      kind: "root" | "subcategory";
-      node: CategorySteeringCategoryTreeNode;
-      parentCategoryKey: string | null;
-      proposalCount: number;
-      referenceCount: number;
-      subtopicCount: number | null;
-    }> = [];
-    for (const root of visibleRoots) {
-      const rootNode = root.node ?? categoryToCategoryTreeNode(root.category);
-      const rootContext = buildTopicDrilldownContext(root, rootNode, categoryByUid);
-      entries.push({
-        kind: "root",
-        node: rootNode,
-        parentCategoryKey: null,
-        proposalCount: proposalCountByCategoryKey.get(rootNode.categoryKey) ?? 0,
-        referenceCount: referencesForCategoryContext(graph, rootContext).length,
-        subtopicCount: root.subcategorys.length,
-      });
-      if (topicScopeFilter !== "all") continue;
-      for (const subcategory of root.subcategorys) {
-        const subcategoryContext = buildTopicDrilldownContext(root, subcategory, categoryByUid);
-        entries.push({
-          kind: "subcategory",
-          node: subcategory,
-          parentCategoryKey: rootNode.categoryKey,
-          proposalCount: proposalCountByCategoryKey.get(subcategory.categoryKey) ?? 0,
-          referenceCount: referencesForCategoryContext(graph, subcategoryContext).length,
-          subtopicCount: null,
-        });
-      }
-    }
-    return entries.map((entry, index) => topicTreeNodeToNewsroomCard(entry, index));
-  }, [categoryByUid, graph, proposalCountByCategoryKey, topicScopeFilter, visibleRoots]);
-  const detail = activeCategoryTree || roots.length
-    ? `${roots.length} canonical / ${subcategoryCount} accepted subtopics / ${proposedSubcategoryCount} proposed`
-    : categoryTreeLoadError
-      ? "CategoryTree unavailable"
-      : validCategorySets.length ? "No active topics in selected set" : "No current or draft topic set available";
-  const selectTopic = (categoryKey: string) => {
-    const root = roots.find((candidate) => (
-      candidate.category.categoryKey === categoryKey
-      || candidate.subcategorys.some((subcategory) => subcategory.categoryKey === categoryKey)
-    ));
-    if (!root) return;
-    const focused = root.category.categoryKey === categoryKey
-      ? root.node ?? categoryToCategoryTreeNode(root.category)
-      : root.subcategorys.find((subcategory) => subcategory.categoryKey === categoryKey) ?? root.node ?? categoryToCategoryTreeNode(root.category);
-    setSelectedRootKey(root.category.categoryKey);
-    setFocusedCategoryKey(focused.categoryKey);
-    setIsTopicDetailOpen(true);
-    pushNewsroomDetailUrl("topics", categoryLineageId(focused), isDemo);
-  };
-  const createEditableDraft = async () => {
-    if (!currentCategorySet || isCreatingTaxonomyDraft) return;
-    setTopicToolbarError(null);
-    if (activeDraftCategorySet) {
-      setSelectedCategorySetId(activeDraftCategorySet.id);
-      return;
-    }
-    setIsCreatingTaxonomyDraft(true);
-    try {
-      const draftId = await Promise.resolve(onCreateDraftSet(
-        currentCategorySet,
-        buildEditableDraftName(currentCategorySet.displayName),
-        "Created from the Topics dashboard for manual topic sculpting.",
-      ));
-      if (draftId) setSelectedCategorySetId(draftId);
-    } catch (error) {
-      setTopicToolbarError(error instanceof Error ? error.message : "Draft creation failed.");
-    } finally {
-      setIsCreatingTaxonomyDraft(false);
-    }
-  };
-  const viewCurrentTaxonomy = () => {
-    setSelectedCategorySetId(currentCategorySet?.id ?? null);
-  };
-  const topicActions: NewsroomDetailAction[] = isDraftMode && selectedCategorySet && editableCategory ? [
-    {
-      key: "edit-topic",
-      label: "Edit Topic",
-      disabled,
-      onSelect: () => setTopicDraftModal({ kind: "edit", category: editableCategory }),
-    },
-    {
-      key: "add-child-topic",
-      label: "Add Child Topic",
-      disabled,
-      onSelect: () => setTopicDraftModal({ kind: "create", parentCategoryKey: editableCategory.categoryKey }),
-    },
-    {
-      key: "archive-topic",
-      label: "Deprecate Topic",
-      disabled,
-      onSelect: () => setTopicDraftModal({ kind: "archive", category: editableCategory }),
-    },
-  ] : [];
-  const topicToolbarActions: NewsroomDetailAction[] = isDraftMode && selectedCategorySet
-    ? [
-      {
-        key: "add-topic",
-        label: "Add Topic",
-        disabled,
-        onSelect: () => setTopicDraftModal({ kind: "create", parentCategoryKey: null }),
-      },
-      {
-        key: "promote-draft",
-        label: "Promote Draft",
-        disabled,
-        onSelect: () => setTopicDraftModal({ kind: "promote" }),
-      },
-      {
-        key: "discard-draft",
-        label: "Discard Draft",
-        disabled,
-        onSelect: () => setTopicDraftModal({ kind: "discard" }),
-      },
-      {
-        key: "view-current",
-        label: "View Current",
-        disabled: disabled || !currentCategorySet,
-        onSelect: viewCurrentTaxonomy,
-      },
-    ]
-    : currentCategorySet
-      ? [
-        {
-          key: "edit-taxonomy",
-          label: isCreatingTaxonomyDraft ? "Creating Draft" : topicToolbarError ? "Draft Failed" : "Edit Taxonomy",
-          disabled: disabled || isCreatingTaxonomyDraft,
-          onSelect: createEditableDraft,
-        },
-      ]
-      : [];
-  const topicLedeControls = topicToolbarActions.length || isDraftMode ? (
-    <div className="news-desk-topic-lede-controls">
-      {topicToolbarActions.length ? (
-        <div className="newsroom-list-detail-shell__action-menu-wrap news-desk-topic-list-toolbar" ref={topicToolbarMenuRef}>
-          <button
-            type="button"
-            aria-label="Taxonomy actions"
-            aria-expanded={isTopicToolbarMenuOpen}
-            className="news-desk-detail-toggle news-desk-detail-toggle--actions"
-            title={topicToolbarError ?? undefined}
-            disabled={topicToolbarActions.every((action) => action.disabled)}
-            onClick={() => setIsTopicToolbarMenuOpen((current) => !current)}
-          >
-            <EllipsisIcon />
-          </button>
-          {isTopicToolbarMenuOpen ? (
-            <div className="newsroom-list-detail-shell__action-menu news-desk-topic-toolbar-menu" role="menu">
-              {topicToolbarActions.map((action) => (
-                <button
-                  type="button"
-                  disabled={action.disabled}
-                  key={action.key}
-                  onClick={() => {
-                    setIsTopicToolbarMenuOpen(false);
-                    action.onSelect();
-                  }}
-                  role="menuitem"
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {isDraftMode ? (
-        <div className="news-desk-assignment-create-strip">
-          <span className="news-desk-assignment-create-note">Draft taxonomy</span>
-          <span className="news-desk-assignment-create-note">
-            Draft edits do not affect publication sections until promoted.
-          </span>
-        </div>
-      ) : null}
-    </div>
-  ) : null;
-  const selectedTopicCardId = focusedCategoryKey ?? selectedRoot?.category.categoryKey ?? null;
-
-  useEffect(() => {
-    if (!roots.length) {
-      setSelectedRootKey(null);
-      setFocusedCategoryKey(null);
-      return;
-    }
-    const nextRootKey = roots.some((root) => root.category.categoryKey === selectedRootKey)
-      ? selectedRootKey
-      : initialRootKey ?? roots[0].category.categoryKey;
-    if (selectedRootKey !== nextRootKey) setSelectedRootKey(nextRootKey);
-  }, [initialRootKey, roots, selectedRootKey]);
-
-  useEffect(() => {
-    if (!selectedRoot) return;
-    const nextFocusKey = selectInitialFocusKey(selectedRoot, initialCategoryLineageId);
-    if (!focusedCategoryKey || ![selectedRoot.category.categoryKey, ...selectedRoot.subcategorys.map((subcategory) => subcategory.categoryKey)].includes(focusedCategoryKey)) {
-      setFocusedCategoryKey(nextFocusKey);
-    }
-  }, [focusedCategoryKey, initialCategoryLineageId, selectedRoot]);
-
-  useEffect(() => {
-    const normalizedCategorySetId = selectedCategorySet?.id ?? null;
-    if (selectedCategorySetId === normalizedCategorySetId) return;
-    setSelectedCategorySetId(normalizedCategorySetId);
-  }, [selectedCategorySet?.id, selectedCategorySetId]);
-
-  useEffect(() => {
-    if (!isTopicToolbarMenuOpen) return;
-    function handlePointerDown(event: PointerEvent) {
-      if (topicToolbarMenuRef.current?.contains(event.target as Node)) return;
-      setIsTopicToolbarMenuOpen(false);
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsTopicToolbarMenuOpen(false);
-    }
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isTopicToolbarMenuOpen]);
 
   return (
     <>
-    <NewsroomListDetailShell
-      animatedDetail
-      sectionKey="topics"
-      canExpandDetail={Boolean(selectedRoot)}
-      detailOpen={isTopicDetailOpen}
-      selectionScrollKey={selectedTopicCardId}
-      actions={topicActions}
-      utilityActions={[topicKnowledgeQuery.action]}
-      lede={(
-        <NewsroomDeskSectionLede
-          headingId="topic-management-title"
-          section="topics"
-          controls={topicLedeControls}
+      <NewsroomTopicsView
+        demo={isDemo}
+        disabled={disabled}
+        initialProposalId={initialProposalId}
+        onEdit={(proposal) => setTopicProposalEdit({ proposal })}
+        onReview={(proposal, action) => onProposalAction(proposal, action)}
+        proposals={proposals}
+      />
+      {topicProposalEdit ? (
+        <TopicProposalEditModal
+          disabled={disabled}
+          proposal={topicProposalEdit.proposal}
+          onClose={() => setTopicProposalEdit(null)}
+          onSave={(proposal, input) => {
+            onProposalAction(proposal, "edit", input);
+            setTopicProposalEdit(null);
+          }}
         />
-      )}
-      list={(
-        <section className="category-steering-section category-steering-section--lead" aria-label={detail}>
-          {categoryTreeLoadError ? (
-            <div className="category-steering-alert" role="status">
-              {categoryTreeLoadError}
-            </div>
-          ) : null}
-          <TopicProposalQueue
-            disabled={disabled}
-            proposals={categoryQueueProposals}
-            referenceByAnyId={referenceByAnyId}
-            onAction={onProposalAction}
-            onEdit={(proposal) => setTopicProposalEdit({ proposal })}
-            onFocusTopic={selectTopic}
-          />
-          <NewsroomCardGrid
-            cards={visibleTopicCards}
-            emptyLabel={categoryTreeLoadError ?? (validCategorySets.length ? "No active topics in selected topic set" : "No current or draft topic set available.")}
-            filterLabel="Topic scope"
-            filterOptions={[
-              { key: "roots", label: isDraftMode ? "Top-level draft topics" : "Top-level current topics", count: roots.length },
-              { key: "all", label: isDraftMode ? "Draft topics + subtopics" : "Current topics + subtopics", count: roots.length + subcategoryCount },
-            ]}
-            filterValue={topicScopeFilter}
-            metricValue={topicMetricFilter}
-            metrics={[
-              { key: "", label: "All", count: visibleTopicCards.length },
-              { key: "withProposals", label: "With proposals", count: rootWithProposalCount },
-            ]}
-            onFilterChange={setTopicScopeFilter}
-            onMetricChange={setTopicMetricFilter}
-            onSelect={selectTopic}
-            selectedId={selectedTopicCardId}
-          />
-        </section>
-      )}
-      onCloseDetail={() => setIsTopicDetailOpen(false)}
-      detail={selectedRoot ? (
-        <section className="category-steering-section" aria-label="Topic detail">
-          <CanonicalTopicDetail
-            categoryByUid={selectedCategoryByUid}
-            disabled={disabled}
-            focusedCategoryKey={focusedCategoryKey}
-            focusedNode={focusedNode}
-            graph={graph}
-            categoryKeywords={categoryKeywords}
-            lexicalSteeringRules={lexicalSteeringRules}
-            onAction={onProposalAction}
-            onEdit={(proposal) => setTopicProposalEdit({ proposal })}
-            onFocusCategory={setFocusedCategoryKey}
-            onLexicalRuleCreate={onLexicalRuleCreate}
-            proposals={proposals}
-            referenceByAnyId={referenceByAnyId}
-            root={selectedRoot}
-            knowledgeQuery={topicKnowledgeQuery}
-          />
-        </section>
-      ) : (
-        <section className="category-steering-section">
-          <EmptyRow label="Select a canonical topic to inspect subtopics and context." />
-        </section>
-      )}
-    />
-    {topicKnowledgeQuery.dialog}
-    {topicProposalEdit ? (
-      <TopicProposalEditModal
-        disabled={disabled}
-        proposal={topicProposalEdit.proposal}
-        onClose={() => setTopicProposalEdit(null)}
-        onSave={(proposal, input) => {
-          onProposalAction(proposal, "edit", input);
-          setTopicProposalEdit(null);
-        }}
-      />
-    ) : null}
-    {topicDraftModal && selectedCategorySet ? (
-      <TopicDraftActionModal
-        categorySet={selectedCategorySet}
-        disabled={disabled}
-        modal={topicDraftModal}
-        onArchive={async (category, note) => {
-          const result = await onArchiveDraftCategory(category, note);
-          setSelectedCategorySetId(selectedCategorySet.id);
-          return result ?? true;
-        }}
-        onClose={() => setTopicDraftModal(null)}
-        onCreate={async (categorySet, input) => {
-          const result = await onCreateDraftCategory(categorySet, input);
-          setSelectedCategorySetId(categorySet.id);
-          return result ?? true;
-        }}
-        onDiscard={async (categorySet, note) => {
-          const result = await onDiscardDraftSet(categorySet, note);
-          setSelectedCategorySetId(currentCategorySet?.id ?? null);
-          return result ?? true;
-        }}
-        onPromote={onPromoteDraftSet}
-        onUpdate={async (category, input) => {
-          const result = await onUpdateDraftCategory(category, input);
-          setSelectedCategorySetId(selectedCategorySet.id);
-          return result ?? true;
-        }}
-        parentOptions={selectedCategorys}
-      />
-    ) : null}
+      ) : null}
     </>
   );
 }
