@@ -10,8 +10,11 @@ registerTypeScriptRequire();
 const {
   getSiteBrand,
   normalizeSiteBrandId,
+  resolveRuntimeSiteBrandId,
   resolveSiteBrandId,
 } = require("../lib/site-brand.ts");
+const { isDemoAmplifyOutputs } = require("../lib/demo-amplify-outputs.ts");
+const { getNewsroomDemoProfile } = require("../lib/newsroom-demo-profile.ts");
 const { getSiteStack, PILOBOL_US_THEME_PACK_TOKENS } = require("../lib/site-stack.ts");
 
 assert.equal(resolveSiteBrandId("pilobol-us"), "pilobol-us");
@@ -21,6 +24,19 @@ assert.equal(normalizeSiteBrandId("pilobol"), null);
 assert.equal(resolveSiteBrandId("pilobol"), "papyrus");
 assert.equal(normalizeSiteBrandId("unknown"), null);
 assert.equal(resolveSiteBrandId("not-a-brand"), "papyrus");
+
+assert.equal(resolveRuntimeSiteBrandId("pilobol-us"), "pilobol-us");
+assert.equal(resolveRuntimeSiteBrandId(null), resolveSiteBrandId());
+
+const pilobolusDemo = getNewsroomDemoProfile("pilobol-us");
+assert.match(pilobolusDemo.canonicalCorpusName, /Pilobolus/);
+assert.equal(pilobolusDemo.classifierId, "pilobolus-demo-classifier");
+
+const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8");
+assert.match(middlewareSource, /papyrus-site-brand-override/);
+assert.match(middlewareSource, /normalizeSiteBrandId/);
+
+assert.equal(isDemoAmplifyOutputs(), false);
 
 const pilobolus = getSiteBrand("pilobol-us");
 assert.equal(pilobolus.appTitle, "Pilobolus");
@@ -65,7 +81,7 @@ assert.equal(threatIntel.renderer.kind, "pretext");
 assert.notEqual(threatIntel.themeTokens.paper, pilobolus.themeTokens.paper);
 assert.notEqual(threatIntel.themeTokens.ochre, pilobolus.themeTokens.ochre);
 
-const shellSource = fs.readFileSync(path.join(process.cwd(), "components/newsroom-app-shell.tsx"), "utf8");
+const shellSource = fs.readFileSync(path.join(process.cwd(), "components/newsroom-ops-shell.tsx"), "utf8");
 assert.doesNotMatch(shellSource, /pilobol|threat-intelligence|papyrus/i);
 assert.doesNotMatch(shellSource, /#f1ead9|#3f5d43|#a35a2a|#211d17/i);
 
@@ -98,7 +114,9 @@ assert.match(layoutSource, /data-theme-pack=\{siteStack\.ops\.themePack\}/);
 assert.match(layoutSource, /data-ops-chrome=\{siteStack\.ops\.chrome\}/);
 assert.doesNotMatch(layoutSource, /data-renderer=\{SITE_BRAND\.(themePack|opsChrome)/);
 
-assert.doesNotMatch(shellSource, /markus|pretext|renderer/i);
+assert.match(shellSource, /data-newsroom-ops-shell/);
+assert.match(shellSource, /data-newsroom-ops-bottom-nav/);
+assert.match(shellSource, /SheetContent/);
 
 const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "publications/papyrus/theme.css"), "utf8");
 assert.match(defaultPackCss, /data-theme-pack="papyrus"/);

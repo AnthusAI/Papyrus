@@ -75,10 +75,15 @@ import {
 import { buildNewsroomKnowledgeQueryInput, type NewsroomKnowledgeQueryAnchor as KnowledgeQueryAnchor, type NewsroomKnowledgeQueryTarget as KnowledgeQueryTarget } from "../lib/newsroom-knowledge-query-request";
 import { NewsroomConsoleProgressToggle, PapyrusConsoleChatIcon, usePapyrusConsole } from "./papyrus-console-shell";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
+import { SITE_BRAND } from "../lib/site-brand";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
+import { cn } from "../lib/utils";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
-import { NewsroomAppShell } from "./newsroom-app-shell";
+import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
+import { Button, buttonVariants } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import {
   DropdownMenu,
@@ -546,99 +551,6 @@ function isEditableEventTarget(target: EventTarget | null) {
   return target.isContentEditable || target.closest("[contenteditable='true']") !== null;
 }
 
-type NewsDeskDrawerController = {
-  close: () => void;
-  drawerId: string;
-  firstLinkRef: RefObject<HTMLAnchorElement | null>;
-  isDocked: boolean;
-  isModal: boolean;
-  open: boolean;
-  setOpen: (value: boolean) => void;
-  triggerRef: RefObject<HTMLButtonElement | null>;
-};
-
-function useNewsDeskDrawerController(): NewsDeskDrawerController {
-  const pathname = usePathname();
-  const isDocked = useMediaQuery("(min-width: 1100px)");
-  const isModal = !isDocked;
-  const drawerId = useId();
-  const lastPathnameRef = useRef(pathname);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const firstLinkRef = useRef<HTMLAnchorElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const shouldRestoreFocusRef = useRef(false);
-
-  const close = useCallback(() => {
-    if (!open) return;
-    shouldRestoreFocusRef.current = true;
-    setOpen(false);
-  }, [open]);
-
-  useEffect(() => {
-    if (lastPathnameRef.current === pathname) return;
-    lastPathnameRef.current = pathname;
-    setOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!open || !isModal) return;
-    requestAnimationFrame(() => {
-      firstLinkRef.current?.focus();
-    });
-  }, [isModal, open]);
-
-  useEffect(() => {
-    if (open || !shouldRestoreFocusRef.current) return;
-    shouldRestoreFocusRef.current = false;
-    triggerRef.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      close();
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [close, open]);
-
-  useEffect(() => {
-    if (!open || !isModal) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isModal, open]);
-
-  return {
-    close,
-    drawerId,
-    firstLinkRef,
-    isDocked,
-    isModal,
-    open,
-    setOpen,
-    triggerRef,
-  };
-}
-
-function inferNewsDeskTabFromPathname(pathname: string | null): NewsDeskTab | null {
-  if (!pathname || !pathname.startsWith("/newsroom")) return null;
-  if (pathname === "/newsroom" || pathname === "/newsroom/") return "overview";
-  if (pathname.startsWith("/newsroom/messages")) return "messages";
-  if (pathname.startsWith("/newsroom/insights")) return "insights";
-  if (pathname.startsWith("/newsroom/assignments")) return "assignments";
-  if (pathname.startsWith("/newsroom/references")) return "references";
-  if (pathname.startsWith("/newsroom/topics")) return "topics";
-  if (pathname.startsWith("/newsroom/concepts")) return "concepts";
-  if (pathname.startsWith("/newsroom/administration")) return "administration";
-  if (pathname.startsWith("/newsroom/search")) return "search";
-  return null;
-}
-
 const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
   "new-category",
   "rename-category",
@@ -649,31 +561,6 @@ const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
   "category-display-copy-edit",
   "category-copy-edit",
   "display-copy-edit",
-]);
-
-const NEWS_DESK_TABS: Array<{ id: NewsDeskTab; label: string; detail: string; href: string }> = [
-  { id: "messages", label: "Messages", detail: "Commentary", href: "/newsroom/messages" },
-  { id: "insights", label: "Insights", detail: "Research threads", href: "/newsroom/insights" },
-  { id: "assignments", label: "Assignments", detail: "Work Desk", href: "/newsroom/assignments" },
-  { id: "references", label: "References", detail: "Knowledge Base", href: "/newsroom/references" },
-  { id: "topics", label: "Topics", detail: "Taxonomy", href: "/newsroom/topics" },
-  { id: "concepts", label: "Concepts", detail: "Ontology", href: "/newsroom/concepts" },
-  { id: "administration", label: "Administration", detail: "Users, Policies & Procedures", href: "/newsroom/administration" },
-];
-
-const TAXONOMY_PROPOSAL_KINDS = new Set([
-  "create-category",
-  "move-category",
-  "archive-category",
-  "merge-categories",
-  "split-category",
-]);
-const TOPIC_PROPOSAL_BLOCKED_APPLY_KINDS = new Set([
-  "merge-category",
-  "merge-categories",
-  "split-category",
-  "archive-category",
-  "deprecate-category",
 ]);
 
 const USER_POOL_AUTH_MODE = "userPool";
@@ -712,177 +599,20 @@ type ModelAttachmentSubscriptionModel = {
   onDelete?: () => ModelSubscriptionFactory;
 };
 
-function NewsDeskTabLink({
-  active,
-  count,
-  countSlot = true,
-  countVisible = true,
-  countMissing = false,
-  demo,
-  tab,
-}: {
-  active: boolean;
-  count: number | null;
-  countSlot?: boolean;
-  countVisible?: boolean;
-  countMissing?: boolean;
-  demo?: boolean;
-  tab: { id: NewsDeskTab; label: string; detail: string; href: string };
-}) {
-  const countParts = typeof count === "number" ? formatCompactCountParts(count) : null;
-  const countContentRef = useRef<HTMLSpanElement | null>(null);
-  const hasAnimatedCountRef = useRef(false);
-
-  useLayoutEffect(() => {
-    const countContent = countContentRef.current;
-    if (!countContent) {
-      hasAnimatedCountRef.current = false;
-      return;
-    }
-
-    gsap.killTweensOf(countContent);
-
-    if (!countVisible) {
-      hasAnimatedCountRef.current = false;
-      countContent.style.opacity = "";
-      countContent.style.visibility = "";
-      return;
-    }
-
-    if (!hasAnimatedCountRef.current) {
-      hasAnimatedCountRef.current = true;
-      gsap.fromTo(
-        countContent,
-        { autoAlpha: 0 },
-        { autoAlpha: 1, duration: 1.35, ease: "sine.out" },
-      );
-      return;
-    }
-
-    gsap.set(countContent, { autoAlpha: 1 });
-  }, [countVisible, countMissing, countParts?.suffix, countParts?.value]);
-
-  return (
-    <Link
-      aria-current={active ? "page" : undefined}
-      className={`news-desk-tab${active ? " news-desk-tab--active" : ""}`}
-      data-count-slot={countSlot ? "true" : "false"}
-      data-news-desk-tab={tab.id}
-      href={getNewsDeskTabHref(tab.href, demo)}
-    >
-      {countSlot ? (
-        <strong
-          className="news-desk-tab__count"
-          aria-label={
-            countVisible
-              ? countMissing
-                ? `${tab.label} count unavailable`
-                : `${formatCompactCount(count ?? 0)} ${tab.label.toLowerCase()}`
-              : `${tab.label} count loading`
-          }
-          data-count-visible={countVisible ? "true" : "false"}
-        >
-          {countVisible ? (
-            <span className="news-desk-tab__count-content" ref={countContentRef}>
-              {countMissing ? (
-                <span className="news-desk-tab__count-value">?</span>
-              ) : countParts ? (
-                <>
-                  <span className="news-desk-tab__count-value">{countParts.value}</span>
-                  {countParts.suffix ? <span className="news-desk-tab__count-suffix">{countParts.suffix}</span> : null}
-                </>
-              ) : null}
-            </span>
-          ) : (
-            <span className="news-desk-tab__count-content" ref={countContentRef} aria-hidden="true" />
-          )}
-        </strong>
-      ) : null}
-      <span className="news-desk-tab__text">
-        <span>{tab.label}</span>
-        <small>{tab.detail}</small>
-      </span>
-    </Link>
-  );
-}
-
-function NewsDeskDrawerTrigger({ controller }: { controller: NewsDeskDrawerController }) {
-  return (
-    <button
-      aria-controls={controller.drawerId}
-      aria-expanded={controller.open}
-      aria-label="Open newsroom sections navigation"
-      className="news-desk-hamburger"
-      onClick={() => controller.setOpen(!controller.open)}
-      ref={controller.triggerRef}
-      type="button"
-    >
-      <MenuIcon aria-hidden="true" className="news-desk-hamburger__icon news-desk-search-mark__icon" size={16} />
-      <span>Sections</span>
-    </button>
-  );
-}
-
-function NewsDeskDrawerPanel({
-  activeTab,
-  controller,
-  demo = false,
-}: {
-  activeTab: NewsDeskTab | null;
-  controller: NewsDeskDrawerController;
-  demo?: boolean;
-}) {
-  const closeLabel = controller.isModal ? "Close sections menu" : "Hide sections menu";
-
-  return (
-    <>
-      <button
-        aria-hidden={!controller.isModal || !controller.open}
-        className="news-desk-drawer-backdrop"
-        data-open={controller.open ? "true" : "false"}
-        data-visible={controller.isModal ? "true" : "false"}
-        onClick={controller.close}
-        tabIndex={controller.open && controller.isModal ? 0 : -1}
-        type="button"
-      />
-      <aside
-        aria-label="Newsroom sections"
-        aria-modal={controller.isModal ? true : undefined}
-        className="news-desk-drawer"
-        data-mode={controller.isDocked ? "docked" : "modal"}
-        data-open={controller.open ? "true" : "false"}
-        id={controller.drawerId}
-        role={controller.isModal ? "dialog" : "navigation"}
-      >
-        <div className="news-desk-drawer__header">
-          <p className="news-desk-drawer__title">Sections</p>
-          <button aria-label={closeLabel} className="news-desk-drawer__close" onClick={controller.close} type="button">
-            <XIcon aria-hidden="true" className="news-desk-search-mark__icon" size={16} />
-          </button>
-        </div>
-        <nav className="news-desk-drawer__nav" aria-label="Newsroom section links">
-          {NEWS_DESK_TABS.map((tab, index) => {
-            const isActive = activeTab === tab.id || (activeTab === "desks" && tab.id === "topics");
-            return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                className="news-desk-drawer__link"
-                data-active={isActive ? "true" : "false"}
-                href={getNewsDeskTabHref(tab.href, demo)}
-                key={tab.id}
-                onClick={controller.close}
-                ref={index === 0 ? controller.firstLinkRef : undefined}
-              >
-                <span className="news-desk-drawer__link-label">{tab.label}</span>
-                <span className="news-desk-drawer__link-detail">{tab.detail}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-    </>
-  );
-}
+const TAXONOMY_PROPOSAL_KINDS = new Set([
+  "create-category",
+  "move-category",
+  "archive-category",
+  "merge-categories",
+  "split-category",
+]);
+const TOPIC_PROPOSAL_BLOCKED_APPLY_KINDS = new Set([
+  "merge-category",
+  "merge-categories",
+  "split-category",
+  "archive-category",
+  "deprecate-category",
+]);
 
 export function NewsDeskWorkspace({
   analysisProfiles = [],
@@ -1022,7 +752,6 @@ function NewsDeskDashboard({
     [pathname],
   );
   const isSectionPage = Boolean(sectionPageId);
-  const drawerController = useNewsDeskDrawerController();
   const [corpora, setCorpora] = useState(dashboard.corpora);
   const [importRuns, setImportRuns] = useState(dashboard.importRuns);
   const [categorySets, setCategorySets] = useState(dashboard.categorySets);
@@ -1061,7 +790,6 @@ function NewsDeskDashboard({
   const [mergeSelection, setMergeSelection] = useState<MergeSelection | null>(null);
   const [isPending, startTransition] = useTransition();
   const controlsDisabled = isPending || !canEdit;
-  const showRhythmOverlay = useNewsroomRhythmOverlay();
   const initialAdministrationPanel = normalizeAdministrationPanel(initialSelection.panel);
   const [administrationPanel, setAdministrationPanel] = useState<AdministrationPanel>(initialAdministrationPanel);
   const [doctrineDrafts, setDoctrineDrafts] = useState<DoctrineEditorState>(() => buildDoctrineEditorState(dashboard.doctrineRecords));
@@ -3253,74 +2981,74 @@ function NewsDeskDashboard({
     });
   }
 
+  const shellTabCounts = useMemo(() => {
+    const entries: Partial<Record<string, NewsroomNavCount>> = {};
+    for (const tab of ["overview", "messages", "insights", "assignments", "references", "topics", "concepts", "administration"] as NewsDeskTab[]) {
+      if (tab === "administration") continue;
+      entries[tab] = {
+        count: tabCounts[tab],
+        missing: summaryStatus === "missing",
+        visible: summaryStatus !== "loading",
+      };
+    }
+    return entries;
+  }, [summaryStatus, tabCounts]);
+  const opsPageTitle = isSectionPage
+    ? mastheadTitle
+    : activeTab === "overview"
+      ? "Overview"
+      : formatDeskSectionHeadline(activeTab);
+
   return (
-    <main
-      className="site-shell news-desk-shell newsroom-app-shell"
-      data-news-desk
-      data-newsroom-chrome="app"
-      data-category-steering
-      data-category-steering-demo={dashboard.isDemo ? "true" : "false"}
-      data-news-desk-refreshing={isRefreshing ? "true" : "false"}
-      data-news-desk-drawer-docked={drawerController.isDocked ? "true" : "false"}
-      data-news-desk-drawer-open={drawerController.open ? "true" : "false"}
-      data-rhythm-overlay={showRhythmOverlay ? "true" : "false"}
-    >
-      <NewsroomProgressBackLink
-        searchAction={canEdit && editorShellReady && !dashboard.isDemo ? {
-          disabled: false,
-          onPress: activeTab === "search"
-            ? focusNewsroomSearchForm
-            : topBarSearchControl.open,
-        } : null}
-      />
-      <NewsroomAppShell
-        labelledBy="news-desk-title"
-        title={isSectionPage ? mastheadTitle : <Link href={getNewsDeskTabHref("/newsroom", dashboard.isDemo)}>Newsroom</Link>}
-        headerTrailing={(
+    <>
+      <NewsroomOpsShell
+        activeTab={activeTab}
+        appTitle={SITE_BRAND.appTitle}
+        backHref="/"
+        backLabel={SITE_BRAND.backToHomeLabel}
+        demo={dashboard.isDemo}
+        headerActions={(
           <>
-            <NewsDeskDrawerTrigger controller={drawerController} />
-            <span>{dashboard.isDemo ? "Demo desk" : <Link className="news-desk-auth-control-link" href="/settings">Settings</Link>}</span>
+            {dashboard.isDemo ? (
+              <Badge variant="outline">Demo</Badge>
+            ) : (
+              <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+            )}
+            {canEdit && editorShellReady && !dashboard.isDemo ? (
+              <NewsroomOpsSearchButton
+                disabled={false}
+                onPress={activeTab === "search" ? focusNewsroomSearchForm : topBarSearchControl.open}
+              />
+            ) : null}
+            <NewsroomConsoleProgressToggle />
           </>
         )}
+        pageTitle={opsPageTitle}
         showNavigation={!isSectionPage}
-        navigation={NEWS_DESK_TABS.map((tab) => (
-          <NewsDeskTabLink
-            key={tab.id}
-            active={tab.id === activeTab}
-            count={tabCounts[tab.id]}
-            countSlot={tab.id !== "administration"}
-            countVisible={tab.id === "administration" || summaryStatus !== "loading"}
-            countMissing={tab.id !== "administration" && summaryStatus === "missing"}
-            demo={dashboard.isDemo}
-            tab={tab}
-          />
-        ))}
-        drawer={<NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} demo={dashboard.isDemo} />}
+        tabCounts={shellTabCounts}
       >
-
+        <div
+          data-category-steering
+          data-category-steering-demo={dashboard.isDemo ? "true" : "false"}
+          data-news-desk-refreshing={isRefreshing ? "true" : "false"}
+        >
         {activeTab !== "overview" && activeTab !== "assignments" && activeTab !== "messages" && activeTab !== "references" && activeTab !== "topics" && activeTab !== "concepts" && activeTab !== "search" ? (
-          <section className="news-desk-lede-grid" aria-label="Newsroom overview">
-            <article className="news-desk-lede">
-              <h2>{formatDeskSectionHeadline(activeTab)}</h2>
-              <p>{formatDeskSectionLede(activeTab)}</p>
-            </article>
-          </section>
+          <NewsroomOpsSectionIntro
+            description={formatDeskSectionLede(activeTab)}
+            title={formatDeskSectionHeadline(activeTab)}
+          />
         ) : null}
 
         {isRefreshing ? (
-          <div className="category-steering-alert" role="status">
-            Refreshing newsroom data...
-          </div>
+          <NewsroomOpsStatusBanner>Refreshing newsroom data...</NewsroomOpsStatusBanner>
         ) : null}
         {!isRefreshing && shellError ? (
-          <div className="category-steering-alert" role="status">
-            {shellError}
-          </div>
+          <NewsroomOpsStatusBanner tone="error">{shellError}</NewsroomOpsStatusBanner>
         ) : null}
         {actionState ? (
-          <div className={`category-steering-action category-steering-action--${actionState.tone}`} role="status" aria-live="polite">
+          <NewsroomOpsStatusBanner tone={actionState.tone === "ok" ? "ok" : "error"}>
             {actionState.message}
-          </div>
+          </NewsroomOpsStatusBanner>
         ) : null}
 
         {isSectionPage ? (
@@ -3527,9 +3255,10 @@ function NewsDeskDashboard({
             users={userDirectory}
           />
         ) : null}
-        {topBarSearchControl.dialog}
-      </NewsroomAppShell>
-    </main>
+        </div>
+      </NewsroomOpsShell>
+      {topBarSearchControl.dialog}
+    </>
   );
 }
 
@@ -16404,94 +16133,31 @@ function readTextClaim(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function NewsroomProgressBackLink({
-  searchAction = null,
-}: {
-  searchAction?: { disabled: boolean; onPress: () => void } | null;
-}) {
-  return (
-    <nav className="edition-progress edition-progress--newsroom" aria-label="Newsroom navigation">
-      <Link className="edition-progress__button edition-progress__button--previous" href="/">
-        <svg aria-hidden="true" className="edition-progress__icon" focusable="false" viewBox="0 0 10 10">
-          <path d="M7.5 1 2.5 5 7.5 9Z" fill="currentColor" />
-        </svg>
-        Back to Papyrus
-      </Link>
-      {searchAction ? (
-        <div className="edition-progress__trailing">
-          <NewsroomConsoleProgressToggle />
-          <button
-            type="button"
-            className="edition-progress__button edition-progress__button--next edition-progress__button--search"
-            aria-label="Search knowledge base (semantic + ontology)"
-            title="Search (semantic + ontology)"
-            disabled={searchAction.disabled}
-            onClick={searchAction.onPress}
-          >
-            <SearchMarkIcon />
-          </button>
-        </div>
-      ) : (
-        <div className="edition-progress__trailing">
-          <NewsroomConsoleProgressToggle />
-        </div>
-      )}
-    </nav>
-  );
-}
-
 function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
-  const pathname = usePathname();
-  const showRhythmOverlay = useNewsroomRhythmOverlay();
-  const resolvedTheme = useResolvedPapyrusTheme();
-  const drawerController = useNewsDeskDrawerController();
-  const activeTab = inferNewsDeskTabFromPathname(pathname);
   const accessPhase = shell?.phase ?? "checkingAccess";
 
   return (
-    <main
-      className="site-shell news-desk-shell newsroom-app-shell"
-      data-news-desk-access={accessPhase}
-      data-newsroom-chrome="app"
-      data-news-desk-drawer-docked={drawerController.isDocked ? "true" : "false"}
-      data-news-desk-drawer-open={drawerController.open ? "true" : "false"}
-      data-rhythm-overlay={showRhythmOverlay ? "true" : "false"}
+    <NewsroomOpsShell
+      activeTab="overview"
+      appTitle={SITE_BRAND.appTitle}
+      backHref="/"
+      backLabel={SITE_BRAND.backToHomeLabel}
+      headerActions={(
+        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+      )}
+      pageTitle="Newsroom"
+      showNavigation={showSectionTabs}
     >
-      <NewsroomProgressBackLink />
-      <NewsroomAppShell
-        contentClassName="news-desk-page--gate"
-        labelledBy="news-desk-access-title"
-        title={<span>Newsroom</span>}
-        headerTrailing={(
-          <>
-            <NewsDeskDrawerTrigger controller={drawerController} />
-            <Link className="news-desk-auth-control-link" href="/settings">Settings</Link>
-          </>
-        )}
-        showNavigation={showSectionTabs}
-        navigation={NEWS_DESK_TABS.map((tab) => (
-          <NewsDeskTabLink
-            key={tab.id}
-            active={false}
-            count={0}
-            countSlot={tab.id !== "administration"}
-            countVisible={false}
-            tab={tab}
-          />
-        ))}
-        drawer={<NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} />}
-      >
-        <section className="news-desk-access-panel" aria-live="polite" data-news-desk-access-phase={accessPhase}>
-          <div className="news-desk-access-panel__copy" key={`copy-${accessPhase}`}>
-            <p className="story-label">Access</p>
-            <h2>{formatAccessTitle(shell)}</h2>
-            <p>{formatAccessDetail(shell)}</p>
-            {shell?.error ? <p className="news-desk-access-panel__error">{shell.error}</p> : null}
-            <p className="news-desk-access-panel__auth">{formatAccessActionDetail(shell)}</p>
-          </div>
-        </section>
-      </NewsroomAppShell>
-    </main>
+      <section aria-live="polite" data-news-desk-access={accessPhase} data-news-desk-access-phase={accessPhase}>
+        <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+          <p className="m-0 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access</p>
+          <h2 className="m-0 font-sans text-xl font-semibold tracking-tight">{formatAccessTitle(shell)}</h2>
+          <p className="m-0 text-sm text-muted-foreground">{formatAccessDetail(shell)}</p>
+          {shell?.error ? <p className="text-sm text-destructive">{shell.error}</p> : null}
+          <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
+        </div>
+      </section>
+    </NewsroomOpsShell>
   );
 }
 
@@ -16504,10 +16170,10 @@ function formatAccessTitle(state: NewsDeskShellState | null): string {
 }
 
 function formatAccessDetail(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "Papyrus is checking the current browser session before loading steering state.";
-  if (state.phase === "loadingDesk") return "Papyrus verified the browser session and is loading private Newsroom records.";
+  if (!state || state.phase === "checkingAccess") return `${SITE_BRAND.appTitle} is checking the current browser session before loading steering state.`;
+  if (state.phase === "loadingDesk") return `${SITE_BRAND.appTitle} verified the browser session and is loading private Newsroom records.`;
   if (state.phase === "forbidden") return "This account is signed in, but the Cognito session does not include the editor or admin group.";
-  if (state.phase === "error") return "Papyrus could not verify this editor session or load the private Newsroom data.";
+  if (state.phase === "error") return `${SITE_BRAND.appTitle} could not verify this editor session or load the private Newsroom data.`;
   return "Sign in with an editor or admin account to inspect category, category tree, ontology, and graph steering.";
 }
 

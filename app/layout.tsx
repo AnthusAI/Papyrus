@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
+import { cookies } from "next/headers";
 import Script from "next/script";
 import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SITE_BRAND, getPresentationChoices } from "../lib/site-brand";
+import { getPresentationChoices, getSiteBrand, resolveRuntimeSiteBrandId } from "../lib/site-brand";
 import { getSiteStack } from "../lib/site-stack";
 import "./tailwind.css";
 import "./globals.css";
@@ -21,34 +22,45 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 const faviconVersion = "20260517-1";
 const defaultTheme = "system";
+const BRAND_OVERRIDE_COOKIE = "papyrus-site-brand-override";
 
-export const metadata: Metadata = {
-  title: SITE_BRAND.appTitle,
-  description: SITE_BRAND.appDescription,
-  icons: {
-    icon: [
-      { url: `/icon-light.png?v=${faviconVersion}`, type: "image/png" },
-      { url: `/icon.png?v=${faviconVersion}`, type: "image/png" },
-    ],
-  },
-};
+async function resolveLayoutSiteBrand() {
+  const cookieStore = await cookies();
+  const brandId = resolveRuntimeSiteBrandId(cookieStore.get(BRAND_OVERRIDE_COOKIE)?.value ?? null);
+  return getSiteBrand(brandId);
+}
 
-const presentationChoices = getPresentationChoices();
-const siteStack = getSiteStack(SITE_BRAND);
+export async function generateMetadata(): Promise<Metadata> {
+  const siteBrand = await resolveLayoutSiteBrand();
+  return {
+    title: siteBrand.appTitle,
+    description: siteBrand.appDescription,
+    icons: {
+      icon: [
+        { url: `/icon-light.png?v=${faviconVersion}`, type: "image/png" },
+        { url: `/icon.png?v=${faviconVersion}`, type: "image/png" },
+      ],
+    },
+  };
+}
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const siteBrand = await resolveLayoutSiteBrand();
+  const presentationChoices = getPresentationChoices(siteBrand);
+  const siteStack = getSiteStack(siteBrand);
+
   return (
     <html
       lang="en"
       className="light light-theme"
       data-papyrus-theme={defaultTheme}
-      data-site-brand={SITE_BRAND.id}
+      data-site-brand={siteBrand.id}
       data-theme-pack={siteStack.ops.themePack}
       data-ops-chrome={siteStack.ops.chrome}
       data-renderer={siteStack.publication.renderer.kind}
-      data-default-presentation={SITE_BRAND.defaultPresentation}
+      data-default-presentation={siteBrand.defaultPresentation}
       data-presentation-choices={presentationChoices.join(",")}
-      {...(SITE_BRAND.forcedPresentation ? { "data-forced-presentation": SITE_BRAND.forcedPresentation } : {})}
+      {...(siteBrand.forcedPresentation ? { "data-forced-presentation": siteBrand.forcedPresentation } : {})}
       suppressHydrationWarning
     >
       <body className={`${playfairDisplay.variable} ${plusJakartaSans.variable}`}>

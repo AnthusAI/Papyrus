@@ -68,7 +68,7 @@ async function loadHomeContent(scenarioId: string | null): Promise<EditionConten
   try {
     return await contentRepository.loadEditionContent({ scenarioId });
   } catch (error) {
-    if (scenarioId || !isMissingGraphQLEditionError(error)) throw error;
+    if (scenarioId || !isMissingReaderBackendError(error)) throw error;
     return createEmptyGraphQLEdition();
   }
 }
@@ -302,6 +302,13 @@ function createPlaceholderCtaItem({
 
 function isMissingGraphQLEditionError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("No published GraphQL edition found");
+}
+
+function isMissingReaderBackendError(error: unknown): boolean {
+  return (
+    isMissingGraphQLEditionError(error)
+    || (error instanceof Error && error.message.includes("missing projection model"))
+  );
 }
 
 function hasOAuthRedirectParams(searchParams: Awaited<HomePageProps["searchParams"]>): boolean {

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
+import { getNewsroomDemoProfile, isPilobolusDemoBrand } from "./newsroom-demo-profile";
 
 export { createEmptyCategorySteeringDashboard };
 
@@ -964,6 +965,8 @@ function normalizeNewsroomSectionSeedRow(entry: Record<string, unknown>, index: 
 
 export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard {
   const importedAt = "2026-05-16T12:00:00.000Z";
+  const profile = getNewsroomDemoProfile();
+  const pilobolus = isPilobolusDemoBrand();
   const corpusId = "knowledge-corpus-demo-canonical";
   const sourceCorpusId = "knowledge-corpus-demo-source";
   const categorySetId = "category-set-demo-canonical";
@@ -1048,14 +1051,14 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
     corpora: [
       {
         id: corpusId,
-        name: "Canonical Demo Corpus",
+        name: profile.canonicalCorpusName,
         role: "canonical",
         itemCount: 3,
         latestImportRunId: "knowledge-import-demo-steering",
       },
       {
         id: sourceCorpusId,
-        name: "Source Demo Corpus",
+        name: profile.sourceCorpusName,
         role: "source",
         itemCount: 2,
         latestImportRunId: "knowledge-import-demo-projection",
@@ -1127,10 +1130,14 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
         categorySetId,
         corpusId,
         categoryKey: "category.foundation-model-scaling",
-        displayName: "Foundation Model Scaling",
-        subtitle: "Capability curves, benchmark saturation, and training-compute effects",
-        description: "Research on model size, data mixtures, compute budgets, and emergent benchmark behavior.",
-        aliases: ["scaling laws", "compute scaling"],
+        displayName: pilobolus ? "Ensemble Movement Studies" : "Foundation Model Scaling",
+        subtitle: pilobolus
+          ? "Rehearsal notes, ensemble patterns, and field documentation"
+          : "Capability curves, benchmark saturation, and training-compute effects",
+        description: pilobolus
+          ? "Movement research, rehearsal capture, and ensemble coordination notes from the Pilobolus field program."
+          : "Research on model size, data mixtures, compute budgets, and emergent benchmark behavior.",
+        aliases: pilobolus ? ["ensemble work", "movement studies"] : ["scaling laws", "compute scaling"],
         status: "accepted",
         seedItemIds: ["research-001", "research-002"],
         holdoutItemIds: ["research-003"],
@@ -1143,10 +1150,14 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
         categorySetId: sourceCategorySetId,
         corpusId: sourceCorpusId,
         categoryKey: "category.symbolic-connectionist-history",
-        displayName: "Symbolic And Connectionist History",
-        subtitle: "Shifts between rule systems, neural nets, and hybrid AI programs",
-        description: "Historical coverage of symbolic AI, neural network winters, and later hybrid systems.",
-        aliases: ["AI winters", "connectionism"],
+        displayName: pilobolus ? "Rehearsal Archive" : "Symbolic And Connectionist History",
+        subtitle: pilobolus
+          ? "Season logs, tour notes, and creative process records"
+          : "Shifts between rule systems, neural nets, and hybrid AI programs",
+        description: pilobolus
+          ? "Historical rehearsal logs, tour documentation, and creative-process notes for Pilobolus editions."
+          : "Historical coverage of symbolic AI, neural network winters, and later hybrid systems.",
+        aliases: pilobolus ? ["tour archive", "season notes"] : ["AI winters", "connectionism"],
         status: "accepted",
         seedItemIds: ["history-001"],
         holdoutItemIds: ["history-002"],

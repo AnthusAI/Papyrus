@@ -46,9 +46,10 @@ Given("I open the newsroom at {int} by {int}", async function (width, height) {
 Then("I should see the newsroom app shell", async function () {
   const page = requirePage(this);
   await page.waitForSelector("[data-newsroom-chrome='app']", { state: "visible", timeout: 15_000 });
-  await page.waitForSelector(".newsroom-app-shell__header", { state: "visible", timeout: 15_000 });
-  const title = await page.locator(".newsroom-app-shell__title").innerText();
-  assert.match(title, /Newsroom|News/i);
+  await page.waitForSelector("[data-newsroom-ops-shell='true']", { state: "visible", timeout: 15_000 });
+  await page.waitForSelector("[data-newsroom-ops-topbar]", { state: "visible", timeout: 15_000 });
+  const title = await page.locator("[data-newsroom-ops-title]").innerText();
+  assert.match(title, /Overview|Newsroom|Assignments|References|Topics|Concepts|Messages|Administration/i);
 });
 
 Then("I should not see a newspaper masthead or paper page in the newsroom chrome", async function () {
@@ -67,7 +68,7 @@ Given("I constrain the newsroom shell width to {int} pixels", async function (wi
   const page = requirePage(this);
   await page.waitForSelector("[data-news-desk]", { state: "visible", timeout: 15_000 });
   await page.evaluate((targetWidth) => {
-    const shell = document.querySelector(".news-desk-shell");
+    const shell = document.querySelector("[data-newsroom-ops-shell]");
     if (!(shell instanceof HTMLElement)) return;
     shell.style.width = `${targetWidth}px`;
     shell.style.maxWidth = `${targetWidth}px`;
@@ -407,7 +408,7 @@ Then("the newsroom should render", async function () {
   const page = requirePage(this);
   await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
   assert.equal(await page.locator("[data-news-desk]").getAttribute("data-category-steering-demo"), "true");
-  await page.locator("h1", { hasText: "NEWSROOM" }).waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-title]", { hasText: "Overview" }).waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='topics']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='concepts']").waitFor({ state: "visible", timeout: 10_000 });
@@ -1579,7 +1580,7 @@ Then("the newsroom aggregate counts should remain blank while the summary is loa
     return labels.map((label) => {
       const tab = Array.from(document.querySelectorAll("[data-news-desk-tab]"))
         .find((node) => node.textContent?.includes(label));
-      const count = tab?.querySelector(".news-desk-tab__count");
+      const count = tab?.querySelector("[data-newsroom-nav-count]");
       return {
         label,
         exists: Boolean(tab),
@@ -1602,7 +1603,7 @@ Then("the newsroom aggregate counts should show question marks", async function 
     return labels.every((label) => {
       const tab = Array.from(document.querySelectorAll("[data-news-desk-tab]"))
         .find((node) => node.textContent?.includes(label));
-      const count = tab?.querySelector(".news-desk-tab__count");
+      const count = tab?.querySelector("[data-newsroom-nav-count]");
       return count?.getAttribute("data-count-visible") === "true" && (count.textContent?.trim() ?? "") === "?";
     });
   }, { timeout: 10_000 });
@@ -1611,7 +1612,7 @@ Then("the newsroom aggregate counts should show question marks", async function 
     return labels.map((label) => {
       const tab = Array.from(document.querySelectorAll("[data-news-desk-tab]"))
         .find((node) => node.textContent?.includes(label));
-      const count = tab?.querySelector(".news-desk-tab__count");
+      const count = tab?.querySelector("[data-newsroom-nav-count]");
       return {
         label,
         exists: Boolean(tab),

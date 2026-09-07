@@ -87,6 +87,13 @@ export function resolveSiteBrandId(
   return normalizeSiteBrandId(raw) ?? "papyrus";
 }
 
+/** Cookie set by middleware when `?brand=` is present (demo without rebuild). */
+export function resolveRuntimeSiteBrandId(
+  cookieOverride: string | undefined | null = null,
+): SiteBrandId {
+  return normalizeSiteBrandId(cookieOverride) ?? resolveSiteBrandId();
+}
+
 export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand {
   return SITE_BRANDS[id];
 }
@@ -97,8 +104,8 @@ export function enforcePresentation(presentation: EditionPresentationFormat): Ed
   return SITE_BRAND.forcedPresentation ?? presentation;
 }
 
-export function getPresentationChoices(): EditionPresentationFormat[] {
-  return SITE_BRAND.forcedPresentation
-    ? [SITE_BRAND.forcedPresentation]
+export function getPresentationChoices(brand: SiteBrand = SITE_BRAND): EditionPresentationFormat[] {
+  return brand.forcedPresentation
+    ? [brand.forcedPresentation]
     : ["newspaper", "blog", "magazine"];
 }
