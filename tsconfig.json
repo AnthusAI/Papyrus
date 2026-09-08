@@ -39,6 +39,9 @@
     ".next-3001/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "infra",
+    "cdk.out",
+    ".amplify"
   ]
 }
