@@ -19,10 +19,24 @@
       "text": "In progress after live dogfood on recent Anth.us posts. Composer 2.5 planner dispatched. Worktree to create: /tmp/papyrus-PPY-8f5273-diagnose-tighten on cursor/feature/PPY-8f5273-diagnose-tighten. Plan only until worktree exists.",
       "created_at": "2026-09-08T11:14:21.527738Z",
       "comment_type": "default"
+    },
+    {
+      "id": "34f078c6-6b99-4499-8600-db6de7e52107",
+      "author": "home",
+      "text": "Plan reviewed: check toggles, never/always compounds, list ordinals, cadence off for Anth.us, local voice_mismatch. Worktree gate next; implementation not authorized until /tmp/papyrus-PPY-8f5273-diagnose-tighten exists.",
+      "created_at": "2026-09-08T11:16:37.962843Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "180790fb-0227-4ae9-beee-1080ed86cee2",
+      "author": "home",
+      "text": "Worktree verified. Implementation authorized on cursor/feature/PPY-8f5273-diagnose-tighten.",
+      "created_at": "2026-09-08T11:17:04.990682Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:14:13.987958Z",
-  "updated_at": "2026-09-08T11:14:21.527738Z",
+  "updated_at": "2026-09-08T11:17:04.990682Z",
   "closed_at": null,
   "custom": {}
 }
