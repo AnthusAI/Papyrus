@@ -59,6 +59,7 @@ export const SITES: Record<string, AmplifyAppShellSiteConfig> = {
       PAPYRUS_ENABLE_SLACK: "false",
       PAPYRUS_ENABLE_INBOUND_EMAIL: "false",
       PAPYRUS_ENABLE_STORAGE_BACKUPS: "false",
+      PAPYRUS_DISABLE_GOOGLE_OAUTH: "1",
     },
     githubTokenSecretName: "amplify/github-app-token",
     domainName: "newsroom.pilobol.us",
