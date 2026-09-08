@@ -33,10 +33,17 @@
       "text": "Correction: keep local sentence embeddings (STS/paraphrase clusters). Drop lexical-density/gzip as the headline. No homemade information-density score. Replan; do not implement.",
       "created_at": "2026-09-08T12:08:36.730240Z",
       "comment_type": "default"
+    },
+    {
+      "id": "04866dca-b6d4-49aa-8377-603249060bf9",
+      "author": "home",
+      "text": "Rejected lexical-density plan. Next plan must be local sentence-embedding restatement clusters only.",
+      "created_at": "2026-09-08T12:09:12.726917Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:59:55.910656Z",
-  "updated_at": "2026-09-08T12:08:36.730240Z",
+  "updated_at": "2026-09-08T12:09:12.726917Z",
   "closed_at": null,
   "custom": {}
 }
