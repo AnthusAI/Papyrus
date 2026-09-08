@@ -8,7 +8,6 @@ import {
   ThumbsDownIcon,
   ThumbsUpIcon,
 } from "lucide-react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ReferenceRecord } from "../lib/category-repository";
+import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import {
   parseReferenceLineageIdFromNewsroomPathname,
   syncBrowserNewsroomIndexUrl,
@@ -44,12 +43,18 @@ import {
 } from "../lib/newsroom-references";
 import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
+import { ReferenceSourcePreview } from "./reference-source-preview";
+import {
+  loadReferenceAttachmentsForLineageId,
+  loadStoragePathUrl,
+} from "./news-desk-taxonomy-client";
 
 type NewsroomReferencesViewProps = {
   demo?: boolean;
   disabled?: boolean;
   initialReferenceLineageId?: string | null;
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction) => void;
+  referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
 };
 
@@ -60,6 +65,18 @@ const STATUS_FILTERS: Array<{ key: ReferenceStatusFilter; label: string }> = [
   { key: "rejected", label: "Rejected" },
   { key: "archived", label: "Archived" },
 ];
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const update = () => setMatches(mediaQuery.matches);
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
 
 function buildReferenceDetailPath(lineageId: string, demo?: boolean): string {
   return getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo);
@@ -72,16 +89,112 @@ function referenceUrl(reference: ReferenceRecord): string | null {
   return null;
 }
 
+function normalizeReferenceDetailHttpUri(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return null;
+}
+
+function useReferencePreviewAttachments(
+  reference: ReferenceRecord | null,
+  referenceAttachments: ReferenceAttachmentRecord[],
+) {
+  const lineageId = reference ? referenceLineageId(reference) : "";
+  const seededAttachments = useMemo(
+    () => referenceAttachments.filter((attachment) => attachment.referenceLineageId === lineageId),
+    [lineageId, referenceAttachments],
+  );
+  const [attachments, setAttachments] = useState<ReferenceAttachmentRecord[]>(seededAttachments);
+  const [attachmentLinksById, setAttachmentLinksById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setAttachments(seededAttachments);
+  }, [seededAttachments]);
+
+  useEffect(() => {
+    if (!lineageId) return;
+    if (seededAttachments.length > 0) return;
+    let active = true;
+    void loadReferenceAttachmentsForLineageId(lineageId)
+      .then((loaded) => {
+        if (!active || !loaded.length) return;
+        setAttachments(loaded);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [lineageId, seededAttachments.length]);
+
+  useEffect(() => {
+    if (!attachments.length) {
+      setAttachmentLinksById({});
+      return;
+    }
+    let active = true;
+    const staticLinks = new Map<string, string>();
+    const storageLookups: Array<{ id: string; storagePath: string }> = [];
+
+    for (const attachment of attachments) {
+      if (attachment.storagePath) {
+        storageLookups.push({ id: attachment.id, storagePath: attachment.storagePath });
+        continue;
+      }
+      const sourceHref = normalizeReferenceDetailHttpUri(attachment.sourceUri);
+      if (sourceHref) staticLinks.set(attachment.id, sourceHref);
+    }
+
+    if (!storageLookups.length) {
+      setAttachmentLinksById(Object.fromEntries(staticLinks.entries()));
+      return () => {
+        active = false;
+      };
+    }
+
+    setAttachmentLinksById(Object.fromEntries(staticLinks.entries()));
+    void Promise.all(storageLookups.map(async (lookup) => {
+      const result = await loadStoragePathUrl(lookup.storagePath);
+      return { id: lookup.id, url: result.url };
+    }))
+      .then((resolved) => {
+        if (!active) return;
+        const nextLinks = Object.fromEntries(staticLinks.entries());
+        for (const entry of resolved) {
+          if (entry.url) nextLinks[entry.id] = entry.url;
+        }
+        setAttachmentLinksById(nextLinks);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [attachments]);
+
+  const previewAttachments = useMemo(
+    () => attachments.map((attachment) => ({
+      ...attachment,
+      sourceUri: attachmentLinksById[attachment.id] ?? attachment.sourceUri,
+    })),
+    [attachmentLinksById, attachments],
+  );
+
+  return previewAttachments;
+}
+
 function ReferenceDetailPanel({
   demo,
   disabled,
   onReview,
+  previewAttachments,
   reference,
   onClose,
 }: {
   demo?: boolean;
   disabled?: boolean;
   onReview: (action: ReferenceCurationAction) => void;
+  previewAttachments: ReferenceAttachmentRecord[];
   reference: ReferenceRecord;
   onClose?: () => void;
 }) {
@@ -157,6 +270,11 @@ function ReferenceDetailPanel({
 
         <Separator />
 
+        <section aria-label="Source preview" className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">Source preview</h3>
+          <ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />
+        </section>
+
         <dl className="grid gap-3 text-sm">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Why</dt>
@@ -195,18 +313,27 @@ function ReferenceDetailPanel({
 
         <section aria-label="Attachments">
           <h3 className="mb-2 text-sm font-medium text-foreground">Attachments</h3>
-          <p className="text-sm text-muted-foreground">
-            {reference.storagePath
-              ? reference.storagePath
-              : "No attachment metadata on this record."}
-          </p>
-        </section>
-
-        <section aria-label="Semantic neighbors" data-news-desk-neighbors>
-          <h3 className="mb-2 text-sm font-medium text-foreground">Neighbors</h3>
-          <p className="text-sm text-muted-foreground">
-            classified as {reference.corpusId ?? "unassigned corpus"}
-          </p>
+          {previewAttachments.length ? (
+            <ul className="space-y-1 text-sm text-muted-foreground">
+              {previewAttachments.map((attachment) => (
+                <li key={attachment.id}>
+                  {attachment.sourceUri ? (
+                    <a className="text-primary underline-offset-4 hover:underline" href={attachment.sourceUri} rel="noreferrer" target="_blank">
+                      {attachment.filename ?? attachment.role ?? attachment.id}
+                    </a>
+                  ) : (
+                    <span>{attachment.filename ?? attachment.role ?? attachment.id}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {reference.storagePath
+                ? reference.storagePath
+                : "No attachment metadata on this record."}
+            </p>
+          )}
         </section>
 
         {onClose ? (
@@ -224,9 +351,11 @@ export function NewsroomReferencesView({
   disabled = false,
   initialReferenceLineageId = null,
   onReview,
+  referenceAttachments = [],
   references,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
+  const isMobileDetail = useMediaQuery("(max-width: 767px)");
   const pathnameLineageId = useMemo(
     () => parseReferenceLineageIdFromNewsroomPathname(pathname),
     [pathname],
@@ -238,7 +367,7 @@ export function NewsroomReferencesView({
 
   const [statusFilter, setStatusFilter] = useState<ReferenceStatusFilter>("all");
   const [selectedLineageId, setSelectedLineageId] = useState(routeLineageId);
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(routeLineageId));
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(routeLineageId) && isMobileDetail);
 
   const filteredReferences = useMemo(
     () => filterReferencesByStatus(canonicalReferences, statusFilter),
@@ -250,6 +379,8 @@ export function NewsroomReferencesView({
       ?? selectedReferenceRecordByLineage(canonicalReferences, selectedLineageId),
     [canonicalReferences, filteredReferences, selectedLineageId],
   );
+
+  const previewAttachments = useReferencePreviewAttachments(selectedReference, referenceAttachments);
 
   const selectedIndex = selectedReference
     ? filteredReferences.findIndex((entry) => referenceLineageId(entry) === referenceLineageId(selectedReference))
@@ -271,12 +402,17 @@ export function NewsroomReferencesView({
   useEffect(() => {
     if (!routeLineageId) return;
     setSelectedLineageId(routeLineageId);
-    setMobileDetailOpen(true);
-  }, [routeLineageId]);
+    if (isMobileDetail) setMobileDetailOpen(true);
+  }, [isMobileDetail, routeLineageId]);
+
+  useEffect(() => {
+    if (isMobileDetail) return;
+    setMobileDetailOpen(false);
+  }, [isMobileDetail]);
 
   const selectReference = (lineageId: string) => {
     setSelectedLineageId(lineageId);
-    setMobileDetailOpen(true);
+    if (isMobileDetail) setMobileDetailOpen(true);
     if (typeof window !== "undefined") {
       const nextPath = buildReferenceDetailPath(lineageId, demo);
       if (`${window.location.pathname}${window.location.search}` !== nextPath) {
@@ -305,12 +441,12 @@ export function NewsroomReferencesView({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 font-sans md:flex-row"
+      className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[calc(100dvh-8.5rem)] md:flex-row"
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-        <div className="space-y-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:overflow-hidden">
+        <div className="shrink-0 space-y-1">
           <h2 className="text-lg font-semibold tracking-tight">References</h2>
           <p className="text-sm text-muted-foreground">
             Review source intake before it becomes accepted evidence.
@@ -318,6 +454,7 @@ export function NewsroomReferencesView({
         </div>
 
         <Tabs
+          className="shrink-0"
           defaultValue="all"
           onValueChange={(value) => {
             const next = value as ReferenceStatusFilter;
@@ -341,7 +478,7 @@ export function NewsroomReferencesView({
           </TabsList>
         </Tabs>
 
-        <ScrollArea className="min-h-0 flex-1 md:max-h-[calc(100dvh-16rem)]">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-2 pb-4" data-newsroom-card-grid>
             {filteredReferences.length ? filteredReferences.map((reference) => {
               const lineageId = referenceLineageId(reference);
@@ -382,12 +519,12 @@ export function NewsroomReferencesView({
       </div>
 
       <div
-        className="hidden min-h-0 w-full shrink-0 flex-col rounded-xl border border-border bg-card md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
+        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
         data-detail-open={selectedReference ? "true" : "false"}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
           <span className="text-sm font-medium text-foreground">Detail</span>
           <div className="newsroom-list-detail-shell__detail-toolbar-trailing flex items-center gap-1">
             <Button
@@ -418,6 +555,7 @@ export function NewsroomReferencesView({
               demo={demo}
               disabled={disabled}
               onReview={runReview}
+              previewAttachments={previewAttachments}
               reference={selectedReference}
             />
           ) : (
@@ -428,27 +566,33 @@ export function NewsroomReferencesView({
         </ScrollArea>
       </div>
 
-      <Sheet onOpenChange={(open) => {
-        if (!open) closeDetail();
-        else setMobileDetailOpen(true);
-      }} open={mobileDetailOpen && Boolean(selectedReference)}>
-        <SheetContent className="gap-0 p-0 md:hidden" side="bottom">
-          <SheetHeader className="border-b border-border px-4 py-3">
-            <SheetTitle className="text-left text-base">Reference</SheetTitle>
-          </SheetHeader>
-          {selectedReference ? (
-            <ScrollArea className="max-h-[75dvh]">
-              <ReferenceDetailPanel
-                demo={demo}
-                disabled={disabled}
-                onClose={closeDetail}
-                onReview={runReview}
-                reference={selectedReference}
-              />
-            </ScrollArea>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+      {isMobileDetail ? (
+        <Sheet
+          onOpenChange={(open) => {
+            if (!open) closeDetail();
+            else setMobileDetailOpen(true);
+          }}
+          open={mobileDetailOpen && Boolean(selectedReference)}
+        >
+          <SheetContent className="gap-0 p-0" side="bottom">
+            <SheetHeader className="border-b border-border px-4 py-3">
+              <SheetTitle className="text-left text-base">Reference</SheetTitle>
+            </SheetHeader>
+            {selectedReference ? (
+              <ScrollArea className="max-h-[75dvh]">
+                <ReferenceDetailPanel
+                  demo={demo}
+                  disabled={disabled}
+                  onClose={closeDetail}
+                  onReview={runReview}
+                  previewAttachments={previewAttachments}
+                  reference={selectedReference}
+                />
+              </ScrollArea>
+            ) : null}
+          </SheetContent>
+        </Sheet>
+      ) : null}
     </div>
   );
 }

@@ -3154,6 +3154,7 @@ function NewsDeskDashboard({
             disabled={controlsDisabled}
             initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
             onReview={(reference, action) => runReferenceCurationAction(reference, action)}
+            referenceAttachments={referenceAttachments}
             references={references}
           />
         ) : null}

@@ -144,6 +144,15 @@ export function ReferenceSourcePreview({
       className="news-desk-reference-source-preview news-desk-reference-source-preview--html"
       data-news-desk-reference-source-preview="html"
     >
+      <div className="news-desk-reference-source-preview__frame">
+        <iframe
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+          src={preview.href}
+          title={preview.label}
+        />
+      </div>
       <p className="news-desk-reference-source-preview__actions">
         <a href={preview.href} rel="noopener noreferrer" target="_blank">
           {preview.label}
