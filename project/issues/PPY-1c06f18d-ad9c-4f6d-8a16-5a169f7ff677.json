@@ -26,10 +26,17 @@
       "text": "Plan reviewed. Worktree /tmp/papyrus-PPY-1c06f1-style-profile is not created yet; implementation not authorized until that path exists on cursor/feature/PPY-1c06f1-style-profile from origin/develop.",
       "created_at": "2026-09-08T10:41:59.738813Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8f8c7b66-ce4f-4237-b3bb-f499be46ad09",
+      "author": "home",
+      "text": "Worktree verified at /tmp/papyrus-PPY-1c06f1-style-profile on cursor/feature/PPY-1c06f1-style-profile. Implementation authorized. Stay in that worktree; PR into develop; no project/ in the product PR.",
+      "created_at": "2026-09-08T10:42:34.589776Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.124334Z",
-  "updated_at": "2026-09-08T10:41:59.738813Z",
+  "updated_at": "2026-09-08T10:42:34.589776Z",
   "closed_at": null,
   "custom": {}
 }
