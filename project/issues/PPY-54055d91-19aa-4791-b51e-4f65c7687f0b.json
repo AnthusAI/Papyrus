@@ -41,10 +41,17 @@
       "text": "Decision: steal Chattic.us-web publication-writing gate design (rules as data + two-sided corpus) into Papyrus diagnose. Chatticus website CMS is later and separate. New story PPY-dc9251.",
       "created_at": "2026-09-08T11:36:59.676924Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2e0da74d-a7df-4c84-a520-65844ff4cebf",
+      "author": "home",
+      "text": "Next diagnose slice: PPY-da4bf3 fuses density signals (gzip, sentence clusters via local embeddings / TF-IDF). No paid vector API. Not a single fluff score.",
+      "created_at": "2026-09-08T12:00:36.785942Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:11:51.547214Z",
-  "updated_at": "2026-09-08T11:36:59.676924Z",
+  "updated_at": "2026-09-08T12:00:36.785942Z",
   "closed_at": null,
   "custom": {}
 }
