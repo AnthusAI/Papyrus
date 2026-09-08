@@ -70,7 +70,7 @@ from .editions_commands import (
     editions_plan,
     editions_purge,
 )
-from .editorial_commands import editorial_diagnose
+from .editorial_commands import editorial_diagnose, editorial_options
 from .categories_commands import (
     categories_draft_add_topic,
     categories_draft_archive_topic,
@@ -349,6 +349,7 @@ PORTED_COMMANDS = frozenset(
         "videos:seed",
         "videos:attach",
         "editorial:diagnose",
+        "editorial:options",
     }
 )
 
@@ -696,6 +697,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         videos_attach(flags)
     elif route == "editorial:diagnose":
         editorial_diagnose(flags)
+    elif route == "editorial:options":
+        editorial_options(flags)
     else:
         raise ValueError(f"Unsupported papyrus command: {group} {command}")
 

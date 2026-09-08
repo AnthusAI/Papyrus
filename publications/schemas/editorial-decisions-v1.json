@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://papyrus.anth.us/schemas/editorial-decisions-v1.json",
+  "title": "EditorialDecisions",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["schemaVersion", "finding_id", "decision"],
+    "properties": {
+      "schemaVersion": {
+        "const": 1
+      },
+      "finding_id": {
+        "type": "string",
+        "pattern": "^finding-[a-f0-9]{16}$"
+      },
+      "decision": {
+        "type": "string",
+        "enum": ["skip", "rewrite", "delete", "keep", "add"]
+      },
+      "note": {
+        "type": "string"
+      }
+    }
+  }
+}

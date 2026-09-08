@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "document_intent": "In today's world, AI is changing everything in profound ways.",
+  "audience": "Practicing AI and ML engineers evaluating tools, cost, and risk.",
+  "generic_passages": [
+    {
+      "id": "finding-0810866db70f8d69",
+      "kind": "empty_leadin",
+      "excerpt": "In today's world, AI is changing everything in profound ways.",
+      "span": {
+        "start": 0,
+        "end": 61
+      },
+      "rationale": "Sentence opens with empty boilerplate instead of a concrete stake."
+    },
+    {
+      "id": "finding-8c8efabbccd804cb",
+      "kind": "list_shaped_prose",
+      "excerpt": "First, you adopt the tool. Second, you scale usage. Third, you capture value.",
+      "span": {
+        "start": 248,
+        "end": 325
+      },
+      "rationale": "Paragraph reads like an inline list without substantive development."
+    },
+    {
+      "id": "finding-a6b95ac741d27015",
+      "kind": "vague_claim",
+      "excerpt": "revolutionize",
+      "span": {
+        "start": 95,
+        "end": 108
+      },
+      "rationale": "Passage uses avoided lexicon 'revolutionize' without operational detail."
+    },
+    {
+      "id": "finding-2da0bff00477de8d",
+      "kind": "vague_claim",
+      "excerpt": "game-changing",
+      "span": {
+        "start": 224,
+        "end": 237
+      },
+      "rationale": "Passage uses avoided lexicon 'game-changing' without operational detail."
+    },
+    {
+      "id": "finding-e7fe80185739ab0e",
+      "kind": "vague_claim",
+      "excerpt": "leverage synergies",
+      "span": {
+        "start": 194,
+        "end": 212
+      },
+      "rationale": "Passage uses avoided lexicon 'leverage synergies' without operational detail."
+    }
+  ],
+  "unsupported_claims": [
+    {
+      "id": "finding-04406044cd71cbf0",
+      "kind": "unsupported_certainty",
+      "excerpt": "Everyone knows that agents will revolutionize how teams work.",
+      "span": {
+        "start": 63,
+        "end": 124
+      },
+      "rationale": "Sentence states certainty without attributable evidence."
+    }
+  ],
+  "repetition_groups": [
+    {
+      "id": "finding-3d260688fef42494",
+      "kind": "redundancy",
+      "members": [
+        {
+          "id": "finding-cd0b0f45aae89467",
+          "kind": "redundancy",
+          "excerpt": "Teams need better tools.",
+          "span": {
+            "start": 327,
+            "end": 351
+          },
+          "rationale": "Repeated phrasing across the draft."
+        },
+        {
+          "id": "finding-b9b199915c826e7d",
+          "kind": "redundancy",
+          "excerpt": "Many teams need better tools when they start.",
+          "span": {
+            "start": 457,
+            "end": 502
+          },
+          "rationale": "Repeated phrasing across the draft."
+        }
+      ],
+      "rationale": "Multiple passages repeat the same four-word phrase."
+    }
+  ],
+  "voice_observations": [
+    {
+      "id": "finding-c6a18f7d29f8eed4",
+      "kind": "uniform_cadence",
+      "excerpt": "This will transform workflows across the industry. The platform will leverage synergies to deliver game-changing results.\n\nFirst, you adopt the tool. Second, you scale usage. Third, you capture value.\n\nTeams need better tools. Teams need faster tools. Teams need smarter tools. Teams need cheaper tools. Teams need reliable tools.\n\nMany teams need better tools when they start.\n\nOur product reduces latency by 40% without any source attached.",
+      "span": {
+        "start": 125,
+        "end": 567
+      },
+      "rationale": "Five or more consecutive sentences share nearly identical length."
+    },
+    {
+      "id": "finding-ed08a04d6b2fca0c",
+      "kind": "voice_mismatch",
+      "excerpt": "revolutionize",
+      "span": {
+        "start": 95,
+        "end": 108
+      },
+      "rationale": "Passage conflicts with profile avoid lexicon 'revolutionize'."
+    },
+    {
+      "id": "finding-ffe56b01ad6d6cdc",
+      "kind": "voice_mismatch",
+      "excerpt": "game-changing",
+      "span": {
+        "start": 224,
+        "end": 237
+      },
+      "rationale": "Passage conflicts with profile avoid lexicon 'game-changing'."
+    },
+    {
+      "id": "finding-16cd82007b2a4c84",
+      "kind": "voice_mismatch",
+      "excerpt": "leverage synergies",
+      "span": {
+        "start": 194,
+        "end": 212
+      },
+      "rationale": "Passage conflicts with profile avoid lexicon 'leverage synergies'."
+    }
+  ],
+  "required_facts": [
+    {
+      "id": "finding-73096676e75fb7e9",
+      "kind": "missing_attribution",
+      "excerpt": "Our product reduces latency by 40% without any source attached.",
+      "span": {
+        "start": 504,
+        "end": 567
+      },
+      "rationale": "Numeric or statistical claim lacks attributable evidence."
+    }
+  ],
+  "density": {
+    "wordCount": 87,
+    "sentenceCount": 14,
+    "lexicalDensity": 0.7586,
+    "gzipRatio": 0.5792
+  }
+}

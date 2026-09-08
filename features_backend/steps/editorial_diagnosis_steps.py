@@ -23,6 +23,12 @@ FORBIDDEN_OUTPUT_KEYS = {
     "options",
     "patches",
 }
+FORBIDDEN_OPTIONS_OUTPUT_KEYS = {
+    "revised_text",
+    "rewritten_prose",
+    "revisedProse",
+    "revisedText",
+}
 STABLE_ID_PATTERN = re.compile(r"^finding-[a-f0-9]{16}$")
 REQUIRED_KINDS = {
     "vague_claim",
@@ -395,6 +401,11 @@ def step_then_findings_cover_required_kinds(context):
 
 @then("the result does not include rewritten prose")
 def step_then_no_rewritten_prose(context):
+    if getattr(context, "options_payload", None) is not None:
+        rendered = json.dumps(context.options_payload)
+        for forbidden in FORBIDDEN_OPTIONS_OUTPUT_KEYS:
+            assert f'"{forbidden}"' not in rendered
+        return
     _walk_forbidden_keys(context.diagnosis)
 
 
