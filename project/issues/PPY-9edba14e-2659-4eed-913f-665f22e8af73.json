@@ -1,0 +1,25 @@
+{
+  "id": "PPY-9edba14e-2659-4eed-913f-665f22e8af73",
+  "title": "Diff handoff, provenance log, human approval",
+  "description": "**Phase 5 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- Operator sees a **diff** (original vs proposed), not an auto-published rewrite.\n- Provenance retained: original draft, each revision, model/version, retrieved sources, change log, human approve/reject.\n- External publish requires human approval.\n- Quality metrics logged over time: accepted revisions, deletions, unsupported-claim rate, reader edits, post-publication corrections.\n\n## Depends on\n\nVerifier + acceptance gate.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "5ca22f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-09-08T09:12:08.228876Z",
+  "updated_at": "2026-09-08T09:12:08.228876Z",
+  "closed_at": null,
+  "custom": {}
+}

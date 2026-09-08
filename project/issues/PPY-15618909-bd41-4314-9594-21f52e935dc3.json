@@ -1,0 +1,25 @@
+{
+  "id": "PPY-15618909-bd41-4314-9594-21f52e935dc3",
+  "title": "Diagnostic JSON pass for editorial slop",
+  "description": "**Phase 2 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- A first pass returns **structured JSON only** (no prose rewrite): document_intent, audience, generic_passages, unsupported_claims, repetition_groups, voice_observations, required_facts.\n- Detects at least: vague claims, empty lead-ins, uniform cadence, list-shaped prose, unsupported certainty, redundancy, voice mismatch vs style profile.\n- Schema is automation-friendly and versioned.\n\n## Out of scope\n\nRewriting the draft in this pass.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "1c06f1",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-09-08T09:12:07.391410Z",
+  "updated_at": "2026-09-08T09:12:07.391410Z",
+  "closed_at": null,
+  "custom": {}
+}

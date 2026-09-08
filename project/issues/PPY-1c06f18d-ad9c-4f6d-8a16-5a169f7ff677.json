@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1c06f18d-ad9c-4f6d-8a16-5a169f7ff677",
+  "title": "Style profile store + reference corpus",
+  "description": "**Phase 1 of MVP** under `PPY-54055d` (quality-first editorial rewrite loop).\n\n## Done when\n\n- An editable style profile (YAML or equivalent) can be stored for a publication/pod: voice name, audience, tone, sentence style, structure, prefer/avoid lexicon, evidence rules.\n- 5\u201310 approved reference samples are linked or stored for voice match.\n- Profile is loadable by later diagnostic/revision passes.\n- No detector scores in the profile.\n\n## Notes\n\nStart narrow (one Anth.us or Chatticus voice). Expand toward 20\u2013100 samples later.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-09-08T09:12:07.124334Z",
+  "updated_at": "2026-09-08T09:12:07.124334Z",
+  "closed_at": null,
+  "custom": {}
+}

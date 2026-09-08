@@ -1,0 +1,29 @@
+{
+  "id": "PPY-73906c0a-b705-4281-9524-1e3ae5ff97bc",
+  "title": "Constrained editorial revision pass",
+  "description": "**Phase 3 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- One revision pass takes source draft + style profile + diagnosis JSON.\n- Prompt is senior copy editor, not \u201chumanizer\u201d: preserve meaning; no invented anecdotes/stats/citations/first-person; revise only diagnosed problems; prefer deletion; style guide over generic Internet prose.\n- Returns revised_text, change_log (reason + whether fact verification required), unresolved_questions.\n- Banned detector-evasion tactics (fake typos, slang spam, manufactured imperfections) are explicitly forbidden in the skill/prompt.\n\n## Depends on\n\nStyle profile store; diagnostic JSON pass.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "156189",
+      "type": "blocked-by"
+    },
+    {
+      "target": "1c06f1",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-09-08T09:12:07.680850Z",
+  "updated_at": "2026-09-08T09:12:07.680850Z",
+  "closed_at": null,
+  "custom": {}
+}
