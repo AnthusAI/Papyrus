@@ -31,10 +31,17 @@
       "text": "PPY-8f5273 is on develop (PR 68). Implementation must reset the worktree onto origin/develop before coding so the squash merge is not replayed. Path stays /tmp/papyrus-PPY-dc9251-editorial-rules.",
       "created_at": "2026-09-08T11:40:58.939320Z",
       "comment_type": "default"
+    },
+    {
+      "id": "741163f7-36ce-4f88-9952-a8ea8546c730",
+      "author": "home",
+      "text": "Plan approved with corrections: (1) reset worktree onto origin/develop before coding — PR 68 is merged, do not rebase the old 8f5273 SHA; (2) any fixture profile must be a fully loadable style profile (5–10 reference samples), not a stub; (3) editorial Behave is 9 scenarios today, not 7. Implementation authorized.",
+      "created_at": "2026-09-08T11:42:10.537483Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:36:52.806949Z",
-  "updated_at": "2026-09-08T11:40:58.939320Z",
+  "updated_at": "2026-09-08T11:42:10.537483Z",
   "closed_at": null,
   "custom": {}
 }
