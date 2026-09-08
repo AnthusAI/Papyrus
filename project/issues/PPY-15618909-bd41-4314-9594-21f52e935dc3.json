@@ -38,10 +38,17 @@
       "text": "Plan sent back: library-only diagnose is not enough. Same papyrus CLI verb for humans and agents is required. Implementation not authorized.",
       "created_at": "2026-09-08T10:52:33.948570Z",
       "comment_type": "default"
+    },
+    {
+      "id": "76119d8c-e0a7-4d14-8e77-6b78253a8580",
+      "author": "home",
+      "text": "Revised plan accepted: papyrus editorial diagnose is the human/agent tool. Worktree verified at /tmp/papyrus-PPY-156189-diagnostic. Implementation authorized.",
+      "created_at": "2026-09-08T10:55:36.969634Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.391410Z",
-  "updated_at": "2026-09-08T10:52:33.948570Z",
+  "updated_at": "2026-09-08T10:55:36.969634Z",
   "closed_at": null,
   "custom": {}
 }
