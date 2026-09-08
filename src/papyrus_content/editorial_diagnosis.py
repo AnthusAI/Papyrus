@@ -23,6 +23,15 @@ _EMPTY_LEADIN_PATTERNS = (
     r"^In conclusion\b",
 )
 
+# Self-closing MDX/JSX components (e.g. `<Citation data={{...}}/>`, `<BlogImage .../>`) carry
+# structural prop boilerplate (field names like `container-title`, `date-parts`, `accessed`)
+# that repeats verbatim across every citation in a piece. Left unmasked, the redundancy shingle
+# check treats that shared JSX vocabulary as "repeated phrasing" and buries real findings under
+# dozens of false positives on citation-heavy drafts. This masks such components (same character
+# length, so spans into the original text stay valid) before shingling only -- sentence
+# boundaries and reported excerpts still come from the original text.
+_JSX_SELF_CLOSING_COMPONENT_RE = re.compile(r"<[A-Z][\w.]*(?:\s[\s\S]*?)?/>")
+
 _PHRASE_CERTAINTY_PATTERN = re.compile(r"\b(everyone knows|undeniably|proven)\b", re.IGNORECASE)
 _ALWAYS_NEVER_PATTERN = re.compile(r"\b(always|never)\b", re.IGNORECASE)
 _HYPHENATED_ALWAYS_NEVER_PATTERN = re.compile(r"\b(always|never)-\w+", re.IGNORECASE)
@@ -406,13 +415,24 @@ def _is_rhetorical_refrain(members: list[dict[str, Any]]) -> bool:
     return False
 
 
+def _mask_jsx_components(text: str) -> str:
+    """Blank out self-closing JSX component markup, preserving length and newlines so
+    character offsets computed against the result stay valid against the original text."""
+
+    def _blank(match: re.Match[str]) -> str:
+        return re.sub(r"[^\n]", " ", match.group(0))
+
+    return _JSX_SELF_CLOSING_COMPONENT_RE.sub(_blank, text)
+
+
 def _check_redundancy(text: str) -> list[dict[str, Any]]:
-    shingles: dict[str, list[tuple[int, int, str]]] = {}
-    for sentence, start, end in sentence_spans(text):
-        words = re.findall(r"[A-Za-z0-9']+", sentence.lower())
+    masked = _mask_jsx_components(text)
+    shingles: dict[str, list[tuple[int, int]]] = {}
+    for _masked_sentence, start, end in sentence_spans(masked):
+        words = re.findall(r"[A-Za-z0-9']+", masked[start:end].lower())
         for index in range(len(words) - 3):
             shingle = " ".join(words[index : index + 4])
-            shingles.setdefault(shingle, []).append((start, end, sentence))
+            shingles.setdefault(shingle, []).append((start, end))
 
     groups: list[dict[str, Any]] = []
     seen_group_ids: set[str] = set()
@@ -423,13 +443,13 @@ def _check_redundancy(text: str) -> list[dict[str, Any]]:
         if len(unique_spans) < 2:
             continue
         members = []
-        for start, end, sentence in unique_spans:
+        for start, end in unique_spans:
             member_id = stable_finding_id("redundancy", text, start, end)
             members.append(
                 {
                     "id": member_id,
                     "kind": "redundancy",
-                    "excerpt": sentence,
+                    "excerpt": text[start:end],
                     "span": {"start": start, "end": end},
                     "rationale": "Repeated phrasing across the draft.",
                 }

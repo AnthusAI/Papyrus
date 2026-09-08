@@ -121,6 +121,51 @@ class EditorialDiagnosisTests(unittest.TestCase):
             if excerpts and all(refrain in excerpt for excerpt in excerpts):
                 self.fail(f"refrain flagged as redundancy: {group}")
 
+    def test_jsx_citation_boilerplate_skips_redundancy(self) -> None:
+        # Self-closing MDX components like <Citation data={{...}}/> repeat the same field
+        # names (container-title, accessed, date-parts, issued...) across every citation in
+        # a piece. Before masking JSX out of the shingle check, that shared boilerplate got
+        # reported as "repeated phrasing" even though the actual prose has nothing in common.
+        draft_text = (
+            "A March 2026 paper gives a better way to measure this.<Citation\n"
+            "data={{\n"
+            '    type: "article-journal",\n'
+            '    title: "The Price of Progress",\n'
+            '    "container-title": "arXiv",\n'
+            '    URL: "https://arxiv.org/abs/1",\n'
+            "    accessed: { 'date-parts': [[2026, 8, 16]] },\n"
+            "    issued: { 'date-parts': [[2025, 11]] }\n"
+            "  }}\n"
+            "/> The authors combine historical inference-price data with benchmark token use.\n\n"
+            "A June 2026 benchmark reports dollars per resolved task, not list price.<Citation\n"
+            "data={{\n"
+            '    type: "article-journal",\n'
+            '    title: "A Benchmark for Dialogue-Driven Coding Agents",\n'
+            '    "container-title": "arXiv",\n'
+            '    URL: "https://arxiv.org/abs/2",\n'
+            "    accessed: { 'date-parts': [[2026, 8, 16]] },\n"
+            "    issued: { 'date-parts': [[2026, 6]] }\n"
+            "  }}\n"
+            "/> That's much closer to what you actually pay.\n"
+        )
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertEqual(diagnosis["repetition_groups"], [])
+
+    def test_jsx_masking_preserves_real_redundancy_spans(self) -> None:
+        # The masking fix must not swallow genuine repeated prose sitting next to JSX.
+        draft_text = (
+            "At the same time, agents got much better at staying on task for hours.<Citation\n"
+            'data={{ type: "article-journal", title: "A", URL: "https://a" }}\n'
+            "/> That changed everything.\n\n"
+            "Meanwhile, at the same time, agents got much better at staying on task for hours "
+            "in production settings too.\n"
+        )
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertTrue(diagnosis["repetition_groups"])
+        excerpt = diagnosis["repetition_groups"][0]["members"][0]["excerpt"]
+        span = diagnosis["repetition_groups"][0]["members"][0]["span"]
+        self.assertEqual(draft_text[span["start"] : span["end"]], excerpt)
+
     def test_sticker_number_skips_missing_attribution(self) -> None:
         draft_text = 'Think of a crate with an "Inspected By #247" sticker on the dock.'
         diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
