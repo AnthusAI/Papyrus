@@ -3,7 +3,7 @@
   "title": "Constrained rewrite options for steered findings",
   "description": "**Phase 3 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want an LLM to propose rewrite **options** for findings I selected, so I can choose, edit, or reject them instead of accepting one whole-document rewrite.\n\n## Done when\n\n- Option generation takes source draft + style profile + diagnosis JSON + **human finding decisions**.\n- Only findings marked `rewrite` produce options. Skipped/kept findings are not rewritten.\n- Each selected finding gets two or three constrained options (patches), not one committed `revised_text` for the whole document.\n- Prompt is senior copy editor, not “humanizer”: preserve meaning; no invented anecdotes/stats/citations/first-person; revise only the selected finding; prefer deletion; style guide over generic Internet prose.\n- Each option includes reason + whether fact verification is required, plus unresolved_questions.\n- Banned detector-evasion tactics (fake typos, slang spam, manufactured imperfections) are explicitly forbidden in the skill/prompt.\n- The working draft does not change until a human choose/apply (Phase 5).\n\n## Depends on\n\nStyle profile store; diagnostic JSON pass.\n\n## Gherkin\n\n```gherkin\nFeature: Constrained rewrite options for steered findings\n  As a publication operator\n  I want rewrite options for findings I marked rewrite\n  So I can choose among patches instead of rubber-stamping one machine draft\n\n  Scenario: Generate options only for selected findings\n    Given a source draft, a loadable style profile, diagnostic JSON, and human decisions that mark some findings rewrite and others skip\n    When option generation runs\n    Then it returns two or three patch options per rewrite finding\n    And it does not return options for skipped findings\n    And it does not return a whole-document revised_text\n    And the skill or prompt forbids fake typos, slang spam, manufactured imperfections, and invented anecdotes, stats, citations, or first-person\n\n  Scenario: Prefer deletion over filler in options\n    Given a finding that flags an empty lead-in\n    And a human marked that finding rewrite\n    When option generation runs\n    Then at least one option is a deletion or shortening of that passage rather than synonym padding\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -28,10 +28,17 @@
       "text": "Dogfood + implementation starting. Worktree: /tmp/papyrus-PPY-73906c-rewrite-options on cursor/feature/PPY-73906c-rewrite-options-08fd.",
       "created_at": "2026-09-08T12:40:24.230867Z",
       "comment_type": "default"
+    },
+    {
+      "id": "960644a9-801f-4db2-8b62-28059c838bcd",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Merged https://github.com/AnthusAI/Papyrus/pull/72 — papyrus editorial options. 35 unit + 2 Behave scenarios green.",
+      "created_at": "2026-09-08T12:46:55.204160Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.680850Z",
-  "updated_at": "2026-09-08T12:40:24.230867Z",
-  "closed_at": null,
+  "updated_at": "2026-09-08T12:46:55.204160Z",
+  "closed_at": "2026-09-08T12:46:55.182614Z",
   "custom": {}
 }
