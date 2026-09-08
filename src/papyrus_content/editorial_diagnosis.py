@@ -11,6 +11,8 @@ from .editorial_diagnosis_schema import (
 )
 from .editorial_style import LoadedStyleProfile
 
+PROFILE_RULE_PREFIX = "Profile rule:"
+
 _EMPTY_LEADIN_PATTERNS = (
     r"^In today's\b",
     r"^It is important to note\b",
@@ -88,6 +90,15 @@ def diagnose_draft(draft_text: str, *, style_profile: LoadedStyleProfile) -> dic
     repetition_groups = _check_redundancy(text) if checks["redundancy"] else []
     if checks["missingAttribution"]:
         required_facts.extend(_check_required_facts(text))
+
+    rules_findings = _check_profile_rules(
+        text,
+        style_profile,
+        generic_passages=generic_passages,
+        voice_observations=voice_observations,
+    )
+    generic_passages.extend(rules_findings["generic_passages"])
+    voice_observations.extend(rules_findings["voice_observations"])
 
     result = {
         "schemaVersion": SCHEMA_VERSION,
@@ -485,6 +496,143 @@ def _sentence_excluded_from_attribution(text: str, sentence: str, start: int) ->
     if _STICKER_NUMBER_PATTERN.search(sentence) and not _STAT_PERCENT_PATTERN.search(sentence):
         return True
     return False
+
+
+def _normalized_lexicon_avoid(lexicon_avoid: tuple[str, ...]) -> set[str]:
+    normalized: set[str] = set()
+    for term in lexicon_avoid:
+        cleaned = term.strip().lower()
+        if cleaned and cleaned != "empty intensifiers without evidence":
+            normalized.add(cleaned)
+    return normalized
+
+
+def _occupied_spans(findings: list[dict[str, Any]]) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    for finding in findings:
+        span = finding.get("span")
+        if not isinstance(span, dict):
+            continue
+        start = span.get("start")
+        end = span.get("end")
+        if isinstance(start, int) and isinstance(end, int):
+            spans.append((start, end))
+    return spans
+
+
+def _spans_overlap(start: int, end: int, occupied: list[tuple[int, int]]) -> bool:
+    return any(start < occupied_end and end > occupied_start for occupied_start, occupied_end in occupied)
+
+
+def _rules_term_conflicts_with_lexicon(term: str, lexicon_avoid: set[str]) -> bool:
+    return term.strip().lower() in lexicon_avoid
+
+
+def _profile_rule_finding(
+    text: str,
+    start: int,
+    end: int,
+    rationale: str,
+    *,
+    kind: str = "vague_claim",
+) -> dict[str, Any]:
+    return _make_finding(kind, text, start, end, f"{PROFILE_RULE_PREFIX} {rationale}")
+
+
+def _check_profile_rules(
+    text: str,
+    style_profile: LoadedStyleProfile,
+    *,
+    generic_passages: list[dict[str, Any]],
+    voice_observations: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    rules = style_profile.profile.rules
+    if not any(
+        (
+            rules.banned_phrases,
+            rules.banned_intensifiers,
+            rules.banned_patterns,
+            rules.contrast_cap is not None,
+        )
+    ):
+        return {"generic_passages": [], "voice_observations": []}
+
+    lexicon_avoid = _normalized_lexicon_avoid(style_profile.profile.lexicon_avoid)
+    occupied = _occupied_spans(generic_passages) + _occupied_spans(voice_observations)
+    profile_generic: list[dict[str, Any]] = []
+    profile_voice: list[dict[str, Any]] = []
+    lowered_text = text.lower()
+
+    for phrase in rules.banned_phrases:
+        normalized_phrase = phrase.lower()
+        if normalized_phrase in lexicon_avoid:
+            continue
+        search_from = 0
+        while True:
+            index = lowered_text.find(normalized_phrase, search_from)
+            if index < 0:
+                break
+            start = index
+            end = index + len(normalized_phrase)
+            if _spans_overlap(start, end, occupied):
+                search_from = end
+                continue
+            finding = _profile_rule_finding(
+                text,
+                start,
+                end,
+                f"banned phrase '{phrase}'",
+            )
+            profile_generic.append(finding)
+            occupied.append((start, end))
+            search_from = end
+
+    for intensifier in rules.banned_intensifiers:
+        if _rules_term_conflicts_with_lexicon(intensifier, lexicon_avoid):
+            continue
+        pattern = re.compile(rf"\b{re.escape(intensifier)}\b", re.IGNORECASE)
+        for match in pattern.finditer(text):
+            start = match.start()
+            end = match.end()
+            if _spans_overlap(start, end, occupied):
+                continue
+            profile_generic.append(
+                _profile_rule_finding(
+                    text,
+                    start,
+                    end,
+                    f"banned intensifier '{intensifier}'",
+                )
+            )
+            occupied.append((start, end))
+
+    for pattern, message in rules.banned_patterns:
+        compiled = re.compile(pattern)
+        for match in compiled.finditer(text):
+            start = match.start()
+            end = match.end()
+            if _spans_overlap(start, end, occupied):
+                continue
+            profile_generic.append(_profile_rule_finding(text, start, end, message))
+            occupied.append((start, end))
+
+    if rules.contrast_cap is not None:
+        contrast_count = len(re.findall(r",\s*not\b", text, flags=re.IGNORECASE))
+        if contrast_count > rules.contrast_cap:
+            profile_voice.append(
+                _profile_rule_finding(
+                    text,
+                    0,
+                    len(text),
+                    (
+                        f"{contrast_count} 'X, not Y' contrast constructions "
+                        f"(cap is {rules.contrast_cap})"
+                    ),
+                    kind="voice_mismatch",
+                )
+            )
+
+    return {"generic_passages": profile_generic, "voice_observations": profile_voice}
 
 
 def _check_required_facts(text: str) -> list[dict[str, Any]]:

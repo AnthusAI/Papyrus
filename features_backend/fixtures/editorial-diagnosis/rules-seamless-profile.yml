@@ -36,47 +36,38 @@ evidenceRules:
 checks:
   uniformCadence: false
 rules:
-  bannedPhrases:
-    - coming soon
-    - we're just getting started
   bannedIntensifiers:
-    - revolutionary
     - seamless
-    - game-changing
-    - transformative
-    - cutting-edge
-    - unlock
-    - leverage
 referenceSamples:
   - id: maximize-value-not-intelligence
     title: Maximize Value, Not Intelligence
     url: https://anth.us/blog/maximize-value-not-intelligence/
-    path: reference-samples/maximize-value-not-intelligence.md
+    path: ../../../publications/anthus/reference-samples/maximize-value-not-intelligence.md
   - id: inspected-by-pudicus
     title: Inspected by Pudicus
     url: https://anth.us/blog/inspected-by-pudicus/
-    path: reference-samples/inspected-by-pudicus.md
+    path: ../../../publications/anthus/reference-samples/inspected-by-pudicus.md
   - id: how-ai-agents-do-things
     title: How AI Agents Do Things
     url: https://anth.us/blog/how-ai-agents-do-things/
-    path: reference-samples/how-ai-agents-do-things.md
+    path: ../../../publications/anthus/reference-samples/how-ai-agents-do-things.md
   - id: jevons-paradox-ai-slop
     title: The Content Paradox
     url: https://anth.us/blog/jevons-paradox-ai-slop/
-    path: reference-samples/jevons-paradox-ai-slop.md
+    path: ../../../publications/anthus/reference-samples/jevons-paradox-ai-slop.md
   - id: ai-coding-cost-collapse-2026
     title: The Year Coding Became a Commodity
     url: https://anth.us/blog/ai-coding-cost-collapse-2026/
-    path: reference-samples/ai-coding-cost-collapse-2026.md
+    path: ../../../publications/anthus/reference-samples/ai-coding-cost-collapse-2026.md
   - id: never-use-fast
     title: Never Use Fast
     url: https://anth.us/blog/never-use-fast/
-    path: reference-samples/never-use-fast.md
+    path: ../../../publications/anthus/reference-samples/never-use-fast.md
   - id: coding-agents-went-remote-2026
     title: The Year the Coding Agents Went Remote
     url: https://anth.us/blog/coding-agents-went-remote-2026/
-    path: reference-samples/coding-agents-went-remote-2026.md
+    path: ../../../publications/anthus/reference-samples/coding-agents-went-remote-2026.md
   - id: from-pair-programmer-to-executive
     title: From Pair Programmer to Executive
     url: https://anth.us/blog/from-pair-programmer-to-executive/
-    path: reference-samples/from-pair-programmer-to-executive.md
+    path: ../../../publications/anthus/reference-samples/from-pair-programmer-to-executive.md

@@ -7,7 +7,9 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from papyrus_content.editorial_corpus import load_editorial_corpus_manifest
 from papyrus_content.editorial_diagnosis import (
+    PROFILE_RULE_PREFIX,
     diagnose_draft,
     findings_marked_rewrite,
     record_finding_decision,
@@ -137,6 +139,111 @@ class EditorialDiagnosisTests(unittest.TestCase):
     def test_anthus_profile_disables_uniform_cadence(self) -> None:
         profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
         self.assertFalse(profile.profile.checks["uniformCadence"])
+
+    def test_rules_omitted_is_noop(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(fixture_root / "style-profile.yml")
+        self.assertEqual(profile.profile.rules.banned_phrases, ())
+        self.assertEqual(profile.profile.rules.banned_intensifiers, ())
+        self.assertIsNone(profile.profile.rules.contrast_cap)
+
+    def test_banned_intensifier_from_profile_rules(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(fixture_root / "rules-seamless-profile.yml")
+        draft_text = (fixture_root / "seamless-draft.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        excerpts = " ".join(entry["excerpt"].lower() for entry in diagnosis["generic_passages"])
+        self.assertIn("seamless", excerpts)
+        self.assertTrue(
+            any(entry["rationale"].startswith(PROFILE_RULE_PREFIX) for entry in diagnosis["generic_passages"])
+        )
+
+    def test_lexicon_avoid_dedup_skips_duplicate_rules_finding(self) -> None:
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        draft_text = "This game-changing release will ship next week."
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        game_changing_findings = [
+            entry
+            for entry in diagnosis["generic_passages"] + diagnosis["voice_observations"]
+            if "game-changing" in entry["excerpt"].lower()
+        ]
+        self.assertGreaterEqual(len(game_changing_findings), 1)
+        self.assertFalse(
+            any(entry["rationale"].startswith(PROFILE_RULE_PREFIX) for entry in game_changing_findings)
+        )
+
+    def test_anthus_profile_has_brochure_rules_seed(self) -> None:
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        self.assertIn("coming soon", profile.profile.rules.banned_phrases)
+        self.assertIn("seamless", profile.profile.rules.banned_intensifiers)
+        self.assertNotIn("powerful", profile.profile.rules.banned_intensifiers)
+        self.assertNotIn("robust", profile.profile.rules.banned_intensifiers)
+        self.assertIsNone(profile.profile.rules.contrast_cap)
+
+    def test_contrast_cap_disabled_for_anthus_house_voice(self) -> None:
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        draft_text = "Pick the economical choice, not the premium lane."
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        profile_rules = [
+            entry
+            for entry in diagnosis["voice_observations"]
+            if entry["rationale"].startswith(PROFILE_RULE_PREFIX)
+        ]
+        self.assertEqual(profile_rules, [])
+
+    def test_contrast_cap_emits_profile_rule_when_enabled(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(fixture_root / "rules-contrast-cap-profile.yml")
+        draft_text = "Fast, not slow, and cheap, not costly."
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        profile_rules = [
+            entry
+            for entry in diagnosis["voice_observations"]
+            if entry["rationale"].startswith(PROFILE_RULE_PREFIX)
+        ]
+        self.assertEqual(len(profile_rules), 1)
+
+    def test_corpus_must_fail_terms_are_caught(self) -> None:
+        manifest = load_editorial_corpus_manifest(
+            REPO_ROOT / "publications" / "anthus" / "editorial-corpus" / "manifest.yml"
+        )
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        entry = manifest["mustFail"][0]
+        draft_path = REPO_ROOT / "publications" / "anthus" / "editorial-corpus" / entry["path"]
+        diagnosis = diagnose_draft(draft_path.read_text(encoding="utf-8"), style_profile=profile)
+        excerpts = " ".join(
+            finding["excerpt"].lower()
+            for finding in diagnosis["generic_passages"] + diagnosis["voice_observations"]
+        )
+        for term in entry["expectTerms"]:
+            self.assertIn(term.lower(), excerpts)
+
+    def test_corpus_must_pass_has_no_profile_rule_findings(self) -> None:
+        manifest = load_editorial_corpus_manifest(
+            REPO_ROOT / "publications" / "anthus" / "editorial-corpus" / "manifest.yml"
+        )
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        for entry in manifest["mustPass"]:
+            draft_path = REPO_ROOT / "publications" / "anthus" / "editorial-corpus" / entry["path"]
+            diagnosis = diagnose_draft(draft_path.read_text(encoding="utf-8"), style_profile=profile)
+            profile_rules = [
+                finding
+                for finding in diagnosis["generic_passages"] + diagnosis["voice_observations"]
+                if finding["rationale"].startswith(PROFILE_RULE_PREFIX)
+            ]
+            self.assertEqual(profile_rules, [], entry["id"])
+
+    def test_engineering_vocabulary_is_not_flagged_by_profile_rules(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        draft_text = (fixture_root / "engineering-vocab-draft.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        profile_rules = [
+            finding
+            for finding in diagnosis["generic_passages"] + diagnosis["voice_observations"]
+            if finding["rationale"].startswith(PROFILE_RULE_PREFIX)
+        ]
+        self.assertEqual(profile_rules, [])
 
 
 if __name__ == "__main__":

@@ -28,9 +28,19 @@ DEFAULT_DIAGNOSE_CHECKS: dict[str, bool] = {
     "missingAttribution": True,
 }
 
+RULES_FIELD_NAMES = frozenset({"bannedPhrases", "bannedIntensifiers", "bannedPatterns", "contrastCap"})
+
 
 class StyleProfileValidationError(ValueError):
     """Raised when a style profile document or linked samples fail validation."""
+
+
+@dataclass(frozen=True)
+class EditorialRules:
+    banned_phrases: tuple[str, ...]
+    banned_intensifiers: tuple[str, ...]
+    banned_patterns: tuple[tuple[str, str], ...]
+    contrast_cap: int | None
 
 
 @dataclass(frozen=True)
@@ -46,6 +56,7 @@ class StyleProfile:
     evidence_rules: tuple[str, ...]
     reference_sample_refs: tuple[dict[str, str], ...]
     checks: dict[str, bool]
+    rules: EditorialRules
 
 
 @dataclass(frozen=True)
@@ -136,6 +147,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         refs.append({"id": sample_id, "title": title, "url": url, "path": rel_path})
 
     checks = _parse_checks(raw.get("checks"), profile_path)
+    rules = _parse_rules(raw.get("rules"), profile_path)
 
     return StyleProfile(
         publication_key=publication_key,
@@ -149,6 +161,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         evidence_rules=tuple(evidence_rules),
         reference_sample_refs=tuple(refs),
         checks=checks,
+        rules=rules,
     )
 
 
@@ -165,6 +178,85 @@ def _parse_checks(value: Any, profile_path: Path) -> dict[str, bool]:
             raise StyleProfileValidationError(f"checks.{key} must be a boolean in {profile_path}")
         checks[key] = enabled
     return checks
+
+
+def _empty_rules() -> EditorialRules:
+    return EditorialRules(
+        banned_phrases=(),
+        banned_intensifiers=(),
+        banned_patterns=(),
+        contrast_cap=None,
+    )
+
+
+def _parse_rules(value: Any, profile_path: Path) -> EditorialRules:
+    if value is None:
+        return _empty_rules()
+    if not isinstance(value, dict):
+        raise StyleProfileValidationError(f"rules must be a mapping in {profile_path}")
+
+    unknown = set(value) - RULES_FIELD_NAMES
+    if unknown:
+        joined = ", ".join(sorted(unknown))
+        raise StyleProfileValidationError(f"Unknown rules keys in {profile_path}: {joined}")
+
+    banned_phrases = _optional_string_list(value.get("bannedPhrases"), "rules.bannedPhrases", profile_path)
+    banned_intensifiers = _optional_string_list(
+        value.get("bannedIntensifiers"), "rules.bannedIntensifiers", profile_path
+    )
+    banned_patterns = _parse_banned_patterns(value.get("bannedPatterns"), profile_path)
+    contrast_cap = _parse_contrast_cap(value.get("contrastCap"), profile_path)
+
+    return EditorialRules(
+        banned_phrases=tuple(banned_phrases),
+        banned_intensifiers=tuple(banned_intensifiers),
+        banned_patterns=tuple(banned_patterns),
+        contrast_cap=contrast_cap,
+    )
+
+
+def _optional_string_list(value: Any, field_name: str, profile_path: Path) -> list[str]:
+    if value is None:
+        return []
+    return _require_string_list(value, field_name, profile_path)
+
+
+def _parse_banned_patterns(value: Any, profile_path: Path) -> list[tuple[str, str]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise StyleProfileValidationError(f"rules.bannedPatterns must be a list in {profile_path}")
+
+    patterns: list[tuple[str, str]] = []
+    for index, entry in enumerate(value):
+        if not isinstance(entry, dict):
+            raise StyleProfileValidationError(f"rules.bannedPatterns[{index}] must be a mapping in {profile_path}")
+        pattern = entry.get("pattern")
+        message = entry.get("message")
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise StyleProfileValidationError(
+                f"rules.bannedPatterns[{index}].pattern must be a non-empty string in {profile_path}"
+            )
+        if not isinstance(message, str) or not message.strip():
+            raise StyleProfileValidationError(
+                f"rules.bannedPatterns[{index}].message must be a non-empty string in {profile_path}"
+            )
+        try:
+            re.compile(pattern)
+        except re.error as exc:
+            raise StyleProfileValidationError(
+                f"rules.bannedPatterns[{index}].pattern is not a valid regex in {profile_path}: {exc}"
+            ) from exc
+        patterns.append((pattern.strip(), message.strip()))
+    return patterns
+
+
+def _parse_contrast_cap(value: Any, profile_path: Path) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or value < 0:
+        raise StyleProfileValidationError(f"rules.contrastCap must be a non-negative integer in {profile_path}")
+    return value
 
 
 def _load_reference_samples(profile: StyleProfile, profile_root: Path) -> tuple[ReferenceSample, ...]:

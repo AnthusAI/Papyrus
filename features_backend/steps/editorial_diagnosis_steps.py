@@ -12,6 +12,9 @@ from behave import given, then, when
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src"
 FIXTURE_ROOT = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+ANTHUS_PROFILE_PATH = REPO_ROOT / "publications" / "anthus" / "style-profile.yml"
+CORPUS_MANIFEST_PATH = REPO_ROOT / "publications" / "anthus" / "editorial-corpus" / "manifest.yml"
+PROFILE_RULE_PREFIX = "Profile rule:"
 FORBIDDEN_OUTPUT_KEYS = {
     "revised_text",
     "rewritten_prose",
@@ -32,21 +35,37 @@ REQUIRED_KINDS = {
 }
 
 
-def _run_diagnose_cli(draft_path: Path, profile_path: Path) -> subprocess.CompletedProcess[str]:
+def _run_diagnose_cli(
+    profile_path: Path,
+    *,
+    draft_path: Path | None = None,
+    text: str | None = None,
+    output_path: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if (draft_path is None) == (text is None):
+        raise ValueError("exactly one of draft_path or text is required")
+
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{SRC_ROOT}:{REPO_ROOT}"
+    env["PAPYRUS_ROOT"] = str(REPO_ROOT)
+    command = [
+        sys.executable,
+        "-m",
+        "papyrus.cli",
+        "editorial",
+        "diagnose",
+        "--profile",
+        str(profile_path),
+    ]
+    if draft_path is not None:
+        command.extend(["--draft", str(draft_path)])
+    else:
+        command.extend(["--text", text])
+    if output_path is not None:
+        command.extend(["--output", str(output_path)])
+
     return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "papyrus.cli",
-            "editorial",
-            "diagnose",
-            "--draft",
-            str(draft_path),
-            "--profile",
-            str(profile_path),
-        ],
+        command,
         cwd=REPO_ROOT,
         env=env,
         text=True,
@@ -104,6 +123,66 @@ def _collect_all_findings(diagnosis: dict) -> list[dict]:
 
 def _findings_by_kind(diagnosis: dict, kind: str) -> list[dict]:
     return [finding for finding in _collect_all_findings(diagnosis) if finding.get("kind") == kind]
+
+
+def _profile_rule_findings(diagnosis: dict) -> list[dict]:
+    return [
+        finding
+        for finding in _collect_all_findings(diagnosis)
+        if str(finding.get("rationale", "")).startswith(PROFILE_RULE_PREFIX)
+    ]
+
+
+def _load_corpus_entry(kind: str, entry_id: str) -> dict:
+    if str(SRC_ROOT) not in sys.path:
+        sys.path.insert(0, str(SRC_ROOT))
+
+    from papyrus_content.editorial_corpus import load_editorial_corpus_manifest
+
+    manifest = load_editorial_corpus_manifest(CORPUS_MANIFEST_PATH)
+    entries = manifest["mustFail"] if kind == "mustFail" else manifest["mustPass"]
+    for entry in entries:
+        if entry["id"] == entry_id:
+            return entry
+    raise AssertionError(f"corpus entry not found: {kind}/{entry_id}")
+
+
+@given('a style profile whose rules.bannedIntensifiers includes "seamless"')
+def step_given_seamless_rules_profile(context):
+    context.profile_path = FIXTURE_ROOT / "rules-seamless-profile.yml"
+    assert context.profile_path.is_file()
+
+
+@given('a draft that says "a seamless workflow for every team"')
+def step_given_seamless_draft(context):
+    context.draft_path = FIXTURE_ROOT / "seamless-draft.md"
+    assert context.draft_path.is_file()
+
+
+@given("the Anth.us style profile")
+def step_given_anthus_style_profile(context):
+    context.profile_path = ANTHUS_PROFILE_PATH
+    assert context.profile_path.is_file()
+
+
+@given('a draft that says "Check latency in the repository" and does not use banned intensifiers')
+def step_given_engineering_vocab_draft(context):
+    context.draft_path = FIXTURE_ROOT / "engineering-vocab-draft.md"
+    assert context.draft_path.is_file()
+
+
+@given('a must-fail corpus draft that uses "revolutionary" and "coming soon"')
+def step_given_must_fail_corpus_draft(context):
+    entry = _load_corpus_entry("mustFail", "brochure-hedges")
+    context.draft_path = CORPUS_MANIFEST_PATH.parent / entry["path"]
+    assert context.draft_path.is_file()
+
+
+@given("a must-pass excerpt from an Anth.us reference sample")
+def step_given_must_pass_corpus_excerpt(context):
+    entry = _load_corpus_entry("mustPass", "latency-and-repo")
+    context.draft_path = CORPUS_MANIFEST_PATH.parent / entry["path"]
+    assert context.draft_path.is_file()
 
 
 @given('a draft containing "Keep always-on rules thin" and "Grok Bot is always-available"')
@@ -212,10 +291,66 @@ def step_given_draft_and_profile(context):
 
 @when("I run the diagnose command")
 def step_when_run_diagnose_command(context):
-    completed = _run_diagnose_cli(context.draft_path, context.profile_path)
+    completed = _run_diagnose_cli(context.profile_path, draft_path=context.draft_path)
     context.cli_result = completed
     assert completed.returncode == 0, completed.stderr
     context.diagnosis = json.loads(completed.stdout)
+
+
+@when(
+    'I run the diagnose command with --text "This seamless platform will revolutionize workflows" and no --draft'
+)
+def step_when_run_diagnose_with_text(context):
+    completed = _run_diagnose_cli(
+        context.profile_path,
+        text="This seamless platform will revolutionize workflows",
+    )
+    context.cli_result = completed
+    assert completed.returncode == 0, completed.stderr
+    context.diagnosis = json.loads(completed.stdout)
+
+
+@then('there is a finding whose excerpt includes "seamless"')
+def step_then_finding_includes_seamless(context):
+    excerpts = " ".join(finding.get("excerpt", "").lower() for finding in _collect_all_findings(context.diagnosis))
+    assert "seamless" in excerpts
+
+
+@then('there is no rules finding for "latency" or "repository"')
+def step_then_no_rules_finding_for_engineering_vocab(context):
+    for finding in _profile_rule_findings(context.diagnosis):
+        excerpt = finding.get("excerpt", "").lower()
+        assert "latency" not in excerpt
+        assert "repository" not in excerpt
+        assert "repo" not in excerpt
+
+
+@then("findings include those banned terms")
+def step_then_findings_include_banned_terms(context):
+    excerpts = " ".join(finding.get("excerpt", "").lower() for finding in _collect_all_findings(context.diagnosis))
+    assert "revolutionary" in excerpts
+    assert "coming soon" in excerpts
+
+
+@then("there are no findings produced by profile rules")
+def step_then_no_profile_rule_findings(context):
+    assert not _profile_rule_findings(context.diagnosis)
+
+
+@then("it writes versioned diagnostic JSON")
+def step_then_writes_versioned_json(context):
+    diagnosis = context.diagnosis
+    assert diagnosis["schemaVersion"] == 1
+    for key in (
+        "document_intent",
+        "audience",
+        "generic_passages",
+        "unsupported_claims",
+        "repetition_groups",
+        "voice_observations",
+        "required_facts",
+    ):
+        assert key in diagnosis
 
 
 @then(
@@ -244,7 +379,7 @@ def step_then_stable_ids(context):
     for finding_id in ids:
         assert STABLE_ID_PATTERN.match(finding_id)
 
-    rerun = _run_diagnose_cli(context.draft_path, context.profile_path)
+    rerun = _run_diagnose_cli(context.profile_path, draft_path=context.draft_path)
     assert rerun.returncode == 0, rerun.stderr
     rerun_ids = _collect_finding_ids(json.loads(rerun.stdout))
     assert rerun_ids == ids
@@ -271,7 +406,10 @@ def step_then_draft_unchanged(context):
 @given("diagnostic JSON from a completed diagnose pass")
 def step_given_diagnostic_json(context):
     if not getattr(context, "diagnosis", None):
-        completed = _run_diagnose_cli(FIXTURE_ROOT / "sloppy-draft.md", FIXTURE_ROOT / "style-profile.yml")
+        completed = _run_diagnose_cli(
+            FIXTURE_ROOT / "style-profile.yml",
+            draft_path=FIXTURE_ROOT / "sloppy-draft.md",
+        )
         assert completed.returncode == 0, completed.stderr
         context.diagnosis = json.loads(completed.stdout)
     context.steering_decisions = []
