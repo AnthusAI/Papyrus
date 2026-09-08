@@ -17,10 +17,17 @@
       "text": "Starting discovery and implementation. The standalone marketing app will use the existing Papyrus-plant pictogram, avoid the CMS reader, and start with a static-site foundation.",
       "created_at": "2026-09-08T14:51:10.318904Z",
       "comment_type": "default"
+    },
+    {
+      "id": "76b88dc8-7bd5-4b70-ae82-495222f102ac",
+      "author": "home",
+      "text": "Implemented the standalone marketing Next.js static-export foundation. It reuses the existing Papyrus plant pictogram, identifies papyrus.anth.us as the public home, and distinguishes the demo reader at p.apyr.us. Verification passed: focused BDD, typecheck, lint, build, and local HTTP smoke test on port 3002.",
+      "created_at": "2026-09-08T15:00:09.061349Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T14:50:56.413084Z",
-  "updated_at": "2026-09-08T14:51:10.318904Z",
+  "updated_at": "2026-09-08T15:00:28.891699Z",
   "closed_at": null,
   "custom": {}
 }
