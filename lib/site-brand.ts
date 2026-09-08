@@ -7,6 +7,7 @@ import {
   type OpsChrome,
   type ReaderDeployment,
   type RendererConfig,
+  type RootRouteConfig,
   type ThemePackId,
   type ThemePackTokens,
 } from "./site-stack";
@@ -39,6 +40,12 @@ export type SiteBrand = {
   hosting: HostingConfig;
   /** Static reader app when it is not co-hosted with this Papyrus checkout. */
   readerDeployment?: ReaderDeployment;
+  /**
+   * What the root route (`/`) does. Defaults to `{ kind: "reader" }` (render
+   * the publication home page). Set to `{ kind: "redirect", destination }`
+   * for a CMS-only deployment whose reader lives elsewhere.
+   */
+  rootRoute?: RootRouteConfig;
   opsChrome: OpsChrome;
   corpusKey: string;
   steeringConfigPath: string;
@@ -112,6 +119,13 @@ export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand 
 }
 
 export const SITE_BRAND = getSiteBrand();
+
+/** Root-route config for a brand, defaulting to `{ kind: "reader" }`. */
+export function getRootRoute(brand: SiteBrand = SITE_BRAND): RootRouteConfig {
+  return brand.rootRoute ?? { kind: "reader" };
+}
+
+export const rootRoute = getRootRoute();
 
 export function enforcePresentation(presentation: EditionPresentationFormat): EditionPresentationFormat {
   return SITE_BRAND.forcedPresentation ?? presentation;

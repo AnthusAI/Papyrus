@@ -9,6 +9,7 @@ registerTypeScriptRequire();
 
 const {
   getSiteBrand,
+  getRootRoute,
   normalizeSiteBrandId,
   resolveRuntimeSiteBrandId,
   resolveSiteBrandId,
@@ -58,6 +59,7 @@ assert.equal(pilobolus.hosting.kind, "amplify-ssr");
 assert.equal(pilobolus.readerDeployment?.kind, "amplify-static");
 assert.equal(pilobolus.readerDeployment?.amplifyAppId, "d1od6t7lzbwanr");
 assert.equal(pilobolus.readerDeployment?.domain, "pilobol.us");
+assert.deepEqual(pilobolus.rootRoute, { kind: "redirect", destination: "/newsroom" });
 assert.deepEqual(pilobolus.themeTokens, PILOBOL_US_THEME_PACK_TOKENS);
 assert.equal(pilobolus.themeTokens.paper, "#f1ead9");
 assert.equal(pilobolus.themeTokens.moss, "#3f5d43");
@@ -86,6 +88,7 @@ assert.equal(papyrus.themePack, "papyrus");
 assert.equal(papyrus.renderer.kind, "pretext");
 assert.equal(papyrus.hosting.kind, "amplify-ssr");
 assert.equal(papyrus.opsChrome, "app");
+assert.deepEqual(getRootRoute(papyrus), { kind: "reader" });
 assert.notEqual(papyrus.renderer.kind, pilobolus.renderer.kind);
 assert.equal(papyrus.hosting.kind, pilobolus.hosting.kind);
 assert.notEqual(papyrus.themeTokens.paper, pilobolus.themeTokens.paper);

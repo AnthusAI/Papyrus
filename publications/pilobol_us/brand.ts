@@ -26,6 +26,7 @@ export const pilobolUsBrand: SiteBrand = {
     domain: "pilobol.us",
     amplifyAppId: "d1od6t7lzbwanr",
   },
+  rootRoute: { kind: "redirect", destination: "/newsroom" },
   opsChrome: "app",
   corpusKey: "pilobol-us",
   steeringConfigPath: "corpora/pilobol-us-steering.yml",

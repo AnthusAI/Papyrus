@@ -18,6 +18,19 @@ export type HostingConfig =
   | { kind: "amplify-ssr" }
   | { kind: "amplify-static" };
 
+/**
+ * What the root route (`/`) of a Papyrus app does. Independent of hosting and
+ * of where the public reader lives — a site configures this explicitly.
+ *
+ * - `reader`: render the publication home page here (the single-app reader+Cms
+ *   model used by p.apyr.us and Threat Intelligence). Default when omitted.
+ * - `redirect`: redirect `/` to `destination` (a path or absolute URL). Use
+ *   this for CMS-only deployments whose public reader lives on another app.
+ */
+export type RootRouteConfig =
+  | { kind: "reader" }
+  | { kind: "redirect"; destination: string; permanent?: boolean };
+
 /** Optional reader deployment when CMS and public reader ship separately (Pilobolus). */
 export type ReaderDeployment = {
   kind: "amplify-static";

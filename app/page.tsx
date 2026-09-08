@@ -11,7 +11,7 @@ import {
   type PublicPlaceholderTopic,
 } from "../lib/public-placeholder-config";
 import type { PublicationItem } from "../lib/publication-items";
-import { SITE_BRAND } from "../lib/site-brand";
+import { SITE_BRAND, rootRoute } from "../lib/site-brand";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -29,12 +29,12 @@ export default async function Home({ searchParams }: HomePageProps) {
   const resolvedSearchParams = await searchParams;
   const scenarioId = getScenarioIdParam(resolvedSearchParams?.scenario);
 
-  // CMS-only deployment: the public reader lives on a separate app
-  // (SITE_BRAND.readerDeployment). This app's root is the newsroom, not a
-  // reader home page, so send plain root visits to /newsroom. Preserve the
-  // scenario and OAuth-callback paths.
-  if (SITE_BRAND.readerDeployment && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
-    redirect("/newsroom");
+  // Root-route behavior is per-brand (SITE_BRAND.rootRoute). A site that
+  // co-hosts reader + CMS uses the default "reader" (render the publication
+  // home page here). A CMS-only site points the root at the newsroom or
+  // anywhere else. Preserve the scenario and OAuth-callback paths.
+  if (rootRoute.kind === "redirect" && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
+    redirect(rootRoute.destination);
   }
 
   if (!scenarioId) {

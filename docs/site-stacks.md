@@ -29,6 +29,12 @@ type SiteStack = {
 };
 ```
 
+`SiteBrand` also carries an optional `rootRoute` (see `lib/site-brand.ts`):
+`{ kind: "reader" }` (default — render the publication home page at `/`) or
+`{ kind: "redirect", destination }` (send `/` to a path/URL, e.g. for a
+CMS-only deployment whose reader lives on another app).
+```
+
 `app/layout.tsx` exposes the live choice on `<html>`:
 
 - `data-theme-pack` / `data-ops-chrome` — ops stack
