@@ -45,10 +45,17 @@
       "text": "Revised plan accepted: papyrus editorial diagnose is the human/agent tool. Worktree verified at /tmp/papyrus-PPY-156189-diagnostic. Implementation authorized.",
       "created_at": "2026-09-08T10:55:36.969634Z",
       "comment_type": "default"
+    },
+    {
+      "id": "cadbd158-0b69-4cb1-9b71-f6c0023fe8ea",
+      "author": "home",
+      "text": "Implementation PR: https://github.com/AnthusAI/Papyrus/pull/67. Acceptance dispatched.",
+      "created_at": "2026-09-08T11:00:19.756263Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.391410Z",
-  "updated_at": "2026-09-08T10:55:36.969634Z",
+  "updated_at": "2026-09-08T11:00:19.756263Z",
   "closed_at": null,
   "custom": {}
 }
