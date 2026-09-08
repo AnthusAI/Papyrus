@@ -20,6 +20,7 @@ Operator groups:
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
+  editorial     Editorial quality loop commands
   batch         Batch registration and enrichment
 
 Backend selection:
@@ -95,12 +96,23 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   return parser
 
 
+def build_editorial_parser() -> argparse.ArgumentParser:
+  parser = argparse.ArgumentParser(prog="papyrus editorial", add_help=False)
+  subparsers = parser.add_subparsers(dest="command")
+  diagnose = subparsers.add_parser("diagnose", help="Diagnose editorial slop in a draft")
+  diagnose.add_argument("--draft", required=True, help="Path to the draft file (read-only).")
+  diagnose.add_argument("--profile", required=True, help="Path to the style profile YAML.")
+  diagnose.add_argument("--output", default="", help="Optional path to write diagnostic JSON.")
+  return parser
+
+
 def print_group_help(group: str) -> None:
   builders = {
     "references": build_references_parser,
     "assignments": build_assignments_parser,
     "auth": build_auth_parser,
     "knowledge": build_knowledge_parser,
+    "editorial": build_editorial_parser,
   }
   builder = builders.get(group)
   if builder is None:
