@@ -8,7 +8,7 @@ Pilobolus ships as **two Amplify apps**: a static Markus reader on
 ## Architecture
 
 ```text
-pilobol.us (WEB, d1od6t7lzbwanr)     desk.pilobol.us (WEB_COMPUTE, pilobol-us-cms)
+pilobol.us (WEB, d1od6t7lzbwanr)     newsroom.pilobol.us (WEB_COMPUTE, pilobol-us-cms)
 ├── AnthusAI/Pilobol.us              ├── AnthusAI/Papyrus
 ├── Markus static HTML               ├── Next.js + Amplify Gen 2 backend
 └── No /newsroom                     └── /newsroom + own AppSync + S3 bucket
@@ -81,7 +81,7 @@ Hosted zone: `pilobol.us` (`Z09961547QX1VHIXOBD7`). Apex + `www` belong to the
 **static reader** (`d1od6t7lzbwanr`). Attach the CMS on a subdomain:
 
 1. Verify the CMS on `https://<appId>.amplifyapp.com/newsroom` first.
-2. In Amplify → Domain management → add `desk.pilobol.us` (or `newsroom.pilobol.us`).
+2. In Amplify → Domain management → add `newsroom.pilobol.us`.
 3. Let Amplify create the alias record in Route 53.
 
 ## 3. Operator environment
@@ -147,7 +147,7 @@ PYTHONPATH=src python -m papyrus.cli references create-from-catalog \
 
 ## 6. Verify
 
-- `https://desk.pilobol.us/newsroom` loads Pilobolus theme (`pilobol-us` pack).
+- `https://newsroom.pilobol.us/newsroom` loads Pilobolus theme (`pilobol-us` pack).
 - GraphQL shows Pilobolus corpora only (not p.apyr.us AI/ML data).
 - Reference list matches the accepted catalog count.
 - `https://pilobol.us/newsroom` still 404s on the static reader (expected until

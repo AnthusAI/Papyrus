@@ -11,7 +11,7 @@ Pilobolus intentionally splits **reader** and **CMS**:
 | Surface | Repo | Amplify app | Platform | Domain |
 | --- | --- | --- | --- | --- |
 | **Reader** (Markus static HTML) | [AnthusAI/Pilobol.us](https://github.com/AnthusAI/Pilobol.us) | `d1od6t7lzbwanr` | `WEB` | [pilobol.us](https://pilobol.us) |
-| **CMS / newsroom** (Papyrus Next.js) | [AnthusAI/Papyrus](https://github.com/AnthusAI/Papyrus) | *create `pilobol-us-cms`* | `WEB_COMPUTE` | `desk.pilobol.us` (recommended) |
+| **CMS / newsroom** (Papyrus Next.js) | [AnthusAI/Papyrus](https://github.com/AnthusAI/Papyrus) | *create `pilobol-us-cms`* | `WEB_COMPUTE` | `newsroom.pilobol.us` |
 
 The static reader does **not** serve `/newsroom`. Editorial work happens on the
 dedicated Papyrus app with its own AppSync backend and S3 corpus bucket. Do **not**

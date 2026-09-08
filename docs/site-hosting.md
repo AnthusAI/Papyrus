@@ -68,7 +68,7 @@ Some publications ship **two** Amplify apps:
 | App | Repo | Platform | Domain | Serves |
 | --- | --- | --- | --- | --- |
 | Reader | `AnthusAI/Pilobol.us` | `WEB` | `pilobol.us` | Markus static HTML |
-| CMS | `AnthusAI/Papyrus` + `PAPYRUS_SITE_BRAND=pilobol-us` | `WEB_COMPUTE` | `desk.pilobol.us` | `/newsroom`, AppSync, corpus S3 |
+| CMS | `AnthusAI/Papyrus` + `PAPYRUS_SITE_BRAND=pilobol-us` | `WEB_COMPUTE` | `newsroom.pilobol.us` | `/newsroom`, AppSync, corpus S3 |
 
 Threat Intelligence uses one repo + one `WEB_COMPUTE` app for both reader and
 CMS. Pilobolus uses the split pattern so the Markus reader can iterate on its
