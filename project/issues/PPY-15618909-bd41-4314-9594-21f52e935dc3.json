@@ -3,7 +3,7 @@
   "title": "Diagnostic JSON pass for editorial slop",
   "description": "**Phase 2 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want a diagnose-only pass that returns structured findings, so I can steer which problems to skip, delete, or send to an LLM for rewrite options.\n\n## Done when\n\n- A first pass returns **structured JSON only** (no prose rewrite): document_intent, audience, generic_passages, unsupported_claims, repetition_groups, voice_observations, required_facts.\n- Detects at least: vague claims, empty lead-ins, uniform cadence, list-shaped prose, unsupported certainty, redundancy, voice mismatch vs style profile.\n- Schema is automation-friendly and versioned.\n- Each finding has a stable id so a human can record skip / rewrite / delete / keep / add without a whole-document rewrite.\n\n## Out of scope\n\nRewriting the draft in this pass. Generating rewrite options (that is Phase 3, and only for findings a human marked rewrite).\n\n## Gherkin\n\n```gherkin\nFeature: Diagnostic JSON pass for editorial slop\n  As a publication operator\n  I want structured diagnosis of a draft against a style profile\n  So I can steer which findings to act on without a machine rewriting the article in this pass\n\n  Scenario: Diagnose a draft without rewriting it\n    Given a draft and a loadable style profile\n    When the diagnostic pass runs\n    Then it returns versioned JSON with document_intent, audience, generic_passages, unsupported_claims, repetition_groups, voice_observations, and required_facts\n    And each finding has a stable id\n    And the findings cover vague claims, empty lead-ins, uniform cadence, list-shaped prose, unsupported certainty, redundancy, and voice mismatch\n    And the result does not include rewritten prose\n\n  Scenario: Findings are a steering queue\n    Given diagnostic JSON from a completed diagnose pass\n    When an operator records skip, rewrite, delete, or keep against a finding id\n    Then later option generation can address only the findings marked rewrite\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8ba1c2d3-8b82-4a2c-8106-834952c7aeaa",
+      "author": "home",
+      "text": "Unblocked by PPY-1c06f1. Composer 2.5 planner dispatched for diagnostic JSON pass. Worktree to create: /tmp/papyrus-PPY-156189-diagnostic on feature/PPY-156189-diagnostic (or cursor/ prefix). Plan only until the worktree exists and is reviewed.",
+      "created_at": "2026-09-08T10:48:39.782654Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-09-08T09:12:07.391410Z",
-  "updated_at": "2026-09-08T10:39:20.452312Z",
+  "updated_at": "2026-09-08T10:48:39.782654Z",
   "closed_at": null,
   "custom": {}
 }

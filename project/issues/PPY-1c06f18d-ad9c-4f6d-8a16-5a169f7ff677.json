@@ -3,7 +3,7 @@
   "title": "Style profile store + reference corpus",
   "description": "**Phase 1 of MVP** under `PPY-54055d` (quality-first editorial rewrite loop).\n\n## Intent\n\nAs a publication operator, I want an editable style profile and a small approved reference corpus, so later editorial passes can match a real house voice instead of generic Internet prose.\n\n## Done when\n\n- An editable style profile (YAML or equivalent) can be stored for a publication/pod: voice name, audience, tone, sentence style, structure, prefer/avoid lexicon, evidence rules.\n- 5–10 approved reference samples are linked or stored for voice match.\n- Profile is loadable by later diagnostic/revision passes.\n- No detector scores in the profile.\n\n## Notes\n\nStart narrow (one Anth.us voice). Expand toward 20–100 samples later. Do not replace Chattic.us-web `publication-writing` banned-phrase checks.\n\n## Gherkin\n\n```gherkin\nFeature: Style profile store for a publication voice\n  As a publication operator\n  I want an editable style profile and approved reference samples\n  So later editorial passes can match house voice instead of generic Internet prose\n\n  Scenario: Load a stored Anth.us style profile\n    Given a publication has an editable style profile on disk\n    And the profile names voice, audience, tone, sentence style, structure, prefer and avoid lexicon, and evidence rules\n    And five to ten approved reference samples are linked for voice match\n    When an editorial pass loads the profile\n    Then the loader returns the profile and the linked samples\n    And the profile does not contain detector scores\n\n  Scenario: Reject a profile that includes detector scores\n    Given a style profile that includes a detector score\n    When an editorial pass tries to load the profile\n    Then loading fails with a validation error\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -40,10 +40,17 @@
       "text": "Implementation on cursor/feature/PPY-1c06f1-style-profile. PR: https://github.com/AnthusAI/Papyrus/pull/66. Behave: 2 scenarios passed. Acceptance dispatched; not closing until that review lands.",
       "created_at": "2026-09-08T10:46:16.624847Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3349b7c7-34af-4f58-ad22-afd34cfa192d",
+      "author": "home",
+      "text": "Acceptance: loader, samples, and Behave passed. The reported project/ diff was develop board commits ahead of the feature branch, not files in PR 66 (confirmed via gh pr diff --name-only). Squash-merged https://github.com/AnthusAI/Papyrus/pull/66 into develop.",
+      "created_at": "2026-09-08T10:48:39.743026Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.124334Z",
-  "updated_at": "2026-09-08T10:46:16.624847Z",
-  "closed_at": null,
+  "updated_at": "2026-09-08T10:48:39.755124Z",
+  "closed_at": "2026-09-08T10:48:39.755124Z",
   "custom": {}
 }
