@@ -121,6 +121,26 @@ class EditorialDiagnosisTests(unittest.TestCase):
             if excerpts and all(refrain in excerpt for excerpt in excerpts):
                 self.fail(f"refrain flagged as redundancy: {group}")
 
+    def test_yaml_frontmatter_excluded_from_checks(self) -> None:
+        # A standfirst/description in frontmatter is deliberately terse by genre
+        # convention -- it shouldn't be judged by body-prose cadence rules, and its
+        # words shouldn't count toward document_intent either.
+        draft_text = (
+            "---\n"
+            "title: Father Justin\n"
+            "standfirst: You email for a code. A man with a beard and a collar loads.\n"
+            "  He says he can hear your confession.\n"
+            "---\n\n"
+            "The page loads a man with a gray beard and a white collar. He sits on a "
+            "stone balcony over a hillside that looks like Assisi, birds circling in "
+            "the sun, a microphone icon waiting if you want to talk out loud.\n"
+        )
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertNotIn("standfirst", diagnosis["document_intent"])
+        cadence = [entry for entry in diagnosis["voice_observations"] if entry["kind"] == "uniform_cadence"]
+        for entry in cadence:
+            self.assertNotIn("standfirst", entry["excerpt"])
+
     def test_jsx_citation_boilerplate_skips_redundancy(self) -> None:
         # Self-closing MDX components like <Citation data={{...}}/> repeat the same field
         # names (container-title, accessed, date-parts, issued...) across every citation in

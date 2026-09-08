@@ -32,6 +32,15 @@ _EMPTY_LEADIN_PATTERNS = (
 # boundaries and reported excerpts still come from the original text.
 _JSX_SELF_CLOSING_COMPONENT_RE = re.compile(r"<[A-Z][\w.]*(?:\s[\s\S]*?)?/>")
 
+# A leading YAML frontmatter block (title/date/description/standfirst/...) has its own
+# genre conventions -- a standfirst is deliberately terse by design -- that don't belong
+# under body-prose rules like cadence or redundancy. Anth.us drafts never had frontmatter,
+# so this never mattered until a differently-structured publication (Pilobolus, using
+# `---\n...\n---` frontmatter) surfaced it: cadence findings were firing on the standfirst
+# field itself. Mask it out (same length, so spans into the original text stay valid) before
+# any check runs, for every publication, not just the one that happened to expose the gap.
+_YAML_FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
+
 _PHRASE_CERTAINTY_PATTERN = re.compile(r"\b(everyone knows|undeniably|proven)\b", re.IGNORECASE)
 _ALWAYS_NEVER_PATTERN = re.compile(r"\b(always|never)\b", re.IGNORECASE)
 _HYPHENATED_ALWAYS_NEVER_PATTERN = re.compile(r"\b(always|never)-\w+", re.IGNORECASE)
@@ -73,8 +82,17 @@ _STICKER_NUMBER_PATTERN = re.compile(r"#\d+\b")
 _REFRAIN_MAX_WORDS = 12
 
 
+def _mask_yaml_frontmatter(text: str) -> str:
+    match = _YAML_FRONTMATTER_RE.match(text)
+    if not match:
+        return text
+    blanked = re.sub(r"[^\n]", " ", match.group(0))
+    return blanked + text[match.end() :]
+
+
 def diagnose_draft(draft_text: str, *, style_profile: LoadedStyleProfile) -> dict[str, Any]:
     text = draft_text.replace("\r\n", "\n")
+    text = _mask_yaml_frontmatter(text)
     profile = style_profile.profile
     checks = profile.checks
 
