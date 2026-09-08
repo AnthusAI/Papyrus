@@ -9,7 +9,10 @@ from .editorial_diagnosis_schema import (
     stable_repetition_group_id,
     validate_diagnosis,
 )
+from .editorial_embedders import SentenceEmbedder
+from .editorial_semantic_restatement import analyze_semantic_restatement
 from .editorial_style import LoadedStyleProfile
+from .editorial_text import is_rhetorical_refrain, paragraphs, sentence_spans, sentences
 
 PROFILE_RULE_PREFIX = "Profile rule:"
 
@@ -59,10 +62,13 @@ _STAT_COUNT_UNIT_PATTERN = re.compile(
 _LIST_ORDINAL_LINE_PATTERN = re.compile(r"^\s*\d+\.\s")
 _STICKER_NUMBER_PATTERN = re.compile(r"#\d+\b")
 
-_REFRAIN_MAX_WORDS = 12
 
-
-def diagnose_draft(draft_text: str, *, style_profile: LoadedStyleProfile) -> dict[str, Any]:
+def diagnose_draft(
+    draft_text: str,
+    *,
+    style_profile: LoadedStyleProfile,
+    embedder: SentenceEmbedder | None = None,
+) -> dict[str, Any]:
     text = draft_text.replace("\r\n", "\n")
     profile = style_profile.profile
     checks = profile.checks
@@ -88,6 +94,16 @@ def diagnose_draft(draft_text: str, *, style_profile: LoadedStyleProfile) -> dic
         voice_observations.extend(_check_voice_mismatch(text, style_profile))
 
     repetition_groups = _check_redundancy(text) if checks["redundancy"] else []
+    if checks["semanticRestatement"]:
+        semantic = analyze_semantic_restatement(
+            text,
+            thresholds=profile.similarity,
+            redundancy_groups=repetition_groups,
+            embedder=embedder,
+        )
+        repetition_groups = [*repetition_groups, *semantic.groups]
+    else:
+        semantic = None
     if checks["missingAttribution"]:
         required_facts.extend(_check_required_facts(text))
 
@@ -110,6 +126,8 @@ def diagnose_draft(draft_text: str, *, style_profile: LoadedStyleProfile) -> dic
         "voice_observations": voice_observations,
         "required_facts": required_facts,
     }
+    if semantic is not None and semantic.similarity is not None:
+        result["similarity"] = semantic.similarity
     return validate_diagnosis(result)
 
 
@@ -167,38 +185,12 @@ def findings_marked_rewrite(
 
 
 def _extract_document_intent(text: str) -> str:
-    for paragraph in _paragraphs(text):
-        for sentence in _sentences(paragraph):
+    for paragraph in paragraphs(text):
+        for sentence in sentences(paragraph):
             cleaned = sentence.strip()
             if cleaned:
                 return cleaned
     raise ValueError("Draft must contain at least one sentence for document_intent.")
-
-
-def _paragraphs(text: str) -> list[str]:
-    return [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
-
-
-def _sentences(text: str) -> list[str]:
-    parts = re.split(r"(?<=[.!?])\s+", text.strip())
-    return [part.strip() for part in parts if part.strip()]
-
-
-def _sentence_spans(text: str) -> list[tuple[str, int, int]]:
-    spans: list[tuple[str, int, int]] = []
-    cursor = 0
-    for paragraph in _paragraphs(text):
-        paragraph_start = text.find(paragraph, cursor)
-        if paragraph_start < 0:
-            paragraph_start = cursor
-        local_offset = 0
-        for sentence in _sentences(paragraph):
-            start = paragraph_start + paragraph.find(sentence, local_offset)
-            end = start + len(sentence)
-            spans.append((sentence, start, end))
-            local_offset = paragraph.find(sentence, local_offset) + len(sentence)
-        cursor = paragraph_start + len(paragraph)
-    return spans
 
 
 def _line_at_offset(text: str, offset: int) -> str:
@@ -207,10 +199,6 @@ def _line_at_offset(text: str, offset: int) -> str:
     if line_end < 0:
         line_end = len(text)
     return text[line_start:line_end]
-
-
-def _word_count(text: str) -> int:
-    return len(re.findall(r"[A-Za-z0-9']+", text))
 
 
 def _make_finding(kind: str, draft_text: str, start: int, end: int, rationale: str) -> dict[str, Any]:
@@ -225,7 +213,7 @@ def _make_finding(kind: str, draft_text: str, start: int, end: int, rationale: s
 
 def _check_empty_leadins(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
-    for sentence, start, end in _sentence_spans(text):
+    for sentence, start, end in sentence_spans(text):
         for pattern in _EMPTY_LEADIN_PATTERNS:
             if re.search(pattern, sentence, re.IGNORECASE):
                 findings.append(
@@ -243,7 +231,7 @@ def _check_empty_leadins(text: str) -> list[dict[str, Any]]:
 
 def _check_list_shaped_prose(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
-    for paragraph in _paragraphs(text):
+    for paragraph in paragraphs(text):
         match = _LIST_SHAPED_PATTERN.search(paragraph)
         if not match:
             continue
@@ -293,7 +281,7 @@ def _check_vague_claims(text: str, lexicon_avoid: tuple[str, ...]) -> list[dict[
 
 def _check_intensifier_vague_claims(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
-    for sentence, start, end in _sentence_spans(text):
+    for sentence, start, end in sentence_spans(text):
         if _INTENSIFIER_VAGUE_PATTERN.search(sentence):
             findings.append(
                 _make_finding(
@@ -332,7 +320,7 @@ def _sentence_has_unsupported_certainty(sentence: str) -> bool:
 
 def _check_unsupported_certainty(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
-    for sentence, start, end in _sentence_spans(text):
+    for sentence, start, end in sentence_spans(text):
         if not _sentence_has_unsupported_certainty(sentence):
             continue
         if _CITATION_PATTERN.search(sentence):
@@ -350,7 +338,7 @@ def _check_unsupported_certainty(text: str) -> list[dict[str, Any]]:
 
 
 def _check_uniform_cadence(text: str) -> list[dict[str, Any]]:
-    spans = _sentence_spans(text)
+    spans = sentence_spans(text)
     if len(spans) < 5:
         return []
 
@@ -389,7 +377,7 @@ def _check_voice_mismatch(text: str, style_profile: LoadedStyleProfile) -> list[
     prefers_active = "active voice" in style_text
 
     if prefers_active:
-        for sentence, start, end in _sentence_spans(text):
+        for sentence, start, end in sentence_spans(text):
             if not _PASSIVE_PATTERN.search(sentence):
                 continue
             findings.append(
@@ -422,21 +410,12 @@ def _check_voice_mismatch(text: str, style_profile: LoadedStyleProfile) -> list[
 
 
 def _is_rhetorical_refrain(members: list[dict[str, Any]]) -> bool:
-    excerpts = [member["excerpt"].strip() for member in members]
-    normalized = {excerpt.lower() for excerpt in excerpts}
-    if len(normalized) != 1:
-        return False
-    excerpt = excerpts[0]
-    if re.match(r"^#+\s", excerpt):
-        return True
-    if _word_count(excerpt) <= _REFRAIN_MAX_WORDS:
-        return True
-    return False
+    return is_rhetorical_refrain(members)
 
 
 def _check_redundancy(text: str) -> list[dict[str, Any]]:
     shingles: dict[str, list[tuple[int, int, str]]] = {}
-    for sentence, start, end in _sentence_spans(text):
+    for sentence, start, end in sentence_spans(text):
         words = re.findall(r"[A-Za-z0-9']+", sentence.lower())
         for index in range(len(words) - 3):
             shingle = " ".join(words[index : index + 4])
@@ -464,7 +443,7 @@ def _check_redundancy(text: str) -> list[dict[str, Any]]:
             )
         if _is_rhetorical_refrain(members):
             continue
-        group_id = stable_repetition_group_id([member["id"] for member in members])
+        group_id = stable_repetition_group_id("redundancy", [member["id"] for member in members])
         if group_id in seen_group_ids:
             continue
         seen_group_ids.add(group_id)
@@ -637,7 +616,7 @@ def _check_profile_rules(
 
 def _check_required_facts(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
-    for sentence, start, end in _sentence_spans(text):
+    for sentence, start, end in sentence_spans(text):
         if not _sentence_has_statistical_claim(sentence):
             continue
         if _sentence_excluded_from_attribution(text, sentence, start):

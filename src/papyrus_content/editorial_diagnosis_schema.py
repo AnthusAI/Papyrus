@@ -40,6 +40,7 @@ FORBIDDEN_OUTPUT_KEYS = frozenset(
 FINDING_DECISIONS = frozenset({"skip", "rewrite", "delete", "keep", "add"})
 
 STABLE_ID_PATTERN = re.compile(r"^finding-[a-f0-9]{16}$")
+REPETITION_GROUP_KINDS = frozenset({"redundancy", "concept_restatement"})
 
 
 class EditorialDiagnosisValidationError(ValueError):
@@ -51,8 +52,8 @@ def stable_finding_id(kind: str, draft_text: str, start: int, end: int) -> str:
     return f"finding-{hash_short([SCHEMA_VERSION, kind, start, end, excerpt])}"
 
 
-def stable_repetition_group_id(member_ids: list[str]) -> str:
-    return f"finding-{hash_short([SCHEMA_VERSION, 'redundancy', sorted(member_ids)])}"
+def stable_repetition_group_id(kind: str, member_ids: list[str]) -> str:
+    return f"finding-{hash_short([SCHEMA_VERSION, kind, sorted(member_ids)])}"
 
 
 def assert_no_forbidden_output_keys(value: Any, key_path: str = "") -> None:
@@ -109,7 +110,30 @@ def validate_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
     for index, group in enumerate(repetition_groups):
         _validate_repetition_group(group, f"repetition_groups[{index}]")
 
+    similarity = payload.get("similarity")
+    if similarity is not None:
+        _validate_similarity(similarity)
+
     return payload
+
+
+def _validate_similarity(summary: Any) -> None:
+    if not isinstance(summary, dict):
+        raise EditorialDiagnosisValidationError("similarity must be a mapping.")
+    allowed = {"sentenceCount", "clusterCount", "embedder"}
+    unknown = set(summary) - allowed
+    if unknown:
+        joined = ", ".join(sorted(unknown))
+        raise EditorialDiagnosisValidationError(f"similarity contains unknown keys: {joined}")
+    sentence_count = summary.get("sentenceCount")
+    if not isinstance(sentence_count, int) or sentence_count < 0:
+        raise EditorialDiagnosisValidationError("similarity.sentenceCount must be a non-negative integer.")
+    cluster_count = summary.get("clusterCount")
+    if not isinstance(cluster_count, int) or cluster_count < 0:
+        raise EditorialDiagnosisValidationError("similarity.clusterCount must be a non-negative integer.")
+    embedder = summary.get("embedder")
+    if not isinstance(embedder, str) or not embedder.strip():
+        raise EditorialDiagnosisValidationError("similarity.embedder must be a non-empty string.")
 
 
 def _validate_finding(entry: Any, location: str) -> None:
@@ -137,8 +161,10 @@ def _validate_repetition_group(group: Any, location: str) -> None:
     group_id = group.get("id")
     if not isinstance(group_id, str) or not STABLE_ID_PATTERN.match(group_id):
         raise EditorialDiagnosisValidationError(f"{location}.id must match finding-<16 hex chars>.")
-    if group.get("kind") != "redundancy":
-        raise EditorialDiagnosisValidationError(f"{location}.kind must be redundancy.")
+    if group.get("kind") not in REPETITION_GROUP_KINDS:
+        raise EditorialDiagnosisValidationError(
+            f"{location}.kind must be redundancy or concept_restatement."
+        )
     members = group.get("members")
     if not isinstance(members, list) or not members:
         raise EditorialDiagnosisValidationError(f"{location}.members must be a non-empty list.")

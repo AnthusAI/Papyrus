@@ -24,11 +24,16 @@ DEFAULT_DIAGNOSE_CHECKS: dict[str, bool] = {
     "unsupportedCertainty": True,
     "uniformCadence": True,
     "redundancy": True,
+    "semanticRestatement": True,
     "voiceMismatch": True,
     "missingAttribution": True,
 }
 
 RULES_FIELD_NAMES = frozenset({"bannedPhrases", "bannedIntensifiers", "bannedPatterns", "contrastCap"})
+SIMILARITY_FIELD_NAMES = frozenset({"cosineThreshold", "restatementMinSentences", "embedder"})
+DEFAULT_SIMILARITY_EMBEDDER = "local"
+DEFAULT_COSINE_THRESHOLD = 0.72
+DEFAULT_RESTATEMENT_MIN_SENTENCES = 3
 
 
 class StyleProfileValidationError(ValueError):
@@ -41,6 +46,13 @@ class EditorialRules:
     banned_intensifiers: tuple[str, ...]
     banned_patterns: tuple[tuple[str, str], ...]
     contrast_cap: int | None
+
+
+@dataclass(frozen=True)
+class SimilarityThresholds:
+    cosine_threshold: float
+    restatement_min_sentences: int
+    embedder: str
 
 
 @dataclass(frozen=True)
@@ -57,6 +69,7 @@ class StyleProfile:
     reference_sample_refs: tuple[dict[str, str], ...]
     checks: dict[str, bool]
     rules: EditorialRules
+    similarity: SimilarityThresholds
 
 
 @dataclass(frozen=True)
@@ -148,6 +161,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
 
     checks = _parse_checks(raw.get("checks"), profile_path)
     rules = _parse_rules(raw.get("rules"), profile_path)
+    similarity = _parse_similarity(raw.get("similarity"), profile_path)
 
     return StyleProfile(
         publication_key=publication_key,
@@ -162,6 +176,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         reference_sample_refs=tuple(refs),
         checks=checks,
         rules=rules,
+        similarity=similarity,
     )
 
 
@@ -178,6 +193,58 @@ def _parse_checks(value: Any, profile_path: Path) -> dict[str, bool]:
             raise StyleProfileValidationError(f"checks.{key} must be a boolean in {profile_path}")
         checks[key] = enabled
     return checks
+
+
+def _default_similarity() -> SimilarityThresholds:
+    return SimilarityThresholds(
+        cosine_threshold=DEFAULT_COSINE_THRESHOLD,
+        restatement_min_sentences=DEFAULT_RESTATEMENT_MIN_SENTENCES,
+        embedder=DEFAULT_SIMILARITY_EMBEDDER,
+    )
+
+
+def _parse_similarity(value: Any, profile_path: Path) -> SimilarityThresholds:
+    defaults = _default_similarity()
+    if value is None:
+        return defaults
+    if not isinstance(value, dict):
+        raise StyleProfileValidationError(f"similarity must be a mapping in {profile_path}")
+
+    unknown = set(value) - SIMILARITY_FIELD_NAMES
+    if unknown:
+        joined = ", ".join(sorted(unknown))
+        raise StyleProfileValidationError(f"Unknown similarity keys in {profile_path}: {joined}")
+
+    cosine_threshold = defaults.cosine_threshold
+    if value.get("cosineThreshold") is not None:
+        cosine_threshold = value["cosineThreshold"]
+        if not isinstance(cosine_threshold, (int, float)) or not 0.0 <= float(cosine_threshold) <= 1.0:
+            raise StyleProfileValidationError(
+                f"similarity.cosineThreshold must be a number between 0 and 1 in {profile_path}"
+            )
+        cosine_threshold = float(cosine_threshold)
+
+    restatement_min_sentences = defaults.restatement_min_sentences
+    if value.get("restatementMinSentences") is not None:
+        restatement_min_sentences = value["restatementMinSentences"]
+        if not isinstance(restatement_min_sentences, int) or restatement_min_sentences < 2:
+            raise StyleProfileValidationError(
+                f"similarity.restatementMinSentences must be an integer >= 2 in {profile_path}"
+            )
+
+    embedder = defaults.embedder
+    if value.get("embedder") is not None:
+        embedder = value["embedder"]
+        if embedder not in {"local", "off"}:
+            raise StyleProfileValidationError(
+                f"similarity.embedder must be 'local' or 'off' in {profile_path}"
+            )
+
+    return SimilarityThresholds(
+        cosine_threshold=cosine_threshold,
+        restatement_min_sentences=restatement_min_sentences,
+        embedder=embedder,
+    )
 
 
 def _empty_rules() -> EditorialRules:

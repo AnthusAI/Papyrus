@@ -12,6 +12,9 @@ dependencies = [
     "tactus @ file:///Users/ryan/Projects/Tactus",
 ]
 
+[project.optional-dependencies]
+editorial-embeddings = ["fastembed>=0.4.0,<0.5.0"]
+
 [project.scripts]
 papyrus = "papyrus.cli:main"
 

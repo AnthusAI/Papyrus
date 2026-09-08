@@ -55,6 +55,9 @@
       "items": {
         "$ref": "#/$defs/repetitionGroup"
       }
+    },
+    "similarity": {
+      "$ref": "#/$defs/similarity"
     }
   },
   "$defs": {
@@ -106,7 +109,7 @@
           "pattern": "^finding-[a-f0-9]{16}$"
         },
         "kind": {
-          "const": "redundancy"
+          "enum": ["redundancy", "concept_restatement"]
         },
         "members": {
           "type": "array",
@@ -116,6 +119,25 @@
           }
         },
         "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "similarity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sentenceCount", "clusterCount", "embedder"],
+      "properties": {
+        "sentenceCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "clusterCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "embedder": {
           "type": "string",
           "minLength": 1
         }
