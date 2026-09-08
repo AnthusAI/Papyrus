@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d55727f4-ff68-45da-b1d7-ae1764ccf698",
+  "issue_id": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-07T20:48:57.769Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Shadcn newsroom ops UI — multi-tenant, pluggable stacks",
+    "description": "Foundation ACCEPTED by Pilobolus (PR #64 NewsroomOpsShell + brand/tenant). Keep mobile-app Shadcn bar. Next: refs, assignments, topics/votes.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": "Papyrus",
+    "parent": null,
+    "labels": []
+  }
+}

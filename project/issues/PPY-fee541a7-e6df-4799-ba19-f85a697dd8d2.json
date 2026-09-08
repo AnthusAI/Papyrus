@@ -1,0 +1,67 @@
+{
+  "id": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "title": "Shadcn newsroom ops UI \u2014 multi-tenant, pluggable stacks",
+  "description": "Foundation ACCEPTED by Pilobolus (PR #64 NewsroomOpsShell + brand/tenant). Keep mobile-app Shadcn bar. Next: refs, assignments, topics/votes.",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "Papyrus",
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "77b5133c-671c-4a49-a209-b9a758caef92",
+      "author": "box",
+      "text": "Pilobolus polish request: moss primary + less newspaper density. Composer 2.5 interrupted refs to do polish first then refs.",
+      "created_at": "2026-09-07T20:50:54.629373Z",
+      "comment_type": "default",
+      "data": {}
+    },
+    {
+      "id": "3c39a0d6-d2c2-433a-beda-949b59d92ef0",
+      "author": "box",
+      "text": "Ryan: still cloning newsprint \u2014 unacceptable. Reinvent ops IA before refs. Composer 2.5 re-briefed.",
+      "created_at": "2026-09-07T20:51:12.578129Z",
+      "comment_type": "default",
+      "data": {}
+    },
+    {
+      "id": "41ac2aa8-3564-4fc0-ac34-c4b847e9d879",
+      "author": "box",
+      "text": "PM cleared tip 559e5b1 for Pilobolus re-check: reinvented overview IA + refs inbox + moss active nav. Not pinging as polish \u2014 reinvent claim.",
+      "created_at": "2026-09-07T20:56:41.769716Z",
+      "comment_type": "default",
+      "data": {}
+    },
+    {
+      "id": "acdaaf23-2c02-4cc4-85ad-662fe53624ea",
+      "author": "box",
+      "text": "Pilobolus ACCEPT on 559e5b1 overview+refs. Next: assignments PPY-6f68a1 (Composer 2.5).",
+      "created_at": "2026-09-07T20:57:30.150308Z",
+      "comment_type": "default",
+      "data": {}
+    },
+    {
+      "id": "13a97ff3-714b-4a44-b99c-fabac84ce67f",
+      "author": "box",
+      "text": "Assignments slice 452247a ready for Pilobolus accept; topics next after.",
+      "created_at": "2026-09-07T21:04:08.417997Z",
+      "comment_type": "default",
+      "data": {}
+    },
+    {
+      "id": "7fad1bda-d309-4c8b-8fc4-217e248e624c",
+      "author": "box",
+      "text": "Proceeding UI: topics/votes Composer 2.5 launched; contrast fix still running. Live KB waits on M1.",
+      "created_at": "2026-09-07T21:18:11.654142Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
+  "created_at": "2026-09-07T20:48:57.769537Z",
+  "updated_at": "2026-09-07T21:18:11.654142Z",
+  "closed_at": null,
+  "custom": {}
+}

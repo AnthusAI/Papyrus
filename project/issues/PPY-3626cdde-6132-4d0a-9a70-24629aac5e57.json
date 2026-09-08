@@ -1,0 +1,18 @@
+{
+  "id": "PPY-3626cdde-6132-4d0a-9a70-24629aac5e57",
+  "title": "References inbox + detail curation (accept/reject/archive)",
+  "description": "Was PPY-3aa283. Shadcn mobile-app newsroom: references list/filters by curation status, detail, accept/reject/archive via GraphQL reviewReferenceCuration. Demo + live. Pilobolus tenant. Composer 2.5.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "Papyrus",
+  "creator": null,
+  "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-09-07T20:49:09.753930Z",
+  "updated_at": "2026-09-07T20:49:18.102167Z",
+  "closed_at": null,
+  "custom": {}
+}

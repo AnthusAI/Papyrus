@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "9d90afa6-1ed5-434a-aae3-af5a7c69f8d6",
+  "issue_id": "PPY-e62d1324-1fa1-40a0-bb3a-d36b98adeb7d",
+  "event_type": "state_transition",
+  "occurred_at": "2026-09-07T20:51:12.259Z",
+  "actor_id": "box",
+  "payload": {
+    "from_status": "open",
+    "to_status": "in_progress"
+  }
+}

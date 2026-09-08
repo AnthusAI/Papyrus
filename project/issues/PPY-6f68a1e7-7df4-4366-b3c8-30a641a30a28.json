@@ -1,0 +1,35 @@
+{
+  "id": "PPY-6f68a1e7-7df4-4366-b3c8-30a641a30a28",
+  "title": "Assignments queue for steering-relevant work",
+  "description": "Was PPY-e4f8e0. Assignments list/queue in Shadcn ops shell. GraphQL source of truth. After refs.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "Papyrus",
+  "creator": null,
+  "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1a9ec1bd-2314-4d43-8e3c-c974b5b3d4d1",
+      "author": "box",
+      "text": "Starting after overview/refs accept. Mobile-app assignments destination \u2014 invent, don\u2019t port Pretext work desk.",
+      "created_at": "2026-09-07T20:57:30.418426Z",
+      "comment_type": "default",
+      "data": {}
+    },
+    {
+      "id": "607a5285-6a25-4c50-89cc-7d13fa33d9dd",
+      "author": "box",
+      "text": "PM cleared tip 452247a NewsroomAssignmentsView for Pilobolus accept.",
+      "created_at": "2026-09-07T21:04:08.149891Z",
+      "comment_type": "default",
+      "data": {}
+    }
+  ],
+  "created_at": "2026-09-07T20:49:10.030198Z",
+  "updated_at": "2026-09-07T21:04:08.149891Z",
+  "closed_at": null,
+  "custom": {}
+}

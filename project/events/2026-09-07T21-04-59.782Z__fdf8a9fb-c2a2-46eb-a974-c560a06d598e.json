@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fdf8a9fb-c2a2-46eb-a974-c560a06d598e",
+  "issue_id": "PPY-57e6beb2-de37-410b-9112-6f021b29a513",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-07T21:04:59.782Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Fix light-mode selected row contrast (no inverted text)",
+    "description": "Ryan: selected state dark bg + dark text. Light mode must keep dark text on light tint (moss/paper wash). Composer 2.5.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": "Papyrus",
+    "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+    "labels": []
+  }
+}

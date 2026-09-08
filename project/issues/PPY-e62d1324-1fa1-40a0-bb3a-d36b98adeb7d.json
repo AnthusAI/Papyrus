@@ -1,0 +1,18 @@
+{
+  "id": "PPY-e62d1324-1fa1-40a0-bb3a-d36b98adeb7d",
+  "title": "Reinvent ops IA as mobile app (not Pretext clone)",
+  "description": "Ryan hard line: do not port Forum/edition tables/newsprint IA into Shadcn. Reinvent overview + primary flows; moss primary; then refs as mobile-app destination. Self-reject clones.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "Papyrus",
+  "creator": null,
+  "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-09-07T20:50:54.343218Z",
+  "updated_at": "2026-09-07T20:51:12.257512Z",
+  "closed_at": null,
+  "custom": {}
+}
