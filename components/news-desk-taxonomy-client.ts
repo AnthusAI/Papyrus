@@ -2625,6 +2625,7 @@ function normalizeKnowledgeQueryResponse(value: unknown): KnowledgeQueryResponse
 }
 
 async function loadNewsroomSummary(): Promise<NewsroomSummaryRecord> {
+  configureAmplifyClient();
   const client = generateClient<Schema>();
   const response = await (client.queries.getNewsroomSummary as unknown as (
     args: Record<string, never>,

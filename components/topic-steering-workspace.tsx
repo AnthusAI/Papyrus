@@ -880,15 +880,18 @@ function NewsDeskDashboard({
       ?? summary?.messageKindCounts?.insight
       ?? null,
     assignments: summaryCountFromRecord(summary, "assignments"),
-    references: summaryCountFromRecord(summary, "references"),
+    references: summaryCountFromRecord(summary, "references")
+      ?? (hasHydratedReferences ? references.length : null),
     topics: summaryCountFromRecord(summary, "categories"),
     concepts: summaryCountFromRecord(summary, "semanticNodes"),
     administration: userDirectory.length + doctrineRecords.length + newsroomSections.length + procedureDefinitions.length,
     search: 0,
   }), [
     doctrineRecords.length,
+    hasHydratedReferences,
     newsroomSections.length,
     procedureDefinitions.length,
+    references.length,
     summary,
     userDirectory.length,
   ]);
@@ -995,14 +998,17 @@ function NewsDeskDashboard({
   }, [dashboard.summary]);
 
   useEffect(() => {
+    if (dashboard.references.length === 0) return;
     setReferences(dashboard.references);
   }, [dashboard.references]);
 
   useEffect(() => {
+    if (dashboard.referenceAttachments.length === 0) return;
     setReferenceAttachments(dashboard.referenceAttachments);
   }, [dashboard.referenceAttachments]);
 
   useEffect(() => {
+    if (dashboard.messages.length === 0) return;
     setMessages(dashboard.messages);
   }, [dashboard.messages]);
 
@@ -1116,6 +1122,31 @@ function NewsDeskDashboard({
   }, [authState.status]);
 
   useEffect(() => {
+    if (!canLoadPrivateCorpus || hasHydratedReferences) return;
+    let active = true;
+    void loadEditorReferencesData()
+      .then(({ references: nextReferences, referenceAttachments }) => {
+        if (!active) return;
+        setReferences(nextReferences);
+        setReferenceAttachments(referenceAttachments);
+        setHasHydratedReferences(true);
+        setLoadedSections((current) => ({ ...current, references: true }));
+      })
+      .catch((error) => {
+        if (active) {
+          setActionState({
+            id: "references-load",
+            message: error instanceof Error ? error.message : "references load failed",
+            tone: "error",
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [canLoadPrivateCorpus, hasHydratedReferences]);
+
+  useEffect(() => {
     if (dashboard.isDemo) return;
     let active = true;
 
@@ -1127,26 +1158,6 @@ function NewsDeskDashboard({
         })
         .catch((error) => {
           if (active) setActionState({ id: "messages-load", message: error instanceof Error ? error.message : "messages load failed", tone: "error" });
-        });
-    }
-
-    if (activeTab === "references" && canLoadPrivateCorpus && (!loadedSections.references || !hasHydratedReferences)) {
-      void loadEditorReferencesData()
-        .then(({ references: nextReferences, referenceAttachments }) => {
-          if (!active) return;
-          setReferences(nextReferences);
-          setReferenceAttachments(referenceAttachments);
-          setHasHydratedReferences(true);
-          setLoadedSections((current) => ({ ...current, references: true }));
-        })
-        .catch((error) => {
-          if (active) {
-            setActionState({
-              id: "references-load",
-              message: error instanceof Error ? error.message : "references load failed",
-              tone: "error",
-            });
-          }
         });
     }
 
@@ -1234,10 +1245,8 @@ function NewsDeskDashboard({
     };
   }, [
     activeTab,
-    canLoadPrivateCorpus,
     dashboard.canManageUsers,
     dashboard.isDemo,
-    hasHydratedReferences,
     newsroomSections.length,
     hasRefreshedNewsroomSections,
     canRefreshNewsroomSections,
