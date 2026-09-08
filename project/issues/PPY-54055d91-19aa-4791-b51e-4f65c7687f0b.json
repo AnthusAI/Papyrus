@@ -48,10 +48,17 @@
       "text": "Next diagnose slice: PPY-da4bf3 fuses density signals (gzip, sentence clusters via local embeddings / TF-IDF). No paid vector API. Not a single fluff score.",
       "created_at": "2026-09-08T12:00:36.785942Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a6a8ae95-dc10-4989-8568-e27ce891dbbc",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Markup export: Markus editorial-finding directive (Markus #3) + Papyrus diagnose --markup-out/--xml-out (PR #73). Dogfood: 5 Anth.us articles.",
+      "created_at": "2026-09-08T12:51:11.486209Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:11:51.547214Z",
-  "updated_at": "2026-09-08T12:00:36.785942Z",
+  "updated_at": "2026-09-08T12:51:11.486209Z",
   "closed_at": null,
   "custom": {}
 }
