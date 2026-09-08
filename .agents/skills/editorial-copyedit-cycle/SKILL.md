@@ -24,10 +24,33 @@ rationale. Everything after that — what to skip, what to rewrite, which
 rewrite to actually use — is editorial judgment. That judgment is the point of
 this skill; the CLI commands are just plumbing.
 
-**Never rewrite prose "by feel" without running diagnose first.** The scan
-catches real repetition and voice drift that's easy to miss on a read-through,
-and it gives you a stable id to reason about instead of vague back-and-forth
-about "the third paragraph."
+**Never rewrite prose "by feel" without running diagnose first** when you're
+doing the fine-grained, one-article, id-by-id version of this cycle (Steps
+2-6 below). The scan catches real repetition and voice drift that's easy to
+miss on a read-through, and it gives you a stable id to reason about instead
+of vague back-and-forth about "the third paragraph."
+
+At larger scale — reviewing many articles, or making bigger holistic edits
+per the user's direction rather than fine-grained redlines — running the full
+CLI pipeline on every single article isn't always the best use of time, and a
+careful read-through catches things diagnose doesn't check for at all:
+outright typos, doubled words, corrupted/orphaned sentence fragments, broken
+markdown/JSX syntax, and factual inconsistencies (a stat or date that
+contradicts itself elsewhere in the same piece). None of that is a redundancy
+or voice-mismatch finding — it just requires reading the whole thing like an
+editor would. In a full-site pass across 79 articles, these were often the
+most valuable catches: a genuinely broken opening sentence, a leftover
+internal draft note left in published copy, a citation's date cited two
+different ways in the same article.
+
+**Banned lexicon is worth a deliberate pass even when you skip diagnose.**
+The style profile's `rules.bannedIntensifiers` / `bannedPhrases` (e.g.
+"leverage," "seamless," "revolutionary," "cutting-edge," "unlock," "game-
+changing") turned up repeatedly across older articles in that same full-site
+pass — more often than any other single issue. Diagnose does check for these,
+but if you're skimming quickly across many pieces, it's cheap enough to just
+skim for the banned list directly (or grep it) rather than skip it entirely
+because you didn't run the full scan.
 
 ## Prerequisites
 
