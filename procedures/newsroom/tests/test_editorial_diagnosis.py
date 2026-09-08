@@ -78,6 +78,66 @@ class EditorialDiagnosisTests(unittest.TestCase):
         self.assertEqual(len(rewrite_findings), 1)
         self.assertEqual(rewrite_findings[0]["id"], finding_id)
 
+    def test_always_on_compounds_skip_unsupported_certainty(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        draft_text = (fixture_root / "always-on-compounds.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        certainty = [entry for entry in diagnosis["unsupported_claims"] if entry["kind"] == "unsupported_certainty"]
+        self.assertEqual(certainty, [])
+
+    def test_list_ordinals_skip_missing_attribution(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        draft_text = (fixture_root / "list-ordinals-only.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertEqual(diagnosis["required_facts"], [])
+
+    def test_uniform_cadence_disabled_by_profile(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        draft_text = (fixture_root / "punchy-cadence.md").read_text(encoding="utf-8")
+        profile = load_style_profile(fixture_root / "anthus-cadence-off-profile.yml")
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        cadence = [entry for entry in diagnosis["voice_observations"] if entry["kind"] == "uniform_cadence"]
+        self.assertEqual(cadence, [])
+
+    def test_brochure_slop_still_flags_certainty_and_lexicon(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        draft_text = (fixture_root / "brochure-slop.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        kinds = {entry["kind"] for entry in diagnosis["generic_passages"]}
+        kinds.update(entry["kind"] for entry in diagnosis["unsupported_claims"])
+        kinds.update(entry["kind"] for entry in diagnosis["voice_observations"])
+        self.assertIn("unsupported_certainty", kinds)
+        self.assertTrue("vague_claim" in kinds or "voice_mismatch" in kinds)
+
+    def test_rhetorical_refrain_skips_redundancy(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        draft_text = (fixture_root / "rhetorical-refrain.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        refrain = "it did not manage it"
+        for group in diagnosis["repetition_groups"]:
+            excerpts = [member["excerpt"].strip().lower() for member in group["members"]]
+            if excerpts and all(refrain in excerpt for excerpt in excerpts):
+                self.fail(f"refrain flagged as redundancy: {group}")
+
+    def test_sticker_number_skips_missing_attribution(self) -> None:
+        draft_text = 'Think of a crate with an "Inspected By #247" sticker on the dock.'
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertEqual(diagnosis["required_facts"], [])
+
+    def test_percent_claim_still_flags_missing_attribution(self) -> None:
+        draft_text = "Our product reduces latency by 40% without any source attached."
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        attribution = [entry for entry in diagnosis["required_facts"] if entry["kind"] == "missing_attribution"]
+        self.assertEqual(len(attribution), 1)
+
+    def test_profile_checks_default_all_enabled(self) -> None:
+        profile = load_style_profile(REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis" / "style-profile.yml")
+        self.assertTrue(all(profile.profile.checks.values()))
+
+    def test_anthus_profile_disables_uniform_cadence(self) -> None:
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        self.assertFalse(profile.profile.checks["uniformCadence"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,8 +19,15 @@ _EMPTY_LEADIN_PATTERNS = (
     r"^In conclusion\b",
 )
 
-_CERTAINTY_PATTERN = re.compile(
-    r"\b(everyone knows|always|never|undeniably|proven|clearly)\b",
+_PHRASE_CERTAINTY_PATTERN = re.compile(r"\b(everyone knows|undeniably|proven)\b", re.IGNORECASE)
+_ALWAYS_NEVER_PATTERN = re.compile(r"\b(always|never)\b", re.IGNORECASE)
+_HYPHENATED_ALWAYS_NEVER_PATTERN = re.compile(r"\b(always|never)-\w+", re.IGNORECASE)
+_NEVER_AUXILIARY_PATTERN = re.compile(
+    r"\bnever\s+(had|would|could|should|might|may|will|can)\b",
+    re.IGNORECASE,
+)
+_CLEARLY_ASSERTIVE_PATTERN = re.compile(
+    r"\bclearly\s+(shows|demonstrates|proves|will|is)\b",
     re.IGNORECASE,
 )
 
@@ -41,29 +48,46 @@ _INTENSIFIER_VAGUE_PATTERN = re.compile(
 
 _PASSIVE_PATTERN = re.compile(r"\b(is|are|was|were|been|being)\s+\w+ed\b", re.IGNORECASE)
 
-_STAT_CLAIM_PATTERN = re.compile(r"\b\d+(?:\.\d+)?%?\b")
+_STAT_PERCENT_PATTERN = re.compile(r"\d+(?:\.\d+)?%")
+_STAT_MULTIPLIER_PATTERN = re.compile(r"\d+\s*[×x]\b|\d+\s+times\b", re.IGNORECASE)
+_STAT_COUNT_UNIT_PATTERN = re.compile(
+    r"\b\d{3,}\s+(users|ms|seconds|minutes|hours|days|requests|tokens)\b",
+    re.IGNORECASE,
+)
+_LIST_ORDINAL_LINE_PATTERN = re.compile(r"^\s*\d+\.\s")
+_STICKER_NUMBER_PATTERN = re.compile(r"#\d+\b")
+
+_REFRAIN_MAX_WORDS = 12
 
 
 def diagnose_draft(draft_text: str, *, style_profile: LoadedStyleProfile) -> dict[str, Any]:
     text = draft_text.replace("\r\n", "\n")
     profile = style_profile.profile
+    checks = profile.checks
 
     generic_passages: list[dict[str, Any]] = []
     unsupported_claims: list[dict[str, Any]] = []
     voice_observations: list[dict[str, Any]] = []
     required_facts: list[dict[str, Any]] = []
 
-    generic_passages.extend(_check_empty_leadins(text))
-    generic_passages.extend(_check_list_shaped_prose(text))
-    generic_passages.extend(_check_vague_claims(text, profile.lexicon_avoid))
-    generic_passages.extend(_check_intensifier_vague_claims(text))
+    if checks["emptyLeadin"]:
+        generic_passages.extend(_check_empty_leadins(text))
+    if checks["listShapedProse"]:
+        generic_passages.extend(_check_list_shaped_prose(text))
+    if checks["vagueClaim"]:
+        generic_passages.extend(_check_vague_claims(text, profile.lexicon_avoid))
+        generic_passages.extend(_check_intensifier_vague_claims(text))
 
-    unsupported_claims.extend(_check_unsupported_certainty(text))
-    voice_observations.extend(_check_uniform_cadence(text))
-    voice_observations.extend(_check_voice_mismatch(text, style_profile))
+    if checks["unsupportedCertainty"]:
+        unsupported_claims.extend(_check_unsupported_certainty(text))
+    if checks["uniformCadence"]:
+        voice_observations.extend(_check_uniform_cadence(text))
+    if checks["voiceMismatch"]:
+        voice_observations.extend(_check_voice_mismatch(text, style_profile))
 
-    repetition_groups = _check_redundancy(text)
-    required_facts.extend(_check_required_facts(text))
+    repetition_groups = _check_redundancy(text) if checks["redundancy"] else []
+    if checks["missingAttribution"]:
+        required_facts.extend(_check_required_facts(text))
 
     result = {
         "schemaVersion": SCHEMA_VERSION,
@@ -166,6 +190,18 @@ def _sentence_spans(text: str) -> list[tuple[str, int, int]]:
     return spans
 
 
+def _line_at_offset(text: str, offset: int) -> str:
+    line_start = text.rfind("\n", 0, offset) + 1
+    line_end = text.find("\n", offset)
+    if line_end < 0:
+        line_end = len(text)
+    return text[line_start:line_end]
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"[A-Za-z0-9']+", text))
+
+
 def _make_finding(kind: str, draft_text: str, start: int, end: int, rationale: str) -> dict[str, Any]:
     return {
         "id": stable_finding_id(kind, draft_text, start, end),
@@ -260,10 +296,33 @@ def _check_intensifier_vague_claims(text: str) -> list[dict[str, Any]]:
     return findings
 
 
+def _sentence_has_unsupported_certainty(sentence: str) -> bool:
+    if _PHRASE_CERTAINTY_PATTERN.search(sentence):
+        return True
+    if _CLEARLY_ASSERTIVE_PATTERN.search(sentence):
+        return True
+
+    if not _ALWAYS_NEVER_PATTERN.search(sentence):
+        return False
+
+    stripped = _HYPHENATED_ALWAYS_NEVER_PATTERN.sub(" ", sentence)
+    if not _ALWAYS_NEVER_PATTERN.search(stripped):
+        return False
+
+    if _NEVER_AUXILIARY_PATTERN.search(sentence):
+        return False
+
+    trimmed = sentence.strip()
+    if re.match(r"^Never\s+\w", trimmed):
+        return False
+
+    return True
+
+
 def _check_unsupported_certainty(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for sentence, start, end in _sentence_spans(text):
-        if not _CERTAINTY_PATTERN.search(sentence):
+        if not _sentence_has_unsupported_certainty(sentence):
             continue
         if _CITATION_PATTERN.search(sentence):
             continue
@@ -316,53 +375,25 @@ def _check_voice_mismatch(text: str, style_profile: LoadedStyleProfile) -> list[
     findings: list[dict[str, Any]] = []
     profile = style_profile.profile
     style_text = " ".join(profile.sentence_style).lower()
-    prefers_contractions = "contraction" in style_text
     prefers_active = "active voice" in style_text
 
-    if prefers_contractions or prefers_active:
-        passive_without_contraction = 0
-        block_start = None
-        block_end = None
+    if prefers_active:
         for sentence, start, end in _sentence_spans(text):
-            has_contraction = bool(re.search(r"\b\w+'\w+", sentence))
-            is_passive = bool(_PASSIVE_PATTERN.search(sentence))
-            mismatch = (prefers_active and is_passive) or (prefers_contractions and not has_contraction)
-            if mismatch:
-                if block_start is None:
-                    block_start = start
-                block_end = end
-                passive_without_contraction += 1
-            elif passive_without_contraction >= 3 and block_start is not None and block_end is not None:
-                findings.append(
-                    _make_finding(
-                        "voice_mismatch",
-                        text,
-                        block_start,
-                        block_end,
-                        "Draft voice diverges from profile sentence style guidance.",
-                    )
-                )
-                passive_without_contraction = 0
-                block_start = None
-                block_end = None
-            else:
-                passive_without_contraction = 0
-                block_start = None
-                block_end = None
-        if passive_without_contraction >= 3 and block_start is not None and block_end is not None:
+            if not _PASSIVE_PATTERN.search(sentence):
+                continue
             findings.append(
                 _make_finding(
                     "voice_mismatch",
                     text,
-                    block_start,
-                    block_end,
-                    "Draft voice diverges from profile sentence style guidance.",
+                    start,
+                    end,
+                    "Sentence uses passive voice where the profile prefers active voice.",
                 )
             )
 
     for term in profile.lexicon_avoid:
         normalized = term.strip().lower()
-        if not normalized:
+        if not normalized or normalized == "empty intensifiers without evidence":
             continue
         index = text.lower().find(normalized)
         if index < 0:
@@ -377,6 +408,19 @@ def _check_voice_mismatch(text: str, style_profile: LoadedStyleProfile) -> list[
         if finding["id"] not in {entry["id"] for entry in findings}:
             findings.append(finding)
     return findings
+
+
+def _is_rhetorical_refrain(members: list[dict[str, Any]]) -> bool:
+    excerpts = [member["excerpt"].strip() for member in members]
+    normalized = {excerpt.lower() for excerpt in excerpts}
+    if len(normalized) != 1:
+        return False
+    excerpt = excerpts[0]
+    if re.match(r"^#+\s", excerpt):
+        return True
+    if _word_count(excerpt) <= _REFRAIN_MAX_WORDS:
+        return True
+    return False
 
 
 def _check_redundancy(text: str) -> list[dict[str, Any]]:
@@ -407,6 +451,8 @@ def _check_redundancy(text: str) -> list[dict[str, Any]]:
                     "rationale": "Repeated phrasing across the draft.",
                 }
             )
+        if _is_rhetorical_refrain(members):
+            continue
         group_id = stable_repetition_group_id([member["id"] for member in members])
         if group_id in seen_group_ids:
             continue
@@ -422,10 +468,31 @@ def _check_redundancy(text: str) -> list[dict[str, Any]]:
     return groups
 
 
+def _sentence_has_statistical_claim(sentence: str) -> bool:
+    if _STAT_PERCENT_PATTERN.search(sentence):
+        return True
+    if _STAT_MULTIPLIER_PATTERN.search(sentence):
+        return True
+    if _STAT_COUNT_UNIT_PATTERN.search(sentence):
+        return True
+    return False
+
+
+def _sentence_excluded_from_attribution(text: str, sentence: str, start: int) -> bool:
+    line = _line_at_offset(text, start)
+    if _LIST_ORDINAL_LINE_PATTERN.match(line):
+        return True
+    if _STICKER_NUMBER_PATTERN.search(sentence) and not _STAT_PERCENT_PATTERN.search(sentence):
+        return True
+    return False
+
+
 def _check_required_facts(text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for sentence, start, end in _sentence_spans(text):
-        if not _STAT_CLAIM_PATTERN.search(sentence):
+        if not _sentence_has_statistical_claim(sentence):
+            continue
+        if _sentence_excluded_from_attribution(text, sentence, start):
             continue
         if _CITATION_PATTERN.search(sentence):
             continue

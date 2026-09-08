@@ -95,6 +95,112 @@ def _walk_forbidden_keys(value, path=""):
             _walk_forbidden_keys(nested, f"{path}[{index}]")
 
 
+def _collect_all_findings(diagnosis: dict) -> list[dict]:
+    findings: list[dict] = []
+    for key in ("generic_passages", "unsupported_claims", "voice_observations", "required_facts"):
+        findings.extend(diagnosis.get(key, []))
+    return findings
+
+
+def _findings_by_kind(diagnosis: dict, kind: str) -> list[dict]:
+    return [finding for finding in _collect_all_findings(diagnosis) if finding.get("kind") == kind]
+
+
+@given('a draft containing "Keep always-on rules thin" and "Grok Bot is always-available"')
+def step_given_always_on_draft(context):
+    context.draft_path = FIXTURE_ROOT / "always-on-compounds.md"
+    assert context.draft_path.is_file()
+
+
+@given("a loadable style profile")
+def step_given_loadable_style_profile(context):
+    context.profile_path = FIXTURE_ROOT / "style-profile.yml"
+    assert context.profile_path.is_file()
+
+
+@given("a draft whose only numbers are markdown list markers 1. and 2.")
+def step_given_list_ordinals_draft(context):
+    context.draft_path = FIXTURE_ROOT / "list-ordinals-only.md"
+    context.profile_path = FIXTURE_ROOT / "style-profile.yml"
+    assert context.draft_path.is_file()
+
+
+@given("the Anth.us style profile with uniform cadence disabled")
+def step_given_anthus_cadence_off_profile(context):
+    context.profile_path = FIXTURE_ROOT / "anthus-cadence-off-profile.yml"
+    assert context.profile_path.is_file()
+
+
+@given("a draft of five consecutive short punchy sentences")
+def step_given_punchy_cadence_draft(context):
+    context.draft_path = FIXTURE_ROOT / "punchy-cadence.md"
+    assert context.draft_path.is_file()
+
+
+@given(
+    'a draft that says "This will revolutionize workflows" and "Everyone knows agents will transform the industry"'
+)
+def step_given_brochure_slop_draft(context):
+    context.draft_path = FIXTURE_ROOT / "brochure-slop.md"
+    context.profile_path = FIXTURE_ROOT / "style-profile.yml"
+    assert context.draft_path.is_file()
+
+
+@given('a draft that repeats a short heading "It did not manage it" as a refrain')
+def step_given_rhetorical_refrain_draft(context):
+    context.draft_path = FIXTURE_ROOT / "rhetorical-refrain.md"
+    context.profile_path = FIXTURE_ROOT / "style-profile.yml"
+    assert context.draft_path.is_file()
+
+
+@then("there is no unsupported_certainty finding whose excerpt is only those compounds")
+def step_then_no_unsupported_certainty_for_compounds(context):
+    findings = _findings_by_kind(context.diagnosis, "unsupported_certainty")
+    for finding in findings:
+        excerpt = finding.get("excerpt", "").strip().lower()
+        assert excerpt not in {
+            "keep always-on rules thin",
+            "grok bot is always-available",
+            "grok bot is always-available when the queue is idle.",
+        }
+
+
+@then("there is no missing_attribution finding for those markers")
+def step_then_no_missing_attribution_for_markers(context):
+    findings = _findings_by_kind(context.diagnosis, "missing_attribution")
+    assert not findings
+
+
+@then("there is no uniform_cadence finding")
+def step_then_no_uniform_cadence(context):
+    findings = _findings_by_kind(context.diagnosis, "uniform_cadence")
+    assert not findings
+
+
+@then("findings include vague_claim or voice_mismatch for the avoided lexicon")
+def step_then_brochure_lexicon_findings(context):
+    kinds = _collect_kinds(context.diagnosis)
+    assert "vague_claim" in kinds or "voice_mismatch" in kinds
+    findings = _collect_all_findings(context.diagnosis)
+    excerpts = " ".join(finding.get("excerpt", "").lower() for finding in findings)
+    assert "revolutionize" in excerpts or "transform" in excerpts
+
+
+@then('findings include unsupported_certainty for "Everyone knows"')
+def step_then_everyone_knows_certainty(context):
+    findings = _findings_by_kind(context.diagnosis, "unsupported_certainty")
+    assert any("everyone knows" in finding.get("excerpt", "").lower() for finding in findings)
+
+
+@then("that refrain is not a redundancy group")
+def step_then_refrain_not_redundancy(context):
+    refrain = "it did not manage it"
+    for group in context.diagnosis.get("repetition_groups", []):
+        member_excerpts = [member.get("excerpt", "").strip().lower() for member in group.get("members", [])]
+        if member_excerpts and all(refrain in excerpt for excerpt in member_excerpts):
+            raise AssertionError(f"refrain was flagged as redundancy: {group}")
+
+
 @given("a draft file and a loadable style profile")
 def step_given_draft_and_profile(context):
     context.draft_path = FIXTURE_ROOT / "sloppy-draft.md"
