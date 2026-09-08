@@ -35,6 +35,10 @@ evidenceRules:
   - Optimize for editorial quality, not detector scores or synthetic imperfection.
 checks:
   uniformCadence: false
+density:
+  minWords: 400
+  minLexicalDensity: 0.45
+  maxGzipRatio: 0.35
 rules:
   bannedPhrases:
     - coming soon

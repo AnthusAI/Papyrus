@@ -26,6 +26,13 @@ DEFAULT_DIAGNOSE_CHECKS: dict[str, bool] = {
     "redundancy": True,
     "voiceMismatch": True,
     "missingAttribution": True,
+    "informationDensity": True,
+}
+
+DEFAULT_DENSITY_THRESHOLDS = {
+    "minWords": 400,
+    "minLexicalDensity": 0.45,
+    "maxGzipRatio": 0.35,
 }
 
 RULES_FIELD_NAMES = frozenset({"bannedPhrases", "bannedIntensifiers", "bannedPatterns", "contrastCap"})
@@ -44,6 +51,13 @@ class EditorialRules:
 
 
 @dataclass(frozen=True)
+class DensityThresholds:
+    min_words: int
+    min_lexical_density: float
+    max_gzip_ratio: float
+
+
+@dataclass(frozen=True)
 class StyleProfile:
     publication_key: str
     voice_name: str
@@ -57,6 +71,7 @@ class StyleProfile:
     reference_sample_refs: tuple[dict[str, str], ...]
     checks: dict[str, bool]
     rules: EditorialRules
+    density: DensityThresholds
 
 
 @dataclass(frozen=True)
@@ -148,6 +163,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
 
     checks = _parse_checks(raw.get("checks"), profile_path)
     rules = _parse_rules(raw.get("rules"), profile_path)
+    density = _parse_density(raw.get("density"), profile_path)
 
     return StyleProfile(
         publication_key=publication_key,
@@ -162,6 +178,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         reference_sample_refs=tuple(refs),
         checks=checks,
         rules=rules,
+        density=density,
     )
 
 
@@ -257,6 +274,41 @@ def _parse_contrast_cap(value: Any, profile_path: Path) -> int | None:
     if not isinstance(value, int) or value < 0:
         raise StyleProfileValidationError(f"rules.contrastCap must be a non-negative integer in {profile_path}")
     return value
+
+
+def _default_density_thresholds() -> DensityThresholds:
+    return DensityThresholds(
+        min_words=int(DEFAULT_DENSITY_THRESHOLDS["minWords"]),
+        min_lexical_density=float(DEFAULT_DENSITY_THRESHOLDS["minLexicalDensity"]),
+        max_gzip_ratio=float(DEFAULT_DENSITY_THRESHOLDS["maxGzipRatio"]),
+    )
+
+
+def _parse_density(value: Any, profile_path: Path) -> DensityThresholds:
+    defaults = _default_density_thresholds()
+    if value is None:
+        return defaults
+    if not isinstance(value, dict):
+        raise StyleProfileValidationError(f"density must be a mapping in {profile_path}")
+
+    min_words = value.get("minWords", defaults.min_words)
+    min_lexical_density = value.get("minLexicalDensity", defaults.min_lexical_density)
+    max_gzip_ratio = value.get("maxGzipRatio", defaults.max_gzip_ratio)
+
+    if not isinstance(min_words, int) or min_words < 1:
+        raise StyleProfileValidationError(f"density.minWords must be a positive integer in {profile_path}")
+    if not isinstance(min_lexical_density, (int, float)) or not 0 < min_lexical_density < 1:
+        raise StyleProfileValidationError(
+            f"density.minLexicalDensity must be between 0 and 1 in {profile_path}"
+        )
+    if not isinstance(max_gzip_ratio, (int, float)) or not 0 < max_gzip_ratio < 1:
+        raise StyleProfileValidationError(f"density.maxGzipRatio must be between 0 and 1 in {profile_path}")
+
+    return DensityThresholds(
+        min_words=min_words,
+        min_lexical_density=float(min_lexical_density),
+        max_gzip_ratio=float(max_gzip_ratio),
+    )
 
 
 def _load_reference_samples(profile: StyleProfile, profile_root: Path) -> tuple[ReferenceSample, ...]:

@@ -34,6 +34,7 @@ FORBIDDEN_OUTPUT_KEYS = frozenset(
         "options",
         "patches",
         "revisedText",
+        "embedder",
     }
 )
 
@@ -109,7 +110,26 @@ def validate_diagnosis(payload: dict[str, Any]) -> dict[str, Any]:
     for index, group in enumerate(repetition_groups):
         _validate_repetition_group(group, f"repetition_groups[{index}]")
 
+    density = payload.get("density")
+    if density is not None:
+        _validate_density(density)
+
     return payload
+
+
+def _validate_density(density: Any) -> None:
+    if not isinstance(density, dict):
+        raise EditorialDiagnosisValidationError("density must be a mapping.")
+    if "embedder" in density:
+        raise EditorialDiagnosisValidationError("density must not include an embedder field.")
+    for field in ("wordCount", "sentenceCount"):
+        value = density.get(field)
+        if not isinstance(value, int) or value < 0:
+            raise EditorialDiagnosisValidationError(f"density.{field} must be a non-negative integer.")
+    for field in ("lexicalDensity", "gzipRatio"):
+        value = density.get(field)
+        if not isinstance(value, (int, float)) or value < 0:
+            raise EditorialDiagnosisValidationError(f"density.{field} must be a non-negative number.")
 
 
 def _validate_finding(entry: Any, location: str) -> None:
