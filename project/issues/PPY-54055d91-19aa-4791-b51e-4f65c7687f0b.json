@@ -27,10 +27,17 @@
       "text": "Steering decision: this is an interactive finding/option loop, not a one-shot diagnose→revise→rubber-stamp. Humans steer findings (skip/rewrite/delete/keep/add), LLMs generate options for selected findings, humans choose/edit/apply. Same pattern as reporting-packet review. Phase 1 (style profile) is unchanged; Phases 3 and 5 rewritten around options and provenance of human decisions.",
       "created_at": "2026-09-08T10:39:20.546230Z",
       "comment_type": "default"
+    },
+    {
+      "id": "adc24239-4664-4e1c-aed8-f87fc6912029",
+      "author": "home",
+      "text": "Filed PPY-8f5273 to tighten diagnose after live Anth.us run: optional checks, never/always compounds, list ordinals, cadence off for house voice, local voice_mismatch.",
+      "created_at": "2026-09-08T11:14:21.538507Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:11:51.547214Z",
-  "updated_at": "2026-09-08T10:39:20.546230Z",
+  "updated_at": "2026-09-08T11:14:21.538507Z",
   "closed_at": null,
   "custom": {}
 }

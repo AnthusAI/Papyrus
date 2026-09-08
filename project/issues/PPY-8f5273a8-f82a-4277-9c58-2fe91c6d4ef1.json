@@ -1,0 +1,28 @@
+{
+  "id": "PPY-8f5273a8-f82a-4277-9c58-2fe91c6d4ef1",
+  "title": "Tighten diagnose against house-voice false positives",
+  "description": "**Follow-on to PPY-156189** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want diagnose to flag brochure-speak and unsupported claims without treating Anth.us house voice as slop, so the steering queue on real articles is usable.\n\n## Problem (dogfood on recent Anth.us posts)\n\nLive diagnose on Sep 2026 posts over-flagged house style and under-used the avoid lexicon:\n\n- `never` / `always` as English, not claims: always-on, always-available, never had a hook, never would have used them\n- `missing_attribution` on list markers (`1.`, `2.`) and sticker numbers (`#247`)\n- `uniform_cadence` on punchy short-sentence house voice (Thrifty Tokenmaxxing, Jevons)\n- `redundancy` on intentional refrains (\"Kanbus organized the work / It did not manage it\")\n- `voice_mismatch` swallowing whole openings because not every sentence has a contraction\n- Style profile cannot enable/disable checks, so cadence cannot be turned down for this voice\n\n## Done when\n\n- Style profile can enable or disable each check (empty lead-in, list-shaped prose, vague claims, unsupported certainty, uniform cadence, redundancy, voice mismatch, missing attribution). Anth.us seed profile turns **uniform cadence off** (or equivalent: do not flag punchy short runs when sentenceStyle already prefers short/focused paragraphs).\n- Unsupported certainty does not fire on `always-on`, `always-available`, `never had`, `never would`, or similar compounds / auxiliaries. It still fires on claim-level `everyone knows` / `undeniably` / bare `never` as universal claim.\n- `missing_attribution` requires a statistical or quantitative *claim* (percent, multiplier like 10×, large counts with units), not list ordinals or `#247`.\n- Redundancy does not treat a short heading/refrain repeated as a rhetorical beat (≤ ~12 words, or heading-only) as copy-paste slop.\n- `voice_mismatch` findings are local (avoided term, or at most one sentence), not a multi-paragraph dump of contraction-free prose.\n- Behave covers the false-positive cases above using fixtures drawn from the live dogfood, plus a still-positive brochure-slop fixture.\n- `papyrus editorial diagnose` remains the operator/agent surface. Draft is still not rewritten.\n\n## Out of scope\n\nRewrite options (PPY-73906c). Newsroom UI. Detector scores. Diagnosing raw MDX as a first-class format (operators use `article.md`).\n\n## Gherkin\n\n```gherkin\nFeature: Diagnose respects house voice and optional checks\n  As a publication operator\n  I want diagnose findings I can actually steer\n  So recent Anth.us articles are not a pile of cadence and never-word false positives\n\n  Scenario: Always-on is not unsupported certainty\n    Given a draft containing \"Keep always-on rules thin\" and \"Grok Bot is always-available\"\n    And a loadable style profile\n    When I run the diagnose command\n    Then there is no unsupported_certainty finding whose excerpt is only those compounds\n\n  Scenario: List ordinals are not missing attribution\n    Given a draft whose only numbers are markdown list markers 1. and 2.\n    When I run the diagnose command\n    Then there is no missing_attribution finding for those markers\n\n  Scenario: Anth.us profile does not flag punchy cadence as slop\n    Given the Anth.us style profile with uniform cadence disabled\n    And a draft of five consecutive short punchy sentences\n    When I run the diagnose command\n    Then there is no uniform_cadence finding\n\n  Scenario: Brochure slop still fires\n    Given a draft that says \"This will revolutionize workflows\" and \"Everyone knows agents will transform the industry\"\n    When I run the diagnose command\n    Then findings include vague_claim or voice_mismatch for the avoided lexicon\n    And findings include unsupported_certainty for \"Everyone knows\"\n\n  Scenario: Rhetorical refrain is not redundancy\n    Given a draft that repeats a short heading \"It did not manage it\" as a refrain\n    When I run the diagnose command\n    Then that refrain is not a redundancy group\n```",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "de1c6511-fa20-4a27-986c-6c4563e3867a",
+      "author": "home",
+      "text": "In progress after live dogfood on recent Anth.us posts. Composer 2.5 planner dispatched. Worktree to create: /tmp/papyrus-PPY-8f5273-diagnose-tighten on cursor/feature/PPY-8f5273-diagnose-tighten. Plan only until worktree exists.",
+      "created_at": "2026-09-08T11:14:21.527738Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-08T11:14:13.987958Z",
+  "updated_at": "2026-09-08T11:14:21.527738Z",
+  "closed_at": null,
+  "custom": {}
+}
