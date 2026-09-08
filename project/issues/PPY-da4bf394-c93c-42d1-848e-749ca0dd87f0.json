@@ -3,7 +3,7 @@
   "title": "Catalog and fuse established editorial signals",
   "description": "**Follow-on under `PPY-54055d`.** Catalog **established** editorial/NLP signals and fuse the ones we can compute into diagnose as independent red flags. Do not invent new NLP methods in this slice.\n\n## Intent\n\nAs a publication operator, I want a named list of signals other people already use, each able to raise a steer-able finding, so diagnose is a fusion of known techniques rather than a homemade detector.\n\n## Catalog (v1)\n\nEach row is a known technique. **Ship** = already in diagnose or add now. **Later** = known but not this PR.\n\n| Signal | Established as | Finding (if flagged) | v1 |\n|---|---|---|---|\n| Banned hedges / intensifiers | House style lists; Chatticus `rules.yml` | `vague_claim` | ship (have) |\n| Empty lead-ins | Common slop/style lists | `empty_leadin` | ship (have) |\n| List-shaped prose | Common LLM-slop pattern lists | `list_shaped_prose` | ship (have) |\n| Unsupported certainty | Journalism / hedge-vs-boost (Hyland) | `unsupported_certainty` | ship (have) |\n| Repeated n-grams | Self-repetition / ROUGE-style n-gram overlap | `redundancy` | ship (have, 4-gram) |\n| Passive voice | Classic style checkers | `voice_mismatch` | ship (have, partial) |\n| Numeric claim without attribution | Newsroom attribution norms | `missing_attribution` | ship (have) |\n| Contrast-stack cap | House style (Chatticus) | `voice_mismatch` | ship (have, optional) |\n| **Lexical density** | Ure (1971); Halliday — content words / total words | `low_lexical_density` | **add** |\n| **gzip ratio** | Compression as Kolmogorov-complexity proxy | `high_compressibility` | **add** |\n| Type-token ratio / MTLD | McCarthy; McCarthy & Jarvis — lexical diversity | `low_lexical_diversity` | later |\n| Flesch–Kincaid / readability | Flesch (1948) | `readability` | later |\n| Propositional idea density | CPIDR; Nun Study | (idea density) | later |\n| Sentence-embedding paraphrase clusters | STS / summarization duplicates | `concept_restatement` | **not v1** (not a density measure) |\n\nFusion: each enabled signal may emit its own finding. No single weighted “quality score.” Thresholds live on the style profile. Detector-score keys stay forbidden.\n\n## Done when\n\n- A checked-in catalog (YAML next to the Anth.us profile or `publications/anthus/editorial-signals.yml`) lists signal id, literature/practice name, finding kind, and whether diagnose implements it.\n- Diagnose still runs existing signals.\n- v1 **adds** lexical density and gzip ratio as independent findings (and a `density` summary with `wordCount`, `sentenceCount`, `lexicalDensity`, `gzipRatio` — no `embedder`).\n- Profile `checks.informationDensity` (or per-signal checks) can disable the new pair. Short drafts below `minWords` do not get document-level density findings.\n- Behave covers: summary present; long padded fluff flags; Anth.us reference excerpt does not; short draft skips; JSON has no embedder field.\n- No sentence embeddings, no TF-IDF clustering, no concept-count invention.\n\n## Gherkin\n\n```gherkin\nFeature: Fuse established density signals into diagnose\n  As a publication operator\n  I want lexical density and compression as named red flags\n  So diagnose uses known techniques before any custom NLP\n\n  Scenario: Catalog names the v1 signals\n    Given the editorial signals catalog\n    Then it lists lexical density and gzip ratio as implemented\n    And it does not list sentence embeddings as a v1 implemented signal\n\n  Scenario: Density summary is present\n    Given a loadable style profile with information density enabled\n    And a draft of several sentences\n    When I run the diagnose command\n    Then the JSON includes density with wordCount, sentenceCount, lexicalDensity, and gzipRatio\n    And the JSON does not include an embedder field\n\n  Scenario: Long low-content fluff is flagged\n    Given a draft longer than the profile minWords that is padded with function words and repeats\n    When I run the diagnose command\n    Then there is a low_lexical_density or high_compressibility finding\n\n  Scenario: House-voice excerpt is not flagged as fluff\n    Given a must-pass excerpt from an Anth.us reference sample longer than minWords\n    And the Anth.us style profile\n    When I run the diagnose command\n    Then there is no low_lexical_density finding\n    And there is no high_compressibility finding\n\n  Scenario: Short drafts skip the document-level density flags\n    Given a draft shorter than the profile minWords\n    When I run the diagnose command\n    Then there is no low_lexical_density finding\n    And there is no high_compressibility finding\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -82,10 +82,17 @@
       "text": "Plan approved (catalog + lexical density + gzip; no embeddings). Worktree verified at /tmp/papyrus-PPY-da4bf3-editorial-density on 5c3f205, clean. Implementation authorized.",
       "created_at": "2026-09-08T12:20:42.128280Z",
       "comment_type": "default"
+    },
+    {
+      "id": "da866f61-7c5f-491a-bc40-154f7353ac8c",
+      "author": "home",
+      "text": "Merged https://github.com/AnthusAI/Papyrus/pull/71 — catalog + lexical density + gzip. 41 unit + 5 Behave scenarios green.",
+      "created_at": "2026-09-08T12:26:08.560385Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:59:55.910656Z",
-  "updated_at": "2026-09-08T12:20:42.128280Z",
-  "closed_at": null,
+  "updated_at": "2026-09-08T12:26:08.560385Z",
+  "closed_at": "2026-09-08T12:26:08.543158Z",
   "custom": {}
 }
