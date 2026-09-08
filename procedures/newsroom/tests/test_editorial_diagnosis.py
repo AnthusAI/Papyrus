@@ -245,6 +245,46 @@ class EditorialDiagnosisTests(unittest.TestCase):
         ]
         self.assertEqual(profile_rules, [])
 
+    def test_information_density_check_default_enabled(self) -> None:
+        profile = load_style_profile(
+            REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis" / "style-profile.yml"
+        )
+        self.assertTrue(profile.profile.checks["informationDensity"])
+
+    def test_diagnose_includes_density_summary_when_enabled(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(fixture_root / "density-enabled-profile.yml")
+        draft_text = (fixture_root / "density-summary-draft.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        density = diagnosis.get("density")
+        self.assertIsInstance(density, dict)
+        for key in ("wordCount", "sentenceCount", "lexicalDensity", "gzipRatio"):
+            self.assertIn(key, density)
+        self.assertNotIn("embedder", diagnosis)
+
+    def test_long_fluff_adds_density_findings(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(fixture_root / "density-enabled-profile.yml")
+        draft_text = (fixture_root / "low-density-fluff.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        kinds = {entry["kind"] for entry in diagnosis["generic_passages"]}
+        self.assertTrue({"low_lexical_density", "high_compressibility"} & kinds)
+
+    def test_short_draft_skips_density_findings(self) -> None:
+        fixture_root = REPO_ROOT / "features_backend" / "fixtures" / "editorial-diagnosis"
+        profile = load_style_profile(fixture_root / "density-enabled-profile.yml")
+        draft_text = (fixture_root / "short-density-draft.md").read_text(encoding="utf-8")
+        diagnosis = diagnose_draft(draft_text, style_profile=profile)
+        kinds = {entry["kind"] for entry in diagnosis["generic_passages"]}
+        self.assertNotIn("low_lexical_density", kinds)
+        self.assertNotIn("high_compressibility", kinds)
+
+    def test_anthus_profile_has_density_thresholds(self) -> None:
+        profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
+        self.assertEqual(profile.profile.density.min_words, 400)
+        self.assertEqual(profile.profile.density.min_lexical_density, 0.45)
+        self.assertEqual(profile.profile.density.max_gzip_ratio, 0.35)
+
 
 if __name__ == "__main__":
     unittest.main()
