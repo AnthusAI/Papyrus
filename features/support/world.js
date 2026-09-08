@@ -673,6 +673,9 @@ class PapyrusWorld {
 setWorldConstructor(PapyrusWorld);
 
 Before(async function ({ pickle }) {
+  if (pickle.tags.some((tag) => tag.name === "@marketing-site")) {
+    return;
+  }
   await this.probeSiteCapabilities();
   const skipReason = shouldSkipScenario(this, pickle.tags);
   if (skipReason) {

@@ -20,4 +20,10 @@ module.exports = {
     format: ["progress", "summary"],
     publishQuiet: true,
   },
+  marketing: {
+    paths: ["features/marketing-site.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/**/*.js"],
+    format: ["progress", "summary"],
+    publishQuiet: true,
+  },
 };

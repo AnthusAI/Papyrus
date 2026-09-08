@@ -1,0 +1,27 @@
+{
+  "name": "papyrus-marketing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The standalone marketing site for Papyrus.",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 -p 3002",
+    "build": "next build",
+    "start": "npx serve@14 out -l 3002",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:bdd": "cd .. && cucumber-js --profile marketing"
+  },
+  "dependencies": {
+    "next": "^15.5.18",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.7.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^15.5.18",
+    "typescript": "^6.0.3"
+  }
+}
