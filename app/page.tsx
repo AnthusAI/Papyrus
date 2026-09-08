@@ -28,6 +28,15 @@ type HomePageProps = {
 export default async function Home({ searchParams }: HomePageProps) {
   const resolvedSearchParams = await searchParams;
   const scenarioId = getScenarioIdParam(resolvedSearchParams?.scenario);
+
+  // CMS-only deployment: the public reader lives on a separate app
+  // (SITE_BRAND.readerDeployment). This app's root is the newsroom, not a
+  // reader home page, so send plain root visits to /newsroom. Preserve the
+  // scenario and OAuth-callback paths.
+  if (SITE_BRAND.readerDeployment && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
+    redirect("/newsroom");
+  }
+
   if (!scenarioId) {
     if (hasOAuthRedirectParams(resolvedSearchParams)) {
       const mastheadHomeHref = await loadFirstPublishedEditionPath();
