@@ -1,23 +1,24 @@
 schemaVersion: 1
 publication:
-  name: "Pilobolus"
+  name: Pilobolus
 canonicalTopicSet:
-  corpusKey: "pilobol-us"
-  classifierId: "pilobol-us"
+  corpusKey: pilobol-us
+  classifierId: pilobol-us
 corpora:
-  - key: "pilobol-us"
-    name: "Pilobolus Field Notes Corpus"
-    path: "corpora/pilobol-us"
-    s3Prefix: "s3://pilobol-us-demo/corpora/pilobol-us/"
-    role: "canonical"
-    localClassifiers:
-      - classifierId: "pilobol-us"
-        label: "Fungus Among Us Topics"
-  - key: "pilobol-us-source"
-    name: "Pilobolus Source Intake"
-    path: "corpora/pilobol-us-source"
-    s3Prefix: "s3://pilobol-us-demo/corpora/pilobol-us-source/"
-    role: "source"
-    localClassifiers:
-      - classifierId: "pilobol-us-source"
-        label: "Pilobolus Source Intake"
+- key: pilobol-us
+  name: Pilobolus Field Notes Corpus
+  path: corpora/pilobol-us
+  # Replace after the pilobol-us-cms Amplify app deploys (see publications/pilobol_us/docs/bootstrap.md).
+  s3Prefix: s3://<pilobol-us-cms-media-bucket>/corpora/pilobol-us/
+  role: canonical
+  localClassifiers:
+  - classifierId: pilobol-us
+    label: Fungus Among Us Topics
+- key: pilobol-us-source
+  name: Pilobolus Source Intake
+  path: corpora/pilobol-us-source
+  s3Prefix: s3://<pilobol-us-cms-media-bucket>/corpora/pilobol-us-source/
+  role: source
+  localClassifiers:
+  - classifierId: pilobol-us-source
+    label: Pilobolus Source Intake

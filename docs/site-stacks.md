@@ -57,7 +57,7 @@ and not a signal to implement Markus inside ops.
 | --- | --- | --- | --- |
 | `app` | `papyrus` | `pretext` | Papyr.us (default) |
 | `app` | `threat-intelligence` | `pretext` | Threat Intelligence |
-| `app` | `pilobol-us` | `markus` | Pilobol.us (acceptance) |
+| `app` | `pilobol-us` | `markus` | Pilobol.us reader (static) + Pilobolus CMS (SSR `/newsroom`) |
 | `app` | `pilobol-us` | `pretext` | Legal mix; not a shipping brand |
 | `app` | `papyrus` | `markus` | Legal mix; not a shipping brand |
 

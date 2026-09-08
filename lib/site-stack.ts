@@ -18,6 +18,14 @@ export type HostingConfig =
   | { kind: "amplify-ssr" }
   | { kind: "amplify-static" };
 
+/** Optional reader deployment when CMS and public reader ship separately (Pilobolus). */
+export type ReaderDeployment = {
+  kind: "amplify-static";
+  repository: string;
+  domain: string;
+  amplifyAppId: string;
+};
+
 export type OpsChrome = "newsprint" | "app";
 
 export type SiteOpsStack = {

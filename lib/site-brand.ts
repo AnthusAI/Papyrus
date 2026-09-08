@@ -5,6 +5,7 @@ import {
   DEFAULT_THEME_PACK_TOKENS,
   type HostingConfig,
   type OpsChrome,
+  type ReaderDeployment,
   type RendererConfig,
   type ThemePackId,
   type ThemePackTokens,
@@ -36,6 +37,8 @@ export type SiteBrand = {
   themeTokens: ThemePackTokens;
   renderer: RendererConfig;
   hosting: HostingConfig;
+  /** Static reader app when it is not co-hosted with this Papyrus checkout. */
+  readerDeployment?: ReaderDeployment;
   opsChrome: OpsChrome;
   corpusKey: string;
   steeringConfigPath: string;

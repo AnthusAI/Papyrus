@@ -61,6 +61,25 @@ separately — a Markus reader may still use Shadcn `/newsroom`. Full mix table:
 Invalid combos can exist in theory (`pretext` + static is a poor fit today).
 Document pairings; do not ship a fake static Pretext pipeline.
 
+## Split reader + CMS (Pilobolus)
+
+Some publications ship **two** Amplify apps:
+
+| App | Repo | Platform | Domain | Serves |
+| --- | --- | --- | --- | --- |
+| Reader | `AnthusAI/Pilobol.us` | `WEB` | `pilobol.us` | Markus static HTML |
+| CMS | `AnthusAI/Papyrus` + `PAPYRUS_SITE_BRAND=pilobol-us` | `WEB_COMPUTE` | `desk.pilobol.us` | `/newsroom`, AppSync, corpus S3 |
+
+Threat Intelligence uses one repo + one `WEB_COMPUTE` app for both reader and
+CMS. Pilobolus uses the split pattern so the Markus reader can iterate on its
+own build while the Papyrus backend evolves independently.
+
+Runbook: [`publications/pilobol_us/docs/bootstrap.md`](../publications/pilobol_us/docs/bootstrap.md).
+
+**Anti-pattern:** importing Pilobolus corpus data into the p.apyr.us app
+(`dbsyytcm9drqa`) or expecting `/newsroom` on the static reader app
+(`d1od6t7lzbwanr`).
+
 ## How a new publication opts in
 
 1. **Choose axes** — theme pack, ops chrome, renderer, layout (if Pretext), publication identity, hosting kind.
@@ -125,7 +144,8 @@ at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 | Threat Intelligence–style **Papyrus fork** | Second product repo + own `WEB_COMPUTE` app per publication; hosting knowledge lives in folklore |
 | **Pod-only README** | Next agent copies Pilobolus by accident; no Papyrus template |
 | **Cargo-cult SSR `amplify.yml`** | Markus site runs `npm run build`, `ampx pipeline-deploy`, ships `.next`; build breaks or wrong stack |
-| **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Markus pods |
+| **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Pilobolus CMS |
+| **Expect `/newsroom` on static reader** | Markus `WEB` app has no Next.js server; use desk subdomain on CMS app |
 | **Wrong domain zone** (`pilobil.us`) | Typo domain; certs and links diverge from **pilobol.us** |
 | **Commit `web/dist/`** | Stale HTML in git; CI drift |
 
