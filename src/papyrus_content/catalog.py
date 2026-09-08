@@ -224,6 +224,10 @@ def build_reference_catalog_registration_records(catalog: dict[str, Any], option
                 "now": now,
                 "actor": options.get("actor") or "Papyrus content CLI",
                 "createCurationAssignment": status == "pending" or bool(options.get("createCurationAssignment")),
+                "createIngestionRationaleMessage": bool(
+                    options.get("createIngestionRationaleMessage")
+                    or options.get("create_ingestion_rationale_message")
+                ),
             },
         )
         records.extend(item_records)
@@ -322,8 +326,9 @@ def reference_records(item: dict[str, Any], context: dict[str, Any]) -> list[dic
     records = [
         reference,
         *reference_attachment_records(item, reference["expected"], context),
-        *reference_message_records(item, reference["expected"], context),
     ]
+    if context.get("createIngestionRationaleMessage"):
+        records.extend(reference_message_records(item, reference["expected"], context))
     if context.get("createCurationAssignment", True):
         records.extend(reference_curation_assignment_records(item, reference["expected"], context))
     return records
@@ -332,7 +337,10 @@ def reference_records(item: dict[str, Any], context: dict[str, Any]) -> list[dic
 def reference_record(item: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     external_item_id = _required_string(item.get("item_id") or item.get("id") or item.get("externalItemId"), "item_id")
     lineage_id = reference_lineage_id_for(context["corpusId"], external_item_id)
-    metadata = sanitize_reference_metadata(item.get("metadata") if isinstance(item.get("metadata"), dict) else item)
+    metadata = sanitize_reference_metadata(item.get("metadata") if isinstance(item.get("metadata"), dict) else {})
+    item_ingestion_rationale = ingestion_rationale_from(item)
+    if item_ingestion_rationale:
+        metadata = {**metadata, "ingestion_rationale": item_ingestion_rationale}
     path_value = item.get("storage_path") or item.get("storagePath") or item.get("relpath") or item.get("path")
     normalized_path = normalize_storage_path(path_value)
     curation_status = normalize_reference_curation_status(
