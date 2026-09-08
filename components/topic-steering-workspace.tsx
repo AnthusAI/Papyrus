@@ -932,6 +932,7 @@ function NewsDeskDashboard({
     semanticNodes,
   });
   const canRefreshNewsroomSections = canEdit && editorShellReady && authState.status === "signedIn" && !dashboard.isDemo;
+  const canLoadPrivateCorpus = !dashboard.isDemo && editorShellReady && authState.status === "signedIn";
   const refreshNewsroomSections = useCallback(async () => {
     if (dashboard.isDemo || !canRefreshNewsroomSections) {
       setNewsroomSections(fallbackNewsroomSections);
@@ -1109,6 +1110,12 @@ function NewsDeskDashboard({
   }, [activeTab, dashboard.isDemo, dashboard.categoryTrees, dashboard.categoryNodes]);
 
   useEffect(() => {
+    if (authState.status === "signedIn") return;
+    setLoadedSections((current) => ({ ...current, references: false }));
+    setHasHydratedReferences(false);
+  }, [authState.status]);
+
+  useEffect(() => {
     if (dashboard.isDemo) return;
     let active = true;
 
@@ -1123,17 +1130,23 @@ function NewsDeskDashboard({
         });
     }
 
-    if (activeTab === "references" && !loadedSections.references) {
-      setLoadedSections((current) => ({ ...current, references: true }));
+    if (activeTab === "references" && canLoadPrivateCorpus && (!loadedSections.references || !hasHydratedReferences)) {
       void loadEditorReferencesData()
         .then(({ references: nextReferences, referenceAttachments }) => {
           if (!active) return;
           setReferences(nextReferences);
           setReferenceAttachments(referenceAttachments);
           setHasHydratedReferences(true);
+          setLoadedSections((current) => ({ ...current, references: true }));
         })
         .catch((error) => {
-          if (active) setActionState({ id: "references-load", message: error instanceof Error ? error.message : "references load failed", tone: "error" });
+          if (active) {
+            setActionState({
+              id: "references-load",
+              message: error instanceof Error ? error.message : "references load failed",
+              tone: "error",
+            });
+          }
         });
     }
 
@@ -1221,8 +1234,10 @@ function NewsDeskDashboard({
     };
   }, [
     activeTab,
+    canLoadPrivateCorpus,
     dashboard.canManageUsers,
     dashboard.isDemo,
+    hasHydratedReferences,
     newsroomSections.length,
     hasRefreshedNewsroomSections,
     canRefreshNewsroomSections,
