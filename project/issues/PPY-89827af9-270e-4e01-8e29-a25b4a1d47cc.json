@@ -1,7 +1,7 @@
 {
   "id": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
-  "title": "Evaluations harness for editorial diagnose and rewrite options",
-  "description": "# Evaluations harness for editorial quality tooling\n\n## Intent\n\nAdd regression evaluations so diagnose findings and rewrite-option quality can improve safely as the standalone tool evolves.\n\n## Done when\n\n- Fixture corpus of drafts + expected finding classes / acceptable option properties.\n- Offline-friendly eval runner (deterministic where possible; LLM judges gated and versioned).\n- Metrics tracked: precision/recall on finding types, unsupported-claim rate in options, human-accept proxy scores.\n- CI can run a smoke subset without Papyrus.\n- Documented how to add fixtures when Ryan rejects a bad suggestion.",
+  "title": "Limatus evaluations harness",
+  "description": "# Limatus evaluations harness\n\n## Intent\n\nRegression evaluations so Limatus diagnose findings and rewrite-option quality can improve safely.\n\n## Done when\n\n- Fixture corpus of drafts + expected finding classes / acceptable option properties.\n- Offline-friendly eval runner (deterministic where possible; LLM judges gated and versioned).\n- Metrics: precision/recall on finding types, unsupported-claim rate in options, human-accept proxies.\n- CI smoke subset without Papyrus.\n- Documented how Ryan rejects become new fixtures.",
   "type": "epic",
   "status": "open",
   "priority": 1,
@@ -15,7 +15,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-09-08T18:04:18.718345Z",
-  "updated_at": "2026-09-08T18:04:18.718345Z",
+  "updated_at": "2026-09-08T18:17:29.581831Z",
   "closed_at": null,
   "custom": {}
 }

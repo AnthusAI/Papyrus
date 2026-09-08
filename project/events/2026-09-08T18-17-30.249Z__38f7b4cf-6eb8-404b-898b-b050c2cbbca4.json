@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "38f7b4cf-6eb8-404b-898b-b050c2cbbca4",
+  "issue_id": "PPY-0b74e8a2-989f-448c-ba63-c54db5ba26ce",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:30.249Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Scaffold standalone package (name TBD) with shared core",
+        "to": "Scaffold Limatus package with shared core"
+      }
+    }
+  }
+}

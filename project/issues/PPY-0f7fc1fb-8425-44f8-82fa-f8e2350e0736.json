@@ -1,6 +1,6 @@
 {
   "id": "PPY-0f7fc1fb-8425-44f8-82fa-f8e2350e0736",
-  "title": "Ship CLI: diagnose, suggest, diff-oriented apply helpers",
+  "title": "Ship Limatus CLI: diagnose, suggest, diff-oriented apply helpers",
   "description": "Human-facing CLI for diagnose \u2192 marked findings \u2192 rewrite options / redline-style suggestions \u2192 show diff. Config via local style-rules file. No Papyrus required.",
   "type": "story",
   "status": "open",
@@ -19,7 +19,7 @@
   ],
   "comments": [],
   "created_at": "2026-09-08T18:04:33.697864Z",
-  "updated_at": "2026-09-08T18:04:33.697864Z",
+  "updated_at": "2026-09-08T18:17:43.611932Z",
   "closed_at": null,
   "custom": {}
 }

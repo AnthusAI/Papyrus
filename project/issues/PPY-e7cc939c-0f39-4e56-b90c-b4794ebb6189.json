@@ -1,6 +1,6 @@
 {
   "id": "PPY-e7cc939c-0f39-4e56-b90c-b4794ebb6189",
-  "title": "Editorial eval fixture corpus + runner smoke",
+  "title": "Limatus eval fixture corpus + runner smoke",
   "description": "Seed fixtures (drafts + expected finding classes / option constraints) and a smoke eval runner that can run without Papyrus. Document how Ryan rejects become new fixtures.",
   "type": "story",
   "status": "open",
@@ -20,7 +20,7 @@
   ],
   "comments": [],
   "created_at": "2026-09-08T18:04:34.323977Z",
-  "updated_at": "2026-09-08T18:04:34.323977Z",
+  "updated_at": "2026-09-08T18:17:31.549377Z",
   "closed_at": null,
   "custom": {}
 }

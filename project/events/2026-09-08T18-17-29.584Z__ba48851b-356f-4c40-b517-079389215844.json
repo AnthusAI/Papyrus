@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ba48851b-356f-4c40-b517-079389215844",
+  "issue_id": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:29.584Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Evaluations harness for editorial diagnose and rewrite options",
+        "to": "Limatus evaluations harness"
+      },
+      "description": {
+        "from": "# Evaluations harness for editorial quality tooling\n\n## Intent\n\nAdd regression evaluations so diagnose findings and rewrite-option quality can improve safely as the standalone tool evolves.\n\n## Done when\n\n- Fixture corpus of drafts + expected finding classes / acceptable option properties.\n- Offline-friendly eval runner (deterministic where possible; LLM judges gated and versioned).\n- Metrics tracked: precision/recall on finding types, unsupported-claim rate in options, human-accept proxy scores.\n- CI can run a smoke subset without Papyrus.\n- Documented how to add fixtures when Ryan rejects a bad suggestion.",
+        "to": "# Limatus evaluations harness\n\n## Intent\n\nRegression evaluations so Limatus diagnose findings and rewrite-option quality can improve safely.\n\n## Done when\n\n- Fixture corpus of drafts + expected finding classes / acceptable option properties.\n- Offline-friendly eval runner (deterministic where possible; LLM judges gated and versioned).\n- Metrics: precision/recall on finding types, unsupported-claim rate in options, human-accept proxies.\n- CI smoke subset without Papyrus.\n- Documented how Ryan rejects become new fixtures."
+      }
+    }
+  }
+}

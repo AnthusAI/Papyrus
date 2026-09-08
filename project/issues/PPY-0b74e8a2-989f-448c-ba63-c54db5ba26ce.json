@@ -1,6 +1,6 @@
 {
   "id": "PPY-0b74e8a2-989f-448c-ba63-c54db5ba26ce",
-  "title": "Scaffold standalone package (name TBD) with shared core",
+  "title": "Scaffold Limatus package with shared core",
   "description": "Create the new repo/package skeleton (name TBD): pyproject, package layout, CLI entrypoint stub, public Python API stub, README. Zero imports from Papyrus. Decide temporary working directory vs new GitHub repo with Ryan if needed.",
   "type": "story",
   "status": "open",
@@ -14,7 +14,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-09-08T18:04:32.781093Z",
-  "updated_at": "2026-09-08T18:04:32.781093Z",
+  "updated_at": "2026-09-08T18:17:30.247120Z",
   "closed_at": null,
   "custom": {}
 }

@@ -1,6 +1,6 @@
 {
   "id": "PPY-07eda89d-16a8-44c0-af72-e082afef8f99",
-  "title": "Move diagnose + rewrite-options engines into standalone core",
+  "title": "Move diagnose + rewrite-options engines into Limatus core",
   "description": "Port `editorial_diagnosis` / rewrite-option generation (and related schemas) out of `papyrus_content` into the standalone core. Preserve finding JSON + option markup/suggestion shapes. CLI and SDK both call this core.",
   "type": "story",
   "status": "open",
@@ -23,7 +23,7 @@
   ],
   "comments": [],
   "created_at": "2026-09-08T18:04:33.389757Z",
-  "updated_at": "2026-09-08T18:04:33.389757Z",
+  "updated_at": "2026-09-08T18:17:30.580315Z",
   "closed_at": null,
   "custom": {}
 }

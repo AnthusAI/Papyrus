@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "e9f4e91a-3d2f-4018-85e4-727af071aae6",
+  "issue_id": "PPY-2c62aaf4-a343-4535-a7c0-ae15da9e8ff5",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:31.226Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Papyrus adapter: style profile → standalone config + SDK calls",
+        "to": "Papyrus adapter: style profile → Limatus config + SDK calls"
+      }
+    }
+  }
+}

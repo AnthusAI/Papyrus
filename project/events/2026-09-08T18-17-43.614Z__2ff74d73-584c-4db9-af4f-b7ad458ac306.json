@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "2ff74d73-584c-4db9-af4f-b7ad458ac306",
+  "issue_id": "PPY-0f7fc1fb-8425-44f8-82fa-f8e2350e0736",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:43.614Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Ship CLI: diagnose, suggest, diff-oriented apply helpers",
+        "to": "Ship Limatus CLI: diagnose, suggest, diff-oriented apply helpers"
+      }
+    }
+  }
+}

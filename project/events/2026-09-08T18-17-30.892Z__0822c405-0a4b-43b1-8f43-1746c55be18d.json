@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "0822c405-0a4b-43b1-8f43-1746c55be18d",
+  "issue_id": "PPY-46c0b8a5-de87-4906-87b5-4dde1ee64b94",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:30.892Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Ship Python SDK API for programmatic callers",
+        "to": "Ship Limatus Python SDK API for programmatic callers"
+      }
+    }
+  }
+}
