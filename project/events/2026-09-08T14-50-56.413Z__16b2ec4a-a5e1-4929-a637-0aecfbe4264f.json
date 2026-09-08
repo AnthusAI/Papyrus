@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "16b2ec4a-a5e1-4929-a637-0aecfbe4264f",
+  "issue_id": "PPY-228e8d6b-1f1b-4f95-813f-b9a528ae0f36",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T14:50:56.413Z",
+  "actor_id": "home",
+  "payload": {
+    "assignee": null,
+    "description": "## Intent\n\nAs a prospective Papyrus adopter, I want a standalone Papyrus marketing site at papyrus.anth.us, so that I can understand the product separately from the demo publication at p.apyr.us.\n\n## Initial scope\n\n- Establish a simple, normal marketing-site application separate from the Papyrus CMS reader.\n- Provide a reliable local development command and foundation for static deployment.\n- Reserve the existing Papyrus plant pictogram as the initial brand anchor.\n- Do not add CMS, publication-reader, or wiki behavior.\n\n## Definition of Done\n\n- The marketing app has an executable behavior specification.\n- A local dev server starts and serves the app.\n- The work is ready for later visual design.",
+    "issue_type": "story",
+    "labels": [],
+    "parent": null,
+    "priority": 2,
+    "status": "open",
+    "title": "Establish the standalone Papyrus marketing site"
+  }
+}
