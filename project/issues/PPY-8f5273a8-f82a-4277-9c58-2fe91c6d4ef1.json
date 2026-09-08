@@ -33,10 +33,24 @@
       "text": "Worktree verified. Implementation authorized on cursor/feature/PPY-8f5273-diagnose-tighten.",
       "created_at": "2026-09-08T11:17:04.990682Z",
       "comment_type": "default"
+    },
+    {
+      "id": "ff6f6ebc-e26c-4be9-b108-393c50cf5d98",
+      "author": "home",
+      "text": "Implementation PR: https://github.com/AnthusAI/Papyrus/pull/68. Verification: unittest 14/14, Behave 7/7 (PPY-156189 + house-voice). Worktree: /tmp/papyrus-PPY-8f5273-diagnose-tighten.",
+      "created_at": "2026-09-08T11:19:34.520012Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "023acbff-e451-42c6-af5f-1d4880c0a1b0",
+      "author": "home",
+      "text": "Next slice after this PR: PPY-dc9251 (rules as profile data + two-sided corpus). Do not expand this PR to absorb that.",
+      "created_at": "2026-09-08T11:36:59.688885Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:14:13.987958Z",
-  "updated_at": "2026-09-08T11:17:04.990682Z",
+  "updated_at": "2026-09-08T11:36:59.688885Z",
   "closed_at": null,
   "custom": {}
 }

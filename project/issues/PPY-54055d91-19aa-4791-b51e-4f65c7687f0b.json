@@ -34,10 +34,17 @@
       "text": "Filed PPY-8f5273 to tighten diagnose after live Anth.us run: optional checks, never/always compounds, list ordinals, cadence off for house voice, local voice_mismatch.",
       "created_at": "2026-09-08T11:14:21.538507Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c9b9f582-237e-4e4c-9387-10a0afc84942",
+      "author": "home",
+      "text": "Decision: steal Chattic.us-web publication-writing gate design (rules as data + two-sided corpus) into Papyrus diagnose. Chatticus website CMS is later and separate. New story PPY-dc9251.",
+      "created_at": "2026-09-08T11:36:59.676924Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:11:51.547214Z",
-  "updated_at": "2026-09-08T11:14:21.538507Z",
+  "updated_at": "2026-09-08T11:36:59.676924Z",
   "closed_at": null,
   "custom": {}
 }
