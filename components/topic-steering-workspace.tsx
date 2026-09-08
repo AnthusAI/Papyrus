@@ -81,6 +81,7 @@ import { cn } from "../lib/utils";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
+import { ReaderAuthControl } from "./reader-auth-control";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
@@ -15394,6 +15395,11 @@ function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDes
           <p className="m-0 text-sm text-muted-foreground">{formatAccessDetail(shell)}</p>
           {shell?.error ? <p className="text-sm text-destructive">{shell.error}</p> : null}
           <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
+          {shell?.phase === "signedOut" || shell?.phase === "error" ? (
+            <div className="news-desk-access-panel__auth">
+              <ReaderAuthControl postAuthPath="/newsroom" showIdentity />
+            </div>
+          ) : null}
         </div>
       </section>
     </NewsroomOpsShell>
