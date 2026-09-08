@@ -19,10 +19,17 @@
       "text": "Phase 1 in progress. Composer 2.5 planner dispatched for style profile store + Anth.us reference corpus. Worktree to be created at /tmp/papyrus-PPY-1c06f1-style-profile on feature/PPY-1c06f1-style-profile. Implementation not authorized until the plan names that worktree and survives review.",
       "created_at": "2026-09-08T10:35:17.088783Z",
       "comment_type": "default"
+    },
+    {
+      "id": "eb66aeea-2bbb-473a-97a6-9d32baa3c323",
+      "author": "home",
+      "text": "Plan reviewed. Worktree /tmp/papyrus-PPY-1c06f1-style-profile is not created yet; implementation not authorized until that path exists on cursor/feature/PPY-1c06f1-style-profile from origin/develop.",
+      "created_at": "2026-09-08T10:41:59.738813Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.124334Z",
-  "updated_at": "2026-09-08T10:35:17.088783Z",
+  "updated_at": "2026-09-08T10:41:59.738813Z",
   "closed_at": null,
   "custom": {}
 }
