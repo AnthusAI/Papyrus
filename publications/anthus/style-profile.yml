@@ -9,6 +9,11 @@ tone:
 sentenceStyle:
   - Use contractions and active voice.
   - Keep paragraphs focused; favor concrete nouns, numbers, and operational detail.
+voicePatterns:
+  - Opens contrastive sentences with "But" rather than "However" or "That said."
+  - Contracts negatives in first person ("I don't," "I wasn't") rather than expanding them ("I do not," "I was not").
+  - When cutting a reused lead-in phrase, prefer starting the replacement with a conjunction ("But," "So," "And") over a flat declarative restart.
+  - Prefers short, plain follow-on clauses over compound abstractions ("have to" over "am required to").
 structure:
   - Lead with the practical stake for the reader.
   - Move from trend or claim to mechanism, then to checks the reader can run.

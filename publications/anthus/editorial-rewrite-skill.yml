@@ -8,6 +8,8 @@ constraints:
   - Do not add fake typos, slang spam, or manufactured imperfections to evade detectors.
   - Follow the publication style profile over generic Internet prose.
   - Return patch replacements only for the flagged span; do not rewrite the whole document.
+  - Preserve the contraction density, sentence-initial conjunctions (e.g. "But", "So"), and grammatical person of the text immediately surrounding the flagged span, unless the finding specifically requires changing them.
+  - Include at least one minimal-edit option that changes only what the finding requires and leaves the surrounding register untouched.
 output:
   minOptionsPerFinding: 2
   maxOptionsPerFinding: 3

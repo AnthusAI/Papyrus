@@ -161,6 +161,11 @@ def _validate_option(entry: Any, location: str) -> dict[str, Any]:
             raise EditorialOptionsValidationError(
                 f"{location}.unresolvedQuestions[{question_index}] must be a string."
             )
+    voice_fidelity_warning = entry.get("voiceFidelityWarning")
+    if voice_fidelity_warning is not None and not isinstance(voice_fidelity_warning, str):
+        raise EditorialOptionsValidationError(
+            f"{location}.voiceFidelityWarning must be a string or null."
+        )
     return {
         "id": option_id,
         "patch": {
@@ -170,4 +175,5 @@ def _validate_option(entry: Any, location: str) -> dict[str, Any]:
         "reason": reason.strip(),
         "factVerificationRequired": fact_verification,
         "unresolvedQuestions": list(unresolved),
+        "voiceFidelityWarning": voice_fidelity_warning,
     }

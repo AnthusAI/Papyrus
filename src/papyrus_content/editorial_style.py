@@ -64,6 +64,7 @@ class StyleProfile:
     audience: str
     tone: tuple[str, ...]
     sentence_style: tuple[str, ...]
+    voice_patterns: tuple[str, ...]
     structure: tuple[str, ...]
     lexicon_prefer: tuple[str, ...]
     lexicon_avoid: tuple[str, ...]
@@ -130,6 +131,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
     audience = _require_non_empty_string(raw.get("audience"), "audience", profile_path)
     tone = _require_string_list(raw.get("tone"), "tone", profile_path)
     sentence_style = _require_string_list(raw.get("sentenceStyle"), "sentenceStyle", profile_path)
+    voice_patterns = _optional_string_list(raw.get("voicePatterns"), "voicePatterns", profile_path)
     structure = _require_string_list(raw.get("structure"), "structure", profile_path)
 
     lexicon = raw.get("lexicon")
@@ -171,6 +173,7 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         audience=audience,
         tone=tuple(tone),
         sentence_style=tuple(sentence_style),
+        voice_patterns=tuple(voice_patterns),
         structure=tuple(structure),
         lexicon_prefer=tuple(lexicon_prefer),
         lexicon_avoid=tuple(lexicon_avoid),

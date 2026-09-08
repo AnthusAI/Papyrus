@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -22,6 +23,29 @@ from .model_defaults import DEFAULT_EDITORIAL_REWRITE_MODEL
 DEFAULT_EDITORIAL_REWRITE_SKILL_PATH = (
     PAPYRUS_ROOT / "publications" / "anthus" / "editorial-rewrite-skill.yml"
 )
+
+_CONTRACTION_RE = re.compile(r"\b\w+['’](?:t|s|re|ve|ll|d|m)\b", re.IGNORECASE)
+
+
+def _contraction_voice_warning(excerpt: str, replacement: str) -> str | None:
+    """Flag an option that quietly drops a contraction the flagged text was using.
+
+    This is advisory only: it never blocks an option, it just surfaces a hint so a
+    human reviewer can catch a register shift the LLM introduced (e.g. "I don't" ->
+    "I no longer") that generic style-profile prose doesn't reliably prevent.
+    """
+    if not replacement.strip():
+        return None
+    excerpt_contractions = sorted(set(match.lower() for match in _CONTRACTION_RE.findall(excerpt)))
+    if not excerpt_contractions:
+        return None
+    if _CONTRACTION_RE.search(replacement):
+        return None
+    return (
+        "Flagged text used a contraction (" + ", ".join(excerpt_contractions) + "); "
+        "this option has none. Confirm the flatter phrasing still sounds like the author."
+    )
+
 
 EVASION_TERMS = (
     "lol",
@@ -193,6 +217,28 @@ def _generate_options_with_llm(
     return normalized
 
 
+def _local_register_anchor(draft_text: str, span: dict[str, int], radius: int = 220) -> str:
+    """Surrounding text around the flagged span, so the model can match local register
+    (contractions, sentence-initial conjunctions, person) instead of inferring voice from
+    generic style-profile prose alone."""
+    start = max(0, span["start"] - radius)
+    end = min(len(draft_text), span["end"] + radius)
+    before = draft_text[start : span["start"]]
+    flagged = draft_text[span["start"] : span["end"]]
+    after = draft_text[span["end"] : end]
+    return f"{before}[[{flagged}]]{after}"
+
+
+def _reference_voice_excerpt(style_profile: LoadedStyleProfile, max_chars: int = 500) -> str | None:
+    """A short excerpt from the publication's own reference corpus, used only as a
+    register anchor for the model — never as source material to copy from."""
+    if not style_profile.samples:
+        return None
+    sample = style_profile.samples[0]
+    excerpt = sample.body.strip()[:max_chars]
+    return f'From "{sample.title}": "{excerpt}..."'
+
+
 def _build_rewrite_prompt(
     *,
     draft_text: str,
@@ -212,24 +258,53 @@ def _build_rewrite_prompt(
         f"- Audience: {profile.audience}",
         f"- Tone: {'; '.join(profile.tone)}",
         f"- Sentence style: {'; '.join(profile.sentence_style)}",
-        f"- Prefer lexicon: {', '.join(profile.lexicon_prefer)}",
-        f"- Avoid lexicon: {', '.join(profile.lexicon_avoid)}",
-        f"- Evidence rules: {'; '.join(profile.evidence_rules)}",
-        "",
-        f"Finding kind: {finding['kind']}",
-        f"Finding rationale: {finding['rationale']}",
-        f"Flagged excerpt: {finding['excerpt']}",
-        f"Span coordinates: start={span['start']}, end={span['end']}",
-        "",
-        "Draft text:",
-        draft_text,
-        "",
-        (
-            f"Return {skill.min_options_per_finding} to {skill.max_options_per_finding} options. "
-            "Each option must replace only the flagged span. "
-            "Do not return a whole-document rewrite."
-        ),
     ]
+    if profile.voice_patterns:
+        lines.append(f"- Voice patterns: {'; '.join(profile.voice_patterns)}")
+    lines.extend(
+        [
+            f"- Prefer lexicon: {', '.join(profile.lexicon_prefer)}",
+            f"- Avoid lexicon: {', '.join(profile.lexicon_avoid)}",
+            f"- Evidence rules: {'; '.join(profile.evidence_rules)}",
+            "",
+            f"Finding kind: {finding['kind']}",
+            f"Finding rationale: {finding['rationale']}",
+            f"Flagged excerpt: {finding['excerpt']}",
+            f"Span coordinates: start={span['start']}, end={span['end']}",
+            "",
+            "Local register anchor (surrounding text; the flagged span is marked [[ ]]):",
+            _local_register_anchor(draft_text, span),
+            (
+                "Match the contraction density, sentence-initial conjunctions, and grammatical "
+                "person already present in this surrounding text unless the finding specifically "
+                "requires changing them."
+            ),
+        ]
+    )
+    reference_excerpt = _reference_voice_excerpt(style_profile)
+    if reference_excerpt:
+        lines.extend(
+            [
+                "",
+                "Author voice reference (register only — do not copy sentences verbatim):",
+                reference_excerpt,
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "Draft text:",
+            draft_text,
+            "",
+            (
+                f"Return {skill.min_options_per_finding} to {skill.max_options_per_finding} options. "
+                "Each option must replace only the flagged span. "
+                "Do not return a whole-document rewrite. "
+                "At least one option must be a minimal edit that changes only what the finding "
+                "requires and keeps the surrounding register intact."
+            ),
+        ]
+    )
     if finding["kind"] == "empty_leadin":
         lines.extend(
             [
@@ -272,6 +347,7 @@ def _normalize_options_for_finding(
                     for question in (entry.get("unresolvedQuestions") or [])
                     if str(question).strip()
                 ],
+                "voiceFidelityWarning": _contraction_voice_warning(finding["excerpt"], replacement),
             }
         )
     if len(normalized) < 2:
@@ -297,6 +373,7 @@ def _ensure_empty_leadin_deletion_option(
         "reason": "Delete the empty lead-in and let the next sentence carry the opening.",
         "factVerificationRequired": False,
         "unresolvedQuestions": [],
+        "voiceFidelityWarning": None,
     }
     return [deletion, *options[:2]]
 
