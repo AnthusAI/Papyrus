@@ -12,5 +12,5 @@ npm install
 npm run dev
 ```
 
-The site runs at `http://127.0.0.1:3002` and builds as a static export in
+The site runs at `http://127.0.0.1:3012` and builds as a static export in
 `out/`.

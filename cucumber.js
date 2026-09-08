@@ -22,7 +22,7 @@ module.exports = {
   },
   marketing: {
     paths: ["features/marketing-site.feature"],
-    require: ["features/support/**/*.js", "features/step_definitions/**/*.js"],
+    require: ["features/step_definitions/marketing-site.steps.js"],
     format: ["progress", "summary"],
     publishQuiet: true,
   },

@@ -4,12 +4,12 @@
   "private": true,
   "description": "The standalone marketing site for Papyrus.",
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1 -p 3002",
+    "dev": "next dev --hostname 127.0.0.1 -p 3012",
     "build": "next build",
-    "start": "npx serve@14 out -l 3002",
+    "start": "npx serve@14 out -l 3012",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:bdd": "cd .. && cucumber-js --profile marketing"
+    "test:bdd": "cd .. && NODE_PATH=marketing/node_modules cucumber-js --profile marketing"
   },
   "dependencies": {
     "next": "^15.5.18",
@@ -17,6 +17,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^12.8.3",
     "@types/node": "^25.7.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
