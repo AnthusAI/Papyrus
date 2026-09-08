@@ -14,3 +14,10 @@ npm run dev
 
 The site runs at `http://127.0.0.1:3012` and builds as a static export in
 `out/`.
+
+## Current scope
+
+The sales page includes the Papyrus product story, open-source ownership
+positioning, setup and management pricing, FAQ, and the wait-list interface.
+The wait-list form is deliberately a design-only preview for now: it prevents
+submission and does not send or store visitor data until a backend is added.

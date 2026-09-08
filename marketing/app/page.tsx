@@ -1,47 +1,51 @@
-import Image from "next/image";
+/**
+ * Design direction: editorial archaeology. Papyrus fiber, carbon ink, Nile
+ * blue, reed green, and oxide-red marginalia turn the ancient writing surface
+ * into a modern systems story. The asymmetric "living scroll" is the visual
+ * anchor; motion is quiet, botanical, and CSS-only.
+ */
+import type { Metadata } from "next";
+import { Faq } from "@/components/Faq";
+import { Footer } from "@/components/Footer";
+import { Header } from "@/components/Header";
+import { Hero } from "@/components/Hero";
+import { Newsroom } from "@/components/Newsroom";
+import { Ownership } from "@/components/Ownership";
+import { Pricing } from "@/components/Pricing";
+import { Waitlist } from "@/components/Waitlist";
 
-const demoSiteUrl = "https://p.apyr.us";
+export const metadata: Metadata = {
+  title: "Open-source AI newsroom and publishing system",
+  description: "Papyrus is an open-source, AI-assisted newsroom for a specific beat. Run it in your AWS account, manage it yourself, or hire Anthus for setup and operations—with no vendor lock-in.",
+  keywords: ["open-source newsroom", "AI publishing system", "self-hosted CMS", "AI research agents", "AWS publishing"],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "Papyrus — a newsroom with a long memory",
+    description: "Build a source-grounded publication in your own AWS account. Keep the code, the data, and the freedom to run it your way.",
+    siteName: "Papyrus",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Papyrus — a newsroom with a long memory",
+    description: "Open-source, AI-assisted publishing with no vendor lock-in.",
+  },
+};
 
 export default function HomePage() {
   return (
-    <main>
-      <section aria-labelledby="page-title" className="foundation">
-        <div className="wordmark" aria-label="Papyrus">
-          <Image src="/papyrus-plant.png" alt="Papyrus plant" width={38} height={48} priority />
-          <span>Papyrus</span>
-        </div>
-
-        <p className="eyebrow">A newsroom system for a specific beat</p>
-        <h1 id="page-title">Follow the story, not the feed.</h1>
-        <p className="summary">
-          Papyrus turns a subject you care about into a publication that can keep learning: its sources, its vocabulary, its open questions, and its editorial judgment.
-        </p>
-
-        <div className="principles">
-          <section>
-            <h2>A beat is configuration, not code.</h2>
-            <p>
-              Start with any subject worth watching closely. Define its sources, the categories that matter, and the sections your readers need. The publication changes shape without rebuilding the software.
-            </p>
-          </section>
-          <section>
-            <h2>Keep the evidence with the story.</h2>
-            <p>
-              Papyrus manages the newsroom around an article: references, a reviewed topic map, concepts and their relationships, assignments, drafts, editions, and the decisions that connect them.
-            </p>
-          </section>
-          <section>
-            <h2>Give automation an editor.</h2>
-            <p>
-              Research agents watch the beat and prepare source-grounded reporting packets. Editors steer coverage, choose what becomes copy, and review the work before it reaches readers.
-            </p>
-          </section>
-        </div>
-
-        <p className="note">
-          See the system in a working publication at <a href={demoSiteUrl}>p.apyr.us</a>.
-        </p>
-      </section>
-    </main>
+    <>
+      <Header />
+      <main id="main-content">
+        <Hero />
+        <Newsroom />
+        <Ownership />
+        <Pricing />
+        <Faq />
+        <Waitlist />
+      </main>
+      <Footer />
+    </>
   );
 }
