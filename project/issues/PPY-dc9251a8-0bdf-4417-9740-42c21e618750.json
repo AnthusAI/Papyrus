@@ -38,10 +38,17 @@
       "text": "Plan approved with corrections: (1) reset worktree onto origin/develop before coding — PR 68 is merged, do not rebase the old 8f5273 SHA; (2) any fixture profile must be a fully loadable style profile (5–10 reference samples), not a stub; (3) editorial Behave is 9 scenarios today, not 7. Implementation authorized.",
       "created_at": "2026-09-08T11:42:10.537483Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7f03a85d-38cd-4397-aab6-df0c3360bff6",
+      "author": "home",
+      "text": "Implementation PR: https://github.com/AnthusAI/Papyrus/pull/69. Worktree /tmp/papyrus-PPY-dc9251-editorial-rules. Manager review: rules as data, corpus, --text XOR --draft, Anth.us seed without insider terms or contrastCap. Holding merge for acceptance.",
+      "created_at": "2026-09-08T11:48:13.526879Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:36:52.806949Z",
-  "updated_at": "2026-09-08T11:42:10.537483Z",
+  "updated_at": "2026-09-08T11:48:13.526879Z",
   "closed_at": null,
   "custom": {}
 }
