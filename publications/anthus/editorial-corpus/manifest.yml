@@ -1,0 +1,13 @@
+mustFail:
+  - id: brochure-hedges
+    path: must-fail/brochure-hedges.md
+    expectTerms:
+      - revolutionary
+      - coming soon
+mustPass:
+  - id: latency-and-repo
+    path: must-pass/latency-and-repo.md
+    sourceSample: never-use-fast
+  - id: contrast-not-y
+    path: must-pass/contrast-not-y.md
+    sourceSample: never-use-fast
