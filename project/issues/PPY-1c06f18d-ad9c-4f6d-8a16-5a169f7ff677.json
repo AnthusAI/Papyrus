@@ -33,10 +33,17 @@
       "text": "Worktree verified at /tmp/papyrus-PPY-1c06f1-style-profile on cursor/feature/PPY-1c06f1-style-profile. Implementation authorized. Stay in that worktree; PR into develop; no project/ in the product PR.",
       "created_at": "2026-09-08T10:42:34.589776Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8be44b62-56f2-486e-870a-dfe2621cea46",
+      "author": "home",
+      "text": "Implementation on cursor/feature/PPY-1c06f1-style-profile. PR: https://github.com/AnthusAI/Papyrus/pull/66. Behave: 2 scenarios passed. Acceptance dispatched; not closing until that review lands.",
+      "created_at": "2026-09-08T10:46:16.624847Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T09:12:07.124334Z",
-  "updated_at": "2026-09-08T10:42:34.589776Z",
+  "updated_at": "2026-09-08T10:46:16.624847Z",
   "closed_at": null,
   "custom": {}
 }
