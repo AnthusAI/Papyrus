@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "f16a90e1-6ee2-4d6e-badf-49085f2ea7af",
+  "issue_id": "PPY-1c06f18d-ad9c-4f6d-8a16-5a169f7ff677",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T10:35:16.973Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "**Phase 1 of MVP** under `PPY-54055d` (quality-first editorial rewrite loop).\n\n## Done when\n\n- An editable style profile (YAML or equivalent) can be stored for a publication/pod: voice name, audience, tone, sentence style, structure, prefer/avoid lexicon, evidence rules.\n- 5–10 approved reference samples are linked or stored for voice match.\n- Profile is loadable by later diagnostic/revision passes.\n- No detector scores in the profile.\n\n## Notes\n\nStart narrow (one Anth.us or Chatticus voice). Expand toward 20–100 samples later.",
+        "to": "**Phase 1 of MVP** under `PPY-54055d` (quality-first editorial rewrite loop).\n\n## Intent\n\nAs a publication operator, I want an editable style profile and a small approved reference corpus, so later editorial passes can match a real house voice instead of generic Internet prose.\n\n## Done when\n\n- An editable style profile (YAML or equivalent) can be stored for a publication/pod: voice name, audience, tone, sentence style, structure, prefer/avoid lexicon, evidence rules.\n- 5–10 approved reference samples are linked or stored for voice match.\n- Profile is loadable by later diagnostic/revision passes.\n- No detector scores in the profile.\n\n## Notes\n\nStart narrow (one Anth.us voice). Expand toward 20–100 samples later. Do not replace Chattic.us-web `publication-writing` banned-phrase checks.\n\n## Gherkin\n\n```gherkin\nFeature: Style profile store for a publication voice\n  As a publication operator\n  I want an editable style profile and approved reference samples\n  So later editorial passes can match house voice instead of generic Internet prose\n\n  Scenario: Load a stored Anth.us style profile\n    Given a publication has an editable style profile on disk\n    And the profile names voice, audience, tone, sentence style, structure, prefer and avoid lexicon, and evidence rules\n    And five to ten approved reference samples are linked for voice match\n    When an editorial pass loads the profile\n    Then the loader returns the profile and the linked samples\n    And the profile does not contain detector scores\n\n  Scenario: Reject a profile that includes detector scores\n    Given a style profile that includes a detector score\n    When an editorial pass tries to load the profile\n    Then loading fails with a validation error\n```"
+      }
+    }
+  }
+}

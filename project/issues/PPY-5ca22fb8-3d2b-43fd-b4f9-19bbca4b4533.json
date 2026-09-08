@@ -1,7 +1,7 @@
 {
   "id": "PPY-5ca22fb8-3d2b-43fd-b4f9-19bbca4b4533",
   "title": "Verifier + acceptance gate",
-  "description": "**Phase 4 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- Verifier highlights factual changes, deleted claims, duplicated ideas, residual boilerplate.\n- Weighted quality score (specificity, clarity, audience fit, voice match, minus redundancy / unsupported claims / factual-change risk).\n- `should_accept_revision` (or equivalent): accept only if net improvement \u2265 threshold **and** unsupported claims do not increase.\n- Detector score is not an input.\n\n## Depends on\n\nConstrained revision pass.",
+  "description": "**Phase 4 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want a verifier that scores net editorial quality, so a revision is accepted only when it is actually better and does not add unsupported claims.\n\n## Done when\n\n- Verifier highlights factual changes, deleted claims, duplicated ideas, residual boilerplate.\n- Weighted quality score (specificity, clarity, audience fit, voice match, minus redundancy / unsupported claims / factual-change risk).\n- `should_accept_revision` (or equivalent): accept only if net improvement ≥ threshold **and** unsupported claims do not increase.\n- Detector score is not an input.\n\n## Depends on\n\nConstrained revision pass.\n\n## Gherkin\n\n```gherkin\nFeature: Verifier and acceptance gate\n  As a publication operator\n  I want a quality gate on a proposed revision\n  So we keep only net-better copy and never optimize for a detector score\n\n  Scenario: Accept a revision that improves quality without new unsupported claims\n    Given an original draft, a proposed revision, a style profile, and diagnostic JSON\n    When the verifier runs\n    Then it reports factual changes, deleted claims, duplicated ideas, and residual boilerplate\n    And it reports a weighted score for specificity, clarity, audience fit, and voice match minus redundancy, unsupported claims, and factual-change risk\n    And should_accept_revision is true only if net improvement meets the threshold and unsupported claims did not increase\n\n  Scenario: Reject when unsupported claims increase\n    Given a proposed revision that adds an unsupported claim\n    When the verifier runs\n    Then should_accept_revision is false\n    And detector score is not an input to the decision\n```",
   "type": "story",
   "status": "open",
   "priority": 1,
@@ -19,7 +19,7 @@
   ],
   "comments": [],
   "created_at": "2026-09-08T09:12:07.953096Z",
-  "updated_at": "2026-09-08T09:12:07.953096Z",
+  "updated_at": "2026-09-08T10:35:17.020165Z",
   "closed_at": null,
   "custom": {}
 }

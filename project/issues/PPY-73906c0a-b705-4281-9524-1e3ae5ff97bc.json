@@ -1,7 +1,7 @@
 {
   "id": "PPY-73906c0a-b705-4281-9524-1e3ae5ff97bc",
   "title": "Constrained editorial revision pass",
-  "description": "**Phase 3 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- One revision pass takes source draft + style profile + diagnosis JSON.\n- Prompt is senior copy editor, not \u201chumanizer\u201d: preserve meaning; no invented anecdotes/stats/citations/first-person; revise only diagnosed problems; prefer deletion; style guide over generic Internet prose.\n- Returns revised_text, change_log (reason + whether fact verification required), unresolved_questions.\n- Banned detector-evasion tactics (fake typos, slang spam, manufactured imperfections) are explicitly forbidden in the skill/prompt.\n\n## Depends on\n\nStyle profile store; diagnostic JSON pass.",
+  "description": "**Phase 3 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want one constrained senior-editor revision pass, so the draft gets a real point of view and concrete evidence without invented anecdotes or detector-evasion tricks.\n\n## Done when\n\n- One revision pass takes source draft + style profile + diagnosis JSON.\n- Prompt is senior copy editor, not “humanizer”: preserve meaning; no invented anecdotes/stats/citations/first-person; revise only diagnosed problems; prefer deletion; style guide over generic Internet prose.\n- Returns revised_text, change_log (reason + whether fact verification required), unresolved_questions.\n- Banned detector-evasion tactics (fake typos, slang spam, manufactured imperfections) are explicitly forbidden in the skill/prompt.\n\n## Depends on\n\nStyle profile store; diagnostic JSON pass.\n\n## Gherkin\n\n```gherkin\nFeature: Constrained editorial revision pass\n  As a publication operator\n  I want one senior-editor revision against diagnosis and style profile\n  So copy improves on named problems without invented facts or detector-evasion\n\n  Scenario: Revise only diagnosed problems\n    Given a source draft, a loadable style profile, and diagnostic JSON\n    When the constrained revision pass runs\n    Then it returns revised_text, a change_log with reasons and fact-verification flags, and unresolved_questions\n    And the skill or prompt forbids fake typos, slang spam, manufactured imperfections, and invented anecdotes, stats, citations, or first-person\n\n  Scenario: Prefer deletion over filler\n    Given a diagnosis that flags empty lead-ins and redundancy\n    When the constrained revision pass runs\n    Then the change_log records deletions for those findings rather than synonym padding\n```",
   "type": "story",
   "status": "open",
   "priority": 1,
@@ -23,7 +23,7 @@
   ],
   "comments": [],
   "created_at": "2026-09-08T09:12:07.680850Z",
-  "updated_at": "2026-09-08T09:12:07.680850Z",
+  "updated_at": "2026-09-08T10:35:17.004710Z",
   "closed_at": null,
   "custom": {}
 }
