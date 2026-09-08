@@ -68,12 +68,15 @@ and JWT SSM parameter path from `amplify_outputs.json` / CloudFormation outputs.
 Record them here after first deploy:
 
 ```text
-appId:           <fill after deploy>
-defaultDomain:   <appId>.amplifyapp.com
-GraphQL:         <from amplify_outputs.json data.url>
-Media bucket:    <storage.bucket_name>
-JWT SSM param:   /amplify/<appId>/main-branch-<hash>/PAPYRUS_JWT_SECRET
+appId:           d11eu9hbs2mipk
+defaultDomain:   d11eu9hbs2mipk.amplifyapp.com
+GraphQL:         https://q2c7ulf45rh2nesbg6p3yki4si.appsync-api.us-east-1.amazonaws.com/graphql
+Media bucket:    amplify-d11eu9hbs2mipk-ma-papyrusmediabucket0dab24-nictgfucsrga
+JWT SSM param:   /amplify/d11eu9hbs2mipk/main-branch-3c5f57c311/PAPYRUS_JWT_SECRET
 ```
+
+The app shell is provisioned by `infra/amplify-app-shell` (CDK); the backend
+deploys via `ampx pipeline-deploy` on the first Amplify CI build of `main`.
 
 ## 2. DNS
 
