@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://papyrus.anth.us/schemas/editorial-options-v1.json",
+  "title": "EditorialOptions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "findings"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/findingOptions"
+      }
+    }
+  },
+  "$defs": {
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["span", "replacement"],
+      "properties": {
+        "span": {
+          "$ref": "#/$defs/span"
+        },
+        "replacement": {
+          "type": "string"
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "patch",
+        "reason",
+        "factVerificationRequired",
+        "unresolvedQuestions"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^option-[a-f0-9]{16}$"
+        },
+        "patch": {
+          "$ref": "#/$defs/patch"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "factVerificationRequired": {
+          "type": "boolean"
+        },
+        "unresolvedQuestions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "findingOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findingId", "options"],
+      "properties": {
+        "findingId": {
+          "type": "string",
+          "pattern": "^finding-[a-f0-9]{16}$"
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/option"
+          }
+        }
+      }
+    }
+  }
+}
