@@ -16,6 +16,18 @@ _FORBIDDEN_KEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# When checks is omitted from a style profile, every diagnose check is enabled.
+DEFAULT_DIAGNOSE_CHECKS: dict[str, bool] = {
+    "emptyLeadin": True,
+    "listShapedProse": True,
+    "vagueClaim": True,
+    "unsupportedCertainty": True,
+    "uniformCadence": True,
+    "redundancy": True,
+    "voiceMismatch": True,
+    "missingAttribution": True,
+}
+
 
 class StyleProfileValidationError(ValueError):
     """Raised when a style profile document or linked samples fail validation."""
@@ -33,6 +45,7 @@ class StyleProfile:
     lexicon_avoid: tuple[str, ...]
     evidence_rules: tuple[str, ...]
     reference_sample_refs: tuple[dict[str, str], ...]
+    checks: dict[str, bool]
 
 
 @dataclass(frozen=True)
@@ -122,6 +135,8 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         rel_path = _require_non_empty_string(entry.get("path"), f"referenceSamples[{index}].path", profile_path)
         refs.append({"id": sample_id, "title": title, "url": url, "path": rel_path})
 
+    checks = _parse_checks(raw.get("checks"), profile_path)
+
     return StyleProfile(
         publication_key=publication_key,
         voice_name=voice_name,
@@ -133,7 +148,23 @@ def _parse_profile(raw: dict[str, Any], profile_path: Path) -> StyleProfile:
         lexicon_avoid=tuple(lexicon_avoid),
         evidence_rules=tuple(evidence_rules),
         reference_sample_refs=tuple(refs),
+        checks=checks,
     )
+
+
+def _parse_checks(value: Any, profile_path: Path) -> dict[str, bool]:
+    checks = dict(DEFAULT_DIAGNOSE_CHECKS)
+    if value is None:
+        return checks
+    if not isinstance(value, dict):
+        raise StyleProfileValidationError(f"checks must be a mapping in {profile_path}")
+    for key, enabled in value.items():
+        if key not in DEFAULT_DIAGNOSE_CHECKS:
+            raise StyleProfileValidationError(f"Unknown checks key '{key}' in {profile_path}")
+        if not isinstance(enabled, bool):
+            raise StyleProfileValidationError(f"checks.{key} must be a boolean in {profile_path}")
+        checks[key] = enabled
+    return checks
 
 
 def _load_reference_samples(profile: StyleProfile, profile_root: Path) -> tuple[ReferenceSample, ...]:

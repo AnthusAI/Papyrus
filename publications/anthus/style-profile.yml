@@ -33,6 +33,8 @@ evidenceRules:
   - Label speculation and weak evidence explicitly.
   - Do not invent anecdotes, statistics, or citations.
   - Optimize for editorial quality, not detector scores or synthetic imperfection.
+checks:
+  uniformCadence: false
 referenceSamples:
   - id: maximize-value-not-intelligence
     title: Maximize Value, Not Intelligence
