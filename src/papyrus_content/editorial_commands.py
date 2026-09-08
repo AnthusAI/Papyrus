@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .editorial_diagnosis import diagnose_draft
 from .editorial_diagnosis_schema import validate_diagnosis
+from .editorial_markup import render_annotated_markus, render_annotated_xml
 from .editorial_options_schema import validate_decisions
 from .editorial_rewrite_options import generate_rewrite_options
 from .editorial_style import load_style_profile
@@ -20,6 +21,16 @@ def editorial_diagnose(flags: list[str]) -> None:
     input_group.add_argument("--text", help="Draft text to diagnose without reading a file.")
     parser.add_argument("--profile", required=True, help="Path to the style profile YAML.")
     parser.add_argument("--output", default="", help="Optional path to write diagnostic JSON.")
+    parser.add_argument(
+        "--markup-out",
+        default="",
+        help="Optional path to write Markus-annotated Markdown (editorial-finding directives).",
+    )
+    parser.add_argument(
+        "--xml-out",
+        default="",
+        help="Optional path to write editorial annotation XML.",
+    )
     args = parser.parse_args(flags)
 
     profile_path = Path(args.profile).resolve()
@@ -34,6 +45,14 @@ def editorial_diagnose(flags: list[str]) -> None:
     style_profile = load_style_profile(profile_path)
     diagnosis = diagnose_draft(draft_text, style_profile=style_profile)
     rendered = json.dumps(diagnosis, indent=2) + "\n"
+
+    if args.markup_out:
+        markup_path = Path(args.markup_out).resolve()
+        markup_path.write_text(render_annotated_markus(draft_text, diagnosis), encoding="utf-8")
+
+    if args.xml_out:
+        xml_path = Path(args.xml_out).resolve()
+        xml_path.write_text(render_annotated_xml(draft_text, diagnosis), encoding="utf-8")
 
     if args.output:
         output_path = Path(args.output).resolve()
