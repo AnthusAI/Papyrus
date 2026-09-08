@@ -21,3 +21,13 @@ The sales page includes the Papyrus product story, open-source ownership
 positioning, setup and management pricing, FAQ, and the wait-list interface.
 The wait-list form is deliberately a design-only preview for now: it prevents
 submission and does not send or store visitor data until a backend is added.
+
+## Deployment
+
+The site is exported to static files and served from a private, versioned S3
+bucket through CloudFront. `infra/cloudformation.yml` owns only the isolated
+marketing bucket, distribution, TLS certificate, and the `papyrus.anth.us`
+Route 53 records. It does not modify any other `anth.us` record.
+
+Run `scripts/deploy.sh` from the `marketing` directory to build, synchronize,
+and invalidate the public site.

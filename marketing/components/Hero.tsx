@@ -12,7 +12,7 @@ const proof = [
 export function Hero() {
   return (
     <section id="top" aria-labelledby="hero-title" className="relative overflow-hidden">
-      <div className="papyrus-grid absolute inset-0 -z-10" />
+      <div className="papyrus-texture absolute inset-0 -z-10" />
       <div className="mx-auto grid max-w-[92rem] gap-14 px-5 pb-16 pt-14 sm:px-8 sm:pt-20 lg:grid-cols-[1.05fr_.95fr] lg:items-center lg:px-12 lg:pb-24 lg:pt-24">
         <div>
           <Badge variant="reed" className="animate-rise">Open-source, AI-assisted publishing</Badge>
