@@ -3,9 +3,9 @@
   "title": "Limatus",
   "description": "# Limatus\n\nStandalone editorial quality tool: diagnose slop-like weakness, propose constrained rewrite options (markup / redline-style suggestions), human-steered apply with diffs. Quality-first \u2014 **not** detector-score evasion.\n\n## Intent\n\nSpin the automated editorial loop out of Papyrus into **Limatus**, a clean isolated package (CLI + Python SDK) with its own local style-rules config. Planning and early milestones live on the Papyrus board until the Limatus repo/package is cut.\n\n## Guardrail\n\nQuality outcomes, not detector-score gaming. North-star: human acceptance after factual review.\n\n## What already exists\n\nEpic `PPY-54055d` \u2014 interactive editorial rewrite loop (diagnose \u2192 options \u2192 steer/apply/provenance), currently in-tree under `papyrus_content`. Style profile + diagnostic JSON closed; rewrite options / verifier / steer-apply remain open.\n\n## Milestones\n\n1. **In-Papyrus MVP loop** (`PPY-54055d`) \u2014 finish interactive loop while still in-tree.\n2. **Decouple into Limatus** (`PPY-639fb3`) \u2014 portable CLI + Python SDK; local style-rules config; no Papyrus imports.\n3. **Evaluations** (`PPY-89827a`) \u2014 harness for diagnose + rewrite-option quality.\n4. **Papyrus consumes Limatus via SDK** (`PPY-b536c2`) \u2014 newsroom / Tactus procedures call Limatus; in-tree core removed or shimmed.\n\n## Non-goals\n\n- Detector-gaming \u201chumanizer\u201d products.\n- Auto-publishing externally attributable copy without a human gate.",
   "type": "initiative",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
-  "assignee": null,
+  "assignee": "home",
   "creator": null,
   "parent": null,
   "labels": [
@@ -16,7 +16,10 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-09-08T18:04:07.255858Z",
-  "updated_at": "2026-09-08T18:17:44.278312Z",
+  "updated_at": "2026-09-08T18:22:52.108905Z",
   "closed_at": null,
-  "custom": {}
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
 }
