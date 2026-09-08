@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "967c0ce1-a0ed-41c6-ba6d-cfd57f3fd1b7",
+  "issue_id": "PPY-b536c222-2e54-41ed-a069-039575d59e6f",
+  "event_type": "dependency_added",
+  "occurred_at": "2026-09-08T18:04:35.269Z",
+  "actor_id": "box",
+  "payload": {
+    "dependency_type": "blocked-by",
+    "target_id": "639fb3"
+  }
+}

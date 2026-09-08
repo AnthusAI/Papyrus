@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "5597f6cc-c9b9-42d9-89fb-613438c768d5",
+  "issue_id": "PPY-e7cc939c-0f39-4e56-b90c-b4794ebb6189",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:34.324Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Editorial eval fixture corpus + runner smoke",
+    "description": "Seed fixtures (drafts + expected finding classes / option constraints) and a smoke eval runner that can run without Papyrus. Document how Ryan rejects become new fixtures.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
+    "labels": [
+      "editorial",
+      "evals"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-46c0b8a5-de87-4906-87b5-4dde1ee64b94",
+  "title": "Ship Python SDK API for programmatic callers",
+  "description": "Public Python module API: load style config, diagnose(draft), propose_options(findings, decisions), apply helpers. Suitable for Papyrus and Tactus procedures. Same core as CLI \u2014 not a CLI wrapper.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "07eda8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-09-08T18:04:34.002057Z",
+  "updated_at": "2026-09-08T18:04:34.002057Z",
+  "closed_at": null,
+  "custom": {}
+}

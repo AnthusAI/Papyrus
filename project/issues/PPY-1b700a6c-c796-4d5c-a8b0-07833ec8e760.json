@@ -1,0 +1,25 @@
+{
+  "id": "PPY-1b700a6c-c796-4d5c-a8b0-07833ec8e760",
+  "title": "Standalone local style-rules config schema",
+  "description": "Define a simple, portable YAML/JSON config for voice/style rules + reference samples. Map from existing Papyrus editorial style profile without requiring Papyrus paths. Document schema and validation.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "0b74e8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-09-08T18:04:33.089603Z",
+  "updated_at": "2026-09-08T18:04:33.089603Z",
+  "closed_at": null,
+  "custom": {}
+}

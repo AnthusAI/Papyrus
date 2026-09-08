@@ -1,0 +1,26 @@
+{
+  "id": "PPY-b536c222-2e54-41ed-a069-039575d59e6f",
+  "title": "Papyrus integration via editorial SDK",
+  "description": "# Papyrus integration via editorial SDK\n\n## Intent\n\nOnce the standalone package exists, Papyrus (and Tactus procedures) invoke it through the **SDK**, injecting publication style profiles and drafts from Papyrus config \u2014 not by owning the editorial core.\n\n## Done when\n\n- Newsroom / publication workflows call the SDK, not in-tree `papyrus_content.editorial_*` cores.\n- Style profiles from Papyrus map cleanly into the standalone config format.\n- Automated procedures can diagnose + propose options; human gates for apply/publish remain.\n- In-tree editorial core is removed or reduced to a deprecated shim.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-80909133-454f-4680-a2d5-6ab16bb1c216",
+  "labels": [
+    "editorial",
+    "papyrus"
+  ],
+  "dependencies": [
+    {
+      "target": "639fb3",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-09-08T18:04:19.002441Z",
+  "updated_at": "2026-09-08T18:04:19.002441Z",
+  "closed_at": null,
+  "custom": {}
+}

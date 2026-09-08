@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "21e3ef68-c0b0-4c2c-83c5-6dba789f2733",
+  "issue_id": "PPY-8d76c9b9-6870-41bc-9586-fd05b8e02070",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:34.640Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Eval metrics for findings and rewrite-option quality",
+    "description": "Define and implement metrics: finding-type precision/recall proxies, unsupported-claim flags on options, acceptance/deletion rates where logged. Version LLM-as-judge if used.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
+    "labels": [
+      "editorial",
+      "evals"
+    ]
+  }
+}

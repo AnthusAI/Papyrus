@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0de11acd-34e9-492a-9fb7-588dcd4244c3",
+  "issue_id": "PPY-2c62aaf4-a343-4535-a7c0-ae15da9e8ff5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:34.933Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Papyrus adapter: style profile → standalone config + SDK calls",
+    "description": "Replace in-tree editorial core usage with SDK calls. Map Papyrus style profiles into standalone config. Keep human apply/publish gates.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b536c222-2e54-41ed-a069-039575d59e6f",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "78fe9ca4-1797-480b-9355-f5f7deca3b79",
+  "issue_id": "PPY-46c0b8a5-de87-4906-87b5-4dde1ee64b94",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:34.002Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Ship Python SDK API for programmatic callers",
+    "description": "Public Python module API: load style config, diagnose(draft), propose_options(findings, decisions), apply helpers. Suitable for Papyrus and Tactus procedures. Same core as CLI — not a CLI wrapper.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+    "labels": [
+      "editorial"
+    ]
+  }
+}
