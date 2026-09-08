@@ -3,7 +3,7 @@
   "title": "Limatus local style-rules config schema",
   "description": "Define a simple, portable YAML/JSON config for voice/style rules + reference samples. Map from existing Papyrus editorial style profile without requiring Papyrus paths. Document schema and validation.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,9 +17,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "19f02368-d116-4a84-9d3d-336a1e853ec7",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-2a1ca5 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:38.772394Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-09-08T18:04:33.089603Z",
-  "updated_at": "2026-09-08T18:17:43.945801Z",
-  "closed_at": null,
-  "custom": {}
+  "updated_at": "2026-09-08T18:40:39.443689Z",
+  "closed_at": "2026-09-08T18:40:39.443486Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
 }

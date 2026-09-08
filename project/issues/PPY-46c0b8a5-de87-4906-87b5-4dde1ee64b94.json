@@ -3,7 +3,7 @@
   "title": "Ship Limatus Python SDK API for programmatic callers",
   "description": "Public Python module API: load style config, diagnose(draft), propose_options(findings, decisions), apply helpers. Suitable for Papyrus and Tactus procedures. Same core as CLI \u2014 not a CLI wrapper.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,9 +17,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "973dcd97-ac29-41c5-a8fe-45fa1d3bd047",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-c32c24 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:45.491298Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-09-08T18:04:34.002057Z",
-  "updated_at": "2026-09-08T18:17:30.889767Z",
-  "closed_at": null,
-  "custom": {}
+  "updated_at": "2026-09-08T18:40:46.196973Z",
+  "closed_at": "2026-09-08T18:40:46.196875Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
 }

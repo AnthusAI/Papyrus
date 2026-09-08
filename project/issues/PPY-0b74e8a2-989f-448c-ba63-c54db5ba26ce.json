@@ -3,7 +3,7 @@
   "title": "Scaffold Limatus package with shared core",
   "description": "Create the new repo/package skeleton (name TBD): pyproject, package layout, CLI entrypoint stub, public Python API stub, README. Zero imports from Papyrus. Decide temporary working directory vs new GitHub repo with Ryan if needed.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,9 +12,22 @@
     "editorial"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "29af1440-f88b-477c-91e5-27fcec9eaac5",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-37145b (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:35.803270Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-09-08T18:04:32.781093Z",
-  "updated_at": "2026-09-08T18:17:30.247120Z",
-  "closed_at": null,
-  "custom": {}
+  "updated_at": "2026-09-08T18:40:36.671400Z",
+  "closed_at": "2026-09-08T18:40:36.671295Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
 }

@@ -1,9 +1,9 @@
 {
   "id": "PPY-5ca22fb8-3d2b-43fd-b4f9-19bbca4b4533",
   "title": "Verifier + acceptance gate",
-  "description": "**Phase 4 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want a verifier that scores the **applied** working draft, so I can see whether chosen options actually improved the copy before I approve publish.\n\n## Done when\n\n- Verifier highlights factual changes, deleted claims, duplicated ideas, residual boilerplate **after human apply**.\n- Weighted quality score (specificity, clarity, audience fit, voice match, minus redundancy / unsupported claims / factual-change risk).\n- `should_accept_revision` (or equivalent) is **advisory**: recommend accept only if net improvement ≥ threshold **and** unsupported claims do not increase. It does not auto-apply or auto-publish.\n- Detector score is not an input.\n\n## Depends on\n\nConstrained rewrite options; human apply of chosen options.\n\n## Gherkin\n\n```gherkin\nFeature: Verifier on the applied working draft\n  As a publication operator\n  I want an advisory quality score after I apply chosen options\n  So I can see net improvement without the machine publishing or overriding my choices\n\n  Scenario: Score an applied working draft\n    Given an original draft and a working draft after human-applied options\n    When the verifier runs\n    Then it reports factual changes, deleted claims, duplicated ideas, and residual boilerplate\n    And it reports a weighted score for specificity, clarity, audience fit, and voice match minus redundancy, unsupported claims, and factual-change risk\n    And should_accept_revision is true only if net improvement meets the threshold and unsupported claims did not increase\n    And the working draft is unchanged by the verifier\n\n  Scenario: Reject recommendation when unsupported claims increase\n    Given an applied working draft that adds an unsupported claim\n    When the verifier runs\n    Then should_accept_revision is false\n    And detector score is not an input to the decision\n```",
+  "description": "**Phase 4 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want a verifier that scores the **applied** working draft, so I can see whether chosen options actually improved the copy before I approve publish.\n\n## Done when\n\n- Verifier highlights factual changes, deleted claims, duplicated ideas, residual boilerplate **after human apply**.\n- Weighted quality score (specificity, clarity, audience fit, voice match, minus redundancy / unsupported claims / factual-change risk).\n- `should_accept_revision` (or equivalent) is **advisory**: recommend accept only if net improvement \u2265 threshold **and** unsupported claims do not increase. It does not auto-apply or auto-publish.\n- Detector score is not an input.\n\n## Depends on\n\nConstrained rewrite options; human apply of chosen options.\n\n## Gherkin\n\n```gherkin\nFeature: Verifier on the applied working draft\n  As a publication operator\n  I want an advisory quality score after I apply chosen options\n  So I can see net improvement without the machine publishing or overriding my choices\n\n  Scenario: Score an applied working draft\n    Given an original draft and a working draft after human-applied options\n    When the verifier runs\n    Then it reports factual changes, deleted claims, duplicated ideas, and residual boilerplate\n    And it reports a weighted score for specificity, clarity, audience fit, and voice match minus redundancy, unsupported claims, and factual-change risk\n    And should_accept_revision is true only if net improvement meets the threshold and unsupported claims did not increase\n    And the working draft is unchanged by the verifier\n\n  Scenario: Reject recommendation when unsupported claims increase\n    Given an applied working draft that adds an unsupported claim\n    When the verifier runs\n    Then should_accept_revision is false\n    And detector score is not an input to the decision\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,9 +17,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "918d93ed-c2b3-40d9-8e70-c48bf512c4cd",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-877130 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:26.168943Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-09-08T09:12:07.953096Z",
-  "updated_at": "2026-09-08T10:39:20.503414Z",
-  "closed_at": null,
-  "custom": {}
+  "updated_at": "2026-09-08T18:40:26.864142Z",
+  "closed_at": "2026-09-08T18:40:26.864039Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
 }

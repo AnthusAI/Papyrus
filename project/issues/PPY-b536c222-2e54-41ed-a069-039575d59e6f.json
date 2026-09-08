@@ -3,7 +3,7 @@
   "title": "Papyrus integration via Limatus SDK",
   "description": "# Papyrus integration via Limatus SDK\n\n## Intent\n\nPapyrus (and Tactus procedures) invoke **Limatus** through the SDK, injecting publication style profiles and drafts from Papyrus config \u2014 not owning the editorial core.\n\n## Done when\n\n- Newsroom / publication workflows call the Limatus SDK, not in-tree `papyrus_content.editorial_*` cores.\n- Papyrus style profiles map into Limatus config.\n- Automated procedures can diagnose + propose options; human gates for apply/publish remain.\n- In-tree editorial core is removed or reduced to a deprecated shim.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -18,9 +18,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5a497adc-5bc8-4b4e-9239-d411d64a173a",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-3ff8d0 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:23.788282Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-09-08T18:04:19.002441Z",
-  "updated_at": "2026-09-08T18:17:29.914256Z",
-  "closed_at": null,
-  "custom": {}
+  "updated_at": "2026-09-08T18:40:24.410644Z",
+  "closed_at": "2026-09-08T18:40:24.410474Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
 }
