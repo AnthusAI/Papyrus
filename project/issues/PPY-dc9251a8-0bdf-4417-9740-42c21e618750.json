@@ -24,10 +24,17 @@
       "text": "Planner dispatched. Implementation waits until PPY-8f5273 (PR 68) is on develop. Worktree to create: /tmp/papyrus-PPY-dc9251-editorial-rules on cursor/feature/PPY-dc9251-editorial-rules from origin/develop (rebase onto 8f5273 if that PR is not merged yet). Plan only.",
       "created_at": "2026-09-08T11:36:59.701712Z",
       "comment_type": "default"
+    },
+    {
+      "id": "068d3fbb-e348-4be3-9427-9de1f7e2263d",
+      "author": "home",
+      "text": "PPY-8f5273 is on develop (PR 68). Implementation must reset the worktree onto origin/develop before coding so the squash merge is not replayed. Path stays /tmp/papyrus-PPY-dc9251-editorial-rules.",
+      "created_at": "2026-09-08T11:40:58.939320Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-08T11:36:52.806949Z",
-  "updated_at": "2026-09-08T11:36:59.713749Z",
+  "updated_at": "2026-09-08T11:40:58.939320Z",
   "closed_at": null,
   "custom": {}
 }
