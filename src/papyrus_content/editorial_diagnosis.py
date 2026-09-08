@@ -32,6 +32,17 @@ _EMPTY_LEADIN_PATTERNS = (
 # boundaries and reported excerpts still come from the original text.
 _JSX_SELF_CLOSING_COMPONENT_RE = re.compile(r"<[A-Z][\w.]*(?:\s[\s\S]*?)?/>")
 
+# Markus (the other renderer Papyrus content runs through, e.g. Pilobolus) uses colon-fenced
+# directives instead of JSX: `::name{attrs}` self-closing on one line, or
+# `:::name{attrs}\n...content...\n:::` block-level. Either way the attrs -- src=, alt=,
+# credit=, attribution= -- repeat the same field names across every figure/pull-quote/aside
+# in a piece, which is the same false-positive-redundancy trap JSX components create. Mask
+# only the directive's opening line (name + attrs) and a bare `:::` closing line, not any real
+# prose content sitting between them (a pull-quote's actual quoted text should still be
+# checked normally).
+_MARKUS_DIRECTIVE_OPEN_RE = re.compile(r"^:{2,3}[A-Za-z][\w-]*\{[^}\n]*\}[ \t]*$", re.MULTILINE)
+_MARKUS_DIRECTIVE_CLOSE_RE = re.compile(r"^:::[ \t]*$", re.MULTILINE)
+
 # A leading YAML frontmatter block (title/date/description/standfirst/...) has its own
 # genre conventions -- a standfirst is deliberately terse by design -- that don't belong
 # under body-prose rules like cadence or redundancy. Anth.us drafts never had frontmatter,
@@ -433,14 +444,17 @@ def _is_rhetorical_refrain(members: list[dict[str, Any]]) -> bool:
     return False
 
 
+def _blank_match(match: re.Match[str]) -> str:
+    return re.sub(r"[^\n]", " ", match.group(0))
+
+
 def _mask_jsx_components(text: str) -> str:
     """Blank out self-closing JSX component markup, preserving length and newlines so
     character offsets computed against the result stay valid against the original text."""
-
-    def _blank(match: re.Match[str]) -> str:
-        return re.sub(r"[^\n]", " ", match.group(0))
-
-    return _JSX_SELF_CLOSING_COMPONENT_RE.sub(_blank, text)
+    text = _JSX_SELF_CLOSING_COMPONENT_RE.sub(_blank_match, text)
+    text = _MARKUS_DIRECTIVE_OPEN_RE.sub(_blank_match, text)
+    text = _MARKUS_DIRECTIVE_CLOSE_RE.sub(_blank_match, text)
+    return text
 
 
 def _check_redundancy(text: str) -> list[dict[str, Any]]:

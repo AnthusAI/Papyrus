@@ -186,6 +186,37 @@ class EditorialDiagnosisTests(unittest.TestCase):
         span = diagnosis["repetition_groups"][0]["members"][0]["span"]
         self.assertEqual(draft_text[span["start"] : span["end"]], excerpt)
 
+    def test_markus_directive_boilerplate_skips_redundancy(self) -> None:
+        # Markus (used by Pilobolus, among others) uses colon-fenced directives instead of
+        # JSX. The same attrs (src=, alt=, credit=) repeat across every figure in a piece and
+        # produced dozens of false-positive redundancy findings before this was masked too.
+        draft_text = (
+            'Four-year-old Gus went missing from a sheep station.\n\n'
+            ':::figure{src="../assets/a.jpg" alt="Screenshot of a Facebook post" '
+            'caption="First caption" credit="Screenshot via AAP FactCheck"}\n'
+            ":::\n\n"
+            "Other posts were louder.\n\n"
+            ':::figure{src="../assets/b.jpg" alt="Screenshot of another Facebook post" '
+            'caption="Second caption" credit="Screenshot via AAP FactCheck"}\n'
+            ":::\n"
+        )
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertEqual(diagnosis["repetition_groups"], [])
+
+    def test_markus_directive_masking_preserves_real_content(self) -> None:
+        # Only the directive's opening/closing fence lines should be masked -- real prose
+        # sitting between them (a pull-quote's actual text) must still be checked normally.
+        draft_text = (
+            "He said the words plainly enough.\n\n"
+            ':::pull-quote{attribution="Someone, 2024" tone="primary"}\n'
+            "I absolve you of your sins in the name of the Father, and of the Son.\n"
+            ":::\n\n"
+            "Later, someone else said: I absolve you of your sins in the name of the Father, "
+            "and of the Son, to a different room entirely.\n"
+        )
+        diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
+        self.assertTrue(diagnosis["repetition_groups"])
+
     def test_sticker_number_skips_missing_attribution(self) -> None:
         draft_text = 'Think of a crate with an "Inspected By #247" sticker on the dock.'
         diagnosis = diagnose_draft(draft_text, style_profile=self.style_profile)
