@@ -14,9 +14,19 @@
     "editorial"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9459ebf5-7b0a-4f4e-958d-0259e6703962",
+      "author": "home",
+      "text": "Claimed as Product Owner per Ryan's call this session -- the editorial diagnose/rewrite loop (PPY-54055d) earned its promotion out of the newsroom-pods epic and into its own initiative. Added PPY-1cae29 as a sibling epic: the same diagnose/decide/apply/verify shape applied to AI-generated web page usability instead of prose. Scoped it explicitly as a *different* problem (structural/visual findings, not textual pattern-matching) rather than a reskin of the editorial loop -- see the epic description for why that distinction matters.",
+      "created_at": "2026-09-08T18:23:48.946196Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-09-08T18:04:07.255858Z",
-  "updated_at": "2026-09-08T18:22:52.108905Z",
+  "updated_at": "2026-09-08T18:23:48.946267Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
