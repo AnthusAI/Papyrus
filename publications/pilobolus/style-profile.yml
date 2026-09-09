@@ -30,6 +30,11 @@ lexicon:
     - Baudrillard
     - fruiting body
     - mycelium
+    - specimen
+    - cage
+    - keeper
+    - belief-rainbow
+    - feed as territory
     - the pull
     - transforming workflows
     - revolutionize
@@ -52,10 +57,14 @@ density:
   minLexicalDensity: 0.45
   maxGzipRatio: 0.4
 rules:
+  noEmojis: true
   bannedPhrases:
     - the Pilobolus take
     - our desk found
     - this publication
+    - Pilobolus
+    - Pilobol.us
+    - our take
   bannedIntensifiers:
     - revolutionary
     - seamless
