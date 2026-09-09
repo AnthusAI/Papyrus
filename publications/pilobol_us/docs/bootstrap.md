@@ -148,7 +148,21 @@ PYTHONPATH=src python -m papyrus.cli references create-from-catalog \
   --status accepted
 ```
 
-## 6. Verify
+## 6. Google sign-in (optional)
+
+Google OAuth is **disabled** by default (`PAPYRUS_DISABLE_GOOGLE_OAUTH=1`) until
+you create a Google OAuth client and store credentials in SSM.
+
+Follow [`docs/google-oauth-setup.md`](../../../docs/google-oauth-setup.md) for the
+full Google Cloud Console walkthrough. Pilobolus uses:
+
+- Cognito domain prefix: `papyrus-pilobol-us`
+- Google redirect URI:
+  `https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
+- App callback URLs (Papyrus only, not Google):
+  `https://newsroom.pilobol.us/`, `http://localhost:3001/`, …
+
+## 7. Verify
 
 - `https://newsroom.pilobol.us/newsroom` loads Pilobolus theme (`pilobol-us` pack).
 - GraphQL shows Pilobolus corpora only (not p.apyr.us AI/ML data).
@@ -179,6 +193,7 @@ npm run dev
 Demo mode without a backend: `/newsroom?demo=1` (fake GraphQL profile in
 `lib/newsroom-demo-profile.ts`).
 
-See also: [`docs/new-publication-from-corpus.md`](../../../docs/new-publication-from-corpus.md),
+See also: [`docs/google-oauth-setup.md`](../../../docs/google-oauth-setup.md),
+[`docs/new-publication-from-corpus.md`](../../../docs/new-publication-from-corpus.md),
 [`docs/site-hosting.md`](../../../docs/site-hosting.md),
 [`skills/publication-bootstrap/SKILL.md`](../../../skills/publication-bootstrap/SKILL.md).

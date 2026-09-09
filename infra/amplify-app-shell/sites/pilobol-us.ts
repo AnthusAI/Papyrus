@@ -63,6 +63,7 @@ export const SITES: Record<string, AmplifyAppShellSiteConfig> = {
       // Used only when Google OAuth is enabled (see docs/google-oauth-setup.md).
       // Listed now so the app is ready to enable Google login by setting
       // GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET and removing the disable flag.
+      PAPYRUS_COGNITO_DOMAIN_PREFIX: "papyrus-pilobol-us",
       PAPYRUS_OAUTH_REDIRECT_URLS: "http://localhost:3001/,https://newsroom.pilobol.us/,https://main.d11eu9hbs2mipk.amplifyapp.com/",
     },
     githubTokenSecretName: "amplify/github-app-token",

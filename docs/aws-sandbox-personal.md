@@ -48,7 +48,9 @@ Amplify limits `--identifier` to **fewer than 15 characters** (`[a-zA-Z0-9-]`).
 
 ## Required secrets (before first deploy)
 
-Google OAuth is enabled by default in `amplify/auth/resource.ts`. For a personal sandbox
+Google OAuth is enabled by default in `amplify/auth/resource.ts` (see
+[`google-oauth-setup.md`](google-oauth-setup.md) for the Google Cloud Console
+steps). For a personal sandbox
 without Google credentials, disable it and pre-seed required backend secrets:
 
 ```bash

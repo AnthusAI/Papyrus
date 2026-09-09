@@ -25,6 +25,10 @@ const authRedirectUrls = resolveAuthRedirectUrls();
 
 const disableGoogleOAuth = process.env.PAPYRUS_DISABLE_GOOGLE_OAUTH === "1";
 
+// Stable Cognito hosted-UI domain prefix for Google OAuth redirect URIs.
+// Set per publication via CDK app-shell branch env. See docs/google-oauth-setup.md.
+const cognitoDomainPrefix = (process.env.PAPYRUS_COGNITO_DOMAIN_PREFIX ?? "").trim();
+
 export const auth = defineAuth({
   loginWith: {
     email: true,
@@ -40,6 +44,7 @@ export const auth = defineAuth({
             scopes: ["EMAIL", "PROFILE", "OPENID"],
             callbackUrls: authRedirectUrls,
             logoutUrls: authRedirectUrls,
+            ...(cognitoDomainPrefix ? { domainPrefix: cognitoDomainPrefix } : {}),
           },
         }),
   },
