@@ -59,7 +59,6 @@ export const SITES: Record<string, AmplifyAppShellSiteConfig> = {
       PAPYRUS_ENABLE_SLACK: "false",
       PAPYRUS_ENABLE_INBOUND_EMAIL: "false",
       PAPYRUS_ENABLE_STORAGE_BACKUPS: "false",
-      PAPYRUS_DISABLE_GOOGLE_OAUTH: "1",
       // Used only when Google OAuth is enabled (see docs/google-oauth-setup.md).
       // Listed now so the app is ready to enable Google login by setting
       // GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET and removing the disable flag.
