@@ -75,6 +75,8 @@ rules:
       message: Avoid "not A, it's B" contrast stacks -- banned in Pilobolus house voice (unlike Anth.us, where this device is deliberate).
     - pattern: "\\b(?:isn'?t|wasn'?t|aren'?t)\\b[^.!?\\n,]{0,60},\\s*but\\b|\\b(?:is|was|it'?s)\\s+not\\b[^.!?\\n,]{0,60},\\s*but\\b"
       message: Avoid "not X, but Y" contrast stacks -- banned in Pilobolus house voice.
+    - pattern: "\\n[ \\t]*Sources?:\\s"
+      message: Never end on a bibliography or labeled source list (VOICE.md) -- link each source naturally in the sentence it supports instead.
 referenceSamples:
   - id: believe-the-rainbow
     title: Believe the rainbow
