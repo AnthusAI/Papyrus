@@ -100,10 +100,22 @@ login. When you are ready for production, return to the consent screen and click
    https://<PAPYRUS_COGNITO_DOMAIN_PREFIX>.auth.us-east-1.amazoncognito.com
    ```
 
-   Pilobolus (`PAPYRUS_COGNITO_DOMAIN_PREFIX=papyrus-pilobol-us`):
+   Pilobolus — use the **live** Cognito domain from your deployed stack (it is
+   auto-generated unless `PAPYRUS_COGNITO_DOMAIN_PREFIX` is wired in the
+   backend). As of the first Google-enabled deploy:
 
    ```text
-   https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com
+   https://4f95152b62f48bfd084b.auth.us-east-1.amazoncognito.com
+   ```
+
+   Look up the current value any time with:
+
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name amplify-d11eu9hbs2mipk-main-branch-3c5f57c311 \
+     --region us-east-1 \
+     --query 'Stacks[0].Outputs[?OutputKey==`oauthCognitoDomain`].OutputValue' \
+     --output text
    ```
 
 6. **Authorized redirect URIs** — click **+ Add URI** and enter the Cognito
@@ -113,10 +125,10 @@ login. When you are ready for production, return to the consent screen and click
    https://<PAPYRUS_COGNITO_DOMAIN_PREFIX>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
    ```
 
-   Pilobolus:
+   Pilobolus (must match the domain from the command above):
 
    ```text
-   https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
+   https://4f95152b62f48bfd084b.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
    ```
 
    > If Google shows *"Invalid Redirect: domain must be added to the authorized

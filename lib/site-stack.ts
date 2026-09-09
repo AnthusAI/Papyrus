@@ -26,10 +26,12 @@ export type HostingConfig =
  *   model used by p.apyr.us and Threat Intelligence). Default when omitted.
  * - `redirect`: redirect `/` to `destination` (a path or absolute URL). Use
  *   this for CMS-only deployments whose public reader lives on another app.
+ * - `newsroom`: render the newsroom desk at `/` (for a CMS-only subdomain).
  */
 export type RootRouteConfig =
   | { kind: "reader" }
-  | { kind: "redirect"; destination: string; permanent?: boolean };
+  | { kind: "redirect"; destination: string; permanent?: boolean }
+  | { kind: "newsroom" };
 
 /** Optional reader deployment when CMS and public reader ship separately (Pilobolus). */
 export type ReaderDeployment = {

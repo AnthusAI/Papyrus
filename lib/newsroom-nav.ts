@@ -1,3 +1,5 @@
+import { newsroomHref, toPublicNewsroomPath } from "./newsroom-base-path";
+
 export type NewsroomNavTabId =
   | "overview"
   | "messages"
@@ -19,21 +21,22 @@ export type NewsroomNavItem = {
 };
 
 export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
-  { id: "overview", label: "Overview", detail: "Desk home", href: "/newsroom", mobilePrimary: true },
-  { id: "assignments", label: "Assignments", detail: "Work queue", href: "/newsroom/assignments", mobilePrimary: true },
-  { id: "references", label: "References", detail: "Knowledge base", href: "/newsroom/references", mobilePrimary: true },
-  { id: "messages", label: "Messages", detail: "Forum", href: "/newsroom/messages" },
-  { id: "insights", label: "Insights", detail: "Research threads", href: "/newsroom/insights" },
-  { id: "topics", label: "Topics", detail: "Taxonomy", href: "/newsroom/topics", mobilePrimary: true },
-  { id: "concepts", label: "Concepts", detail: "Ontology", href: "/newsroom/concepts" },
-  { id: "administration", label: "Administration", detail: "Users & policies", href: "/newsroom/administration" },
+  { id: "overview", label: "Overview", detail: "Desk home", href: newsroomHref(), mobilePrimary: true },
+  { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments"), mobilePrimary: true },
+  { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references"), mobilePrimary: true },
+  { id: "messages", label: "Messages", detail: "Forum", href: newsroomHref("messages") },
+  { id: "insights", label: "Insights", detail: "Research threads", href: newsroomHref("insights") },
+  { id: "topics", label: "Topics", detail: "Taxonomy", href: newsroomHref("topics"), mobilePrimary: true },
+  { id: "concepts", label: "Concepts", detail: "Ontology", href: newsroomHref("concepts") },
+  { id: "administration", label: "Administration", detail: "Users & policies", href: newsroomHref("administration") },
 ];
 
 export const NEWSROOM_MOBILE_PRIMARY_NAV = NEWSROOM_OPS_NAV.filter((item) => item.mobilePrimary);
 
 export function getNewsroomNavHref(href: string, demo?: boolean): string {
-  if (!demo) return href;
-  const url = new URL(href, "http://localhost");
+  const path = toPublicNewsroomPath(href);
+  if (!demo) return path;
+  const url = new URL(path, "http://localhost");
   url.searchParams.set("demo", "1");
   return `${url.pathname}${url.search}`;
 }

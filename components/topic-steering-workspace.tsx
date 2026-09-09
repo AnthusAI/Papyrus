@@ -15344,19 +15344,20 @@ function resolveKnowledgeQueryTarget(
   };
 }
 
-function getNewsDeskTabHref(href: string, _demo?: boolean): string {
-  return href;
+function getNewsDeskTabHref(href: string, demo?: boolean): string {
+  return getNewsroomNavHref(href, demo);
 }
 
 function buildNewsroomDetailUrl(tab: "assignments" | "concepts" | "messages" | "references" | "topics", id: string | null): string {
   const encoded = id ? encodeURIComponent(id) : "";
-  return id
+  const internal = id
     ? tab === "concepts"
       ? `/newsroom/concepts?node=${encoded}`
       : tab === "topics"
         ? `/newsroom/topics?category=${encoded}`
         : `/newsroom/${tab}/${encoded}`
     : `/newsroom/${tab}`;
+  return getNewsroomNavHref(internal);
 }
 
 function pushNewsroomDetailUrl(tab: "assignments" | "concepts" | "messages" | "references" | "topics", id: string | null, _demo?: boolean) {

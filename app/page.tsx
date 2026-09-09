@@ -13,6 +13,7 @@ import {
 import type { PublicationItem } from "../lib/publication-items";
 import { SITE_BRAND, rootRoute } from "../lib/site-brand";
 import { redirect } from "next/navigation";
+import NewsDeskRootPage from "./newsroom/page";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,10 @@ export default async function Home({ searchParams }: HomePageProps) {
   // co-hosts reader + CMS uses the default "reader" (render the publication
   // home page here). A CMS-only site points the root at the newsroom or
   // anywhere else. Preserve the scenario and OAuth-callback paths.
+  if (rootRoute.kind === "newsroom" && !scenarioId) {
+    return <NewsDeskRootPage searchParams={searchParams} />;
+  }
+
   if (rootRoute.kind === "redirect" && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
     redirect(rootRoute.destination);
   }

@@ -46,6 +46,8 @@ export type SiteBrand = {
    * for a CMS-only deployment whose reader lives elsewhere.
    */
   rootRoute?: RootRouteConfig;
+  /** Public URL prefix for newsroom routes. Default `/newsroom`; use `""` on a CMS-only subdomain. */
+  newsroomBasePath?: string;
   opsChrome: OpsChrome;
   corpusKey: string;
   steeringConfigPath: string;
