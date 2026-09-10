@@ -1,5 +1,7 @@
 schemaVersion: 1
 publicationKey: pilobolus
+judge:
+  provider: openai
 voice:
   name: Pilobolus impersonal weird
 audience: General, non-technical readers with no AI/theory background -- assume a Facebook user who has never heard "simulacrum," "hyperreality," "strangler-fig," "fruiting body," or similar jargon.
