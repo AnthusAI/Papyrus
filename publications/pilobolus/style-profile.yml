@@ -52,6 +52,13 @@ checks:
   # fragments." Clipped, punchy runs are a drafting artifact to catch and
   # clean up, not a sanctioned house device (confirmed 2026-09-08, Ryan).
   uniformCadence: true
+  # Unlike Anth.us, uncontractedForms stays OFF here. VOICE.md is explicit:
+  # "Contractions speech is fine in quoted humans; the narrator stays cool
+  # and strange" -- narration deliberately avoids contracting ("does not,"
+  # "had not") as part of the impersonal, reportage-cool register. Checked
+  # against all five currently published articles: uncontracted forms are
+  # routine there, not a slip.
+  uncontractedForms: false
 density:
   minWords: 300
   minLexicalDensity: 0.45
