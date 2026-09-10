@@ -11,8 +11,9 @@ import {
   type PublicPlaceholderTopic,
 } from "../lib/public-placeholder-config";
 import type { PublicationItem } from "../lib/publication-items";
-import { SITE_BRAND } from "../lib/site-brand";
+import { SITE_BRAND, rootRoute } from "../lib/site-brand";
 import { redirect } from "next/navigation";
+import NewsDeskRootPage from "./newsroom/page";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,19 @@ type HomePageProps = {
 export default async function Home({ searchParams }: HomePageProps) {
   const resolvedSearchParams = await searchParams;
   const scenarioId = getScenarioIdParam(resolvedSearchParams?.scenario);
+
+  // Root-route behavior is per-brand (SITE_BRAND.rootRoute). A site that
+  // co-hosts reader + CMS uses the default "reader" (render the publication
+  // home page here). A CMS-only site points the root at the newsroom or
+  // anywhere else. Preserve the scenario and OAuth-callback paths.
+  if (rootRoute.kind === "newsroom" && !scenarioId) {
+    return <NewsDeskRootPage searchParams={searchParams} />;
+  }
+
+  if (rootRoute.kind === "redirect" && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
+    redirect(rootRoute.destination);
+  }
+
   if (!scenarioId) {
     if (hasOAuthRedirectParams(resolvedSearchParams)) {
       const mastheadHomeHref = await loadFirstPublishedEditionPath();
@@ -68,7 +82,7 @@ async function loadHomeContent(scenarioId: string | null): Promise<EditionConten
   try {
     return await contentRepository.loadEditionContent({ scenarioId });
   } catch (error) {
-    if (scenarioId || !isMissingGraphQLEditionError(error)) throw error;
+    if (scenarioId || !isMissingReaderBackendError(error)) throw error;
     return createEmptyGraphQLEdition();
   }
 }
@@ -302,6 +316,13 @@ function createPlaceholderCtaItem({
 
 function isMissingGraphQLEditionError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("No published GraphQL edition found");
+}
+
+function isMissingReaderBackendError(error: unknown): boolean {
+  return (
+    isMissingGraphQLEditionError(error)
+    || (error instanceof Error && error.message.includes("missing projection model"))
+  );
 }
 
 function hasOAuthRedirectParams(searchParams: Awaited<HomePageProps["searchParams"]>): boolean {

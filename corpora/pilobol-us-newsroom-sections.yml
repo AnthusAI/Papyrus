@@ -1,0 +1,45 @@
+schemaVersion: 1
+sections:
+  - id: field-notes
+    title: Field Notes
+    shortTitle: Fungus Among Us
+    type: canonical
+    editorialMission: Document how fungal networks coordinate growth, resource sharing, and takeover patterns in Pilobolus field research.
+    editorialPolicy: Publish grounded field notes about mycelial signal propagation, host encirclement, and coordination under canopy stress. Prefer observational evidence over metaphor alone.
+    assignmentGuidance: Start from a specific field observation or intake artifact. Name the coordination pattern, the host context, and what changed in the control loop.
+    killCriteria: Reject generic nature writing or AI hype that does not tie back to inspectable fungus-among-us field evidence.
+    enabled: true
+    sortOrder: 1
+
+  - id: strangler-control
+    title: Strangler Control
+    shortTitle: Host Encirclement
+    type: canonical
+    editorialMission: Cover strangler-fig takeover loops—how encirclement pressure reshapes host access, light, and downstream control paths.
+    editorialPolicy: Treat strangler-fig dynamics as a control metaphor with field-testable claims. Separate observed canopy behavior from editorial inference.
+    assignmentGuidance: Map an encirclement sequence to a measurable control shift. Include what an editor should verify before publication.
+    killCriteria: Reject pieces that use strangler-fig language without a defensible control-loop or field-note anchor.
+    enabled: true
+    sortOrder: 2
+
+  - id: mycelial-signals
+    title: Mycelial Signals
+    shortTitle: Network Routing
+    type: canonical
+    editorialMission: Track signal routing, timing, and failure modes across fungal networks that inform Pilobolus coordination models.
+    editorialPolicy: Prioritize intake artifacts, annotated field logs, and accepted references over speculative network diagrams.
+    assignmentGuidance: Identify a signal path, its failure mode, and the corpus evidence that supports the routing claim.
+    killCriteria: Reject network analogies that cannot be traced to accepted source material in the Pilobolus corpus.
+    enabled: true
+    sortOrder: 3
+
+  - id: source-intake
+    title: Source Intake
+    shortTitle: Intake Queue
+    type: floating
+    editorialMission: Curate incoming Pilobolus source material before it enters the accepted knowledge base.
+    editorialPolicy: Intake reviews source provenance, field-note quality, and topic fit for the Pilobolus steering tree—not the Papyrus publication KB.
+    assignmentGuidance: Bind each intake packet to a corpus role, topic scope, and explicit accept/reject rationale.
+    killCriteria: Reject intake that treats Pilobolus field material as generic platform demo content.
+    enabled: true
+    sortOrder: 4

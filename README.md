@@ -1,7 +1,7 @@
 # Papyrus
 
 You are focused on a topic. For us, it is AI/ML information systems. For you,
-it might be golf club technology, underwater basket weaving, oil markets, local
+it might be golf club technology, oil markets, local
 politics, or any other beat worth watching closely.
 
 Papyrus turns that focus into a fully automated newsroom. Research agents
@@ -243,7 +243,36 @@ Papyrus has three distinct GraphQL auth lanes:
 taxonomy steering tab. `Sections` is the operational desk surface backed by
 `NewsroomSection` doctrine and budgets. `Doctrine` is the publication-wide
 mission and policies surface. The page is driven by the configured corpora for
-the publication, not by hard-coded corpus names. Papyrus owns the human steering
+the publication, not by hard-coded corpus names.
+
+`/newsroom` chrome is an application shell (Shadcn tokens and sans fonts), not
+the Pretext newspaper masthead. Reader pages keep newsprint/Pretext. Before:
+ops sat inside `.paper-page` / `.masthead`. After: `[data-newsroom-chrome=app]`
+with a header and section nav. Inner desks (Topics, References, Assignments)
+are unchanged in this foundation slice.
+
+Tenant theme packs live on `SiteBrand` (`themePack`, moss/ochre/paper tokens,
+independent `renderer`, `hosting`, and `opsChrome`). Papyr.us, Threat
+Intelligence, and Pilobolus reuse the same `/newsroom` chrome. Pilobolus is
+the first extra pack (`PAPYRUS_SITE_BRAND=pilobol-us`) and maps the Markus
+fungus-among-us palette (paper `#f1ead9`, moss `#3f5d43`, ochre `#a35a2a`,
+plus dark counterparts) into Shadcn CSS variables. Colors are copied into
+Papyrus; the Pilobolus theme file is not loaded at runtime. Typography stays
+on the Shadcn stack. Shared ops components read CSS tokens; they do not
+hard-code publication names or Pilobolus hexes. GraphQL/AppSync remains the
+data source of truth. How to add a pack: [docs/site-theme-packs.md](docs/site-theme-packs.md).
+Ops vs reader renderer are independent: [docs/site-stacks.md](docs/site-stacks.md).
+
+```bash
+npm run dev
+# or: npm run dev:127
+```
+
+Then open [http://127.0.0.1:3001/newsroom?demo=1](http://127.0.0.1:3001/newsroom?demo=1).
+Set `PAPYRUS_SITE_BRAND=pilobol-us` to apply the official Pilobolus palette.
+Offline chrome review can use `amplify/fixtures/demo-amplify-outputs.json` when sandbox generate is unavailable (`npm run dev:127` copies that stub into ignored `amplify_outputs.json` and warns that it is demo-only).
+
+Papyrus owns the human steering
 state in GraphQL: knowledge corpora,
 import runs, artifacts, accepted category sets, strict-tree categories, private
 `Reference` metadata, private `SemanticRelation` links, proposals, and
@@ -952,3 +981,9 @@ inside the feature file.
 Pretext measurement depends on browser canvas APIs, so the newspaper layout is
 computed after client hydration. The server-rendered shell is intentionally
 minimal.
+
+---
+
+Built by [Anthus AI Solutions](https://anth.us). We run this class of system in production.
+
+If you need this operated, not just cloned, [talk to us](https://anth.us).

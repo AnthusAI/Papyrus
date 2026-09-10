@@ -1,0 +1,37 @@
+import type { SiteBrand } from "../../lib/site-brand";
+import { PILOBOL_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
+
+export const pilobolUsBrand: SiteBrand = {
+  id: "pilobol-us",
+  appTitle: "Pilobolus",
+  appDescription: "Pilobolus publication on Papyrus (Pilobol.us).",
+  mastheadTitle: "PILOBOL.US",
+  mastheadSubtitle: "Field notes",
+  backToHomeLabel: "Back to Pilobolus",
+  articleTitleSuffix: "Pilobolus",
+  placeholderByline: "Pilobolus",
+  defaultPresentation: "magazine",
+  textFont: 'ui-sans-serif, system-ui, "Plus Jakarta Sans", sans-serif',
+  mastheadWordSplit: false,
+  mastheadDateFormat: "formatted",
+  mastheadSource: "brand",
+  sectionLinkStrategy: "route",
+  themePack: "pilobol-us",
+  themeTokens: PILOBOL_US_THEME_PACK_TOKENS,
+  renderer: { kind: "markus" },
+  hosting: { kind: "amplify-ssr" },
+  readerDeployment: {
+    kind: "amplify-static",
+    repository: "https://github.com/AnthusAI/Pilobol.us",
+    domain: "pilobol.us",
+    amplifyAppId: "d1od6t7lzbwanr",
+  },
+  rootRoute: { kind: "newsroom" },
+  newsroomBasePath: "",
+  opsChrome: "app",
+  corpusKey: "pilobol-us",
+  steeringConfigPath: "corpora/pilobol-us-steering.yml",
+  newsroomSectionsConfigPath: "corpora/pilobol-us-newsroom-sections.yml",
+  analysisProfilesPath: "corpora/pilobol-us-analysis-profiles.yml",
+  publicationName: "Pilobolus",
+};

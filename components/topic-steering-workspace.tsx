@@ -75,9 +75,20 @@ import {
 import { buildNewsroomKnowledgeQueryInput, type NewsroomKnowledgeQueryAnchor as KnowledgeQueryAnchor, type NewsroomKnowledgeQueryTarget as KnowledgeQueryTarget } from "../lib/newsroom-knowledge-query-request";
 import { NewsroomConsoleProgressToggle, PapyrusConsoleChatIcon, usePapyrusConsole } from "./papyrus-console-shell";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
+import { SITE_BRAND } from "../lib/site-brand";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
+import { cn } from "../lib/utils";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
+import { ReaderAuthControl } from "./reader-auth-control";
+import { NewsroomOpsOverview } from "./newsroom-ops-overview";
+import { NewsroomReferencesView } from "./newsroom-references-view";
+import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
+import { NewsroomTopicsView } from "./newsroom-topics-view";
+import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
+import { Button, buttonVariants } from "./ui/button";
+import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import {
   DropdownMenu,
@@ -396,6 +407,7 @@ export type NewsDeskSelection = {
   searchFrom?: string | null;
   assignmentView?: string | null;
   forumThread?: string | null;
+  proposal?: string | null;
 };
 
 type CategoryReviewResponse = {
@@ -545,99 +557,6 @@ function isEditableEventTarget(target: EventTarget | null) {
   return target.isContentEditable || target.closest("[contenteditable='true']") !== null;
 }
 
-type NewsDeskDrawerController = {
-  close: () => void;
-  drawerId: string;
-  firstLinkRef: RefObject<HTMLAnchorElement | null>;
-  isDocked: boolean;
-  isModal: boolean;
-  open: boolean;
-  setOpen: (value: boolean) => void;
-  triggerRef: RefObject<HTMLButtonElement | null>;
-};
-
-function useNewsDeskDrawerController(): NewsDeskDrawerController {
-  const pathname = usePathname();
-  const isDocked = useMediaQuery("(min-width: 1100px)");
-  const isModal = !isDocked;
-  const drawerId = useId();
-  const lastPathnameRef = useRef(pathname);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const firstLinkRef = useRef<HTMLAnchorElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const shouldRestoreFocusRef = useRef(false);
-
-  const close = useCallback(() => {
-    if (!open) return;
-    shouldRestoreFocusRef.current = true;
-    setOpen(false);
-  }, [open]);
-
-  useEffect(() => {
-    if (lastPathnameRef.current === pathname) return;
-    lastPathnameRef.current = pathname;
-    setOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!open || !isModal) return;
-    requestAnimationFrame(() => {
-      firstLinkRef.current?.focus();
-    });
-  }, [isModal, open]);
-
-  useEffect(() => {
-    if (open || !shouldRestoreFocusRef.current) return;
-    shouldRestoreFocusRef.current = false;
-    triggerRef.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      close();
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [close, open]);
-
-  useEffect(() => {
-    if (!open || !isModal) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isModal, open]);
-
-  return {
-    close,
-    drawerId,
-    firstLinkRef,
-    isDocked,
-    isModal,
-    open,
-    setOpen,
-    triggerRef,
-  };
-}
-
-function inferNewsDeskTabFromPathname(pathname: string | null): NewsDeskTab | null {
-  if (!pathname || !pathname.startsWith("/newsroom")) return null;
-  if (pathname === "/newsroom" || pathname === "/newsroom/") return "overview";
-  if (pathname.startsWith("/newsroom/messages")) return "messages";
-  if (pathname.startsWith("/newsroom/insights")) return "insights";
-  if (pathname.startsWith("/newsroom/assignments")) return "assignments";
-  if (pathname.startsWith("/newsroom/references")) return "references";
-  if (pathname.startsWith("/newsroom/topics")) return "topics";
-  if (pathname.startsWith("/newsroom/concepts")) return "concepts";
-  if (pathname.startsWith("/newsroom/administration")) return "administration";
-  if (pathname.startsWith("/newsroom/search")) return "search";
-  return null;
-}
-
 const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
   "new-category",
   "rename-category",
@@ -648,31 +567,6 @@ const TAILORED_TOPIC_PROPOSAL_KINDS = new Set([
   "category-display-copy-edit",
   "category-copy-edit",
   "display-copy-edit",
-]);
-
-const NEWS_DESK_TABS: Array<{ id: NewsDeskTab; label: string; detail: string; href: string }> = [
-  { id: "messages", label: "Messages", detail: "Commentary", href: "/newsroom/messages" },
-  { id: "insights", label: "Insights", detail: "Research threads", href: "/newsroom/insights" },
-  { id: "assignments", label: "Assignments", detail: "Work Desk", href: "/newsroom/assignments" },
-  { id: "references", label: "References", detail: "Knowledge Base", href: "/newsroom/references" },
-  { id: "topics", label: "Topics", detail: "Taxonomy", href: "/newsroom/topics" },
-  { id: "concepts", label: "Concepts", detail: "Ontology", href: "/newsroom/concepts" },
-  { id: "administration", label: "Administration", detail: "Users, Policies & Procedures", href: "/newsroom/administration" },
-];
-
-const TAXONOMY_PROPOSAL_KINDS = new Set([
-  "create-category",
-  "move-category",
-  "archive-category",
-  "merge-categories",
-  "split-category",
-]);
-const TOPIC_PROPOSAL_BLOCKED_APPLY_KINDS = new Set([
-  "merge-category",
-  "merge-categories",
-  "split-category",
-  "archive-category",
-  "deprecate-category",
 ]);
 
 const USER_POOL_AUTH_MODE = "userPool";
@@ -711,177 +605,20 @@ type ModelAttachmentSubscriptionModel = {
   onDelete?: () => ModelSubscriptionFactory;
 };
 
-function NewsDeskTabLink({
-  active,
-  count,
-  countSlot = true,
-  countVisible = true,
-  countMissing = false,
-  demo,
-  tab,
-}: {
-  active: boolean;
-  count: number | null;
-  countSlot?: boolean;
-  countVisible?: boolean;
-  countMissing?: boolean;
-  demo?: boolean;
-  tab: { id: NewsDeskTab; label: string; detail: string; href: string };
-}) {
-  const countParts = typeof count === "number" ? formatCompactCountParts(count) : null;
-  const countContentRef = useRef<HTMLSpanElement | null>(null);
-  const hasAnimatedCountRef = useRef(false);
-
-  useLayoutEffect(() => {
-    const countContent = countContentRef.current;
-    if (!countContent) {
-      hasAnimatedCountRef.current = false;
-      return;
-    }
-
-    gsap.killTweensOf(countContent);
-
-    if (!countVisible) {
-      hasAnimatedCountRef.current = false;
-      countContent.style.opacity = "";
-      countContent.style.visibility = "";
-      return;
-    }
-
-    if (!hasAnimatedCountRef.current) {
-      hasAnimatedCountRef.current = true;
-      gsap.fromTo(
-        countContent,
-        { autoAlpha: 0 },
-        { autoAlpha: 1, duration: 1.35, ease: "sine.out" },
-      );
-      return;
-    }
-
-    gsap.set(countContent, { autoAlpha: 1 });
-  }, [countVisible, countMissing, countParts?.suffix, countParts?.value]);
-
-  return (
-    <Link
-      aria-current={active ? "page" : undefined}
-      className={`news-desk-tab${active ? " news-desk-tab--active" : ""}`}
-      data-count-slot={countSlot ? "true" : "false"}
-      data-news-desk-tab={tab.id}
-      href={getNewsDeskTabHref(tab.href, demo)}
-    >
-      {countSlot ? (
-        <strong
-          className="news-desk-tab__count"
-          aria-label={
-            countVisible
-              ? countMissing
-                ? `${tab.label} count unavailable`
-                : `${formatCompactCount(count ?? 0)} ${tab.label.toLowerCase()}`
-              : `${tab.label} count loading`
-          }
-          data-count-visible={countVisible ? "true" : "false"}
-        >
-          {countVisible ? (
-            <span className="news-desk-tab__count-content" ref={countContentRef}>
-              {countMissing ? (
-                <span className="news-desk-tab__count-value">?</span>
-              ) : countParts ? (
-                <>
-                  <span className="news-desk-tab__count-value">{countParts.value}</span>
-                  {countParts.suffix ? <span className="news-desk-tab__count-suffix">{countParts.suffix}</span> : null}
-                </>
-              ) : null}
-            </span>
-          ) : (
-            <span className="news-desk-tab__count-content" ref={countContentRef} aria-hidden="true" />
-          )}
-        </strong>
-      ) : null}
-      <span className="news-desk-tab__text">
-        <span>{tab.label}</span>
-        <small>{tab.detail}</small>
-      </span>
-    </Link>
-  );
-}
-
-function NewsDeskDrawerTrigger({ controller }: { controller: NewsDeskDrawerController }) {
-  return (
-    <button
-      aria-controls={controller.drawerId}
-      aria-expanded={controller.open}
-      aria-label="Open newsroom sections navigation"
-      className="news-desk-hamburger"
-      onClick={() => controller.setOpen(!controller.open)}
-      ref={controller.triggerRef}
-      type="button"
-    >
-      <MenuIcon aria-hidden="true" className="news-desk-hamburger__icon news-desk-search-mark__icon" size={16} />
-      <span>Sections</span>
-    </button>
-  );
-}
-
-function NewsDeskDrawerPanel({
-  activeTab,
-  controller,
-  demo = false,
-}: {
-  activeTab: NewsDeskTab | null;
-  controller: NewsDeskDrawerController;
-  demo?: boolean;
-}) {
-  const closeLabel = controller.isModal ? "Close sections menu" : "Hide sections menu";
-
-  return (
-    <>
-      <button
-        aria-hidden={!controller.isModal || !controller.open}
-        className="news-desk-drawer-backdrop"
-        data-open={controller.open ? "true" : "false"}
-        data-visible={controller.isModal ? "true" : "false"}
-        onClick={controller.close}
-        tabIndex={controller.open && controller.isModal ? 0 : -1}
-        type="button"
-      />
-      <aside
-        aria-label="Newsroom sections"
-        aria-modal={controller.isModal ? true : undefined}
-        className="news-desk-drawer"
-        data-mode={controller.isDocked ? "docked" : "modal"}
-        data-open={controller.open ? "true" : "false"}
-        id={controller.drawerId}
-        role={controller.isModal ? "dialog" : "navigation"}
-      >
-        <div className="news-desk-drawer__header">
-          <p className="news-desk-drawer__title">Sections</p>
-          <button aria-label={closeLabel} className="news-desk-drawer__close" onClick={controller.close} type="button">
-            <XIcon aria-hidden="true" className="news-desk-search-mark__icon" size={16} />
-          </button>
-        </div>
-        <nav className="news-desk-drawer__nav" aria-label="Newsroom section links">
-          {NEWS_DESK_TABS.map((tab, index) => {
-            const isActive = activeTab === tab.id || (activeTab === "desks" && tab.id === "topics");
-            return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                className="news-desk-drawer__link"
-                data-active={isActive ? "true" : "false"}
-                href={getNewsDeskTabHref(tab.href, demo)}
-                key={tab.id}
-                onClick={controller.close}
-                ref={index === 0 ? controller.firstLinkRef : undefined}
-              >
-                <span className="news-desk-drawer__link-label">{tab.label}</span>
-                <span className="news-desk-drawer__link-detail">{tab.detail}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-    </>
-  );
-}
+const TAXONOMY_PROPOSAL_KINDS = new Set([
+  "create-category",
+  "move-category",
+  "archive-category",
+  "merge-categories",
+  "split-category",
+]);
+const TOPIC_PROPOSAL_BLOCKED_APPLY_KINDS = new Set([
+  "merge-category",
+  "merge-categories",
+  "split-category",
+  "archive-category",
+  "deprecate-category",
+]);
 
 export function NewsDeskWorkspace({
   analysisProfiles = [],
@@ -1021,7 +758,6 @@ function NewsDeskDashboard({
     [pathname],
   );
   const isSectionPage = Boolean(sectionPageId);
-  const drawerController = useNewsDeskDrawerController();
   const [corpora, setCorpora] = useState(dashboard.corpora);
   const [importRuns, setImportRuns] = useState(dashboard.importRuns);
   const [categorySets, setCategorySets] = useState(dashboard.categorySets);
@@ -1060,7 +796,6 @@ function NewsDeskDashboard({
   const [mergeSelection, setMergeSelection] = useState<MergeSelection | null>(null);
   const [isPending, startTransition] = useTransition();
   const controlsDisabled = isPending || !canEdit;
-  const showRhythmOverlay = useNewsroomRhythmOverlay();
   const initialAdministrationPanel = normalizeAdministrationPanel(initialSelection.panel);
   const [administrationPanel, setAdministrationPanel] = useState<AdministrationPanel>(initialAdministrationPanel);
   const [doctrineDrafts, setDoctrineDrafts] = useState<DoctrineEditorState>(() => buildDoctrineEditorState(dashboard.doctrineRecords));
@@ -1145,15 +880,18 @@ function NewsDeskDashboard({
       ?? summary?.messageKindCounts?.insight
       ?? null,
     assignments: summaryCountFromRecord(summary, "assignments"),
-    references: summaryCountFromRecord(summary, "references"),
+    references: summaryCountFromRecord(summary, "references")
+      ?? (hasHydratedReferences ? references.length : null),
     topics: summaryCountFromRecord(summary, "categories"),
     concepts: summaryCountFromRecord(summary, "semanticNodes"),
     administration: userDirectory.length + doctrineRecords.length + newsroomSections.length + procedureDefinitions.length,
     search: 0,
   }), [
     doctrineRecords.length,
+    hasHydratedReferences,
     newsroomSections.length,
     procedureDefinitions.length,
+    references.length,
     summary,
     userDirectory.length,
   ]);
@@ -1197,6 +935,7 @@ function NewsDeskDashboard({
     semanticNodes,
   });
   const canRefreshNewsroomSections = canEdit && editorShellReady && authState.status === "signedIn" && !dashboard.isDemo;
+  const canLoadPrivateCorpus = !dashboard.isDemo && editorShellReady && authState.status === "signedIn";
   const refreshNewsroomSections = useCallback(async () => {
     if (dashboard.isDemo || !canRefreshNewsroomSections) {
       setNewsroomSections(fallbackNewsroomSections);
@@ -1259,14 +998,17 @@ function NewsDeskDashboard({
   }, [dashboard.summary]);
 
   useEffect(() => {
+    if (dashboard.references.length === 0) return;
     setReferences(dashboard.references);
   }, [dashboard.references]);
 
   useEffect(() => {
+    if (dashboard.referenceAttachments.length === 0) return;
     setReferenceAttachments(dashboard.referenceAttachments);
   }, [dashboard.referenceAttachments]);
 
   useEffect(() => {
+    if (dashboard.messages.length === 0) return;
     setMessages(dashboard.messages);
   }, [dashboard.messages]);
 
@@ -1374,6 +1116,37 @@ function NewsDeskDashboard({
   }, [activeTab, dashboard.isDemo, dashboard.categoryTrees, dashboard.categoryNodes]);
 
   useEffect(() => {
+    if (authState.status === "signedIn") return;
+    setLoadedSections((current) => ({ ...current, references: false }));
+    setHasHydratedReferences(false);
+  }, [authState.status]);
+
+  useEffect(() => {
+    if (!canLoadPrivateCorpus || hasHydratedReferences) return;
+    let active = true;
+    void loadEditorReferencesData()
+      .then(({ references: nextReferences, referenceAttachments }) => {
+        if (!active) return;
+        setReferences(nextReferences);
+        setReferenceAttachments(referenceAttachments);
+        setHasHydratedReferences(true);
+        setLoadedSections((current) => ({ ...current, references: true }));
+      })
+      .catch((error) => {
+        if (active) {
+          setActionState({
+            id: "references-load",
+            message: error instanceof Error ? error.message : "references load failed",
+            tone: "error",
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [canLoadPrivateCorpus, hasHydratedReferences]);
+
+  useEffect(() => {
     if (dashboard.isDemo) return;
     let active = true;
 
@@ -1385,20 +1158,6 @@ function NewsDeskDashboard({
         })
         .catch((error) => {
           if (active) setActionState({ id: "messages-load", message: error instanceof Error ? error.message : "messages load failed", tone: "error" });
-        });
-    }
-
-    if (activeTab === "references" && !loadedSections.references) {
-      setLoadedSections((current) => ({ ...current, references: true }));
-      void loadEditorReferencesData()
-        .then(({ references: nextReferences, referenceAttachments }) => {
-          if (!active) return;
-          setReferences(nextReferences);
-          setReferenceAttachments(referenceAttachments);
-          setHasHydratedReferences(true);
-        })
-        .catch((error) => {
-          if (active) setActionState({ id: "references-load", message: error instanceof Error ? error.message : "references load failed", tone: "error" });
         });
     }
 
@@ -3252,81 +3011,74 @@ function NewsDeskDashboard({
     });
   }
 
+  const shellTabCounts = useMemo(() => {
+    const entries: Partial<Record<string, NewsroomNavCount>> = {};
+    for (const tab of ["overview", "messages", "insights", "assignments", "references", "topics", "concepts", "administration"] as NewsDeskTab[]) {
+      if (tab === "administration") continue;
+      entries[tab] = {
+        count: tabCounts[tab],
+        missing: summaryStatus === "missing",
+        visible: summaryStatus !== "loading",
+      };
+    }
+    return entries;
+  }, [summaryStatus, tabCounts]);
+  const opsPageTitle = isSectionPage
+    ? mastheadTitle
+    : activeTab === "overview"
+      ? "Overview"
+      : formatDeskSectionHeadline(activeTab);
+
   return (
-    <main
-      className="site-shell news-desk-shell"
-      data-news-desk
-      data-category-steering
-      data-category-steering-demo={dashboard.isDemo ? "true" : "false"}
-      data-news-desk-refreshing={isRefreshing ? "true" : "false"}
-      data-news-desk-drawer-docked={drawerController.isDocked ? "true" : "false"}
-      data-news-desk-drawer-open={drawerController.open ? "true" : "false"}
-      data-rhythm-overlay={showRhythmOverlay ? "true" : "false"}
-    >
-      <NewsroomProgressBackLink
-        searchAction={canEdit && editorShellReady && !dashboard.isDemo ? {
-          disabled: false,
-          onPress: activeTab === "search"
-            ? focusNewsroomSearchForm
-            : topBarSearchControl.open,
-        } : null}
-      />
-      <section className="scroll-edition news-desk-edition">
-        <div className="paper-page paper-page--front paper-page--active">
-          <article className="paper-page-content paper-page-content--front news-desk-page" aria-labelledby="news-desk-title">
-	        <header className="masthead news-desk-masthead">
-	          <div className="masthead__rule" />
-	          <h1 id="news-desk-title">
-	            {isSectionPage ? mastheadTitle : <Link href={getNewsDeskTabHref("/newsroom", dashboard.isDemo)}>NEWSROOM</Link>}
-	          </h1>
-		          <div className="masthead__meta" aria-label="Newsroom edition status">
-	            <span><NewsDeskDrawerTrigger controller={drawerController} /></span>
-	            <span aria-hidden="true" className="masthead__meta-placeholder">&nbsp;</span>
-	            <span>{dashboard.isDemo ? "Demo Desk" : <Link className="news-desk-auth-control-link" href="/settings">Settings</Link>}</span>
-	          </div>
-	        </header>
-        <NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} demo={dashboard.isDemo} />
-
-        {!isSectionPage && activeTab === "overview" ? (
-          <nav className="news-desk-tabs" aria-label="Newsroom sections">
-            {NEWS_DESK_TABS.map((tab) => (
-              <NewsDeskTabLink
-                key={tab.id}
-                active={tab.id === activeTab}
-                count={tabCounts[tab.id]}
-                countSlot={tab.id !== "administration"}
-                countVisible={tab.id === "administration" || summaryStatus !== "loading"}
-                countMissing={tab.id !== "administration" && summaryStatus === "missing"}
-                demo={dashboard.isDemo}
-                tab={tab}
+    <>
+      <NewsroomOpsShell
+        activeTab={activeTab}
+        appTitle={SITE_BRAND.appTitle}
+        backHref="/"
+        backLabel={SITE_BRAND.backToHomeLabel}
+        demo={dashboard.isDemo}
+        headerActions={(
+          <>
+            {dashboard.isDemo ? (
+              <Badge variant="outline">Demo</Badge>
+            ) : (
+              <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+            )}
+            {canEdit && editorShellReady && !dashboard.isDemo ? (
+              <NewsroomOpsSearchButton
+                disabled={false}
+                onPress={activeTab === "search" ? focusNewsroomSearchForm : topBarSearchControl.open}
               />
-            ))}
-          </nav>
-        ) : null}
-
+            ) : null}
+            <NewsroomConsoleProgressToggle />
+          </>
+        )}
+        pageTitle={opsPageTitle}
+        showNavigation={!isSectionPage}
+        tabCounts={shellTabCounts}
+      >
+        <div
+          data-category-steering
+          data-category-steering-demo={dashboard.isDemo ? "true" : "false"}
+          data-news-desk-refreshing={isRefreshing ? "true" : "false"}
+        >
         {activeTab !== "overview" && activeTab !== "assignments" && activeTab !== "messages" && activeTab !== "references" && activeTab !== "topics" && activeTab !== "concepts" && activeTab !== "search" ? (
-          <section className="news-desk-lede-grid" aria-label="Newsroom overview">
-            <article className="news-desk-lede">
-              <h2>{formatDeskSectionHeadline(activeTab)}</h2>
-              <p>{formatDeskSectionLede(activeTab)}</p>
-            </article>
-          </section>
+          <NewsroomOpsSectionIntro
+            description={formatDeskSectionLede(activeTab)}
+            title={formatDeskSectionHeadline(activeTab)}
+          />
         ) : null}
 
         {isRefreshing ? (
-          <div className="category-steering-alert" role="status">
-            Refreshing newsroom data...
-          </div>
+          <NewsroomOpsStatusBanner>Refreshing newsroom data...</NewsroomOpsStatusBanner>
         ) : null}
         {!isRefreshing && shellError ? (
-          <div className="category-steering-alert" role="status">
-            {shellError}
-          </div>
+          <NewsroomOpsStatusBanner tone="error">{shellError}</NewsroomOpsStatusBanner>
         ) : null}
         {actionState ? (
-          <div className={`category-steering-action category-steering-action--${actionState.tone}`} role="status" aria-live="polite">
+          <NewsroomOpsStatusBanner tone={actionState.tone === "ok" ? "ok" : "error"}>
             {actionState.message}
-          </div>
+          </NewsroomOpsStatusBanner>
         ) : null}
 
         {isSectionPage ? (
@@ -3340,12 +3092,12 @@ function NewsDeskDashboard({
           />
         ) : null}
         {!isSectionPage && activeTab === "overview" ? (
-          <OverviewDeskView
+          <NewsroomOpsOverview
             assignments={assignments}
-            dashboard={dashboard}
-            initialForumThreadId={initialSelection.forumThread}
-            isDemo={Boolean(dashboard.isDemo)}
+            demo={Boolean(dashboard.isDemo)}
+            messages={messages}
             newsroomSections={newsroomSections}
+            references={references}
           />
         ) : null}
         {!isSectionPage && activeTab === "search" ? (
@@ -3377,35 +3129,10 @@ function NewsDeskDashboard({
         ) : null}
         {!isSectionPage && activeTab === "topics" ? (
           <TopicsDeskView
-            activeCategoryTree={activeCategoryTree}
-            activeCategorySet={activeCategorySet}
-            analysisProfiles={analysisProfiles}
-            canonicalCategorys={canonicalCategorys}
-            categorySets={categorySets}
-            categorys={categorys}
-            categoryByUid={categoryByUid}
-            categoryKeywords={categoryKeywords}
-            categoryTreeLoadError={categoryTreeLoadError}
-            categoryNodes={activeCategoryTreeNodes}
-            corpora={mergeAnalysisCorpora(configuredCorpora, corpora)}
             disabled={controlsDisabled}
-            graph={graph}
-            initialCategoryLineageId={initialSelection.category}
+            initialProposalId={initialSelection.proposal}
             isDemo={Boolean(dashboard.isDemo)}
-            lexicalSteeringRules={lexicalSteeringRules}
-            references={references}
-            semanticRelations={semanticRelations}
-            onArchiveDraftCategory={archiveDraftTopicCategory}
-            onCategorySave={saveCategory}
-            onCreateAnalysisReindexAssignment={createAnalysisReindexAssignment}
-            onCreateDraftCategory={createDraftTopicCategory}
-            onCreateDraftSet={createTopicCategorySetDraft}
-            onDiscardDraftSet={discardTopicCategorySetDraft}
-            onLexicalRuleCreate={createLexicalSteeringRule}
-            onPromoteDraftSet={promoteTopicCategorySetDraft}
             onProposalAction={runProposalAction}
-            onReviewTopicLabel={runReferenceTopicLabelAction}
-            onUpdateDraftCategory={updateDraftTopicCategory}
             proposals={proposals}
           />
         ) : null}
@@ -3422,38 +3149,13 @@ function NewsDeskDashboard({
           />
         ) : null}
         {!isSectionPage && activeTab === "references" ? (
-          <ReferencesDeskView
-            categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
-            categorySets={categorySets}
-            corpora={corpora}
-            curationRunsByLineage={referenceCurationRunsByLineage}
-            graph={graph}
-            initialCategoryLineageId={initialSelection.category}
-            initialReferenceLineageId={initialSelection.reference}
-            isDemo={Boolean(dashboard.isDemo)}
-            deepLinkFetchEnabled={
-              authState.status === "signedIn"
-              && (
-                Boolean(initialSelection.reference)
-                || Boolean(pathnameReferenceLineageId)
-                || hasHydratedReferences
-              )
-            }
-            qualityActionState={referenceQualityActionState}
-            references={references}
-            referenceAttachments={referenceAttachments}
-            realtimeError={referencesRealtimeError}
-            realtimeStatus={referencesRealtimeStatus}
-            semanticRelations={semanticRelations}
-            summary={summary}
+          <NewsroomReferencesView
+            demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
-            onMoveCorpus={runReferenceCorpusMove}
-            onReview={runReferenceCurationAction}
-            onStartCuration={runReferenceCurationStart}
-            onSetQualityRating={runReferenceQualityRating}
-            onCreateInsight={createInsight}
-            onReviewTopicLabel={runReferenceTopicLabelAction}
-            onHydrateReference={hydrateReferenceFromRoute}
+            initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
+            onReview={(reference, action) => runReferenceCurationAction(reference, action)}
+            referenceAttachments={referenceAttachments}
+            references={references}
           />
         ) : null}
         {!isSectionPage && activeTab === "insights" ? (
@@ -3533,11 +3235,10 @@ function NewsDeskDashboard({
             users={userDirectory}
           />
         ) : null}
-        {topBarSearchControl.dialog}
-          </article>
         </div>
-      </section>
-    </main>
+      </NewsroomOpsShell>
+      {topBarSearchControl.dialog}
+    </>
   );
 }
 
@@ -6254,511 +5955,41 @@ function CategoryDoctrineEditorCard({
 }
 
 function TopicsDeskView({
-  activeCategoryTree,
-  activeCategorySet,
-  analysisProfiles,
-  canonicalCategorys,
-  categorySets,
-  categorys,
-  categoryByUid,
-  categoryKeywords,
-  categoryTreeLoadError,
-  categoryNodes,
-  corpora,
   disabled,
-  graph,
-  initialCategoryLineageId,
+  initialProposalId,
   isDemo,
-  lexicalSteeringRules,
-  references,
-  semanticRelations,
-  onArchiveDraftCategory,
-  onCategorySave,
-  onCreateAnalysisReindexAssignment,
-  onCreateDraftCategory,
-  onCreateDraftSet,
-  onDiscardDraftSet,
-  onLexicalRuleCreate,
-  onPromoteDraftSet,
   onProposalAction,
-  onReviewTopicLabel,
-  onUpdateDraftCategory,
   proposals,
 }: {
-  activeCategoryTree: CategorySteeringCategoryTree | null;
-  activeCategorySet: CategorySteeringCategorySet | null;
-  analysisProfiles: AnalysisProfileSummary[];
-  canonicalCategorys: CategorySteeringCategory[];
-  categorySets: CategorySteeringCategorySet[];
-  categorys: CategorySteeringCategory[];
-  categoryByUid: Map<string, CategorySteeringCategory>;
-  categoryKeywords: CategoryKeywordRecord[];
-  categoryTreeLoadError: string | null;
-  categoryNodes: CategorySteeringCategoryTreeNode[];
-  corpora: CategorySteeringCorpus[];
   disabled: boolean;
-  graph: SemanticGraph;
-  initialCategoryLineageId?: string | null;
+  initialProposalId?: string | null;
   isDemo?: boolean;
-  lexicalSteeringRules: LexicalSteeringRuleRecord[];
-  references: ReferenceRecord[];
-  semanticRelations: SemanticRelationRecord[];
-  onArchiveDraftCategory: (category: CategorySteeringCategory, note: string) => Promise<boolean> | boolean | void;
-  onCategorySave: (category: CategorySteeringCategory, update: Pick<CategorySteeringCategory, "displayName" | "shortTitle" | "subtitle" | "description">) => void;
-  onCreateAnalysisReindexAssignment: (profile: AnalysisProfileSummary, draft: AnalysisReindexDraft) => void;
-  onCreateDraftCategory: (categorySet: CategorySteeringCategorySet, input: DraftCategoryInput) => Promise<boolean> | boolean | void;
-  onCreateDraftSet: (sourceCategorySet: CategorySteeringCategorySet, displayName: string, note: string) => Promise<string | null> | string | null | void;
-  onDiscardDraftSet: (categorySet: CategorySteeringCategorySet, note: string) => Promise<boolean> | boolean | void;
-  onLexicalRuleCreate: (draft: LexicalRuleDraft) => void;
-  onPromoteDraftSet: (categorySet: CategorySteeringCategorySet, note: string) => Promise<boolean> | boolean | void;
   onProposalAction: (proposal: CategorySteeringProposal, action: ReviewAction, input?: ProposalReviewInput) => void;
-  onReviewTopicLabel: (input: { action: TopicLabelAction; category: CategorySteeringCategory; note?: string | null; reference: ReferenceRecord; sourceRelationId?: string | null }) => void;
-  onUpdateDraftCategory: (category: CategorySteeringCategory, input: DraftCategoryInput) => Promise<boolean> | boolean | void;
   proposals: CategorySteeringProposal[];
 }) {
-  const currentCategorySet = activeCategorySet && isCurrentCategorySet(activeCategorySet) ? activeCategorySet : null;
-  const activeDraftCategorySet = activeDraftForCurrentCategorySet(categorySets, categorys, currentCategorySet);
-  const validCategorySets = [currentCategorySet, activeDraftCategorySet].filter(Boolean) as CategorySteeringCategorySet[];
-  const defaultCategorySetId = currentCategorySet?.id ?? null;
-  const [selectedCategorySetId, setSelectedCategorySetId] = useState<string | null>(activeCategorySet?.id ?? null);
-  const [isCreatingTaxonomyDraft, setIsCreatingTaxonomyDraft] = useState(false);
-  const [topicToolbarError, setTopicToolbarError] = useState<string | null>(null);
-  const [topicDraftModal, setTopicDraftModal] = useState<TopicDraftModalState | null>(null);
   const [topicProposalEdit, setTopicProposalEdit] = useState<TopicProposalEditState | null>(null);
-  const [isTopicToolbarMenuOpen, setIsTopicToolbarMenuOpen] = useState(false);
-  const topicToolbarMenuRef = useRef<HTMLDivElement | null>(null);
-  const selectedCategorySet = resolveTopicWorkspace(validCategorySets, selectedCategorySetId, defaultCategorySetId);
-  const selectedCategorys = useMemo(() => {
-    if (!selectedCategorySet) return [];
-    return categorys.filter((category) => (
-      category.categorySetId === selectedCategorySet.id
-      && category.status !== "deprecated"
-      && category.status !== "archived"
-      && category.versionState !== "superseded"
-    ));
-  }, [categorys, selectedCategorySet]);
-  const selectedCategoryNodes = useMemo(() => {
-    if (selectedCategorySet?.id === activeCategoryTree?.id) return categoryNodes;
-    return selectedCategorys.map(categoryToCategoryTreeNode);
-  }, [activeCategoryTree?.id, categoryNodes, selectedCategorySet?.id, selectedCategorys]);
-  const selectedCategoryByUid = useMemo(() => {
-    const map = new Map<string, CategorySteeringCategory>();
-    for (const category of selectedCategorys) map.set(category.categoryKey, category);
-    return map;
-  }, [selectedCategorys]);
-  const referenceByAnyId = useMemo(() => buildReferenceLookupByAnyId(references), [references]);
-  const categoryQueueProposals = useMemo(() => {
-    const scoped = proposals.filter((proposal) => (
-      proposal.steeringDomain === "category"
-      && (!selectedCategorySet || proposal.categorySetId === selectedCategorySet.id)
-    ));
-    if (scoped.length > 0 || !selectedCategorySet) return scoped;
-    return proposals.filter((proposal) => proposal.steeringDomain === "category");
-  }, [proposals, selectedCategorySet]);
-  const roots = buildCanonicalTopicRoots(selectedCategorys, selectedCategoryNodes, proposals);
-  const subcategoryCount = roots.reduce((count, root) => count + root.subcategorys.length, 0);
-  const proposedSubcategoryCount = roots.reduce((count, root) => count + root.proposedSubcategorys.length, 0);
-  const isDraftMode = selectedCategorySet?.versionState === "draft" || selectedCategorySet?.status === "draft";
-  const initialRootKey = selectInitialRootKey(roots, initialCategoryLineageId);
-  const [selectedRootKey, setSelectedRootKey] = useState<string | null>(initialRootKey);
-  const [focusedCategoryKey, setFocusedCategoryKey] = useState<string | null>(null);
-  const [topicScopeFilter, setTopicScopeFilter] = useState("roots");
-  const [topicMetricFilter, setTopicMetricFilter] = useState("");
-  const [isTopicDetailOpen, setIsTopicDetailOpen] = useState(Boolean(initialCategoryLineageId));
-  const selectedRoot = roots.find((root) => root.category.categoryKey === selectedRootKey) ?? roots[0] ?? null;
-  const focusedNode = selectedRoot
-    ? [categoryToCategoryTreeNode(selectedRoot.category), ...(selectedRoot.node ? [selectedRoot.node] : []), ...selectedRoot.subcategorys]
-      .find((node) => node.categoryKey === focusedCategoryKey)
-      ?? categoryToCategoryTreeNode(selectedRoot.category)
-    : null;
-  const topicKnowledgeQuery = useNewsroomKnowledgeContext(focusedNode ? {
-    anchor: {
-      kind: "category",
-      id: focusedNode.id ?? focusedNode.categoryKey,
-      lineageId: categoryLineageId(focusedNode),
-    },
-    title: focusedNode.displayName,
-    subtitle: focusedNode.categoryKey,
-  } : null);
-  const focusedCategory = focusedNode
-    ? selectedCategorys.find((category) => category.categoryKey === focusedNode.categoryKey) ?? categoryTreeNodeToCategory(focusedNode)
-    : selectedRoot?.category ?? null;
-  const editableCategory = focusedCategoryKey
-    ? selectedCategoryByUid.get(focusedCategoryKey)
-      ?? (selectedRoot?.category.categoryKey === focusedCategoryKey ? selectedRoot.category : undefined)
-    : selectedRoot?.category;
-  const proposalCountByCategoryKey = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const root of roots) {
-      const rootNode = root.node ?? categoryToCategoryTreeNode(root.category);
-      counts.set(
-        rootNode.categoryKey,
-        countRelatedCategoryTreeProposals(rootNode.categoryKey, root.subcategorys, proposals),
-      );
-      for (const subcategory of root.subcategorys) {
-        counts.set(
-          subcategory.categoryKey,
-          countRelatedCategoryTreeProposals(subcategory.categoryKey, [], proposals),
-        );
-      }
-    }
-    return counts;
-  }, [proposals, roots]);
-  const rootWithProposalCount = useMemo(() => (
-    roots.reduce((count, root) => (
-      count + ((proposalCountByCategoryKey.get(root.category.categoryKey) ?? 0) > 0 ? 1 : 0)
-    ), 0)
-  ), [proposalCountByCategoryKey, roots]);
-  const visibleRoots = topicMetricFilter === "withProposals"
-    ? roots.filter((root) => (proposalCountByCategoryKey.get(root.category.categoryKey) ?? 0) > 0)
-    : roots;
-  const visibleTopicCards = useMemo(() => {
-    const entries: Array<{
-      kind: "root" | "subcategory";
-      node: CategorySteeringCategoryTreeNode;
-      parentCategoryKey: string | null;
-      proposalCount: number;
-      referenceCount: number;
-      subtopicCount: number | null;
-    }> = [];
-    for (const root of visibleRoots) {
-      const rootNode = root.node ?? categoryToCategoryTreeNode(root.category);
-      const rootContext = buildTopicDrilldownContext(root, rootNode, categoryByUid);
-      entries.push({
-        kind: "root",
-        node: rootNode,
-        parentCategoryKey: null,
-        proposalCount: proposalCountByCategoryKey.get(rootNode.categoryKey) ?? 0,
-        referenceCount: referencesForCategoryContext(graph, rootContext).length,
-        subtopicCount: root.subcategorys.length,
-      });
-      if (topicScopeFilter !== "all") continue;
-      for (const subcategory of root.subcategorys) {
-        const subcategoryContext = buildTopicDrilldownContext(root, subcategory, categoryByUid);
-        entries.push({
-          kind: "subcategory",
-          node: subcategory,
-          parentCategoryKey: rootNode.categoryKey,
-          proposalCount: proposalCountByCategoryKey.get(subcategory.categoryKey) ?? 0,
-          referenceCount: referencesForCategoryContext(graph, subcategoryContext).length,
-          subtopicCount: null,
-        });
-      }
-    }
-    return entries.map((entry, index) => topicTreeNodeToNewsroomCard(entry, index));
-  }, [categoryByUid, graph, proposalCountByCategoryKey, topicScopeFilter, visibleRoots]);
-  const detail = activeCategoryTree || roots.length
-    ? `${roots.length} canonical / ${subcategoryCount} accepted subtopics / ${proposedSubcategoryCount} proposed`
-    : categoryTreeLoadError
-      ? "CategoryTree unavailable"
-      : validCategorySets.length ? "No active topics in selected set" : "No current or draft topic set available";
-  const selectTopic = (categoryKey: string) => {
-    const root = roots.find((candidate) => (
-      candidate.category.categoryKey === categoryKey
-      || candidate.subcategorys.some((subcategory) => subcategory.categoryKey === categoryKey)
-    ));
-    if (!root) return;
-    const focused = root.category.categoryKey === categoryKey
-      ? root.node ?? categoryToCategoryTreeNode(root.category)
-      : root.subcategorys.find((subcategory) => subcategory.categoryKey === categoryKey) ?? root.node ?? categoryToCategoryTreeNode(root.category);
-    setSelectedRootKey(root.category.categoryKey);
-    setFocusedCategoryKey(focused.categoryKey);
-    setIsTopicDetailOpen(true);
-    pushNewsroomDetailUrl("topics", categoryLineageId(focused), isDemo);
-  };
-  const createEditableDraft = async () => {
-    if (!currentCategorySet || isCreatingTaxonomyDraft) return;
-    setTopicToolbarError(null);
-    if (activeDraftCategorySet) {
-      setSelectedCategorySetId(activeDraftCategorySet.id);
-      return;
-    }
-    setIsCreatingTaxonomyDraft(true);
-    try {
-      const draftId = await Promise.resolve(onCreateDraftSet(
-        currentCategorySet,
-        buildEditableDraftName(currentCategorySet.displayName),
-        "Created from the Topics dashboard for manual topic sculpting.",
-      ));
-      if (draftId) setSelectedCategorySetId(draftId);
-    } catch (error) {
-      setTopicToolbarError(error instanceof Error ? error.message : "Draft creation failed.");
-    } finally {
-      setIsCreatingTaxonomyDraft(false);
-    }
-  };
-  const viewCurrentTaxonomy = () => {
-    setSelectedCategorySetId(currentCategorySet?.id ?? null);
-  };
-  const topicActions: NewsroomDetailAction[] = isDraftMode && selectedCategorySet && editableCategory ? [
-    {
-      key: "edit-topic",
-      label: "Edit Topic",
-      disabled,
-      onSelect: () => setTopicDraftModal({ kind: "edit", category: editableCategory }),
-    },
-    {
-      key: "add-child-topic",
-      label: "Add Child Topic",
-      disabled,
-      onSelect: () => setTopicDraftModal({ kind: "create", parentCategoryKey: editableCategory.categoryKey }),
-    },
-    {
-      key: "archive-topic",
-      label: "Deprecate Topic",
-      disabled,
-      onSelect: () => setTopicDraftModal({ kind: "archive", category: editableCategory }),
-    },
-  ] : [];
-  const topicToolbarActions: NewsroomDetailAction[] = isDraftMode && selectedCategorySet
-    ? [
-      {
-        key: "add-topic",
-        label: "Add Topic",
-        disabled,
-        onSelect: () => setTopicDraftModal({ kind: "create", parentCategoryKey: null }),
-      },
-      {
-        key: "promote-draft",
-        label: "Promote Draft",
-        disabled,
-        onSelect: () => setTopicDraftModal({ kind: "promote" }),
-      },
-      {
-        key: "discard-draft",
-        label: "Discard Draft",
-        disabled,
-        onSelect: () => setTopicDraftModal({ kind: "discard" }),
-      },
-      {
-        key: "view-current",
-        label: "View Current",
-        disabled: disabled || !currentCategorySet,
-        onSelect: viewCurrentTaxonomy,
-      },
-    ]
-    : currentCategorySet
-      ? [
-        {
-          key: "edit-taxonomy",
-          label: isCreatingTaxonomyDraft ? "Creating Draft" : topicToolbarError ? "Draft Failed" : "Edit Taxonomy",
-          disabled: disabled || isCreatingTaxonomyDraft,
-          onSelect: createEditableDraft,
-        },
-      ]
-      : [];
-  const topicLedeControls = topicToolbarActions.length || isDraftMode ? (
-    <div className="news-desk-topic-lede-controls">
-      {topicToolbarActions.length ? (
-        <div className="newsroom-list-detail-shell__action-menu-wrap news-desk-topic-list-toolbar" ref={topicToolbarMenuRef}>
-          <button
-            type="button"
-            aria-label="Taxonomy actions"
-            aria-expanded={isTopicToolbarMenuOpen}
-            className="news-desk-detail-toggle news-desk-detail-toggle--actions"
-            title={topicToolbarError ?? undefined}
-            disabled={topicToolbarActions.every((action) => action.disabled)}
-            onClick={() => setIsTopicToolbarMenuOpen((current) => !current)}
-          >
-            <EllipsisIcon />
-          </button>
-          {isTopicToolbarMenuOpen ? (
-            <div className="newsroom-list-detail-shell__action-menu news-desk-topic-toolbar-menu" role="menu">
-              {topicToolbarActions.map((action) => (
-                <button
-                  type="button"
-                  disabled={action.disabled}
-                  key={action.key}
-                  onClick={() => {
-                    setIsTopicToolbarMenuOpen(false);
-                    action.onSelect();
-                  }}
-                  role="menuitem"
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {isDraftMode ? (
-        <div className="news-desk-assignment-create-strip">
-          <span className="news-desk-assignment-create-note">Draft taxonomy</span>
-          <span className="news-desk-assignment-create-note">
-            Draft edits do not affect publication sections until promoted.
-          </span>
-        </div>
-      ) : null}
-    </div>
-  ) : null;
-  const selectedTopicCardId = focusedCategoryKey ?? selectedRoot?.category.categoryKey ?? null;
-
-  useEffect(() => {
-    if (!roots.length) {
-      setSelectedRootKey(null);
-      setFocusedCategoryKey(null);
-      return;
-    }
-    const nextRootKey = roots.some((root) => root.category.categoryKey === selectedRootKey)
-      ? selectedRootKey
-      : initialRootKey ?? roots[0].category.categoryKey;
-    if (selectedRootKey !== nextRootKey) setSelectedRootKey(nextRootKey);
-  }, [initialRootKey, roots, selectedRootKey]);
-
-  useEffect(() => {
-    if (!selectedRoot) return;
-    const nextFocusKey = selectInitialFocusKey(selectedRoot, initialCategoryLineageId);
-    if (!focusedCategoryKey || ![selectedRoot.category.categoryKey, ...selectedRoot.subcategorys.map((subcategory) => subcategory.categoryKey)].includes(focusedCategoryKey)) {
-      setFocusedCategoryKey(nextFocusKey);
-    }
-  }, [focusedCategoryKey, initialCategoryLineageId, selectedRoot]);
-
-  useEffect(() => {
-    const normalizedCategorySetId = selectedCategorySet?.id ?? null;
-    if (selectedCategorySetId === normalizedCategorySetId) return;
-    setSelectedCategorySetId(normalizedCategorySetId);
-  }, [selectedCategorySet?.id, selectedCategorySetId]);
-
-  useEffect(() => {
-    if (!isTopicToolbarMenuOpen) return;
-    function handlePointerDown(event: PointerEvent) {
-      if (topicToolbarMenuRef.current?.contains(event.target as Node)) return;
-      setIsTopicToolbarMenuOpen(false);
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsTopicToolbarMenuOpen(false);
-    }
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isTopicToolbarMenuOpen]);
 
   return (
     <>
-    <NewsroomListDetailShell
-      animatedDetail
-      sectionKey="topics"
-      canExpandDetail={Boolean(selectedRoot)}
-      detailOpen={isTopicDetailOpen}
-      selectionScrollKey={selectedTopicCardId}
-      actions={topicActions}
-      utilityActions={[topicKnowledgeQuery.action]}
-      lede={(
-        <NewsroomDeskSectionLede
-          headingId="topic-management-title"
-          section="topics"
-          controls={topicLedeControls}
+      <NewsroomTopicsView
+        demo={isDemo}
+        disabled={disabled}
+        initialProposalId={initialProposalId}
+        onEdit={(proposal) => setTopicProposalEdit({ proposal })}
+        onReview={(proposal, action) => onProposalAction(proposal, action)}
+        proposals={proposals}
+      />
+      {topicProposalEdit ? (
+        <TopicProposalEditModal
+          disabled={disabled}
+          proposal={topicProposalEdit.proposal}
+          onClose={() => setTopicProposalEdit(null)}
+          onSave={(proposal, input) => {
+            onProposalAction(proposal, "edit", input);
+            setTopicProposalEdit(null);
+          }}
         />
-      )}
-      list={(
-        <section className="category-steering-section category-steering-section--lead" aria-label={detail}>
-          {categoryTreeLoadError ? (
-            <div className="category-steering-alert" role="status">
-              {categoryTreeLoadError}
-            </div>
-          ) : null}
-          <TopicProposalQueue
-            disabled={disabled}
-            proposals={categoryQueueProposals}
-            referenceByAnyId={referenceByAnyId}
-            onAction={onProposalAction}
-            onEdit={(proposal) => setTopicProposalEdit({ proposal })}
-            onFocusTopic={selectTopic}
-          />
-          <NewsroomCardGrid
-            cards={visibleTopicCards}
-            emptyLabel={categoryTreeLoadError ?? (validCategorySets.length ? "No active topics in selected topic set" : "No current or draft topic set available.")}
-            filterLabel="Topic scope"
-            filterOptions={[
-              { key: "roots", label: isDraftMode ? "Top-level draft topics" : "Top-level current topics", count: roots.length },
-              { key: "all", label: isDraftMode ? "Draft topics + subtopics" : "Current topics + subtopics", count: roots.length + subcategoryCount },
-            ]}
-            filterValue={topicScopeFilter}
-            metricValue={topicMetricFilter}
-            metrics={[
-              { key: "", label: "All", count: visibleTopicCards.length },
-              { key: "withProposals", label: "With proposals", count: rootWithProposalCount },
-            ]}
-            onFilterChange={setTopicScopeFilter}
-            onMetricChange={setTopicMetricFilter}
-            onSelect={selectTopic}
-            selectedId={selectedTopicCardId}
-          />
-        </section>
-      )}
-      onCloseDetail={() => setIsTopicDetailOpen(false)}
-      detail={selectedRoot ? (
-        <section className="category-steering-section" aria-label="Topic detail">
-          <CanonicalTopicDetail
-            categoryByUid={selectedCategoryByUid}
-            disabled={disabled}
-            focusedCategoryKey={focusedCategoryKey}
-            focusedNode={focusedNode}
-            graph={graph}
-            categoryKeywords={categoryKeywords}
-            lexicalSteeringRules={lexicalSteeringRules}
-            onAction={onProposalAction}
-            onEdit={(proposal) => setTopicProposalEdit({ proposal })}
-            onFocusCategory={setFocusedCategoryKey}
-            onLexicalRuleCreate={onLexicalRuleCreate}
-            proposals={proposals}
-            referenceByAnyId={referenceByAnyId}
-            root={selectedRoot}
-            knowledgeQuery={topicKnowledgeQuery}
-          />
-        </section>
-      ) : (
-        <section className="category-steering-section">
-          <EmptyRow label="Select a canonical topic to inspect subtopics and context." />
-        </section>
-      )}
-    />
-    {topicKnowledgeQuery.dialog}
-    {topicProposalEdit ? (
-      <TopicProposalEditModal
-        disabled={disabled}
-        proposal={topicProposalEdit.proposal}
-        onClose={() => setTopicProposalEdit(null)}
-        onSave={(proposal, input) => {
-          onProposalAction(proposal, "edit", input);
-          setTopicProposalEdit(null);
-        }}
-      />
-    ) : null}
-    {topicDraftModal && selectedCategorySet ? (
-      <TopicDraftActionModal
-        categorySet={selectedCategorySet}
-        disabled={disabled}
-        modal={topicDraftModal}
-        onArchive={async (category, note) => {
-          const result = await onArchiveDraftCategory(category, note);
-          setSelectedCategorySetId(selectedCategorySet.id);
-          return result ?? true;
-        }}
-        onClose={() => setTopicDraftModal(null)}
-        onCreate={async (categorySet, input) => {
-          const result = await onCreateDraftCategory(categorySet, input);
-          setSelectedCategorySetId(categorySet.id);
-          return result ?? true;
-        }}
-        onDiscard={async (categorySet, note) => {
-          const result = await onDiscardDraftSet(categorySet, note);
-          setSelectedCategorySetId(currentCategorySet?.id ?? null);
-          return result ?? true;
-        }}
-        onPromote={onPromoteDraftSet}
-        onUpdate={async (category, input) => {
-          const result = await onUpdateDraftCategory(category, input);
-          setSelectedCategorySetId(selectedCategorySet.id);
-          return result ?? true;
-        }}
-        parentOptions={selectedCategorys}
-      />
-    ) : null}
+      ) : null}
     </>
   );
 }
@@ -13221,53 +12452,22 @@ function AssignmentDeskView({
   onCreateAnalysisReindexAssignment: (profile: AnalysisProfileSummary, draft: AnalysisReindexDraft) => void;
   onReviewReportingPacket: (assignment: AssignmentRecord, packet: AssignmentResearchPacketSummary, decision: ReportingPacketReviewDecision, note?: string, targetItemId?: string) => void;
 }) {
-  const [assignmentTypeFilter, setAssignmentTypeFilter] = useState(() => {
+  const [assignmentTypeFilter] = useState(() => {
     if (typeof window === "undefined") return "";
     return readAssignmentsIndexFilters(new URLSearchParams(window.location.search)).type;
   });
-  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState(() => {
+  const [assignmentStatusFilter] = useState(() => {
     if (typeof window === "undefined") return "";
     return readAssignmentsIndexFilters(new URLSearchParams(window.location.search)).status;
   });
   const [isCreateAssignmentOpen, setIsCreateAssignmentOpen] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState(initialAssignmentId ?? "");
-  const [isAssignmentDetailOpen, setIsAssignmentDetailOpen] = useState(Boolean(initialAssignmentId));
-  const [assignmentDeskView, setAssignmentDeskView] = useState<AssignmentDeskViewMode>(() => {
+  const [assignmentDeskView] = useState<AssignmentDeskViewMode>(() => {
     if (initialView === "budget") return "budget";
     if (typeof window === "undefined") return "queue";
     const view = readAssignmentsIndexFilters(new URLSearchParams(window.location.search)).view;
     return view === "budget" ? "budget" : "queue";
   });
-  const [assignmentActionNote, setAssignmentActionNote] = useState("");
-  const [reportingMergeTargetItemId, setReportingMergeTargetItemId] = useState("");
-  const syncAssignmentsIndexUrl = useCallback((
-    nextStatus: string,
-    nextType: string,
-    nextView: AssignmentDeskViewMode,
-    replace = true,
-  ) => {
-    if (isDemo || isAssignmentDetailOpen) return;
-    syncBrowserNewsroomIndexUrl(
-      "assignments",
-      effectiveAssignmentsIndexFilters({
-        status: nextStatus,
-        type: nextType,
-        view: nextView,
-      }),
-      { replace },
-    );
-  }, [isAssignmentDetailOpen, isDemo]);
-  useEffect(() => {
-    if (isDemo || isAssignmentDetailOpen || assignmentDeskView === "budget") return;
-    syncAssignmentsIndexUrl(assignmentStatusFilter, assignmentTypeFilter, assignmentDeskView, true);
-  }, [
-    assignmentDeskView,
-    assignmentStatusFilter,
-    assignmentTypeFilter,
-    isAssignmentDetailOpen,
-    isDemo,
-    syncAssignmentsIndexUrl,
-  ]);
   const feed = useNewsroomPagedRows({
     initialItems: assignments,
     enabled: !isDemo,
@@ -13279,42 +12479,22 @@ function AssignmentDeskView({
     }),
   });
   const feedAssignments = isDemo ? assignments : feed.items;
-  const assignmentTypeOptions = useMemo(() => getAssignmentTypeOptions(assignments, summary), [assignments, summary]);
   const typeFilteredAssignments = useMemo(() => (
     assignmentTypeFilter
       ? feedAssignments.filter((assignment) => assignmentTypeKeyForFilter(assignment) === assignmentTypeFilter)
       : feedAssignments
   ), [assignmentTypeFilter, feedAssignments]);
-  const filteredAssignments = useMemo(() => {
-    const filtered = assignmentStatusFilter
-      ? typeFilteredAssignments.filter((assignment) => assignment.status === assignmentStatusFilter)
-      : typeFilteredAssignments;
-    return [...filtered].sort(compareAssignments);
-  }, [assignmentStatusFilter, typeFilteredAssignments]);
-  const filteredMetrics = getAssignmentMetrics(typeFilteredAssignments, summary, assignmentTypeFilter);
-  const totalAssignmentCount = summaryCountFromRecord(summary, "assignments") || assignments.length;
   const requestedAssignmentId = selectedAssignmentId || initialAssignmentId || "";
   const selectedAssignment = requestedAssignmentId
-    ? filteredAssignments.find((assignment) => assignment.id === requestedAssignmentId)
-      ?? typeFilteredAssignments.find((assignment) => assignment.id === requestedAssignmentId)
+    ? typeFilteredAssignments.find((assignment) => assignment.id === requestedAssignmentId)
       ?? feedAssignments.find((assignment) => assignment.id === requestedAssignmentId)
       ?? assignments.find((assignment) => assignment.id === requestedAssignmentId)
       ?? null
     : null;
-  const assignmentKnowledgeQuery = useNewsroomKnowledgeContext(selectedAssignment ? {
-    anchor: { kind: "assignment", id: selectedAssignment.id },
-    title: selectedAssignment.title,
-    subtitle: selectedAssignment.assignmentTypeKey,
-  } : null);
   const selectAssignment = (assignmentId: string) => {
     setSelectedAssignmentId(assignmentId);
-    setIsAssignmentDetailOpen(true);
     pushNewsroomDetailUrl("assignments", assignmentId, isDemo);
   };
-  const selectedAssignmentTerminal = selectedAssignment?.status === "completed" || selectedAssignment?.status === "canceled";
-  const selectedReportingPackets = selectedAssignment ? reportingPacketsForAssignment(selectedAssignment, graph, messages) : [];
-  const selectedReportingPacket = selectedReportingPackets[0] ?? null;
-  const selectedReportingDecision = selectedAssignment ? latestReportingPacketDecisionForAssignment(assignmentEvents, selectedAssignment.id) : null;
   const storyBudget = useMemo(() => buildReportingStoryBudget({
     assignments,
     messages,
@@ -13323,141 +12503,18 @@ function AssignmentDeskView({
     editionSlots,
     newsroomSections,
   }), [assignmentEvents, assignments, editionSlots, messages, newsroomSections, semanticRelations]);
-  const runAssignmentDetailAction = (action: AssignmentAction) => {
-    if (!selectedAssignment) return;
-    onAction(selectedAssignment, action, assignmentActionNote);
-    setAssignmentActionNote("");
-  };
-  const runReportingReviewAction = (decision: ReportingPacketReviewDecision) => {
-    if (!selectedAssignment || !selectedReportingPacket) return;
-    onReviewReportingPacket(selectedAssignment, selectedReportingPacket, decision, assignmentActionNote, reportingMergeTargetItemId);
-    setAssignmentActionNote("");
-  };
-  const selectAssignmentDeskView = (view: AssignmentDeskViewMode) => {
-    setAssignmentDeskView(view);
-    if (typeof window === "undefined" || isDemo) return;
-    syncBrowserNewsroomIndexUrl(
-      "assignments",
-      effectiveAssignmentsIndexFilters({
-        status: assignmentStatusFilter,
-        type: assignmentTypeFilter,
-        view,
-      }),
-      { replace: true },
-    );
-  };
   const runStoryBudgetReviewAction = (candidate: ReportingStoryBudgetCandidate, decision: ReportingPacketReviewDecision) => {
     const assignment = assignments.find((entry) => entry.id === candidate.assignmentId);
     const packet = assignment ? reportingPacketsForAssignment(assignment, graph, messages)[0] : null;
     if (!assignment || !packet) return;
     onReviewReportingPacket(assignment, packet, decision, "", candidate.targetItemId ?? "");
     setSelectedAssignmentId(assignment.id);
-    setIsAssignmentDetailOpen(true);
+    pushNewsroomDetailUrl("assignments", assignment.id, isDemo);
   };
-  const assignmentActions: NewsroomDetailAction[] = selectedAssignment ? [
-    ...(selectedAssignment.status === "open"
-      ? [
-          {
-            key: "claim",
-            label: "Claim",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("claim"),
-          },
-          ...(assignmentExecutionModeForUi(selectedAssignment.assignmentTypeKey) === "immediate"
-            ? [
-                {
-                  key: "retry",
-                  label: "Retry Immediate",
-                  disabled,
-                  onSelect: () => runAssignmentDetailAction("retry"),
-                },
-              ]
-            : []),
-        ]
-      : []),
-    ...(selectedAssignment.status === "claimed"
-      ? [
-          {
-            key: "release",
-            label: "Release",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("release"),
-          },
-        ]
-      : []),
-    ...(!selectedAssignmentTerminal
-      ? [
-          {
-            key: "complete",
-            label: "Complete",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("complete"),
-          },
-          {
-            key: "cancel",
-            label: "Cancel",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("cancel"),
-          },
-        ]
-      : [
-          {
-            key: "reopen",
-            label: "Reopen",
-            disabled,
-            onSelect: () => runAssignmentDetailAction("reopen"),
-          },
-        ]),
-  ] : [];
-  const reportingReviewActions: NewsroomDetailAction[] = selectedAssignment && selectedReportingPacket ? [
-    {
-      key: "reporting-select",
-      label: "Select Packet",
-      disabled,
-      onSelect: () => runReportingReviewAction("select"),
-    },
-    {
-      key: "reporting-brief",
-      label: "Make Brief",
-      disabled,
-      onSelect: () => runReportingReviewAction("brief"),
-    },
-    {
-      key: "reporting-merge",
-      label: "Merge Packet",
-      disabled: disabled || !reportingMergeTargetItemId.trim(),
-      onSelect: () => runReportingReviewAction("merge"),
-    },
-    {
-      key: "reporting-hold",
-      label: "Hold Packet",
-      disabled,
-      onSelect: () => runReportingReviewAction("hold"),
-    },
-    {
-      key: "reporting-kill",
-      label: "Kill Packet",
-      disabled,
-      onSelect: () => runReportingReviewAction("kill"),
-    },
-  ] : [];
-
-  useEffect(() => {
-    if (assignmentTypeFilter && !assignmentTypeOptions.some((option) => option.key === assignmentTypeFilter)) {
-      setAssignmentTypeFilter("");
-    }
-  }, [assignmentTypeFilter, assignmentTypeOptions]);
-
-  useEffect(() => {
-    if (assignmentStatusFilter && !["open", "claimed", "completed", "canceled"].includes(assignmentStatusFilter)) {
-      setAssignmentStatusFilter("");
-    }
-  }, [assignmentStatusFilter]);
-
-  useEffect(() => {
-    setAssignmentActionNote("");
-    setReportingMergeTargetItemId("");
-  }, [selectedAssignment?.id, selectedAssignment?.status]);
+  const reportingPacketSummaryForAssignment = useCallback((assignment: AssignmentRecord) => {
+    const packets = reportingPacketsForAssignment(assignment, graph, messages);
+    return packets[0]?.summary ?? null;
+  }, [graph, messages]);
 
   useEffect(() => {
     if (!isCreateAssignmentOpen) return;
@@ -13470,109 +12527,39 @@ function AssignmentDeskView({
 
   return (
     <>
-      <NewsroomListDetailShell
-        animatedDetail
-        sectionKey="assignments"
-        canExpandDetail={Boolean(selectedAssignment)}
-        detailOpen={isAssignmentDetailOpen}
-        selectionScrollKey={selectedAssignment?.id ?? null}
-        actions={assignmentActions}
-        utilityActions={[assignmentKnowledgeQuery.action, ...reportingReviewActions]}
-        lede={(
-          <NewsroomDeskSectionLede
-            headingId="assignment-management-title"
-            section="assignments"
-            controls={(
-              <div className="news-desk-assignment-create-strip">
-                <div className="news-desk-assignment-view-toggle" role="group" aria-label="Assignment view">
-                  <button
-                    type="button"
-                    data-active={assignmentDeskView === "queue" || undefined}
-                    onClick={() => selectAssignmentDeskView("queue")}
-                  >
-                    Queue
-                  </button>
-                  <button
-                    type="button"
-                    data-active={assignmentDeskView === "budget" || undefined}
-                    onClick={() => selectAssignmentDeskView("budget")}
-                  >
-                    Story Budget
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="news-desk-assignment-create-button"
-                  disabled={disabled}
-                  onClick={() => setIsCreateAssignmentOpen(true)}
-                >
-                  Create Assignment
-                </button>
-              </div>
-            )}
-          />
-        )}
-        list={(
-          <section className="category-steering-section category-steering-section--lead" aria-label="Assignments queue">
-            {assignmentDeskView === "budget" ? (
-              <ReportingStoryBudgetBoard
-                budget={storyBudget}
-                disabled={disabled}
-                onReview={runStoryBudgetReviewAction}
-                onSelect={selectAssignment}
-                selectedAssignmentId={selectedAssignment?.id ?? null}
-              />
-            ) : (
-              <AssignmentManagementGrid
-                assignmentEvents={assignmentEvents}
-                assignments={filteredAssignments}
-                metrics={filteredMetrics}
-                onSelect={selectAssignment}
-                options={assignmentTypeOptions}
-                selectedAssignmentId={selectedAssignment?.id ?? null}
-                statusValue={assignmentStatusFilter}
-                totalCount={totalAssignmentCount}
-                typeValue={assignmentTypeFilter}
-                footerLabel={feed.error ?? undefined}
-                hasMore={!isDemo && feed.hasMore}
-                isLoadingMore={feed.isLoadingMore}
-                onLoadMore={feed.loadMore}
-                onStatusChange={(value) => {
-                  setAssignmentStatusFilter(value);
-                  syncAssignmentsIndexUrl(value, assignmentTypeFilter, assignmentDeskView, true);
-                }}
-                onTypeChange={(value) => {
-                  setAssignmentTypeFilter(value);
-                  syncAssignmentsIndexUrl(assignmentStatusFilter, value, assignmentDeskView, true);
-                }}
-              />
-            )}
-          </section>
-        )}
-        onCloseDetail={() => {
-          setIsAssignmentDetailOpen(false);
-          syncAssignmentsIndexUrl(assignmentStatusFilter, assignmentTypeFilter, assignmentDeskView, true);
-        }}
-        detail={selectedAssignment ? (
-          <AssignmentRow
-            assignment={selectedAssignment}
+      <NewsroomAssignmentsView
+        assignments={typeFilteredAssignments}
+        budgetPanel={(
+          <ReportingStoryBudgetBoard
+            budget={storyBudget}
             disabled={disabled}
-            graph={graph}
-            messages={messages}
-            note={assignmentActionNote}
-            onNoteChange={setAssignmentActionNote}
-            reportingDecision={selectedReportingDecision}
-            reportingMergeTargetItemId={reportingMergeTargetItemId}
-            onReportingMergeTargetItemIdChange={setReportingMergeTargetItemId}
-            knowledgeQuery={assignmentKnowledgeQuery}
+            onReview={runStoryBudgetReviewAction}
+            onSelect={selectAssignment}
+            selectedAssignmentId={selectedAssignment?.id ?? null}
           />
-        ) : (
-          <section className="category-steering-section">
-            <SectionHeader title="Assignment Detail" detail="No assignment selected" />
-            <EmptyRow label="Select an assignment to inspect work details." />
-          </section>
         )}
+        demo={isDemo}
+        disabled={disabled}
+        footerLabel={feed.error ?? undefined}
+        hasMore={!isDemo && feed.hasMore}
+        initialAssignmentId={initialAssignmentId}
+        initialView={assignmentDeskView}
+        isLoadingMore={feed.isLoadingMore}
+        onAction={onAction}
+        onLoadMore={feed.loadMore}
+        onReviewReportingPacket={(assignment, decision, note, targetItemId) => {
+          const packet = reportingPacketsForAssignment(assignment, graph, messages)[0];
+          if (!packet) return;
+          onReviewReportingPacket(assignment, packet, decision, note, targetItemId);
+        }}
+        reportingDecisionForAssignment={(assignmentId) => latestReportingPacketDecisionForAssignment(assignmentEvents, assignmentId)}
+        reportingPacketSummaryForAssignment={reportingPacketSummaryForAssignment}
       />
+      <div className="mt-4 flex justify-end">
+        <Button disabled={disabled} onClick={() => setIsCreateAssignmentOpen(true)} type="button" variant="outline">
+          Create Assignment
+        </Button>
+      </div>
       {isCreateAssignmentOpen ? (
         <div
           className="news-desk-modal"
@@ -13602,7 +12589,6 @@ function AssignmentDeskView({
           </div>
         </div>
       ) : null}
-      {assignmentKnowledgeQuery.dialog}
     </>
   );
 }
@@ -16358,19 +15344,20 @@ function resolveKnowledgeQueryTarget(
   };
 }
 
-function getNewsDeskTabHref(href: string, _demo?: boolean): string {
-  return href;
+function getNewsDeskTabHref(href: string, demo?: boolean): string {
+  return getNewsroomNavHref(href, demo);
 }
 
 function buildNewsroomDetailUrl(tab: "assignments" | "concepts" | "messages" | "references" | "topics", id: string | null): string {
   const encoded = id ? encodeURIComponent(id) : "";
-  return id
+  const internal = id
     ? tab === "concepts"
       ? `/newsroom/concepts?node=${encoded}`
       : tab === "topics"
         ? `/newsroom/topics?category=${encoded}`
         : `/newsroom/${tab}/${encoded}`
     : `/newsroom/${tab}`;
+  return getNewsroomNavHref(internal);
 }
 
 function pushNewsroomDetailUrl(tab: "assignments" | "concepts" | "messages" | "references" | "topics", id: string | null, _demo?: boolean) {
@@ -16412,101 +15399,36 @@ function readTextClaim(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function NewsroomProgressBackLink({
-  searchAction = null,
-}: {
-  searchAction?: { disabled: boolean; onPress: () => void } | null;
-}) {
-  return (
-    <nav className="edition-progress edition-progress--newsroom" aria-label="Newsroom navigation">
-      <Link className="edition-progress__button edition-progress__button--previous" href="/">
-        <svg aria-hidden="true" className="edition-progress__icon" focusable="false" viewBox="0 0 10 10">
-          <path d="M7.5 1 2.5 5 7.5 9Z" fill="currentColor" />
-        </svg>
-        Back to Papyrus
-      </Link>
-      {searchAction ? (
-        <div className="edition-progress__trailing">
-          <NewsroomConsoleProgressToggle />
-          <button
-            type="button"
-            className="edition-progress__button edition-progress__button--next edition-progress__button--search"
-            aria-label="Search knowledge base (semantic + ontology)"
-            title="Search (semantic + ontology)"
-            disabled={searchAction.disabled}
-            onClick={searchAction.onPress}
-          >
-            <SearchMarkIcon />
-          </button>
-        </div>
-      ) : (
-        <div className="edition-progress__trailing">
-          <NewsroomConsoleProgressToggle />
-        </div>
-      )}
-    </nav>
-  );
-}
-
 function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
-  const pathname = usePathname();
-  const showRhythmOverlay = useNewsroomRhythmOverlay();
-  const resolvedTheme = useResolvedPapyrusTheme();
-  const drawerController = useNewsDeskDrawerController();
-  const activeTab = inferNewsDeskTabFromPathname(pathname);
   const accessPhase = shell?.phase ?? "checkingAccess";
 
   return (
-    <main
-      className="site-shell news-desk-shell"
-      data-news-desk-access={accessPhase}
-      data-news-desk-drawer-docked={drawerController.isDocked ? "true" : "false"}
-      data-news-desk-drawer-open={drawerController.open ? "true" : "false"}
-      data-rhythm-overlay={showRhythmOverlay ? "true" : "false"}
+    <NewsroomOpsShell
+      activeTab="overview"
+      appTitle={SITE_BRAND.appTitle}
+      backHref="/"
+      backLabel={SITE_BRAND.backToHomeLabel}
+      headerActions={(
+        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+      )}
+      pageTitle="Newsroom"
+      showNavigation={showSectionTabs}
     >
-      <NewsroomProgressBackLink />
-      <section className="scroll-edition news-desk-edition">
-        <div className="paper-page paper-page--front paper-page--active">
-          <article className="paper-page-content paper-page-content--front news-desk-page news-desk-page--gate" aria-labelledby="news-desk-access-title">
-	            <header className="masthead news-desk-masthead">
-	              <div className="masthead__rule" />
-	              <h1 id="news-desk-access-title">
-	                <span>NEWSROOM</span>
-	              </h1>
-		            <div className="masthead__meta" aria-label="Newsroom edition status">
-	              <span><NewsDeskDrawerTrigger controller={drawerController} /></span>
-	              <span aria-hidden="true" className="masthead__meta-placeholder">&nbsp;</span>
-	              <span><Link className="news-desk-auth-control-link" href="/settings">Settings</Link></span>
-	            </div>
-	            </header>
-            <NewsDeskDrawerPanel activeTab={activeTab} controller={drawerController} />
-            {showSectionTabs ? (
-              <nav className="news-desk-tabs" aria-label="Newsroom sections">
-                {NEWS_DESK_TABS.map((tab) => (
-                  <NewsDeskTabLink
-                    key={tab.id}
-                    active={false}
-                    count={0}
-                    countSlot={tab.id !== "administration"}
-                    countVisible={false}
-                    tab={tab}
-                  />
-                ))}
-              </nav>
-            ) : null}
-            <section className="news-desk-access-panel" aria-live="polite" data-news-desk-access-phase={accessPhase}>
-              <div className="news-desk-access-panel__copy" key={`copy-${accessPhase}`}>
-                <p className="story-label">Access</p>
-                <h2>{formatAccessTitle(shell)}</h2>
-                <p>{formatAccessDetail(shell)}</p>
-                {shell?.error ? <p className="news-desk-access-panel__error">{shell.error}</p> : null}
-                <p className="news-desk-access-panel__auth">{formatAccessActionDetail(shell)}</p>
-              </div>
-            </section>
-          </article>
+      <section aria-live="polite" data-news-desk-access={accessPhase} data-news-desk-access-phase={accessPhase}>
+        <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+          <p className="m-0 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access</p>
+          <h2 className="m-0 font-sans text-xl font-semibold tracking-tight">{formatAccessTitle(shell)}</h2>
+          <p className="m-0 text-sm text-muted-foreground">{formatAccessDetail(shell)}</p>
+          {shell?.error ? <p className="text-sm text-destructive">{shell.error}</p> : null}
+          <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
+          {shell?.phase === "signedOut" || shell?.phase === "error" ? (
+            <div className="news-desk-access-panel__auth">
+              <ReaderAuthControl postAuthPath="/newsroom" showIdentity />
+            </div>
+          ) : null}
         </div>
       </section>
-    </main>
+    </NewsroomOpsShell>
   );
 }
 
@@ -16519,10 +15441,10 @@ function formatAccessTitle(state: NewsDeskShellState | null): string {
 }
 
 function formatAccessDetail(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "Papyrus is checking the current browser session before loading steering state.";
-  if (state.phase === "loadingDesk") return "Papyrus verified the browser session and is loading private Newsroom records.";
+  if (!state || state.phase === "checkingAccess") return `${SITE_BRAND.appTitle} is checking the current browser session before loading steering state.`;
+  if (state.phase === "loadingDesk") return `${SITE_BRAND.appTitle} verified the browser session and is loading private Newsroom records.`;
   if (state.phase === "forbidden") return "This account is signed in, but the Cognito session does not include the editor or admin group.";
-  if (state.phase === "error") return "Papyrus could not verify this editor session or load the private Newsroom data.";
+  if (state.phase === "error") return `${SITE_BRAND.appTitle} could not verify this editor session or load the private Newsroom data.`;
   return "Sign in with an editor or admin account to inspect category, category tree, ontology, and graph steering.";
 }
 
@@ -16541,119 +15463,6 @@ function SectionHeader({ title, detail }: { title: string; detail: string }) {
       <h2 id={`${id}-title`}>{title}</h2>
       <span>{detail}</span>
     </header>
-  );
-}
-
-function TopicProposalQueue({
-  disabled,
-  proposals,
-  referenceByAnyId,
-  onAction,
-  onEdit,
-  onFocusTopic,
-}: {
-  disabled: boolean;
-  proposals: CategorySteeringProposal[];
-  referenceByAnyId: Map<string, ReferenceRecord>;
-  onAction: (proposal: CategorySteeringProposal, action: ReviewAction) => void;
-  onEdit: (proposal: CategorySteeringProposal) => void;
-  onFocusTopic: (categoryKey: string) => void;
-}) {
-  const [statusFilter, setStatusFilter] = useState<string>("proposed");
-  const [kindFilter, setKindFilter] = useState<string>("all");
-  const statusFiltered = useMemo(() => (
-    proposals.filter((proposal) => {
-      if (statusFilter === "all") return true;
-      if (statusFilter === "reviewed") return proposal.status === "accepted" || proposal.status === "rejected";
-      return proposal.status === statusFilter;
-    })
-  ), [proposals, statusFilter]);
-  const availableKinds = useMemo(() => (
-    Array.from(new Set(proposals.map((proposal) => proposal.proposalKind))).sort()
-  ), [proposals]);
-  const visible = useMemo(() => (
-    statusFiltered.filter((proposal) => kindFilter === "all" || proposal.proposalKind === kindFilter)
-  ), [kindFilter, statusFiltered]);
-
-  return (
-    <section className="category-steering-section" aria-label="Topic proposal review queue">
-      <SectionHeader title="Topic Review Queue" detail={`${visible.length} visible / ${proposals.length} total`} />
-      <p className="news-desk-topic-queue-note">
-        Reject suppresses repeated proposals in future discovery for the same classifier/root scope. Merge consolidates topic intent under an accepted node. Delete/archive removes a node from active taxonomy scope for future child discovery.
-      </p>
-      <div className="news-desk-topic-queue-toolbar">
-        <label>
-          <span>Status</span>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="proposed">Proposed</option>
-            <option value="deferred">Deferred</option>
-            <option value="reviewed">Reviewed</option>
-            <option value="all">All</option>
-          </select>
-        </label>
-        <label>
-          <span>Kind</span>
-          <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
-            <option value="all">All kinds</option>
-            {availableKinds.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="category-steering-table-wrap">
-        <table className="category-steering-table">
-          <thead>
-            <tr>
-              <th>Proposal</th>
-              <th>Kind</th>
-              <th>Target root</th>
-              <th>Status</th>
-              <th>Review</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.length ? visible.map((proposal) => {
-              const targetRoot = proposal.targetCategoryKey ?? proposal.categoryKey ?? "";
-              return (
-                <tr data-topic-queue-proposal={proposal.id} key={proposal.id}>
-                  <td>
-                    <strong>{proposal.displayName ?? proposal.title}</strong>
-                    <p>{proposal.summary ?? "No summary provided."}</p>
-                    <ProposalEvidencePreview
-                      proposal={proposal}
-                      referenceByAnyId={referenceByAnyId}
-                    />
-                  </td>
-                  <td>{proposal.proposalKind}</td>
-                  <td>
-                    {targetRoot ? (
-                      <button
-                        type="button"
-                        className="news-desk-topic-link-button"
-                        disabled={disabled}
-                        onClick={() => onFocusTopic(targetRoot)}
-                      >
-                        {targetRoot}
-                      </button>
-                    ) : "n/a"}
-                  </td>
-                  <td><StatusPill status={proposal.status} /></td>
-                  <td>
-                    <ProposalReviewActions
-                      disabled={disabled}
-                      proposal={proposal}
-                      onAction={onAction}
-                      onEdit={onEdit}
-                    />
-                  </td>
-                </tr>
-              );
-            }) : (
-              <tr><td colSpan={5}>No proposals match the selected queue filters</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 

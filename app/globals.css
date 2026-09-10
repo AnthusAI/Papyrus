@@ -1,4 +1,6 @@
 @import "../publications/threat_intelligence/theme.css";
+@import "../publications/papyrus/theme.css";
+@import "../publications/pilobol_us/theme.css";
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -74,6 +76,10 @@
   --border: var(--slate-6);
   --input: var(--slate-6);
   --ring: var(--slate-8);
+  --theme-paper: var(--background);
+  --theme-moss: var(--primary);
+  --theme-ochre: var(--accent);
+  --theme-ink: var(--foreground);
   color-scheme: light;
   --ink: var(--foreground);
   --ink-rgb: 96 100 108;
@@ -10123,4 +10129,200 @@ img {
   flex-wrap: wrap;
 }
 
+/* Shared ops chrome. Token-only: no publication names or pack hexes. */
+.news-desk-shell.newsroom-app-shell,
+.newsroom-app-shell {
+  --newsroom-app-sidebar: 16.5rem;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+.newsroom-app-shell .newsroom-app-shell__frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.newsroom-app-shell__header {
+  align-items: center;
+  background: color-mix(in srgb, var(--background) 92%, var(--card));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+}
+
+.newsroom-app-shell__eyebrow {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.newsroom-app-shell__title {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0.15rem 0 0;
+}
+
+.newsroom-app-shell__title a {
+  text-decoration: none;
+}
+
+.newsroom-app-shell__meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.newsroom-app-shell__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.newsroom-app-shell__nav {
+  display: none;
+}
+
+.newsroom-app-shell__content {
+  background: var(--background);
+  min-height: 0;
+  min-width: 0;
+  padding: 1.25rem;
+}
+
+@media (min-width: 1100px) {
+  .newsroom-app-shell__body {
+    grid-template-columns: var(--newsroom-app-sidebar) minmax(0, 1fr);
+  }
+
+  .newsroom-app-shell__nav {
+    background: color-mix(in srgb, var(--card) 88%, var(--background));
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 1rem 0.75rem;
+  }
+
+  .newsroom-app-shell .news-desk-tab {
+    align-items: flex-start;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.85rem;
+    color: var(--foreground);
+    display: flex;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    gap: 0.65rem;
+    min-width: 0;
+    padding: 0.7rem 0.75rem;
+    text-decoration: none;
+  }
+
+  .newsroom-app-shell .news-desk-tab:hover,
+  .newsroom-app-shell .news-desk-tab--active {
+    background: var(--card);
+    border-color: var(--border);
+  }
+
+  .newsroom-app-shell .news-desk-tab__text small {
+    color: var(--muted-foreground);
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+}
+
+/* Ops app chrome: sans-only content surfaces; moss primary on navigation/actions */
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h1,
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h2,
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h3,
+[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] .story-label {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-newsroom-chrome="app"] [data-category-steering] {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-theme-pack="pilobol-us"] [data-newsroom-ops-shell="true"] a:focus-visible,
+[data-theme-pack="pilobol-us"] [data-newsroom-ops-shell="true"] button:focus-visible {
+  --tw-ring-color: var(--theme-moss);
+}
+
+/* List-row selection in ops chrome: tint wash + foreground copy; never invert to primary-foreground. */
+[data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
+[data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
+[data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
+[data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
+[data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
+[data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
+[data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
+[data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"] {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--foreground);
+}
+
+[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__title,
+[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__body,
+[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__kicker,
+[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__meta,
+[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__stamp,
+[data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"] strong,
+[data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"] strong,
+[data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"] strong {
+  color: var(--foreground);
+}
+
+[data-newsroom-chrome="app"] [role="tab"][aria-selected="true"] {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
+  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"] {
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+}
+
+:root.dark-theme [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
+:root.dark-theme [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
+:root.dark-theme [data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
+:root.dark-theme [data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
+:root.dark-theme [data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
+:root.dark-theme [data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
+:root.dark-theme [data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
+:root.dark-theme [data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"],
+:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"] {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+}
 

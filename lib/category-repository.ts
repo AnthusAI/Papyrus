@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import { createEmptyCategorySteeringDashboard } from "./category-dashboard";
+import { applyPilobolusDemoDashboardContent } from "./newsroom-demo-dashboard";
+import { getNewsroomDemoProfile, isPilobolusDemoBrand } from "./newsroom-demo-profile";
+import { resolveSiteBrandId, type SiteBrandId } from "./site-brand";
 
 export { createEmptyCategorySteeringDashboard };
 
@@ -197,12 +200,13 @@ export type ProcedureRunRecord = {
   newsroomFeedKey?: string | null;
 };
 
-const NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
+const DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
 const NEWSROOM_SECTION_TYPES = new Set<NewsroomSectionType>(["canonical", "floating", "rotating"]);
-let newsroomSectionSeedRowsCache: Array<Omit<NewsroomSectionRecord, "sortOrder" | "enabled" | "enabledStatus" | "createdAt" | "updatedAt"> & {
+type NewsroomSectionSeedRow = Omit<NewsroomSectionRecord, "sortOrder" | "enabled" | "enabledStatus" | "createdAt" | "updatedAt"> & {
   enabled: boolean;
   sortOrder: number;
-}> | null = null;
+};
+const newsroomSectionSeedRowsCache = new Map<string, NewsroomSectionSeedRow[]>();
 
 export type SteeringProposal = {
   id: string;
@@ -905,8 +909,8 @@ function sortProposals(proposals: CategorySteeringProposal[]): CategorySteeringP
   });
 }
 
-function defaultNewsroomSections(importedAt: string): NewsroomSectionRecord[] {
-  return loadNewsroomSectionSeedRows().map((row, index) => ({
+function defaultNewsroomSections(importedAt: string, sectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH): NewsroomSectionRecord[] {
+  return loadNewsroomSectionSeedRows(sectionsConfigPath).map((row, index) => ({
     ...row,
     enabledStatus: "enabled",
     sortOrder: Number.isInteger(row.sortOrder) && row.sortOrder > 0 ? row.sortOrder : index + 1,
@@ -915,35 +919,41 @@ function defaultNewsroomSections(importedAt: string): NewsroomSectionRecord[] {
   }));
 }
 
-function loadNewsroomSectionSeedRows() {
-  if (newsroomSectionSeedRowsCache) return newsroomSectionSeedRowsCache;
-  const parsed = YAML.parse(fs.readFileSync(NEWSROOM_SECTIONS_CONFIG_PATH, "utf8")) as {
+function loadNewsroomSectionSeedRows(sectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH) {
+  const cached = newsroomSectionSeedRowsCache.get(sectionsConfigPath);
+  if (cached) return cached;
+  const parsed = YAML.parse(fs.readFileSync(sectionsConfigPath, "utf8")) as {
     schemaVersion?: number;
     sections?: Array<Record<string, unknown>>;
   };
   if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.sections)) {
-    throw new Error(`Invalid newsroom section seed file: ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+    throw new Error(`Invalid newsroom section seed file: ${sectionsConfigPath}`);
   }
-  newsroomSectionSeedRowsCache = parsed.sections.map((entry, index) => normalizeNewsroomSectionSeedRow(entry, index));
-  return newsroomSectionSeedRowsCache;
+  const rows = parsed.sections.map((entry, index) => normalizeNewsroomSectionSeedRow(entry, index, sectionsConfigPath));
+  newsroomSectionSeedRowsCache.set(sectionsConfigPath, rows);
+  return rows;
 }
 
-function normalizeNewsroomSectionSeedRow(entry: Record<string, unknown>, index: number): Omit<NewsroomSectionRecord, "enabledStatus" | "createdAt" | "updatedAt"> {
+function normalizeNewsroomSectionSeedRow(
+  entry: Record<string, unknown>,
+  index: number,
+  sectionsConfigPath: string,
+): Omit<NewsroomSectionRecord, "enabledStatus" | "createdAt" | "updatedAt"> {
   const id = stringValue(entry.id);
-  if (!id) throw new Error(`Newsroom section at index ${index} is missing id in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+  if (!id) throw new Error(`Newsroom section at index ${index} is missing id in ${sectionsConfigPath}`);
   const title = stringValue(entry.title);
-  if (!title) throw new Error(`Newsroom section '${id}' is missing title in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+  if (!title) throw new Error(`Newsroom section '${id}' is missing title in ${sectionsConfigPath}`);
   const shortTitle = stringValue(entry.shortTitle);
-  if (!shortTitle) throw new Error(`Newsroom section '${id}' is missing shortTitle in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+  if (!shortTitle) throw new Error(`Newsroom section '${id}' is missing shortTitle in ${sectionsConfigPath}`);
   const rawType = stringValue(entry.type).toLowerCase() as NewsroomSectionType;
   if (!NEWSROOM_SECTION_TYPES.has(rawType)) {
-    throw new Error(`Newsroom section '${id}' has unsupported type '${stringValue(entry.type)}' in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+    throw new Error(`Newsroom section '${id}' has unsupported type '${stringValue(entry.type)}' in ${sectionsConfigPath}`);
   }
   const type = rawType === "rotating" ? "floating" : rawType;
   const editorialMission = stringValue(entry.editorialMission);
   const editorialPolicy = stringValue(entry.editorialPolicy);
   if (!editorialMission || !editorialPolicy) {
-    throw new Error(`Newsroom section '${id}' requires editorialMission and editorialPolicy in ${NEWSROOM_SECTIONS_CONFIG_PATH}`);
+    throw new Error(`Newsroom section '${id}' requires editorialMission and editorialPolicy in ${sectionsConfigPath}`);
   }
   return {
     id,
@@ -962,8 +972,13 @@ function normalizeNewsroomSectionSeedRow(entry: Record<string, unknown>, index: 
   };
 }
 
-export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard {
+export function createDemoCategorySteeringDashboard(
+  brandId: SiteBrandId = resolveSiteBrandId(),
+  newsroomSectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH,
+): CategorySteeringDashboard {
   const importedAt = "2026-05-16T12:00:00.000Z";
+  const profile = getNewsroomDemoProfile(brandId);
+  const pilobolus = isPilobolusDemoBrand(brandId);
   const corpusId = "knowledge-corpus-demo-canonical";
   const sourceCorpusId = "knowledge-corpus-demo-source";
   const categorySetId = "category-set-demo-canonical";
@@ -979,7 +994,7 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
   const scalingCategoryLineageId = "category-category-set-demo-canonical-category-foundation-model-scaling";
   const historyCategoryLineageId = "category-category-set-demo-source-category-symbolic-connectionist-history";
 
-  return {
+  const dashboard: CategorySteeringDashboard = {
     isDemo: true,
     summary: null,
     canManageUsers: true,
@@ -1048,14 +1063,14 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
     corpora: [
       {
         id: corpusId,
-        name: "Canonical Demo Corpus",
+        name: profile.canonicalCorpusName,
         role: "canonical",
         itemCount: 3,
         latestImportRunId: "knowledge-import-demo-steering",
       },
       {
         id: sourceCorpusId,
-        name: "Source Demo Corpus",
+        name: profile.sourceCorpusName,
         role: "source",
         itemCount: 2,
         latestImportRunId: "knowledge-import-demo-projection",
@@ -1127,10 +1142,14 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
         categorySetId,
         corpusId,
         categoryKey: "category.foundation-model-scaling",
-        displayName: "Foundation Model Scaling",
-        subtitle: "Capability curves, benchmark saturation, and training-compute effects",
-        description: "Research on model size, data mixtures, compute budgets, and emergent benchmark behavior.",
-        aliases: ["scaling laws", "compute scaling"],
+        displayName: pilobolus ? "Ensemble Movement Studies" : "Foundation Model Scaling",
+        subtitle: pilobolus
+          ? "Rehearsal notes, ensemble patterns, and field documentation"
+          : "Capability curves, benchmark saturation, and training-compute effects",
+        description: pilobolus
+          ? "Movement research, rehearsal capture, and ensemble coordination notes from the Pilobolus field program."
+          : "Research on model size, data mixtures, compute budgets, and emergent benchmark behavior.",
+        aliases: pilobolus ? ["ensemble work", "movement studies"] : ["scaling laws", "compute scaling"],
         status: "accepted",
         seedItemIds: ["research-001", "research-002"],
         holdoutItemIds: ["research-003"],
@@ -1143,10 +1162,14 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
         categorySetId: sourceCategorySetId,
         corpusId: sourceCorpusId,
         categoryKey: "category.symbolic-connectionist-history",
-        displayName: "Symbolic And Connectionist History",
-        subtitle: "Shifts between rule systems, neural nets, and hybrid AI programs",
-        description: "Historical coverage of symbolic AI, neural network winters, and later hybrid systems.",
-        aliases: ["AI winters", "connectionism"],
+        displayName: pilobolus ? "Rehearsal Archive" : "Symbolic And Connectionist History",
+        subtitle: pilobolus
+          ? "Season logs, tour notes, and creative process records"
+          : "Shifts between rule systems, neural nets, and hybrid AI programs",
+        description: pilobolus
+          ? "Historical rehearsal logs, tour documentation, and creative-process notes for Pilobolus editions."
+          : "Historical coverage of symbolic AI, neural network winters, and later hybrid systems.",
+        aliases: pilobolus ? ["tour archive", "season notes"] : ["AI winters", "connectionism"],
         status: "accepted",
         seedItemIds: ["history-001"],
         holdoutItemIds: ["history-002"],
@@ -1683,7 +1706,7 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
         updatedAt: importedAt,
       },
     ],
-    newsroomSections: defaultNewsroomSections(importedAt),
+    newsroomSections: defaultNewsroomSections(importedAt, newsroomSectionsConfigPath),
     procedureDefinitions: [],
     procedureVersions: [],
     procedureRuns: [],
@@ -1875,4 +1898,10 @@ export function createDemoCategorySteeringDashboard(): CategorySteeringDashboard
     ],
     loadError: null,
   };
+
+  if (pilobolus) {
+    return applyPilobolusDemoDashboardContent(dashboard, profile);
+  }
+
+  return dashboard;
 }

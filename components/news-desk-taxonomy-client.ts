@@ -837,6 +837,16 @@ export async function loadEditorResolvedAccessState(): Promise<EditorAccessState
     if (!refreshed.hasSession || refreshed.auth.status === "signedOut") {
       return { status: "signedOut", isEditor: false, isAdmin: false, auth: refreshed.auth, error: null };
     }
+    const isEditor = refreshed.groups.some((group) => group === "editor" || group === "admin");
+    if (!isEditor) {
+      return {
+        status: "forbidden",
+        isEditor: false,
+        isAdmin: false,
+        auth: refreshed.auth,
+        error: null,
+      };
+    }
     return {
       status: "ready",
       isEditor: true,
@@ -1817,6 +1827,7 @@ export async function loadEditorReferencesData(): Promise<{
   references: ReferenceRecord[];
   referenceAttachments: ReferenceAttachmentRecord[];
 }> {
+  configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
   if (testMock?.references || testMock?.referenceAttachments) {
     const referenceAttachments = (testMock.referenceAttachments ?? [])
@@ -1849,6 +1860,7 @@ export function normalizeNewsroomReferencePageOrder(value?: string | null): News
 }
 
 export async function loadNewsroomReferencePage(options: NewsroomReferencePageOptions = {}): Promise<NewsroomRecordPage<ReferenceRecord>> {
+  configureAmplifyClient();
   const order = normalizeNewsroomReferencePageOrder(options.order);
   if (order === "imported") {
     try {
@@ -2613,6 +2625,7 @@ function normalizeKnowledgeQueryResponse(value: unknown): KnowledgeQueryResponse
 }
 
 async function loadNewsroomSummary(): Promise<NewsroomSummaryRecord> {
+  configureAmplifyClient();
   const client = generateClient<Schema>();
   const response = await (client.queries.getNewsroomSummary as unknown as (
     args: Record<string, never>,

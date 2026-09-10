@@ -1,7 +1,8 @@
 # Site hosting options
 
-Status: **Documented pattern** (types land in `SiteBrand` via PPY-eca592; this file
-is the source of truth until then).
+Status: **Config types live on `SiteBrand`** (`renderer`, `hosting`, `themePack`,
+`opsChrome` in `lib/site-brand.ts`). This file remains the hosting runbook.
+Markus/static build wiring is still a later child — config is not a renderer.
 
 Kanbus: PPY-17fcfc. First proof: [Pilobol.us](https://github.com/AnthusAI/Pilobol.us)
 on **pilobol.us** (Amplify platform `WEB`).
@@ -12,14 +13,17 @@ A Papyrus publication is configured along **independent** axes:
 
 | Axis | Values (today) | Notes |
 | --- | --- | --- |
-| **Renderer** | `pretext` \| `markus` | Swappable render path |
+| **Theme pack** | `papyrus` \| `threat-intelligence` \| `pilobol-us` | Ops / Shadcn colors. See [site-theme-packs.md](site-theme-packs.md) |
+| **Ops chrome** | `app` \| `newsprint` | Newsroom shell. Independent of renderer |
+| **Renderer** | `pretext` \| `markus` | Publication / reader output only |
 | **Layout** | `newsprint` \| `blog` \| `magazine` | Pretext-internal only |
-| **Publication** | title / property | e.g. P.apyr.us, Threat Intelligence, Pilobol.us |
+| **Publication** | title / property | e.g. P.apyr.us, Threat Intelligence, Pilobolus |
 | **Hosting** | see `HostingConfig` below | Where built artifacts are served |
 
-Do not fold hosting into renderer choice, and do not invent a per-publication
-Papyrus GitHub fork (the Threat Intelligence shape: separate product repo +
-dedicated `WEB_COMPUTE` app baked into one checkout).
+Do not fold hosting into renderer choice, theme pack into renderer, or ops
+chrome into the reader stack. Do not invent a per-publication Papyrus GitHub
+fork (the Threat Intelligence shape: separate product repo + dedicated
+`WEB_COMPUTE` app baked into one checkout).
 
 ## `HostingConfig` (documented shape)
 
@@ -50,12 +54,35 @@ lands.
 | `amplify-ssr` | `pretext` | p.apyr.us, Threat Intelligence |
 | `amplify-static` | `markus` | **pilobol.us**, future Markus publications |
 
+These are common pairings, not locks. Ops theme pack and `opsChrome` are chosen
+separately — a Markus reader may still use Shadcn `/newsroom`. Full mix table:
+[site-stacks.md](site-stacks.md).
+
 Invalid combos can exist in theory (`pretext` + static is a poor fit today).
 Document pairings; do not ship a fake static Pretext pipeline.
 
+## Split reader + CMS (Pilobolus)
+
+Some publications ship **two** Amplify apps:
+
+| App | Repo | Platform | Domain | Serves |
+| --- | --- | --- | --- | --- |
+| Reader | `AnthusAI/Pilobol.us` | `WEB` | `pilobol.us` | Markus static HTML |
+| CMS | `AnthusAI/Papyrus` + `PAPYRUS_SITE_BRAND=pilobol-us` | `WEB_COMPUTE` | `newsroom.pilobol.us` | `/newsroom`, AppSync, corpus S3 |
+
+Threat Intelligence uses one repo + one `WEB_COMPUTE` app for both reader and
+CMS. Pilobolus uses the split pattern so the Markus reader can iterate on its
+own build while the Papyrus backend evolves independently.
+
+Runbook: [`publications/pilobol_us/docs/bootstrap.md`](../publications/pilobol_us/docs/bootstrap.md).
+
+**Anti-pattern:** importing Pilobolus corpus data into the p.apyr.us app
+(`dbsyytcm9drqa`) or expecting `/newsroom` on the static reader app
+(`d1od6t7lzbwanr`).
+
 ## How a new publication opts in
 
-1. **Choose axes** — renderer, layout (if Pretext), publication identity, hosting kind.
+1. **Choose axes** — theme pack, ops chrome, renderer, layout (if Pretext), publication identity, hosting kind.
 2. **Publication repo** — pod/content repo (e.g. `AnthusAI/Pilobol.us`), not a second
    Papyrus product fork.
 3. **Build spec** — copy the template for your hosting kind:
@@ -70,7 +97,7 @@ Document pairings; do not ship a fake static Pretext pipeline.
 6. **CI invariants** — repo-committed Markdown; `markus convert` **without**
    `--allow-html` for static Markus builds.
 
-Example domain: **pilobol.us** (publication **Pilobol.us**, git repo
+Example domain: **pilobol.us** (publication **Pilobolus**, git repo
 `AnthusAI/Pilobol.us`). The old spelling `pilobil.us` was a typo — do not create
 that zone.
 
@@ -115,9 +142,10 @@ at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 | Anti-pattern | Why it fails |
 | --- | --- |
 | Threat Intelligence–style **Papyrus fork** | Second product repo + own `WEB_COMPUTE` app per publication; hosting knowledge lives in folklore |
-| **Pod-only README** | Next agent copies Pilobol by accident; no Papyrus template |
+| **Pod-only README** | Next agent copies Pilobolus by accident; no Papyrus template |
 | **Cargo-cult SSR `amplify.yml`** | Markus site runs `npm run build`, `ampx pipeline-deploy`, ships `.next`; build breaks or wrong stack |
-| **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Markus pods |
+| **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Pilobolus CMS |
+| **Expect `/newsroom` on static reader** | Markus `WEB` app has no Next.js server; use desk subdomain on CMS app |
 | **Wrong domain zone** (`pilobil.us`) | Typo domain; certs and links diverge from **pilobol.us** |
 | **Commit `web/dist/`** | Stale HTML in git; CI drift |
 

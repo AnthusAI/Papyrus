@@ -2,6 +2,8 @@
 
 import { Hub } from "aws-amplify/utils";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
+import { ensureDevSandboxEditorSession } from "./dev-sandbox-editor-sign-in";
 import {
   loadEditorAssignmentsData,
   loadEditorDoctrineRecordsData,
@@ -41,7 +43,10 @@ type NewsDeskClientContextValue = {
 
 const NewsDeskClientContext = createContext<NewsDeskClientContextValue | null>(null);
 
-export function NewsDeskClientProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+export function NewsDeskClientProvider({
+  children,
+  devSandboxEditorAuth = null,
+}: Readonly<{ children: React.ReactNode; devSandboxEditorAuth?: DevSandboxEditorAuth | null }>) {
   const [shell, setShell] = useState<NewsDeskShellState>(() => createInitialNewsDeskShellState());
   const [searchTransition, setSearchTransition] = useState<NewsDeskSearchTransition | null>(null);
   const shellRef = useRef(shell);
@@ -54,6 +59,13 @@ export function NewsDeskClientProvider({ children }: Readonly<{ children: React.
   const refreshDashboard = useCallback(async () => {
     const sequence = ++bootstrapSequenceRef.current;
     setShell((current) => beginAccessCheck(current));
+
+    try {
+      await ensureDevSandboxEditorSession(devSandboxEditorAuth);
+    } catch (error) {
+      console.error("[PapyrusDevAuth] Sandbox editor auto sign-in failed:", error);
+    }
+    if (bootstrapSequenceRef.current !== sequence) return;
 
     const access = await loadEditorResolvedAccessState();
     if (bootstrapSequenceRef.current !== sequence) return;
@@ -89,7 +101,7 @@ export function NewsDeskClientProvider({ children }: Readonly<{ children: React.
         error instanceof Error ? error.message : "Could not load Newsroom data.",
       ));
     }
-  }, []);
+  }, [devSandboxEditorAuth]);
 
   const refreshAssignments = useCallback(async () => {
     try {

@@ -1,0 +1,7 @@
+{
+  "app": "npx ts-node bin/app-shell.ts",
+  "context": {
+    "site": "pilobol-us"
+  },
+  "requireApproval": "never"
+}

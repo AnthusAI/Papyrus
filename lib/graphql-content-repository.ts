@@ -5,6 +5,7 @@ import { withContentLoadTiming } from "./content-load-timing";
 import { getAmplifyServerRuntime } from "./amplify-server-runtime";
 import { resolveReaderStorageUrl, signStorageUrl } from "./reader-storage-url";
 import type { ContentRepository, EditionContent, EditionRouteSummary, ListPublishedEditionsOptions, LoadEditionContentOptions } from "./content-types";
+import { isDemoAmplifyOutputs } from "./demo-amplify-outputs";
 import { createEditionSectionPlan } from "./edition-sections";
 import { normalizeEditionLayoutPlan, validateEditionLayoutPlanForItems, type EditionLayoutPlan } from "./layout-plan";
 import {
@@ -157,28 +158,33 @@ export const graphqlContentRepository: ContentRepository = {
   },
 
   getLatestPublishedEdition() {
+    if (isDemoAmplifyOutputs()) return null;
     return withReaderGraphQLContext(async () => {
       try {
         return summarizeEditionRoute(await loadLatestPublishedEdition());
       } catch (error) {
-        if (isMissingGraphQLEditionError(error)) return null;
+        if (isMissingReaderBackendError(error)) return null;
         throw error;
       }
     });
   },
 
   getFirstPublishedEdition() {
+    if (isDemoAmplifyOutputs()) return null;
     return withReaderGraphQLContext(async () => {
       try {
         return summarizeEditionRoute(await loadFirstPublishedEdition());
       } catch (error) {
-        if (isMissingGraphQLEditionError(error)) return null;
+        if (isMissingReaderBackendError(error)) return null;
         throw error;
       }
     });
   },
 
   listPublishedEditions(options) {
+    if (isDemoAmplifyOutputs()) {
+      return { editions: [], nextToken: undefined };
+    }
     return withReaderGraphQLContext(async () => {
       const result = await listPublishedEditionSummaries(options);
       return {
@@ -485,6 +491,14 @@ function compareEditionsByOldest(left: GraphQLEdition, right: GraphQLEdition): n
 
 function isMissingGraphQLEditionError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("No published GraphQL edition found");
+}
+
+function isMissingProjectionModelError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("missing projection model");
+}
+
+function isMissingReaderBackendError(error: unknown): boolean {
+  return isMissingGraphQLEditionError(error) || isMissingProjectionModelError(error);
 }
 
 function getEditionPublishedAtIndexQuery(): EditionPublishedAtIndexQuery | null {

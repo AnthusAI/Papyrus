@@ -1,0 +1,11 @@
+/* Default Papyrus theme pack.
+   Identity mapping: consume the shared Shadcn :root tokens.
+   Other publications override --theme-* / --background under their own
+   data-theme-pack. Shared ops chrome never names this pack. */
+
+:root[data-theme-pack="papyrus"] {
+  --theme-paper: var(--background);
+  --theme-moss: var(--primary);
+  --theme-ochre: var(--accent);
+  --theme-ink: var(--foreground);
+}

@@ -32,7 +32,6 @@ import { slackEvents } from "./functions/slack-events/resource";
 import { InboundEmailStack } from "./inbound-email/stack";
 import { storage } from "./storage/resource";
 
-const knowledgeVectorIndexName = "papyrus-knowledge";
 const knowledgeVectorDimension = 1536;
 const knowledgeEmbeddingModel = "text-embedding-3-small";
 
@@ -56,6 +55,20 @@ function sanitizeAwsName(value: string, maxLength = 50): string {
     .replace(/^-|-$/g, "")
     .slice(0, maxLength);
 }
+
+// S3 Vectors index names are account-global. Keep the original name for the
+// p.apyr.us production app so its existing index + data are not orphaned;
+// namespace every other app's index by site brand so a second CMS app can
+// deploy into the same account without colliding.
+const papyrusSiteBrand = (
+  process.env.PAPYRUS_SITE_BRAND
+  ?? process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND
+  ?? "papyrus"
+).trim().toLowerCase();
+const knowledgeVectorIndexName =
+  amplifyAppId === "dbsyytcm9drqa"
+    ? "papyrus-knowledge"
+    : `papyrus-knowledge-${sanitizeAwsName(papyrusSiteBrand, 40)}`;
 
 // SES active receipt rule sets and shared backup vault names are account-global.
 // Keep them on the production pipeline only unless explicitly opted in.
@@ -630,6 +643,15 @@ knowledgeQueryLambda.addToRolePolicy(
     resources: [
       `arn:aws:ssm:${knowledgeVectorsStack.region}:${knowledgeVectorsStack.account}:parameter/amplify/papyrus/*/OPENAI_API_KEY`,
       `arn:aws:ssm:${knowledgeVectorsStack.region}:${knowledgeVectorsStack.account}:parameter/amplify/shared/papyrus/OPENAI_API_KEY`,
+      // Pipeline-deployed apps store secrets under amplify/<appId>/... rather
+      // than the sandbox's amplify/papyrus/... path. Grant the app's own
+      // secret path so a second CMS app (e.g. pilobol-us) can read its key.
+      ...(amplifyAppId
+        ? [
+            `arn:aws:ssm:${knowledgeVectorsStack.region}:${knowledgeVectorsStack.account}:parameter/amplify/${amplifyAppId}/*/OPENAI_API_KEY`,
+            `arn:aws:ssm:${knowledgeVectorsStack.region}:${knowledgeVectorsStack.account}:parameter/amplify/shared/${amplifyAppId}/OPENAI_API_KEY`,
+          ]
+        : []),
     ],
   }),
 );

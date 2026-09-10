@@ -22,6 +22,7 @@ type NewsDeskSectionPageProps = {
     anchorLineageId?: string | string[];
     maxTokens?: string | string[];
     from?: string | string[];
+    proposal?: string | string[];
   }>;
 };
 

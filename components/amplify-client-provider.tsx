@@ -13,11 +13,11 @@ let configured = false;
 
 export function configureAmplifyClient() {
   if (configured) return;
-  if (redirectLoopbackToLocalhost()) return;
   assertSandboxAmplifyOutputsForDev(amplifyOutputs as Record<string, unknown>);
   Amplify.configure(prioritizeCurrentOrigin(amplifyOutputs as ResourcesConfig), { ssr: true });
   applyClientTokenStorageForCurrentProtocol();
   configured = true;
+  redirectLoopbackToLocalhost();
 }
 
 export function AmplifyClientProvider({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -103,13 +103,12 @@ function applyClientTokenStorageForCurrentProtocol(): void {
   );
 }
 
-function redirectLoopbackToLocalhost(): boolean {
-  if (typeof window === "undefined") return false;
+function redirectLoopbackToLocalhost(): void {
+  if (typeof window === "undefined") return;
   const { protocol, hostname, port, pathname, search, hash } = window.location;
-  if (hostname !== "127.0.0.1" && hostname !== "::1") return false;
+  if (hostname !== "127.0.0.1" && hostname !== "::1") return;
   const target = `${protocol}//localhost${port ? `:${port}` : ""}${pathname}${search}${hash}`;
   window.location.replace(target);
-  return true;
 }
 
 function normalizeUrlOrigin(value: string): string {

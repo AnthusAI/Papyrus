@@ -18,6 +18,9 @@ corpora/*
 !corpora/papyrus-public-topics.yml
 !corpora/papyrus-publication-doctrine.yml
 !corpora/papyrus-required-procedures.json
+!corpora/pilobol-us-steering.yml
+!corpora/pilobol-us-analysis-profiles.yml
+!corpora/pilobol-us-newsroom-sections.yml
 .papyrus-runs/
 .papyrus/
 videoml-work/
