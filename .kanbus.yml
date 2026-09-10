@@ -94,26 +94,31 @@ statuses:
   category: To do
   color: null
   collapsed: true
+  semantic_category: todo
 - key: open
   name: Discovery
   category: To do
   color: null
   collapsed: false
+  semantic_category: todo
 - key: in_progress
   name: In Progress
   category: In progress
   color: null
   collapsed: false
+  semantic_category: in_progress
 - key: blocked
   name: Blocked
   category: In progress
   color: null
   collapsed: true
+  semantic_category: in_progress
 - key: closed
   name: Done
   category: Done
   color: null
   collapsed: true
+  semantic_category: done
 categories:
 - name: To do
   color: grey
@@ -133,7 +138,9 @@ type_colors:
   task: blue
 beads_compatibility: false
 wiki_directory: null
-ai: null
+ai:
+  provider: litellm
+  model: gpt-4o-mini
 jira: null
 snyk: null
 realtime:

@@ -22,20 +22,7 @@ When: Create/update the Kanbus task before coding; close it only after the chang
 How: See CONTRIBUTING_AGENT.md for the Kanbus workflow, hierarchy, status rules, priorities, command examples, and the mistakes to avoid. Never inspect project/ or issue JSON directly (including with cat or jq); use Kanbus commands only.
 Performance: Prefer kbs (Rust) when available; kanbus (Python) is equivalent but slower.
 Warning: Editing project/ directly violates The Way. Do not read or write anything in project/; work only through Kanbus.
-Board commits go to `develop`, not a PR: after `kbs` creates or updates issues, commit `project/issues/` and `project/events/` on `develop` and push. Do not open a pull request whose purpose is `project/` or spec-only work. Never hand-edit those JSON files.
-
-### Repository hygiene
-
-- **Board changes go through the Kanbus CLI** (`kbs`), never by editing
-  `project/**.json`. Hand-written JSON broke the board twice and once left the
-  CLI unable to parse its own data. Markdown under `project/wiki/` is the
-  documented exception.
-- **Commit as part of completing work.** Do not leave finished changes uncommitted
-  at session end. Stage deliberately; never `git add -A` when unrelated work is
-  in flight.
-
-This file is the operating manual for AI agents maintaining Papyrus. Read it
-before changing the layout engine, renderer, fixture data, or publication model.
+Git / PR policy: Rules for product-code commits, branch names, pull requests, and human approval live in this repository's AGENTS.md (outside this Kanbus section). CONTRIBUTING_AGENT.md covers Kanbus board mechanics such as `kbs commit`; follow AGENTS.md for product code and git workflow.
 
 ## Project Purpose
 
