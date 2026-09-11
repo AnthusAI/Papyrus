@@ -19,7 +19,8 @@ description: >-
 Papyrus's `papyrus editorial diagnose` is a **read-only slop scan** of a draft
 against a publication's style profile. The scan/options engine is
 **[Limatus](https://github.com/AnthusAI/Limatus)** (public SDK: `limatus.diagnose`,
-`limatus.generate_options`, or `python -m limatus editorial …`). Papyrus loads
+`limatus.generate_options`, or Limatus CLI `python -m limatus scan` /
+`python -m limatus options`). Papyrus loads
 house drafts and `style-profile.yml` files and calls that SDK; it does not
 host a forked editorial engine. Diagnose never rewrites anything itself — it
 emits structured findings (redundancy, voice mismatch, vague claims, empty
