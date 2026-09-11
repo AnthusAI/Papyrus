@@ -3,7 +3,7 @@
   "title": "Papyrus editorial CLI uses Limatus SDK",
   "description": "## Intent\n\nNewsroom workflows call the **Limatus SDK**, not a forked in-tree editorial core. `papyrus editorial diagnose` / `options` stay as the operator CLI; they load publication profiles and drafts from Papyrus and delegate to Limatus.\n\n## Done when\n\n- `papyrus editorial diagnose` and `papyrus editorial options` call `limatus` (`diagnose` / `generate_options` / `load_config` / `render_annotations`).\n- `papyrus_content.editorial_*` cores are shims re-exporting Limatus (or deleted if tests import Limatus directly).\n- Papyrus-default skill/signals paths may remain here.\n- Apply/publish stay human-gated. No auto-apply in procedures.\n- Existing newsroom editorial tests pass against the SDK.\n- `editorial-copyedit-cycle` skill points at the SDK wrapper, not in-tree rewrite internals.\n\n## Out of scope\n\nLimatus core changes. Newsroom UI. Publishing to origin/main of publication sites.\n\nTracks Limatus LIM-209793 / LIM-3ff8d0.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -26,11 +26,18 @@
       "text": "PR #80 SDK cutover looks right. Sent back: poetry.lock must not retarget Tactus to this machine or bump 0.51.5→0.52.0.",
       "created_at": "2026-09-11T20:10:01.517851Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9caaaae2-4c20-415e-9ede-6cd4d6324c7b",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Closed: squash-merged to develop as #80 (35f570f). papyrus editorial diagnose/options call Limatus SDK; in-tree cores are shims. Human apply/publish unchanged. Not on main until a promotion PR.",
+      "created_at": "2026-09-11T20:11:42.828343Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-11T20:04:00.437156Z",
-  "updated_at": "2026-09-11T20:10:01.517873Z",
-  "closed_at": null,
+  "updated_at": "2026-09-11T20:11:42.828362Z",
+  "closed_at": "2026-09-11T20:11:42.757093Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
