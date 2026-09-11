@@ -3,6 +3,16 @@ publicationKey: anthus-blog
 voice:
   name: Anth.us editorial
 audience: Practicing AI and ML engineers, product developers, and technical leaders evaluating tools, cost, and risk.
+headline:
+  when: afterBody
+  order:
+    - title
+    - subtitle
+  title:
+    key: title
+  subtitle:
+    key: excerpt
+    role: articleSummary
 tone:
   - Conversational but precise; enthusiastic without hype.
   - Peer-to-peer engineering voice, not marketing brochure prose.
