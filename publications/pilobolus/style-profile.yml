@@ -5,6 +5,11 @@ judge:
 voice:
   name: Pilobolus impersonal weird
 audience: General, non-technical readers with no AI/theory background -- assume a Facebook user who has never heard "simulacrum," "hyperreality," "strangler-fig," "fruiting body," or similar jargon.
+editorialAim: >-
+  When a checkable statistic and a plain image compete, prefer the sentence a
+  non-technical reader will remember. Numbers that need a footnote more than they
+  serve the scene should be cut or said in ordinary language. Link a source in the
+  sentence when a figure stays.
 tone:
   - Impersonal, cool reportage register. The scene speaks -- no publication "we," no branded voice commentary ("our desk found," "the Pilobolus take").
   - Quietly weird -- prose carries a little surreal rhythm and juxtaposition, without purple fog or fake mysticism.
@@ -47,6 +52,8 @@ evidenceRules:
   - Link a source naturally in the sentence it supports rather than a trailing citation list.
   - Claims about what happened need checkable reporting.
   - Do not invent a live public URL, brand claim, or launch voice the publication hasn't actually published.
+compare:
+  hardConstraints: []
 checks:
   # Unlike Anth.us, uniformCadence stays ON here. VOICE.md's own "Readable
   # prose -- HARD" section is explicit: "the house fails when prose turns
