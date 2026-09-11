@@ -112,6 +112,8 @@ rules:
       message: Avoid "not X, but Y" contrast stacks -- banned in Pilobolus house voice.
     - pattern: "\\n[ \\t]*Sources?:\\s"
       message: Never end on a bibliography or labeled source list (VOICE.md) -- link each source naturally in the sentence it supports instead.
+    - pattern: "\\n#{1,6}\\s*Sources?\\b"
+      message: Never end on a bibliography or labeled source list (VOICE.md) -- catches a "## Sources" heading, not only a "Sources:" line.
 referenceSamples:
   - id: believe-the-rainbow
     title: Believe the rainbow
