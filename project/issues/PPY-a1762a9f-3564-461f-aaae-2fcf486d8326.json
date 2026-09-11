@@ -1,0 +1,30 @@
+{
+  "id": "PPY-a1762a9f-3564-461f-aaae-2fcf486d8326",
+  "title": "Papyrus editorial CLI uses Limatus SDK",
+  "description": "## Intent\n\nNewsroom workflows call the **Limatus SDK**, not a forked in-tree editorial core. `papyrus editorial diagnose` / `options` stay as the operator CLI; they load publication profiles and drafts from Papyrus and delegate to Limatus.\n\n## Done when\n\n- `papyrus editorial diagnose` and `papyrus editorial options` call `limatus` (`diagnose` / `generate_options` / `load_config` / `render_annotations`).\n- `papyrus_content.editorial_*` cores are shims re-exporting Limatus (or deleted if tests import Limatus directly).\n- Papyrus-default skill/signals paths may remain here.\n- Apply/publish stay human-gated. No auto-apply in procedures.\n- Existing newsroom editorial tests pass against the SDK.\n- `editorial-copyedit-cycle` skill points at the SDK wrapper, not in-tree rewrite internals.\n\n## Out of scope\n\nLimatus core changes. Newsroom UI. Publishing to origin/main of publication sites.\n\nTracks Limatus LIM-209793 / LIM-3ff8d0.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "25862a43-0be9-4da8-a251-6b7bf46740c2",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Worktree /tmp/papyrus-a1762a-limatus-adapter on cursor/feature/PPY-a1762a-limatus-sdk off origin/develop. Tracks LIM-209793.",
+      "created_at": "2026-09-11T20:04:08.390742Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-11T20:04:00.437156Z",
+  "updated_at": "2026-09-11T20:04:08.390759Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
