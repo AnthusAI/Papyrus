@@ -45,8 +45,15 @@ class EditorialDensityTests(unittest.TestCase):
 
     def test_density_summary_dict_uses_camel_case(self) -> None:
         analysis = analyze_density("Concrete nouns beat filler.", self.thresholds)
-        rendered = density_summary_as_dict(analysis.summary)
-        self.assertEqual(set(rendered), {"wordCount", "sentenceCount", "lexicalDensity", "gzipRatio"})
+        rendered = density_summary_as_dict(
+            analysis.summary,
+            thresholds=self.thresholds,
+            findings=analysis.findings,
+        )
+        self.assertTrue(
+            {"wordCount", "sentenceCount", "lexicalDensity", "gzipRatio"}.issubset(rendered)
+        )
+        self.assertIn("withinThresholds", rendered)
 
     def test_long_fluff_flags_density_findings(self) -> None:
         text = self.fluff_path.read_text(encoding="utf-8")

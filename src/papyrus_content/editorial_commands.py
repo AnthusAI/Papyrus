@@ -5,12 +5,11 @@ import json
 import sys
 from pathlib import Path
 
-from .editorial_diagnosis import diagnose_draft
-from .editorial_diagnosis_schema import validate_diagnosis
-from .editorial_markup import render_annotated_markus, render_annotated_xml
-from .editorial_options_schema import validate_decisions
-from .editorial_rewrite_options import generate_rewrite_options
-from .editorial_style import load_style_profile
+from limatus import diagnose, generate_options, load_config, render_annotations
+from limatus.editorial_diagnosis_schema import validate_diagnosis
+from limatus.editorial_options_schema import validate_decisions
+
+from .editorial_rewrite_options import DEFAULT_EDITORIAL_REWRITE_SKILL_PATH
 from .model_defaults import DEFAULT_EDITORIAL_REWRITE_MODEL
 
 
@@ -42,17 +41,23 @@ def editorial_diagnose(flags: list[str]) -> None:
     else:
         draft_text = args.text
 
-    style_profile = load_style_profile(profile_path)
-    diagnosis = diagnose_draft(draft_text, style_profile=style_profile)
+    config = load_config(profile_path)
+    diagnosis = diagnose(draft_text, config=config)
     rendered = json.dumps(diagnosis, indent=2) + "\n"
 
     if args.markup_out:
         markup_path = Path(args.markup_out).resolve()
-        markup_path.write_text(render_annotated_markus(draft_text, diagnosis), encoding="utf-8")
+        markup_path.write_text(
+            render_annotations(draft_text, diagnosis, format="markus"),
+            encoding="utf-8",
+        )
 
     if args.xml_out:
         xml_path = Path(args.xml_out).resolve()
-        xml_path.write_text(render_annotated_xml(draft_text, diagnosis), encoding="utf-8")
+        xml_path.write_text(
+            render_annotations(draft_text, diagnosis, format="xml"),
+            encoding="utf-8",
+        )
 
     if args.output:
         output_path = Path(args.output).resolve()
@@ -89,17 +94,18 @@ def editorial_options(flags: list[str]) -> None:
     if not isinstance(decisions_payload, list):
         raise ValueError("Decisions JSON must be a list.")
 
-    style_profile = load_style_profile(Path(args.profile).resolve())
+    config = load_config(Path(args.profile).resolve())
     validate_diagnosis(diagnosis_payload)
     validate_decisions(decisions_payload)
 
-    options = generate_rewrite_options(
+    skill_path = Path(args.skill or DEFAULT_EDITORIAL_REWRITE_SKILL_PATH).resolve()
+    options = generate_options(
         draft_text,
-        style_profile=style_profile,
+        config=config,
         diagnosis=diagnosis_payload,
         decisions=decisions_payload,
         model=args.model,
-        skill_path=args.skill or None,
+        skill_path=skill_path,
     )
     rendered = json.dumps(options, indent=2) + "\n"
 

@@ -17,7 +17,11 @@ description: >-
 # Editorial Copyedit Cycle
 
 Papyrus's `papyrus editorial diagnose` is a **read-only slop scan** of a draft
-against a publication's style profile. It never rewrites anything itself — it
+against a publication's style profile. The scan/options engine is
+**[Limatus](https://github.com/AnthusAI/Limatus)** (public SDK: `limatus.diagnose`,
+`limatus.generate_options`, or `python -m limatus editorial …`). Papyrus loads
+house drafts and `style-profile.yml` files and calls that SDK; it does not
+host a forked editorial engine. Diagnose never rewrites anything itself — it
 emits structured findings (redundancy, voice mismatch, vague claims, empty
 lead-ins, density) with a stable `finding-*` id, a span, an excerpt, and a
 rationale. Everything after that — what to skip, what to rewrite, which
@@ -238,7 +242,7 @@ If the same kind of gap shows up across multiple articles — the model keeps
 missing a voice pattern, keeps flattening a specific construction, keeps
 mishandling a category of finding — that's a signal to improve
 `publications/<pub>/style-profile.yml`, `editorial-rewrite-skill.yml`, or the
-prompt/lint logic in `src/papyrus_content/editorial_rewrite_options.py`,
+prompt/lint logic in **Limatus** (`limatus` package / AnthusAI/Limatus repo),
 rather than re-litigating it in `decisions.json` every single time. That's a
 separate, occasional activity from running the cycle — mention it to the user
-if you notice the pattern, but don't go patch Papyrus's own source uninvited.
+if you notice the pattern, but don't go patch Limatus or Papyrus uninvited.

@@ -10,6 +10,7 @@ dependencies = [
     "markitdown[all] >=0.1.0,<1.0.0",
     "tiktoken >=0.12.0,<0.13.0",
     "tactus @ file:///Users/ryan/Projects/Tactus",
+    "limatus >=0.17.0,<0.18.0",
 ]
 
 [project.scripts]

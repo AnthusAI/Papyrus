@@ -11,7 +11,8 @@
         "start": 0,
         "end": 61
       },
-      "rationale": "Sentence opens with empty boilerplate instead of a concrete stake."
+      "rationale": "Sentence opens with empty boilerplate instead of a concrete stake.",
+      "source": "profile"
     },
     {
       "id": "finding-8c8efabbccd804cb",
@@ -21,7 +22,8 @@
         "start": 248,
         "end": 325
       },
-      "rationale": "Paragraph reads like an inline list without substantive development."
+      "rationale": "Paragraph reads like an inline list without substantive development.",
+      "source": "profile"
     },
     {
       "id": "finding-a6b95ac741d27015",
@@ -31,7 +33,8 @@
         "start": 95,
         "end": 108
       },
-      "rationale": "Passage uses avoided lexicon 'revolutionize' without operational detail."
+      "rationale": "Passage uses avoided lexicon 'revolutionize' without operational detail.",
+      "source": "profile"
     },
     {
       "id": "finding-2da0bff00477de8d",
@@ -41,7 +44,8 @@
         "start": 224,
         "end": 237
       },
-      "rationale": "Passage uses avoided lexicon 'game-changing' without operational detail."
+      "rationale": "Passage uses avoided lexicon 'game-changing' without operational detail.",
+      "source": "profile"
     },
     {
       "id": "finding-e7fe80185739ab0e",
@@ -51,7 +55,8 @@
         "start": 194,
         "end": 212
       },
-      "rationale": "Passage uses avoided lexicon 'leverage synergies' without operational detail."
+      "rationale": "Passage uses avoided lexicon 'leverage synergies' without operational detail.",
+      "source": "profile"
     }
   ],
   "unsupported_claims": [
@@ -63,7 +68,8 @@
         "start": 63,
         "end": 124
       },
-      "rationale": "Sentence states certainty without attributable evidence."
+      "rationale": "Sentence states certainty without attributable evidence.",
+      "source": "profile"
     }
   ],
   "repetition_groups": [
@@ -79,7 +85,8 @@
             "start": 327,
             "end": 351
           },
-          "rationale": "Repeated phrasing across the draft."
+          "rationale": "Repeated phrasing across the draft.",
+          "source": "profile"
         },
         {
           "id": "finding-b9b199915c826e7d",
@@ -89,10 +96,12 @@
             "start": 457,
             "end": 502
           },
-          "rationale": "Repeated phrasing across the draft."
+          "rationale": "Repeated phrasing across the draft.",
+          "source": "profile"
         }
       ],
-      "rationale": "Multiple passages repeat the same four-word phrase."
+      "rationale": "Multiple passages repeat the same four-word phrase.",
+      "source": "profile"
     }
   ],
   "voice_observations": [
@@ -104,7 +113,8 @@
         "start": 125,
         "end": 567
       },
-      "rationale": "Five or more consecutive sentences share nearly identical length."
+      "rationale": "Five or more consecutive sentences share nearly identical length.",
+      "source": "profile"
     },
     {
       "id": "finding-ed08a04d6b2fca0c",
@@ -114,7 +124,8 @@
         "start": 95,
         "end": 108
       },
-      "rationale": "Passage conflicts with profile avoid lexicon 'revolutionize'."
+      "rationale": "Passage conflicts with profile avoid lexicon 'revolutionize'.",
+      "source": "profile"
     },
     {
       "id": "finding-ffe56b01ad6d6cdc",
@@ -124,7 +135,8 @@
         "start": 224,
         "end": 237
       },
-      "rationale": "Passage conflicts with profile avoid lexicon 'game-changing'."
+      "rationale": "Passage conflicts with profile avoid lexicon 'game-changing'.",
+      "source": "profile"
     },
     {
       "id": "finding-16cd82007b2a4c84",
@@ -134,7 +146,8 @@
         "start": 194,
         "end": 212
       },
-      "rationale": "Passage conflicts with profile avoid lexicon 'leverage synergies'."
+      "rationale": "Passage conflicts with profile avoid lexicon 'leverage synergies'.",
+      "source": "profile"
     }
   ],
   "required_facts": [
@@ -146,7 +159,8 @@
         "start": 504,
         "end": 567
       },
-      "rationale": "Numeric or statistical claim lacks attributable evidence."
+      "rationale": "Numeric or statistical claim lacks attributable evidence.",
+      "source": "profile"
     }
   ],
   "density": {
