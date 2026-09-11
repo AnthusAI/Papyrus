@@ -3,7 +3,7 @@
   "title": "Anth.us style-profile: noEmojis and contrastCap from voice audit",
   "description": "LIM-fc61e8 voice audit: Anth.us site-content README Voice requires no emojis and at most one X-not-Y contrast. publications/anthus/style-profile.yml has neither rules.noEmojis nor rules.contrastCap.\n\n## Change\npublications/anthus/style-profile.yml only:\n- rules.noEmojis: true\n- rules.contrastCap: 1\n\nSanity-check against published Anth.us articles (Papyrus reference-samples and/or anthus-site-content) so we do not ship a false positive on house copy.\n\n## Out of scope\nLimatus core. Chattic.us profile (separate repo). Noun-compound density LIM-74d5fb.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -19,12 +19,19 @@
       "text": "Worktree /tmp/papyrus-cc58ab-anthus-voice on cursor/feature/PPY-cc58ab-anthus-voice-rules off origin/develop.",
       "created_at": "2026-09-11T20:36:56.989977Z",
       "comment_type": "default"
+    },
+    {
+      "id": "400e322c-0ad5-4be9-98af-a473df3585e8",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Closed: #81 on develop. noEmojis true. contrastCap not encoded — 24 published MDX files use multiple intentional X-not-Y contrasts (house voice).",
+      "created_at": "2026-09-11T20:40:05.926519Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-11T20:36:31.979644Z",
-  "updated_at": "2026-09-11T20:36:56.990Z",
-  "closed_at": null,
-  "right_now_summary": "The style profile for Anth.us needs updates to enforce rules on emojis and contrast limits.",
-  "right_now_updated_at": "2026-09-11T20:37:00.565402Z",
+  "updated_at": "2026-09-11T20:40:05.926538Z",
+  "closed_at": "2026-09-11T20:40:00.297341Z",
+  "right_now_summary": "The Anth.us style profile needs updates to fit the voice audit rules for emojis and contrast limits.",
+  "right_now_updated_at": "2026-09-11T20:40:09.811024Z",
   "custom": {}
 }
