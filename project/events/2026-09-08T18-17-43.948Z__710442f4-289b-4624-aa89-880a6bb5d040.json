@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "710442f4-289b-4624-aa89-880a6bb5d040",
+  "issue_id": "PPY-1b700a6c-c796-4d5c-a8b0-07833ec8e760",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:43.948Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Standalone local style-rules config schema",
+        "to": "Limatus local style-rules config schema"
+      }
+    }
+  }
+}

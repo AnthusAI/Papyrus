@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "3c828532-84c4-49ec-a7ce-941384d86b0e",
+  "issue_id": "PPY-9edba14e-2659-4eed-913f-665f22e8af73",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T10:39:20.516Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Diff handoff, provenance log, human approval",
+        "to": "Steer, choose, apply, and provenance"
+      }
+    }
+  }
+}

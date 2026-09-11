@@ -1,0 +1,42 @@
+{
+  "id": "PPY-07eda89d-16a8-44c0-af72-e082afef8f99",
+  "title": "Move diagnose + rewrite-options engines into Limatus core",
+  "description": "Port `editorial_diagnosis` / rewrite-option generation (and related schemas) out of `papyrus_content` into the standalone core. Preserve finding JSON + option markup/suggestion shapes. CLI and SDK both call this core.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "0b74e8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "1b700a",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "f1752ea9-77d0-4c62-9fda-aed651c5036e",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-dca478 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:34.275371Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:04:33.389757Z",
+  "updated_at": "2026-09-08T18:40:34.981744Z",
+  "closed_at": "2026-09-08T18:40:34.981636Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

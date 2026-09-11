@@ -1,0 +1,54 @@
+schemaVersion: 1
+publicationKey: anthus-blog
+voice:
+  name: Anth.us editorial
+audience: Practicing AI and ML engineers evaluating tools, cost, and risk.
+tone:
+  - Conversational but precise; enthusiastic without hype.
+  - Peer-to-peer engineering voice, not marketing brochure prose.
+sentenceStyle:
+  - Use contractions and active voice.
+  - Keep paragraphs focused; favor concrete nouns, numbers, and operational detail.
+structure:
+  - Lead with the practical stake for the reader.
+  - State uncertainty explicitly when evidence is thin.
+lexicon:
+  prefer:
+    - inspect
+    - verify
+    - latency
+    - cost
+    - failure modes
+  avoid:
+    - transforming workflows
+    - revolutionize
+    - game-changing
+    - leverage synergies
+    - empty intensifiers without evidence
+evidenceRules:
+  - Prefer primary sources, official documentation, and attributable citations.
+  - Label speculation and weak evidence explicitly.
+  - Do not invent anecdotes, statistics, or citations.
+checks:
+  uniformCadence: false
+referenceSamples:
+  - id: sample-one
+    title: Sample One
+    url: https://anth.us/blog/sample-one/
+    path: reference-samples/sample-one.md
+  - id: sample-two
+    title: Sample Two
+    url: https://anth.us/blog/sample-two/
+    path: reference-samples/sample-two.md
+  - id: sample-three
+    title: Sample Three
+    url: https://anth.us/blog/sample-three/
+    path: reference-samples/sample-three.md
+  - id: sample-four
+    title: Sample Four
+    url: https://anth.us/blog/sample-four/
+    path: reference-samples/sample-four.md
+  - id: sample-five
+    title: Sample Five
+    url: https://anth.us/blog/sample-five/
+    path: reference-samples/sample-five.md

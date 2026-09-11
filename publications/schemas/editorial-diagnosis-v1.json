@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://papyrus.anth.us/schemas/editorial-diagnosis-v1.json",
+  "title": "EditorialDiagnosis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "document_intent",
+    "audience",
+    "generic_passages",
+    "unsupported_claims",
+    "repetition_groups",
+    "voice_observations",
+    "required_facts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "document_intent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "audience": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generic_passages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "unsupported_claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "voice_observations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "required_facts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "repetition_groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repetitionGroup"
+      }
+    },
+    "density": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wordCount", "sentenceCount", "lexicalDensity", "gzipRatio"],
+      "properties": {
+        "wordCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sentenceCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lexicalDensity": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gzipRatio": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "excerpt", "span", "rationale"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^finding-[a-f0-9]{16}$"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "excerpt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "span": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "repetitionGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "members", "rationale"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^finding-[a-f0-9]{16}$"
+        },
+        "kind": {
+          "const": "redundancy"
+        },
+        "members": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

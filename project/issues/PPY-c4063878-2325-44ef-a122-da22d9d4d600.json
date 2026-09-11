@@ -1,0 +1,21 @@
+{
+  "id": "PPY-c4063878-2325-44ef-a122-da22d9d4d600",
+  "title": "Production draft preview (password-gated, server-side)",
+  "description": "## Problem\nDraft content is hard to review on production Papyrus-powered sites (Pilobol.us, P.apyr.us, threat-intelligence.anth.us, and other Papyrus deployments). That friction pushes premature publish so reviewers can see items on live index pages. Content is authored across many agents, IDEs, and agent platforms, so preview must not depend on any one coding tool or machine \u2014 it must revolve around the live site.\n\n## Goal\nShip a **standard production draft-preview mode** for Papyrus sites: drafts are deployed to production but stay hidden from the public. With an intentional, secret-gated preview unlock (URL parameter and/or equivalent), index pages show **draft + published** as if every current draft were published, so the team can proofread in production without publishing early. Default (no unlock) stays published-only for public visitors and crawlers.\n\n## Hard requirements (Ryan 2026-09-09)\n- **Site-centric:** preview works from the production site itself; not tied to Cursor, Claude Code, a laptop, or any specific agent harness.\n- **Secret password required** to reveal drafts. Do not expose every draft to the open web or to arbitrary scrapers/AIs.\n- **Server-side enforcement:** gate and filtering logic run on the server (or equivalent trusted edge). Do not rely on client-only hiding that still ships draft payloads to anonymous browsers.\n- **Multi-site:** designed once in Papyrus so any Papyrus site (Pilobol.us, P.apyr.us, threat-intelligence.anth.us, future pods) can enable the same pattern.\n\n## Scope\n- Index / list / collection pages that currently filter to published-only (and pagination if any).\n- Individual draft permalinks only as needed for review after the index unlock; do not accidentally SEO-index drafts.\n- Shared Papyrus mechanism + clear setup docs for site operators (how to set the secret, how to unlock preview).\n\n## Out of scope (v1)\n- Replacing editorial workflows or newsroom stage gates.\n- Client-only \u201chide with CSS\u201d or shipping full draft JSON to everyone and filtering in the browser.\n\n## Related\nMirrors / extends the Anth.us site-ops task **Production draft preview for /posts/ and /blog/** (`kanbus-3fe18dfb` in AnthusAI/Anth.us). Anth.us is Gatsby/MDX today; this initiative is the Papyrus-platform version for all Papyrus publications.\n\n## Success\nEditors and agents can leave work in draft, open production with the secret unlock, see drafts on indexes as if published, proofread safely, and only then approve true publication \u2014 without leaking drafts to the public web.",
+  "type": "initiative",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-09-09T11:47:30.391305Z",
+  "updated_at": "2026-09-09T11:47:30.391460Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

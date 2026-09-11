@@ -1,0 +1,59 @@
+schemaVersion: 1
+publicationKey: anthus-blog
+signals:
+  - id: banned_hedges_intensifiers
+    establishedAs: "House style lists; Chatticus rules.yml"
+    findingKind: vague_claim
+    implemented: true
+  - id: empty_leadins
+    establishedAs: Common slop/style lists
+    findingKind: empty_leadin
+    implemented: true
+  - id: list_shaped_prose
+    establishedAs: Common LLM-slop pattern lists
+    findingKind: list_shaped_prose
+    implemented: true
+  - id: unsupported_certainty
+    establishedAs: Journalism / hedge-vs-boost (Hyland)
+    findingKind: unsupported_certainty
+    implemented: true
+  - id: repeated_ngrams
+    establishedAs: Self-repetition / ROUGE-style n-gram overlap
+    findingKind: redundancy
+    implemented: true
+  - id: passive_voice
+    establishedAs: Classic style checkers
+    findingKind: voice_mismatch
+    implemented: true
+  - id: numeric_claim_without_attribution
+    establishedAs: Newsroom attribution norms
+    findingKind: missing_attribution
+    implemented: true
+  - id: contrast_stack_cap
+    establishedAs: House style (Chatticus)
+    findingKind: voice_mismatch
+    implemented: true
+  - id: lexical_density
+    establishedAs: "Ure (1971); Halliday — content words / total words"
+    findingKind: low_lexical_density
+    implemented: true
+  - id: gzip_ratio
+    establishedAs: Compression as Kolmogorov-complexity proxy
+    findingKind: high_compressibility
+    implemented: true
+  - id: type_token_ratio
+    establishedAs: McCarthy; McCarthy & Jarvis — lexical diversity
+    findingKind: low_lexical_diversity
+    implemented: false
+  - id: flesch_kincaid
+    establishedAs: Flesch (1948)
+    findingKind: readability
+    implemented: false
+  - id: propositional_idea_density
+    establishedAs: CPIDR; Nun Study
+    findingKind: idea_density
+    implemented: false
+  - id: sentence_embedding_paraphrase
+    establishedAs: STS / summarization duplicates
+    findingKind: concept_restatement
+    implemented: false

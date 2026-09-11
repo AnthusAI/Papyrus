@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Editorial annotation export (Papyrus editorial diagnose).
+  Namespace: https://papyrus.anth.us/editorial-annotation/v1
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="https://papyrus.anth.us/editorial-annotation/v1"
+           xmlns:ea="https://papyrus.anth.us/editorial-annotation/v1"
+           elementFormDefault="qualified">
+
+  <xs:element name="editorialAnnotation">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="density" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="wordCount" type="xs:nonNegativeInteger" minOccurs="0"/>
+              <xs:element name="sentenceCount" type="xs:nonNegativeInteger" minOccurs="0"/>
+              <xs:element name="lexicalDensity" type="xs:decimal" minOccurs="0"/>
+              <xs:element name="gzipRatio" type="xs:decimal" minOccurs="0"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="findings">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="finding" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="rationale" type="xs:string"/>
+                    <xs:element name="excerpt" type="xs:string"/>
+                  </xs:sequence>
+                  <xs:attribute name="id" type="xs:string" use="required"/>
+                  <xs:attribute name="kind" type="xs:string" use="required"/>
+                  <xs:attribute name="start" type="xs:nonNegativeInteger" use="required"/>
+                  <xs:attribute name="end" type="xs:nonNegativeInteger" use="required"/>
+                  <xs:attribute name="group" type="xs:string" use="optional"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="markusAnnotated" type="xs:string"/>
+        <xs:element name="source" type="xs:string"/>
+      </xs:sequence>
+      <xs:attribute name="schemaVersion" type="xs:positiveInteger" use="required"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "ebea8160-59a8-4c2b-896f-d87ff57a8bd6",
+  "issue_id": "PPY-07eda89d-16a8-44c0-af72-e082afef8f99",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:30.582Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Move diagnose + rewrite-options engines into standalone core",
+        "to": "Move diagnose + rewrite-options engines into Limatus core"
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "id": "PPY-228e8d6b-1f1b-4f95-813f-b9a528ae0f36",
+  "title": "Establish the standalone Papyrus marketing site",
+  "description": "## Intent\n\nAs a prospective Papyrus adopter, I want a standalone Papyrus marketing site at papyrus.anth.us, so that I can understand the product separately from the demo publication at p.apyr.us.\n\n## Initial scope\n\n- Establish a simple, normal marketing-site application separate from the Papyrus CMS reader.\n- Provide a reliable local development command and foundation for static deployment.\n- Reserve the existing Papyrus plant pictogram as the initial brand anchor.\n- Do not add CMS, publication-reader, or wiki behavior.\n\n## Definition of Done\n\n- The marketing app has an executable behavior specification.\n- A local dev server starts and serves the app.\n- The work is ready for later visual design.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "4a0cbc07-bc5c-4415-ba5b-2f541bc46f51",
+      "author": "home",
+      "text": "Starting discovery and implementation. The standalone marketing app will use the existing Papyrus-plant pictogram, avoid the CMS reader, and start with a static-site foundation.",
+      "created_at": "2026-09-08T14:51:10.318904Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "76b88dc8-7bd5-4b70-ae82-495222f102ac",
+      "author": "home",
+      "text": "Implemented the standalone marketing Next.js static-export foundation. It reuses the existing Papyrus plant pictogram, identifies papyrus.anth.us as the public home, and distinguishes the demo reader at p.apyr.us. Verification passed: focused BDD, typecheck, lint, build, and local HTTP smoke test on port 3002.",
+      "created_at": "2026-09-08T15:00:09.061349Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "06d30844-392b-424d-b4cb-0508a1d661a3",
+      "author": "home",
+      "text": "Implementation branch feature/PPY-228e8d-papyrus-marketing-site is ready for review in PR #74: https://github.com/AnthusAI/Papyrus/pull/74. Verification passed: marketing BDD profile, typecheck, lint, static build, and a local HTTP smoke test at http://127.0.0.1:3002.",
+      "created_at": "2026-09-08T15:01:40.512135Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-08T14:50:56.413084Z",
+  "updated_at": "2026-09-08T15:01:40.512135Z",
+  "closed_at": null,
+  "custom": {}
+}

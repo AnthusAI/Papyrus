@@ -1,0 +1,38 @@
+{
+  "id": "PPY-9edba14e-2659-4eed-913f-665f22e8af73",
+  "title": "Steer, choose, apply, and provenance",
+  "description": "**Phase 5 of MVP** under `PPY-54055d`.\n\n## Intent\n\nAs a publication operator, I want to record finding-level steering, choose among rewrite options, apply patches myself, and see a diff \u2014 so the loop stays interactive and externally attributable copy is never auto-published.\n\n## Done when\n\n- Operator can record per-finding decisions: skip, rewrite, delete, keep, add.\n- Operator sees options for rewrite findings and records choose / edit / reject / regenerate-with-guidance.\n- Operator sees a **diff** (original vs working draft) after apply, not an auto-published rewrite.\n- Working draft changes only when a human apply is recorded.\n- Provenance retained: original draft, findings, finding decisions, options, chosen option ids, model/version, retrieved sources, change log, human apply/approve/reject.\n- External publish requires human approval.\n- Quality metrics logged over time: accepted revisions, deletions, unsupported-claim rate, reader edits, post-publication corrections.\n\n## Depends on\n\nVerifier + acceptance gate.\n\n## Gherkin\n\n```gherkin\nFeature: Steer, choose, apply, and provenance\n  As a publication operator\n  I want to steer findings and choose rewrite options\n  So a human remains the editor and machines only propose\n\n  Scenario: Steer findings before any rewrite\n    Given diagnostic findings for a draft\n    When the operator marks some findings skip and others rewrite\n    Then option generation is eligible only for rewrite findings\n    And the working draft is unchanged\n\n  Scenario: Choose an option and apply a patch\n    Given two or three options for a finding marked rewrite\n    When the operator chooses one option and records apply\n    Then the working draft includes that patch\n    And provenance records the finding id, option id, model version, and human decision\n\n  Scenario: Present a diff and do not publish\n    Given a working draft after one or more applies\n    When the operator opens the handoff\n    Then they see a diff of original versus working draft\n    And the revision is not published to an external surface\n```",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "5ca22f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "097326f3-5e55-4320-96e2-e8a0a09e14ad",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-ee79f5 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:27.583594Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T09:12:08.228876Z",
+  "updated_at": "2026-09-08T18:40:28.279438Z",
+  "closed_at": "2026-09-08T18:40:28.279321Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

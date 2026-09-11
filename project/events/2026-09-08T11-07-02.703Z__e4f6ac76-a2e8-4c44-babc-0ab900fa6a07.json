@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "e4f6ac76-a2e8-4c44-babc-0ab900fa6a07",
+  "issue_id": "PPY-a0234bca-bf97-4c0b-9028-e50f9cd4ff0e",
+  "event_type": "state_transition",
+  "occurred_at": "2026-09-08T11:07:02.703Z",
+  "actor_id": "box",
+  "payload": {
+    "from_status": "in_progress",
+    "to_status": "blocked"
+  }
+}

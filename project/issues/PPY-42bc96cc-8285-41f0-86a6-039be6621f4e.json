@@ -1,0 +1,18 @@
+{
+  "id": "PPY-42bc96cc-8285-41f0-86a6-039be6621f4e",
+  "title": "Topics tree + SteeringProposal accept/reject",
+  "description": "Was PPY-04ef93. Topics + proposal yes/no via reviewSteeringProposal. After assignments.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "Papyrus",
+  "creator": null,
+  "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-09-07T20:49:10.326262Z",
+  "updated_at": "2026-09-07T21:18:11.349214Z",
+  "closed_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "32a32b56-fbe2-46e8-8896-a24a5ed1b4f1",
+  "issue_id": "PPY-b536c222-2e54-41ed-a069-039575d59e6f",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T18:17:29.916Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Papyrus integration via editorial SDK",
+        "to": "Papyrus integration via Limatus SDK"
+      },
+      "description": {
+        "from": "# Papyrus integration via editorial SDK\n\n## Intent\n\nOnce the standalone package exists, Papyrus (and Tactus procedures) invoke it through the **SDK**, injecting publication style profiles and drafts from Papyrus config — not by owning the editorial core.\n\n## Done when\n\n- Newsroom / publication workflows call the SDK, not in-tree `papyrus_content.editorial_*` cores.\n- Style profiles from Papyrus map cleanly into the standalone config format.\n- Automated procedures can diagnose + propose options; human gates for apply/publish remain.\n- In-tree editorial core is removed or reduced to a deprecated shim.",
+        "to": "# Papyrus integration via Limatus SDK\n\n## Intent\n\nPapyrus (and Tactus procedures) invoke **Limatus** through the SDK, injecting publication style profiles and drafts from Papyrus config — not owning the editorial core.\n\n## Done when\n\n- Newsroom / publication workflows call the Limatus SDK, not in-tree `papyrus_content.editorial_*` cores.\n- Papyrus style profiles map into Limatus config.\n- Automated procedures can diagnose + propose options; human gates for apply/publish remain.\n- In-tree editorial core is removed or reduced to a deprecated shim."
+      }
+    }
+  }
+}

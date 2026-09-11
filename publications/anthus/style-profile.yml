@@ -1,0 +1,101 @@
+schemaVersion: 1
+publicationKey: anthus-blog
+voice:
+  name: Anth.us editorial
+audience: Practicing AI and ML engineers, product developers, and technical leaders evaluating tools, cost, and risk.
+headline:
+  when: afterBody
+  order:
+    - title
+    - subtitle
+  title:
+    key: title
+  subtitle:
+    key: excerpt
+    role: articleSummary
+tone:
+  - Conversational but precise; enthusiastic without hype.
+  - Peer-to-peer engineering voice, not marketing brochure prose.
+sentenceStyle:
+  - Use contractions and active voice.
+  - Keep paragraphs focused; favor concrete nouns, numbers, and operational detail.
+voicePatterns:
+  - Opens contrastive sentences with "But" rather than "However" or "That said."
+  - Contracts negatives in first person ("I don't," "I wasn't") rather than expanding them ("I do not," "I was not").
+  - When cutting a reused lead-in phrase, prefer starting the replacement with a conjunction ("But," "So," "And") over a flat declarative restart.
+  - Prefers short, plain follow-on clauses over compound abstractions ("have to" over "am required to").
+structure:
+  - Lead with the practical stake for the reader.
+  - Move from trend or claim to mechanism, then to checks the reader can run.
+  - State uncertainty explicitly when evidence is thin.
+lexicon:
+  prefer:
+    - inspect
+    - verify
+    - latency
+    - cost
+    - failure modes
+    - constraints
+    - operational detail
+  avoid:
+    - transforming workflows
+    - revolutionize
+    - game-changing
+    - leverage synergies
+    - empty intensifiers without evidence
+evidenceRules:
+  - Prefer primary sources, official documentation, and attributable citations.
+  - Label speculation and weak evidence explicitly.
+  - Do not invent anecdotes, statistics, or citations.
+  - Optimize for editorial quality, not detector scores or synthetic imperfection.
+checks:
+  uniformCadence: false
+density:
+  minWords: 400
+  minLexicalDensity: 0.45
+  maxGzipRatio: 0.35
+rules:
+  bannedPhrases:
+    - coming soon
+    - we're just getting started
+  bannedIntensifiers:
+    - revolutionary
+    - seamless
+    - game-changing
+    - transformative
+    - cutting-edge
+    - unlock
+    - leverage
+referenceSamples:
+  - id: maximize-value-not-intelligence
+    title: Maximize Value, Not Intelligence
+    url: https://anth.us/blog/maximize-value-not-intelligence/
+    path: reference-samples/maximize-value-not-intelligence.md
+  - id: inspected-by-pudicus
+    title: Inspected by Pudicus
+    url: https://anth.us/blog/inspected-by-pudicus/
+    path: reference-samples/inspected-by-pudicus.md
+  - id: how-ai-agents-do-things
+    title: How AI Agents Do Things
+    url: https://anth.us/blog/how-ai-agents-do-things/
+    path: reference-samples/how-ai-agents-do-things.md
+  - id: jevons-paradox-ai-slop
+    title: The Content Paradox
+    url: https://anth.us/blog/jevons-paradox-ai-slop/
+    path: reference-samples/jevons-paradox-ai-slop.md
+  - id: ai-coding-cost-collapse-2026
+    title: The Year Coding Became a Commodity
+    url: https://anth.us/blog/ai-coding-cost-collapse-2026/
+    path: reference-samples/ai-coding-cost-collapse-2026.md
+  - id: never-use-fast
+    title: Never Use Fast
+    url: https://anth.us/blog/never-use-fast/
+    path: reference-samples/never-use-fast.md
+  - id: coding-agents-went-remote-2026
+    title: The Year the Coding Agents Went Remote
+    url: https://anth.us/blog/coding-agents-went-remote-2026/
+    path: reference-samples/coding-agents-went-remote-2026.md
+  - id: from-pair-programmer-to-executive
+    title: From Pair Programmer to Executive
+    url: https://anth.us/blog/from-pair-programmer-to-executive/
+    path: reference-samples/from-pair-programmer-to-executive.md

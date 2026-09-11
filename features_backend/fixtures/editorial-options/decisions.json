@@ -1,0 +1,26 @@
+[
+  {
+    "schemaVersion": 1,
+    "finding_id": "finding-0810866db70f8d69",
+    "decision": "skip",
+    "note": ""
+  },
+  {
+    "schemaVersion": 1,
+    "finding_id": "finding-a6b95ac741d27015",
+    "decision": "rewrite",
+    "note": ""
+  },
+  {
+    "schemaVersion": 1,
+    "finding_id": "finding-3d260688fef42494",
+    "decision": "delete",
+    "note": ""
+  },
+  {
+    "schemaVersion": 1,
+    "finding_id": "finding-04406044cd71cbf0",
+    "decision": "keep",
+    "note": ""
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "ed2734d4-273e-47eb-84ac-357ff687ad38",
+  "issue_id": "PPY-73906c0a-b705-4281-9524-1e3ae5ff97bc",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T10:39:20.468Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Constrained editorial revision pass",
+        "to": "Constrained rewrite options for steered findings"
+      }
+    }
+  }
+}

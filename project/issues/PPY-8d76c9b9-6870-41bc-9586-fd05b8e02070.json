@@ -1,0 +1,39 @@
+{
+  "id": "PPY-8d76c9b9-6870-41bc-9586-fd05b8e02070",
+  "title": "Limatus eval metrics for findings and rewrite-option quality",
+  "description": "Define and implement metrics: finding-type precision/recall proxies, unsupported-claim flags on options, acceptance/deletion rates where logged. Version LLM-as-judge if used.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
+  "labels": [
+    "editorial",
+    "evals"
+  ],
+  "dependencies": [
+    {
+      "target": "e7cc93",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "ce8f49eb-b13f-41de-9c19-83490bb77a9f",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-658c60 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:46.851339Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:04:34.639791Z",
+  "updated_at": "2026-09-08T18:40:47.569474Z",
+  "closed_at": "2026-09-08T18:40:47.568459Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "34bc937d-ef5f-4679-821e-84ed344a81a8",
+  "issue_id": "PPY-5ca22fb8-3d2b-43fd-b4f9-19bbca4b4533",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T09:12:07.953Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Verifier + acceptance gate",
+    "description": "**Phase 4 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- Verifier highlights factual changes, deleted claims, duplicated ideas, residual boilerplate.\n- Weighted quality score (specificity, clarity, audience fit, voice match, minus redundancy / unsupported claims / factual-change risk).\n- `should_accept_revision` (or equivalent): accept only if net improvement ≥ threshold **and** unsupported claims do not increase.\n- Detector score is not an input.\n\n## Depends on\n\nConstrained revision pass.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "9cf36a2d-218c-4c39-8fdd-c1c45e7deadc",
+  "issue_id": "PPY-0b74e8a2-989f-448c-ba63-c54db5ba26ce",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:32.781Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Scaffold standalone package (name TBD) with shared core",
+    "description": "Create the new repo/package skeleton (name TBD): pyproject, package layout, CLI entrypoint stub, public Python API stub, README. Zero imports from Papyrus. Decide temporary working directory vs new GitHub repo with Ryan if needed.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

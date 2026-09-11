@@ -1,0 +1,39 @@
+{
+  "id": "PPY-e7cc939c-0f39-4e56-b90c-b4794ebb6189",
+  "title": "Limatus eval fixture corpus + runner smoke",
+  "description": "Seed fixtures (drafts + expected finding classes / option constraints) and a smoke eval runner that can run without Papyrus. Document how Ryan rejects become new fixtures.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
+  "labels": [
+    "editorial",
+    "evals"
+  ],
+  "dependencies": [
+    {
+      "target": "0b74e8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "8fe0daf7-532e-4788-91a7-d8527c2c8d5d",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-81ecb1 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:48.212464Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:04:34.323977Z",
+  "updated_at": "2026-09-08T18:40:48.961965Z",
+  "closed_at": "2026-09-08T18:40:48.961860Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

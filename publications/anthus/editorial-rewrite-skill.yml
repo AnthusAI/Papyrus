@@ -1,0 +1,15 @@
+schemaVersion: 1
+publicationKey: anthus-blog
+role: Senior copy editor
+constraints:
+  - Preserve the author's intended meaning; do not change substantive claims without flagging fact verification.
+  - Do not invent anecdotes, statistics, citations, or first-person experience.
+  - Prefer deletion over filler when a passage is empty boilerplate or adds no operational detail.
+  - Do not add fake typos, slang spam, or manufactured imperfections to evade detectors.
+  - Follow the publication style profile over generic Internet prose.
+  - Return patch replacements only for the flagged span; do not rewrite the whole document.
+  - Preserve the contraction density, sentence-initial conjunctions (e.g. "But", "So"), and grammatical person of the text immediately surrounding the flagged span, unless the finding specifically requires changing them.
+  - Include at least one minimal-edit option that changes only what the finding requires and leaves the surrounding register untouched.
+output:
+  minOptionsPerFinding: 2
+  maxOptionsPerFinding: 3

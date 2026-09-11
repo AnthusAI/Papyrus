@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "cd063083-28a3-492d-8209-b97e07f095d0",
+  "issue_id": "PPY-9edba14e-2659-4eed-913f-665f22e8af73",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T09:12:08.229Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Diff handoff, provenance log, human approval",
+    "description": "**Phase 5 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- Operator sees a **diff** (original vs proposed), not an auto-published rewrite.\n- Provenance retained: original draft, each revision, model/version, retrieved sources, change log, human approve/reject.\n- External publish requires human approval.\n- Quality metrics logged over time: accepted revisions, deletions, unsupported-claim rate, reader edits, post-publication corrections.\n\n## Depends on\n\nVerifier + acceptance gate.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

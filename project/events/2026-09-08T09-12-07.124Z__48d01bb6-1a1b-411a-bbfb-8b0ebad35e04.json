@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "48d01bb6-1a1b-411a-bbfb-8b0ebad35e04",
+  "issue_id": "PPY-1c06f18d-ad9c-4f6d-8a16-5a169f7ff677",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T09:12:07.124Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Style profile store + reference corpus",
+    "description": "**Phase 1 of MVP** under `PPY-54055d` (quality-first editorial rewrite loop).\n\n## Done when\n\n- An editable style profile (YAML or equivalent) can be stored for a publication/pod: voice name, audience, tone, sentence style, structure, prefer/avoid lexicon, evidence rules.\n- 5–10 approved reference samples are linked or stored for voice match.\n- Profile is loadable by later diagnostic/revision passes.\n- No detector scores in the profile.\n\n## Notes\n\nStart narrow (one Anth.us or Chatticus voice). Expand toward 20–100 samples later.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

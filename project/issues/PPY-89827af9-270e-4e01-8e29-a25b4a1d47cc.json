@@ -1,0 +1,34 @@
+{
+  "id": "PPY-89827af9-270e-4e01-8e29-a25b4a1d47cc",
+  "title": "Limatus evaluations harness",
+  "description": "# Limatus evaluations harness\n\n## Intent\n\nRegression evaluations so Limatus diagnose findings and rewrite-option quality can improve safely.\n\n## Done when\n\n- Fixture corpus of drafts + expected finding classes / acceptable option properties.\n- Offline-friendly eval runner (deterministic where possible; LLM judges gated and versioned).\n- Metrics: precision/recall on finding types, unsupported-claim rate in options, human-accept proxies.\n- CI smoke subset without Papyrus.\n- Documented how Ryan rejects become new fixtures.",
+  "type": "epic",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-80909133-454f-4680-a2d5-6ab16bb1c216",
+  "labels": [
+    "editorial",
+    "evals"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e4472cd1-366e-4f3b-ac79-5fcaa8b9c293",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-66c047 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:17.324088Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:04:18.718345Z",
+  "updated_at": "2026-09-08T18:40:17.987488Z",
+  "closed_at": "2026-09-08T18:40:17.987321Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

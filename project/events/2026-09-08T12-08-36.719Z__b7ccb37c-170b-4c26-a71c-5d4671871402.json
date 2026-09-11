@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "b7ccb37c-170b-4c26-a71c-5d4671871402",
+  "issue_id": "PPY-da4bf394-c93c-42d1-848e-749ca0dd87f0",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-08T12:08:36.719Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Conventional lexical density and compression signals",
+        "to": "Semantic restatement via local sentence embeddings"
+      }
+    }
+  }
+}

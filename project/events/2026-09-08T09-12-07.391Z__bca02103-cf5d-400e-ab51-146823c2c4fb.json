@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "bca02103-cf5d-400e-ab51-146823c2c4fb",
+  "issue_id": "PPY-15618909-bd41-4314-9594-21f52e935dc3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T09:12:07.391Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Diagnostic JSON pass for editorial slop",
+    "description": "**Phase 2 of MVP** under `PPY-54055d`.\n\n## Done when\n\n- A first pass returns **structured JSON only** (no prose rewrite): document_intent, audience, generic_passages, unsupported_claims, repetition_groups, voice_observations, required_facts.\n- Detects at least: vague claims, empty lead-ins, uniform cadence, list-shaped prose, unsupported certainty, redundancy, voice mismatch vs style profile.\n- Schema is automation-friendly and versioned.\n\n## Out of scope\n\nRewriting the draft in this pass.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

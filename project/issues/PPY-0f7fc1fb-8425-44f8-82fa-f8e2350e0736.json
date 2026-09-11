@@ -1,0 +1,38 @@
+{
+  "id": "PPY-0f7fc1fb-8425-44f8-82fa-f8e2350e0736",
+  "title": "Ship Limatus CLI: diagnose, suggest, diff-oriented apply helpers",
+  "description": "Human-facing CLI for diagnose \u2192 marked findings \u2192 rewrite options / redline-style suggestions \u2192 show diff. Config via local style-rules file. No Papyrus required.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "07eda8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "5a0e6101-3bbb-4cc5-bc5f-ebc6ed388755",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-0129cf (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:37.368689Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:04:33.697864Z",
+  "updated_at": "2026-09-08T18:40:38.121633Z",
+  "closed_at": "2026-09-08T18:40:38.121520Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

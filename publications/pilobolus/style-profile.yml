@@ -1,0 +1,135 @@
+schemaVersion: 1
+publicationKey: pilobolus
+judge:
+  provider: openai
+voice:
+  name: Pilobolus impersonal weird
+audience: General, non-technical readers with no AI/theory background -- assume a Facebook user who has never heard "simulacrum," "hyperreality," "strangler-fig," "fruiting body," or similar jargon.
+editorialAim: >-
+  When a checkable statistic and a plain image compete, prefer the sentence a
+  non-technical reader will remember. Numbers that need a footnote more than they
+  serve the scene should be cut or said in ordinary language. Link a source in the
+  sentence when a figure stays.
+headline:
+  when: afterBody
+  order:
+    - title
+    - subtitle
+  title:
+    key: title
+  subtitle:
+    key: standfirst
+    role: articleSummary
+tone:
+  - Impersonal, cool reportage register. The scene speaks -- no publication "we," no branded voice commentary ("our desk found," "the Pilobolus take").
+  - Quietly weird -- prose carries a little surreal rhythm and juxtaposition, without purple fog or fake mysticism.
+  - Opinionated through the story's tilt and ending, never stated as an explicit publication take or op-ed lecture.
+sentenceStyle:
+  - Full sentences and connected paragraphs -- a beginning, a middle, a tilt. Not a telegram stack of fragments (occasional short fragments used for rhythm are fine within otherwise connected prose).
+  - Avoid "not A, it's B" / "not C but D" contrast stacks entirely -- prefer zero uses per piece. This is the opposite of Anth.us, where a similar contrast device is a deliberate signature move; here it reads as AI slop.
+voicePatterns:
+  - Third person, or close second person ("you") when telling the story from inside one person's experience -- never first-person publication "we."
+  - Never names Pilobolus, Pilobol.us, "this publication," "our take," or "the desk" in reader-facing copy.
+  - One example or allegory per piece; does not braid multiple specimens into one article.
+  - Ends on an image or implication worth remembering, not a summary of the piece.
+structure:
+  - Open with the concrete scene, never industry throat-clearing or tech-journalism framing.
+  - Link a source naturally inside the sentence it supports; never end on a bibliography or labeled source list.
+  - Do not teach theory words to the reader (simulacrum, hyperreality, mycelium, strangler-fig as jargon) -- show what happened in ordinary words instead.
+lexicon:
+  prefer:
+    - concrete, ordinary-life words
+    - named year, person, place
+    - checkable specifics
+  avoid:
+    - simulacrum
+    - hyperreality
+    - Baudrillard
+    - fruiting body
+    - mycelium
+    - specimen
+    - cage
+    - keeper
+    - belief-rainbow
+    - feed as territory
+    - the pull
+    - transforming workflows
+    - revolutionize
+    - game-changing
+    - leverage synergies
+    - empty intensifiers without evidence
+evidenceRules:
+  - Link a source naturally in the sentence it supports rather than a trailing citation list.
+  - Claims about what happened need checkable reporting.
+  - Do not invent a live public URL, brand claim, or launch voice the publication hasn't actually published.
+compare:
+  hardConstraints: []
+checks:
+  # Unlike Anth.us, uniformCadence stays ON here. VOICE.md's own "Readable
+  # prose -- HARD" section is explicit: "the house fails when prose turns
+  # into short, choppy, disconnected phrases... not a telegram stack of
+  # fragments." Clipped, punchy runs are a drafting artifact to catch and
+  # clean up, not a sanctioned house device (confirmed 2026-09-08, Ryan).
+  uniformCadence: true
+  # Unlike Anth.us, uncontractedForms stays OFF here. VOICE.md is explicit:
+  # "Contractions speech is fine in quoted humans; the narrator stays cool
+  # and strange" -- narration deliberately avoids contracting ("does not,"
+  # "had not") as part of the impersonal, reportage-cool register. Checked
+  # against all five currently published articles: uncontracted forms are
+  # routine there, not a slip.
+  uncontractedForms: false
+density:
+  minWords: 300
+  minLexicalDensity: 0.45
+  maxGzipRatio: 0.4
+rules:
+  noEmojis: true
+  bannedPhrases:
+    - the Pilobolus take
+    - our desk found
+    - this publication
+    - Pilobolus
+    - Pilobol.us
+    - our take
+  bannedIntensifiers:
+    - revolutionary
+    - seamless
+    - powerful
+    - robust
+    - game-changing
+    - transformative
+    - unlock
+    - leverage
+    - groundbreaking
+    - mind-blowing
+    - deeply uncanny
+    - profoundly surreal
+    - hauntingly hyperreal
+  bannedPatterns:
+    - pattern: "\\b(?:isn'?t|wasn'?t|aren'?t)\\b[^.!?\\n,]{0,80},\\s*it'?s\\b|\\b(?:is|was)\\s+not\\b[^.!?\\n,]{0,80},\\s*it'?s\\b"
+      message: Avoid "not A, it's B" contrast stacks -- banned in Pilobolus house voice (unlike Anth.us, where this device is deliberate).
+    - pattern: "\\b(?:isn'?t|wasn'?t|aren'?t)\\b[^.!?\\n,]{0,60},\\s*but\\b|\\b(?:is|was|it'?s)\\s+not\\b[^.!?\\n,]{0,60},\\s*but\\b"
+      message: Avoid "not X, but Y" contrast stacks -- banned in Pilobolus house voice.
+    - pattern: "\\n[ \\t]*Sources?:\\s"
+      message: Never end on a bibliography or labeled source list (VOICE.md) -- link each source naturally in the sentence it supports instead.
+referenceSamples:
+  - id: believe-the-rainbow
+    title: Believe the rainbow
+    url: internal://Pilobol.us/web/content/articles/believe-the-rainbow.md
+    path: reference-samples/believe-the-rainbow.md
+  - id: father-justin
+    title: Father Justin
+    url: internal://Pilobol.us/web/content/articles/father-justin.md
+    path: reference-samples/father-justin.md
+  - id: gus-lamont-ai-sighting
+    title: A miracle in the outback
+    url: internal://Pilobol.us/web/content/articles/gus-lamont-ai-sighting.md
+    path: reference-samples/gus-lamont-ai-sighting.md
+  - id: the-strangler-fig-method
+    title: The strangler-fig method
+    url: internal://Pilobol.us/web/content/articles/the-strangler-fig-method.md
+    path: reference-samples/the-strangler-fig-method.md
+  - id: they-liked-the-ranked-room
+    title: They liked the ranked room
+    url: internal://Pilobol.us/web/content/drafts/they-liked-the-ranked-room.md
+    path: reference-samples/they-liked-the-ranked-room.md

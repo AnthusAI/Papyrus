@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9485e3a1-29c4-4641-918c-5837830b22b8",
+  "issue_id": "PPY-a0234bca-bf97-4c0b-9028-e50f9cd4ff0e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-07T21:05:45.518Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Bind reinvented /newsroom to live pilobol-us GraphQL (not demo fixtures)",
+    "description": "Demo fixtures = offline chrome only. Live path:\n\n1. Real amplify_outputs.json (sandbox first, then prod) — not demo stub\n2. PAPYRUS_GRAPHQL_JWT + endpoint matching outputs\n3. Fix corpora/pilobol-us-steering.yml s3Prefix to real bucket from amplify_outputs (not s3://pilobol-us-demo/...)\n4. Materialize/sync corpus: copy or link Pilobol.us corpora/pilobol-us into Papyrus worker tree OR sync-from Pilobol accession\n5. papyrus ops corpora sync-to-cloud --corpus-key pilobol-us\n6. references prepare-catalog + create-from-catalog (pending) from catalog.json\n7. Run /newsroom without ?demo=1 with PAPYRUS_SITE_BRAND=pilobol-us — References shows real keepers\n\nNeeds from Ryan/Pilobol: AWS profile or real sandbox/prod amplify_outputs + JWT mint path (PAPYRUS_JWT_SECRET / auth refresh-jwt).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": "Papyrus",
+    "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+    "labels": []
+  }
+}

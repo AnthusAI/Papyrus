@@ -1,0 +1,38 @@
+{
+  "id": "PPY-2c62aaf4-a343-4535-a7c0-ae15da9e8ff5",
+  "title": "Papyrus adapter: style profile \u2192 Limatus config + SDK calls",
+  "description": "Replace in-tree editorial core usage with SDK calls. Map Papyrus style profiles into standalone config. Keep human apply/publish gates.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b536c222-2e54-41ed-a069-039575d59e6f",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "46c0b8",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "a8113b2d-80f5-4420-bb24-27a6d05986fc",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-209793 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:49.608884Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:04:34.932985Z",
+  "updated_at": "2026-09-08T18:40:50.279852Z",
+  "closed_at": "2026-09-08T18:40:50.279733Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

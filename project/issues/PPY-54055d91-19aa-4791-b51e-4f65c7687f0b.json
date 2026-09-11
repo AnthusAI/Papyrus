@@ -1,0 +1,88 @@
+{
+  "id": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "title": "Quality-first editorial rewrite loop",
+  "description": "# Quality-first editorial rewrite loop\n\n## Intent\n\nAs a publication operator (Anth.us newsroom, Chatticus marketing, or any Papyrus pod), I want an **interactive** editorial loop that uncovers weak passages, offers rewrite options, and lets a human steer what gets changed \u2014 so copy is substantively better, not merely \u201cless detectable as AI.\u201d\n\n## Guardrail (non-negotiable)\n\nThis is a **quality** loop, not a detector-evasion loop. Do **not** optimize for \u201cget below detector score X.\u201d AI detectors are imperfect; NIST and related work warn that perplexity/burstiness-style indicators are not reliable evidence of human authorship. Do not inject fake typos, slang, manufactured anecdotes, or random fragments to game classifiers.\n\nTrack editorial outcomes instead:\n\n- Fewer unsupported claims\n- More concrete nouns, examples, numbers, attributable sources\n- Less boilerplate and empty intensifiers\n- Better audience fit\n- Explicit trade-offs and uncertainty where warranted\n- Document-specific voice match against approved reference writing\n\nNorth-star metric: **human acceptance rate after factual review**, not detector score.\n\n## Human-steered loop (not a one-shot rewrite)\n\nMachines do not \u201chumanize this\u201d into a new article. The loop is finding-level and option-level, with a human on the tiller at every apply.\n\nSame pattern as reporting-packet review: machines produce private work products; humans record explicit decisions; nothing externally attributable is auto-published.\n\n```mermaid\nflowchart TD\n  draft[Working draft]\n  diagnose[Diagnose: structured findings, no rewrite]\n  steer[Human steers findings: skip, rewrite, delete, keep, add]\n  options[LLM generates rewrite options for selected findings]\n  choose[Human chooses, edits, or regenerates with guidance]\n  apply[Apply chosen patches to working draft]\n  verify[Verify applied draft]\n  publish[Human approves before external publish]\n  draft --> diagnose --> steer\n  steer -->|\"rewrite this\"| options --> choose --> apply\n  steer -->|\"skip / keep / delete\"| apply\n  apply --> verify --> steer\n  verify --> publish\n```\n\n1. **Diagnose** \u2014 structured JSON findings (vague claims, empty lead-ins, uniform cadence, list-shaped prose, unsupported certainty, redundancy, voice mismatch). No prose rewrite. Findings are the steering queue.\n2. **Retrieve** \u2014 style profile + project facts + prior approved copy, used when generating options.\n3. **Steer findings** \u2014 human marks each finding: skip, rewrite, delete, keep-with-note, or add a finding the machine missed. Batching is allowed; unattended full-document rewrite is not.\n4. **Options** \u2014 for findings marked rewrite, an LLM produces two or three constrained **options** (patches), not one committed `revised_text`. Senior copy editor constraints: preserve meaning; no invented anecdotes/stats/citations; prefer deletion; style guide over generic Internet prose; no detector-evasion tactics.\n5. **Choose** \u2014 human picks an option, edits it, rejects all, or regenerates with extra guidance. The working draft changes only when a human apply is recorded.\n6. **Verify** \u2014 after apply, score the working draft (specificity, clarity, audience fit, voice match, minus redundancy / unsupported / factual-change risk). Verification advises; it does not auto-accept.\n7. **Publish gate** \u2014 present a **diff** of original vs current working draft. External publish requires human approval. Provenance retains draft, findings, options, human decisions, model/version, and change log.\n\n## Style profile\n\nDerive an editable YAML (or equivalent) profile from 20\u2013100 approved pieces: tone, sentence style, structure, prefer/avoid lexicon, evidence rules. For technical writing, favor operational detail (latency, cost, failure modes, constraints) over \u201ctransforming workflows.\u201d\n\n## MVP (narrow first)\n\n1. Store an editable style profile + 5\u201310 reference samples\n2. Diagnostic JSON pass whose findings a human can steer\n3. Constrained **options** for human-selected findings (not one whole-document revision)\n4. Verifier on the **applied** working draft (advisory; human still decides)\n5. Diff + provenance of finding decisions, chosen options, and human apply/approve\n6. Log quality metrics over time (accepted revisions, deletions, unsupported-claim rate, reader edits, post-publication corrections)\n\nMVP steering surface: first-class decision records (files/CLI; Newsroom UI can come later). Do not bury steer/choose in an unlogged chat.\n\n## Out of scope\n\n- Detector-score optimizers\n- Fake imperfections / synonym spam / \u201cpersonal\u201d story inventing\n- Auto-publishing without human approval for external copy\n- Unattended whole-document rewrite that a human only rubber-stamps\n- Replacing Chattic.us-web `publication-writing` banned-phrase checks (those remain; this loop sits above or beside them as editorial judgment)\n\n## Source seed\n\nOperator brief distilled from a Perplexity research pass (quality-first editorial loop; NIST/synthetic-content caveats on detectors). Productize the brief; do not paste detector-evasion tactics into the skill.\n\n## Children (MVP)\n\n1. Style profile store + reference corpus (5\u201310 samples)\n2. Diagnostic JSON pass (schema + checks) \u2014 findings are the steering queue\n3. Constrained rewrite **options** for steered findings\n4. Verifier on the applied working draft (advisory gate)\n5. Diff handoff + provenance of human steer/choose/apply/approve",
+  "type": "epic",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-80909133-454f-4680-a2d5-6ab16bb1c216",
+  "labels": [
+    "editorial",
+    "newsroom"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0bbd61fb-f082-435e-bd30-e0c4072d77c7",
+      "author": "home",
+      "text": "MVP Gherkin added to the five child stories. Starting Phase 1 (PPY-1c06f1) with a Composer 2.5 plan-only dispatch; remaining stories stay open until their blockers clear.",
+      "created_at": "2026-09-08T10:35:17.101100Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "bd987ea6-edcd-4e21-8c51-e7255b996840",
+      "author": "home",
+      "text": "Steering decision: this is an interactive finding/option loop, not a one-shot diagnose\u2192revise\u2192rubber-stamp. Humans steer findings (skip/rewrite/delete/keep/add), LLMs generate options for selected findings, humans choose/edit/apply. Same pattern as reporting-packet review. Phase 1 (style profile) is unchanged; Phases 3 and 5 rewritten around options and provenance of human decisions.",
+      "created_at": "2026-09-08T10:39:20.546230Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "adc24239-4664-4e1c-aed8-f87fc6912029",
+      "author": "home",
+      "text": "Filed PPY-8f5273 to tighten diagnose after live Anth.us run: optional checks, never/always compounds, list ordinals, cadence off for house voice, local voice_mismatch.",
+      "created_at": "2026-09-08T11:14:21.538507Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "c9b9f582-237e-4e4c-9387-10a0afc84942",
+      "author": "home",
+      "text": "Decision: steal Chattic.us-web publication-writing gate design (rules as data + two-sided corpus) into Papyrus diagnose. Chatticus website CMS is later and separate. New story PPY-dc9251.",
+      "created_at": "2026-09-08T11:36:59.676924Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "2e0da74d-a7df-4c84-a520-65844ff4cebf",
+      "author": "home",
+      "text": "Next diagnose slice: PPY-da4bf3 fuses density signals (gzip, sentence clusters via local embeddings / TF-IDF). No paid vector API. Not a single fluff score.",
+      "created_at": "2026-09-08T12:00:36.785942Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "a6a8ae95-dc10-4989-8568-e27ce891dbbc",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Markup export: Markus editorial-finding directive (Markus #3) + Papyrus diagnose --markup-out/--xml-out (PR #73). Dogfood: 5 Anth.us articles.",
+      "created_at": "2026-09-08T12:51:11.486209Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "d351c584-abe1-4346-a600-e13139a575f1",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-9d14e6 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:14.780292Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T09:11:51.547214Z",
+  "updated_at": "2026-09-08T18:40:15.394907Z",
+  "closed_at": "2026-09-08T18:40:15.394786Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

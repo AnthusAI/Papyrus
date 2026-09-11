@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "20d72393-6baa-449f-92bc-cc4dfd6ab6b0",
+  "issue_id": "PPY-07eda89d-16a8-44c0-af72-e082afef8f99",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:33.390Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Move diagnose + rewrite-options engines into standalone core",
+    "description": "Port `editorial_diagnosis` / rewrite-option generation (and related schemas) out of `papyrus_content` into the standalone core. Preserve finding JSON + option markup/suggestion shapes. CLI and SDK both call this core.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+    "labels": [
+      "editorial"
+    ]
+  }
+}

@@ -346,6 +346,12 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("papyrus videos requires <command>.")
             _delegate_content("videos", command, flags)
             return 0
+        if group == "editorial":
+            if command is None:
+                print_group_help(group)
+                return 0
+            _delegate_content("editorial", command, flags)
+            return 0
         raise ValueError(f"Unsupported papyrus group: {group}")
     except Exception as error:
         message = format_unexpected_error(error)

@@ -1,0 +1,83 @@
+{
+  "id": "PPY-dc9251a8-0bdf-4417-9740-42c21e618750",
+  "title": "Data-driven editorial rules and two-sided corpus",
+  "description": "**Follow-on to PPY-8f5273** under `PPY-54055d`.\n\nSteal the **gate design** from Chattic.us-web `publication-writing` (`rules.yml` + rejected/published corpus). Do **not** move the Chatticus website onto Papyrus hosting. That CMS question is later and separate.\n\n## Intent\n\nAs a publication operator, I want diagnose to load banned phrases, intensifiers, and patterns from the style profile and to regress against both house-voice excerpts that must pass and brochure slop that must fail, so new rules are added from misses instead of hardcoded Python.\n\n## Why (Chatticus lessons we are taking)\n\n- Voice prose (`style-profile.yml` tone/audience/samples) stays the source of truth for writers. The **deterministic subset** is data, updated when policy changes.\n- Grow rules from a **two-sided corpus**: a rejected draft that is not caught is a missing rule; a rule that flags a published house-voice excerpt is too aggressive.\n- Only automate what a script can decide (word lists, regex patterns, contrast counts). Do not regex \u201cdoes this say what changed for the reader.\u201d\n- Diagnose stays **advisory** JSON. Chatticus\u2019s fail-closed exit is a site CI gate, not this loop.\n\n## Done when\n\n- Style profile may include an optional `rules:` mapping:\n  - `bannedPhrases` (list of strings)\n  - `bannedIntensifiers` (list of strings, word-boundary match)\n  - `bannedPatterns` (list of `{pattern, message}`)\n  - `contrastCap` (integer, or `null` / omitted to disable)\n- Omitting `rules:` does not break existing profiles; heuristic checks from PPY-156189 / PPY-8f5273 still run subject to `checks:`.\n- Diagnose emits findings from those lists. Same excerpt is not flagged twice when it also matches `lexicon.avoid`.\n- Anth.us seed `rules:` includes Chatticus-quality brochure hedges and intensifiers that belong on an engineering blog (`coming soon`, `we're just getting started`, `revolutionary`, `seamless`, `game-changing`, `transformative`, `cutting-edge`, `unlock`, `leverage`). It does **not** import Chatticus standfirst insider terms (`model`, `API`, `latency`, `repo`) and does **not** turn on `contrastCap` (Anth.us house voice uses \u201cX, not Y\u201d).\n- `publications/anthus/editorial-corpus/` (or equivalent) holds:\n  - **must-fail** drafts with the expected rule finding (at least the brochure hedges/intensifiers above)\n  - **must-pass** excerpts drawn from existing Anth.us reference samples that must produce **no** `rules:` findings\n- Behave covers must-fail and must-pass. Adding a must-fail example that is not caught is the specified way to extend a rule.\n- `papyrus editorial diagnose` accepts `--text` **or** `--draft` (not both) so an operator can check a candidate sentence without writing a file (Chatticus `--standfirst` isolated check). Draft path remains read-only when `--draft` is used.\n- Diagnose remains advisory: JSON on stdout (or `--output`); it does not rewrite; it is not a fail-closed publish gate.\n- Detector-score keys stay forbidden.\n\n## Out of scope\n\n- Hosting or migrating chattic.us onto Papyrus.\n- Replacing or deleting Chattic.us-web `check_editorial_rules.py` (their site keeps its gate until the CMS revisit).\n- Chatticus standfirst insider-term / proper-noun logic.\n- Live HTML smoke (`check_live_copy.py`) and pinned-copy test contracts.\n- Rewrite options (PPY-73906c), steer CLI (PPY-9edba1), verifier (PPY-5ca22f), Newsroom UI.\n\n## Gherkin\n\n```gherkin\nFeature: Data-driven editorial rules for diagnose\n  As a publication operator\n  I want banned lists and patterns in the style profile\n  So brochure-speak is flagged from data, and house-voice excerpts keep passing\n\n  Scenario: Banned intensifiers come from the profile\n    Given a style profile whose rules.bannedIntensifiers includes \"seamless\"\n    And a draft that says \"a seamless workflow for every team\"\n    When I run the diagnose command\n    Then there is a finding whose excerpt includes \"seamless\"\n\n  Scenario: Anth.us does not treat engineering vocabulary as insider terms\n    Given the Anth.us style profile\n    And a draft that says \"Check latency in the repository\" and does not use banned intensifiers\n    When I run the diagnose command\n    Then there is no rules finding for \"latency\" or \"repository\"\n\n  Scenario: Must-fail brochure copy is caught\n    Given a must-fail corpus draft that uses \"revolutionary\" and \"coming soon\"\n    And the Anth.us style profile\n    When I run the diagnose command\n    Then findings include those banned terms\n\n  Scenario: Must-pass house-voice excerpts are not flagged by rules\n    Given the Anth.us style profile\n    And a must-pass excerpt from an Anth.us reference sample\n    When I run the diagnose command\n    Then there are no findings produced by profile rules\n\n  Scenario: Diagnose a text snippet without a draft file\n    Given a loadable style profile\n    When I run the diagnose command with --text \"This seamless platform will revolutionize workflows\" and no --draft\n    Then it writes versioned diagnostic JSON\n    And the result does not include rewritten prose\n```",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "8f5273",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "23f00c29-b022-4cec-90c0-bb6eb9474ebe",
+      "author": "home",
+      "text": "Planner dispatched. Implementation waits until PPY-8f5273 (PR 68) is on develop. Worktree to create: /tmp/papyrus-PPY-dc9251-editorial-rules on cursor/feature/PPY-dc9251-editorial-rules from origin/develop (rebase onto 8f5273 if that PR is not merged yet). Plan only.",
+      "created_at": "2026-09-08T11:36:59.701712Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "068d3fbb-e348-4be3-9427-9de1f7e2263d",
+      "author": "home",
+      "text": "PPY-8f5273 is on develop (PR 68). Implementation must reset the worktree onto origin/develop before coding so the squash merge is not replayed. Path stays /tmp/papyrus-PPY-dc9251-editorial-rules.",
+      "created_at": "2026-09-08T11:40:58.939320Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "741163f7-36ce-4f88-9952-a8ea8546c730",
+      "author": "home",
+      "text": "Plan approved with corrections: (1) reset worktree onto origin/develop before coding \u2014 PR 68 is merged, do not rebase the old 8f5273 SHA; (2) any fixture profile must be a fully loadable style profile (5\u201310 reference samples), not a stub; (3) editorial Behave is 9 scenarios today, not 7. Implementation authorized.",
+      "created_at": "2026-09-08T11:42:10.537483Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "7f03a85d-38cd-4397-aab6-df0c3360bff6",
+      "author": "home",
+      "text": "Implementation PR: https://github.com/AnthusAI/Papyrus/pull/69. Worktree /tmp/papyrus-PPY-dc9251-editorial-rules. Manager review: rules as data, corpus, --text XOR --draft, Anth.us seed without insider terms or contrastCap. Holding merge for acceptance.",
+      "created_at": "2026-09-08T11:48:13.526879Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "7223067b-5ed6-4bb3-8982-3f4d3936c211",
+      "author": "home",
+      "text": "Merged https://github.com/AnthusAI/Papyrus/pull/69 to develop (6bbbef4). Acceptance: 23 unit tests, 14 editorial Behave scenarios. Worker: remove /tmp/papyrus-PPY-dc9251-editorial-rules.",
+      "created_at": "2026-09-08T11:48:53.296589Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "4f38aa67-a113-4596-9781-783276b597bb",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-5750ca (github.com/AnthusAI/Limatus).",
+      "created_at": "2026-09-08T18:40:05.546868Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T11:36:52.806949Z",
+  "updated_at": "2026-09-08T18:40:05.546943Z",
+  "closed_at": "2026-09-08T11:48:53.361769Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

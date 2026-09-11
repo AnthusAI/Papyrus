@@ -1,0 +1,78 @@
+{
+  "id": "PPY-1c06f18d-ad9c-4f6d-8a16-5a169f7ff677",
+  "title": "Style profile store + reference corpus",
+  "description": "**Phase 1 of MVP** under `PPY-54055d` (quality-first editorial rewrite loop).\n\n## Intent\n\nAs a publication operator, I want an editable style profile and a small approved reference corpus, so later editorial passes can match a real house voice instead of generic Internet prose.\n\n## Done when\n\n- An editable style profile (YAML or equivalent) can be stored for a publication/pod: voice name, audience, tone, sentence style, structure, prefer/avoid lexicon, evidence rules.\n- 5\u201310 approved reference samples are linked or stored for voice match.\n- Profile is loadable by later diagnostic/revision passes.\n- No detector scores in the profile.\n\n## Notes\n\nStart narrow (one Anth.us voice). Expand toward 20\u2013100 samples later. Do not replace Chattic.us-web `publication-writing` banned-phrase checks.\n\n## Gherkin\n\n```gherkin\nFeature: Style profile store for a publication voice\n  As a publication operator\n  I want an editable style profile and approved reference samples\n  So later editorial passes can match house voice instead of generic Internet prose\n\n  Scenario: Load a stored Anth.us style profile\n    Given a publication has an editable style profile on disk\n    And the profile names voice, audience, tone, sentence style, structure, prefer and avoid lexicon, and evidence rules\n    And five to ten approved reference samples are linked for voice match\n    When an editorial pass loads the profile\n    Then the loader returns the profile and the linked samples\n    And the profile does not contain detector scores\n\n  Scenario: Reject a profile that includes detector scores\n    Given a style profile that includes a detector score\n    When an editorial pass tries to load the profile\n    Then loading fails with a validation error\n```",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-54055d91-19aa-4791-b51e-4f65c7687f0b",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "33ed504c-d933-430f-a4ce-629c959a24b1",
+      "author": "home",
+      "text": "Phase 1 in progress. Composer 2.5 planner dispatched for style profile store + Anth.us reference corpus. Worktree to be created at /tmp/papyrus-PPY-1c06f1-style-profile on feature/PPY-1c06f1-style-profile. Implementation not authorized until the plan names that worktree and survives review.",
+      "created_at": "2026-09-08T10:35:17.088783Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "eb66aeea-2bbb-473a-97a6-9d32baa3c323",
+      "author": "home",
+      "text": "Plan reviewed. Worktree /tmp/papyrus-PPY-1c06f1-style-profile is not created yet; implementation not authorized until that path exists on cursor/feature/PPY-1c06f1-style-profile from origin/develop.",
+      "created_at": "2026-09-08T10:41:59.738813Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "8f8c7b66-ce4f-4237-b3bb-f499be46ad09",
+      "author": "home",
+      "text": "Worktree verified at /tmp/papyrus-PPY-1c06f1-style-profile on cursor/feature/PPY-1c06f1-style-profile. Implementation authorized. Stay in that worktree; PR into develop; no project/ in the product PR.",
+      "created_at": "2026-09-08T10:42:34.589776Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "8be44b62-56f2-486e-870a-dfe2621cea46",
+      "author": "home",
+      "text": "Implementation on cursor/feature/PPY-1c06f1-style-profile. PR: https://github.com/AnthusAI/Papyrus/pull/66. Behave: 2 scenarios passed. Acceptance dispatched; not closing until that review lands.",
+      "created_at": "2026-09-08T10:46:16.624847Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "3349b7c7-34af-4f58-ad22-afd34cfa192d",
+      "author": "home",
+      "text": "Acceptance: loader, samples, and Behave passed. The reported project/ diff was develop board commits ahead of the feature branch, not files in PR 66 (confirmed via gh pr diff --name-only). Squash-merged https://github.com/AnthusAI/Papyrus/pull/66 into develop.",
+      "created_at": "2026-09-08T10:48:39.743026Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "fc38c87b-6c0b-41bc-aae4-833c6a8b6717",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-c225fc (github.com/AnthusAI/Limatus).",
+      "created_at": "2026-09-08T18:40:02.582879Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T09:12:07.124334Z",
+  "updated_at": "2026-09-08T18:40:02.582948Z",
+  "closed_at": "2026-09-08T10:48:39.755124Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

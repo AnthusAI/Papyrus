@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "11ebde3c-d69a-4b37-bdbb-0ec866aa3ebb",
+  "issue_id": "PPY-e62d1324-1fa1-40a0-bb3a-d36b98adeb7d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-09-07T20:51:12.259Z",
+  "actor_id": "box",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Polish: moss primary visible + strip newsprint density in ops",
+        "to": "Reinvent ops IA as mobile app (not Pretext clone)"
+      },
+      "description": {
+        "from": "Ryan polish on accepted foundation: moss #3f5d43 on active nav/actions; remove serif/forum-newsprint density from overview. Composer 2.5 with refs slice.",
+        "to": "Ryan hard line: do not port Forum/edition tables/newsprint IA into Shadcn. Reinvent overview + primary flows; moss primary; then refs as mobile-app destination. Self-reject clones."
+      }
+    }
+  }
+}

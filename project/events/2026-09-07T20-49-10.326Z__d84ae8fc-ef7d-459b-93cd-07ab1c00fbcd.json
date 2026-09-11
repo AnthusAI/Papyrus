@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d84ae8fc-ef7d-459b-93cd-07ab1c00fbcd",
+  "issue_id": "PPY-42bc96cc-8285-41f0-86a6-039be6621f4e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-07T20:49:10.326Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Topics tree + SteeringProposal accept/reject",
+    "description": "Was PPY-04ef93. Topics + proposal yes/no via reviewSteeringProposal. After assignments.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": "Papyrus",
+    "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+    "labels": []
+  }
+}

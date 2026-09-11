@@ -1,0 +1,34 @@
+{
+  "id": "PPY-1cae29c4-b59b-4e56-8e87-d36ae6d2408d",
+  "title": "AI-generated web page usability diagnose loop",
+  "description": "# AI-generated web page usability diagnose loop\n\n## Intent\n\nAs a publication or product operator shipping AI-generated or AI-assisted\nweb pages (landing pages, article layouts, dashboards, artifact-style UI),\nI want the same diagnose/decide/apply/verify loop PPY-54055d built for\nprose, applied to a rendered page instead: a read-only scanner that\nsurfaces concrete, steerable usability findings, not an auto-fixer.\n\nSibling capability under Limatus, not a rewrite of the editorial loop.\nSame shape, same guardrails, different artifact: a page instead of a\nparagraph.\n\n## Guardrail (non-negotiable, carried over from PPY-54055d)\n\nFindings are signal. The scanner never silently rewrites markup, CSS, or\ncopy on the page. A human (or an agent exercising real judgment, not\npattern-matching) still decides skip / rewrite / delete / keep per\nfinding, same as the editorial loop. No auto-apply, ever, for anything\nthat touches a published page.\n\n## Why this is a genuinely different problem, not the same one restyled\n\nProse redundancy and web usability are not the same kind of defect, and\ntreating them as interchangeable would produce a shallow tool:\n\n- Prose findings are almost entirely textual pattern matches (shingle\n  overlap, banned lexicon, passive voice). Usability findings are largely\n  structural/visual: contrast ratios, tap-target size, focus order,\n  whether a CTA is reachable, whether an information hierarchy matches\n  the content's actual priority. Some of that is measurable from\n  rendered DOM/CSS; some of it needs an actual look at the page.\n- The editorial loop's \"false positive\" lesson has a direct analog: a\n  deliberately sparse, minimal page is not the same defect as an\n  unfinished one, and a scanner tuned only on \"more elements = more\n  polish\" will punish restraint. Whatever house-style equivalent exists\n  for pages needs to encode that the way style-profile.yml's\n  voicePatterns/bannedPatterns encode it for prose.\n- \"AI-generated page\" slop has its own recognizable tells, distinct from\n  prose slop: generic gradient hero + centered everything + the same\n  three-icon feature row, ungrounded stock-photo hero imagery,\n  emoji-as-section-marker, an accent color fighting itself across\n  components. Some of this already exists as qualitative guidance\n  (artifact-design's \"avoid AI-generated design\" list); this epic is\n  about making a checkable subset of it into scanner findings the way\n  editorial diagnose made prose slop checkable.\n\n## Candidate finding categories (draft, not committed)\n\n- Accessibility-adjacent: contrast ratio, tap-target size, missing\n  alt/focus states -- most mechanically checkable, likely ships first.\n- Structural/layout: viewport overflow, broken responsive behavior,\n  inconsistent spacing rhythm, orphaned or unreachable interactive\n  elements.\n- Generic-template tells: the visual-design equivalent of banned prose\n  lexicon -- the palette/type/layout clich\u00e9s that read as generated\n  rather than considered.\n- Content/UX mismatch: CTA that doesn't match the page's stated goal,\n  navigation that dead-ends, a form with no visible error state.\n\n## Open questions\n\n- Input artifact: rendered HTML+CSS, a live URL, a screenshot, or some\n  combination? Contrast/tap-target checks want computed styles; \"does\n  this read as considered\" checks may want a screenshot and a real look.\n- Own profile schema (a design-system equivalent of style-profile.yml),\n  or extend the same schema with a visual/structural rules block?\n- Where does off-the-shelf accessibility tooling (axe-core, Lighthouse)\n  end and genuinely new judgment begin? Don't rebuild what those already\n  do well -- the value-add is the steerable, house-aware judgment layer\n  on top, same way editorial diagnose doesn't reinvent a spell-checker.\n- Does \"apply\" mean the same thing here as for prose? Would a human ever\n  want a generated CSS patch auto-applied the way a rewrite option is,\n  or does this loop stop at diagnose + steer for the visual side?\n\n## Out of scope for now\n\n- Auto-applying any visual/layout fix without human review -- same rule\n  as the editorial loop, doubled: a bad prose edit is embarrassing, a\n  bad CSS auto-apply can break a live page.\n- Rebuilding general-purpose accessibility auditing from scratch.\n- A generalized visual-regression/screenshot-diff system -- this is\n  about usability judgment, not pixel-diffing.\n\n## Relationship to the rest of Limatus\n\nSibling epic under PPY-809091, alongside PPY-54055d (editorial loop),\nPPY-639fb3 (CLI/SDK decoupling), PPY-89827a (evals), and PPY-b536c2\n(Papyrus integration). Should reuse the editorial loop's core\ninteraction pattern (diagnose -> steer -> options -> apply -> verify,\nfindings as signal not verdicts) and schema conventions (stable finding\nids, spans/regions, rationale) wherever the artifact difference allows\nit, and should land inside the same portable CLI/SDK PPY-639fb3 is\nbuilding rather than becoming a second, separate tool that happens to\nshare the Limatus name.",
+  "type": "epic",
+  "status": "closed",
+  "priority": 1,
+  "assignee": "home",
+  "creator": null,
+  "parent": "PPY-80909133-454f-4680-a2d5-6ab16bb1c216",
+  "labels": [
+    "limatus",
+    "usability"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c33a1e85-2430-4347-9100-0a84ac121909",
+      "author": "home",
+      "text": "Migrated to Limatus as LIM-e872b1 (github.com/AnthusAI/Limatus). Closing here; full history and future work continues there.",
+      "created_at": "2026-09-08T18:40:24.970929Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-09-08T18:23:14.564304Z",
+  "updated_at": "2026-09-08T18:40:25.531657Z",
+  "closed_at": "2026-09-08T18:40:25.531534Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null
+}

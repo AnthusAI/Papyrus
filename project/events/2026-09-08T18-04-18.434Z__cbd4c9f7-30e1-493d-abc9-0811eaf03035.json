@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "cbd4c9f7-30e1-493d-abc9-0811eaf03035",
+  "issue_id": "PPY-639fb3fd-e386-43da-bb9b-49ece1a2d006",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-08T18:04:18.434Z",
+  "actor_id": "box",
+  "payload": {
+    "title": "Decouple: portable editorial CLI + Python SDK",
+    "description": "# Decouple: portable CLI + Python SDK\n\n## Intent\n\nExtract the editorial diagnose / rewrite-options / markup tooling from `papyrus_content` into a **standalone package** (project name TBD). It must be simple, well organized, and **not import Papyrus**.\n\n## Deliverables\n\n### CLI\n- Diagnose a draft against local style rules → structured findings JSON.\n- Propose constrained rewrite options for steered findings (redline-style suggestions / options).\n- Apply/choose flows suitable for interactive use (diff-oriented).\n\n### Python SDK / module\n- Same capabilities as importable APIs (not just subprocess wrapping).\n- Callers (Papyrus, Tactus procedures, other pubs) pass draft + style config + decisions programmatically.\n\n### Local style-rules config\n- Standalone config format for voice/style rules and reference samples.\n- No dependency on Papyrus corpora paths or Amplify/GraphQL.\n\n## Done when\n\n- Package installs and runs with zero Papyrus checkout.\n- CLI and SDK share one core library.\n- Papyrus in-tree modules become a thin adapter or are deleted after cutover.\n- README documents config schema + CLI + SDK examples.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-80909133-454f-4680-a2d5-6ab16bb1c216",
+    "labels": [
+      "editorial",
+      "decoupling"
+    ]
+  }
+}
