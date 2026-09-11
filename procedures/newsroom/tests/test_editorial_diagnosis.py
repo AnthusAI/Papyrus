@@ -2,6 +2,8 @@ import pathlib
 import sys
 import unittest
 
+import yaml
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -380,6 +382,32 @@ class EditorialDiagnosisTests(unittest.TestCase):
         self.assertEqual(profile.profile.density.min_words, 400)
         self.assertEqual(profile.profile.density.min_lexical_density, 0.45)
         self.assertEqual(profile.profile.density.max_gzip_ratio, 0.35)
+
+    def test_house_style_profiles_bind_headline_after_body(self) -> None:
+        cases = (
+            (
+                REPO_ROOT / "publications" / "pilobolus" / "style-profile.yml",
+                "standfirst",
+            ),
+            (
+                REPO_ROOT / "publications" / "anthus" / "style-profile.yml",
+                "excerpt",
+            ),
+        )
+        for profile_path, subtitle_key in cases:
+            with self.subTest(publication=profile_path.parent.name, subtitle_key=subtitle_key):
+                raw = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+                headline = raw.get("headline")
+                self.assertIsInstance(headline, dict)
+                self.assertEqual(headline.get("when"), "afterBody")
+                self.assertEqual(headline.get("order"), ["title", "subtitle"])
+                self.assertEqual(headline.get("title"), {"key": "title"})
+                self.assertEqual(
+                    headline.get("subtitle"),
+                    {"key": subtitle_key, "role": "articleSummary"},
+                )
+
+        load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")
 
 
 if __name__ == "__main__":

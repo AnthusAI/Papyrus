@@ -10,6 +10,16 @@ editorialAim: >-
   non-technical reader will remember. Numbers that need a footnote more than they
   serve the scene should be cut or said in ordinary language. Link a source in the
   sentence when a figure stays.
+headline:
+  when: afterBody
+  order:
+    - title
+    - subtitle
+  title:
+    key: title
+  subtitle:
+    key: standfirst
+    role: articleSummary
 tone:
   - Impersonal, cool reportage register. The scene speaks -- no publication "we," no branded voice commentary ("our desk found," "the Pilobolus take").
   - Quietly weird -- prose carries a little surreal rhythm and juxtaposition, without purple fog or fake mysticism.
