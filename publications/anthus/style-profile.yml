@@ -55,6 +55,7 @@ density:
   minLexicalDensity: 0.45
   maxGzipRatio: 0.35
 rules:
+  noEmojis: true
   bannedPhrases:
     - coming soon
     - we're just getting started
