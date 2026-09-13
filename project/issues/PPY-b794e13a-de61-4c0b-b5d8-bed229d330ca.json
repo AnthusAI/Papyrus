@@ -1,0 +1,34 @@
+{
+  "id": "PPY-b794e13a-de61-4c0b-b5d8-bed229d330ca",
+  "title": "Migrate Papyrus + Threat Intelligence content to Markus Markdown bodies",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-a1020691-0271-4514-8fdf-f8d69339731f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "d95fb0de-7680-4686-ba31-f62610f66e8f",
+      "author": "home",
+      "text": "GOAL: migrate ALL existing content to Markus Markdown bodies. Maximalist - decided explicitly by Ryan: do not avoid big changes for expediency, fix existing Papyrus and Threat Intelligence content now.\n\nSCOPE:\n1. Convert every existing article from body: string[] + pullQuotes: string[] to a single Markus Markdown body, with pull quotes placed POSITIONALLY as :::pull-quote directives where they belong in the prose (not appended at the end - use editorial judgment about where each quote actually pulls from).\n2. Sources include lib/articles.ts seed articles, publications/threat_intelligence/seed/seed-edition-content.json, and any GraphQL seed/scenario fixtures. Find them all - grep, do not assume this list is complete.\n3. Write a repeatable migration script; do not hand-edit. The script is the deliverable as much as the output.\n4. REGRESSION PROOF: use the round-trip from PPY-a10206. Every migrated article must project back to the same paragraph array it has today. Any diff is either a bug or a deliberate improvement you must call out explicitly.\n5. Every migrated file must pass 'markus validate'.\n\nDEPENDS ON: PPY-a10206.",
+      "created_at": "2026-09-06T12:45:16.883048Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T12:43:02.741815Z",
+  "updated_at": "2026-09-06T12:45:16.883048Z",
+  "closed_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

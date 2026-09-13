@@ -3,7 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import type { EditionPresentationFormat } from "../lib/content-types";
-import { SITE_BRAND, enforcePresentation, getPresentationChoices } from "../lib/site-brand";
+import { enforcePresentation, getDefaultPretextLayout, getPresentationChoices } from "../lib/site-brand";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot } from "./reader-auth-state";
 
@@ -49,7 +49,7 @@ const LEGACY_COOKIE_CLEANUP_STORAGE_KEY = "papyrus:legacy-presentation-cookie-cl
 const SETTINGS_EVENT = "papyrus:settings-changed";
 
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
-  presentation: enforcePresentation(SITE_BRAND.defaultPresentation),
+  presentation: enforcePresentation(getDefaultPretextLayout()),
   theme: "system",
   motion: "standard",
 };
@@ -60,7 +60,7 @@ const ALL_PRESENTATION_OPTIONS: Array<{
   description: string;
 }> = [
   {
-    value: "newspaper",
+    value: "newsprint",
     label: "Newspaper",
     description: "Planned pages, feature headlines, and exact continuations.",
   },
@@ -268,7 +268,7 @@ function parseStoredSettings(value: string | null): Partial<ReaderSettings> | nu
 
 function normalizePresentation(value: unknown): EditionPresentationFormat {
   const normalized =
-    value === "blog" || value === "magazine" || value === "newspaper"
+    value === "blog" || value === "magazine" || value === "newsprint"
       ? value
       : DEFAULT_READER_SETTINGS.presentation;
   return enforcePresentation(normalized);
@@ -283,7 +283,7 @@ function normalizeMotion(value: unknown): ReaderMotionSetting {
 }
 
 function readPresentationValue(value: string | null | undefined): EditionPresentationFormat | null {
-  if (value !== "newspaper" && value !== "blog" && value !== "magazine") return null;
+  if (value !== "newsprint" && value !== "blog" && value !== "magazine") return null;
   return enforcePresentation(value);
 }
 
