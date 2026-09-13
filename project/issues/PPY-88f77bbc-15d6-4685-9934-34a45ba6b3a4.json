@@ -1,0 +1,117 @@
+{
+  "id": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+  "title": "Markus renderer: publish real static pages",
+  "description": "",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-d79ff26a-5a7c-42df-a974-26db6334c5f0",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "041d43df-f234-4570-902e-42083ba0d53c",
+      "author": "home",
+      "text": "GOAL: the Markus renderer, producing REAL viewable static pages. This is the task that makes the PoC real.\n\nSCOPE:\n1. Implement the Renderer interface (from PPY-d79ff2) for Markus.\n2. Build step in Python (Papyrus is Python-first on the backend; markus is already installed at /Users/home/miniconda3/bin/markus - the PR's 'PyPI unverified' question is RESOLVED, anthus-markus is installed and working).\n3. Emit real static HTML pages: markus convert --fragment --no-css per article, plus a page shell, plus CSS.\n4. CSS CASCADE - do NOT rely on upstream Markus not using @layer (PR #57 does; that is a bet on someone else's future commits). Wrap vendored Markus CSS in '@layer markus { ... }' at vendor time so we own the cascade deterministically.\n5. ONE PATH ONLY. PR #57 proposed a Python-built static output AND a Next.js dev/preview shell - that means what you preview is not what you ship. Build the static site and serve it with a plain static server.\n6. SECURITY: fragments get mounted as trusted HTML. 'markus validate' checks DIRECTIVE VOCABULARY, not XSS - it is not a security control and PR #57 wrongly implies it is. The real invariant is: fragments are built in CI from repo-committed Markdown with --allow-html OFF. Assert that at build time, do not just comment it.\n\nACCEPTANCE: I can open a real generated HTML file in a browser and see a correctly rendered article. Not a placeholder.",
+      "created_at": "2026-09-06T12:44:51.948723Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "640f9248-7d96-4c91-a26a-b9ff5899f844",
+      "author": "home",
+      "text": "PPY-a10206 projection landed (#59). Markus renderer is unblocked on the Renderer interface (d79ff2) and can proceed in its own worktree. Composer 2.5 planning first.",
+      "created_at": "2026-09-06T14:35:49.749641Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "aa7265dc-c61a-491f-a946-7757fdcd33da",
+      "author": "home",
+      "text": "## Composer 2.5 implementation plan — PPY-88f77b Markus renderer\n\n**Agent:** planning (no code this turn)  \n**Base branch:** `origin/feature/renderer-architecture` (includes PPY-a10206 / PR #59)  \n**Worktree (create at implement time, not now):**  \n`/Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer`  \n**Feature branch:** `cursor/feature/PPY-88f77b-markus-renderer-3af6`\n\n---\n\n### Goal (restated)\n\nMake the Markus renderer **real**: a Python build emits **complete static HTML pages** (article fragment + page shell + layered CSS) that open correctly in a browser. This is the Papyrus framework implementation of the `Renderer` interface — **not** a second copy of `AnthusAI/Pilobol.us/web/build.py`.\n\n**Acceptance:** open a generated `.html` file (or `web/dist/` via `python -m http.server`) and see a correctly rendered Markus article — not a placeholder, not a Next.js-only preview.\n\n---\n\n### Architectural decision: one path only\n\nPR #57’s failure mode was **two pipelines** (Python static output *and* a Next.js dev shell that re-rendered differently). This task rejects that.\n\n| Layer | Responsibility |\n| --- | --- |\n| **Python build (canonical)** | `markus convert --fragment --no-css` per Markdown source → wrap in HTML shell → copy assets → write `web/dist/` |\n| **Preview / deploy** | Serve `web/dist/` with a plain static server (`python -m http.server`, Amplify `WEB` per `docs/site-hosting.md`) |\n| **TS `renderers/markus/` (interface compliance)** | Export `markusRenderer: Renderer` with `supportsLayout → false`, `stylesheets()` listing the same CSS files the shell links. React component slots exist for the contract but **are not wired into `app/*` routes in this task** and must not implement a second render path. |\n\nDo **not** add a Markus branch to `PresentationShell`, do **not** mount fragments via `dangerouslySetInnerHTML` in Next for “local preview”, do **not** add `next export` / SSR routes for Markus in this PR.\n\nReference only: `Pilobol.us/web/build.py` shows the shell + `markus convert` pattern; reimplement that logic **inside Papyrus** under `src/papyrus_content/`, parameterized for publication content dirs.\n\n---\n\n### Dependencies already landed (do not redo)\n\n- **PPY-d79ff2 (closed):** `lib/renderer.ts` + `renderers/pretext/` retrofit. **Do not edit** `lib/renderer.ts` or `renderers/pretext/` except importing the interface from Markus code.\n- **PPY-a10206 / PR #59 (closed):** `lib/markus-ir.ts`, `lib/markus-projection.ts`, fixtures — for Pretext projection only; Markus **build** reads committed `.md` and calls the CLI, not the TS projection.\n- **PPY-17fcfc (in parallel):** `amplify-static` + Markus `@v0.5.0` pin documented on `origin/cursor/feature/PPY-17fcfc-site-hosting-3af6`. Align pin here; do not invent a different version.\n\n---\n\n### Collision avoidance\n\n| Issue | Constraint |\n| --- | --- |\n| **PPY-6b4094** | Sandbox deploy worktree `PPY-6b4094-sandbox`. Do not touch `lib/renderer.ts`, `renderers/pretext/`, or Amplify sandbox deploy. |\n| **PPY-17fcfc** | Hosting templates / DNS / Amplify app creation stay in 17fcfc. 88f77b delivers the **Papyrus build command + dist output** that 17fcfc’s `amplify-static.yml.example` will invoke. |\n| **Pilobol.us pod** | Do not fork or modify `AnthusAI/Pilobol.us`. |\n\n---\n\n### Proposed file layout (Papyrus repo)\n\n```text\nsrc/papyrus_content/\n  markus_renderer/\n    __init__.py\n    build.py           # orchestrates full site build → web/dist/\n    convert.py           # subprocess wrapper: markus convert (pinned, no --allow-html)\n    vendor_css.py        # copy markusmd/static → dist/css, wrap in @layer markus { … }\n    shell.py             # HTML page template (masthead/nav/footer links CSS)\n    security.py          # build-time invariants (allow-html OFF, version pin)\n\nrenderers/markus/\n  index.ts               # export markusRenderer: Renderer\n  stubs.tsx              # minimal components satisfying interface (not route-wired)\n\nweb/                     # PoC static-site **source** (committed)\n  content/\n    articles/\n      sample.md          # extend scripts/fixtures/markus-sample.md (+ asset ref)\n    assets/              # diagram.png etc.\n  css/\n    site-theme.css       # site layer (unlayered — wins over @layer markus)\n  dist/                  # gitignored build output\n\nscripts/\n  vendor-markus-css.py   # optional thin CLI; may live entirely in vendor_css.py\n```\n\n**CLI surface:** `poetry run papyrus renderers markus build [--content web/content] [--out web/dist] [--theme <name>]`\n\nAdd `renderers:markus-build` (or `renderers:markus build` per existing `group:command` dispatch) to `PORTED_COMMANDS` in `cli.py`.\n\n---\n\n### Implementation phases (implementer order)\n\n#### Phase 1 — Markus pin + vendor CSS (`@layer markus`)\n\n1. **Pin `@v0.5.0`** — match 17fcfc: `pip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"`. Add optional Poetry dependency group or document in build preflight; **assert** `markus --version` reports `0.5.0` at build start (fail loudly on mismatch — local env currently has 0.4.0).\n2. **`vendor_css.py`** — copy from installed `markusmd/static/`:\n   - `markus.css` + selected `themes/<theme>.css` (default theme TBD; Pilobol uses bundled vendor file — pick one baked theme for PoC, no runtime switcher required).\n   - Concatenate/wrap: `@layer markus { …original file contents… }` for **each** vendored file before writing `dist/css/markus-vendor.css` (single bundle) or separate layered files.\n3. **Site CSS** — copy `web/css/site-theme.css` → `dist/css/site-theme.css` **without** `@layer` so it wins deterministically regardless of upstream Markus adding `@layer` later.\n\n#### Phase 2 — Secure convert wrapper\n\n1. **`convert.py`** — subprocess:\n   ```text\n   markus convert <src.md> --fragment --no-css [--theme <name>]\n   ```\n   - **Never pass `--allow-html`.**\n   - `security.py`: assert argv excludes `--allow-html`; optionally scan subprocess environment; **do not** treat `markus validate` as a security gate (vocabulary check only — comment that in code, don’t call it for “safety”).\n2. Capture stdout fragment; fail build on non-zero exit with stderr surfaced.\n\n#### Phase 3 — Page shell + site build\n\n1. **`shell.py`** — emit complete `<!DOCTYPE html>` documents (head links `css/markus-vendor.css` then `css/site-theme.css`; body wraps fragment in `<main>` with minimal masthead/footer). Follow Pilobol shell structure as reference, generic Papyrus branding for PoC.\n2. **`build.py`** — for each `web/content/articles/*.md`:\n   - run convert → fragment\n   - resolve relative asset paths in Markdown (`figure src`) to `dist/assets/` (copy sources from `web/content/assets/`)\n   - write `dist/articles/<slug>.html`\n   - optional `dist/index.html` listing articles (nice for acceptance, not required if one article suffices)\n3. Idempotent: recreate `dist/` each run; add `web/dist/` to `.gitignore` if missing.\n\n#### Phase 4 — TS Renderer interface (no route wiring)\n\n1. **`renderers/markus/index.ts`**:\n   - `id: \"markus\"`\n   - `supportsLayout: () => false` for all Pretext layouts\n   - `stylesheets: () => [\"css/markus-vendor.css\", \"css/site-theme.css\"]` (paths relative to static root — same as shell)\n   - `renderEdition` / `renderArticle` / `renderItem`: export stub components (e.g. render a clear static-only message, or no-op fragment) — **must not** invoke Pretext, **must not** re-run Markus in the browser\n2. **Do not** change `app/page.tsx` or other routes to import `markusRenderer` — dispatch wiring is **PPY-eca592** / later.\n\n#### Phase 5 — PoC content\n\n1. Commit `web/content/articles/sample.md` based on `scripts/fixtures/markus-sample.md` (pull-quote + card-grid + figure) with a real asset under `web/content/assets/`.\n2. Ensure generated HTML shows directives rendered (figure img resolves, pull-quote styled, card-grid degrades visually via Markus CSS).\n\n---\n\n### Security invariants (build-time, asserted — not commented)\n\n| Invariant | Enforcement |\n| --- | --- |\n| `--allow-html` OFF | Never in subprocess argv; build fails if flag detected in wrapper or config |\n| Fragments trusted only because source is repo-committed Markdown built in CI | Document in `security.py`; no runtime sanitization theater |\n| `markus validate` | **Not** used as XSS/security control; optional dev-only vocabulary check at most |\n\n---\n\n### Verification checklist (implementer must re-run, not trust subagent reports)\n\n```bash\n# 1. Pin + build\npip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\npoetry run papyrus renderers markus build --content web/content --out web/dist\n\n# 2. Inspect output\ntest -f web/dist/articles/sample.html\ngrep -q 'class=\"markus-document\"' web/dist/articles/sample.html\ngrep -q '@layer markus' web/dist/css/markus-vendor.css\n! grep -q '--allow-html' src/papyrus_content/markus_renderer/convert.py  # sanity\n\n# 3. Browser acceptance\ncd web/dist && python3 -m http.server 8765\n# open http://localhost:8765/articles/sample.html — rendered article, not placeholder\n\n# 4. TS hygiene (stub renderer only)\nnpm run lint && npm run typecheck\n\n# 5. Scope audit\ngit diff --stat   # expect ONLY markus_renderer/, renderers/markus/, web/, cli.py, .gitignore, pyproject optional dep\n```\n\nReport exact command output in issue comments. Pre-existing `npm run build` AppSync failure on `develop` is environmental (PPY-6b4094) — not a gate for this task.\n\n---\n\n### Out of scope (explicit)\n\n- `SiteBrand.renderer` / `HostingConfig` discriminated union (**PPY-eca592**)\n- Amplify app, DNS, `amplify.yml` deploy (**PPY-17fcfc**)\n- `PodContentRepository`, GraphQL Markdown emission, edition index pages\n- Wiring `markusRenderer` into Next.js routes or `PresentationShell`\n- Dual-renderer proof article (**PPY-10e4cd** — blocked on 88f77b + eca592)\n- Runtime theme switcher (Pilobol has one; v1 uses one baked theme)\n- `markus site` command reuse (demo-specific)\n\n---\n\n### Risks / decisions for implementer\n\n1. **Markus 0.5.0 vs local 0.4.0** — build preflight must fail on wrong version; CI will install from git tag.\n2. **Theme choice** — pick one default (e.g. from Markus `themes/`) for PoC; document in build `--theme` flag.\n3. **Renderer React stubs** — minimal but typed; avoid importing Pretext or `@chenglou/pretext`.\n4. **Edition pages** — v1 can ship single-article proof; multi-page edition shell deferred to 10e4cd unless trivial to add from content dir glob.\n\n---\n\n### PR target\n\nOpen PR into `feature/renderer-architecture` (or `develop` per orchestrator — confirm before push). Include verification notes + screenshot path or `file://` path to generated HTML. Do **not** close PPY-88f77b until human review.\n",
+      "created_at": "2026-09-06T14:37:51.877830Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "planning agent"
+      }
+    },
+    {
+      "id": "f3b98d77-39e4-4e01-9d05-3322c3e94fd4",
+      "author": "home",
+      "text": "Plan approved. Python static build is the product path — React stubs must not become a second preview. PR stacks on feature/renderer-architecture. Next: worktree only, then stop.",
+      "created_at": "2026-09-06T14:38:37.825182Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "00f2da97-7019-4be0-91a6-025694884227",
+      "author": "home",
+      "text": "Worktree ready for implementation (not started).\n\nPath: /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nBranch: cursor/feature/PPY-88f77b-markus-renderer-3af6\nBase: origin/feature/renderer-architecture\nHEAD: 5a826a6 — feat: Markus document IR types and Pretext projection (PPY-a10206) (#59)\n\nVerified: lib/markus-ir.ts and lib/markus-projection.ts present at HEAD. No implementation files added.",
+      "created_at": "2026-09-06T14:38:45.554049Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "planning agent"
+      }
+    },
+    {
+      "id": "7aca7078-7bc0-40ef-b64d-a9a995e3e4f3",
+      "author": "home",
+      "text": "Worktree verified (5a826a6, includes #59). Implementation authorized. Python static build is the ship path. Pin Markus @v0.5.0. Do not wire Next.js routes. Do not close.",
+      "created_at": "2026-09-06T14:39:22.470585Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "93c68ae7-d73f-48ce-87a6-15e8d402b42b",
+      "author": "home",
+      "text": "Implementation complete — PR #60 (not merged, issue left open).\n\n**Branch:** cursor/feature/PPY-88f77b-markus-renderer-3af6 @ 7e154fd\n**Worktree:** /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\n\n**Build:**\n```bash\npip install \"git+https://github.com/AnthusAI/Markus@v0.5.0\"\ncd /Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer\nPYTHONPATH=src python3 -m papyrus_content renderers markus-build\n```\n\n**Generated HTML (acceptance path):**\nfile:///Users/home/Projects/Papyrus-worktrees/PPY-88f77b-markus-renderer/web/dist/articles/sample.html\n\nPreview: `cd web/dist && python3 -m http.server 8765` → http://localhost:8765/articles/sample.html\n\n**Verified:**\n- @layer markus in web/dist/css/markus-vendor.css\n- markus-document + pull-quote + two-up/columns + figure in sample.html\n- --allow-html never passed; version pin asserts 0.5.0\n- npm run lint: pass\n- npm run typecheck: pre-existing amplify_outputs.json missing (environmental)\n\n**One path:** no Next.js Markus shell; renderers/markus stubs not wired to app/*.",
+      "created_at": "2026-09-06T14:42:33.972087Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "implementation agent"
+      }
+    },
+    {
+      "id": "f1726608-6d3d-427a-bf94-aeff2bc3de33",
+      "author": "home",
+      "text": "Review of PR #60: static sample page is real (pull-quote, card-grid, two-up, figure). Sending back one revision: build complete nav before writing pages (loop currently omits later articles). Acceptance running in parallel. Issue stays open.",
+      "created_at": "2026-09-06T14:44:24.809946Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4834d2b4-5823-4d93-9316-096e311ba1c3",
+      "author": "home",
+      "text": "3954706",
+      "created_at": "2026-09-06T14:44:53.064575Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "cursor",
+        "model": "Composer 2.5",
+        "name": "implementation agent"
+      }
+    },
+    {
+      "id": "cde01bc2-0e87-4b85-9bbe-9da5f5c66c70",
+      "author": "home",
+      "text": "Acceptance PASS (static sample + second-note, desktop and mobile). Merged PR #60 into feature/renderer-architecture as d9f703b. Theme contrast in hackerman is later polish, not a DoD miss. Worker: remove worktree Papyrus-worktrees/PPY-88f77b-markus-renderer and the local branch.",
+      "created_at": "2026-09-06T14:48:41.165350Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T12:43:02.719307Z",
+  "updated_at": "2026-09-06T14:48:41.176536Z",
+  "closed_at": "2026-09-06T14:48:41.176536Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

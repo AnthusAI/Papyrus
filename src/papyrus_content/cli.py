@@ -198,6 +198,7 @@ from .steering import (
     selected_corpus_configs,
 )
 from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
+from .markus_renderer.commands import markus_build
 
 
 PORTED_COMMANDS = frozenset(
@@ -350,6 +351,7 @@ PORTED_COMMANDS = frozenset(
         "videos:attach",
         "editorial:diagnose",
         "editorial:options",
+        "renderers:markus-build",
     }
 )
 
@@ -699,6 +701,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         editorial_diagnose(flags)
     elif route == "editorial:options":
         editorial_options(flags)
+    elif route == "renderers:markus-build":
+        markus_build(flags)
     else:
         raise ValueError(f"Unsupported papyrus command: {group} {command}")
 
@@ -1422,4 +1426,5 @@ def print_usage() -> None:
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
     print("  auth refresh-jwt, batch register-catalog/enrich-references,")
+    print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")

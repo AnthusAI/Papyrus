@@ -1,0 +1,26 @@
+{
+  "id": "PPY-f25738ae-3891-43e5-8d5c-1ef28e61847b",
+  "title": "Decide layering: lib/site-brand.ts imports from renderers/pretext/layouts.ts",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-da6f1fbc-ec1b-4a9e-afb8-db2d9bd6c5ab",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a8500f37-7368-4e4c-bc90-32213d328e50",
+      "author": "home",
+      "text": "DESIGN DECISION raised by the agent that did PPY-d79ff2. Low priority, but record the call rather than leaving it implicit.\n\nlib/site-brand.ts now imports PRETEXT_LAYOUTS from renderers/pretext/layouts.ts, so getPresentationChoices() uses one real source of truth instead of a duplicated literal array. That inverts the usual layering: lib/ (shared) now depends on renderers/ (an implementation).\n\nThe agent confirmed there is no import cycle (layouts.ts imports only content-types, as a type). The tradeoff is real either way: the duplicate literal was a genuine correctness hazard, but lib/ depending on a specific renderer is exactly the coupling this initiative exists to remove - and it gets worse when a second renderer lands.\n\nOPTIONS: (a) leave it and accept the inversion; (b) have each renderer declare its layouts through the Renderer interface and let site-brand ask the ACTIVE renderer, which fits the architecture better and removes the static dependency; (c) move the canonical list to lib/ and have the Pretext renderer import it downward.\n\n(b) is most aligned with where this is going. Decide once the config work in PPY-eca592 lands, since that is where the active renderer becomes resolvable.",
+      "created_at": "2026-09-06T13:27:02.326324Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T13:26:03.082699Z",
+  "updated_at": "2026-09-06T13:27:02.326324Z",
+  "closed_at": null,
+  "custom": {}
+}
