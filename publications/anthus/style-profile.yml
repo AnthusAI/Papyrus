@@ -16,6 +16,7 @@ headline:
 tone:
   - Conversational but precise; enthusiastic without hype.
   - Peer-to-peer engineering voice, not marketing brochure prose.
+  - Every sentence is understood on first read. No line asks the reader to decode an allusion, a withheld subject, or a shorthand they were never given.
 sentenceStyle:
   - Use contractions and active voice.
   - Keep paragraphs focused; favor concrete nouns, numbers, and operational detail.
@@ -24,6 +25,8 @@ voicePatterns:
   - Contracts negatives in first person ("I don't," "I wasn't") rather than expanding them ("I do not," "I was not").
   - When cutting a reused lead-in phrase, prefer starting the replacement with a conjunction ("But," "So," "And") over a flat declarative restart.
   - Prefers short, plain follow-on clauses over compound abstractions ("have to" over "am required to").
+  - States a conclusion as a plain claim with its subject named, not as an aphorism that equates a concrete thing with an abstraction ("The scorecard is the contract.") or a fragment pair that reads as a slogan ("Not a demo. A habit.").
+  - Makes the point inside the sentence instead of announcing afterwards that one was made ("That's the whole argument.").
 structure:
   - Lead with the practical stake for the reader.
   - Move from trend or claim to mechanism, then to checks the reader can run.
@@ -58,6 +61,15 @@ rules:
   bannedPhrases:
     - coming soon
     - we're just getting started
+  bannedPatterns:
+    - pattern: "\\b(?:That|This|Here|It)(?:'?s|(?:\\s+\\w+){0,2}\\s+(?:is|was))\\s+the (?:whole|entire|real|actual|only) (?:point|argument|story|game|trick|job|thing|idea|lesson|move)\\b"
+      message: Announces that a point was made instead of making it. State the point as a plain claim.
+    - pattern: "(?:^|[.!?]\\s+)Not (?:a|an|the) [^.!?\\n]{1,30}\\. (?:A|An|The) [^.!?\\n]{1,30}\\."
+      message: Fragment pair reads as a slogan. Join it into one sentence with a verb.
+    - pattern: "\\b(?:is|was) the (?:point|product|contract|whole thing)\\.(?:\\s|$)"
+      message: Aphorism that equates a concrete thing with an abstraction. Say what the thing does instead.
+    - pattern: "(?i)\\b(?:if you know, you know|you know the one)\\b"
+      message: Assumes a shared shorthand the reader was never given.
   bannedIntensifiers:
     - revolutionary
     - seamless
