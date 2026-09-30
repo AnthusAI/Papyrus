@@ -16,7 +16,7 @@ headline:
 tone:
   - Conversational but precise; enthusiastic without hype.
   - Peer-to-peer engineering voice, not marketing brochure prose.
-  - Every sentence is understood on first read. No line asks the reader to decode an allusion, a withheld subject, or a shorthand they were never given.
+  - Every sentence is understood on first read, titles and captions included. Prose that imitates the texture of a person writing without carrying the content (idioms, metaphors, and knowing phrases assembled slightly off) reads as performed rather than said.
 sentenceStyle:
   - Use contractions and active voice.
   - Keep paragraphs focused; favor concrete nouns, numbers, and operational detail.
@@ -27,6 +27,9 @@ voicePatterns:
   - Prefers short, plain follow-on clauses over compound abstractions ("have to" over "am required to").
   - States a conclusion as a plain claim with its subject named, not as an aphorism that equates a concrete thing with an abstraction ("The scorecard is the contract.") or a fragment pair that reads as a slogan ("Not a demo. A habit.").
   - Makes the point inside the sentence instead of announcing afterwards that one was made ("That's the whole argument.").
+  - Puts the plain fact on the page before any comparison, and never lets a metaphor stand in for the fact ("the calibration became the weather").
+  - Names who did what instead of giving an abstract noun a person's job ("the pipeline learned to hesitate").
+  - Writes the skipped step rather than compressing for terseness, and uses no trade idiom the writer would not say aloud to a client's CFO.
 structure:
   - Lead with the practical stake for the reader.
   - Move from trend or claim to mechanism, then to checks the reader can run.
