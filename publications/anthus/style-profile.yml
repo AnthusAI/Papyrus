@@ -27,7 +27,8 @@ voicePatterns:
   - Prefers short, plain follow-on clauses over compound abstractions ("have to" over "am required to").
   - States a conclusion as a plain claim with its subject named, not as an aphorism that equates a concrete thing with an abstraction ("The scorecard is the contract.") or a fragment pair that reads as a slogan ("Not a demo. A habit.").
   - Makes the point inside the sentence instead of announcing afterwards that one was made ("That's the whole argument.").
-  - Puts the plain fact on the page before any comparison, and never lets a metaphor stand in for the fact ("the calibration became the weather").
+  - Puts the plain fact on the page before any comparison, and never lets a metaphor stand in for the fact ("the calibration became the weather"). The opening paragraph, title, and excerpt carry no metaphor at all.
+  - Describes model properties as measurements, never as character traits ("its confidence got honest" becomes "when it says 90 percent, it's right about 90 percent of the time").
   - Names who did what instead of giving an abstract noun a person's job ("the pipeline learned to hesitate").
   - Writes the skipped step rather than compressing for terseness, and uses no trade idiom the writer would not say aloud to a client's CFO.
 structure:
@@ -71,6 +72,8 @@ rules:
       message: Fragment pair reads as a slogan. Join it into one sentence with a verb.
     - pattern: "\\b(?:is|was) the (?:point|product|contract|whole thing)\\.(?:\\s|$)"
       message: Aphorism that equates a concrete thing with an abstraction. Say what the thing does instead.
+    - pattern: "(?i)\\b(?:confidence|scores?|numbers?|curve|calibration|probabilit(?:y|ies)|model|classifier)\\b[^.!?\\n]{0,25}\\bhonest\\b|\\bhonest (?:calibration|confidence|probabilit(?:y|ies)|scores?|numbers?)\\b"
+      message: Gives a measurement a character trait. Name the measurement instead ("when it says 90 percent, it's right about 90 percent of the time"), then use "calibrated".
     - pattern: "(?i)\\b(?:if you know, you know|you know the one)\\b"
       message: Assumes a shared shorthand the reader was never given.
   bannedIntensifiers:
