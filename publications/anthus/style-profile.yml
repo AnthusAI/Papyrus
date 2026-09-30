@@ -57,6 +57,24 @@ evidenceRules:
   - Optimize for editorial quality, not detector scores or synthetic imperfection.
 checks:
   uniformCadence: false
+opening:
+  insiderTerms:
+    - decision model
+    - scorecard
+    - calibration
+    - calibrated
+    - classifier lab
+    - data flywheel
+    - human-in-the-loop
+    - HITL
+    - MLOps
+    - RLHF
+    - fine-tuning
+    - distillation
+    - zero-shot
+    - ECE
+    - Brier
+  requireNumber: false
 density:
   minWords: 400
   minLexicalDensity: 0.45
