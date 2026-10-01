@@ -16,7 +16,7 @@ type DataClientResult<T = unknown> = {
 };
 
 type ReaderSettings = {
-  presentation: "newspaper" | "blog" | "magazine";
+  presentation: "newsprint" | "blog" | "magazine";
   theme: "system" | "light" | "dark";
 };
 
@@ -44,7 +44,7 @@ type UserIdentityRecord = {
 
 const ACTIVE_IDENTITY_STATUS = "active";
 const DEFAULT_SETTINGS: ReaderSettings = {
-  presentation: "newspaper",
+  presentation: "newsprint",
   theme: "system",
 };
 
@@ -223,7 +223,10 @@ function hasStoredReaderSettings(value: unknown): boolean {
 }
 
 function normalizePresentation(value: unknown): ReaderSettings["presentation"] {
-  return value === "blog" || value === "magazine" || value === "newspaper" ? value : DEFAULT_SETTINGS.presentation;
+  if (value === "blog" || value === "magazine" || value === "newsprint") return value;
+  // Handle deprecated "newspaper" value as an alias for "newsprint"
+  if (value === "newspaper") return "newsprint";
+  return DEFAULT_SETTINGS.presentation;
 }
 
 function normalizeTheme(value: unknown): ReaderSettings["theme"] {

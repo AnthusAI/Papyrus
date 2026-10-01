@@ -68,7 +68,7 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     backToHomeLabel: "Back to Papyrus",
     articleTitleSuffix: "Papyrus",
     placeholderByline: "Papyrus",
-    defaultPresentation: "newspaper",
+    defaultPresentation: "newsprint",
     textFont: SERIF_TEXT_FONT,
     mastheadWordSplit: false,
     mastheadDateFormat: "raw",
@@ -97,7 +97,12 @@ export function normalizeSiteBrandId(value: string | undefined | null): SiteBran
   if (normalized === "threat-intelligence" || normalized === "threat-intel" || normalized === "anthus") {
     return "threat-intelligence";
   }
-  if (normalized === "pilobol-us" || normalized === "pilobolus") {
+  if (
+    normalized === "pilobol-us" ||
+    normalized === "pilobolus" ||
+    normalized === "pilobol_us" ||
+    normalized === "pilobol"
+  ) {
     return "pilobol-us";
   }
   return null;
@@ -136,5 +141,17 @@ export function enforcePresentation(presentation: EditionPresentationFormat): Ed
 export function getPresentationChoices(brand: SiteBrand = SITE_BRAND): EditionPresentationFormat[] {
   return brand.forcedPresentation
     ? [brand.forcedPresentation]
-    : ["newspaper", "blog", "magazine"];
+    : ["newsprint", "blog", "magazine"];
+}
+
+export function getForcedPresentation(): EditionPresentationFormat | undefined {
+  return SITE_BRAND.forcedPresentation;
+}
+
+export function getDefaultPretextLayout(): EditionPresentationFormat {
+  return SITE_BRAND.defaultPresentation;
+}
+
+export function getRendererKind(): RendererConfig["kind"] {
+  return SITE_BRAND.renderer.kind;
 }

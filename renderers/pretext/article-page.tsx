@@ -1,29 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import type { Article } from "../lib/articles";
-import type { PresentationFooterEntry } from "../lib/presentation-footer";
-import type { PublicationItem } from "../lib/publication-items";
-import { getPublicationItemVideoAsset } from "../lib/publication-items";
-import { SITE_BRAND } from "../lib/site-brand";
-import { ArticleVideoFigure } from "./article-video";
-import { PictogramFigure } from "../publications/threat_intelligence/pictograms/figure";
-import { PresentationFooter } from "./presentation-footer";
+import type { Article } from "../../lib/articles";
+import type { PublicationItem } from "../../lib/publication-items";
+import { getPublicationItemVideoAsset } from "../../lib/publication-items";
+import type { ArticlePageEditionFooter, RenderArticleProps, RenderItemProps } from "../../lib/renderer";
+import { SITE_BRAND } from "../../lib/site-brand";
+import { ArticleVideoFigure } from "../../components/article-video";
+import { PictogramFigure as ThreatIntelligencePictogramFigure } from "../../publications/threat_intelligence/pictograms/figure";
+import { PictogramFigure as GenericPictogramFigure } from "../../components/pictogram-figure";
+import { PresentationFooter } from "../../components/presentation-footer";
 
-export type ArticlePageEditionFooter = {
-  editionBasePath: string;
-  entries: PresentationFooterEntry[];
-  subtitle: string;
-  title?: string;
-};
+// Threat Intelligence supplies its own pictogram figure media; any other
+// publication gets the generic fallback (components/pictogram-figure.tsx).
+// Same decoupling as renderers/pretext/presentation-shell.tsx -- see
+// docs/pluggable-publishers.md section 2.6 and PPY-d79ff2.
+const PictogramFigure = SITE_BRAND.id === "threat-intelligence" ? ThreatIntelligencePictogramFigure : GenericPictogramFigure;
 
-type ArticlePageViewProps = {
-  article: Article;
-  backHref: string;
-  backLabel?: string;
-  editionFooter?: ArticlePageEditionFooter;
-  editionDate?: string;
-};
+export type { ArticlePageEditionFooter };
+
+type ArticlePageViewProps = RenderArticleProps;
 
 export function ArticlePageView({ article, backHref, backLabel = SITE_BRAND.backToHomeLabel, editionFooter, editionDate }: ArticlePageViewProps) {
   const articleDate = editionDate ? formatArticleDate(editionDate) : null;
@@ -62,13 +58,7 @@ export function ArticlePageView({ article, backHref, backLabel = SITE_BRAND.back
   );
 }
 
-type ItemPageViewProps = {
-  item: PublicationItem;
-  backHref: string;
-  backLabel?: string;
-  editionFooter?: ArticlePageEditionFooter;
-  editionDate?: string;
-};
+type ItemPageViewProps = RenderItemProps;
 
 export function ItemPageView({ item, backHref, backLabel = "Back to edition", editionFooter, editionDate }: ItemPageViewProps) {
   if (item.type === "article") {

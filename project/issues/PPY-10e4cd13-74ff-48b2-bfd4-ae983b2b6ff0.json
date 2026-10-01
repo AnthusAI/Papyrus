@@ -1,0 +1,66 @@
+{
+  "id": "PPY-10e4cd13-74ff-48b2-bfd4-ae983b2b6ff0",
+  "title": "Pilobil.us proof of concept: author one article, publish real pages",
+  "description": "",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-92f846aa-5cd6-4a9d-9f01-edc3871479fc",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-88f77bbc-15d6-4685-9934-34a45ba6b3a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-eca592b0-6567-47e6-a97d-6ee1096d02ad",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "d3745bc9-1c1c-491b-9fa4-40946abab77d",
+      "author": "home",
+      "text": "GOAL: the actual proof of concept - real published pages for Pilobil.us.\n\nCONTEXT: Pilobil.us is a Papyrus pod at /Users/home/Projects/Pilobol.us (Kanbus project PILO, editorial story workflow idea->assignment->research->report->editor_select->copywriting->published). It is KB-ready but cannot publish today.\n\nSCOPE:\n1. Author at least one REAL article in Markus Markdown that exercises the interesting vocabulary - pull-quote AND a multi-column construct (card-grid or two-up) AND a figure. The whole point is to prove non-trivial constructs survive the shared schema, so a plain-prose article does not test anything.\n2. Configure the publication with rendererConfig { kind: 'markus', theme: ... }.\n3. Publish real static pages.\n4. Then flip the SAME article to { kind: 'pretext', layout: 'newsprint' } and render it again. THIS IS THE MONEY SHOT: one source, two renderers, no second content model. Capture both outputs.\n\nACCEPTANCE: two real rendered outputs from one Markdown file, both openable in a browser.\n\nDEPENDS ON: PPY-88f77b, PPY-eca592.",
+      "created_at": "2026-09-06T12:45:16.892836Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b8a80947-d31e-404c-a08a-1a3b49ab03c9",
+      "author": "home",
+      "text": "88f77b and eca592 landed. Starting Composer 2.5 planning for the dual-renderer PoC. Domain is pilobol.us (not pilobil.us). Worktree at implement time: Papyrus-worktrees/PPY-10e4cd-dual-renderer from origin/feature/renderer-architecture. Do not fork a second Papyrus GitHub app.",
+      "created_at": "2026-09-06T15:03:54.029415Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "d3dccc27-5086-49ec-abbd-e4b02a62de60",
+      "author": "home",
+      "text": "Output A accepted. Output B blocked: this branch tracks .papyrus-production-workspace so npm run dev requires production amplify_outputs. Retrying Pretext via npx next dev plus personal sandbox outputs (ppy-6b4094 stack). Issue stays open.",
+      "created_at": "2026-09-06T15:27:19.557172Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "3764ede4-7570-4159-a2e5-d59413c277ff",
+      "author": "home",
+      "text": "Landed on feature/renderer-architecture as e48afed (PR #63). Adapter, sample.md, Markus static path, and pilobol-sample layoutPlan (only slug sample) are on the branch to build on. Visual design is a separate track; issue stays open.",
+      "created_at": "2026-09-06T15:33:19.273754Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0dd6a1f6-c8b9-4776-bc10-8f539d82b55b",
+      "author": "home",
+      "text": "OUTPUT B ACHIEVED. The dual-renderer thesis is now DEMONSTRATED RUNNING, not just asserted.\n\nHOW THE ORIGINAL BLOCKER WAS BYPASSED: Output B was blocked on 'npm run dev requires production amplify_outputs'. It does not, for this purpose. lib/content-repository.ts routes loadEditionContent({scenarioId}) straight to getLayoutScenario(scenarioId) and NEVER touches GraphQL. So the scenario path renders Pretext with no backend at all. The only real requirement is that components/amplify-client-provider.tsx can resolve amplify_outputs.json; lib/amplify-outputs-guard.ts rejects only PRODUCTION-shaped outputs (graphql host '64hviw' or user pool us-east-1_40Uot7WSv). A clearly-local non-production stub satisfies it. That file is gitignored and uncommitted.\n\nOUTPUT B - Pretext, from Markus source:\n  npx next dev -p 3100  ->  http://localhost:3100/?scenario=pilobol-sample   (HTTP 200)\nRenders as newsprint, masthead 'PILOBOL.US DUAL RENDERER POC'. Verified rendered text contains, from the SAME sample.md:\n  - prose paragraphs intact\n  - PULL QUOTE EXTRACTED to Pretext's side-channel: 'The practical breakthrough is not giving agents a bigger sandbox.'\n  - card-grid DEGRADED INLINE, content preserved: 'Planning state' / 'Read-only tools. An inline code_span should not be confused with a block.'\n  - two-up DEGRADED INLINE, content preserved: 'Planning state keeps risk low.' / 'Implementation state is where damage happens.'\n  - callout content preserved: 'Look before you leap.' / 'Only after planning.'\nNOTHING SILENTLY DROPPED - exactly the documented degradation rule.\n\nOUTPUT A - Markus, from the same source, built by PAPYRUS'S OWN RENDERER (not a bespoke script):\n  papyrus_content.markus_renderer.commands.markus_build([])  ->  web/dist/{index.html, articles/sample.html, articles/second-note.html}\n  served at http://localhost:8902/articles/sample.html (HTTP 200)\nFull fidelity confirmed by markup count: 3 markus-pull-quote, 1 markus-card-grid, 6 markus-card, 2 markus-two-up, 3 markus-column, 1 markus-figure.\n\nTHE MONEY SHOT: one sample.md -> two renderers. Markus renders card-grid and two-up as real multi-column layout; Pretext, which cannot express them, inlines their content and lifts the pull quote into its own side-channel. One content model, no second schema.\n\nBoth outputs are reproducible with the commands above. Closing.",
+      "created_at": "2026-09-06T17:46:29.924054Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-06T12:43:02.752434Z",
+  "updated_at": "2026-09-06T17:46:29.936709Z",
+  "closed_at": "2026-09-06T17:46:29.936709Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
