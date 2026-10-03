@@ -43,6 +43,7 @@ pilobol-us. It is not the platform default.
 | `papyrus` | `papyrus` (default) | `publications/papyrus/theme.css` | Identity pack: aliases `--theme-*` to existing Shadcn `:root` tokens |
 | `threat-intelligence` | `threat-intelligence` | `publications/threat_intelligence/theme.css` | Reader + ops sand/tomato tokens |
 | `pilobol-us` | `pilobol-us` | `publications/pilobol_us/theme.css` | Official Markus fungus-among-us colors, copied in; **no** font stack |
+| `anth-us` | `anth-us` | `publications/anth_us/theme.css` | Anthus magenta/blue, copied from the live Gatsby site; light-only (the source site has no dark mode); **no** font stack |
 
 ## Shared UI contract
 
