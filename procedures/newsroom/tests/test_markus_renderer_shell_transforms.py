@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from papyrus_content.markus_renderer.build import build_markus_site
+from papyrus_content.markus_renderer.build import build_markus_site, render_fragment
+from papyrus_content.markus_renderer.citations import CitationRendering
 from papyrus_content.markus_renderer.convert import convert_fragment
 from papyrus_content.markus_renderer.shell import (
     BodyParts,
@@ -238,6 +239,22 @@ class MarkusPipelineTests(unittest.TestCase):
             self.assertFalse((out / "css" / "markus-vendor.css").exists())
             self.assertIn("<mark>m</mark>", (out / "articles" / "alpha.html").read_text("utf-8"))
             self.assertIn("<sup>1</sup>", (out / "index.html").read_text("utf-8"))
+
+    def test_transform_runs_after_citation_resolution(self) -> None:
+        source = (
+            "---\ntitle: T\ncitations:\n  k1:\n    type: book\n    title: A Book\n"
+            "    author:\n      - family: Doe\n        given: J\n    issued:\n"
+            "      date-parts: [[2020]]\n---\n\n"
+            f"Claim {inline_sentinel('mark', 'here')} [@k1].\n\n::citations{{format=\"apa\"}}\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "page.md"
+            path.write_text(source, encoding="utf-8")
+            out = render_fragment(
+                path, citations=CitationRendering(), transform=FragmentTransform()
+            )
+        self.assertIn("<mark>here</mark>", out)
+        self.assertIn("A Book", out)
 
 
 if __name__ == "__main__":

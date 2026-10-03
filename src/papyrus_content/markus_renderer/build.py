@@ -5,11 +5,15 @@ from __future__ import annotations
 import hashlib
 import re
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from ..env import PAPYRUS_ROOT
+from .citations import CitationRendering
+from .content_markup import prepare_page, resolve_fragment
 from .convert import convert_fragment
+from .images import ImageBuilder, ImagePipeline
 from .security import assert_markus_version
 from .shell import DEFAULT_CHROME, NavItem, SiteChrome, render_page
 from .transforms import FragmentTransform
@@ -98,6 +102,59 @@ def _build_nav_items(articles: list[tuple[str, Path]]) -> list[NavItem]:
     return nav_items
 
 
+def render_fragment(
+    source: Path,
+    *,
+    theme: str | None = None,
+    markus_executable: str = "markus",
+    depth: int = 0,
+    images: ImagePipeline | None = None,
+    image_builder: ImageBuilder | None = None,
+    citations: CitationRendering | None = None,
+    transform: FragmentTransform | None = None,
+) -> str:
+    """Convert one Markdown file, resolving Papyrus content markup around it.
+
+    With neither ``image_builder`` nor ``citations`` supplied this is exactly
+    ``convert_fragment(source, ...)`` -- same subprocess, same bytes. That is
+    the contract publications relying on the pre-existing behaviour depend on
+    (see ``build_markus_site``).
+
+    When a capability *is* enabled, the Papyrus vocabulary is lowered to
+    sentinels before Markus runs, because the pinned ``markus`` CLI validates
+    directive names and attributes strictly and would reject anything it does
+    not own. See ``content_markup`` for the full rationale.
+    """
+    if image_builder is None and citations is None:
+        return convert_fragment(
+            source, theme=theme, markus_executable=markus_executable, transform=transform
+        )
+
+    text = source.read_text(encoding="utf-8")
+    page = prepare_page(text, images=images, citations=citations)
+    if page.markdown == text:
+        fragment = convert_fragment(
+            source, theme=theme, markus_executable=markus_executable
+        )
+    else:
+        with tempfile.TemporaryDirectory(prefix="papyrus-markus-") as tmp:
+            staged = Path(tmp) / source.name
+            staged.write_text(page.markdown, encoding="utf-8")
+            fragment = convert_fragment(
+                staged, theme=theme, markus_executable=markus_executable
+            )
+    resolved = resolve_fragment(
+        fragment,
+        page,
+        depth=depth,
+        image_builder=image_builder,
+        citations=citations,
+    )
+    # Last, so a publication's transform sees the final markup, images and
+    # bibliography included.
+    return resolved if transform is None else transform.apply(resolved)
+
+
 def _copy_tree(source: Path, dest: Path) -> None:
     if not source.exists():
         return
@@ -127,6 +184,8 @@ def build_markus_site(
     site_css: Path | None = None,
     chrome: SiteChrome | None = None,
     sections: tuple[str, ...] = (),
+    images: ImagePipeline | None = None,
+    citations: CitationRendering | None = None,
     transform: FragmentTransform | None = None,
     vendor_css: bool = True,
 ) -> BuildResult:
@@ -135,6 +194,16 @@ def build_markus_site(
     ``site_css`` and ``chrome`` are what let a publication (Pilobol.us, say)
     render through this shared renderer instead of forking its own build
     script. Defaults reproduce Papyrus's own site exactly.
+
+    ``images`` and ``citations`` are **opt-in content capabilities**. Both
+    default to ``None``, and when both are ``None`` no fragment is inspected or
+    rewritten at all -- a publication that has not opted in gets byte-identical
+    output to before these parameters existed. Pass ``images=ImagePipeline()``
+    for responsive ``srcset``/``sizes``/intrinsic-dimension images and the
+    ``::image{}`` directive; pass ``citations=CitationRendering()`` for
+    ``[@key]`` inline markers and the ``::citations{}`` bibliography. The
+    authoring syntax both of those accept is specified in
+    ``docs/markus-content-markup.md``.
 
     ``transform`` post-processes every converted fragment (see
     ``transforms.py``). ``vendor_css=False`` skips writing
@@ -168,13 +237,29 @@ def build_markus_site(
     # either yields a new URL (see _css_version's docstring).
     css_version = _css_version(output_root / "css", output_root / "assets")
 
+    image_builder = (
+        ImageBuilder(images, content_dir=content_root, out_dir=output_root)
+        if images is not None
+        else None
+    )
+
+    def _fragment(source: Path, *, depth: int) -> str:
+        return render_fragment(
+            source,
+            theme=theme,
+            markus_executable=markus_executable,
+            depth=depth,
+            images=images,
+            image_builder=image_builder,
+            citations=citations,
+            transform=transform,
+        )
+
     nav_items = _build_nav_items(articles)
     built_pages: list[Path] = []
 
     for slug, source in articles:
-        fragment = convert_fragment(
-            source, theme=theme, markus_executable=markus_executable, transform=transform
-        )
+        fragment = _fragment(source, depth=1)
         title = _read_title(source, slug.replace("-", " ").title())
         href = f"articles/{slug}.html"
         page_path = output_root / href
@@ -198,12 +283,7 @@ def build_markus_site(
             continue
         (output_root / section).mkdir(parents=True, exist_ok=True)
         for slug, source in entries:
-            fragment = convert_fragment(
-                source,
-                theme=theme,
-                markus_executable=markus_executable,
-                transform=transform,
-            )
+            fragment = _fragment(source, depth=1)
             title = _read_title(source, slug.replace("-", " ").title())
             href = f"{section}/{slug}.html"
             page_path = output_root / href
@@ -223,9 +303,7 @@ def build_markus_site(
 
     index_md = content_root / "index.md"
     if index_md.is_file():
-        index_fragment = convert_fragment(
-            index_md, theme=theme, markus_executable=markus_executable, transform=transform
-        )
+        index_fragment = _fragment(index_md, depth=0)
         index_title = _read_title(index_md, "Home")
     else:
         link_lines = []

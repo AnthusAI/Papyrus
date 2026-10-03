@@ -1,0 +1,66 @@
+/* Anthus theme pack — colors only.
+   Hex values are read off the live Gatsby site at AnthusAI/Anth.us
+   (`src/styles/variables.scss` `:root`). That file is not loaded at runtime.
+   Shadcn owns typography. Do not set a font stack here.
+
+   Slot-by-slot provenance (including the three derived values) is documented
+   on ANTH_US_THEME_PACK_TOKENS in lib/site-stack.ts — keep the two in sync.
+
+   NO DARK BLOCK ON PURPOSE. The source site has no dark mode: its only
+   `prefers-color-scheme: dark` rule swaps two code-highlight tints. Porting a
+   light-only publication means pinning `color-scheme: light` rather than
+   inventing a dark palette. If Anthus later designs one, add it here and to
+   `ANTH_US_THEME_PACK_TOKENS.dark` together. */
+
+:root[data-theme-pack="anth-us"],
+:root[data-site-brand="anth-us"] {
+  color-scheme: light;
+  --theme-ink: #333333;
+  --theme-muted: #5f6b73;
+  --theme-paper: #f1f9fe;
+  --theme-card: #ffffff;
+  --theme-line: #cccccc;
+  --theme-moss: #dc5497;
+  --theme-ochre: #ff57b4;
+  --theme-quote: #9b165d;
+  --theme-tip: #0389d7;
+  --theme-caution: #e95800;
+  --theme-stage: #fedded;
+  --background: var(--theme-paper);
+  --foreground: var(--theme-ink);
+  --foreground-strong: var(--theme-ink);
+  --foreground-muted: var(--theme-muted);
+  --card: var(--theme-card);
+  --card-foreground: var(--theme-ink);
+  --popover: var(--theme-card);
+  --popover-foreground: var(--theme-ink);
+  --primary: var(--theme-moss);
+  --primary-foreground: var(--theme-card);
+  --secondary: var(--theme-stage);
+  --secondary-foreground: var(--theme-ink);
+  --muted: var(--theme-stage);
+  --muted-foreground: var(--theme-muted);
+  --accent: var(--theme-ochre);
+  --accent-foreground: var(--theme-card);
+  --border: var(--theme-line);
+  --input: var(--theme-line);
+  --ring: var(--theme-moss);
+  --destructive: var(--theme-caution);
+  --destructive-foreground: var(--theme-card);
+  --danger: var(--theme-caution);
+  --danger-foreground: var(--theme-card);
+  --surface: var(--theme-card);
+  --surface-foreground: var(--theme-ink);
+  --paper: var(--theme-paper);
+  --ink: var(--theme-ink);
+}
+
+/* The source site is light-only, so a dark-preferring browser must not be
+   handed a half-dark Anthus. Re-assert the light tokens inside the dark media
+   query for parity with how the other packs are structured. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme-pack="anth-us"],
+  :root[data-site-brand="anth-us"] {
+    color-scheme: light;
+  }
+}
