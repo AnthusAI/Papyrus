@@ -92,6 +92,8 @@ rules:
       message: Aphorism that equates a concrete thing with an abstraction. Say what the thing does instead.
     - pattern: "(?i)\\b(?:confidence|scores?|numbers?|curve|calibration|probabilit(?:y|ies)|model|classifier)\\b[^.!?\\n]{0,25}\\bhonest\\b|\\bhonest (?:calibration|confidence|probabilit(?:y|ies)|scores?|numbers?)\\b"
       message: Gives a measurement a character trait. Name the measurement instead ("when it says 90 percent, it's right about 90 percent of the time"), then use "calibrated".
+    - pattern: "(?i)\\b(?:model|classifier|system|decision model|confidence|scores?)\\b[^.!?\\n]{0,40}\\b(?:admits?|(?<!to )knows? (?:when|best)|tells? the truth)\\b"
+      message: Gives a measurement a person's knowledge. Say what the confidence number does ("its confidence separates right answers from wrong ones") instead of what the model knows or admits.
     - pattern: "(?i)\\b(?:if you know, you know|you know the one)\\b"
       message: Assumes a shared shorthand the reader was never given.
   bannedIntensifiers:
