@@ -8,7 +8,7 @@
  * Shared ops components consume CSS variables only. Pilobolus is the first
  * extra pack, not the platform default (that remains `papyrus`).
  */
-export type ThemePackId = "papyrus" | "threat-intelligence" | "pilobol-us";
+export type ThemePackId = "papyrus" | "threat-intelligence" | "pilobol-us" | "anth-us";
 
 export type RendererConfig = {
   kind: "pretext" | "markus";
@@ -33,12 +33,22 @@ export type RootRouteConfig =
   | { kind: "redirect"; destination: string; permanent?: boolean }
   | { kind: "newsroom" };
 
-/** Optional reader deployment when CMS and public reader ship separately (Pilobolus). */
+/**
+ * Optional reader deployment when CMS and public reader ship separately
+ * (Pilobolus, Anth.us).
+ *
+ * `domain` and `amplifyAppId` are optional because a reader can legitimately
+ * exist before either is known: a staging port runs on the Amplify-provided
+ * hostname with no custom domain attached, and the app id does not exist until
+ * someone creates the app. Leave them unset rather than writing down a
+ * hostname that is not actually serving this build — a wrong canonical host is
+ * worse than an absent one.
+ */
 export type ReaderDeployment = {
   kind: "amplify-static";
   repository: string;
-  domain: string;
-  amplifyAppId: string;
+  domain?: string;
+  amplifyAppId?: string;
 };
 
 export type OpsChrome = "newsprint" | "app";
@@ -135,4 +145,50 @@ export const PILOBOL_US_THEME_PACK_TOKENS: ThemePackTokens = {
     caution: "#d17e6e",
     stage: "#0d0f0a",
   },
+};
+
+/**
+ * Anthus palette, read off the live Gatsby site at `AnthusAI/Anth.us`
+ * (`src/styles/variables.scss` `:root`). Colors only — Shadcn owns typography.
+ * Mapping from that file's names to the pack's slots:
+ *
+ * | pack slot | Anth.us variable          | value     |
+ * | --------- | ------------------------- | --------- |
+ * | `paper`   | `--color-layout-bg`       | `#f1f9fe` |
+ * | `card`    | `--color-wrapper-bg`      | `#ffffff` |
+ * | `ink`     | `--color-text`            | `#333333` |
+ * | `moss`    | `--color-primary`         | `#dc5497` |
+ * | `ochre`   | `--color-active`          | `#ff57b4` |
+ * | `quote`   | `--color-gradient-mid`    | `#9b165d` |
+ * | `tip`     | `--color-gradient-end`    | `#0389d7` |
+ * | `stage`   | `--color-hamburger`       | `#fedded` |
+ *
+ * Two slots have no counterpart on the Gatsby site and are **derived**, which
+ * is called out here so nobody mistakes them for copied brand values:
+ *
+ * - `line`: the site's only rule color is `hr { background: hsla(0,0%,0%,0.2) }`
+ *   over white, flattened to `#cccccc`.
+ * - `muted`: the site has no muted-text token at all — it dims with
+ *   `opacity: 0.5` instead (and references an undefined `--color-text-light`).
+ *   `#5f6b73` is `--color-text` desaturated toward `paper`'s blue.
+ * - `caution`: `#e95800`, which the site uses for one of its `::marker`
+ *   colors; it has no dedicated danger color.
+ *
+ * There is deliberately **no `dark` palette**: the Gatsby site has no dark
+ * mode. Its only `prefers-color-scheme: dark` block overrides two
+ * code-highlight tints. Inventing a dark Anthus palette here would be making
+ * up a look rather than porting one, so `theme.css` pins `color-scheme: light`.
+ */
+export const ANTH_US_THEME_PACK_TOKENS: ThemePackTokens = {
+  ink: "#333333",
+  muted: "#5f6b73",
+  paper: "#f1f9fe",
+  card: "#ffffff",
+  line: "#cccccc",
+  moss: "#dc5497",
+  ochre: "#ff57b4",
+  quote: "#9b165d",
+  tip: "#0389d7",
+  caution: "#e95800",
+  stage: "#fedded",
 };
