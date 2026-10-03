@@ -96,6 +96,14 @@ _BLOCK_IN_P_RE = re.compile(
     f"{BLOCK_OPEN}({_BLOCK_PAYLOAD}){BLOCK_CLOSE}"
     r"\s*</p>"
 )
+# Markus's document header (``markusmd.render._render_header``): one
+# ``<header class="markus-header">`` as the first child of the document
+# ``<article>``, containing only escaped front-matter text -- never a nested
+# ``<header>``, so the lazy match is exact.
+_MARKUS_HEADER_RE = re.compile(
+    r'(<article class="markus-document"[^>]*>)<header class="markus-header">.*?</header>',
+    re.DOTALL,
+)
 _CLASS_ATTR_RE = re.compile(r"(\s*)class=([\"'])([^\"']*)\2")
 
 
@@ -166,6 +174,12 @@ class FragmentTransform:
         Class-name **prefixes** to strip when a token is not in ``class_map``
         -- e.g. ``("markus-",)`` for a publication that has mapped the markers
         it styles and wants the rest gone rather than inert-but-present.
+    ``strip_header``
+        Remove the ``<header class="markus-header">`` Markus renders from
+        front-matter ``title``/``authors``/``date``/``description``. For a
+        publication that renders its own article heading: Papyrus reads
+        ``title`` for the page ``<title>``, so the front matter cannot simply
+        omit it.
 
     Class rewriting runs *before* block sentinels are decoded, so a decoded
     block's markup is re-emitted exactly as the publication generated it and
@@ -175,6 +189,7 @@ class FragmentTransform:
     class_map: Mapping[str, str] = field(default_factory=dict)
     allow_block_passthrough: bool = False
     drop_unmapped_classes: tuple[str, ...] = ()
+    strip_header: bool = False
 
     def apply(self, fragment: str) -> str:
         if BLOCK_OPEN in fragment and not self.allow_block_passthrough:
@@ -185,7 +200,10 @@ class FragmentTransform:
                 "block markup"
             )
 
-        result = self._rewrite_classes(fragment)
+        result = fragment
+        if self.strip_header:
+            result = _MARKUS_HEADER_RE.sub(r"\1", result, count=1)
+        result = self._rewrite_classes(result)
         result = self._decode_inline(result)
         if self.allow_block_passthrough:
             result = self._decode_blocks(result)

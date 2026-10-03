@@ -7,6 +7,12 @@ from pathlib import Path
 
 from papyrus_content.markus_renderer.build import build_markus_site, render_fragment
 from papyrus_content.markus_renderer.citations import CitationRendering
+from papyrus_content.markus_renderer.images import (
+    ImageBuilder,
+    ImagePipeline,
+    ImageRequest,
+    ImageWrap,
+)
 from papyrus_content.markus_renderer.convert import convert_fragment
 from papyrus_content.markus_renderer.shell import (
     BodyParts,
@@ -199,6 +205,60 @@ class FragmentTransformTests(unittest.TestCase):
             transform.apply(fragment), '<div class="post post--body keep"><p>a</p></div>'
         )
 
+    def test_strip_header_removes_only_the_markus_header(self) -> None:
+        fragment = (
+            '<article class="markus-document"><header class="markus-header"><h1>T</h1>'
+            '<p class="markus-byline">A</p></header><header>own</header><p>x</p></article>'
+        )
+        self.assertEqual(
+            FragmentTransform(strip_header=True).apply(fragment),
+            '<article class="markus-document"><header>own</header><p>x</p></article>',
+        )
+        self.assertEqual(FragmentTransform().apply(fragment), fragment)
+
+
+class ImageWrapTests(unittest.TestCase):
+    def _render(self, pipeline: ImagePipeline, request: ImageRequest) -> str:
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "images").mkdir()
+            Image.new("RGB", (300, 200), "white").save(root / "images" / "p.png")
+            builder = ImageBuilder(pipeline, content_dir=root, out_dir=root / "dist")
+            return builder.render(request)
+
+    def test_default_is_a_figure(self) -> None:
+        html = self._render(
+            ImagePipeline(widths=(100,), formats=()),
+            ImageRequest(src="images/p.png", layout="full"),
+        )
+        self.assertTrue(html.startswith('<figure class="papyrus-image papyrus-image--full">'))
+
+    def test_wrap_hook_receives_inner_markup_and_intrinsic_size(self) -> None:
+        seen: list[ImageWrap] = []
+
+        def wrap(image: ImageWrap) -> str:
+            seen.append(image)
+            return f'<div class="w {image.layout}" data-w="{image.width}">{image.inner}</div>'
+
+        html = self._render(
+            ImagePipeline(widths=(100,), formats=(), wrap=wrap),
+            ImageRequest(src="images/p.png", layout="right", alt="A"),
+        )
+        self.assertEqual(len(seen), 1)
+        self.assertEqual((seen[0].width, seen[0].height), (300, 200))
+        self.assertEqual(seen[0].classes, "papyrus-image papyrus-image--right")
+        self.assertTrue(html.startswith('<div class="w right" data-w="300"><img '))
+        self.assertNotIn("<figure", html)
+
+    def test_wrap_hook_is_not_used_for_bare_images(self) -> None:
+        html = self._render(
+            ImagePipeline(widths=(100,), formats=(), wrap=lambda image: "WRAPPED"),
+            ImageRequest(src="images/p.png", bare=True),
+        )
+        self.assertTrue(html.startswith("<img "))
+
 
 @unittest.skipUnless(HAS_MARKUS, "markus CLI not installed")
 class MarkusPipelineTests(unittest.TestCase):
@@ -255,6 +315,20 @@ class MarkusPipelineTests(unittest.TestCase):
             )
         self.assertIn("<mark>here</mark>", out)
         self.assertIn("A Book", out)
+
+    def test_strip_header_against_real_markus_output(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "page.md"
+            path.write_text(
+                "---\ntitle: Hello\nauthors: [Ann]\ndescription: Lede\n---\n\nBody.\n",
+                encoding="utf-8",
+            )
+            plain = convert_fragment(path)
+            stripped = convert_fragment(path, transform=FragmentTransform(strip_header=True))
+        self.assertIn('<header class="markus-header">', plain)
+        self.assertNotIn("markus-header", stripped)
+        self.assertNotIn("Hello", stripped)
+        self.assertIn("<p>Body.</p>", stripped)
 
 
 if __name__ == "__main__":

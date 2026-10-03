@@ -36,7 +36,7 @@ import re
 import shutil
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Callable, Iterable, Mapping
 
 # Formats Pillow can resize/re-encode for us. Everything else is pass-through.
 RASTER_SUFFIXES: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".webp", ".avif"})
@@ -111,6 +111,24 @@ def assert_safe_asset_src(src: str) -> str:
 
 
 @dataclass(frozen=True)
+class ImageWrap:
+    """What a publication's ``ImagePipeline.wrap`` hook receives for one image.
+
+    ``inner`` is the finished ``<picture>`` (or bare ``<img>``) the pipeline
+    built; ``classes`` is what the default ``<figure>`` would have carried.
+    ``width``/``height`` are the source's intrinsic pixel size when known, which
+    is what a publication needs to reserve an aspect-ratio box.
+    """
+
+    request: "ImageRequest"
+    layout: str
+    classes: str
+    inner: str
+    width: int | None
+    height: int | None
+
+
+@dataclass(frozen=True)
 class ImagePipeline:
     """Configuration for the responsive-image build step.
 
@@ -156,6 +174,12 @@ class ImagePipeline:
     #: Fail the build when a referenced image file is missing. Off means the
     #: original ``<img>`` is left untouched.
     strict: bool = True
+    #: Replaces the default ``<figure>`` wrapper. Papyrus still owns the
+    #: renditions, ``srcset`` and ``sizes``; the publication owns only the
+    #: element around them -- for a port whose stylesheet expects a specific
+    #: image DOM (an aspect-ratio sizer, a wrapper ``<div>``) that classes
+    #: alone cannot produce. Not called for ``bare`` (inline) images.
+    wrap: Callable[[ImageWrap], str] | None = None
 
     def resolved_source_dir(self, content_dir: Path) -> Path:
         return (self.source_dir or content_dir).resolve()
@@ -390,6 +414,7 @@ class ImageBuilder:
                 inner=self._img_tag(
                     src=src, alt=request.alt, loading=loading, width=None, height=None
                 ),
+                size=None,
             )
 
         path = self._locate(src)
@@ -411,7 +436,7 @@ class ImageBuilder:
                 width=dims[0] if dims else None,
                 height=dims[1] if dims else None,
             )
-            return self._figure(request, layout=layout, inner=img)
+            return self._figure(request, layout=layout, inner=img, size=dims)
 
         renditions = self._renditions(src, path)
         intrinsic_w, intrinsic_h = self._intrinsic[src]
@@ -462,7 +487,9 @@ class ImageBuilder:
             sizes=sizes,
         )
         inner = f'<picture>{"".join(sources)}{img}</picture>' if sources else img
-        return self._figure(request, layout=layout, inner=inner)
+        return self._figure(
+            request, layout=layout, inner=inner, size=(intrinsic_w, intrinsic_h)
+        )
 
     def _raster_size(self, path: Path) -> tuple[int, int] | None:
         try:
@@ -498,9 +525,28 @@ class ImageBuilder:
             bits.append('loading="lazy" decoding="async"')
         return " ".join(bits) + ">"
 
-    def _figure(self, request: ImageRequest, *, layout: str, inner: str) -> str:
+    def _figure(
+        self,
+        request: ImageRequest,
+        *,
+        layout: str,
+        inner: str,
+        size: tuple[int, int] | None,
+    ) -> str:
         if request.bare:
             return inner
+        if self.pipeline.wrap is not None:
+            width, height = size if size else (None, None)
+            return self.pipeline.wrap(
+                ImageWrap(
+                    request=request,
+                    layout=layout,
+                    classes=self.pipeline.classes_for(layout),
+                    inner=inner,
+                    width=width,
+                    height=height,
+                )
+            )
         caption_bits = []
         if request.caption:
             caption_bits.append(html.escape(collapse_whitespace(request.caption)))
