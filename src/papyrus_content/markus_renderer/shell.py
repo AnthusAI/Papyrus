@@ -1,9 +1,20 @@
-"""HTML page shell for Markus static output."""
+"""HTML page shell for Markus static output.
+
+The shell is deliberately *configurable* rather than hardcoded. Every knob
+lives on :class:`SiteChrome` and every knob defaults to the shape Papyrus's
+own site (and Pilobol.us) already emits, so adding one is inert for existing
+callers. The reason the knobs exist at all: a publication whose stylesheet
+targets a different DOM (Anth.us, rebuilt from a Gatsby site that must stay
+pixel-identical) previously had no way in and had to monkeypatch
+``shell.render_page`` wholesale. Replacing a module-level function in another
+package is not an API; ``render_masthead`` / ``render_body`` are.
+"""
 
 from __future__ import annotations
 
 import html
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
@@ -26,12 +37,89 @@ class SiteChrome:
     chrome -- theme toggles, decorative canvases. They are NEVER derived from
     article Markdown: keeping author content unable to introduce script tags is
     precisely why Markus runs with raw HTML disabled.
+
+    Layout fields (all defaulted to today's output, so an existing caller that
+    constructs ``SiteChrome`` the old way gets byte-identical HTML):
+
+    ``lang``
+        ``<html lang="...">``.
+    ``body_class``
+        ``<body class="...">``.
+    ``stylesheets``
+        Stylesheet hrefs, each prefixed and cache-busted like today's two.
+        An empty tuple emits no ``<link rel="stylesheet">`` at all.
+    ``head_html``
+        Raw markup emitted immediately after ``</title>`` -- meta/OG tags,
+        preloads, a publication's own font links.
+    ``title_template`` / ``same_title_template``
+        ``str.format`` templates over ``{title}`` and ``{site}`` (both already
+        HTML-escaped). ``same_title_template`` is used when the page title
+        equals the site name, which is why the default drops the suffix: see
+        the note in :func:`render_page`.
+    ``asset_root``
+        ``None`` keeps today's depth-relative ``"../" * depth`` prefix. A
+        string (``"/"``) makes every asset, script and nav href site-absolute
+        instead -- what a publication deployed at a domain root wants, and the
+        only way to share one rendered fragment across depths.
+    ``render_masthead`` / ``render_body``
+        Publication-supplied overrides. ``render_masthead(ctx)`` returns the
+        masthead block; ``render_body(ctx, parts)`` returns everything between
+        ``<body ...>`` and ``</body>``, given the default parts it can reuse,
+        reorder or discard. ``render_masthead`` runs first and its result is
+        handed to ``render_body`` in ``parts.masthead``, so a publication can
+        replace only the masthead and still let the default body assembly run.
     """
 
     site_name: str = "Papyrus Markus"
     tagline: str | None = None
     footer_html: str | None = None
     scripts: tuple[str, ...] = field(default_factory=tuple)
+    lang: str = "en"
+    body_class: str = "markus-body markus-site"
+    stylesheets: tuple[str, ...] = ("css/markus-vendor.css", "css/site-theme.css")
+    head_html: str = ""
+    title_template: str = "{title} · {site}"
+    same_title_template: str = "{site}"
+    asset_root: str | None = None
+    render_masthead: Callable[["PageContext"], str] | None = None
+    render_body: Callable[["PageContext", "BodyParts"], str] | None = None
+
+
+@dataclass(frozen=True)
+class PageContext:
+    """Everything a publication hook needs to render its own chrome.
+
+    Passed to ``SiteChrome.render_masthead`` / ``render_body``. ``prefix`` and
+    ``asset_suffix`` are the *resolved* values the default shell itself uses,
+    so a hook that builds its own hrefs stays consistent with the ones the
+    shell emits (depth-relative or ``asset_root``-absolute, cache-busted or
+    not) without recomputing them and drifting.
+    """
+
+    title: str
+    site_name: str
+    active_href: str
+    nav_items: tuple[NavItem, ...]
+    depth: int
+    prefix: str
+    asset_suffix: str
+    fragment: str
+    chrome: "SiteChrome"
+
+
+@dataclass(frozen=True)
+class BodyParts:
+    """The four default body blocks, pre-rendered.
+
+    Handed to ``SiteChrome.render_body`` so an override is additive: reuse
+    ``main`` and ``scripts`` verbatim while replacing the wrapper, rather than
+    reimplementing fragment indentation and script cache-busting.
+    """
+
+    masthead: str
+    main: str
+    footer: str
+    scripts: str
 
 
 DEFAULT_CHROME = SiteChrome()
@@ -57,10 +145,15 @@ def render_page(
     # `site_name` stays an explicit override so existing callers keep working.
     resolved_site_name = site_name if site_name is not None else chrome.site_name
 
-    prefix = "../" * depth
+    # `asset_root` of None preserves the depth-relative behaviour this shell
+    # has always had; a string replaces it outright. Everything downstream
+    # (stylesheets, scripts, wordmark, nav) goes through this one value, so
+    # there is no way for half a page to be relative and half absolute.
+    prefix = "../" * depth if chrome.asset_root is None else chrome.asset_root
+
     nav_links = []
     for item in nav_items:
-        href = item.href if depth == 0 else f"{prefix}{item.href}"
+        href = f"{prefix}{item.href}"
         current = ' aria-current="page"' if item.href == active_href else ""
         nav_links.append(
             f'<a href="{html.escape(href, quote=True)}"{current}>{html.escape(item.label)}</a>'
@@ -73,7 +166,12 @@ def render_page(
     # identical to the site name -- the " · site" suffix exists to
     # disambiguate a page from the site, which is meaningless when they're
     # the same string.
-    title_tag = safe_site if title.strip() == resolved_site_name.strip() else f"{safe_title} · {safe_site}"
+    template = (
+        chrome.same_title_template
+        if title.strip() == resolved_site_name.strip()
+        else chrome.title_template
+    )
+    title_tag = template.format(title=safe_title, site=safe_site)
 
     # Cache-busting query on the stylesheets. Without it a browser serves a
     # stale theme and a CSS fix silently appears not to have worked.
@@ -106,28 +204,71 @@ def render_page(
 
     footer_inner = chrome.footer_html or _DEFAULT_FOOTER
 
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title_tag}</title>
-<link rel="stylesheet" href="{prefix}css/markus-vendor.css{suffix}">
-<link rel="stylesheet" href="{prefix}css/site-theme.css{suffix}">
-</head>
-<body class="markus-body markus-site">
-  <header class="markus-site-masthead">
-    <p class="markus-site-wordmark"><a href="{prefix}index.html">{safe_site}</a></p>{tagline_html}
-    <nav class="markus-site-nav" aria-label="Site">
-      {nav_html}
-    </nav>
-  </header>
-  <main>
-{fragment}
-  </main>
-  <footer class="markus-site-footer">
-    {footer_inner}
-  </footer>{script_html}
-</body>
-</html>
-"""
+    ctx = PageContext(
+        title=title,
+        site_name=resolved_site_name,
+        active_href=active_href,
+        nav_items=tuple(nav_items),
+        depth=depth,
+        prefix=prefix,
+        asset_suffix=suffix,
+        fragment=fragment,
+        chrome=chrome,
+    )
+
+    default_masthead = (
+        '  <header class="markus-site-masthead">\n'
+        f'    <p class="markus-site-wordmark">'
+        f'<a href="{prefix}index.html">{safe_site}</a></p>{tagline_html}\n'
+        '    <nav class="markus-site-nav" aria-label="Site">\n'
+        f"      {nav_html}\n"
+        "    </nav>\n"
+        "  </header>"
+    )
+    # Masthead first, unconditionally: `render_body` receives the *resolved*
+    # masthead in `parts`, so overriding only the masthead still works when
+    # the default body assembly runs, and overriding both does not render the
+    # masthead twice.
+    masthead = (
+        chrome.render_masthead(ctx)
+        if chrome.render_masthead is not None
+        else default_masthead
+    )
+
+    main = f"  <main>\n{fragment}\n  </main>"
+    footer = (
+        '  <footer class="markus-site-footer">\n'
+        f"    {footer_inner}\n"
+        "  </footer>"
+    )
+    parts = BodyParts(
+        masthead=masthead, main=main, footer=footer, scripts=script_html
+    )
+
+    if chrome.render_body is not None:
+        body_inner = chrome.render_body(ctx, parts)
+    else:
+        body_inner = f"{masthead}\n{main}\n{footer}{script_html}"
+
+    head_lines = [
+        "<!DOCTYPE html>",
+        f'<html lang="{html.escape(chrome.lang, quote=True)}">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        f"<title>{title_tag}</title>{chrome.head_html}",
+    ]
+    head_lines.extend(
+        f'<link rel="stylesheet" href="{prefix}{sheet}{suffix}">'
+        for sheet in chrome.stylesheets
+    )
+    head_lines.append("</head>")
+    head = "\n".join(head_lines)
+
+    return (
+        f"{head}\n"
+        f'<body class="{html.escape(chrome.body_class, quote=True)}">\n'
+        f"{body_inner}\n"
+        "</body>\n"
+        "</html>\n"
+    )

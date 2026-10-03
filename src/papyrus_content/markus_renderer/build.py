@@ -16,6 +16,7 @@ from .convert import convert_fragment
 from .images import ImageBuilder, ImagePipeline
 from .security import assert_markus_version
 from .shell import DEFAULT_CHROME, NavItem, SiteChrome, render_page
+from .transforms import FragmentTransform
 from .vendor_css import vendor_markus_css
 
 DEFAULT_CONTENT_DIR = PAPYRUS_ROOT / "web" / "content"
@@ -110,6 +111,7 @@ def render_fragment(
     images: ImagePipeline | None = None,
     image_builder: ImageBuilder | None = None,
     citations: CitationRendering | None = None,
+    transform: FragmentTransform | None = None,
 ) -> str:
     """Convert one Markdown file, resolving Papyrus content markup around it.
 
@@ -124,7 +126,9 @@ def render_fragment(
     not own. See ``content_markup`` for the full rationale.
     """
     if image_builder is None and citations is None:
-        return convert_fragment(source, theme=theme, markus_executable=markus_executable)
+        return convert_fragment(
+            source, theme=theme, markus_executable=markus_executable, transform=transform
+        )
 
     text = source.read_text(encoding="utf-8")
     page = prepare_page(text, images=images, citations=citations)
@@ -139,13 +143,16 @@ def render_fragment(
             fragment = convert_fragment(
                 staged, theme=theme, markus_executable=markus_executable
             )
-    return resolve_fragment(
+    resolved = resolve_fragment(
         fragment,
         page,
         depth=depth,
         image_builder=image_builder,
         citations=citations,
     )
+    # Last, so a publication's transform sees the final markup, images and
+    # bibliography included.
+    return resolved if transform is None else transform.apply(resolved)
 
 
 def _copy_tree(source: Path, dest: Path) -> None:
@@ -179,6 +186,8 @@ def build_markus_site(
     sections: tuple[str, ...] = (),
     images: ImagePipeline | None = None,
     citations: CitationRendering | None = None,
+    transform: FragmentTransform | None = None,
+    vendor_css: bool = True,
 ) -> BuildResult:
     """Build a Markus static site.
 
@@ -195,6 +204,10 @@ def build_markus_site(
     ``[@key]`` inline markers and the ``::citations{}`` bibliography. The
     authoring syntax both of those accept is specified in
     ``docs/markus-content-markup.md``.
+
+    ``transform`` post-processes every converted fragment (see
+    ``transforms.py``). ``vendor_css=False`` skips writing
+    ``css/markus-vendor.css``, for publications whose shell does not link it.
     """
     content_root = (content_dir or DEFAULT_CONTENT_DIR).resolve()
     output_root = (out_dir or DEFAULT_OUT_DIR).resolve()
@@ -208,7 +221,8 @@ def build_markus_site(
     (output_root / "articles").mkdir(parents=True)
     (output_root / "css").mkdir(parents=True)
 
-    vendor_markus_css(output_root / "css" / "markus-vendor.css", theme=theme)
+    if vendor_css:
+        vendor_markus_css(output_root / "css" / "markus-vendor.css", theme=theme)
     if site_css.is_file():
         shutil.copy2(site_css, output_root / "css" / "site-theme.css")
     else:
@@ -238,6 +252,7 @@ def build_markus_site(
             images=images,
             image_builder=image_builder,
             citations=citations,
+            transform=transform,
         )
 
     nav_items = _build_nav_items(articles)
