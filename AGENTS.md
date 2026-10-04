@@ -544,7 +544,7 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
   `PAPYRUS_SEED_EMAIL`. Those belong in `.env`, not in source control.
 - The data API supports public API-key reads, Cognito user-pool auth, **IAM for
   registered Lambda functions** (`allow.resource(...)`), and a separate **JWT
-  authorizer lane for CLI/tools only**. Match the intended `../Plexus/dashboard` shape:
+  authorizer lane for CLI/tools only**. Match the intended `../Primus/dashboard` shape:
   public API-key access stays available, Cognito remains available, and CLI clients
   send a direct JWT through the AppSync Lambda-authorizer auth scheme.
 - The JWT authorizer (`graphql-jwt-authorizer`) and Amplify secret
