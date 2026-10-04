@@ -197,8 +197,11 @@ publication wants `::image{}` to be the only responsive path.
 | `out_subdir` | `assets/responsive` | Where derivatives land in the built site. |
 | `widths` | `(480, 768, 1024, 1366, 1920)` | Plus the source's own width. |
 | `max_width` | `None` | Ceiling on the widest rendition. |
-| `formats` | `("webp",)` | Offered via `<source>`; the source format is always emitted as the fallback. `avif` is dropped silently when the installed Pillow cannot encode it. |
-| `quality` | `82` | |
+| `formats` | `("webp",)`; `("avif", "webp")` with `gatsby_parity` | Offered via `<source>`; the source format is always emitted as the fallback (JPEG/PNG under `gatsby_parity`). A listed format the installed Pillow cannot encode is a **build error**, not a silent drop. |
+| `quality` | `82`; `70` with `gatsby_parity` | |
+| `gatsby_parity` | `False` | Clone gatsby-plugin-image; see below. |
+| `placeholder` | `"blurred"` | `gatsby_parity` only: `"blurred"` or `None`. |
+| `eager_first` | `2` | `gatsby_parity` only: images per page that load eagerly. |
 | `fallback_width` | `1024` | Which rendition the `<img src>` points at. |
 | `layout_sizes` | `DEFAULT_LAYOUT_SIZES` | Layout name → `sizes`. An unknown layout is a build error listing the known ones. |
 | `default_layout` | `inline` | |
@@ -238,11 +241,46 @@ and the same dimensions keeps the same URL, so a CDN or browser can serve the
 old bytes. Rename the file to bust it. (Regeneration itself is correct —
 derivatives are rebuilt whenever the source is newer.)
 
+### `gatsby_parity=True`: gatsby-plugin-image behaviour
+
+One switch for publications ported from Gatsby. Off (the default) nothing
+above changes. On, as gatsby-plugin-image's `constrained` layout does it:
+
+- **Breakpoints.** The display width is the source's width (capped by
+  `max_width`); renditions are 0.25x, 0.5x, 1x and 2x of it, dropping any wider
+  than the source (`gatsby_widths`). A 2048px source gets 512/1024/2048 with
+  `sizes="(min-width: 2048px) 2048px, 100vw"`. `widths`, `fallback_width` and
+  `layout_sizes` are not used; a per-image `sizes` still wins.
+- **Formats.** AVIF, WebP, then the fallback `<img>`. The fallback is JPEG for
+  an opaque image and PNG only when a pixel is really transparent. (Gatsby's
+  `"auto"` keeps the source format, so it ships photographic PNGs as PNG; that
+  fallback is only fetched by browsers with neither AVIF nor WebP.)
+  Quality 70, progressive JPEG.
+- **Placeholder.** A 20px-wide inline `data:` image (gatsby's `blurred`),
+  faded out when the real image has decoded. `placeholder=None` reserves the
+  box and shows nothing, which is what anth.us's article images do.
+- **Aspect-ratio box.** The default `<figure>` wraps the `<picture>` in
+  `<div class="papyrus-image-frame" style="max-width:Wpx;aspect-ratio:W / H">`.
+  The first image on a page also emits the frame CSS, a `<noscript>` override
+  and `FADE_IN_SCRIPT` (gatsby's fade-in, ported). No JavaScript: images show.
+- **Eager loading.** The first `eager_first` images on each page are
+  `loading="eager" fetchpriority="high"`; the rest use `default_loading`.
+
+With a `wrap` hook, Papyrus emits none of the frame or support block: the hook
+owns the DOM. `ImageWrap.placeholder` carries the data URI, the main `<img>`
+has `data-main-image=""`, and the publication includes `FADE_IN_SCRIPT` once
+per page (it understands `data-gatsby-image-wrapper` too).
+
+`ImageBuilder.start_page()` resets the per-page eager count and support block;
+`render_fragment` calls it before each page.
+
 ### Requirements
 
 Pillow. It is imported lazily, only when a pipeline is configured, so
-publications that have not opted in do not need it. Verified against Pillow
-10.3.0 (webp yes, avif no).
+publications that have not opted in do not need it. WebP works on Pillow 10.3;
+**AVIF needs Pillow >= 11.3**, whose wheels bundle libavif on macOS and Linux
+(`pip install "Pillow>=11.3,<12"`). Configuring `avif` on an older Pillow
+raises `ImagePipelineError`.
 
 ## Citations
 
