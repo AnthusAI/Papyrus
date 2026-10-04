@@ -154,3 +154,22 @@ at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 - Renderer axis: [`docs/pluggable-publishers.md`](pluggable-publishers.md)
 - New publication bootstrap: [`docs/new-publication-from-corpus.md`](new-publication-from-corpus.md)
 - Agent preflight for AWS: `AGENTS.local.md`, `AGENTS.md` (Site hosting pointer)
+
+## Analytics (Google Analytics 4)
+
+The Markus page shell has one optional site-wide setting for analytics,
+`SiteChrome.ga_measurement_id`. Set it in the publication's build code (never
+from article content), typically only for production builds:
+
+```python
+chrome = SiteChrome(
+    site_name="Example",
+    ga_measurement_id="G-ABC123DEF4" if os.environ.get("PRODUCTION") else None,
+)
+```
+
+When set, every page rendered through `render_page` gets Google's standard
+gtag.js snippet in `<head>`, after `head_html` and before the stylesheets. The
+default `None` emits nothing, so existing publications build byte-identically.
+The id is validated against the GA4 pattern (`G-` plus alphanumerics); anything
+else raises `ValueError`. There is no consent or opt-out handling yet.

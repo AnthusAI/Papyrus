@@ -14,8 +14,32 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
+
+_GA_ID_RE = re.compile(r"G-[A-Z0-9]{4,20}")
+
+
+def render_ga4_snippet(measurement_id: str) -> str:
+    """Google's standard gtag.js GA4 snippet (async loader + config call)."""
+    if not isinstance(measurement_id, str) or not _GA_ID_RE.fullmatch(measurement_id):
+        raise ValueError(
+            f"ga_measurement_id must look like 'G-XXXXXXXXXX', got {measurement_id!r}"
+        )
+    # The pattern admits only [A-Z0-9-], so the id is safe in a URL, an HTML
+    # attribute and a JS string literal as-is; escape anyway for defence.
+    safe = html.escape(measurement_id, quote=True)
+    return (
+        f'<script async src="https://www.googletagmanager.com/gtag/js?id={safe}"></script>\n'
+        "<script>\n"
+        "window.dataLayer = window.dataLayer || [];\n"
+        "function gtag(){dataLayer.push(arguments);}\n"
+        "gtag('js', new Date());\n"
+        f"gtag('config', {json.dumps(measurement_id)});\n"
+        "</script>"
+    )
 
 
 @dataclass(frozen=True)
@@ -51,6 +75,12 @@ class SiteChrome:
     ``head_html``
         Raw markup emitted immediately after ``</title>`` -- meta/OG tags,
         preloads, a publication's own font links.
+    ``ga_measurement_id``
+        Optional Google Analytics 4 measurement id (``G-XXXXXXXXXX``). When
+        set, the standard gtag.js snippet is emitted in ``<head>`` on every
+        page, after ``head_html`` and before the stylesheets. ``None`` (the
+        default) emits nothing. Set by publication build code only, never from
+        content; an id that does not match the GA4 pattern raises ``ValueError``.
     ``title_template`` / ``same_title_template``
         ``str.format`` templates over ``{title}`` and ``{site}`` (both already
         HTML-escaped). ``same_title_template`` is used when the page title
@@ -78,6 +108,7 @@ class SiteChrome:
     body_class: str = "markus-body markus-site"
     stylesheets: tuple[str, ...] = ("css/markus-vendor.css", "css/site-theme.css")
     head_html: str = ""
+    ga_measurement_id: str | None = None
     title_template: str = "{title} · {site}"
     same_title_template: str = "{site}"
     asset_root: str | None = None
@@ -258,6 +289,8 @@ def render_page(
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>{title_tag}</title>{chrome.head_html}",
     ]
+    if chrome.ga_measurement_id is not None:
+        head_lines.append(render_ga4_snippet(chrome.ga_measurement_id))
     head_lines.extend(
         f'<link rel="stylesheet" href="{prefix}{sheet}{suffix}">'
         for sheet in chrome.stylesheets
