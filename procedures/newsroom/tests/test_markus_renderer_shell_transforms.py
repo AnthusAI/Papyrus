@@ -117,6 +117,21 @@ class ShellSeamTests(unittest.TestCase):
         self.assertLess(head.index("googletagmanager"), head.index('rel="stylesheet"'))
         self.assertEqual(html.count("googletagmanager"), 1)
 
+    def test_ga_owner_opt_out_matches_production_script(self) -> None:
+        html = _render_depth0(
+            SiteChrome(site_name="Anth.us", ga_measurement_id="G-31SC26SDGX", ga_owner_opt_out=True)
+        )
+        prod = (
+            "<script>(function(){try{var k='anthus-no-analytics',q=location.search.match(/[?&]notrack=(\\w+)/);"
+            "if(q){if(q[1]==='1')localStorage.setItem(k,'1');else localStorage.removeItem(k)}"
+            "if(localStorage.getItem(k)==='1')window['ga-disable-G-31SC26SDGX']=true}catch(e){}})();</script>"
+        )
+        norm = html.replace('"', "'")
+        self.assertIn(prod, norm)
+        self.assertLess(norm.index("notrack"), norm.index("googletagmanager"))
+        self.assertNotIn("notrack", _render_depth0(SiteChrome(site_name="S", ga_measurement_id="G-31SC26SDGX")))
+        self.assertNotIn("notrack", _render_depth0(SiteChrome(site_name="S", ga_owner_opt_out=True)))
+
     def test_ga_invalid_id_raises(self) -> None:
         for bad in ("", "UA-12345-1", "g-abc123def4", "G-ABC'; alert(1)//", 'G-AB"><script>', "G-AB CD"):
             with self.subTest(bad=bad):

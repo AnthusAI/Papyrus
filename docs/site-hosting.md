@@ -172,4 +172,10 @@ When set, every page rendered through `render_page` gets Google's standard
 gtag.js snippet in `<head>`, after `head_html` and before the stylesheets. The
 default `None` emits nothing, so existing publications build byte-identically.
 The id is validated against the GA4 pattern (`G-` plus alphanumerics); anything
-else raises `ValueError`. There is no consent or opt-out handling yet.
+else raises `ValueError`.
+
+`ga_owner_opt_out=True` additionally emits a tiny script before the snippet:
+visit any page with `?notrack=1` once per browser to stop counting that browser
+(localStorage flag `<sitename>-no-analytics`, which sets Google's
+`ga-disable-<ID>`); `?notrack=0` turns counting back on. There is no other
+consent handling.
