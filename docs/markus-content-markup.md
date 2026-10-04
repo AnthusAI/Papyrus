@@ -276,12 +276,16 @@ key, not a schema translation. It is also the interchange format Papyrus's
 newsroom reference machinery already speaks.
 
 Keys are author-chosen and must be unique within the page. `author` and
-`editor` must be **lists**, whose items are plain `"Given Family"` strings
-(`["Hans Gundlach", "Jayson Lynch"]`), CSL name objects (`{family, given}`), or
-`{literal: "OpenAI"}`. A bare string (`author: "Hans Gundlach"`, or one string
-naming several people) is not CSL-JSON and is **ignored**, so the entry prints
-without an author. That is deliberately what the live Anth.us site does
-(citation-js drops it), and Markus matches it rather than guessing.
+`editor` take either:
+
+- a **list** whose items are `"Given Family"` strings, CSL name objects
+  (`{family, given}`), or `{literal: "OpenAI"}`, formatted as APA names
+  (`Gundlach, H., Lynch, J.`), exactly as the live site does; or
+- a **string**, which is split into people on ` and `, ` & ` and `;` (never on
+  commas, so `Smith, J.` is one person) and each is printed as written, as a
+  literal name (`Dan Milmo, Ryan Porter`). This deliberately diverges from the
+  live site, whose citation-js silently drops a string author. Literal names are
+  not inverted or initialised; write a list of names if you want APA inversion.
 
 ### Reference a citation in prose
 

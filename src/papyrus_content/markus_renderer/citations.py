@@ -71,15 +71,24 @@ class CitationError(RuntimeError):
 #: with. Copied verbatim; see ``csl/README.md`` for provenance and license.
 APA_STYLE_PATH = Path(__file__).with_name("csl") / "apa.csl"
 
-#: CSL name variables. ``citation-js`` accepts a *list* of names, each either a
-#: CSL name object or a plain "Given Family" string, and silently discards any
-#: other value, including a bare string such as ``"A. Author and B. Author"``
-#: (the entry then renders without an author). The live site did exactly that,
-#: so this does too.
+#: CSL name variables. A *list* of names (CSL name objects or "Given Family"
+#: strings) is formatted as live does. A bare *string* is deliberately NOT
+#: dropped the way live's citation-js drops it: it is split into people and
+#: each is printed as written (a CSL literal name), see ``_split_people``.
 _NAME_VARIABLES = ("author", "editor")
+
+_PEOPLE_SEPARATOR = re.compile(r"\s+and\s+|\s+&\s+|;", re.IGNORECASE)
+
+
+def _split_people(value: str) -> list[Mapping[str, Any]]:
+    """``"A and B; C"`` -> three literal names. Commas never split."""
+    parts = (part.strip() for part in _PEOPLE_SEPARATOR.split(value))
+    return [{"literal": part} for part in parts if part]
 
 
 def _csl_names(value: Any) -> list[Mapping[str, Any]] | None:
+    if isinstance(value, str):
+        return _split_people(value)
     if not isinstance(value, list):
         return None
     names: list[Mapping[str, Any]] = []
