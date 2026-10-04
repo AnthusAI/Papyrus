@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from papyrus_content.env import PAPYRUS_ROOT
-from papyrus_content.markus_renderer.build import _build_nav_items, _discover_articles, build_markus_site
+from papyrus_content.markus_renderer.build import _build_nav_items, _discover_articles, _discover_section, build_markus_site
 
 
 class MarkusRendererBuildTests(unittest.TestCase):
@@ -25,6 +25,34 @@ class MarkusRendererBuildTests(unittest.TestCase):
                 [item.href for item in nav_items],
                 ["index.html", "articles/alpha.html", "articles/beta.html"],
             )
+
+    def test_uppercase_article_slug_fails_loudly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            articles_dir = Path(tmp) / "articles"
+            articles_dir.mkdir()
+            (articles_dir / "alpha.md").write_text("Fine.", encoding="utf-8")
+            (articles_dir / "Paytronix.md").write_text("Dropped.", encoding="utf-8")
+            with self.assertRaises(RuntimeError) as ctx:
+                _discover_articles(Path(tmp))
+            self.assertIn("Paytronix.md", str(ctx.exception))
+            self.assertIn("lowercase", str(ctx.exception))
+
+    def test_uppercase_section_slug_fails_loudly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            section_dir = Path(tmp) / "notes"
+            section_dir.mkdir()
+            (section_dir / "Big-Note.md").write_text("Dropped.", encoding="utf-8")
+            with self.assertRaises(RuntimeError) as ctx:
+                _discover_section(Path(tmp), "notes")
+            self.assertIn("Big-Note.md", str(ctx.exception))
+
+    def test_lowercase_slugs_and_other_files_still_discovered(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            section_dir = Path(tmp) / "notes"
+            section_dir.mkdir()
+            (section_dir / "a-1.md").write_text("x", encoding="utf-8")
+            (section_dir / "_draft.md").write_text("x", encoding="utf-8")
+            self.assertEqual([s for s, _ in _discover_section(Path(tmp), "notes")], ["a-1"])
 
     def test_markus_build_sample_article_emits_construct_markers(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

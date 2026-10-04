@@ -27,6 +27,25 @@ DEFAULT_SITE_CSS = PAPYRUS_ROOT / "web" / "css" / "site-theme.css"
 _ARTICLE_SLUG = re.compile(r"^([a-z0-9][a-z0-9-]*)\.md$")
 
 
+def _reject_uppercase_slugs(directory: Path) -> None:
+    """Fail the build for ``*.md`` files that only miss the slug rule on case.
+
+    Slugs become URLs, so capitals are not accepted. Skipping such a file
+    silently drops its page while the build still succeeds (PPY-8e6068).
+    """
+    bad = sorted(
+        path.name
+        for path in directory.glob("*.md")
+        if not _ARTICLE_SLUG.match(path.name) and _ARTICLE_SLUG.match(path.name.lower())
+    )
+    if bad:
+        raise RuntimeError(
+            f"Invalid slug in {directory}: {', '.join(bad)}. Slugs must be lowercase "
+            "(letters a-z, digits, hyphens; matching ^[a-z0-9][a-z0-9-]*\\.md$). "
+            "Rename the file(s) to lowercase; capitals are not skipped silently."
+        )
+
+
 @dataclass(frozen=True)
 class BuildResult:
     content_dir: Path
@@ -52,6 +71,7 @@ def _discover_articles(content_dir: Path) -> list[tuple[str, Path]]:
     articles_dir = content_dir / "articles"
     if not articles_dir.is_dir():
         raise RuntimeError(f"Missing articles directory: {articles_dir}")
+    _reject_uppercase_slugs(articles_dir)
     articles: list[tuple[str, Path]] = []
     for path in sorted(articles_dir.glob("*.md")):
         match = _ARTICLE_SLUG.match(path.name)
@@ -72,6 +92,7 @@ def _discover_section(content_dir: Path, section: str) -> list[tuple[str, Path]]
     section_dir = content_dir / section
     if not section_dir.is_dir():
         return []
+    _reject_uppercase_slugs(section_dir)
     found: list[tuple[str, Path]] = []
     for path in sorted(section_dir.glob("*.md")):
         match = _ARTICLE_SLUG.match(path.name)
