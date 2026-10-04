@@ -264,9 +264,13 @@ shape `<Citation data={…}>` already carried, so a codemod is a hoist plus a
 key, not a schema translation. It is also the interchange format Papyrus's
 newsroom reference machinery already speaks.
 
-Keys are author-chosen and must be unique within the page. `author` accepts
-plain strings (`"Hans Gundlach"`), CSL name objects (`{family, given}`), and
-`{literal: "OpenAI"}`.
+Keys are author-chosen and must be unique within the page. `author` and
+`editor` must be **lists**, whose items are plain `"Given Family"` strings
+(`["Hans Gundlach", "Jayson Lynch"]`), CSL name objects (`{family, given}`), or
+`{literal: "OpenAI"}`. A bare string (`author: "Hans Gundlach"`, or one string
+naming several people) is not CSL-JSON and is **ignored**, so the entry prints
+without an author. That is deliberately what the live Anth.us site does
+(citation-js drops it), and Markus matches it rather than guessing.
 
 ### Reference a citation in prose
 
@@ -302,13 +306,44 @@ instead).
 
 ```html
 <ol class="citationslist">
-  <li id="citation-1">Gundlach, H., Lynch, J., Mertens, M., &amp; Thompson, N. (2025, November). The Price of Progress… arXiv. <a href="https://arxiv.org/abs/2511.23455" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2511.23455</a></li>
+  <li id="citation-1">Gundlach, H., Lynch, J., Mertens, M., &amp; Thompson, N. (2025). The Price of Progress… arXiv. https://doi.org/10.48550/arXiv.2511.23455<a href="https://arxiv.org/abs/2511.23455" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2511.23455</a></li>
 </ol>
 ```
 
 Omit `::citations{}` and no list is rendered — the inline markers still get
 numbers, they just link to anchors that are not on the page. That matches what
 the Gatsby site did for the one article with no `<CitationsList>`.
+
+### Formatting
+
+Entries are formatted by [citeproc-py](https://pypi.org/project/citeproc-py/)
+(a runtime dependency; imported only when a bibliography is rendered) driven by
+the **same APA 7 CSL file** the live site's `citation-js` bundles, copied into
+`markus_renderer/csl/apa.csl` with its CC BY-SA 3.0 notice (see
+`csl/README.md`). The output is plain text, as live: citation-js read the
+entry's `textContent`, which dropped the italics. Each entry is formatted on
+its own, as live did, so there is no cross-entry sorting or year suffixing.
+
+Three behaviours of the live pipeline are reproduced on top of citeproc-py
+because it does not do them itself (all in `citations.py`, each with a test):
+
+- **Title case.** citeproc-js splits at `. , - / : ( )` and capitalises each
+  piece, so `Data.gov` renders `Data.Gov` and `X (formerly Twitter)` renders
+  `X (Formerly Twitter)`. citeproc-py leaves both alone.
+- **Substituted macros.** With no author, APA puts the title first;
+  citeproc-py then prints it a second time. A small patch suppresses variables
+  rendered inside `<substitute>`, as the CSL spec says.
+- **Typography.** Straight `'` and `"` become `’` and `“ ”`, a `.`/`,` after a
+  closing quote moves inside it, and no `.` follows `?` or `!`. This covers the
+  quote handling the corpus exercises, not every citeproc-js case.
+
+The list item is `formatted text` with the first occurrence of `URL` cut out,
+followed immediately by `<a href=URL …>URL</a>`. When the text contains a DOI
+URL that differs from `URL`, nothing is cut and the link touches the DOI, as
+live. Verified: all 197 entries across the 25 Anth.us bibliographies are
+identical to the live site's hydrated DOM except one whose source
+`container-title` has a leading space (live keeps a double space that HTML
+collapses; citeproc-py trims it).
 
 ### Numbering rules
 
@@ -322,7 +357,15 @@ This last point is a deliberate **divergence** from
 appended every `<Citation>` to the list. Two entries sharing a title (which
 happens in the Anthus corpus — same paper, two URLs) therefore produced a list
 item nothing linked to and an inline marker pointing at the other one. Keying
-on an explicit key removes the failure mode.
+on an explicit key removes the failure mode. Three Anth.us pages differ from
+live in marker numbers for exactly this reason, and four have fewer list items
+than live (duplicated uses of one source).
+
+A second deliberate divergence: the static HTML live serves (what a crawler or
+a no-JavaScript reader gets) has **every marker numbered `0` and an empty
+`<ol class="citationslist"></ol>`**, because the list is filled by React after
+hydration. Markus renders the final numbered markers and the full list at build
+time. "Matching live" means matching the DOM a browser shows after hydration.
 
 ### CSS contract
 

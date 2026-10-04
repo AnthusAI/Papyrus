@@ -33,20 +33,25 @@ through ``gatsby-citation-manager``:
   with ``<li id="citation-N">`` entries, the formatted text, and the URL
   appended as its own link.
 
-Two behaviours of that package are deliberately **not** reproduced:
+Behaviours of that package that are deliberately **not** reproduced:
 
 1. It numbered by first *title* match but appended every ``<Citation>`` to the
    list, so two entries sharing a title produced a list item nobody linked to
    and an inline marker pointing at the wrong one. Here a citation is
    identified by its **key**, so repeating a key reuses the number and the
    list has exactly one entry per cited work.
-2. It ran ``citation-js`` in the browser. This is a build-time formatter with
-   no runtime JavaScript at all.
+2. Its server-rendered HTML numbers every marker ``0`` and leaves the list
+   empty (React fills both in after hydration). This is a build-time formatter
+   that emits the final numbers and list, with no runtime JavaScript at all.
+
+Bibliography text is produced by citeproc-py with the APA CSL file that
+``citation-js`` bundles; see ``docs/markus-content-markup.md`` ("Formatting").
 """
 
 from __future__ import annotations
 
 import html
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -86,33 +91,156 @@ def _csl_names(value: Any) -> list[Mapping[str, Any]] | None:
     return names
 
 
+# citeproc-js ("title" text-case) splits on these, then capitalises each piece.
+_TITLE_DELIMITERS = re.compile(
+    "(\u2018|\u2019|\u201c|\u201d| \"| '|\"|'|[-\u2013\u2014/.,;?!:]|\\[|\\]|\\(|\\))"
+)
+_WHITESPACE = re.compile(r"([ \u00a0\u2000-\u200b\u205f\u3000]+)")
+#: citeproc-js's English skip-words list (single-word entries only).
+_SKIP_WORDS = frozenset(
+    "about above across afore after against al along alongside amid amidst among "
+    "amongst anenst apropos apud around as aside astride at athwart atop barring "
+    "before behind below beneath beside besides between beyond but by circa despite "
+    "down during et except for forenenst from given in inside into lest like modulo "
+    "near next notwithstanding of off on onto out over per plus pro qua sans since "
+    "than through thru throughout thruout till to toward towards under underneath "
+    "until unto up upon versus vs v via with within without or yet so and nor a an "
+    "the de von van c ca".split()
+)
+
+
+def _title_case(text: str) -> str:
+    """citeproc-js's ``text-case="title"``, which citation-js (live) uses.
+
+    It differs from citeproc-py's version in one way that shows in the corpus:
+    the string is first split at ``. , - / : ( )`` and quotes, and every piece
+    is capitalised on its own, so ``Data.gov`` becomes ``Data.Gov`` and
+    ``X (formerly Twitter)`` becomes ``X (Formerly Twitter)``. A word is only
+    capitalised if it is entirely lower case; skip-words ("of", "the") stay
+    lower case except first, last, or after ``! ? :``.
+    """
+    parts = _TITLE_DELIMITERS.split(text)
+    strings, tags = parts[0::2], parts[1::2]
+    for i, tag in enumerate(tags):
+        # citeproc-js keeps an apostrophe attached to the text after it.
+        if tag == "'" and strings[i + 1]:
+            strings[i + 1] = "'" + strings[i + 1]
+            tags[i] = ""
+    state = {"first": True, "after_punct": False, "last": None}
+
+    def capitalise(index: int, following_tag: str) -> None:
+        if not strings[index].strip():
+            return
+        pieces = _WHITESPACE.split(strings[index])
+        words = range(0, len(pieces), 2)
+        last_word = words[-1]
+        for j in words:
+            word = pieces[j]
+            if not word:
+                continue
+            lower = word.lower()
+            capitalize = (
+                (len(word) > 1 and lower not in _SKIP_WORDS)
+                or (j == last_word and following_tag == "-")
+                or state["first"]
+                or state["after_punct"]
+            )
+            if capitalize and word == lower:
+                pieces[j] = word[0].upper() + word[1:]
+            state.update(first=False, after_punct=False, last=(index, j))
+        strings[index] = "".join(pieces)
+
+    if strings[0].strip():
+        capitalise(0, tags[0] if tags else "")
+    for i, tag in enumerate(tags):
+        if re.search(r"[!?:]$", tag):
+            state["after_punct"] = True
+        capitalise(i + 1, tags[i + 1] if i + 1 < len(tags) else "")
+        if strings[i + 1].strip():
+            state["first"] = state["after_punct"] = False
+    if state["last"] is not None:
+        index, j = state["last"]
+        pieces = _WHITESPACE.split(strings[index])
+        if len(pieces[j]) > 1 and pieces[j].lower() in _SKIP_WORDS:
+            pieces[j] = pieces[j][0].upper() + pieces[j][1:]
+        strings[index] = "".join(pieces)
+    out = [strings[0]]
+    for tag, string in zip(tags, strings[1:]):
+        out += [tag, string]
+    return "".join(out)
+
+
+_URL = re.compile(r"(https?://\S+)")
+
+
+def _typography(text: str) -> str:
+    """The en-US punctuation citeproc-js applies to formatted text.
+
+    Straight apostrophes and double quotes become typographic, a "." or ","
+    after a closing quote moves inside it, and a "." never follows "?" or "!".
+    URLs are left alone. Covers what the corpus uses, not all of citeproc-js's
+    quote handling.
+    """
+
+    def fix(piece: str) -> str:
+        piece = piece.replace("'", "\u2019")
+        piece = re.sub(r'"([^"]*)"', "\u201c\\1\u201d", piece)
+        piece = re.sub(r"\u201d([.,])", "\\1\u201d", piece)
+        return re.sub(r"(?<=[?!])\.(?=\s|$)", "", piece)
+
+    pieces = _URL.split(text)
+    return "".join(p if i % 2 else fix(p) for i, p in enumerate(pieces))
+
+
 @lru_cache(maxsize=None)
 def _patch_citeproc() -> None:
-    """Make ``<substitute><text macro=.../>`` suppress the variables it used.
+    """Make a substituted macro suppress the variables it rendered.
 
     CSL says a variable rendered inside ``<substitute>`` is suppressed in the
     rest of the entry. citeproc-py only records a substituted child's own
-    ``variable`` attribute, so a substituted *macro* suppresses nothing. APA
+    ``variable`` attribute, so a substituted *macro* suppresses nothing. This
+    records the variables that were actually rendered instead. APA
     substitutes its ``title`` macro for a missing author, which made every
     authorless entry print its title twice ("T. (n.d.). T. Site."), where
     citeproc-js (what citation-js uses) prints it once.
     """
-    from citeproc.model import Substitute
+    from citeproc.model import Substitute, Text
 
-    original = Substitute.add_to_repressed_list
+    recording: list[list[tuple[str, str]]] = []
+    original_variable = Text._variable
+    original_render = Substitute.render
 
-    def add_to_repressed_list(self: Any, child: Any, context: Any) -> None:
-        original(self, child, context)
-        macro = child.get("macro")
-        if macro is None:
-            return
-        repressed = context.get_layout().repressed
-        for element in child.get_macro(macro).iter():
-            variable = element.get("variable")
-            if variable is not None:
-                repressed.setdefault(element.tag, []).append(variable)
+    def _variable(self: Any, item: Any, context: Any) -> Any:
+        text = original_variable(self, item, context)
+        if text and recording:
+            recording[-1].append((self.tag, self.get("variable")))
+        return text
 
-    Substitute.add_to_repressed_list = add_to_repressed_list
+    def render(self: Any, item: Any, context: Any = None, **kwargs: Any) -> Any:
+        recording.append([])
+        try:
+            text = original_render(self, item, context=context, **kwargs)
+        finally:
+            used = recording.pop()
+        if text:
+            repressed = context.get_layout().repressed
+            for tag, variable in used:
+                repressed.setdefault(tag, []).append(variable)
+        return text
+
+    Text._variable = _variable
+    Substitute.render = render
+
+    from citeproc.model import TextCased
+
+    original_case = TextCased.case
+
+    def case(self: Any, text: Any, language: Any = None) -> Any:
+        if self.get("text-case") == "title" and language == "en":
+            return _title_case(str(text))
+        return original_case(self, text, language)
+
+    TextCased.case = case
 
 
 @lru_cache(maxsize=None)
@@ -135,7 +263,13 @@ def _format_csl(entry: Mapping[str, Any], style_path: Path) -> str:
     from citeproc import Citation, CitationItem, CitationStylesBibliography, formatter
     from citeproc.source.json import CiteProcJSON
 
-    item = {k: v for k, v in entry.items() if k not in ("id", "keywords")}
+    # citeproc-py wants strings for number-like fields; YAML parses ``volume: 162``
+    # as an int.
+    item = {
+        k: str(v) if isinstance(v, int) and not isinstance(v, bool) else v
+        for k, v in entry.items()
+        if k not in ("id", "keywords")
+    }
     for name_variable in _NAME_VARIABLES:
         names = _csl_names(item.pop(name_variable, None))
         if names:
@@ -145,7 +279,8 @@ def _format_csl(entry: Mapping[str, Any], style_path: Path) -> str:
         _style(str(style_path)), CiteProcJSON([item]), formatter.plain
     )
     bibliography.register(Citation([CitationItem("entry")]))
-    return "".join(str(rendered) for rendered in bibliography.bibliography()).strip()
+    text = "".join(str(rendered) for rendered in bibliography.bibliography())
+    return _typography(text)
 
 
 def format_apa(entry: Mapping[str, Any]) -> str:
@@ -235,15 +370,18 @@ class CitationCollector:
             text = formatter(entry)
             url = str(entry.get("URL") or entry.get("url") or "").strip()
             if url:
-                # Parity with gatsby-citation-manager: the URL is stripped out
-                # of the formatted text and re-attached as its own link.
-                text = text.replace(url, "").strip()
-            body = html.escape(text)
+                # Parity with gatsby-citation-manager, byte for byte: the first
+                # occurrence of the URL is cut out of the formatted text (which
+                # leaves any space before it) and the URL is appended as its
+                # own link with nothing in between.
+                text = text.replace(url, "", 1)
+            body = html.escape(text, quote=False)
             if url:
                 safe = html.escape(url, quote=True)
-                body = (
-                    f"{body} " if body else ""
-                ) + f'<a href="{safe}" target="_blank" rel="noopener noreferrer">{html.escape(url)}</a>'
+                body += (
+                    f'<a href="{safe}" target="_blank" '
+                    f'rel="noopener noreferrer">{html.escape(url, quote=False)}</a>'
+                )
             anchor = html.escape(f"{self.config.anchor_prefix}{index}", quote=True)
             items.append(f'<li id="{anchor}">{body}</li>')
         klass = html.escape(self.config.list_class, quote=True)
