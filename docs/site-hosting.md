@@ -122,6 +122,24 @@ pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
 
 See the static template for the full `amplify.yml`.
 
+### Real 404s for missing pages
+
+Redirects and the not-found page are **Amplify app config** (`customRules`),
+not part of `amplify.yml`. Measured on Amplify `WEB` apps (PPY-fdb5e9):
+
+| `customRules` catch-all `/<*>` -> `/404.html` | Missing page |
+|---|---|
+| none | HTTP 404 with an **empty body** (Amplify does not serve `404.html` by itself) |
+| status `404` | **302 -> `/404.html` (200)**: dead URLs look alive to crawlers. Do not use. |
+| status `404-200` | **HTTP 404 with the `404.html` body at the requested URL.** Use this. |
+
+Despite the name, `404-200` is the only setting that gives a true 404 with the
+custom page. Keep the catch-all **last**, after any 301 rules. The build must
+emit `404.html` at the artifact root. A missing path without a trailing slash,
+or ending in `.html`, first gets Amplify's own 301 to the directory-style URL,
+then the 404. Verify with a random missing path (expect 404 and the custom
+body), for example Anth.us-Papyrus `bin/check-404.py <base-url>`.
+
 ## SSR Pretext path (amplify-ssr)
 
 Papyrus itself: Next.js + Amplify Gen 2 backend (`ampx pipeline-deploy`),
