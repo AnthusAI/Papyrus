@@ -33,15 +33,19 @@ through ``gatsby-citation-manager``:
   with ``<li id="citation-N">`` entries, the formatted text, and the URL
   appended as its own link.
 
-Two behaviours of that package are deliberately **not** reproduced:
+Behaviours of that package that are deliberately **not** reproduced:
 
 1. It numbered by first *title* match but appended every ``<Citation>`` to the
    list, so two entries sharing a title produced a list item nobody linked to
    and an inline marker pointing at the wrong one. Here a citation is
    identified by its **key**, so repeating a key reuses the number and the
    list has exactly one entry per cited work.
-2. It ran ``citation-js`` in the browser. This is a build-time formatter with
-   no runtime JavaScript at all.
+2. Its server-rendered HTML numbers every marker ``0`` and leaves the list
+   empty (React fills both in after hydration). This is a build-time formatter
+   that emits the final numbers and list, with no runtime JavaScript at all.
+
+Bibliography text is produced by citeproc-py with the APA CSL file that
+``citation-js`` bundles; see ``docs/markus-content-markup.md`` ("Formatting").
 """
 
 from __future__ import annotations
@@ -49,190 +53,243 @@ from __future__ import annotations
 import html
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Sequence
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Callable, Mapping
 
 CitationFormatter = Callable[[Mapping[str, Any]], str]
-
-_MONTHS = (
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-)
 
 
 class CitationError(RuntimeError):
     """Raised for an unknown citation key or an unsupported format."""
 
 
-# -- name and date helpers -------------------------------------------------
+# -- CSL formatting --------------------------------------------------------
+
+#: The exact style file ``citation-js`` (``@citation-js/plugin-csl`` 0.7.14)
+#: bundles as its ``apa`` template, i.e. what the live Gatsby site formats
+#: with. Copied verbatim; see ``csl/README.md`` for provenance and license.
+APA_STYLE_PATH = Path(__file__).with_name("csl") / "apa.csl"
+
+#: CSL name variables. ``citation-js`` accepts a *list* of names, each either a
+#: CSL name object or a plain "Given Family" string, and silently discards any
+#: other value, including a bare string such as ``"A. Author and B. Author"``
+#: (the entry then renders without an author). The live site did exactly that,
+#: so this does too.
+_NAME_VARIABLES = ("author", "editor")
 
 
-def _initials(given: str) -> str:
-    bits = [part for part in re.split(r"[\s.]+", given.strip()) if part]
-    return " ".join(f"{part[0].upper()}." for part in bits)
+def _csl_names(value: Any) -> list[Mapping[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    names: list[Mapping[str, Any]] = []
+    for name in value:
+        if isinstance(name, str):
+            given, _, family = name.strip().rpartition(" ")
+            name = {"given": given, "family": family} if given else {"family": family}
+        names.append(name)
+    return names
 
 
-def _one_name(value: Any) -> str:
-    """APA-style inverted name from a CSL name, a dict, or a plain string."""
-    if isinstance(value, Mapping):
-        if value.get("literal"):
-            return str(value["literal"]).strip()
-        family = str(value.get("family") or "").strip()
-        given = str(value.get("given") or "").strip()
-        if family and given:
-            return f"{family}, {_initials(given)}"
-        return family or given
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    if "," in text:
-        # Already inverted ("Gundlach, Hans").
-        family, _, given = text.partition(",")
-        return f"{family.strip()}, {_initials(given)}" if given.strip() else family.strip()
-    parts = text.split()
-    if len(parts) == 1:
-        return parts[0]
-    return f"{parts[-1]}, {_initials(' '.join(parts[:-1]))}"
-
-
-def _name_list(values: Any) -> str:
-    if not values:
-        return ""
-    if isinstance(values, (str, Mapping)):
-        values = [values]
-    names = [name for name in (_one_name(v) for v in values) if name]
-    if not names:
-        return ""
-    if len(names) == 1:
-        return names[0]
-    if len(names) == 2:
-        return f"{names[0]}, & {names[1]}"
-    if len(names) <= 20:
-        return ", ".join(names[:-1]) + f", & {names[-1]}"
-    return ", ".join(names[:19]) + ", ... " + names[-1]
-
-
-def _date_parts(value: Any) -> list[int]:
-    if not isinstance(value, Mapping):
-        return []
-    raw = value.get("date-parts")
-    if not isinstance(raw, Sequence) or not raw:
-        return []
-    first = raw[0]
-    if not isinstance(first, Sequence):
-        return []
-    out: list[int] = []
-    for item in first:
-        try:
-            out.append(int(item))
-        except (TypeError, ValueError):
-            break
-    return out
-
-
-def _issued_text(entry: Mapping[str, Any]) -> str:
-    parts = _date_parts(entry.get("issued"))
-    if not parts:
-        return "n.d."
-    if len(parts) == 1:
-        return str(parts[0])
-    month = _MONTHS[parts[1] - 1] if 1 <= parts[1] <= 12 else ""
-    if len(parts) == 2 or not month:
-        return f"{parts[0]}, {month}".rstrip(", ")
-    return f"{parts[0]}, {month} {parts[2]}"
-
-
-def _accessed_text(entry: Mapping[str, Any]) -> str:
-    parts = _date_parts(entry.get("accessed"))
-    if len(parts) < 3:
-        return ""
-    month = _MONTHS[parts[1] - 1] if 1 <= parts[1] <= 12 else ""
-    if not month:
-        return ""
-    return f"Retrieved {month} {parts[2]}, {parts[0]}"
-
-
-def _sentence(value: str) -> str:
-    value = value.strip()
-    if not value:
-        return ""
-    return value if value.endswith((".", "!", "?")) else value + "."
-
-
-# -- APA formatter ---------------------------------------------------------
-
-#: Types whose container is a periodical, which APA renders before any
-#: publisher and which take volume/issue/page detail.
-_PERIODICAL_TYPES = frozenset(
-    {"article-journal", "article-newspaper", "article-magazine", "article", "post-weblog"}
+# citeproc-js ("title" text-case) splits on these, then capitalises each piece.
+_TITLE_DELIMITERS = re.compile(
+    "(\u2018|\u2019|\u201c|\u201d| \"| '|\"|'|[-\u2013\u2014/.,;?!:]|\\[|\\]|\\(|\\))"
+)
+_WHITESPACE = re.compile(r"([ \u00a0\u2000-\u200b\u205f\u3000]+)")
+#: citeproc-js's English skip-words list (single-word entries only).
+_SKIP_WORDS = frozenset(
+    "about above across afore after against al along alongside amid amidst among "
+    "amongst anenst apropos apud around as aside astride at athwart atop barring "
+    "before behind below beneath beside besides between beyond but by circa despite "
+    "down during et except for forenenst from given in inside into lest like modulo "
+    "near next notwithstanding of off on onto out over per plus pro qua sans since "
+    "than through thru throughout thruout till to toward towards under underneath "
+    "until unto up upon versus vs v via with within without or yet so and nor a an "
+    "the de von van c ca".split()
 )
 
 
-def format_apa(entry: Mapping[str, Any]) -> str:
-    """APA-7-shaped plain text for one CSL-JSON entry.
+def _title_case(text: str) -> str:
+    """citeproc-js's ``text-case="title"``, which citation-js (live) uses.
 
-    This is a deliberate, dependency-free approximation of what ``citation-js``
-    plus ``@citation-js/plugin-csl`` produced for the corpus being ported, not a
-    CSL processor. It covers the ten CSL ``type`` values and the seventeen
-    fields that actually occur in that corpus. Output is plain text because the
-    Gatsby component it replaces also rendered plain text (it read
-    ``.csl-entry`` ``textContent``, which discarded citeproc's ``<i>`` tags).
+    It differs from citeproc-py's version in one way that shows in the corpus:
+    the string is first split at ``. , - / : ( )`` and quotes, and every piece
+    is capitalised on its own, so ``Data.gov`` becomes ``Data.Gov`` and
+    ``X (formerly Twitter)`` becomes ``X (Formerly Twitter)``. A word is only
+    capitalised if it is entirely lower case; skip-words ("of", "the") stay
+    lower case except first, last, or after ``! ? :``.
     """
-    authors = _name_list(entry.get("author"))
-    editors = _name_list(entry.get("editor"))
-    title = str(entry.get("title") or "").strip()
-    container = str(entry.get("container-title") or "").strip()
-    publisher = str(entry.get("publisher") or "").strip()
-    kind = str(entry.get("type") or "").strip()
-    issued = _issued_text(entry)
+    parts = _TITLE_DELIMITERS.split(text)
+    strings, tags = parts[0::2], parts[1::2]
+    for i, tag in enumerate(tags):
+        # citeproc-js keeps an apostrophe attached to the text after it.
+        if tag == "'" and strings[i + 1]:
+            strings[i + 1] = "'" + strings[i + 1]
+            tags[i] = ""
+    state = {"first": True, "after_punct": False, "last": None}
 
-    chunks: list[str] = []
-    if authors:
-        chunks.append(_sentence(authors))
-        chunks.append(f"({issued}).")
-        if title:
-            chunks.append(_sentence(title))
-    else:
-        if title:
-            chunks.append(_sentence(title))
-        chunks.append(f"({issued}).")
+    def capitalise(index: int, following_tag: str) -> None:
+        if not strings[index].strip():
+            return
+        pieces = _WHITESPACE.split(strings[index])
+        words = range(0, len(pieces), 2)
+        last_word = words[-1]
+        for j in words:
+            word = pieces[j]
+            if not word:
+                continue
+            lower = word.lower()
+            capitalize = (
+                (len(word) > 1 and lower not in _SKIP_WORDS)
+                or (j == last_word and following_tag == "-")
+                or state["first"]
+                or state["after_punct"]
+            )
+            if capitalize and word == lower:
+                pieces[j] = word[0].upper() + word[1:]
+            state.update(first=False, after_punct=False, last=(index, j))
+        strings[index] = "".join(pieces)
 
-    if container:
-        detail = container
-        if kind in _PERIODICAL_TYPES:
-            volume = str(entry.get("volume") or "").strip()
-            issue = str(entry.get("issue") or "").strip()
-            page = str(entry.get("page") or "").strip()
-            if volume:
-                detail += f", {volume}"
-                if issue:
-                    detail += f"({issue})"
-            if page:
-                detail += f", {page}"
-        chunks.append(_sentence(detail))
-    if editors and kind == "chapter":
-        chunks.append(_sentence(f"In {editors} (Ed.)"))
-    if publisher and publisher != container:
-        chunks.append(_sentence(publisher))
+    if strings[0].strip():
+        capitalise(0, tags[0] if tags else "")
+    for i, tag in enumerate(tags):
+        if re.search(r"[!?:]$", tag):
+            state["after_punct"] = True
+        capitalise(i + 1, tags[i + 1] if i + 1 < len(tags) else "")
+        if strings[i + 1].strip():
+            state["first"] = state["after_punct"] = False
+    if state["last"] is not None:
+        index, j = state["last"]
+        pieces = _WHITESPACE.split(strings[index])
+        if len(pieces[j]) > 1 and pieces[j].lower() in _SKIP_WORDS:
+            pieces[j] = pieces[j][0].upper() + pieces[j][1:]
+        strings[index] = "".join(pieces)
+    out = [strings[0]]
+    for tag, string in zip(tags, strings[1:]):
+        out += [tag, string]
+    return "".join(out)
 
-    doi = str(entry.get("DOI") or entry.get("doi") or "").strip()
-    if doi and not entry.get("URL"):
-        chunks.append(f"https://doi.org/{doi.removeprefix('https://doi.org/')}")
 
-    accessed = _accessed_text(entry)
-    if accessed and not entry.get("issued"):
-        chunks.append(_sentence(accessed))
+_URL = re.compile(r"(https?://\S+)")
 
-    return " ".join(chunk for chunk in chunks if chunk).strip()
+
+def _typography(text: str) -> str:
+    """The en-US punctuation citeproc-js applies to formatted text.
+
+    Straight apostrophes and double quotes become typographic, a "." or ","
+    after a closing quote moves inside it, and a "." never follows "?" or "!".
+    URLs are left alone. Covers what the corpus uses, not all of citeproc-js's
+    quote handling.
+    """
+
+    def fix(piece: str) -> str:
+        piece = piece.replace("'", "\u2019")
+        piece = re.sub(r'"([^"]*)"', "\u201c\\1\u201d", piece)
+        piece = re.sub(r"\u201d([.,])", "\\1\u201d", piece)
+        return re.sub(r"(?<=[?!])\.(?=\s|$)", "", piece)
+
+    pieces = _URL.split(text)
+    return "".join(p if i % 2 else fix(p) for i, p in enumerate(pieces))
+
+
+@lru_cache(maxsize=None)
+def _patch_citeproc() -> None:
+    """Make a substituted macro suppress the variables it rendered.
+
+    CSL says a variable rendered inside ``<substitute>`` is suppressed in the
+    rest of the entry. citeproc-py only records a substituted child's own
+    ``variable`` attribute, so a substituted *macro* suppresses nothing. This
+    records the variables that were actually rendered instead. APA
+    substitutes its ``title`` macro for a missing author, which made every
+    authorless entry print its title twice ("T. (n.d.). T. Site."), where
+    citeproc-js (what citation-js uses) prints it once.
+    """
+    from citeproc.model import Substitute, Text
+
+    recording: list[list[tuple[str, str]]] = []
+    original_variable = Text._variable
+    original_render = Substitute.render
+
+    def _variable(self: Any, item: Any, context: Any) -> Any:
+        text = original_variable(self, item, context)
+        if text and recording:
+            recording[-1].append((self.tag, self.get("variable")))
+        return text
+
+    def render(self: Any, item: Any, context: Any = None, **kwargs: Any) -> Any:
+        recording.append([])
+        try:
+            text = original_render(self, item, context=context, **kwargs)
+        finally:
+            used = recording.pop()
+        if text:
+            repressed = context.get_layout().repressed
+            for tag, variable in used:
+                repressed.setdefault(tag, []).append(variable)
+        return text
+
+    Text._variable = _variable
+    Substitute.render = render
+
+    from citeproc.model import TextCased
+
+    original_case = TextCased.case
+
+    def case(self: Any, text: Any, language: Any = None) -> Any:
+        if self.get("text-case") == "title" and language == "en":
+            return _title_case(str(text))
+        return original_case(self, text, language)
+
+    TextCased.case = case
+
+
+@lru_cache(maxsize=None)
+def _style(path: str) -> Any:
+    from citeproc import CitationStylesStyle
+
+    _patch_citeproc()
+    return CitationStylesStyle(path, validate=False)
+
+
+def _format_csl(entry: Mapping[str, Any], style_path: Path) -> str:
+    """One bibliography entry as plain text, formatted by citeproc.
+
+    Each entry is formatted on its own, exactly as ``CitationsList`` did with
+    one ``new Cite(entry)`` per list item, so cross-entry behaviour (sorting,
+    year suffixes, "et al." disambiguation) never applies.
+    """
+    # Imported here so a publication that never formats a citation (Pilobol.us)
+    # does not need citeproc-py installed just to import the renderer.
+    from citeproc import Citation, CitationItem, CitationStylesBibliography, formatter
+    from citeproc.source.json import CiteProcJSON
+
+    # citeproc-py wants strings for number-like fields; YAML parses ``volume: 162``
+    # as an int.
+    item = {
+        k: str(v) if isinstance(v, int) and not isinstance(v, bool) else v
+        for k, v in entry.items()
+        if k not in ("id", "keywords")
+    }
+    for name_variable in _NAME_VARIABLES:
+        names = _csl_names(item.pop(name_variable, None))
+        if names:
+            item[name_variable] = names
+    item["id"] = "entry"
+    bibliography = CitationStylesBibliography(
+        _style(str(style_path)), CiteProcJSON([item]), formatter.plain
+    )
+    bibliography.register(Citation([CitationItem("entry")]))
+    text = "".join(str(rendered) for rendered in bibliography.bibliography())
+    return _typography(text)
+
+
+def format_apa(entry: Mapping[str, Any]) -> str:
+    """APA 7 plain text for one CSL-JSON entry, via citeproc and the CSL style.
+
+    Output is plain text because the Gatsby component this replaces read
+    ``.csl-entry`` ``textContent``, which discarded citeproc's ``<i>`` tags.
+    """
+    return _format_csl(entry, APA_STYLE_PATH)
 
 
 FORMATTERS: dict[str, CitationFormatter] = {"apa": format_apa}
@@ -313,15 +370,18 @@ class CitationCollector:
             text = formatter(entry)
             url = str(entry.get("URL") or entry.get("url") or "").strip()
             if url:
-                # Parity with gatsby-citation-manager: the URL is stripped out
-                # of the formatted text and re-attached as its own link.
-                text = text.replace(url, "").strip()
-            body = html.escape(text)
+                # Parity with gatsby-citation-manager, byte for byte: the first
+                # occurrence of the URL is cut out of the formatted text (which
+                # leaves any space before it) and the URL is appended as its
+                # own link with nothing in between.
+                text = text.replace(url, "", 1)
+            body = html.escape(text, quote=False)
             if url:
                 safe = html.escape(url, quote=True)
-                body = (
-                    f"{body} " if body else ""
-                ) + f'<a href="{safe}" target="_blank" rel="noopener noreferrer">{html.escape(url)}</a>'
+                body += (
+                    f'<a href="{safe}" target="_blank" '
+                    f'rel="noopener noreferrer">{html.escape(url, quote=False)}</a>'
+                )
             anchor = html.escape(f"{self.config.anchor_prefix}{index}", quote=True)
             items.append(f'<li id="{anchor}">{body}</li>')
         klass = html.escape(self.config.list_class, quote=True)

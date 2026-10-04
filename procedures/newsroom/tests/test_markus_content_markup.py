@@ -241,16 +241,37 @@ class CitationNumberingTests(unittest.TestCase):
 
 
 class ApaFormattingTests(unittest.TestCase):
-    def test_string_author_list_is_inverted_with_initials(self) -> None:
+    """Expected strings follow what the live anth.us site rendered.
+
+    Each shape here occurs in the Anth.us corpus, where the output was checked
+    against the hydrated DOM of the live site (citation-js with its bundled APA
+    CSL style) for all 197 entries; it is not just whatever this code prints.
+    """
+
+    def test_author_list_of_strings_is_inverted_with_initials(self) -> None:
         text = format_apa(CSL_JOURNAL)
-        self.assertTrue(
-            text.startswith(
-                "Gundlach, H., Lynch, J., Mertens, M., & Thompson, N. (2025, November)."
-            ),
+        self.assertEqual(
             text,
+            "Gundlach, H., Lynch, J., Mertens, M., & Thompson, N. (2025). "
+            "The Price of Progress: Price Performance and the Future of AI. arXiv. "
+            "https://doi.org/10.48550/arXiv.2511.23455",
         )
 
-    def test_structured_author_names_are_supported(self) -> None:
+    def test_one_author_string_listing_several_people_is_ignored_like_live(self) -> None:
+        # citation-js drops an author that is not a list, so live printed the
+        # entry without any author. Matching that is the point of this module.
+        text = format_apa(
+            {
+                "type": "webpage",
+                "title": "Wake Words",
+                "author": "Sam McVeety and Amir Hormati",
+                "container-title": "Google Cloud",
+                "issued": {"date-parts": [[2023, 9, 2]]},
+            }
+        )
+        self.assertEqual(text, "Wake Words. (2023, September 2). Google Cloud.")
+
+    def test_structured_and_literal_authors(self) -> None:
         text = format_apa(
             {
                 "type": "book",
@@ -260,40 +281,98 @@ class ApaFormattingTests(unittest.TestCase):
                 "issued": {"date-parts": [[1979]]},
             }
         )
-        self.assertIn("Hofstadter, D. R. (1979). A Book. Basic Books.", text)
-
-    def test_literal_author_is_passed_through(self) -> None:
-        text = format_apa(
-            {"type": "report", "title": "T", "author": [{"literal": "OpenAI"}]}
+        self.assertEqual(text, "Hofstadter, D. R. (1979). A Book. Basic Books.")
+        literal = format_apa(
+            {"type": "report", "title": "T", "author": [{"literal": "Anthus AI"}]}
         )
-        self.assertTrue(text.startswith("OpenAI. (n.d.). T."), text)
+        self.assertEqual(literal, "Anthus AI. (n.d.). T.")
 
-    def test_authorless_entry_leads_with_the_title_and_n_d(self) -> None:
-        text = format_apa(CSL_WEBPAGE)
-        self.assertTrue(
-            text.startswith("Run long horizon tasks with Codex. (n.d.)."), text
+    def test_authorless_webpage_prints_its_title_once_and_the_retrieval_date(self) -> None:
+        self.assertEqual(
+            format_apa(CSL_WEBPAGE),
+            "Run long horizon tasks with Codex. (n.d.). OpenAI Developers. "
+            "Retrieved August 16, 2026, from "
+            "https://developers.openai.com/blog/run-long-horizon-tasks-with-codex",
         )
 
     def test_journal_volume_issue_and_pages(self) -> None:
         text = format_apa(
             {
                 "type": "article-journal",
-                "title": "T",
-                "container-title": "Nature",
-                "volume": "521",
-                "issue": "7553",
-                "page": "436-444",
-                "issued": {"date-parts": [[2015, 5, 28]]},
-                "author": [{"family": "LeCun", "given": "Yann"}],
+                "title": "The Tragedy of the Commons",
+                "container-title": "Science",
+                "volume": 162,  # YAML hands over an int
+                "issue": 3859,
+                "page": "1243-1248",
+                "issued": {"date-parts": [[1968]]},
             }
         )
-        self.assertIn("(2015, May 28)", text)
-        self.assertIn("Nature, 521(7553), 436-444.", text)
+        self.assertEqual(
+            text, "The Tragedy of the Commons. (1968). Science, 162(3859), 1243\u20131248."
+        )
+
+    def test_container_title_is_title_cased_like_citeproc_js(self) -> None:
+        def container(name: str) -> str:
+            return format_apa(
+                {"type": "webpage", "title": "T", "container-title": name,
+                 "issued": {"date-parts": [[2023]]}}
+            )
+
+        self.assertEqual(container("Data.gov"), "T. (2023). Data.Gov.")
+        self.assertEqual(container("X (formerly Twitter)"), "T. (2023). X (Formerly Twitter).")
+        self.assertEqual(
+            container("GitHub \u2014 anthropics/claude-plugins-official"),
+            "T. (2023). GitHub \u2014 Anthropics/Claude-Plugins-Official.",
+        )
+        self.assertEqual(container("the end of days"), "T. (2023). The End of Days.")
+
+    def test_typographic_quotes_and_terminal_punctuation(self) -> None:
+        def titled(title: str) -> str:
+            return format_apa(
+                {"type": "webpage", "title": title, "container-title": "Site",
+                 "issued": {"date-parts": [[2025, 7, 14]]}}
+            )
+
+        self.assertEqual(
+            titled("Salesforce's AI"), "Salesforce\u2019s AI. (2025, July 14). Site."
+        )
+        self.assertEqual(
+            titled('Ralph as a "software engineer"'),
+            "Ralph as a \u201csoftware engineer.\u201d (2025, July 14). Site.",
+        )
+        self.assertEqual(titled("Is it?"), "Is it? (2025, July 14). Site.")
+        self.assertEqual(titled("Now!"), "Now! (2025, July 14). Site.")
 
     def test_doi_becomes_a_resolver_url_when_there_is_no_url(self) -> None:
         entry = dict(CSL_JOURNAL)
         entry.pop("URL")
-        self.assertIn("https://doi.org/10.48550/arXiv.2511.23455", format_apa(entry))
+        self.assertTrue(
+            format_apa(entry).endswith("https://doi.org/10.48550/arXiv.2511.23455")
+        )
+
+    def test_the_url_is_cut_out_and_linked_with_live_whitespace(self) -> None:
+        # Live: the URL is removed from the text (leaving the space before it)
+        # and the link follows with nothing between. With a DOI and a different
+        # URL the text is not changed, so the link touches the DOI.
+        webpage = CitationCollector({"w": CSL_WEBPAGE}, CitationRendering())
+        webpage.marker_html("w")
+        self.assertIn(
+            "Retrieved August 16, 2026, from "
+            '<a href="https://developers.openai.com/blog/run-long-horizon-tasks-with-codex" ',
+            webpage.list_html(),
+        )
+        journal = CitationCollector({"j": CSL_JOURNAL}, CitationRendering())
+        journal.marker_html("j")
+        self.assertIn(
+            "arXiv.2511.23455<a href=\"https://arxiv.org/abs/2511.23455\"", journal.list_html()
+        )
+
+    def test_apostrophes_are_not_escaped_in_the_list(self) -> None:
+        collector = CitationCollector(
+            {"x": {"type": "webpage", "title": "Salesforce's AI & more"}}, CitationRendering()
+        )
+        collector.marker_html("x")
+        self.assertIn("Salesforce\u2019s AI &amp; more", collector.list_html())
 
 
 class AssetSrcSafetyTests(unittest.TestCase):
@@ -543,7 +622,7 @@ Claim one [@j] and claim two [@w] and claim three [@j].
         self.assertEqual(fragment.count('href="#citation-1"'), 2)
         self.assertIn('<ol class="citationslist">', fragment)
         self.assertIn('<li id="citation-1">', fragment)
-        self.assertIn("Gundlach, H. (2025, November).", fragment)
+        self.assertIn("Gundlach, H. (2025).", fragment)
         # The bibliography replaced the sentinel paragraph, not nested in one.
         self.assertNotIn('<p><ol class="citationslist">', fragment)
         # Images: directive figure plus an upgraded plain Markdown image.
