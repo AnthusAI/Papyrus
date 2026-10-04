@@ -143,6 +143,8 @@ def render_fragment(
             fragment = convert_fragment(
                 staged, theme=theme, markus_executable=markus_executable
             )
+    if image_builder is not None:
+        image_builder.start_page()
     resolved = resolve_fragment(
         fragment,
         page,

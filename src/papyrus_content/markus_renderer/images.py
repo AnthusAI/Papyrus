@@ -31,7 +31,9 @@ Design constraints this module respects
 
 from __future__ import annotations
 
+import base64
 import html
+import io
 import re
 import shutil
 from dataclasses import dataclass, field, replace
@@ -78,6 +80,85 @@ DEFAULT_LAYOUT_SIZES: Mapping[str, str] = {
 }
 
 DEFAULT_LAYOUT = "inline"
+
+#: gatsby-plugin-image's default ``outputPixelDensities``.
+GATSBY_DENSITIES: tuple[float, ...] = (0.25, 0.5, 1, 2)
+#: gatsby-plugin-sharp's ``DEFAULT_BLURRED_IMAGE_WIDTH``.
+GATSBY_PLACEHOLDER_WIDTH = 20
+#: gatsby-plugin-sharp's configured quality in anth.us (``defaults.quality``).
+GATSBY_QUALITY = 70
+LEGACY_QUALITY = 82
+LEGACY_FORMATS: tuple[str, ...] = ("webp",)
+GATSBY_FORMATS: tuple[str, ...] = ("avif", "webp")
+
+#: gatsby-plugin-image's browser-side fade-in, ported. Reveals each
+#: ``img[data-main-image]`` once decoded and fades the placeholder out. It
+#: handles images that finished loading before it ran, so it can sit anywhere
+#: in the page. Publications whose ``wrap`` hook emits its own DOM include this
+#: once per page (it understands both ``data-papyrus-image-frame`` and
+#: gatsby's ``data-gatsby-image-wrapper``).
+FADE_IN_SCRIPT = (
+    '(function(){var S="[data-papyrus-image-frame],[data-gatsby-image-wrapper]";'
+    "function show(i){var f=i.closest(S),p=f&&f.querySelector(\"[data-placeholder-image]\"),"
+    "n=new Image();n.src=i.currentSrc||i.src;"
+    "(n.decode?n.decode():Promise.resolve()).catch(function(){}).then(function(){"
+    'i.style.opacity=1;if(p){p.style.opacity=0;p.style.transition="opacity 500ms linear"}})}'
+    'document.addEventListener("load",function(e){var t=e.target;'
+    'if(t.tagName==="IMG"&&t.hasAttribute("data-main-image"))show(t)},true);'
+    'document.querySelectorAll("img[data-main-image]").forEach(function(i){'
+    "if(i.complete&&i.naturalWidth)show(i)})})();"
+)
+
+#: Rules the default figure's frame needs (emitted once per page). The
+#: ``<noscript>`` override keeps images visible without JavaScript.
+DEFAULT_FRAME_CSS = (
+    ".papyrus-image-frame{position:relative;overflow:hidden;width:100%}"
+    ".papyrus-image-frame img{position:absolute;top:0;left:0;width:100%;height:100%;"
+    "margin:0;max-width:none;object-fit:cover}"
+    ".papyrus-image-frame [data-main-image]{opacity:0;transition:opacity .25s linear}"
+)
+DEFAULT_FRAME_NOSCRIPT_CSS = (
+    ".papyrus-image-frame [data-main-image]{opacity:1!important}"
+    ".papyrus-image-frame [data-placeholder-image]{opacity:0!important}"
+)
+
+
+def gatsby_sizes(width: int) -> str:
+    """gatsby-plugin-image's ``sizes`` for a constrained layout."""
+    return f"(min-width: {width}px) {width}px, 100vw"
+
+
+def gatsby_widths(
+    intrinsic_width: int,
+    *,
+    display_width: int | None = None,
+    max_width: int | None = None,
+    densities: Iterable[float] = GATSBY_DENSITIES,
+) -> tuple[list[int], int]:
+    """Rendition widths for gatsby's ``constrained`` layout.
+
+    Returns ``(widths, display_width)``. The display width defaults to the
+    source's intrinsic width (what ``gatsbyImageData`` does with no ``width``
+    argument, which is how anth.us calls it), is capped at the intrinsic width
+    (and at ``max_width`` when given), and is always one of the widths. The
+    others are the display width at each density, dropping any wider than the
+    source -- so a source displayed at its own width gets 0.25x, 0.5x and 1x.
+    """
+    ceiling = intrinsic_width if max_width is None else min(intrinsic_width, max_width)
+    display = min(display_width or ceiling, ceiling)
+    widths = {round(display * density) for density in densities}
+    widths = {w for w in widths if 1 <= w <= ceiling}
+    widths.add(display)
+    return sorted(widths), display
+
+
+def image_has_alpha(image) -> bool:
+    """True only when some pixel is actually not opaque (sharp's ``isOpaque``)."""
+    if image.mode in {"RGB", "L", "CMYK", "YCbCr", "I", "I;16", "F", "1"}:
+        return False
+    rgba = image if image.mode in {"RGBA", "LA"} else image.convert("RGBA")
+    low, _high = rgba.getchannel("A").getextrema()
+    return low < 255
 
 
 class ImagePipelineError(RuntimeError):
@@ -126,6 +207,9 @@ class ImageWrap:
     inner: str
     width: int | None
     height: int | None
+    #: ``data:`` URI of the tiny blurred placeholder (``gatsby_parity`` with
+    #: ``placeholder="blurred"``), else ``None``.
+    placeholder: str | None = None
 
 
 @dataclass(frozen=True)
@@ -154,8 +238,12 @@ class ImagePipeline:
     max_width: int | None = None
     #: Modern formats offered through ``<source>`` elements, best first.
     #: ``avif`` is silently dropped when the local Pillow cannot encode it.
-    formats: tuple[str, ...] = ("webp",)
-    quality: int = 82
+    #: ``None`` means the mode's default: ``("webp",)``, or ``("avif", "webp")``
+    #: under ``gatsby_parity``. A configured format the installed Pillow cannot
+    #: encode is a build error, never a silent drop.
+    formats: tuple[str, ...] | None = None
+    #: ``None`` means 82, or 70 under ``gatsby_parity`` (anth.us's setting).
+    quality: int | None = None
     #: Width of the ``<img src=...>`` fallback (the largest rendition at or
     #: below this width is used).
     fallback_width: int = 1024
@@ -180,6 +268,37 @@ class ImagePipeline:
     #: image DOM (an aspect-ratio sizer, a wrapper ``<div>``) that classes
     #: alone cannot produce. Not called for ``bare`` (inline) images.
     wrap: Callable[[ImageWrap], str] | None = None
+    #: Behave like gatsby-plugin-image's ``constrained`` layout, as anth.us uses
+    #: it: widths at 0.25x/0.5x/1x/2x of the display width (the source's own
+    #: width, capped by ``max_width``) with ``sizes="(min-width: Wpx) Wpx,
+    #: 100vw"``; AVIF, WebP, then a JPEG fallback (PNG only when the image
+    #: really has transparency); a blurred placeholder faded out when the image
+    #: loads; an aspect-ratio box; and eager loading for the first
+    #: ``eager_first`` images on each page. ``widths``, ``fallback_width`` and
+    #: ``layout_sizes`` are not consulted. Off, output is unchanged.
+    gatsby_parity: bool = False
+    #: ``gatsby_parity`` only: ``"blurred"`` (gatsby's 20px base64 placeholder)
+    #: or ``None`` (reserve the box, show nothing until the image loads).
+    placeholder: str | None = "blurred"
+    #: ``gatsby_parity`` only: how many images per page load eagerly; the rest
+    #: use ``default_loading``.
+    eager_first: int = 2
+
+    def __post_init__(self) -> None:
+        if self.placeholder not in {None, "blurred"}:
+            raise ImagePipelineError(
+                f"Unknown placeholder {self.placeholder!r}. Use 'blurred' or None."
+            )
+
+    def resolved_formats(self) -> tuple[str, ...]:
+        if self.formats is not None:
+            return self.formats
+        return GATSBY_FORMATS if self.gatsby_parity else LEGACY_FORMATS
+
+    def resolved_quality(self) -> int:
+        if self.quality is not None:
+            return self.quality
+        return GATSBY_QUALITY if self.gatsby_parity else LEGACY_QUALITY
 
     def resolved_source_dir(self, content_dir: Path) -> Path:
         return (self.source_dir or content_dir).resolve()
@@ -237,7 +356,12 @@ class Rendition:
 
 
 def _available_formats(formats: Iterable[str]) -> tuple[str, ...]:
-    """Drop formats the installed Pillow cannot actually encode."""
+    """Validate that the installed Pillow can encode every configured format.
+
+    A format that is configured but unavailable fails the build. Dropping it
+    silently ships a site without it (AVIF was missing from builds for exactly
+    that reason) and nobody notices.
+    """
     from PIL import features  # local import: Pillow is only needed when opted in
 
     usable: list[str] = []
@@ -252,9 +376,25 @@ def _available_formats(formats: Iterable[str]) -> tuple[str, ...]:
             supported = bool(features.check(key)) if key in {"webp", "avif"} else True
         except ValueError:
             supported = False
-        if supported:
-            usable.append(key)
+        if not supported:
+            hint = (
+                " AVIF encoding needs Pillow >= 11.3 (its wheels bundle libavif); "
+                'install it with pip install "Pillow>=11.3,<12".'
+                if key == "avif"
+                else ""
+            )
+            raise ImagePipelineError(
+                f"Image format {key!r} is configured but this Pillow "
+                f"({_pillow_version()}) cannot encode it.{hint}"
+            )
+        usable.append(key)
     return tuple(usable)
+
+
+def _pillow_version() -> str:
+    import PIL
+
+    return PIL.__version__
 
 
 def _svg_dimensions(path: Path) -> tuple[int, int] | None:
@@ -271,6 +411,15 @@ def _svg_dimensions(path: Path) -> tuple[int, int] | None:
     if box:
         return int(float(box.group(1))), int(float(box.group(2)))
     return None
+
+
+@dataclass(frozen=True)
+class _GatsbyMeta:
+    renditions: list[Rendition]
+    intrinsic: tuple[int, int]
+    display_width: int
+    fallback_fmt: str
+    placeholder: str | None
 
 
 class ImageBuilder:
@@ -293,7 +442,11 @@ class ImageBuilder:
         self.source_dir = pipeline.resolved_source_dir(content_dir)
         self.cache_dir = pipeline.resolved_cache_dir(content_dir)
         self.out_dir = out_dir.resolve()
-        self._formats = _available_formats(pipeline.formats)
+        self._formats = _available_formats(pipeline.resolved_formats())
+        self._quality = pipeline.resolved_quality()
+        self._gatsby: dict[str, _GatsbyMeta] = {}
+        self._page_images = 0
+        self._page_support_emitted = False
         self._cache: dict[str, list[Rendition]] = {}
         self._intrinsic: dict[str, tuple[int, int]] = {}
         self._copied: set[str] = set()
@@ -379,7 +532,7 @@ class ImageBuilder:
                             frame = frame.convert("RGB")
                         save_kwargs: dict[str, object] = {}
                         if fmt in {"webp", "avif", "jpeg"}:
-                            save_kwargs["quality"] = self.pipeline.quality
+                            save_kwargs["quality"] = self._quality
                         frame.save(dest, format=fmt.upper(), **save_kwargs)
                     self._publish(href, dest)
                     out.append(
@@ -397,6 +550,149 @@ class ImageBuilder:
         self._publish(href, path)
         return href
 
+    def start_page(self) -> None:
+        """Reset per-page state (the eager-loading count, the one-time support block)."""
+        self._page_images = 0
+        self._page_support_emitted = False
+
+    # -- gatsby parity -----------------------------------------------------
+
+    def _gatsby_renditions(self, src: str, path: Path) -> _GatsbyMeta:
+        cached = self._gatsby.get(src)
+        if cached is not None:
+            return cached
+
+        from PIL import Image, ImageOps
+
+        rel = Path(src)
+        fmt_tag = f"gatsby-q{self._quality}"
+        build_root = self.cache_dir / self.pipeline.out_subdir / fmt_tag / rel.parent
+        build_root.mkdir(parents=True, exist_ok=True)
+        href_dir = f"{self.pipeline.out_subdir}/{rel.parent.as_posix()}".rstrip("/.")
+        href_dir = href_dir if href_dir.endswith("/") else href_dir + "/"
+
+        with Image.open(path) as opened:
+            source = ImageOps.exif_transpose(opened)
+            source.load()
+        intrinsic_w, intrinsic_h = source.size
+        # JPEG for opaque pictures; PNG only when a pixel really is transparent.
+        # (gatsby-plugin-sharp's "auto" keeps the source's format, which ships a
+        # photographic PNG as PNG; the fallback is only fetched by browsers
+        # with neither AVIF nor WebP, so we spend the bytes where they count.)
+        fallback_fmt = "png" if image_has_alpha(source) else "jpeg"
+        mode = "RGBA" if fallback_fmt == "png" else "RGB"
+        base = source if source.mode == mode else source.convert(mode)
+
+        widths, display = gatsby_widths(
+            intrinsic_w, max_width=self.pipeline.max_width
+        )
+        formats = [*self._formats, fallback_fmt]
+        formats = list(dict.fromkeys(formats))
+        renditions: list[Rendition] = []
+        for width in widths:
+            height = max(1, round(intrinsic_h * width / intrinsic_w))
+            frame = None
+            for fmt in formats:
+                name = f"{rel.stem}-{width}{_SUFFIX_FOR_FORMAT[fmt]}"
+                dest = build_root / name
+                if not (dest.is_file() and dest.stat().st_mtime >= path.stat().st_mtime):
+                    if frame is None:
+                        frame = (
+                            base
+                            if width == intrinsic_w
+                            else base.resize((width, height), Image.LANCZOS)
+                        )
+                    self._encode(frame, dest, fmt)
+                href = f"{href_dir}{name}"
+                self._publish(href, dest)
+                renditions.append(Rendition(width=width, height=height, href=href, fmt=fmt))
+
+        placeholder = None
+        if self.pipeline.placeholder == "blurred":
+            pw = min(GATSBY_PLACEHOLDER_WIDTH, intrinsic_w)
+            tiny = base.resize(
+                (pw, max(1, round(intrinsic_h * pw / intrinsic_w))), Image.LANCZOS
+            )
+            buffer = io.BytesIO()
+            self._encode(tiny, buffer, fallback_fmt)
+            placeholder = (
+                f"data:{_MIME_FOR_FORMAT[fallback_fmt]};base64,"
+                + base64.b64encode(buffer.getvalue()).decode("ascii")
+            )
+
+        meta = _GatsbyMeta(
+            renditions=renditions,
+            intrinsic=(intrinsic_w, intrinsic_h),
+            display_width=display,
+            fallback_fmt=fallback_fmt,
+            placeholder=placeholder,
+        )
+        self._gatsby[src] = meta
+        return meta
+
+    def _encode(self, frame, dest, fmt: str) -> None:
+        kwargs: dict[str, object] = {}
+        if fmt in {"webp", "avif"}:
+            kwargs["quality"] = self._quality
+        elif fmt == "jpeg":
+            kwargs.update(quality=self._quality, progressive=True)
+        elif fmt == "png":
+            kwargs["optimize"] = True
+        frame.save(dest, format=fmt.upper(), **kwargs)
+
+    def _render_gatsby(
+        self,
+        request: ImageRequest,
+        *,
+        src: str,
+        path: Path,
+        layout: str,
+        loading: str,
+        prefix: str,
+    ) -> str:
+        meta = self._gatsby_renditions(src, path)
+        intrinsic_w, intrinsic_h = meta.intrinsic
+        sizes = request.sizes or gatsby_sizes(meta.display_width)
+        by_format: dict[str, list[Rendition]] = {}
+        for rendition in meta.renditions:
+            by_format.setdefault(rendition.fmt, []).append(rendition)
+
+        def srcset(group: list[Rendition]) -> str:
+            return ", ".join(f"{prefix}{r.href} {r.width}w" for r in group)
+
+        sources = "".join(
+            f'<source type="{_MIME_FOR_FORMAT[fmt]}" '
+            f'srcset="{html.escape(srcset(group), quote=True)}" '
+            f'sizes="{html.escape(sizes, quote=True)}">'
+            for fmt, group in by_format.items()
+            if fmt != meta.fallback_fmt
+        )
+        fallback_group = by_format[meta.fallback_fmt]
+        primary = next(
+            (r for r in fallback_group if r.width == meta.display_width),
+            fallback_group[-1],
+        )
+        img = self._img_tag(
+            src=prefix + primary.href,
+            alt=request.alt,
+            loading=loading,
+            width=intrinsic_w,
+            height=intrinsic_h,
+            srcset=srcset(fallback_group),
+            sizes=sizes,
+            main_image=not request.bare,
+        )
+        inner = f"<picture>{sources}{img}</picture>"
+        return self._figure(
+            request,
+            layout=layout,
+            inner=inner,
+            size=(intrinsic_w, intrinsic_h),
+            placeholder=meta.placeholder,
+            framed=True,
+            display_width=meta.display_width,
+        )
+
     # -- markup ------------------------------------------------------------
 
     def render(self, request: ImageRequest, *, depth: int = 0) -> str:
@@ -405,6 +701,10 @@ class ImageBuilder:
         layout = request.layout or self.pipeline.default_layout
         sizes = request.sizes or self.pipeline.sizes_for(layout)
         loading = request.loading or self.pipeline.default_loading
+        if self.pipeline.gatsby_parity and request.loading is None:
+            if self._page_images < self.pipeline.eager_first:
+                loading = "eager"
+            self._page_images += 1
         prefix = "../" * depth
 
         if src.lower().startswith(("http://", "https://")):
@@ -437,6 +737,11 @@ class ImageBuilder:
                 height=dims[1] if dims else None,
             )
             return self._figure(request, layout=layout, inner=img, size=dims)
+
+        if self.pipeline.gatsby_parity:
+            return self._render_gatsby(
+                request, src=src, path=path, layout=layout, loading=loading, prefix=prefix
+            )
 
         renditions = self._renditions(src, path)
         intrinsic_w, intrinsic_h = self._intrinsic[src]
@@ -510,8 +815,10 @@ class ImageBuilder:
         height: int | None,
         srcset: str | None = None,
         sizes: str | None = None,
+        main_image: bool = False,
     ) -> str:
-        bits = [f'<img src="{html.escape(src, quote=True)}"']
+        bits = ['<img data-main-image=""' if main_image else "<img"]
+        bits.append(f'src="{html.escape(src, quote=True)}"')
         if srcset:
             bits.append(f'srcset="{html.escape(srcset, quote=True)}"')
         if sizes:
@@ -532,9 +839,35 @@ class ImageBuilder:
         layout: str,
         inner: str,
         size: tuple[int, int] | None,
+        placeholder: str | None = None,
+        framed: bool = False,
+        display_width: int | None = None,
     ) -> str:
         if request.bare:
             return inner
+        support = ""
+        if framed and self.pipeline.wrap is None and size:
+            width, height = size
+            ph = (
+                f'<img aria-hidden="true" data-placeholder-image="" alt="" '
+                f'src="{html.escape(placeholder, quote=True)}" '
+                'style="opacity:1;transition:opacity 500ms linear" decoding="async">'
+                if placeholder
+                else ""
+            )
+            box = display_width or width
+            inner = (
+                f'<div class="papyrus-image-frame" data-papyrus-image-frame="" '
+                f'style="max-width:{box}px;aspect-ratio:{width} / {height}">'
+                f"{ph}{inner}</div>"
+            )
+            if not self._page_support_emitted:
+                self._page_support_emitted = True
+                support = (
+                    f"<style>{DEFAULT_FRAME_CSS}</style>"
+                    f"<noscript><style>{DEFAULT_FRAME_NOSCRIPT_CSS}</style></noscript>"
+                    f"<script>{FADE_IN_SCRIPT}</script>"
+                )
         if self.pipeline.wrap is not None:
             width, height = size if size else (None, None)
             return self.pipeline.wrap(
@@ -545,6 +878,7 @@ class ImageBuilder:
                     inner=inner,
                     width=width,
                     height=height,
+                    placeholder=placeholder,
                 )
             )
         caption_bits = []
@@ -557,7 +891,7 @@ class ImageBuilder:
             f'<figcaption>{" · ".join(caption_bits)}</figcaption>' if caption_bits else ""
         )
         classes = html.escape(self.pipeline.classes_for(layout), quote=True)
-        return f'<figure class="{classes}">{inner}{caption}</figure>'
+        return f'{support}<figure class="{classes}">{inner}{caption}</figure>'
 
 
 def with_layouts(pipeline: ImagePipeline, extra: Mapping[str, str]) -> ImagePipeline:
