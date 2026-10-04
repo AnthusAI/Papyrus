@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "329d64db-f2c3-40f2-91ec-dbf250345d4d",
+  "issue_id": "PPY-4467786c-39b2-4e05-9233-5d0a3ea2851e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T02:06:39.861Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markus images: clone gatsby-plugin-image (density breakpoints, AVIF/WebP/JPEG, blur placeholder, eager above the fold)",
+    "description": "Ryan 2026-10-03: Gatsby's image handling is far better than Papyrus's; clone how gatsby-plugin-image does it. Reference: live anth.us (verified build at /Users/home/Projects/Anth.us-live/public; plugin source in Anth.us-live/node_modules/gatsby-plugin-image and gatsby-plugin-sharp).\n\nGaps vs Gatsby, as used by anth.us:\n1. Breakpoints: Gatsby emits widths at 0.25x/0.5x/1x/2x of the layout's display width (e.g. 512/1024/2048) with sizes derived from the layout (e.g. '(min-width: 2048px) 2048px, 100vw'); Papyrus uses fixed 480/768/1024/1366, capped at 1366.\n2. Formats: Gatsby serves AVIF, then WebP, then JPEG (for photos); Papyrus serves WebP, then the SOURCE format (photographic PNG: the reason for the 1366 cap and a ~300 MB artifact). AVIF is silently unavailable (local Pillow has no avif).\n3. Placeholder: Gatsby inlines a tiny base64 blurred image and fades the real image in; Papyrus shows nothing.\n4. Layout stability: Gatsby always reserves the aspect-ratio box; Papyrus has it only via the publication's ImagePipeline.wrap (Anth.us).\n5. Loading: Gatsby loads above-the-fold images eagerly, the rest lazily.\nScope = what anth.us uses (YAGNI): match its placeholder type, layouts and formats; skip anything it doesn't use. Must keep Pilobol.us byte-identical unless it opts in.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "356036e2-e284-4275-9c3a-f8d3a4d0f7f5",
+  "issue_id": "PPY-fdb5e9cf-da74-44ee-9341-c3931f1247d7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T02:02:40.498Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markus static hosting: missing pages must return a real 404 (staging returns 302 -> /404.html -> 200)",
+    "description": "Measured 2026-10-03: GET https://staging.d2hbn1ig6nqyhy.amplifyapp.com/definitely-not-a-page/ -> 302 to /404.html (which returns 200). Live anth.us (Gatsby on Amplify) and pilobol.us (Markus on Amplify) both return a true 404 for the same request. A redirect-then-200 tells crawlers dead URLs exist and hides broken links. Target: the custom 404 page served AT the requested URL with HTTP status 404, no redirect.\n\nFramework level, not content: the Anth.us rule set comes from web/anthus_urls.py / web/custom-rules.json (catch-all '/<*>' -> '/404.html' status 404, kept last after 136 x 301 rules), and the same pattern is presumably prescribed by Papyrus docs/site-hosting.md and docs/hosting/amplify-static.yml.example. Find the root cause (compare the Pilobol.us Amplify app's working configuration read-only; test hypotheses on the STAGING app only), fix the Anth.us rule generator, and fix the Papyrus hosting guidance/template so every Markus static publication gets correct 404s by default. Pilobol.us is production: read-only.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

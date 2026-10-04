@@ -1,0 +1,37 @@
+{
+  "id": "PPY-fdb5e9cf-da74-44ee-9341-c3931f1247d7",
+  "title": "Markus static hosting: missing pages must return a real 404 (staging returns 302 -> /404.html -> 200)",
+  "description": "Measured 2026-10-03: GET https://staging.d2hbn1ig6nqyhy.amplifyapp.com/definitely-not-a-page/ -> 302 to /404.html (which returns 200). Live anth.us (Gatsby on Amplify) and pilobol.us (Markus on Amplify) both return a true 404 for the same request. A redirect-then-200 tells crawlers dead URLs exist and hides broken links. Target: the custom 404 page served AT the requested URL with HTTP status 404, no redirect.\n\nFramework level, not content: the Anth.us rule set comes from web/anthus_urls.py / web/custom-rules.json (catch-all '/<*>' -> '/404.html' status 404, kept last after 136 x 301 rules), and the same pattern is presumably prescribed by Papyrus docs/site-hosting.md and docs/hosting/amplify-static.yml.example. Find the root cause (compare the Pilobol.us Amplify app's working configuration read-only; test hypotheses on the STAGING app only), fix the Anth.us rule generator, and fix the Papyrus hosting guidance/template so every Markus static publication gets correct 404s by default. Pilobol.us is production: read-only.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [
+    "anthus-papyrus"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1049b014-45c7-49f6-9c0e-264c4a8e2841",
+      "author": "home",
+      "text": "Root cause: Amplify catch-all status '404' answers 302 -> /404.html (200), not a 404. With no catch-all the 404 is real but the body is EMPTY (that is what pilobol.us does today: no customRules; anth.us is separate Gatsby). Status '404-200' is the only setting giving HTTP 404 with the custom 404.html body at the requested URL. Evidence (staging, curl): missing '/definitely-not-a-page/': before 302->/404.html; no catch-all 404 size 0; '404-200' 404 size 11024 (custom body). '/a/b/c/' same. Missing without slash / *.html: Amplify 301 to dir URL then 404 (unchanged). Valid / 200, /articles/ 200, legacy /blog/ -> 301 /articles/ still works. Fix: Anth.us-Papyrus branch fix/PPY-fdb5e9-real-404 (CATCH_ALL_RULE status 404-200, custom-rules.json regenerated, AGENTS.md section, bin/check-404.py). Papyrus PR https://github.com/AnthusAI/Papyrus/pull/87 (docs/site-hosting.md; amplify-static.yml.example does not exist on develop so not edited). Staging customRules final state: 136 x 301 + {/<*> -> /404.html, 404-200}; matches web/custom-rules.json; headers untouched; backup of old rules in scratchpad. Open: pilobol.us still has empty-body 404s (production, read-only, not touched).",
+      "created_at": "2026-10-04T02:05:57.850274Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4c9343ff-3230-4642-be62-89356b0b9182",
+      "author": "home",
+      "text": "Papyrus guidance PR #87 merged to develop. Staging rule fix is live (404-200); Anth.us branch fix/PPY-fdb5e9-real-404 awaits integration.",
+      "created_at": "2026-10-04T02:11:58.607907Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-04T02:02:40.498269Z",
+  "updated_at": "2026-10-04T02:11:58.607926Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
