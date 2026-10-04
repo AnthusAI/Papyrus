@@ -91,6 +91,53 @@ class ShellSeamTests(unittest.TestCase):
         html = _render_depth0(SiteChrome(site_name="S", head_html='<meta name="x">'))
         self.assertIn('</title><meta name="x">\n', html)
 
+    def test_ga_default_emits_nothing(self) -> None:
+        html = _render_depth0(SiteChrome(site_name="S"))
+        self.assertNotIn("gtag", html)
+        self.assertNotIn("googletagmanager", html)
+
+    def test_ga_snippet_in_head_after_head_html_before_stylesheets(self) -> None:
+        html = _render_depth0(
+            SiteChrome(
+                site_name="S", head_html='<meta name="x">', ga_measurement_id="G-ABC123DEF4"
+            )
+        )
+        expected = (
+            '<script async src="https://www.googletagmanager.com/gtag/js?id=G-ABC123DEF4"></script>\n'
+            "<script>\n"
+            "window.dataLayer = window.dataLayer || [];\n"
+            "function gtag(){dataLayer.push(arguments);}\n"
+            "gtag('js', new Date());\n"
+            'gtag(\'config\', "G-ABC123DEF4");\n'
+            "</script>"
+        )
+        self.assertIn(expected, html)
+        head = html.split("</head>")[0]
+        self.assertLess(head.index('<meta name="x">'), head.index("googletagmanager"))
+        self.assertLess(head.index("googletagmanager"), head.index('rel="stylesheet"'))
+        self.assertEqual(html.count("googletagmanager"), 1)
+
+    def test_ga_owner_opt_out_matches_production_script(self) -> None:
+        html = _render_depth0(
+            SiteChrome(site_name="Anth.us", ga_measurement_id="G-31SC26SDGX", ga_owner_opt_out=True)
+        )
+        prod = (
+            "<script>(function(){try{var k='anthus-no-analytics',q=location.search.match(/[?&]notrack=(\\w+)/);"
+            "if(q){if(q[1]==='1')localStorage.setItem(k,'1');else localStorage.removeItem(k)}"
+            "if(localStorage.getItem(k)==='1')window['ga-disable-G-31SC26SDGX']=true}catch(e){}})();</script>"
+        )
+        norm = html.replace('"', "'")
+        self.assertIn(prod, norm)
+        self.assertLess(norm.index("notrack"), norm.index("googletagmanager"))
+        self.assertNotIn("notrack", _render_depth0(SiteChrome(site_name="S", ga_measurement_id="G-31SC26SDGX")))
+        self.assertNotIn("notrack", _render_depth0(SiteChrome(site_name="S", ga_owner_opt_out=True)))
+
+    def test_ga_invalid_id_raises(self) -> None:
+        for bad in ("", "UA-12345-1", "g-abc123def4", "G-ABC'; alert(1)//", 'G-AB"><script>', "G-AB CD"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    _render_depth0(SiteChrome(site_name="S", ga_measurement_id=bad))
+
     def test_title_templates(self) -> None:
         chrome = SiteChrome(
             site_name="S", title_template="{title} | {site}", same_title_template="{site}!"
