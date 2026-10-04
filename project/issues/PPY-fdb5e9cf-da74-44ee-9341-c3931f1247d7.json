@@ -3,7 +3,7 @@
   "title": "Markus static hosting: missing pages must return a real 404 (staging returns 302 -> /404.html -> 200)",
   "description": "Measured 2026-10-03: GET https://staging.d2hbn1ig6nqyhy.amplifyapp.com/definitely-not-a-page/ -> 302 to /404.html (which returns 200). Live anth.us (Gatsby on Amplify) and pilobol.us (Markus on Amplify) both return a true 404 for the same request. A redirect-then-200 tells crawlers dead URLs exist and hides broken links. Target: the custom 404 page served AT the requested URL with HTTP status 404, no redirect.\n\nFramework level, not content: the Anth.us rule set comes from web/anthus_urls.py / web/custom-rules.json (catch-all '/<*>' -> '/404.html' status 404, kept last after 136 x 301 rules), and the same pattern is presumably prescribed by Papyrus docs/site-hosting.md and docs/hosting/amplify-static.yml.example. Find the root cause (compare the Pilobol.us Amplify app's working configuration read-only; test hypotheses on the STAGING app only), fix the Anth.us rule generator, and fix the Papyrus hosting guidance/template so every Markus static publication gets correct 404s by default. Pilobol.us is production: read-only.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -33,12 +33,26 @@
       "text": "Pilobol.us production fixed. PR AnthusAI/Pilobol.us#43 (merge 7f30fa9) adds dist-papyrus/404.html via the Papyrus shell (93->94 files, only 404.html added, sitemap untouched); Amplify job 196 SUCCEED. Then customRules on d1od6t7lzbwanr set to [{/<*> -> /404.html, 404-200}] (was []). Live: missing /nope-xyz/ and /a/b/c/ -> 404 with 2322-byte styled body (was 0); /404.html 200; home and 19 sitemap URLs unchanged at 200; robots/sitemap unchanged.",
       "created_at": "2026-10-04T02:17:52.790165Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d0ed1da7-47d6-452a-82a8-0dc0c2673c6b",
+      "author": "home",
+      "text": "Integrated on AnthusAI/Anth.us-Papyrus branch feature/anthus-integration @ 7b7f339 (design-parity base + env/staging guards + real-404 merged; pin c98435f; pushed, no PR, not deployed). Catch-all is 404-200 in the merged rules (243 rules); bin/check-404.py needs a live host after deploy.",
+      "created_at": "2026-10-04T02:57:19.183149Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "91d25b9a-e647-4f5e-b8b3-8e6baa0c121a",
+      "author": "home",
+      "text": "Shipped to production with the anth.us cutover 2026-10-04 (see PPY-f07bb2).",
+      "created_at": "2026-10-04T17:39:15.089803Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-04T02:02:40.498269Z",
-  "updated_at": "2026-10-04T02:17:52.790225Z",
-  "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
+  "updated_at": "2026-10-04T17:39:19.466762Z",
+  "closed_at": "2026-10-04T17:39:19.466724Z",
+  "right_now_summary": "The real 404 fix shipped to Anth.us production with the cutover.",
+  "right_now_updated_at": "2026-10-04T17:39:20.394427Z",
   "custom": {}
 }

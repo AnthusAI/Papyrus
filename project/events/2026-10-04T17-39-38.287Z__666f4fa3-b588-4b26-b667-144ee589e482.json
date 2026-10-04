@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "666f4fa3-b588-4b26-b667-144ee589e482",
+  "issue_id": "PPY-b488dadf-c444-4eec-afc1-f7fc42c2b290",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T17:39:38.287Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "anthus-site-content CI: build against Anth.us-Papyrus instead of the retired Gatsby site; track content main",
+    "description": "After the 2026-10-04 cutover, AnthusAI/anthus-site-content's .github/workflows/ci.yml still builds every push/PR against AnthusAI/Anth.us develop (Gatsby), which cannot compile the converted Papyrus markup, so it now fails permanently (first failure: PR #18 / push of 074c1fb). Replace it with a check that builds the content through Anth.us-Papyrus (Papyrus pin from its amplify.yml) and fails on build/guard assertion errors. Also switch the Anth.us-Papyrus submodule to track content main (.gitmodules branch) and bump the pin to content main, now that #18 is merged. Then wire automatic production builds (Git-connected Amplify builds or a deploy job) so content pushes publish without the manual zip step.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

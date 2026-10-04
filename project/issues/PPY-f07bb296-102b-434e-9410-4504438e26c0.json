@@ -26,12 +26,33 @@
       "text": "REFERENCE IS STALE: Anth.us/public/ (2026-09-24) no longer matches live anth.us. About/AI Solutions/Ryan copy+structure, header menu markup, fonts, /blog/ and /posts/ (now collection template) and the stylesheet (live styles.a4f6abf91bb86f9d4c6f.css: 42 new, 4 changed selectors) all changed. Parity target is LIVE production. A Sonnet agent is building the deployed commit into /Users/home/Projects/Anth.us-live, proving it equals live, regenerating anthus-theme.css + anthus_page_html.py from it, and writing web/reference/LIVE-DOM-CHANGES.md for the wiring work. The 4 new pages (engage, reading, research, decision-models) are already captured from live in web/reference/live/.",
       "created_at": "2026-10-03T17:38:40.544653Z",
       "comment_type": "default"
+    },
+    {
+      "id": "bfd0ea24-6243-44e0-951e-3979d660453c",
+      "author": "home",
+      "text": "STAGING REDEPLOYED 2026-10-03 (Amplify job 4) from feature/anthus-integration @ 7b7f339 (Papyrus pin c98435f): design parity + SITE_ENV guards + sitemaps + real 404s + analytics (production only) + Gatsby-parity images (AVIF) + citeproc citations with string authors + 106 og:image 301s. customRules: 243 applied. Live checks: check-guards --expect guarded OK; check-404 OK; og:image 301s land on 200 images; article images load as AVIF and are visible. Remaining for cutover: connect repo in Amplify console (Ryan); main branch with SITE_ENV=production; remove app-level X-Robots-Tag header before main goes live; refresh content (re-run codemod vs latest content main) then merge content PR #18; merge Anth.us-Papyrus PRs into develop/main; domain association for anth.us (needs Ryan's explicit go).",
+      "created_at": "2026-10-04T03:00:36.173842Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "a5119d69-e9a9-49c5-bb8c-01f52da5dedf",
+      "author": "home",
+      "text": "COORDINATION (Ryan, 2026-10-03): another Claude session is consolidating a batch of content tweaks in AnthusAI/anthus-site-content. Do NOT re-run mdx_codemod, bump the content submodule pin, or merge content PR #18 independently. Cutover content step = wait for that session to land its work, get its branch from Ryan/that session, then convert from there, rebuild, re-check, and only then merge #18.",
+      "created_at": "2026-10-04T03:21:37.748596Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "d737b0de-63d2-4695-a524-0163e87d9726",
+      "author": "home",
+      "text": "CUTOVER DONE 2026-10-04 ~13:32-13:36 EDT (about 4 min outage). anth.us + www.anth.us now served by Amplify app d2hbn1ig6nqyhy branch main (manual deploy of the SITE_ENV=production build of Anth.us-Papyrus main @ 11bbd19; Papyrus c98435f; content 0cf89c7). Old association removed from Gatsby app d1ffh6ny5rvtl (app and its last build kept for rollback). Verified on the real domain: check-guards --expect production OK, check-404 OK, all 898 audited legacy URLs replay clean (861 ok, 36 already 404 on Gatsby, /404/ harmless), GA G-31SC26SDGX + opt-out on every page, no noindex, cert *.anth.us+anth.us valid to 2027-04-20. Rollback snapshot (old domain association + 32 Route 53 records) in Anth.us-Papyrus web/reference/cutover-rollback/. Content PR #18 merged to content main (074c1fb). App-level X-Robots-Tag removed (staging stays guarded by meta+robots). Rollback = delete-domain-association on d2hbn1ig6nqyhy, create it on d1ffh6ny5rvtl with prefix ''/www -> main.",
+      "created_at": "2026-10-04T17:38:42.093106Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-03T16:05:16.402142Z",
-  "updated_at": "2026-10-03T17:38:40.544674Z",
+  "updated_at": "2026-10-04T17:38:42.093135Z",
   "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
+  "right_now_summary": "Anth.us now runs on Papyrus in production, with redirects, guards, analytics, and content checks verified.",
+  "right_now_updated_at": "2026-10-04T17:39:42.448059Z",
   "custom": {}
 }

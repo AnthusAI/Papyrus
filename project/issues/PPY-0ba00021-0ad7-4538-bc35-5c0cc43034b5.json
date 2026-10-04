@@ -3,7 +3,7 @@
   "title": "Anth.us-Papyrus: publish sitemaps at production's URLs (/sitemap-index.xml + /sitemap-0.xml)",
   "description": "Live anth.us advertises <link rel=\"sitemap\" href=\"/sitemap-index.xml\"> and serves /sitemap-index.xml -> /sitemap-0.xml (gatsby-plugin-sitemap). The port writes /sitemap.xml only, so after cutover the URL registered in Search Console (and any crawler's cached one) would 404.\n\nMinimal fix (YAGNI): emit the same files as production: /sitemap-index.xml (a sitemapindex pointing at /sitemap-0.xml) and /sitemap-0.xml (the urlset of canonical page URLs), match the live files' structure (check https://anth.us/sitemap-index.xml and sitemap-0.xml), and add <link rel=\"sitemap\" type=\"application/xml\" href=\"/sitemap-index.xml\"> to every page's head as live does. Drop /sitemap.xml (or 301 it to /sitemap-index.xml, whichever is simpler). The origin follows the PPY-f1f0a8 switch (https://anth.us in production, the branch host when guarded). The production robots.txt Sitemap: line points at /sitemap-index.xml. Exclude 404 and redirect-only URLs; every listed URL must be a canonical 200 page. Assigned to the PPY-f1f0a8 agent since it owns robots.txt and origin in the same file.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -19,12 +19,26 @@
       "text": "Done on feature/PPY-f1f0a8-env-staging-guards (code in c7b98f6 site_env.py; hooks b6030f9). Emits /sitemap-index.xml (sitemapindex -> <origin>/sitemap-0.xml) and /sitemap-0.xml (urlset with live's namespace declarations, 193 canonical URLs, no 404), drops /sitemap.xml, adds <link rel=\"sitemap\" type=\"application/xml\" href=\"/sitemap-index.xml\"> to all 194 pages, production robots Sitemap: https://anth.us/sitemap-index.xml. Build asserts both files are valid XML, every <loc> maps to a file in dist, origin matches. bin/check-guards.py checks /sitemap-index.xml 200 + origin (live staging fails that check until redeployed). Note live lists 254 URLs vs 193 here (port has fewer tag/blog-category pages); not addressed (YAGNI).",
       "created_at": "2026-10-04T02:09:41.855663Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f955d792-11b7-4fc2-880b-51de425c1963",
+      "author": "home",
+      "text": "Integrated on AnthusAI/Anth.us-Papyrus branch feature/anthus-integration @ 7b7f339 (design-parity base + env/staging guards + real-404 merged; pin c98435f; pushed, no PR, not deployed). Sitemaps (sitemap-index.xml + sitemap-0.xml) and robots verified in both guarded and production builds; build assertions pass over 194 pages.",
+      "created_at": "2026-10-04T02:57:18.513993Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "1ff7e618-2507-424f-906b-d5db7794f6de",
+      "author": "home",
+      "text": "Shipped to production with the anth.us cutover 2026-10-04 (see PPY-f07bb2).",
+      "created_at": "2026-10-04T17:39:08.701487Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-04T02:01:38.055340Z",
-  "updated_at": "2026-10-04T02:09:41.855692Z",
-  "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
+  "updated_at": "2026-10-04T17:39:11.885597Z",
+  "closed_at": "2026-10-04T17:39:11.885569Z",
+  "right_now_summary": "Sitemaps now match production URLs and shipped with the anth.us cutover.",
+  "right_now_updated_at": "2026-10-04T17:39:13.018056Z",
   "custom": {}
 }
