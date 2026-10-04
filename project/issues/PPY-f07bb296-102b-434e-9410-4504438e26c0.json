@@ -52,7 +52,7 @@
   "created_at": "2026-10-03T16:05:16.402142Z",
   "updated_at": "2026-10-04T17:38:42.093135Z",
   "closed_at": null,
-  "right_now_summary": "Anth.us now runs on Papyrus in production, with redirects, guards, analytics, and content checks verified.",
-  "right_now_updated_at": "2026-10-04T17:39:42.448059Z",
+  "right_now_summary": "Anth.us now runs on Papyrus in production, with legacy URLs redirected and remaining parity tweaks under review.",
+  "right_now_updated_at": "2026-10-04T18:03:26.312595Z",
   "custom": {}
 }
