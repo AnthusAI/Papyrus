@@ -6,6 +6,7 @@ import hashlib
 import re
 import shutil
 import tempfile
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,7 +25,42 @@ DEFAULT_OUT_DIR = PAPYRUS_ROOT / "web" / "dist"
 DEFAULT_THEME = "hackerman"
 DEFAULT_SITE_CSS = PAPYRUS_ROOT / "web" / "css" / "site-theme.css"
 
-_ARTICLE_SLUG = re.compile(r"^([a-z0-9][a-z0-9-]*)\.md$")
+
+def slugify(name: str) -> str:
+    """The one canonical URL slug for a content file name (without ``.md``).
+
+    ASCII-fold, lowercase, collapse every run of non-alphanumerics (whitespace,
+    underscores, punctuation) to a single hyphen, strip leading/trailing
+    hyphens. Returns ``""`` when nothing survives.
+    """
+    folded = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "-", folded.lower()).strip("-")
+
+
+def _discover_markdown(directory: Path) -> list[tuple[str, Path]]:
+    """``(slug, path)`` for every page in ``directory``, sorted by file name.
+
+    Any ``*.md`` is a page and its slug is ``slugify(stem)``. Names starting
+    with ``_`` or ``.`` are not pages (drafts / hidden files), as before.
+    Two files deriving the same slug, or a name with no usable slug, fail the
+    build rather than silently dropping or overwriting a page (PPY-8e6068).
+    """
+    found: list[tuple[str, Path]] = []
+    seen: dict[str, Path] = {}
+    for path in sorted(directory.glob("*.md")):
+        if path.name.startswith(("_", ".")):
+            continue
+        slug = slugify(path.stem)
+        if not slug:
+            raise RuntimeError(f"{path} has no usable URL slug (nothing left after slugify).")
+        if slug in seen:
+            raise RuntimeError(
+                f"Slug collision in {directory}: {seen[slug].name} and {path.name} "
+                f"both become '{slug}'. Rename one."
+            )
+        seen[slug] = path
+        found.append((slug, path))
+    return found
 
 
 @dataclass(frozen=True)
@@ -52,12 +88,7 @@ def _discover_articles(content_dir: Path) -> list[tuple[str, Path]]:
     articles_dir = content_dir / "articles"
     if not articles_dir.is_dir():
         raise RuntimeError(f"Missing articles directory: {articles_dir}")
-    articles: list[tuple[str, Path]] = []
-    for path in sorted(articles_dir.glob("*.md")):
-        match = _ARTICLE_SLUG.match(path.name)
-        if not match:
-            continue
-        articles.append((match.group(1), path))
+    articles = _discover_markdown(articles_dir)
     if not articles:
         raise RuntimeError(f"No article Markdown files found in {articles_dir}")
     return articles
@@ -66,18 +97,13 @@ def _discover_articles(content_dir: Path) -> list[tuple[str, Path]]:
 def _discover_section(content_dir: Path, section: str) -> list[tuple[str, Path]]:
     """Discover ``<content>/<section>/*.md``. Returns [] when the dir is absent.
 
-    Unlike ``_discover_articles`` this never raises: extra sections are
-    optional. A publication with only ``articles/`` behaves exactly as before.
+    Unlike ``_discover_articles`` this does not raise for a missing or empty
+    section: extra sections are optional. A publication with only ``articles/`` behaves exactly as before.
     """
     section_dir = content_dir / section
     if not section_dir.is_dir():
         return []
-    found: list[tuple[str, Path]] = []
-    for path in sorted(section_dir.glob("*.md")):
-        match = _ARTICLE_SLUG.match(path.name)
-        if match:
-            found.append((match.group(1), path))
-    return found
+    return _discover_markdown(section_dir)
 
 
 def _build_nav_items(articles: list[tuple[str, Path]]) -> list[NavItem]:
