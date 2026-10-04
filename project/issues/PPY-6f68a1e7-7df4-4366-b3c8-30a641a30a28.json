@@ -14,22 +14,22 @@
     {
       "id": "1a9ec1bd-2314-4d43-8e3c-c974b5b3d4d1",
       "author": "box",
-      "text": "Starting after overview/refs accept. Mobile-app assignments destination \u2014 invent, don\u2019t port Pretext work desk.",
+      "text": "Starting after overview/refs accept. Mobile-app assignments destination — invent, don’t port Pretext work desk.",
       "created_at": "2026-09-07T20:57:30.418426Z",
-      "comment_type": "default",
-      "data": {}
+      "comment_type": "default"
     },
     {
       "id": "607a5285-6a25-4c50-89cc-7d13fa33d9dd",
       "author": "box",
       "text": "PM cleared tip 452247a NewsroomAssignmentsView for Pilobolus accept.",
       "created_at": "2026-09-07T21:04:08.149891Z",
-      "comment_type": "default",
-      "data": {}
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-07T20:49:10.030198Z",
   "updated_at": "2026-09-07T21:04:08.149891Z",
   "closed_at": null,
+  "right_now_summary": "The team is shaping a Shadcn assignments queue for mobile ops, using GraphQL as the source of truth.",
+  "right_now_updated_at": "2026-09-13T12:47:58.721895Z",
   "custom": {}
 }

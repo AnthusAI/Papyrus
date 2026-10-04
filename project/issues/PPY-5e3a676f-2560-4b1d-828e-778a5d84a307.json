@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5e3a676f-2560-4b1d-828e-778a5d84a307",
+  "title": "AGENTS.md requires reading AGENTS.local.md as cloud preflight, but that file does not exist",
+  "description": "Papyrus AGENTS.md (Core Rules) states: 'Before running any AWS-, Amplify-, sandbox-, or deployment-related command, read AGENTS.local.md and follow its local account/profile/env guidance. Treat AGENTS.local.md as required preflight context for cloud operations on this machine.'\n\n/Users/home/Projects/Papyrus/AGENTS.local.md DOES NOT EXIST. Two agent sessions on 2026-10-03 burned time hunting for it before proceeding without it. Auritus and Chattic.us both have one; Papyrus does not.\n\nEither create it or drop the requirement. The facts it should carry, discovered the hard way:\n\n  AWS_PROFILE=legacy  -> SSO account 335163751677, AdministratorAccess, us-east-1.\n                         This is the 'legacy' account in the multi-account org and holds\n                         essentially every Amplify app (Anth.us d1ffh6ny5rvtl, anthus-site\n                         d23d9f23lg9obr, pilobol-us d1od6t7lzbwanr, auritus-site, Papyrus\n                         dbsyytcm9drqa, Kanbus, Apricity, Biased-Decisions, ...).\n  [profile anthus]    -> same account via the OLD non-SSO 'login_session = arn:aws:iam::335163751677:root'.\n                         Session is expired and 'aws login' needs an interactive step only\n                         Ryan can complete. Testing this profile - or a bare\n                         'aws sts get-caller-identity' - reports 'session has expired' and\n                         makes the account look unreachable when it is not. This cost real time.\n  [profile Endymion]  -> DIFFERENT account 830955873957, has no Amplify apps. Do not create\n                         resources there.\n\nAlso worth recording: repo skills reference paths like /Users/ryan/Projects/Papyrus/... which are stale on this machine (/Users/home/Projects/Papyrus). See skills/publication-bootstrap/SKILL.md.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-03T16:04:13.016195Z",
+  "updated_at": "2026-10-03T16:04:13.016222Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

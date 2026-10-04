@@ -19,6 +19,8 @@
   "created_at": "2026-08-27T13:27:01.411636Z",
   "updated_at": "2026-08-27T13:27:01.411636Z",
   "closed_at": null,
+  "right_now_summary": "The newsroom pod configuration is being defined for story stages, workspaces, artifacts, and revisions.",
+  "right_now_updated_at": "2026-09-13T12:45:43.770596Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

@@ -1,0 +1,35 @@
+{
+  "id": "PPY-f402577a-c03a-41c6-843c-04ff363a96ae",
+  "title": "Anth.us Papyrus: confirm with Ryan — directory-style /articles/<slug>/ vs /articles/<slug>.html",
+  "description": "BLOCKED on Ryan. Needs one word: directory-style or `.html`.\n\n## The question\nRyan settled the NAMESPACE (\"We really want to use /articles/ but we need to support redirects from /blog/\") but never stated the PATH SHAPE. PR #3 (https://github.com/AnthusAI/Anth.us-Papyrus/pull/3) implements directory-style — `/articles/<slug>/`, `/about/` — NOT `/articles/<slug>.html`. That choice was an inference made for him, not his words. It needs confirming before the PR merges.\n\n## Why directory-style was chosen\n- Production anth.us is directory-style today. Measured live: `/blog/can-you-fix-it/` 200, `/about/` 200, `/solutions/SQLBot/` 200.\n- Ryan wrote both `/articles/` and `/blog/` WITH trailing slashes.\n- Amplify Hosting prefers it and normalizes toward it on its own. Measured against production: `/about.html` -> 301 `/about/`, `/articles/can-you-fix-it.html` -> 301 `/articles/can-you-fix-it/`, `/blog/can-you-fix-it` -> 301 `/blog/can-you-fix-it/`. So the old staging `.html` URLs will self-heal once the directories exist; no rule needed for them.\n- The `.html` shape was an artifact of Papyrus's Markus static build (`build_markus_site` writes `articles/<slug>.html`), not a deliberate decision.\n\n## Cost of being wrong: one line\nThe shape is a single configuration point, `URL_STYLE` in `web/anthus_urls.py`, read from env `ANTHUS_URL_STYLE`. Setting `ANTHUS_URL_STYLE=html` switches the entire site back to extensions — pages, every internal link, canonical tags, og:url, the sitemap, and every redirect TARGET — with no other edit. `page_url()` and `page_output()` are the only two functions that decide a URL; nothing in the build concatenates `\".html\"` onto a slug.\n\nThe 301 redirect SOURCES are unaffected either way: they are the live Gatsby URLs, which are directory-style regardless.\n\n## What to do once answered\n- Directory-style confirmed: nothing to change. Proceed with PPY-d81a8c step 2 (deploy).\n- `.html` wanted instead: set `ANTHUS_URL_STYLE=html` in `amplify.yml`'s build command (and in the local deploy build), rebuild, regenerate `web/custom-rules.json`, re-apply with `bin/apply_custom_rules.py --apply`. Re-run the dist link check — it should still report 0 refs landing on a redirect source.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [
+    "anthus-papyrus"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c85fa858-40bd-490b-8ade-b609ea492e13",
+      "author": "home",
+      "text": "Ryan decided 2026-10-03: DIRECTORY-STYLE (/articles/<slug>/). No change needed to PR #3; proceed with PPY-d81a8c step 2.",
+      "created_at": "2026-10-03T17:28:46.567842Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-03T16:05:25.530135Z",
+  "updated_at": "2026-10-03T17:28:56.144656Z",
+  "closed_at": "2026-10-03T17:28:56.144613Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5[1m]",
+    "name": "Explore agent"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

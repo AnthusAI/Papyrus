@@ -19,6 +19,8 @@
   "created_at": "2026-08-27T13:27:01.615146Z",
   "updated_at": "2026-08-27T13:27:01.615146Z",
   "closed_at": null,
+  "right_now_summary": "The team is defining Slice 1 evidence capture, event scoring, and outcome classifications.",
+  "right_now_updated_at": "2026-09-13T12:46:07.387429Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

@@ -16,12 +16,13 @@
       "author": "ubuntu",
       "text": "Implemented on cursor/operator-cli-2020 (PR #54). Behavior specified in features/operator-cli.feature register scenarios; verified with npm run test:bdd:operator-cli (27 scenarios green).",
       "created_at": "2026-08-29T05:37:59.782117Z",
-      "comment_type": "default",
-      "data": {}
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-08-28T20:14:11.542020Z",
   "updated_at": "2026-08-29T05:38:00.394827Z",
   "closed_at": "2026-08-29T05:38:00.394827Z",
+  "right_now_summary": "Reference outputs now include the URL and why, covered by 27 passing BDD scenarios.",
+  "right_now_updated_at": "2026-09-13T12:44:21.895983Z",
   "custom": {}
 }

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ae83bb34-438d-4ad9-b91e-66254232f845",
+  "issue_id": "PPY-f1f0a816-400f-434d-9076-150e0a14a4e5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T01:58:08.008Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us-Papyrus: environment-driven staging guards (fail-safe; off only for explicit production builds)",
+    "description": "Make the staging guards automatic so a production deploy deactivates them and every other build keeps them, with no manual edits at cutover.\n\nDESIGN (agreed 2026-10-03):\n- One switch, SITE_ENV, read once by web/build_via_papyrus.py. PRODUCTION only when SITE_ENV=production AND (if AWS_BRANCH is set, Amplify CI) AWS_BRANCH=main. Everything else (unset, local, any other branch) = GUARDED. Fail-safe: a mistake yields an unindexed site, never an indexed staging copy.\n- Controlled by the switch: <meta name=robots noindex,nofollow> (guarded only); robots.txt Disallow:/ (guarded) vs allow + Sitemap: https://anth.us/sitemap.xml (production); footer staging note (guarded only); canonical/og:url/sitemap origin (production = https://anth.us; guarded = https://<AWS_BRANCH>.<AWS_APP_ID>.amplifyapp.com or ANTHUS_SITE_ORIGIN, localhost fallback); analytics (production only, matching live anth.us's setup incl. its opt-out script; off when guarded).\n- Build-time assertions: production build fails unless origin == https://anth.us and no page contains noindex or the staging note; guarded build fails if any page lacks them.\n- X-Robots-Tag is Amplify app config, not artifact: keep it permanently on the staging app (d2hbn1ig6nqyhy) as a safety net; production app must never have it. customHttp.yml must not apply noindex to production (note: customHttp.yml is app-wide in Amplify; document the per-app approach).\n- Post-deploy checker script (bin/check-guards.py <url> --expect production|guarded) curls the live host and verifies meta, robots.txt, X-Robots-Tag and canonical origin.\n- Recommended topology: separate production Amplify app for anth.us connected to main with SITE_ENV=production; staging app stays permanent staging. Topology choice not yet confirmed by Ryan; the code is topology-independent.\nDocs: update AGENTS.md (staging section, deploy, canonical URLs) and amplify.yml.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

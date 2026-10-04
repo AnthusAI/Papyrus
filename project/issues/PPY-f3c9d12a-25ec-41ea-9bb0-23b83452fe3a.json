@@ -1,0 +1,22 @@
+{
+  "id": "PPY-f3c9d12a-25ec-41ea-9bb0-23b83452fe3a",
+  "title": "Markus citations: match gatsby-citation-manager output exactly (real CSL formatter, verified against live)",
+  "description": "Live anth.us renders references with gatsby-citation-manager: <Citation data={CSL-JSON}/> inline + <CitationsList citationFormat=\"apa\"/>, formatted by Citation.js (citeproc-js + the CSL APA style). Papyrus PR #83 added the equivalent model to Markus ([@key] inline, front-matter citations: CSL-JSON, ::citations{format=\"apa\"}), but formats with a HAND-ROLLED APA formatter that has never been diffed against live (epic item F; known weak spot: several people in one author string).\n\nGoal: Markus citation output (inline marker markup + bibliography markup and text) matches the live site for all 25 bibliographies / 201 markers / 197 entries in the corpus. Approach: diff every page against the verified production build (/Users/home/Projects/Anth.us-live/public, = live), then replace the hand-rolled formatter with a real CSL processor (citeproc-py) using the same APA CSL style file Citation.js bundles, so formatting matches by construction. Keep scope to what the corpus uses (YAGNI). Exception: live numbers some citations 0,0,0 due to a gatsby-citation-manager bug; keep our correct 1,2,3 and document it. Pilobol.us must stay byte-identical (it does not use citations; prove it).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [
+    "anthus-papyrus"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-04T02:05:13.562083Z",
+  "updated_at": "2026-10-04T02:05:13.562228Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -19,6 +19,8 @@
   "created_at": "2026-08-27T13:27:01.715408Z",
   "updated_at": "2026-08-27T13:27:01.715408Z",
   "closed_at": null,
+  "right_now_summary": "The team is reviewing Slice 1 evidence to decide whether to proceed, revise, or stop.",
+  "right_now_updated_at": "2026-09-13T12:46:13.489952Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

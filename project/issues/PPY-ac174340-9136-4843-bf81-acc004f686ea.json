@@ -14,5 +14,7 @@
   "created_at": "2026-08-28T20:14:11.491286Z",
   "updated_at": "2026-08-28T20:14:11.491286Z",
   "closed_at": null,
+  "right_now_summary": "The papyrus CLI is missing from the agent box’s PATH, so researchers must use temporary wrapper scripts.",
+  "right_now_updated_at": "2026-09-13T12:44:53.471809Z",
   "custom": {}
 }
