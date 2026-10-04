@@ -1,0 +1,39 @@
+{
+  "id": "PPY-8e606817-df33-48b4-a470-5c68609f47cf",
+  "title": "Markus build: fail loudly on article/section files whose slug contains capital letters (currently skipped silently)",
+  "description": "Markus build discovery (src/papyrus_content/markus_renderer/build.py: _ARTICLE_SLUG and the section discovery regex) silently SKIPS any article/section file whose slug has capital letters (e.g. Paytronix.md). The page goes missing while the build succeeds.\n\nFix: fail the build with a clear error naming the offending file(s) and the slug rule (lowercase letters, digits, hyphens). Do NOT start accepting capitals (URL-shape change). Must not change Pilobol.us output (byte-identical proof per PR #85).",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [
+    "anthus-papyrus"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "4156419f-d2c5-4bf5-9e9d-f9817fc090a0",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/89 (branch fix/PPY-8e6068-slug-case). Pilobol.us byte-identical (89 files, empty diff); Anth.us staging lowercases all 128 slugs. Left open for merge.",
+      "created_at": "2026-10-04T02:18:43.796628Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "claude-code"
+      }
+    }
+  ],
+  "created_at": "2026-10-04T02:16:03.837112Z",
+  "updated_at": "2026-10-04T02:18:43.796666Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
