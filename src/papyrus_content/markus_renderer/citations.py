@@ -47,192 +47,114 @@ Two behaviours of that package are deliberately **not** reproduced:
 from __future__ import annotations
 
 import html
-import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, Sequence
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Callable, Mapping
 
 CitationFormatter = Callable[[Mapping[str, Any]], str]
-
-_MONTHS = (
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-)
 
 
 class CitationError(RuntimeError):
     """Raised for an unknown citation key or an unsupported format."""
 
 
-# -- name and date helpers -------------------------------------------------
+# -- CSL formatting --------------------------------------------------------
+
+#: The exact style file ``citation-js`` (``@citation-js/plugin-csl`` 0.7.14)
+#: bundles as its ``apa`` template, i.e. what the live Gatsby site formats
+#: with. Copied verbatim; see ``csl/README.md`` for provenance and license.
+APA_STYLE_PATH = Path(__file__).with_name("csl") / "apa.csl"
+
+#: CSL name variables. ``citation-js`` accepts a *list* of names, each either a
+#: CSL name object or a plain "Given Family" string, and silently discards any
+#: other value, including a bare string such as ``"A. Author and B. Author"``
+#: (the entry then renders without an author). The live site did exactly that,
+#: so this does too.
+_NAME_VARIABLES = ("author", "editor")
 
 
-def _initials(given: str) -> str:
-    bits = [part for part in re.split(r"[\s.]+", given.strip()) if part]
-    return " ".join(f"{part[0].upper()}." for part in bits)
+def _csl_names(value: Any) -> list[Mapping[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    names: list[Mapping[str, Any]] = []
+    for name in value:
+        if isinstance(name, str):
+            given, _, family = name.strip().rpartition(" ")
+            name = {"given": given, "family": family} if given else {"family": family}
+        names.append(name)
+    return names
 
 
-def _one_name(value: Any) -> str:
-    """APA-style inverted name from a CSL name, a dict, or a plain string."""
-    if isinstance(value, Mapping):
-        if value.get("literal"):
-            return str(value["literal"]).strip()
-        family = str(value.get("family") or "").strip()
-        given = str(value.get("given") or "").strip()
-        if family and given:
-            return f"{family}, {_initials(given)}"
-        return family or given
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    if "," in text:
-        # Already inverted ("Gundlach, Hans").
-        family, _, given = text.partition(",")
-        return f"{family.strip()}, {_initials(given)}" if given.strip() else family.strip()
-    parts = text.split()
-    if len(parts) == 1:
-        return parts[0]
-    return f"{parts[-1]}, {_initials(' '.join(parts[:-1]))}"
+@lru_cache(maxsize=None)
+def _patch_citeproc() -> None:
+    """Make ``<substitute><text macro=.../>`` suppress the variables it used.
+
+    CSL says a variable rendered inside ``<substitute>`` is suppressed in the
+    rest of the entry. citeproc-py only records a substituted child's own
+    ``variable`` attribute, so a substituted *macro* suppresses nothing. APA
+    substitutes its ``title`` macro for a missing author, which made every
+    authorless entry print its title twice ("T. (n.d.). T. Site."), where
+    citeproc-js (what citation-js uses) prints it once.
+    """
+    from citeproc.model import Substitute
+
+    original = Substitute.add_to_repressed_list
+
+    def add_to_repressed_list(self: Any, child: Any, context: Any) -> None:
+        original(self, child, context)
+        macro = child.get("macro")
+        if macro is None:
+            return
+        repressed = context.get_layout().repressed
+        for element in child.get_macro(macro).iter():
+            variable = element.get("variable")
+            if variable is not None:
+                repressed.setdefault(element.tag, []).append(variable)
+
+    Substitute.add_to_repressed_list = add_to_repressed_list
 
 
-def _name_list(values: Any) -> str:
-    if not values:
-        return ""
-    if isinstance(values, (str, Mapping)):
-        values = [values]
-    names = [name for name in (_one_name(v) for v in values) if name]
-    if not names:
-        return ""
-    if len(names) == 1:
-        return names[0]
-    if len(names) == 2:
-        return f"{names[0]}, & {names[1]}"
-    if len(names) <= 20:
-        return ", ".join(names[:-1]) + f", & {names[-1]}"
-    return ", ".join(names[:19]) + ", ... " + names[-1]
+@lru_cache(maxsize=None)
+def _style(path: str) -> Any:
+    from citeproc import CitationStylesStyle
+
+    _patch_citeproc()
+    return CitationStylesStyle(path, validate=False)
 
 
-def _date_parts(value: Any) -> list[int]:
-    if not isinstance(value, Mapping):
-        return []
-    raw = value.get("date-parts")
-    if not isinstance(raw, Sequence) or not raw:
-        return []
-    first = raw[0]
-    if not isinstance(first, Sequence):
-        return []
-    out: list[int] = []
-    for item in first:
-        try:
-            out.append(int(item))
-        except (TypeError, ValueError):
-            break
-    return out
+def _format_csl(entry: Mapping[str, Any], style_path: Path) -> str:
+    """One bibliography entry as plain text, formatted by citeproc.
 
+    Each entry is formatted on its own, exactly as ``CitationsList`` did with
+    one ``new Cite(entry)`` per list item, so cross-entry behaviour (sorting,
+    year suffixes, "et al." disambiguation) never applies.
+    """
+    # Imported here so a publication that never formats a citation (Pilobol.us)
+    # does not need citeproc-py installed just to import the renderer.
+    from citeproc import Citation, CitationItem, CitationStylesBibliography, formatter
+    from citeproc.source.json import CiteProcJSON
 
-def _issued_text(entry: Mapping[str, Any]) -> str:
-    parts = _date_parts(entry.get("issued"))
-    if not parts:
-        return "n.d."
-    if len(parts) == 1:
-        return str(parts[0])
-    month = _MONTHS[parts[1] - 1] if 1 <= parts[1] <= 12 else ""
-    if len(parts) == 2 or not month:
-        return f"{parts[0]}, {month}".rstrip(", ")
-    return f"{parts[0]}, {month} {parts[2]}"
-
-
-def _accessed_text(entry: Mapping[str, Any]) -> str:
-    parts = _date_parts(entry.get("accessed"))
-    if len(parts) < 3:
-        return ""
-    month = _MONTHS[parts[1] - 1] if 1 <= parts[1] <= 12 else ""
-    if not month:
-        return ""
-    return f"Retrieved {month} {parts[2]}, {parts[0]}"
-
-
-def _sentence(value: str) -> str:
-    value = value.strip()
-    if not value:
-        return ""
-    return value if value.endswith((".", "!", "?")) else value + "."
-
-
-# -- APA formatter ---------------------------------------------------------
-
-#: Types whose container is a periodical, which APA renders before any
-#: publisher and which take volume/issue/page detail.
-_PERIODICAL_TYPES = frozenset(
-    {"article-journal", "article-newspaper", "article-magazine", "article", "post-weblog"}
-)
+    item = {k: v for k, v in entry.items() if k not in ("id", "keywords")}
+    for name_variable in _NAME_VARIABLES:
+        names = _csl_names(item.pop(name_variable, None))
+        if names:
+            item[name_variable] = names
+    item["id"] = "entry"
+    bibliography = CitationStylesBibliography(
+        _style(str(style_path)), CiteProcJSON([item]), formatter.plain
+    )
+    bibliography.register(Citation([CitationItem("entry")]))
+    return "".join(str(rendered) for rendered in bibliography.bibliography()).strip()
 
 
 def format_apa(entry: Mapping[str, Any]) -> str:
-    """APA-7-shaped plain text for one CSL-JSON entry.
+    """APA 7 plain text for one CSL-JSON entry, via citeproc and the CSL style.
 
-    This is a deliberate, dependency-free approximation of what ``citation-js``
-    plus ``@citation-js/plugin-csl`` produced for the corpus being ported, not a
-    CSL processor. It covers the ten CSL ``type`` values and the seventeen
-    fields that actually occur in that corpus. Output is plain text because the
-    Gatsby component it replaces also rendered plain text (it read
-    ``.csl-entry`` ``textContent``, which discarded citeproc's ``<i>`` tags).
+    Output is plain text because the Gatsby component this replaces read
+    ``.csl-entry`` ``textContent``, which discarded citeproc's ``<i>`` tags.
     """
-    authors = _name_list(entry.get("author"))
-    editors = _name_list(entry.get("editor"))
-    title = str(entry.get("title") or "").strip()
-    container = str(entry.get("container-title") or "").strip()
-    publisher = str(entry.get("publisher") or "").strip()
-    kind = str(entry.get("type") or "").strip()
-    issued = _issued_text(entry)
-
-    chunks: list[str] = []
-    if authors:
-        chunks.append(_sentence(authors))
-        chunks.append(f"({issued}).")
-        if title:
-            chunks.append(_sentence(title))
-    else:
-        if title:
-            chunks.append(_sentence(title))
-        chunks.append(f"({issued}).")
-
-    if container:
-        detail = container
-        if kind in _PERIODICAL_TYPES:
-            volume = str(entry.get("volume") or "").strip()
-            issue = str(entry.get("issue") or "").strip()
-            page = str(entry.get("page") or "").strip()
-            if volume:
-                detail += f", {volume}"
-                if issue:
-                    detail += f"({issue})"
-            if page:
-                detail += f", {page}"
-        chunks.append(_sentence(detail))
-    if editors and kind == "chapter":
-        chunks.append(_sentence(f"In {editors} (Ed.)"))
-    if publisher and publisher != container:
-        chunks.append(_sentence(publisher))
-
-    doi = str(entry.get("DOI") or entry.get("doi") or "").strip()
-    if doi and not entry.get("URL"):
-        chunks.append(f"https://doi.org/{doi.removeprefix('https://doi.org/')}")
-
-    accessed = _accessed_text(entry)
-    if accessed and not entry.get("issued"):
-        chunks.append(_sentence(accessed))
-
-    return " ".join(chunk for chunk in chunks if chunk).strip()
+    return _format_csl(entry, APA_STYLE_PATH)
 
 
 FORMATTERS: dict[str, CitationFormatter] = {"apa": format_apa}
