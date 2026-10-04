@@ -26,10 +26,17 @@
       "text": "Papyrus guidance PR #87 merged to develop. Staging rule fix is live (404-200); Anth.us branch fix/PPY-fdb5e9-real-404 awaits integration.",
       "created_at": "2026-10-04T02:11:58.607907Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2f17cc88-3ca6-4e52-a2f1-ae39280cb384",
+      "author": "home",
+      "text": "Pilobol.us production fixed. PR AnthusAI/Pilobol.us#43 (merge 7f30fa9) adds dist-papyrus/404.html via the Papyrus shell (93->94 files, only 404.html added, sitemap untouched); Amplify job 196 SUCCEED. Then customRules on d1od6t7lzbwanr set to [{/<*> -> /404.html, 404-200}] (was []). Live: missing /nope-xyz/ and /a/b/c/ -> 404 with 2322-byte styled body (was 0); /404.html 200; home and 19 sitemap URLs unchanged at 200; robots/sitemap unchanged.",
+      "created_at": "2026-10-04T02:17:52.790165Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-04T02:02:40.498269Z",
-  "updated_at": "2026-10-04T02:11:58.607926Z",
+  "updated_at": "2026-10-04T02:17:52.790225Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

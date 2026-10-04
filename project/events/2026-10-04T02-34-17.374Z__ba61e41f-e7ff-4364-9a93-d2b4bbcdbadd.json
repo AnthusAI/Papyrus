@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ba61e41f-e7ff-4364-9a93-d2b4bbcdbadd",
+  "issue_id": "PPY-2abd5124-18f8-42df-a3cb-5fdbb269cac7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T02:34:17.374Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markus citations: render plain-text author strings instead of dropping them",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

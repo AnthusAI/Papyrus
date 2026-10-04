@@ -3,7 +3,7 @@
   "title": "scripts/test-theme-packs.cjs fails on develop: normalizeSiteBrandId('pilobol') contract mismatch",
   "description": "Pre-existing failure on develop, NOT introduced by any current branch. Verified by running it on an untouched develop checkout.\n\nscripts/test-theme-packs.cjs line 33 asserts normalizeSiteBrandId('pilobol') === null, but lib/site-brand.ts maps 'pilobol' -> 'pilobol-us'. One side is wrong and it is a one-line decision about which: either the alias is intended (fix the test) or it is not (fix the mapping).\n\nCONSEQUENCE: because node:assert aborts on first failure, nothing after line 33 in that file ever runs. The author of Papyrus PR #83 therefore put new anth-us brand assertions in a sibling scripts/test-anth-us-brand.cjs (+ npm run test:anth-us-brand) rather than appending to a file that never reaches them. Worth consolidating once this is resolved.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -21,11 +21,18 @@
         "platform": "claude_code",
         "model": "claude-sonnet-5-5"
       }
+    },
+    {
+      "id": "18bc3948-3e98-46dd-8b67-8545e37652e6",
+      "author": "home",
+      "text": "PR #88 merged to develop.",
+      "created_at": "2026-10-04T02:26:27.656908Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-03T16:03:58.544353Z",
-  "updated_at": "2026-10-04T02:16:03.439193Z",
-  "closed_at": null,
+  "updated_at": "2026-10-04T02:26:28.138078Z",
+  "closed_at": "2026-10-04T02:26:28.138033Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

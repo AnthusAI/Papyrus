@@ -19,10 +19,17 @@
       "text": "Checkpoint DEPLOYED to staging (job 3, e4023f8): production shell, regenerated live stylesheet, 7-link header, collection listings, all 8 static pages. Orchestrator reviewed side-by-side screenshots at 1440 for home, /articles/ai-agents/, /articles/: visually indistinguishable from live apart from the footer staging note. Full per-page parity pass (1440+390) still to do; known gaps listed in the agent checkpoint (5 articles with diagram height deltas, ai-solutions +85px, ryan +180px, sqlbot gif missing).",
       "created_at": "2026-10-04T01:46:18.653588Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a852f46f-285f-49f9-bf74-89a1891df5bd",
+      "author": "home",
+      "text": "Design parity pass on feature/exact-design-parity (pushed, not deployed). Commits: 9e8ef08 DOM layer + generators; f8daadf sentinels; 2cd6507 SiteChrome/transform/post-pass; dd613de pin 3fdd6fd + docs; e4023f8 live changes + URLs (254/254 live sitemap URLs serve or 301, no chains); fbadb95 height gaps + sqlbot gif. Verified vs live build Anth.us-live (1440+390, 56 shots): all pages within ~1-3 mean diff and the +48/+57px staging note, except explained cases (notebooklm: live bug via endsWith image match; articles2/tag/posts4: same-date ordering; 404 short page; bibliography text differs because live fills it after hydration). 101-article height sweep: 98 within 6px; langchain-by-example -51 (md in table cell), inspected-by-pudicus +25 (bare top-level mark). Content-version control: 4b80f02 build gives identical deltas. sqlbot-screen.gif (11MB) copied from Anth.us static/images into web/assets/site. Full table: web/DESIGN-PARITY.md.",
+      "created_at": "2026-10-04T02:37:48.105137Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-03T16:07:27.728303Z",
-  "updated_at": "2026-10-04T01:46:18.653613Z",
+  "updated_at": "2026-10-04T02:37:48.105167Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
