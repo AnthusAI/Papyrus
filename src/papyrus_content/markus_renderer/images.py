@@ -210,6 +210,10 @@ class ImageWrap:
     #: ``data:`` URI of the tiny blurred placeholder (``gatsby_parity`` with
     #: ``placeholder="blurred"``), else ``None``.
     placeholder: str | None = None
+    #: ``gatsby_parity`` only: the CSS width the image is displayed at (the
+    #: source width, capped by ``max_width``) -- gatsby's ``presentationWidth``
+    #: and the right ``max-width`` for an aspect-ratio sizer. ``None`` otherwise.
+    display_width: int | None = None
 
 
 @dataclass(frozen=True)
@@ -879,6 +883,7 @@ class ImageBuilder:
                     width=width,
                     height=height,
                     placeholder=placeholder,
+                    display_width=display_width,
                 )
             )
         caption_bits = []

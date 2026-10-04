@@ -207,6 +207,7 @@ class PlaceholderTests(unittest.TestCase):
             html = builder.render(ImageRequest(src="images/p.png"))
         self.assertTrue(seen[0].placeholder.startswith("data:image/jpeg;base64,"))
         self.assertEqual((seen[0].width, seen[0].height), (2000, 1000))
+        self.assertEqual(seen[0].display_width, 2000)
         # The hook owns the DOM: no frame and no support block from Papyrus.
         self.assertNotIn("papyrus-image-frame", html)
         self.assertNotIn("<script>", html)
