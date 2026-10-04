@@ -109,12 +109,9 @@ export function normalizeSiteBrandId(value: string | undefined | null): SiteBran
     // `anth.us` and `anth_us` too.
     return "anth-us";
   }
-  if (
-    normalized === "pilobol-us" ||
-    normalized === "pilobolus" ||
-    normalized === "pilobol_us" ||
-    normalized === "pilobol"
-  ) {
+  // Bare `pilobol` is deliberately NOT an alias (f268e72): the brand name is
+  // Pilobolus; Pilobol.us is the domain and `pilobol-us` the technical id.
+  if (normalized === "pilobol-us" || normalized === "pilobolus") {
     return "pilobol-us";
   }
   return null;
