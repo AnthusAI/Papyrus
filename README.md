@@ -573,7 +573,7 @@ poetry run papyrus assignments story-cycle-output --run-id <coverage-theme-run-i
 poetry run python procedures/newsroom/tests/test_newsroom_tools.py
 ```
 
-Newsroom agents use the single-tool Tactus pattern from Plexus. Their Tactus
+Newsroom agents use the single-tool Tactus pattern from Primus. Their Tactus
 procedures load only `execute_tactus` from `procedures/newsroom/tactus_tools/`;
 inside that tool, snippets use the packaged `papyrus` host module for GraphQL
 reads, desk context assembly, Biblicus evidence, docs/API discovery, and dry-run
