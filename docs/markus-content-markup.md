@@ -22,6 +22,17 @@ changes, this file changes first.
 | `<Citation data={{type: "webpage", title: "…", URL: "…"}} />` | front-matter `citations:` entry + `[@key]` at the point of use |
 | `<CitationsList citationFormat="apa" />` | `::citations{format="apa"}` |
 
+## File names and URL slugs
+
+Any `*.md` in `articles/` (or another section directory) is a page. Its URL
+slug is derived from the file name by `markus_renderer.build.slugify`:
+ASCII-fold, lowercase, every run of non-alphanumerics (spaces, underscores,
+punctuation) becomes a single hyphen, leading/trailing hyphens stripped. So
+`Paytronix.md` is served at `articles/paytronix.html` and `Call Criteria.md`
+at `articles/call-criteria.html`; an already-lowercase name is unchanged.
+Names starting with `_` or `.` are not pages. The build fails if two files
+derive the same slug (both are named) or a name leaves no slug at all.
+
 ## Both capabilities are opt-in
 
 ```python
