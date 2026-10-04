@@ -24,10 +24,22 @@
         "model": "claude-sonnet-5-5",
         "name": "claude-code"
       }
+    },
+    {
+      "id": "136fa16a-e9c7-451c-bb1c-99477fe8cd58",
+      "author": "home",
+      "text": "DESCRIPTION UPDATE: scope changed from fail-loudly to root-cause fix. Markus discovery now accepts any *.md (not starting with _ or .) and derives the URL slug via one canonical slugify (ASCII-fold, lowercase, punctuation/whitespace runs -> single hyphen, trim). Capitalised files render at lowercase URLs. Build fails only on slug collisions (both files named) or empty slugs. PR #89 reworked accordingly; Pilobol.us byte-identical (89 files); Anth.us _slugify agrees on all 128 nodes so its workaround can be dropped after merge.",
+      "created_at": "2026-10-04T02:29:49.613091Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "claude-code"
+      }
     }
   ],
   "created_at": "2026-10-04T02:16:03.837112Z",
-  "updated_at": "2026-10-04T02:18:43.796666Z",
+  "updated_at": "2026-10-04T02:29:49.613147Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
