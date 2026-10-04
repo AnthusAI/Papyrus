@@ -257,19 +257,38 @@ class ApaFormattingTests(unittest.TestCase):
             "https://doi.org/10.48550/arXiv.2511.23455",
         )
 
-    def test_one_author_string_listing_several_people_is_ignored_like_live(self) -> None:
-        # citation-js drops an author that is not a list, so live printed the
-        # entry without any author. Matching that is the point of this module.
-        text = format_apa(
-            {
-                "type": "webpage",
-                "title": "Wake Words",
-                "author": "Sam McVeety and Amir Hormati",
-                "container-title": "Google Cloud",
-                "issued": {"date-parts": [[2023, 9, 2]]},
-            }
+    def _authors(self, author: object) -> str:
+        return format_apa(
+            {"type": "book", "title": "T", "author": author, "issued": {"date-parts": [[2020]]}}
         )
-        self.assertEqual(text, "Wake Words. (2023, September 2). Google Cloud.")
+
+    def test_author_string_renders_as_a_literal_name(self) -> None:
+        # Deliberate divergence from live, which dropped string authors.
+        self.assertEqual(self._authors("John Maynard Keynes"), "John Maynard Keynes. (2020). T.")
+
+    def test_author_string_splits_on_and_ampersand_and_semicolon(self) -> None:
+        self.assertEqual(
+            self._authors("Sam McVeety and Amir Hormati"),
+            "Sam McVeety, & Amir Hormati. (2020). T.",
+        )
+        self.assertEqual(
+            self._authors("A & B; C"), "A, B, & C. (2020). T."
+        )
+        self.assertEqual(self._authors("A AND B"), "A, & B. (2020). T.")
+
+    def test_author_string_comma_is_not_a_separator(self) -> None:
+        self.assertEqual(self._authors("Smith, J."), "Smith, J. (2020). T.")
+
+    def test_author_string_with_only_separators_has_no_author(self) -> None:
+        self.assertEqual(self._authors(" and ; "), "T. (2020).")
+
+    def test_editor_string_is_split_too(self) -> None:
+        text = format_apa(
+            {"type": "chapter", "title": "T", "container-title": "Book", "editor": "E One and E Two",
+             "issued": {"date-parts": [[2020]]}}
+        )
+        self.assertIn("E One", text)
+        self.assertIn("E Two", text)
 
     def test_structured_and_literal_authors(self) -> None:
         text = format_apa(
