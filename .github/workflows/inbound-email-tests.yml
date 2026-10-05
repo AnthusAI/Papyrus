@@ -62,5 +62,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Install TypeScript (the smoke test transpiles email-submission.ts)
+        run: npm install --no-save --no-package-lock typescript@^6.0.3
       - name: Inbound email MIME classification smoke test
         run: node amplify/functions/shared/email-submission.test.mjs
