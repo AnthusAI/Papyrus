@@ -75,6 +75,10 @@ type GraphQLItem = {
   headline?: string | null;
   deck?: string | null;
   body?: Array<string | null> | null;
+  bodyMarkus?: string | null;
+  bodyIr?: unknown;
+  aliases?: Array<string | null> | null;
+  metadata?: unknown;
   byline?: string | null;
   dateline?: string | null;
   publishedAt?: string | null;
