@@ -30,7 +30,6 @@ type HomePageProps = {
 };
 
 export default async function Home({ searchParams }: HomePageProps) {
-  const siteRenderer = getSiteRenderer();
   const resolvedSearchParams = await searchParams;
   const scenarioId = getScenarioIdParam(resolvedSearchParams?.scenario);
 
@@ -45,6 +44,11 @@ export default async function Home({ searchParams }: HomePageProps) {
   if (rootRoute.kind === "redirect" && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
     redirect(rootRoute.destination);
   }
+
+  // Resolved only on the reader path: Markus brands (renderer "markus") have
+  // no Next.js reader and getSiteRenderer() throws for them, but they can
+  // still serve the newsroom at the root via rootRoute above.
+  const siteRenderer = getSiteRenderer();
 
   if (!scenarioId) {
     if (hasOAuthRedirectParams(resolvedSearchParams)) {
