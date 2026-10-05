@@ -50,7 +50,7 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
       - name: Install dependencies
-        run: poetry install --no-interaction
+        run: poetry install --no-interaction --extras newsroom
       - name: Email submission unit tests
         run: |
           poetry run python -m unittest \

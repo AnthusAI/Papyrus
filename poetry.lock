@@ -2279,10 +2279,9 @@ sphinx = "*"
 name = "limatus"
 version = "0.17.1"
 description = "A diagnose-and-steer quality loop for AI-generated content."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"newsroom\""
 files = [
     {file = "limatus-0.17.1-py3-none-any.whl", hash = "sha256:2f65dd96dcca3628282a3535965c0e7cfceb44c85cbe4151305250cc45d53c45"},
     {file = "limatus-0.17.1.tar.gz", hash = "sha256:633d6a927a171baa85ea28354c9016bd9e806fb0afce7c00972338944fa7baf3"},
@@ -6127,9 +6126,9 @@ type = ["pytest-mypy"]
 
 [extras]
 markus = ["anthus-markus"]
-newsroom = ["boto3", "limatus", "markitdown", "tactus", "tiktoken"]
+newsroom = ["boto3", "markitdown", "tactus", "tiktoken"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "4defe00131b7fd8b32a5384ccf82dd00ce69c1010cc01bc785a2f276c3e92bf0"
+content-hash = "39dd5841a65968c9e26ca482a6ed759e6a274f875bded968dc0860cb1593c516"
