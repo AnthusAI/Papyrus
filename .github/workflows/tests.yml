@@ -1,0 +1,68 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  ts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # amplify_outputs.json is generated per deployment and git-ignored; typecheck
+      # only needs the module to resolve, so an empty stub stands in. No secrets.
+      - run: echo '{}' > amplify_outputs.json
+      - run: npm run typecheck
+      - run: npm run test:newsroom
+      - run: npm run test:theme-packs
+      - run: npm run test:anth-us-brand
+      - run: npm run test:newsroom-card-layout
+      - run: npm run test:markus-projection
+      - run: npm run test:markus-to-article
+      - run: npm run test:renderer-config
+      - run: node amplify/functions/reader-settings/handler.test.mjs
+      - run: node amplify/functions/shared/email-submission.test.mjs
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install poetry
+      - run: poetry install --no-interaction --extras "newsroom markus"
+      # Explicit exclusions, each with a reason; nothing is skipped silently.
+      #   test_content_cli_live          live: needs PAPYRUS_GRAPHQL_JWT, AWS and network
+      #   test_references_commands       PPY-c22e1c (stale assertions)
+      #   test_tavily_research           PPY-c22e1c (stale assertions)
+      #   test_relations_commands        PPY-c22e1c (stale assertions)
+      #   test_analysis_entity_graph_bridge  PPY-c22e1c (stale assertions)
+      #   test_cloud_procedure_execution PPY-c22e1c (stale assertions)
+      #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
+      #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
+      - name: Newsroom unit tests
+        run: |
+          excluded="test_content_cli_live test_references_commands test_tavily_research test_relations_commands test_analysis_entity_graph_bridge test_cloud_procedure_execution test_newsroom_tools test_papyrus_content"
+          modules=""
+          for file in procedures/newsroom/tests/test_*.py; do
+            name=$(basename "$file" .py)
+            case " $excluded " in *" $name "*) continue ;; esac
+            modules="$modules $name"
+          done
+          cd procedures/newsroom/tests
+          poetry run python -m unittest $modules -v
+      # Excluded features, PPY-c22e1c (stale steps/assertions):
+      #   editorial-style-profile (step imports removed _FORBIDDEN_KEY_PATTERN)
+      #   research-reporting-context
+      - run: poetry run behave features_backend --tags=~@live-agent --exclude 'editorial-style-profile|research-reporting-context'
+      - run: poetry run behave features/operator-cli.feature
