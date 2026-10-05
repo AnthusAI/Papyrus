@@ -1,7 +1,8 @@
 # The standard Papyrus site
 
-Status: **Approved design (2026-10-05).** Phase 3 migration issues reference
-this doc. Nothing here is implemented yet. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
+Status: **Approved design (2026-10-05); packaging spike done (PPY-82be6c, verdict:
+works with changes, section 5).** Phase 3 migration issues reference this doc.
+The package skeletons exist (PR #100) but nothing is published. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
 verified against `origin/develop` (7cb1b7e), `AnthusAI/Anth.us-Papyrus@main`,
 `AnthusAI/Pilobol.us@main` and `AnthusAI/Threat-Intelligence@main` on
 2026-10-05. Existing docs are linked, not repeated:
@@ -43,9 +44,9 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
     free; scope ownership is not verifiable that way and must be confirmed at
     first publish.)
 12. **`anthus-markus` goes to PyPI first** as a prerequisite, and the `tactus
-    file:///` dependency is replaced by the PyPI release. (Verified: PyPI
-    already lists `anthus-markus` 0.5.1; confirm it matches the `v0.5.1` git tag
-    the builds use today, and that Papyrus can depend on `>=0.5.1`.)
+    file:///` dependency is replaced by the PyPI release. (Spike-verified:
+    `anthus-markus` 0.5.1 on PyPI is byte-identical to the `v0.5.1` tag, all 15
+    `.py` files; Papyrus can depend on `>=0.5.1`.)
 13. **GitHub App handshake:** the one-time Amplify GitHub App console step per
     repo is accepted; Ryan does it, and each site's runbook records it.
 14. **Staging previews are limited to `editor` and `admin`** for now. A read-only
@@ -108,7 +109,9 @@ Moves **out of the Papyrus repo** into publication repos: `publications/threat_i
 (except the generic VideoML pipeline, 1.11), `publications/pilobol_us/`,
 `publications/pilobolus/`, `publications/anth_us/`, `publications/anthus/`.
 Papyrus keeps `publications/papyrus/` only as a reference brand for its own dev
-and tests. See conflict C1.
+and tests. See conflict C1. The spike tarball still carries 16 `publications/*`
+files (TI, anth-us, pilobol-us brands) because core's `lib/site-brand.ts`
+imports the built-in brands; removing them is a named Phase 2 item.
 
 ### 1.3 Packaging Papyrus (replaces the pin)
 
@@ -140,23 +143,44 @@ the CDK packages. Maintenance cost: the peer version ranges
 (`aws-cdk-lib`, `constructs`) are a compatibility contract; widen or bump them
 deliberately in the Papyrus release that changes the CDK code, and the
 release's CI builds the infra entry against the lowest and highest supported
-CDK versions.
+CDK versions. Spike-verified: without the CDK the infra entry fails with the
+clear message, and a separate `infra/` app synthesizes the app-shell template.
 
-**Python extras.** Base install is what a static reader build needs (Markus
-renderer, CLI core: Pillow, PyYAML, citeproc-py, `anthus-markus`). Heavy newsroom
-dependencies (`markitdown[all]`, tiktoken, boto3, tactus, limatus) go in a
-`newsroom` extra. Reader builds on Amplify stay fast; `pip install
-"papyrus-newsroom[newsroom]"` is for operators, agents and Lambda bundling.
+**Install size (known, accepted for now).** The app install is still heavy:
+`node_modules` is 814 MB without the CDK (next 158, `@next/swc` 127, mermaid 90,
+lucide 46) and 1.8 GB with the Amplify backend dev dependencies (aws-cdk-lib
+151, `@aws-amplify` 575). The `infra/` app is about 990 MB, because every
+runtime dependency is a regular dependency of `@anthusai/papyrus`. YAGNI
+position: accept it; Amplify builds cache `node_modules`. Slim later (an
+infra-only entry or moving heavy dependencies to optional peers) if install time
+or cost becomes a real problem.
 
-**Removing `tactus @ file:///Users/ryan/Projects/Tactus`.** `tactus` is on PyPI
-(0.52.0 verified) and `limatus` (0.29.0) too; depend on `tactus >=0.52,<1` like
-`limatus`. Local Tactus development uses a dev-only override
+**Python extras.** Base install = PyYAML, citeproc-py, `limatus`. `limatus` is a
+**base** dependency because the `papyrus` CLI imports it at import time
+(`papyrus_content/editorial_*.py`) and Ryan plans to integrate it more deeply.
+The `markus` extra is `anthus-markus` (the static Markus reader build needs
+base + `markus`). The `newsroom` extra is boto3, markitdown, tiktoken, tactus.
+Reader builds stay light; `pip install "papyrus-newsroom[newsroom]"` is for
+operators, agents and Lambda bundling. Dev installs need `poetry install
+--all-extras`.
+
+**Python version.** `papyrus-newsroom` requires Python >=3.12, but Amplify's
+build image defaults to 3.10 (per AWS docs; not yet verified on a real build).
+Any reader build that pip-installs it must provision 3.12 first. Lambda
+bundling is unaffected: it installs with `--python-version 3.12
+--ignore-requires-python` for the Lambda platform.
+
+**Removing `tactus @ file:///Users/ryan/Projects/Tactus` (done in PR #100).**
+`tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
+`file:` or `git+` requirement, and `limatus` 0.17.x and 0.29.0 both resolve.
+Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published
 metadata. PyPI rejects direct-URL dependencies, so **`anthus-markus` must come from
 PyPI** (builds install it from `git+https://github.com/AnthusAI/Markus@v0.5.1`
 today; `pluggable-publishers.md` records PyPI publication as unverified, but
-0.5.1 is now listed). Prerequisite per decision 12. Also delete `{ include = "publications" }` from the Python
-packages; publication code no longer ships in Papyrus.
+0.5.1 is listed and verified). Prerequisite per decision 12. `{ include =
+"publications" }` and `package-mode = false` were removed from the Python
+package in #100; publication code no longer ships in the wheel.
 
 **Public registries.** Assumed public (Papyrus is MIT, tier one is "Fork it"):
 public npm and PyPI, GitHub provenance attestations (decision 11).
@@ -177,7 +201,7 @@ The hard part: Next route files and `amplify/backend.ts` are not libraries.
 
 | Option | How | Verdict |
 | --- | --- | --- |
-| **A. `amplify/backend.ts` is `export default defineSiteBackend(site)` imported from `@anthusai/papyrus/backend` (recommended)** | `ampx pipeline-deploy` bundles the repo's `amplify/` with esbuild; imports from `node_modules` resolve. The data schema, auth, storage and function definitions are Papyrus's; the site passes its config (brand id, Cognito prefix, OAuth redirects, feature flags) as an argument, not by env sniffing at synth time | Recommended |
+| **A. `amplify/backend.ts` is `export default defineSiteBackend(site)` imported from `@anthusai/papyrus/backend` (recommended)** | `ampx pipeline-deploy` bundles the repo's `amplify/` with esbuild; imports from `node_modules` resolve, **but the backend entry must ship as compiled JS**: Node refuses to type-strip `.ts` under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`) and ampx's tsx does not rescue it. The package build compiles `amplify/**` (not the handlers; esbuild bundles those) and `define-site` to ESM `.js` beside the TS. The data schema, auth, storage and function definitions are Papyrus's; the site passes its config (brand id, Cognito prefix, OAuth redirects, feature flags) as an argument, not by env sniffing at synth time | Recommended |
 | B. Copy backend source into the repo | Drift and forks by another name | Rejected |
 
 **Python Lambdas.** Today their `resource.ts` copies `src/...` from the repo
@@ -188,6 +212,12 @@ version equals the installed Python version (lockstep makes this trivial). The
 console-chat-responder container image (`PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI`,
 `scripts/build-console-responder-image.sh`) is published at release to a public
 registry (GHCR) and referenced by version tag; sites no longer build it locally.
+
+**Lockfiles.** A lockfile updated incrementally (swapping the Papyrus tarball)
+failed `npm ci` ("Missing: @opentelemetry/core@2.0.0 from lock file");
+regenerating from scratch fixed it. CI runs `npm ci --dry-run` in publication
+repos (and in Papyrus), and the Renovate guidance is to regenerate rather than
+patch the lock when a Papyrus bump breaks `npm ci`.
 
 ### 1.5 Releases and updates
 
@@ -338,6 +368,11 @@ the same Item-to-published projection function the publish step uses
 (`projectItemToPublished`), so frontends receive the identical contract.
 Selected by `PAPYRUS_CONTENT_SOURCE=drafts`.
 
+**Auth lanes for SSR (spike-verified).** A signed-in non-editor cannot read
+`PublishedItem` over `userPool`: the rules are guest/`identityPool` plus
+editor/admin only. So SSR reads published content with `identityPool` (guest)
+always, and uses `userPool` only for drafts (editor/admin).
+
 | | Pretext SSR | Markus static |
 | --- | --- | --- |
 | Where | `staging` branch of the CMS app, `staging.<domain>` | `staging` branch of the CMS app, `staging.<domain>` |
@@ -392,9 +427,9 @@ pictogram art) are supplied by the publication through `brand.video`.
 | Piece | State | Phase |
 | --- | --- | --- |
 | Item/Edition model, media, Published* | exists | - |
-| **Published packages + Semantic Release** (1.3, 1.5), `tactus`/`anthus-markus` on PyPI | does not exist | 2 (first: everything else consumes it) |
-| `@anthusai/papyrus/infra` subpath + optional CDK peers, GitHub OIDC roles, GitHub App runbook | does not exist | 2 |
-| `defineSite`/`withPapyrus`/`papyrus-app`, `defineSiteBackend` | do not exist | 2 |
+| **Published packages + Semantic Release** (1.3, 1.5); skeletons and PyPI deps exist (#100), nothing published | partly | 2 (first: everything else consumes it) |
+| `@anthusai/papyrus/infra` subpath + optional CDK peers (exists, spike-proven), GitHub OIDC roles, GitHub App runbook | partly | 2 |
+| `defineSite`/`withPapyrus`/`papyrus-app`, `defineSiteBackend`; remove built-in `publications/*` brands from the tarball (C1) | spike versions exist | 2 |
 | Schema additions (1.8), one-time `body[]` conversion | do not exist | 2 |
 | Generic **publish step**, **Markus importer**, **exporter** (published and drafts) | do not exist | 2 |
 | **Preview repository**, staging gate, staging branch/export job | do not exist | 2 |
@@ -489,6 +524,14 @@ board is the separate `TI` Kanbus board.
 5. Add the `staging` branch with drafts export and the Cognito gate;
    rebuild-on-publish webhook.
 
+Estimate (spike): 4-6 working days for the CMS app, backend and staging gate,
+once the Phase 2 pieces exist (excluding the importer/exporter and reader snapshot):
+release pipeline and extras fixes 1-1.5, brand/config move 0.5, repo scaffold +
+`infra/site.json` + GitHub App + replacing the PAT 1-1.5, CMS app with backend
+pipeline verified against production data 1-1.5, staging branch + gate +
+`SITE_ENV` guards 1. Biggest risk: attaching the live CMS app `d11eu9hbs2mipk`
+to the new repo without rebuilding its backend.
+
 Risks: the build contract changes under a live site (verify the HTML diff
 first); a CMS outage at build time must fail the build, not publish an empty
 site; narration/effects scripts in `web/build_via_papyrus.py` are reader-only
@@ -532,46 +575,52 @@ is verified on staging first.
 - **C5. Site logic keyed to the p.apyr.us app id** in `amplify/backend.ts` (lines 41, 69, 179, 299), `amplify/auth/resource.ts`, `functions/console-chat-responder`.
 - **C6. The Markus readers do not read the CMS** (Pilobol.us, Anth.us).
 - **C7. Anth.us deploys by manual zip.**
-- **C8. `pyproject.toml` has `tactus @ file:///Users/ryan/...`** and `package-mode = false`; `package.json` is `private: true`; Lambda bundling copies `src/` from the repo root. All three block packaging (1.3, 1.4).
+- **C8. Packaging blockers** (`tactus @ file:///...`, `package-mode = false`, `private: true` package.json, Lambda bundling copying `src/`): resolved by the spike skeletons in #100 (1.3, 1.4); publishing is still to do.
 - **C9. `Item.body` is `string[]`** with no Markus source; reader and staging cannot represent directives, citations or aliases.
 - **C10. VideoML lives in TI's fork** (and an older copy in Papyrus's `publications/threat_intelligence`), not as a Papyrus capability.
 
-## 5. The spike (prove this before anything else)
+## 5. The spike (done: PPY-82be6c, PR #100)
 
-On **Pilobol.us**, prove: *a publication repo consumes Papyrus from the
-published packages and deploys its CMS app + backend + staging on Amplify.*
-Fallback for the app build if A fails: option B (assemble from the package at
-build). Work on a scratch branch and scratch Amplify resources; do not touch the
-production Pilobol.us apps (`d1od6t7lzbwanr`, and `d11eu9hbs2mipk` until the
-spike passes).
+**Verdict (2026-10-05): the packaging approach works with changes.** Route-shim
+option A (app) and `defineSiteBackend` option A (backend) both hold; the
+option B fallback (assemble the app at build) is not needed. Proven on a
+scratch copy of the Pilobol.us setup with local packs only (`npm pack` tarball
+`0.1.0-next.6`, local wheel `0.1.0.dev6`; nothing published, no production app
+touched; scratch AWS resources and repo deleted). The changes it forced are
+folded into sections 1.3, 1.4, 1.10 and 4.
+
+Also measured: a sandbox backend deploy takes about 9.5 minutes. PR #101
+repaired the inbound-email CI job (it had been red on every run since June) by
+installing the `newsroom` extra and typescript; the same PR made `limatus` a
+base dependency.
 
 ### Acceptance checklist
 
 Prerequisites
-- [ ] Name availability re-checked immediately before first publish (`@anthusai/papyrus`, `papyrus-newsroom`); npm scope ownership confirmed.
-- [ ] `anthus-markus` on PyPI matches the `v0.5.1` tag; `tactus` and `limatus` resolve from PyPI; no `file://` or `git+` dependency remains in `pyproject.toml` metadata.
+- [ ] Name availability re-checked immediately before first publish (`@anthusai/papyrus`, `papyrus-newsroom`); npm scope ownership confirmed. (Needs Ryan.)
+- [x] `anthus-markus` on PyPI matches the `v0.5.1` tag; `tactus` and `limatus` resolve from PyPI; no `file://` or `git+` dependency remains in the wheel metadata.
 
 Packages
-- [ ] Papyrus `develop` release workflow publishes `X.Y.Z-next.N` of both packages via Semantic Release, from GitHub Actions with OIDC trusted publishing (no `NPM_TOKEN`/`PYPI_TOKEN` secrets exist).
-- [ ] Versions are identical across the two packages; the backend's version assertion passes.
-- [ ] `pip install "papyrus-newsroom[markus]"` in a clean venv builds a static Markus reader (no Papyrus checkout, no `PAPYRUS_ROOT`).
+- [ ] Papyrus `develop` release workflow publishes `X.Y.Z-next.N` of both packages via Semantic Release with OIDC trusted publishing (no `NPM_TOKEN`/`PYPI_TOKEN`). Not done: spike used local packs.
+- [ ] Versions are identical across the two packages; the backend's version assertion passes. (Lockstep mapping to PEP 440 used in the spike; assertion untested against real releases.)
+- [x] `pip install "papyrus-newsroom[markus]"` in a clean venv builds a static Markus reader (12 Pilobol.us pages; no checkout, no `PAPYRUS_ROOT`). Python 3.12 caveat on Amplify (1.3).
 
 CMS app and backend
-- [ ] Pilobol.us scratch branch has `papyrus.config.ts`, Next shell (`withPapyrus`, `papyrus-app sync`), and `amplify/backend.ts` using `defineSiteBackend`; `npm run build` passes locally.
-- [ ] Amplify builds the CMS app from that branch (connected via the GitHub App, no access token anywhere) and `ampx pipeline-deploy` creates the backend.
-- [ ] At least one Python Lambda is bundled by `pip install papyrus-newsroom==<same version>` and invokes successfully.
-- [ ] `/newsroom` loads with the Pilobol.us brand, sign-in works through the site's Cognito.
+- [x] Scratch publication repo has `papyrus.config.ts`, Next shell, and `amplify/backend.ts` using `defineSiteBackend`; `next build` passes. Brand renders without a Papyrus edit.
+- [ ] Amplify builds the CMS app from the repo via the GitHub App and `ampx pipeline-deploy` creates the backend. **Not testable without the Amplify GitHub App handshake** (Ryan). Locally simulated and passing: `npm ci`, `ampx generate outputs`, `npm run build` from a clean copy.
+- [x] A Python Lambda is bundled by `pip install papyrus-newsroom==<same version>` and invokes (HTTP 200) in a sandbox backend (`ampx sandbox`, not pipeline-deploy). Not done: console-responder container image, SES/Slack/backup features.
+- [~] `/newsroom` renders with the brand (HTML only; with `newsroomBasePath: ""` it redirects to `/`). No browser sign-in flow tested.
 
 Staging
-- [ ] A `staging` branch builds frontend-only (no `backend:` phase) against the production backend's outputs.
-- [ ] A draft `Item` is visible on staging as if published (Pretext SSR path), and `papyrus content export --drafts` plus the Markus build renders it (static path).
-- [ ] Anonymous request to staging is redirected to login and returns no draft content; a user in neither `editor` nor `admin` gets no draft data from AppSync; an `editor` sees it.
-- [ ] Staging pages carry noindex, `Disallow: /`, and the staging banner (`SITE_ENV`).
+- [ ] A `staging` branch builds frontend-only against the production backend's outputs. **Not testable without the GitHub App/Amplify** (branch deployment against another branch's backend); the frontend-only pattern passes locally.
+- [x] Guest reads `PublishedItem` through `ContentRepository` and cannot see a draft (404). [ ] Draft visible on staging via the Pretext path and `papyrus content export --drafts` (neither exists yet).
+- [x] Authorization enforced by AppSync (12/12 checks): editor reads draft `Item`; guest and signed-in non-editor get Unauthorized; staging route redirects anonymous, 403s non-editors, shows the draft with a STAGING banner to editors.
+- [ ] noindex, `Disallow: /` and banner guards (`SITE_ENV`) and Markus drafts export: not tested.
 
 CI and updates
-- [ ] A GitHub Actions job assumes an AWS role through GitHub OIDC (no stored keys) and performs one allowed action (for example `aws amplify list-jobs`), and is denied one disallowed action.
-- [ ] Renovate opens one grouped PR bumping the two Papyrus packages together.
+- [ ] A GitHub Actions job assumes an AWS role through GitHub OIDC and performs/denies actions as specified.
+- [ ] Renovate opens one grouped PR bumping the two Papyrus packages. (Add `npm ci --dry-run` to CI, 1.4.)
 
 Result
-- [ ] `infra/` app (own `package.json`, CDK deps added) deploys via `@anthusai/papyrus/infra`; importing the infra entry in an app install without `aws-cdk-lib` fails with the clear install message, and the plain app install pulls no CDK packages.
-- [ ] Written result on PPY-a0fb61 (or the spike issue): pass/fail per item, with the app option (A or B) that worked and any changes needed to this doc.
+- [x] `infra/` app deploys via `@anthusai/papyrus/infra`: synth only (app-shell template: Amplify App/Branch/Domain, 2 roles), nothing deployed; without the CDK the import fails with the clear message and the plain app install pulls no CDK packages (`npm ls aws-cdk-lib constructs` empty).
+- [x] Written result on PPY-82be6c and in the body of PR #100: pass/fail per item, option A for both app and backend.
