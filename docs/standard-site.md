@@ -1,7 +1,7 @@
 # The standard Papyrus site
 
-Status: **Phase 1 design, revised after Ryan's answers (2026-10-05).** Nothing
-here is implemented yet. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
+Status: **Approved design (2026-10-05).** Phase 3 migration issues reference
+this doc. Nothing here is implemented yet. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
 verified against `origin/develop` (7cb1b7e), `AnthusAI/Anth.us-Papyrus@main`,
 `AnthusAI/Pilobol.us@main` and `AnthusAI/Threat-Intelligence@main` on
 2026-10-05. Existing docs are linked, not repeated:
@@ -36,6 +36,23 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
 10. Papyrus is **published as packages** (PyPI and npm), released with Semantic
     Release; publication repos depend on it normally. Replaces the earlier
     `papyrus.pin` checkout idea.
+11. **Public registries:** public npm and PyPI, npm scope `@anthusai`, PyPI name
+    `papyrus-newsroom`. **Check name availability before anything is published.**
+    (2026-10-05 read-only check: `@anthusai/papyrus` and `@anthusai/papyrus-infra`
+    return 404 on npm and `papyrus-newsroom` is not on PyPI, so the names look
+    free; scope ownership is not verifiable that way and must be confirmed at
+    first publish.)
+12. **`anthus-markus` goes to PyPI first** as a prerequisite, and the `tactus
+    file:///` dependency is replaced by the PyPI release. (Verified: PyPI
+    already lists `anthus-markus` 0.5.1; confirm it matches the `v0.5.1` git tag
+    the builds use today, and that Papyrus can depend on `>=0.5.1`.)
+13. **GitHub App handshake:** the one-time Amplify GitHub App console step per
+    repo is accepted; Ryan does it, and each site's runbook records it.
+14. **Staging previews are limited to `editor` and `admin`** for now. A read-only
+    `reviewer` group is a later add-on, not part of this design.
+15. **Staging reads the production backend**; there is no second persistent
+    backend per site. Backend changes are tried in `ampx sandbox` and the `next`
+    prerelease.
 
 ## 1. The standard site
 
@@ -118,14 +135,14 @@ dependencies (`markitdown[all]`, tiktoken, boto3, tactus, limatus) go in a
 (0.52.0 verified) and `limatus` (0.29.0) too; depend on `tactus >=0.52,<1` like
 `limatus`. Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published
-metadata. PyPI rejects direct-URL dependencies, so **`anthus-markus` must be
-published on PyPI** (today it is installed from `git+https://github.com/AnthusAI/Markus@v0.5.1`;
-`pluggable-publishers.md` records publication as unverified). This is a
-prerequisite (Q2). Also delete `{ include = "publications" }` from the Python
+metadata. PyPI rejects direct-URL dependencies, so **`anthus-markus` must come from
+PyPI** (builds install it from `git+https://github.com/AnthusAI/Markus@v0.5.1`
+today; `pluggable-publishers.md` records PyPI publication as unverified, but
+0.5.1 is now listed). Prerequisite per decision 12. Also delete `{ include = "publications" }` from the Python
 packages; publication code no longer ships in Papyrus.
 
 **Public registries.** Assumed public (Papyrus is MIT, tier one is "Fork it"):
-public npm and PyPI, GitHub provenance attestations. Confirm in Q1.
+public npm and PyPI, GitHub provenance attestations (decision 11).
 
 ### 1.4 Building the newsroom app and backend from an npm dependency
 
@@ -296,7 +313,7 @@ already exist and are the only groups that can read `Item`
 (`amplify/data/resource.ts`, `contentWriteGroups`). Staging requires a
 Cognito session in one of them; no shared passwords. Authorization is enforced
 by AppSync, not only by the page gate, so a bypassed gate still reads nothing.
-Adding a read-only `reviewer` group (Q4).
+A read-only `reviewer` group is out of scope (decision 14).
 
 **Content source for drafts.** A `previewContentRepository` implements
 `ContentRepository` over `Item`/`Edition` (latest version, any status) and runs
@@ -506,29 +523,37 @@ is verified on staging first.
 
 On **Pilobol.us**, prove: *a publication repo consumes Papyrus from the
 published packages and deploys its CMS app + backend + staging on Amplify.*
+Fallback for the app build if A fails: option B (assemble from the package at
+build). Work on a scratch branch and scratch Amplify resources; do not touch the
+production Pilobol.us apps (`d1od6t7lzbwanr`, and `d11eu9hbs2mipk` until the
+spike passes).
 
-1. Papyrus `develop` publishes `X.Y.Z-next.N` of the three packages through
-   Semantic Release and trusted publishing (includes `tactus` from PyPI and
-   `anthus-markus` on PyPI).
-2. A scratch branch of the Pilobol.us repo adds `papyrus.config.ts`, the Next
-   shell (`withPapyrus`, `papyrus-app sync`), `amplify/backend.ts` as
-   `defineSiteBackend`, and depends on the packages.
-3. Amplify (CMS app `d11eu9hbs2mipk`'s shell, or a scratch app from the new
-   `papyrus-infra`) connected through the GitHub App builds the Next app
-   and runs `ampx pipeline-deploy`, including a Python Lambda bundled by
-   `pip install` at the matching version.
-4. A `staging` branch builds frontend-only against the production backend's
-   outputs, with `PAPYRUS_CONTENT_SOURCE=drafts`; a draft Item appears only after
-   Cognito `editor` login.
-5. CI role assumes AWS via GitHub OIDC; Renovate opens a version-bump PR.
+### Acceptance checklist
 
-Pass: all five work with no stored token and no checkout of Papyrus. Fail
-fallback for the app: option B (assemble from the package at build).
+Prerequisites
+- [ ] Name availability re-checked immediately before first publish (`@anthusai/papyrus`, `@anthusai/papyrus-infra`, `papyrus-newsroom`); npm scope ownership confirmed.
+- [ ] `anthus-markus` on PyPI matches the `v0.5.1` tag; `tactus` and `limatus` resolve from PyPI; no `file://` or `git+` dependency remains in `pyproject.toml` metadata.
 
-## 6. Open questions for Ryan
+Packages
+- [ ] Papyrus `develop` release workflow publishes `X.Y.Z-next.N` of all three packages via Semantic Release, from GitHub Actions with OIDC trusted publishing (no `NPM_TOKEN`/`PYPI_TOKEN` secrets exist).
+- [ ] Versions are identical across the three packages; the backend's version assertion passes.
+- [ ] `pip install "papyrus-newsroom[markus]"` in a clean venv builds a static Markus reader (no Papyrus checkout, no `PAPYRUS_ROOT`).
 
-1. **Public registries and names:** confirm public npm and PyPI, scope `@anthusai`, and the PyPI name `papyrus-newsroom` (I did not check availability or that you own the npm scope).
-2. **`anthus-markus` on PyPI:** it is git-only today and PyPI rejects direct-URL dependencies; OK to publish Markus (and confirm `tactus` 0.52.0 on PyPI is the Tactus Papyrus should depend on)?
-3. **Amplify GitHub App handshake:** it is a one-time console step per repo (no API). Acceptable as a recorded runbook step?
-4. **Who can preview staging:** editors and admins only, or add a read-only `reviewer` Cognito group (needs a data auth rule)?
-5. **Staging reads the production backend** (drafts are authored there), so there is no second persistent backend per site. Confirm, since it changes what "staging" costs and how backend changes are tested (sandbox and the `next` prerelease).
+CMS app and backend
+- [ ] Pilobol.us scratch branch has `papyrus.config.ts`, Next shell (`withPapyrus`, `papyrus-app sync`), and `amplify/backend.ts` using `defineSiteBackend`; `npm run build` passes locally.
+- [ ] Amplify builds the CMS app from that branch (connected via the GitHub App, no access token anywhere) and `ampx pipeline-deploy` creates the backend.
+- [ ] At least one Python Lambda is bundled by `pip install papyrus-newsroom==<same version>` and invokes successfully.
+- [ ] `/newsroom` loads with the Pilobol.us brand, sign-in works through the site's Cognito.
+
+Staging
+- [ ] A `staging` branch builds frontend-only (no `backend:` phase) against the production backend's outputs.
+- [ ] A draft `Item` is visible on staging as if published (Pretext SSR path), and `papyrus content export --drafts` plus the Markus build renders it (static path).
+- [ ] Anonymous request to staging is redirected to login and returns no draft content; a user in neither `editor` nor `admin` gets no draft data from AppSync; an `editor` sees it.
+- [ ] Staging pages carry noindex, `Disallow: /`, and the staging banner (`SITE_ENV`).
+
+CI and updates
+- [ ] A GitHub Actions job assumes an AWS role through GitHub OIDC (no stored keys) and performs one allowed action (for example `aws amplify list-jobs`), and is denied one disallowed action.
+- [ ] Renovate opens one grouped PR bumping the three Papyrus packages together.
+
+Result
+- [ ] Written result on PPY-a0fb61 (or the spike issue): pass/fail per item, with the app option (A or B) that worked and any changes needed to this doc.
