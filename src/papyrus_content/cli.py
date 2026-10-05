@@ -198,6 +198,7 @@ from .steering import (
     selected_corpus_configs,
 )
 from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
+from .markus_derive_commands import content_markus_derive
 from .markus_renderer.commands import markus_build
 
 
@@ -209,6 +210,7 @@ PORTED_COMMANDS = frozenset(
         "content:seed-edition",
         "content:backfill-item-body-attachments",
         "content:scrub-item-inline-body",
+        "content:markus-derive",
         "corpora:status",
         "corpora:worker-bootstrap",
         "corpora:sync-from-cloud",
@@ -392,6 +394,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_backfill_item_body_attachments(flags)
     elif route == "content:scrub-item-inline-body":
         content_scrub_item_inline_body(flags)
+    elif route == "content:markus-derive":
+        content_markus_derive(flags)
     elif route == "corpora:status":
         corpora_status(flags)
     elif route == "corpora:worker-bootstrap":
@@ -1426,5 +1430,6 @@ def print_usage() -> None:
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
     print("  auth refresh-jwt, batch register-catalog/enrich-references,")
+    print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")
