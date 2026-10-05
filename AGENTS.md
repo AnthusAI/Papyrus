@@ -199,7 +199,8 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   `assignments story-cycle-output` for run-level research/reporting output.
 - Use an AWS profile for local Amplify/AWS access.
 - `.env` is for Papyrus runtime settings and the seed editor credentials used by
-  `npm run seed:amplify`. `.env*` must stay ignored, and `.env.example` is the
+  `npm run seed:amplify` (which seeds users, sections, doctrine and procedures;
+  articles are seeded with `poetry run papyrus content seed-edition`). `.env*` must stay ignored, and `.env.example` is the
   committed template.
 - **GraphQL auth split (do not mix):**
   - **CLI and other non-Lambda tools** use `PAPYRUS_GRAPHQL_ENDPOINT` plus
@@ -876,6 +877,7 @@ Amplify checks when cloud content changes:
 ```bash
 npm run sandbox
 npm run seed:amplify
+poetry run papyrus content seed-edition
 npm run build
 ```
 
