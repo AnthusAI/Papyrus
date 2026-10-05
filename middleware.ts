@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { normalizeSiteBrandId } from "./lib/site-brand";
+import { getSiteBrand, normalizeSiteBrandId, resolveSiteBrandId } from "./lib/site-brand";
 
 const BRAND_OVERRIDE_COOKIE = "papyrus-site-brand-override";
 
@@ -8,8 +8,9 @@ function usesNewsroomRootPaths(request: NextRequest): boolean {
   const cookieBrand = request.cookies.get(BRAND_OVERRIDE_COOKIE)?.value;
   const brandId = normalizeSiteBrandId(cookieBrand)
     ?? normalizeSiteBrandId(request.nextUrl.searchParams.get("brand"))
-    ?? normalizeSiteBrandId(process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND ?? process.env.PAPYRUS_SITE_BRAND);
-  return brandId === "pilobol-us";
+    ?? resolveSiteBrandId();
+  // Brand property (not a hard-coded id) so publication-registered brands work.
+  return getSiteBrand(brandId).rootRoute?.kind === "newsroom" && getSiteBrand(brandId).newsroomBasePath === "";
 }
 
 function isStaticOrApiPath(pathname: string): boolean {
