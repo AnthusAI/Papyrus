@@ -2277,14 +2277,14 @@ sphinx = "*"
 
 [[package]]
 name = "limatus"
-version = "0.17.1"
+version = "0.29.0"
 description = "A diagnose-and-steer quality loop for AI-generated content."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "limatus-0.17.1-py3-none-any.whl", hash = "sha256:2f65dd96dcca3628282a3535965c0e7cfceb44c85cbe4151305250cc45d53c45"},
-    {file = "limatus-0.17.1.tar.gz", hash = "sha256:633d6a927a171baa85ea28354c9016bd9e806fb0afce7c00972338944fa7baf3"},
+    {file = "limatus-0.29.0-py3-none-any.whl", hash = "sha256:29b4c6572484e6e050b8d080e980d6518c22095a6790e0734238d070a9680698"},
+    {file = "limatus-0.29.0.tar.gz", hash = "sha256:2b562ef4a8d9b060ea5149afbc2ac400dabfc3ec96dbb37022a40ec7692da33c"},
 ]
 
 [package.dependencies]
@@ -6131,4 +6131,4 @@ newsroom = ["boto3", "markitdown", "tactus", "tiktoken"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "39dd5841a65968c9e26ca482a6ed759e6a274f875bded968dc0860cb1593c516"
+content-hash = "716f40100a2dfe79faa8199ca35bd23d696288cc02c738e3fa72beeccaeded4d"
