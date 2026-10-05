@@ -18,6 +18,7 @@
     "lint": "eslint .",
     "test:newsroom": "node scripts/test-newsroom-session.cjs && node scripts/test-newsroom-forum-routes.cjs && node scripts/test-theme-packs.cjs",
     "test:theme-packs": "node scripts/test-theme-packs.cjs",
+    "test:anth-us-brand": "node scripts/test-anth-us-brand.cjs",
     "test:newsroom-card-layout": "node scripts/test-newsroom-card-layout.cjs",
     "test:blog-defense-graph": "node publications/threat_intelligence/tests/test-blog-defense-graph.cjs",
     "test:blog-header-obstacles": "node publications/threat_intelligence/tests/test-blog-header-obstacles.cjs",

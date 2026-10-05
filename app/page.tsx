@@ -16,7 +16,7 @@ import {
 import type { PublicationItem } from "../lib/publication-items";
 import { SITE_BRAND, rootRoute } from "../lib/site-brand";
 import { redirect } from "next/navigation";
-import NewsDeskRootPage from "./newsroom/page";
+import NewsDeskRootPage, { type NewsDeskRootSearchParams } from "./newsroom/page";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ type HomePageProps = {
     code?: string | string[];
     state?: string | string[];
     error?: string | string[];
-  }>;
+  } & NewsDeskRootSearchParams>;
 };
 
 export default async function Home({ searchParams }: HomePageProps) {

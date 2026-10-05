@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "68a2cbe2-8f54-49e7-ba32-e5b815783c32",
+  "issue_id": "PPY-9023a798-147d-4c13-9086-e3adaf945bb5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T01:58:50.249Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markus: standard, config-driven analytics capability for static publications",
+    "description": "Ryan 2026-10-03: analytics needs a simple standard way, and Markus needs to be aware of it. Today each publication would have to hand-roll a snippet (the Anth.us port omitted analytics entirely; live anth.us has it).\n\nGoal: a publication-neutral analytics option on the Markus static renderer (e.g. SiteChrome.analytics or a build_markus_site argument) taking a small typed config, e.g. provider (start with Google Analytics 4 / gtag, the provider live anth.us uses; design so Plausible or others slot in), measurement id, an optional consent/opt-out mode, and enabled. The renderer emits the correct snippet in <head> on every page it renders, including pages rendered via render_page directly. Disabled or None (the default) emits nothing, so existing publications are BYTE-IDENTICAL (Pilobol.us proof required: 89 files, empty diff -r). No secrets in output beyond the public measurement id. Respect the security posture (no author-controlled script injection; the config comes from publication build code only). Docs in docs/ (where the Markus renderer is documented) plus tests. The Anth.us build will enable it only for production builds (PPY-f1f0a8 provides the analytics_enabled switch).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

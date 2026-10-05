@@ -1,0 +1,28 @@
+{
+  "id": "PPY-ee2b6b10-742e-4c96-b252-68e624a23768",
+  "title": "Pilobolus editorialAim: prefer remembered image over unsourced stats",
+  "description": "## Intent\n\nLimatus PR #15 added optional `editorialAim` and `compare.hardConstraints`. Pilobolus should state: when a statistic and a plain image compete, prefer the sentence a non-technical reader will remember. Empty `compare.hardConstraints` so dropping unsourced numbers is not a rank-1 DQ.\n\nScan still flags missing attribution. Do not turn off that check.\n\n## Change\n\n`publications/pilobolus/style-profile.yml` only:\n\neditorialAim: When a checkable statistic and a plain image compete, prefer the sentence a non-technical reader will remember. Numbers that need a footnote more than they serve the scene should be cut or said in ordinary language. Link a source in the sentence when a figure stays.\n\ncompare:\n  hardConstraints: []\n\n## Out of scope\n\nLimatus core. Other publications. Applying to published articles.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3bb615dd-dfe9-4820-ac09-5be6e8557070",
+      "author": "8458c498-f041-7092-e4e3-6418236765a7",
+      "text": "Closing: editorialAim and empty compare.hardConstraints are on origin/develop (and main after #78). Local dirty checkout of the YAML is stale; source of truth is the merged profile.",
+      "created_at": "2026-09-11T19:30:32.957089Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-09-11T00:14:24.138303Z",
+  "updated_at": "2026-09-11T19:30:33.016680Z",
+  "closed_at": "2026-09-11T19:30:33.016658Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

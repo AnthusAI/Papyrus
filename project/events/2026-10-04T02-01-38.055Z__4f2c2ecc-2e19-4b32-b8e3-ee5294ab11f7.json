@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4f2c2ecc-2e19-4b32-b8e3-ee5294ab11f7",
+  "issue_id": "PPY-0ba00021-0ad7-4538-bc35-5c0cc43034b5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T02:01:38.055Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us-Papyrus: publish sitemaps at production's URLs (/sitemap-index.xml + /sitemap-0.xml)",
+    "description": "Live anth.us advertises <link rel=\"sitemap\" href=\"/sitemap-index.xml\"> and serves /sitemap-index.xml -> /sitemap-0.xml (gatsby-plugin-sitemap). The port writes /sitemap.xml only, so after cutover the URL registered in Search Console (and any crawler's cached one) would 404.\n\nMinimal fix (YAGNI): emit the same files as production: /sitemap-index.xml (a sitemapindex pointing at /sitemap-0.xml) and /sitemap-0.xml (the urlset of canonical page URLs), match the live files' structure (check https://anth.us/sitemap-index.xml and sitemap-0.xml), and add <link rel=\"sitemap\" type=\"application/xml\" href=\"/sitemap-index.xml\"> to every page's head as live does. Drop /sitemap.xml (or 301 it to /sitemap-index.xml, whichever is simpler). The origin follows the PPY-f1f0a8 switch (https://anth.us in production, the branch host when guarded). The production robots.txt Sitemap: line points at /sitemap-index.xml. Exclude 404 and redirect-only URLs; every listed URL must be a canonical 200 page. Assigned to the PPY-f1f0a8 agent since it owns robots.txt and origin in the same file.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}

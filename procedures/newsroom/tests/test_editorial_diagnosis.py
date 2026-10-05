@@ -277,6 +277,7 @@ class EditorialDiagnosisTests(unittest.TestCase):
         self.assertNotIn("powerful", profile.profile.rules.banned_intensifiers)
         self.assertNotIn("robust", profile.profile.rules.banned_intensifiers)
         self.assertIsNone(profile.profile.rules.contrast_cap)
+        self.assertTrue(profile.profile.rules.no_emojis)
 
     def test_contrast_cap_disabled_for_anthus_house_voice(self) -> None:
         profile = load_style_profile(REPO_ROOT / "publications" / "anthus" / "style-profile.yml")

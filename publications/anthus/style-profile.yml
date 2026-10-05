@@ -2,7 +2,7 @@ schemaVersion: 1
 publicationKey: anthus-blog
 voice:
   name: Anth.us editorial
-audience: Practicing AI and ML engineers, product developers, and technical leaders evaluating tools, cost, and risk.
+audience: Practicing AI and ML engineers, product developers, and technical leaders evaluating tools, cost, and risk. Flagship stories may target a general reader first, opening for someone with no AI background and linking to technical drill-downs; the drill-downs keep the engineering audience.
 headline:
   when: afterBody
   order:
@@ -47,6 +47,7 @@ evidenceRules:
   - Prefer primary sources, official documentation, and attributable citations.
   - Label speculation and weak evidence explicitly.
   - Do not invent anecdotes, statistics, or citations.
+  - "A labelled composite persona is allowed when the author approves it: the text says it is a composite, it is built only from measured facts and stated assumptions, and it never carries a real name or stands for a specific real person."
   - Optimize for editorial quality, not detector scores or synthetic imperfection.
 checks:
   uniformCadence: false
@@ -55,9 +56,17 @@ density:
   minLexicalDensity: 0.45
   maxGzipRatio: 0.35
 rules:
+  noEmojis: true
+  # Articles never refer to themselves. No "this article", "this post", "the rest of this
+  # piece", "below"/"above" as page references; say the thing, or use a plain transition.
   bannedPhrases:
     - coming soon
     - we're just getting started
+    - this article
+    - this post
+    - this piece
+    - the rest of this
+    - in this article
   bannedIntensifiers:
     - revolutionary
     - seamless

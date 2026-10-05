@@ -1,6 +1,7 @@
 import type { EditionPresentationFormat } from "./content-types";
 import { threatIntelligenceBrand } from "../publications/threat_intelligence/brand";
 import { pilobolUsBrand } from "../publications/pilobol_us/brand";
+import { anthUsBrand } from "../publications/anth_us/brand";
 import {
   DEFAULT_THEME_PACK_TOKENS,
   type HostingConfig,
@@ -12,7 +13,7 @@ import {
   type ThemePackTokens,
 } from "./site-stack";
 
-export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us";
+export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us" | "anth-us";
 
 export type SiteBrand = {
   id: SiteBrandId;
@@ -87,6 +88,7 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   },
   "threat-intelligence": threatIntelligenceBrand,
   "pilobol-us": pilobolUsBrand,
+  "anth-us": anthUsBrand,
 };
 
 export function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
@@ -94,15 +96,22 @@ export function normalizeSiteBrandId(value: string | undefined | null): SiteBran
   const normalized = value.trim().toLowerCase().replace(/[._]/g, "-");
   if (!normalized) return null;
   if (normalized === "papyrus") return "papyrus";
+  // NOTE: the bare alias `anthus` has resolved to `threat-intelligence` since
+  // that brand was added and is kept pointing there so existing
+  // PAPYRUS_SITE_BRAND values do not silently change meaning. The Anth.us
+  // publication is therefore addressed as `anth-us` / `anth.us` / `anth_us`
+  // only. Do not "tidy" this by moving `anthus` across.
   if (normalized === "threat-intelligence" || normalized === "threat-intel" || normalized === "anthus") {
     return "threat-intelligence";
   }
-  if (
-    normalized === "pilobol-us" ||
-    normalized === "pilobolus" ||
-    normalized === "pilobol_us" ||
-    normalized === "pilobol"
-  ) {
+  if (normalized === "anth-us") {
+    // `normalized` has already mapped `.` and `_` to `-`, so this covers
+    // `anth.us` and `anth_us` too.
+    return "anth-us";
+  }
+  // Bare `pilobol` is deliberately NOT an alias (f268e72): the brand name is
+  // Pilobolus; Pilobol.us is the domain and `pilobol-us` the technical id.
+  if (normalized === "pilobol-us" || normalized === "pilobolus") {
     return "pilobol-us";
   }
   return null;

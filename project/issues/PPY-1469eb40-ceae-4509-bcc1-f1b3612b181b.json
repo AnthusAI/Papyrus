@@ -1,0 +1,30 @@
+{
+  "id": "PPY-1469eb40-ceae-4509-bcc1-f1b3612b181b",
+  "title": "Markus: pluggable image wrapper markup + FragmentTransform strip_header",
+  "description": "Two publication-neutral seams needed for exact Anth.us design parity. (1) ImagePipeline(wrap=callable): publication supplies the element wrapping the pipeline's <picture>/<img> (receives request, layout, classes, inner html, intrinsic width/height). Anth.us needs gatsby-plugin-image's constrained shape (div.gatsby-image-wrapper + aspect-ratio sizer) because its CSS absolutely positions every img and the sizer provides height; a class_map cannot insert the sizer. Default None keeps the current <figure>. (2) FragmentTransform(strip_header=True): removes Markus's own <header class=\"markus-header\"> from a converted document, for publications that render their own article heading. Needed because Papyrus reads front-matter title for <title> while Markus renders a header whenever title is present. Pilobol.us must stay byte-identical.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [
+    "anthus-papyrus"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2b7d65d5-5bb8-424e-a0ab-b13ab0901abe",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/85 merged to develop. 6 new tests; full suite 47F/538P (same pre-existing 47); Pilobol.us byte-identical (89 files).",
+      "created_at": "2026-10-03T17:35:27.884714Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-03T17:33:12.161610Z",
+  "updated_at": "2026-10-03T17:35:28.891114Z",
+  "closed_at": "2026-10-03T17:35:28.891061Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

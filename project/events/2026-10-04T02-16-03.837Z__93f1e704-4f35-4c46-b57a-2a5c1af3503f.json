@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "93f1e704-4f35-4c46-b57a-2a5c1af3503f",
+  "issue_id": "PPY-8e606817-df33-48b4-a470-5c68609f47cf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T02:16:03.837Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markus build: fail loudly on article/section files whose slug contains capital letters (currently skipped silently)",
+    "description": "Markus build discovery (src/papyrus_content/markus_renderer/build.py: _ARTICLE_SLUG and the section discovery regex) silently SKIPS any article/section file whose slug has capital letters (e.g. Paytronix.md). The page goes missing while the build succeeds.\n\nFix: fail the build with a clear error naming the offending file(s) and the slug rule (lowercase letters, digits, hyphens). Do NOT start accepting capitals (URL-shape change). Must not change Pilobol.us output (byte-identical proof per PR #85).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "aca1d609-0633-45d7-b12b-57a689499896",
+  "issue_id": "PPY-cc58abfb-47d9-4b57-9fc4-478be8d876be",
+  "event_type": "issue_created",
+  "occurred_at": "2026-09-11T20:36:31.979Z",
+  "actor_id": "8458c498-f041-7092-e4e3-6418236765a7",
+  "payload": {
+    "assignee": null,
+    "description": "LIM-fc61e8 voice audit: Anth.us site-content README Voice requires no emojis and at most one X-not-Y contrast. publications/anthus/style-profile.yml has neither rules.noEmojis nor rules.contrastCap.\n\n## Change\npublications/anthus/style-profile.yml only:\n- rules.noEmojis: true\n- rules.contrastCap: 1\n\nSanity-check against published Anth.us articles (Papyrus reference-samples and/or anthus-site-content) so we do not ship a false positive on house copy.\n\n## Out of scope\nLimatus core. Chattic.us profile (separate repo). Noun-compound density LIM-74d5fb.",
+    "issue_type": "story",
+    "labels": [
+      "editorial"
+    ],
+    "parent": null,
+    "priority": 2,
+    "status": "open",
+    "title": "Anth.us style-profile: noEmojis and contrastCap from voice audit"
+  }
+}

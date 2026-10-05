@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "95b4b8bf-a1a2-4e9d-a7c9-cf0cac15f39c",
+  "issue_id": "PPY-7bef66d5-bb11-4d05-b601-e2e27d5e6f85",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-03T16:03:58.544Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "scripts/test-theme-packs.cjs fails on develop: normalizeSiteBrandId('pilobol') contract mismatch",
+    "description": "Pre-existing failure on develop, NOT introduced by any current branch. Verified by running it on an untouched develop checkout.\n\nscripts/test-theme-packs.cjs line 33 asserts normalizeSiteBrandId('pilobol') === null, but lib/site-brand.ts maps 'pilobol' -> 'pilobol-us'. One side is wrong and it is a one-line decision about which: either the alias is intended (fix the test) or it is not (fix the mapping).\n\nCONSEQUENCE: because node:assert aborts on first failure, nothing after line 33 in that file ever runs. The author of Papyrus PR #83 therefore put new anth-us brand assertions in a sibling scripts/test-anth-us-brand.cjs (+ npm run test:anth-us-brand) rather than appending to a file that never reaches them. Worth consolidating once this is resolved.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

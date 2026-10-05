@@ -1,0 +1,44 @@
+{
+  "id": "PPY-2abd5124-18f8-42df-a3cb-5fdbb269cac7",
+  "title": "Markus citations: render plain-text author strings instead of dropping them",
+  "description": "",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [
+    "anthus-papyrus"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "702249ce-3375-44d1-9468-286c546a73c5",
+      "author": "home",
+      "text": "Branch feature/PPY-2abd51-string-authors, PR https://github.com/AnthusAI/Papyrus/pull/91 (not merged). String author/editor split on and / & / ; into CSL literal names (commas never split); lists unchanged. 25-page compare: 70 diffs vs live = the 69 string-author entries + the 1 known leading-space entry. Pilobol.us byte-identical (89 files). Markup suite 62 pass.",
+      "created_at": "2026-10-04T02:48:17.534289Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e1048bcc-6ec5-49db-a1dd-445e28378af2",
+      "author": "home",
+      "text": "PR #91 merged to develop.",
+      "created_at": "2026-10-04T02:53:10.200525Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c1e953e2-49a2-44d2-ab21-459a097c0083",
+      "author": "home",
+      "text": "PR #91 merged (c98435f); shipped with the cutover.",
+      "created_at": "2026-10-04T18:03:07.895892Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-04T02:34:17.374543Z",
+  "updated_at": "2026-10-04T18:03:12.038530Z",
+  "closed_at": "2026-10-04T18:03:12.038497Z",
+  "right_now_summary": "PR #91 merged to develop and shipped with the cutover, rendering plain-text author strings as CSL names.",
+  "right_now_updated_at": "2026-10-04T18:03:13.289189Z",
+  "custom": {}
+}

@@ -122,6 +122,24 @@ pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
 
 See the static template for the full `amplify.yml`.
 
+### Real 404s for missing pages
+
+Redirects and the not-found page are **Amplify app config** (`customRules`),
+not part of `amplify.yml`. Measured on Amplify `WEB` apps (PPY-fdb5e9):
+
+| `customRules` catch-all `/<*>` -> `/404.html` | Missing page |
+|---|---|
+| none | HTTP 404 with an **empty body** (Amplify does not serve `404.html` by itself) |
+| status `404` | **302 -> `/404.html` (200)**: dead URLs look alive to crawlers. Do not use. |
+| status `404-200` | **HTTP 404 with the `404.html` body at the requested URL.** Use this. |
+
+Despite the name, `404-200` is the only setting that gives a true 404 with the
+custom page. Keep the catch-all **last**, after any 301 rules. The build must
+emit `404.html` at the artifact root. A missing path without a trailing slash,
+or ending in `.html`, first gets Amplify's own 301 to the directory-style URL,
+then the 404. Verify with a random missing path (expect 404 and the custom
+body), for example Anth.us-Papyrus `bin/check-404.py <base-url>`.
+
 ## SSR Pretext path (amplify-ssr)
 
 Papyrus itself: Next.js + Amplify Gen 2 backend (`ampx pipeline-deploy`),
@@ -154,3 +172,28 @@ at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 - Renderer axis: [`docs/pluggable-publishers.md`](pluggable-publishers.md)
 - New publication bootstrap: [`docs/new-publication-from-corpus.md`](new-publication-from-corpus.md)
 - Agent preflight for AWS: `AGENTS.local.md`, `AGENTS.md` (Site hosting pointer)
+
+## Analytics (Google Analytics 4)
+
+The Markus page shell has one optional site-wide setting for analytics,
+`SiteChrome.ga_measurement_id`. Set it in the publication's build code (never
+from article content), typically only for production builds:
+
+```python
+chrome = SiteChrome(
+    site_name="Example",
+    ga_measurement_id="G-ABC123DEF4" if os.environ.get("PRODUCTION") else None,
+)
+```
+
+When set, every page rendered through `render_page` gets Google's standard
+gtag.js snippet in `<head>`, after `head_html` and before the stylesheets. The
+default `None` emits nothing, so existing publications build byte-identically.
+The id is validated against the GA4 pattern (`G-` plus alphanumerics); anything
+else raises `ValueError`.
+
+`ga_owner_opt_out=True` additionally emits a tiny script before the snippet:
+visit any page with `?notrack=1` once per browser to stop counting that browser
+(localStorage flag `<sitename>-no-analytics`, which sets Google's
+`ga-disable-<ID>`); `?notrack=0` turns counting back on. There is no other
+consent handling.

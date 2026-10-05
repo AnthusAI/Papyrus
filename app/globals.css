@@ -1,6 +1,7 @@
 @import "../publications/threat_intelligence/theme.css";
 @import "../publications/papyrus/theme.css";
 @import "../publications/pilobol_us/theme.css";
+@import "../publications/anth_us/theme.css";
 
 @import "tailwindcss";
 @import "tw-animate-css";

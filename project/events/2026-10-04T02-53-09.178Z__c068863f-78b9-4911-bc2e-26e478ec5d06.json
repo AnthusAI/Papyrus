@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "c068863f-78b9-4911-bc2e-26e478ec5d06",
+  "issue_id": "PPY-2507443d-6fd1-4eeb-b685-1bd69585da0a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-04T02:53:09.178Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us content: convert 69 plain-string citation authors to CSL author lists (post-cutover)",
+    "description": "After cutover (Gatsby retired, content main free to change). 69 bibliography entries in AnthusAI/anthus-site-content store author/editor as a single string (e.g. 'Garrett Hardin', 'Sam McVeety and Amir Hormati', comma-joined runs like 'Ilia Shumailov, Zakhar Shumaylov, ...', 'Dan Milmo and agency'). Papyrus #91 renders them as literal names (no APA inversion/initials). Convert each to a proper CSL list ([{family, given}] for people, {literal} for organisations), fixing oddities like 'and agency', 'et al', 'Ph.D.', so the bibliographies are consistently APA-formatted. A codemod plus a human review of the ambiguous ones; re-run the 25-page citation comparison afterwards.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [
+      "anthus-papyrus"
+    ]
+  }
+}
