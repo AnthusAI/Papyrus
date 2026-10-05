@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import mimetypes
 import os
@@ -15,6 +14,7 @@ from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .reader_revalidation import trigger_reader_cache_revalidation
+from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
 from .records import apply_record_changes, build_record_changes_targeted_by_id
 
 SEED_CONTENT_PATH = PAPYRUS_ROOT / "amplify" / "seed" / "seed-edition-content.json"
@@ -1155,8 +1155,6 @@ def record(model_name: str, expected: dict[str, Any]) -> dict[str, Any]:
     return {"modelName": model_name, "expected": compact_dict(expected)}
 
 
-def compact_dict(value: dict[str, Any]) -> dict[str, Any]:
-    return {key: entry for key, entry in value.items() if entry is not None}
 
 
 def with_version_fields(
@@ -1180,25 +1178,12 @@ def with_version_fields(
     return {**versioned, "contentHash": content_hash_for(versioned)}
 
 
-def content_hash_for(value: Any) -> str:
-    return "sha256:" + hashlib.sha256(stable_stringify(value).encode("utf-8")).hexdigest()
 
 
-def stable_stringify(value: Any) -> str:
-    if value is None or not isinstance(value, (dict, list)):
-        return json.dumps(value, separators=(",", ":"))
-    if isinstance(value, list):
-        return "[" + ",".join(stable_stringify(entry) for entry in value) + "]"
-    entries = [(key, entry) for key, entry in value.items() if entry is not None]
-    return "{" + ",".join(f"{json.dumps(key, separators=(',', ':'))}:{stable_stringify(entry)}" for key, entry in sorted(entries)) + "}"
 
 
-def to_aws_json(value: Any) -> str:
-    return json.dumps(value, separators=(",", ":"))
 
 
-def slugify(value: str) -> str:
-    return re.sub(r"(^-+|-+$)", "", re.sub(r"[^a-z0-9]+", "-", value.lower()))
 
 
 def published_edition_id(edition_id: str) -> str:
