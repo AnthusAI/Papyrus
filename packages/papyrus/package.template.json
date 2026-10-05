@@ -2,6 +2,12 @@
   "name": "@anthusai/papyrus",
   "description": "Papyrus newsroom app, Pretext renderer, theme packs, Amplify Gen 2 backend definition and app-shell CDK constructs (spike build).",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnthusAI/Papyrus.git"
+  },
+  "homepage": "https://github.com/AnthusAI/Papyrus#readme",
+  "keywords": ["newsroom", "publishing", "nextjs", "pretext", "amplify"],
   "type": "module",
   "bin": {
     "papyrus-app": "./bin/papyrus-app.mjs",
