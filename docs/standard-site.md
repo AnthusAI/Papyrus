@@ -172,7 +172,8 @@ bundling is unaffected: it installs with `--python-version 3.12
 
 **Removing `tactus @ file:///Users/ryan/Projects/Tactus` (done in PR #100).**
 `tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
-`file:` or `git+` requirement, and `limatus` 0.17.x and 0.29.0 both resolve.
+`file:` or `git+` requirement. `limatus` is not pinned to an old release: Papyrus
+tracks current Limatus with `limatus >=0.29.0,<1`, the same style as the tactus pin.
 Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published
 metadata. PyPI rejects direct-URL dependencies, so **`anthus-markus` must come from

@@ -9,7 +9,7 @@ dependencies = [
     "citeproc-py >=0.8.2,<1.0.0",
     # The `papyrus` CLI imports limatus at import time, and Papyrus is
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
-    "limatus >=0.17.0,<0.18.0",
+    "limatus >=0.29.0,<1",
 ]
 
 [project.optional-dependencies]
