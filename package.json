@@ -29,6 +29,7 @@
     "test:renderer-config": "tsx scripts/test-renderer-config.ts",
     "videoml:bundle": "node scripts/videoml/build-browser-bundle.mjs",
     "typecheck": "tsc --noEmit",
+    "test:ci:ts": "npm run typecheck && npm run test:newsroom && npm run test:theme-packs && npm run test:anth-us-brand && npm run test:newsroom-card-layout && npm run test:markus-projection && npm run test:markus-to-article && npm run test:renderer-config && node amplify/functions/reader-settings/handler.test.mjs && node amplify/functions/shared/email-submission.test.mjs",
     "sandbox": "ampx sandbox",
     "seed:amplify": "ampx sandbox seed",
     "auth:refresh-jwt": "poetry run papyrus auth refresh-jwt",

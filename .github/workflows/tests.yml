@@ -1,0 +1,47 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  ts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # amplify_outputs.json is generated per deployment and git-ignored; typecheck
+      # only needs the module to resolve, so an empty stub stands in. No secrets.
+      - run: echo '{}' > amplify_outputs.json
+      - run: npm run typecheck
+      - run: npm run test:newsroom
+      - run: npm run test:theme-packs
+      - run: npm run test:anth-us-brand
+      - run: npm run test:newsroom-card-layout
+      - run: npm run test:markus-projection
+      - run: npm run test:markus-to-article
+      - run: npm run test:renderer-config
+      - run: node amplify/functions/reader-settings/handler.test.mjs
+      - run: node amplify/functions/shared/email-submission.test.mjs
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install poetry
+      - run: poetry install --no-interaction --extras "newsroom markus"
+      - name: Newsroom unit tests
+        run: poetry run python -m unittest discover -s procedures/newsroom/tests -p "test_*.py" -v
+      - run: poetry run behave features_backend --tags=~@live-agent
+      - run: poetry run behave features/operator-cli.feature
