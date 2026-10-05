@@ -120,11 +120,11 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id type status typeStatus slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt"
+    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
-    "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial"
+    "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
 )
 MEDIA_ASSET_FIELDS = (
     "id itemId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
