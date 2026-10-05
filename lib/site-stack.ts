@@ -8,7 +8,8 @@
  * Shared ops components consume CSS variables only. Pilobolus is the first
  * extra pack, not the platform default (that remains `papyrus`).
  */
-export type ThemePackId = "papyrus" | "threat-intelligence" | "pilobol-us" | "anth-us";
+/** Open string: publications register their own pack id (see lib/define-site.ts). */
+export type ThemePackId = string;
 
 export type RendererConfig = {
   kind: "pretext" | "markus";

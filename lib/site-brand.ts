@@ -1,4 +1,5 @@
 import type { EditionPresentationFormat } from "./content-types";
+import papyrusSite from "papyrus-site";
 import { threatIntelligenceBrand } from "../publications/threat_intelligence/brand";
 import { pilobolUsBrand } from "../publications/pilobol_us/brand";
 import { anthUsBrand } from "../publications/anth_us/brand";
@@ -13,7 +14,8 @@ import {
   type ThemePackTokens,
 } from "./site-stack";
 
-export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us" | "anth-us";
+/** Open string: a publication registers its own brand through `papyrus.config.ts` (`defineSite`). */
+export type SiteBrandId = string;
 
 export type SiteBrand = {
   id: SiteBrandId;
@@ -59,7 +61,7 @@ export type SiteBrand = {
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
 
-const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
+const BUILT_IN_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   papyrus: {
     id: "papyrus",
     appTitle: "Papyrus",
@@ -91,6 +93,15 @@ const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   "anth-us": anthUsBrand,
 };
 
+/**
+ * Built-in reference brands plus whatever the publication registered in its
+ * own `papyrus.config.ts` (resolved through the `papyrus-site` alias).
+ */
+const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
+  ...BUILT_IN_SITE_BRANDS,
+  ...Object.fromEntries((papyrusSite.brands ?? []).map((brand) => [brand.id, brand])),
+};
+
 export function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
   if (!value) return null;
   const normalized = value.trim().toLowerCase().replace(/[._]/g, "-");
@@ -114,13 +125,15 @@ export function normalizeSiteBrandId(value: string | undefined | null): SiteBran
   if (normalized === "pilobol-us" || normalized === "pilobolus") {
     return "pilobol-us";
   }
+  // Registered brands (publication-owned `papyrus.config.ts`): exact id only.
+  if (Object.prototype.hasOwnProperty.call(SITE_BRANDS, normalized)) return normalized;
   return null;
 }
 
 export function resolveSiteBrandId(
   raw: string | undefined | null = process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND ?? process.env.PAPYRUS_SITE_BRAND,
 ): SiteBrandId {
-  return normalizeSiteBrandId(raw) ?? "papyrus";
+  return normalizeSiteBrandId(raw) ?? papyrusSite.defaultBrand ?? "papyrus";
 }
 
 /** Cookie set by middleware when `?brand=` is present (demo without rebuild). */

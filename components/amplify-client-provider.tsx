@@ -7,7 +7,7 @@ import { Amplify, type ResourcesConfig } from "aws-amplify";
 import { CookieStorage, Hub } from "aws-amplify/utils";
 import { useEffect } from "react";
 import { assertSandboxAmplifyOutputsForDev } from "../lib/amplify-outputs-guard";
-import amplifyOutputs from "../amplify_outputs.json";
+import amplifyOutputs from "papyrus-amplify-outputs";
 
 let configured = false;
 

@@ -1,0 +1,101 @@
+{
+  "name": "@anthusai/papyrus",
+  "description": "Papyrus newsroom app, Pretext renderer, theme packs, Amplify Gen 2 backend definition and app-shell CDK constructs (spike build).",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "papyrus-app": "./bin/papyrus-app.mjs",
+    "papyrus-infra": "./bin/papyrus-infra.mjs"
+  },
+  "exports": {
+    ".": "./src/with-papyrus.mjs",
+    "./next": {
+      "types": "./src/with-papyrus.d.mts",
+      "default": "./src/with-papyrus.mjs"
+    },
+    "./backend": {
+      "types": "./src/backend.ts",
+      "default": "./src/backend.js"
+    },
+    "./define-site": {
+      "types": "./lib/define-site.ts",
+      "default": "./lib/define-site.js"
+    },
+    "./app/*": [
+      "./app/*.tsx",
+      "./app/*.ts",
+      "./app/*"
+    ],
+    "./components/*": [
+      "./components/*.tsx",
+      "./components/*.ts",
+      "./components/*"
+    ],
+    "./lib/*": [
+      "./lib/*.tsx",
+      "./lib/*.ts",
+      "./lib/*"
+    ],
+    "./renderers/*": [
+      "./renderers/*.tsx",
+      "./renderers/*.ts",
+      "./renderers/*"
+    ],
+    "./amplify/*": [
+      "./amplify/*.ts",
+      "./amplify/*"
+    ],
+    "./routes.manifest.json": "./routes.manifest.json",
+    "./package.json": "./package.json",
+    "./middleware": "./middleware.ts",
+    "./infra": {
+      "types": "./infra/amplify-app-shell.ts",
+      "default": "./infra/index.js"
+    }
+  },
+  "files": [
+    "app",
+    "components",
+    "lib",
+    "renderers",
+    "amplify",
+    "publications",
+    "scripts",
+    "middleware.ts",
+    "bin",
+    "src",
+    "routes.manifest.json",
+    "LICENSE",
+    "infra"
+  ],
+  "peerDependencies": {
+    "next": "^15.5.18",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "aws-cdk-lib": "^2.257.0",
+    "constructs": "^10.4.2",
+    "@aws-amplify/backend": "^1.22.0",
+    "@aws-amplify/backend-cli": "^1.8.2",
+    "@aws-amplify/seed": "^1.1.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependenciesMeta": {
+    "aws-cdk-lib": {
+      "optional": true
+    },
+    "constructs": {
+      "optional": true
+    },
+    "@aws-amplify/backend": {
+      "optional": true
+    },
+    "@aws-amplify/backend-cli": {
+      "optional": true
+    },
+    "@aws-amplify/seed": {
+      "optional": true
+    }
+  }
+}

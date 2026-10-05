@@ -15,6 +15,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const ts = require("typescript");
 
+require("./register-papyrus-aliases.cjs");
 registerTypeScriptRequire();
 
 const {

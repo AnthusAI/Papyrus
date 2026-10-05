@@ -4,6 +4,7 @@
 const assert = require("node:assert/strict");
 const ts = require("typescript");
 
+require("./register-papyrus-aliases.cjs");
 registerTypeScriptRequire();
 
 const {
