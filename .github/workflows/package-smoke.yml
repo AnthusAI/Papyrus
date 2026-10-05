@@ -1,0 +1,35 @@
+name: Package smoke
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - "packages/**"
+      - "lib/**"
+      - "amplify/**"
+      - "app/**"
+      - "components/**"
+      - "renderers/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "package.json"
+      - "release.config.cjs"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: npm ci
+      - run: node packages/stage.mjs --version 0.0.0-smoke.1
+      - run: node packages/verify-packages.mjs 0.0.0-smoke.1
