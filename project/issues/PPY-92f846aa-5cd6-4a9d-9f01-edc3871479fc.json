@@ -29,5 +29,7 @@
   "created_at": "2026-09-06T12:09:07.764545Z",
   "updated_at": "2026-09-06T14:12:08.476746Z",
   "closed_at": null,
+  "right_now_summary": "The dual-renderer proof works; Markus release and dependency pin updates remain before full shipment.",
+  "right_now_updated_at": "2026-10-05T14:00:56.185122Z",
   "custom": {}
 }

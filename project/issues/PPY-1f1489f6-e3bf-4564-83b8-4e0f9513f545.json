@@ -1,0 +1,28 @@
+{
+  "id": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "title": "Align all four Papyrus sites on one cloud CMS and the app-style UI",
+  "description": "Ryan 2026-10-05: next step after the anth.us cutover. Get all four sites — p.apyr.us, Threat Intelligence, Pilobol.us, Anth.us — onto the SAME Papyrus cloud CMS, with the same technology and methods, using the new app-like UI that does not use Pretext (not the newspaper layout). Alignment comes before the many planned improvements to Papyrus and to content.\n\nRelated decisions to make inside this epic:\n- Threat Intelligence: re-think it as a project that DEPENDS on Papyrus rather than a fork of the Papyrus repo.\n- p.apyr.us: steer toward product marketing like chattic.us and aurit.us, with the same options and pricing structure (managed service, escalating to professional services for building and operating automated newsrooms for clients).\n- Anth.us (live on the Markus static renderer since 2026-10-04, Git-only content, manual deploys) and Pilobol.us (Markus static pod) move from Git-authored static builds to the cloud CMS.\n\nPhase 0 (in progress): research the current state of all four sites, the cloud CMS, the non-Pretext UI, the TI fork, and the chattic.us/aurit.us marketing + pricing pattern; then a phased plan for Ryan to approve.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6a4e2606-bf4a-4c8f-809b-08edc884d23f",
+      "author": "home",
+      "text": "DECISIONS (Ryan, 2026-10-05):\n1. UI = the Shadcn newsroom app (/newsroom ops shell) as the BACKEND newsroom CMS UI for all four sites. Public frontends stay pluggable per publication (Pretext, Markus static, others); no new reader UI is required by this epic.\n2. 'Same CMS' = same Papyrus software, a SEPARATE backend deployment per site, all infrastructure as code (infra/amplify-app-shell CDK). No shared multi-tenant backend.\n3. Threat Intelligence becomes a content/publication repo that DEPENDS on Papyrus (pinned), not a fork: upstream its generic core changes into Papyrus, keep only brand/content/procedures in the TI repo.\n4. p.apyr.us pivots from publication to PRODUCT site, with the same four pricing tiers as chattic.us/aurit.us (Fork it / Self-setup managed $20/mo / Assisted setup managed $20/mo + $100 once / Professional services quoted; pro services = building and operating automated newsrooms for clients). The information-systems blog moves to p.apyr.us/information. papyrus.anth.us is decommissioned and redirects to p.apyr.us.\n\nPHASES: 0 unbreak live (Papyrus main build failing since 2026-09-08; P0 PPY-2d0e52 check) -> 1 standard site pattern (pinned dependency, per-publication repo, IaC backend, deploy on push) -> 2 complete the CMS (publish step, Markdown importer, article editing in the newsroom app, rebuild-on-publish) -> 3 migrate Pilobol.us, Anth.us, Threat Intelligence (de-fork) -> 4 p.apyr.us product site + /information + papyrus.anth.us redirect.",
+      "created_at": "2026-10-05T13:18:45.056289Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-05T13:08:22.888848Z",
+  "updated_at": "2026-10-05T13:18:45.056305Z",
+  "closed_at": null,
+  "right_now_summary": "The team is fixing Papyrus, standardizing site deployments, and building the shared newsroom CMS.",
+  "right_now_updated_at": "2026-10-05T14:00:51.660106Z",
+  "custom": {}
+}

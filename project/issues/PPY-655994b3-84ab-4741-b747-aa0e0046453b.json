@@ -1,0 +1,20 @@
+{
+  "id": "PPY-655994b3-84ab-4741-b747-aa0e0046453b",
+  "title": "Phase 2: complete the newsroom CMS (publish step, Markdown importer, article editing in the Shadcn newsroom app, rebuild-on-publish)",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-05T13:18:51.958631Z",
+  "updated_at": "2026-10-05T13:18:51.958659Z",
+  "closed_at": null,
+  "right_now_summary": "The team is finishing publishing, Markdown import, article editing, and rebuild-on-publish for the newsroom CMS.",
+  "right_now_updated_at": "2026-10-05T13:18:53.918086Z",
+  "custom": {}
+}

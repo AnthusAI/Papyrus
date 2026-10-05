@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "title": "Phase 3: migrate Pilobol.us, Anth.us and Threat Intelligence (de-fork) to the standard pattern",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-05T13:18:55.602938Z",
+  "updated_at": "2026-10-05T13:18:55.602963Z",
+  "closed_at": null,
+  "right_now_summary": "Phase 3 is migrating Pilobol.us, Anth.us, and Threat Intelligence to the standard pattern.",
+  "right_now_updated_at": "2026-10-05T13:18:57.359098Z",
+  "custom": {}
+}

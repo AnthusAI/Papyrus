@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "title": "Phase 4: p.apyr.us product site with the four-tier pricing ladder; blog to /information; papyrus.anth.us redirects to p.apyr.us",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-05T13:18:58.545013Z",
+  "updated_at": "2026-10-05T13:18:58.545041Z",
+  "closed_at": null,
+  "right_now_summary": "The product site, four-tier pricing, blog path, and domain redirect are being set up.",
+  "right_now_updated_at": "2026-10-05T13:19:00.622149Z",
+  "custom": {}
+}

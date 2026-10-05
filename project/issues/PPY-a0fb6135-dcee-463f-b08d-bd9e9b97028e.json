@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a0fb6135-dcee-463f-b08d-bd9e9b97028e",
+  "title": "Phase 1: define the standard Papyrus site pattern (pinned Papyrus dependency, per-publication repo, IaC backend per site, deploy on push)",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-05T13:18:49.094941Z",
+  "updated_at": "2026-10-05T13:18:49.094958Z",
+  "closed_at": null,
+  "right_now_summary": "The team is defining the standard Papyrus site pattern and its deployment setup.",
+  "right_now_updated_at": "2026-10-05T13:18:50.671380Z",
+  "custom": {}
+}
