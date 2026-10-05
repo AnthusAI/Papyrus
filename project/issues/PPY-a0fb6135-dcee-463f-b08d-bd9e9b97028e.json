@@ -3,18 +3,47 @@
   "title": "Phase 1: define the standard Papyrus site pattern (pinned Papyrus dependency, per-publication repo, IaC backend per site, deploy on push)",
   "description": "",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e53b469c-b842-448c-9f2d-5d49e702ebe0",
+      "author": "home",
+      "text": "Phase 1 design doc drafted: docs/standard-site.md, PR https://github.com/AnthusAI/Papyrus/pull/98 (into develop, not merged; awaiting Ryan's review). Branch docs/PPY-a0fb61-standard-site.",
+      "created_at": "2026-10-05T14:40:05.853825Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "1c447df5-ffc7-4eca-aa19-bb38806f97bc",
+      "author": "home",
+      "text": "Revised docs/standard-site.md on PR #98 for Ryan's 2026-10-05 answers (packages + Semantic Release, drafts staging via Cognito, no long-lived tokens, bodyMarkus, VideoML capability, Pilobol.us model). Still not merged.",
+      "created_at": "2026-10-05T14:57:03.046581Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "55c32679-0aa0-40d2-87c9-22eb9b53ac5a",
+      "author": "home",
+      "text": "docs/standard-site.md merged to develop as the approved reference design (PR #98). Note: anthus-markus 0.5.1 is already on PyPI (Anthus AI Solutions), so that prerequisite is met; confirm it matches the v0.5.1 tag. @anthusai/papyrus, @anthusai/papyrus-infra and papyrus-newsroom names were unclaimed on 2026-10-05.",
+      "created_at": "2026-10-05T15:38:23.764193Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "531eb9fa-7530-4bde-89fe-39d51862140d",
+      "author": "home",
+      "text": "Follow-up docs PR folding infra into @anthusai/papyrus (two packages, optional CDK peers): see the new PR on branch docs/PPY-a0fb61-fold-infra-package (into develop, not merged).",
+      "created_at": "2026-10-05T16:28:03.217041Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-05T13:18:49.094941Z",
-  "updated_at": "2026-10-05T13:18:49.094958Z",
-  "closed_at": null,
-  "right_now_summary": "The team is defining the standard Papyrus site pattern and its deployment setup.",
-  "right_now_updated_at": "2026-10-05T13:18:50.671380Z",
+  "updated_at": "2026-10-05T16:28:03.217063Z",
+  "closed_at": "2026-10-05T15:38:26.283862Z",
+  "right_now_summary": "The standard site design is approved; a follow-up PR folds infrastructure into the Papyrus package.",
+  "right_now_updated_at": "2026-10-05T16:28:04.467834Z",
   "custom": {}
 }
