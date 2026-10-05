@@ -197,7 +197,6 @@ from .steering import (
     resolve_classifier_for_corpus,
     selected_corpus_configs,
 )
-from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
 from .convert_bodies_commands import content_convert_bodies
 from .markus_derive_commands import content_markus_derive
 from .markus_renderer.commands import markus_build
@@ -700,10 +699,16 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "policy:check-reference-action-contract":
         check_reference_action_contract(flags)
     elif route == "videos:render":
+        from publications.threat_intelligence.videoml.videos_commands import videos_render
+
         videos_render(flags)
     elif route == "videos:seed":
+        from publications.threat_intelligence.videoml.videos_commands import videos_seed
+
         videos_seed(flags)
     elif route == "videos:attach":
+        from publications.threat_intelligence.videoml.videos_commands import videos_attach
+
         videos_attach(flags)
     elif route == "editorial:diagnose":
         editorial_diagnose(flags)
