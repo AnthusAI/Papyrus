@@ -6,7 +6,7 @@ How it works:
 2. Add `seed-edition-content.json` at either:
    - `publications/<profile_id_with_underscores>/seed/seed-edition-content.json` (preferred for publication packages), or
    - `amplify/seed/profiles/<profile-id>/seed-edition-content.json` (legacy path)
-3. Run `npm run seed:amplify`.
+3. Run `poetry run papyrus content seed-edition` (articles are seeded from Python because only Python can derive the Markus IR; `npm run seed:amplify` seeds users, sections, doctrine and procedures only).
 
 For Threat Intelligence:
 
