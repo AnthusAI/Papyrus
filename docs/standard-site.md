@@ -38,8 +38,8 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
     `papyrus.pin` checkout idea.
 11. **Public registries:** public npm and PyPI, npm scope `@anthusai`, PyPI name
     `papyrus-newsroom`. **Check name availability before anything is published.**
-    (2026-10-05 read-only check: `@anthusai/papyrus` and `@anthusai/papyrus-infra`
-    return 404 on npm and `papyrus-newsroom` is not on PyPI, so the names look
+    (2026-10-05 read-only check: `@anthusai/papyrus`
+    returns 404 on npm and `papyrus-newsroom` is not on PyPI, so the names look
     free; scope ownership is not verifiable that way and must be confirmed at
     first publish.)
 12. **`anthus-markus` goes to PyPI first** as a prerequisite, and the `tactus
@@ -99,7 +99,7 @@ Papyrus; and it gains a staging site and deploy-on-push for everything.
   corpora/  doctrine/  skills/  procedures/   # steering YAML, editorial identity, site procedures
   reader/                          # static frontends only: Markus build entrypoint, site chrome and CSS
   content/                         # Git Markus ONLY until imported into the CMS (Phase 3), then deleted
-  infra/                           # CDK app using @anthusai/papyrus-infra; site.json
+  infra/                           # own small app: package.json adds aws-cdk-lib + constructs, uses @anthusai/papyrus/infra; site.json
   renovate.json  .github/workflows/
   project/                         # the site's own Kanbus board
 ```
@@ -112,18 +112,35 @@ and tests. See conflict C1.
 
 ### 1.3 Packaging Papyrus (replaces the pin)
 
-Papyrus has two halves, so it ships as three packages, **versioned in lockstep**
-(one version number, one release):
+Papyrus has two halves, so it ships as **two packages on two registries, built
+from one repository** (this one) and **released in lockstep** (one version
+number, one Semantic Release run):
 
 | Package | Registry | Contents | Replaces |
 | --- | --- | --- | --- |
 | `papyrus-newsroom` | PyPI | `papyrus`, `papyrus_content` (CLI, newsroom tooling, Markus renderer, export/import, VideoML), `papyrus_newsroom`, `papyrus_knowledge_query`, `papyrus_web`; Lambda handler code | `PAPYRUS_ROOT` + `sys.path` hacks, SHA clones |
 | `@anthusai/papyrus` | npm | Newsroom app routes and components, renderers (Pretext), `lib/`, theme packs, the Amplify backend definition and Lambda handlers (`/backend`), `next` config wrapper, `papyrus-app` bin | Fork / checkout of the Next app |
-| `@anthusai/papyrus-infra` | npm | App-shell CDK constructs and `papyrus-infra` CLI (CDK deps stay out of the app) | `infra/amplify-app-shell` as a checkout |
 
-One npm app package with subpath exports, not many: splitting UI, backend and
+One npm package with subpath exports, not many: splitting UI, backend, infra and
 renderers is not needed by any of the four sites (YAGNI); split later if a
 consumer wants a slice.
+
+**Infra lives inside `@anthusai/papyrus`** as the subpath export
+`@anthusai/papyrus/infra` (the app-shell CDK constructs, replacing
+`infra/amplify-app-shell` as a checkout) plus a `papyrus-infra` bin. npm has no
+pip-style extras, so the same effect comes from **optional peer dependencies**:
+`aws-cdk-lib` and `constructs` are declared in `peerDependencies` with
+`peerDependenciesMeta: { "aws-cdk-lib": { optional: true }, constructs: { optional: true } }`.
+The newsroom app install stays light and never pulls CDK. The infra entry
+checks for CDK on import and fails with a clear message ("`@anthusai/papyrus/infra`
+needs `aws-cdk-lib` and `constructs`: run `npm install aws-cdk-lib constructs`")
+instead of a raw module-not-found. The site's `infra/` folder is its own small
+app with its own `package.json` that depends on `@anthusai/papyrus` and adds
+the CDK packages. Maintenance cost: the peer version ranges
+(`aws-cdk-lib`, `constructs`) are a compatibility contract; widen or bump them
+deliberately in the Papyrus release that changes the CDK code, and the
+release's CI builds the infra entry against the lowest and highest supported
+CDK versions.
 
 **Python extras.** Base install is what a static reader build needs (Markus
 renderer, CLI core: Pillow, PyYAML, citeproc-py, `anthus-markus`). Heavy newsroom
@@ -180,7 +197,7 @@ registry (GHCR) and referenced by version tag; sites no longer build it locally.
   `@semantic-release/exec` (`prepareCmd` stamps the version into
   `package.json`s and `pyproject.toml` in the build workspace; versions are
   **not committed back**, so no bot pushes to protected branches); publish
-  `@anthusai/papyrus`, `@anthusai/papyrus-infra` (npm, trusted publishing with
+  `@anthusai/papyrus` (npm, trusted publishing with
   provenance) and `papyrus-newsroom` (PyPI Trusted Publishing, via
   `pypa/gh-action-pypi-publish`); `@semantic-release/github` for the release.
 - **GitFlow fit:** `branches: ["main", { name: "develop", prerelease: "next" }]`.
@@ -189,8 +206,8 @@ registry (GHCR) and referenced by version tag; sites no longer build it locally.
 - **Auth for release:** GitHub Actions OIDC to npm and PyPI plus the job's
   ephemeral `GITHUB_TOKEN`. No `NPM_TOKEN`, no `PYPI_TOKEN`.
 - **Site updates:** Renovate (GitHub App) in every publication repo with one
-  `packageRules` entry grouping `@anthusai/papyrus`, `@anthusai/papyrus-infra`
-  and `papyrus-newsroom` into a single PR (lockstep versions must move
+  `packageRules` entry grouping `@anthusai/papyrus` (in the app and in
+  `infra/`'s own `package.json`) and `papyrus-newsroom` into a single PR (lockstep versions must move
   together; Dependabot cannot group across ecosystems). Merge to `staging` to
   preview, then promote to `main`. Backend-affecting releases (schema, function
   changes) deploy the site's backend, so release notes flag them and the
@@ -198,7 +215,7 @@ registry (GHCR) and referenced by version tag; sites no longer build it locally.
 
 ### 1.6 The per-site backend, repo connection and CI auth
 
-`@anthusai/papyrus-infra` provisions the container; `ampx pipeline-deploy`
+`@anthusai/papyrus/infra` (the CDK constructs, run from the site's own `infra/` app) provisions the container; `ampx pipeline-deploy`
 (run by the Amplify build) creates the backend inside it. Today the shell
 knows one site, hardcoded (C4). Standard:
 
@@ -376,7 +393,7 @@ pictogram art) are supplied by the publication through `brand.video`.
 | --- | --- | --- |
 | Item/Edition model, media, Published* | exists | - |
 | **Published packages + Semantic Release** (1.3, 1.5), `tactus`/`anthus-markus` on PyPI | does not exist | 2 (first: everything else consumes it) |
-| `@anthusai/papyrus-infra`, GitHub OIDC roles, GitHub App runbook | does not exist | 2 |
+| `@anthusai/papyrus/infra` subpath + optional CDK peers, GitHub OIDC roles, GitHub App runbook | does not exist | 2 |
 | `defineSite`/`withPapyrus`/`papyrus-app`, `defineSiteBackend` | do not exist | 2 |
 | Schema additions (1.8), one-time `body[]` conversion | do not exist | 2 |
 | Generic **publish step**, **Markus importer**, **exporter** (published and drafts) | do not exist | 2 |
@@ -531,12 +548,12 @@ spike passes).
 ### Acceptance checklist
 
 Prerequisites
-- [ ] Name availability re-checked immediately before first publish (`@anthusai/papyrus`, `@anthusai/papyrus-infra`, `papyrus-newsroom`); npm scope ownership confirmed.
+- [ ] Name availability re-checked immediately before first publish (`@anthusai/papyrus`, `papyrus-newsroom`); npm scope ownership confirmed.
 - [ ] `anthus-markus` on PyPI matches the `v0.5.1` tag; `tactus` and `limatus` resolve from PyPI; no `file://` or `git+` dependency remains in `pyproject.toml` metadata.
 
 Packages
-- [ ] Papyrus `develop` release workflow publishes `X.Y.Z-next.N` of all three packages via Semantic Release, from GitHub Actions with OIDC trusted publishing (no `NPM_TOKEN`/`PYPI_TOKEN` secrets exist).
-- [ ] Versions are identical across the three packages; the backend's version assertion passes.
+- [ ] Papyrus `develop` release workflow publishes `X.Y.Z-next.N` of both packages via Semantic Release, from GitHub Actions with OIDC trusted publishing (no `NPM_TOKEN`/`PYPI_TOKEN` secrets exist).
+- [ ] Versions are identical across the two packages; the backend's version assertion passes.
 - [ ] `pip install "papyrus-newsroom[markus]"` in a clean venv builds a static Markus reader (no Papyrus checkout, no `PAPYRUS_ROOT`).
 
 CMS app and backend
@@ -553,7 +570,8 @@ Staging
 
 CI and updates
 - [ ] A GitHub Actions job assumes an AWS role through GitHub OIDC (no stored keys) and performs one allowed action (for example `aws amplify list-jobs`), and is denied one disallowed action.
-- [ ] Renovate opens one grouped PR bumping the three Papyrus packages together.
+- [ ] Renovate opens one grouped PR bumping the two Papyrus packages together.
 
 Result
+- [ ] `infra/` app (own `package.json`, CDK deps added) deploys via `@anthusai/papyrus/infra`; importing the infra entry in an app install without `aws-cdk-lib` fails with the clear install message, and the plain app install pulls no CDK packages.
 - [ ] Written result on PPY-a0fb61 (or the spike issue): pass/fail per item, with the app option (A or B) that worked and any changes needed to this doc.
