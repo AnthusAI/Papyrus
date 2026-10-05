@@ -42,10 +42,19 @@ jobs:
           python-version: "3.12"
       - run: pip install build
       - run: npm ci
+      - name: OIDC diagnostics (no secrets printed)
+        run: |
+          echo "npm $(npm --version), node $(node --version)"
+          echo "OIDC request URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+          echo "OIDC request token present: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}"
+          echo "NODE_AUTH_TOKEN set: ${NODE_AUTH_TOKEN:+yes}  NPM_TOKEN set: ${NPM_TOKEN:+yes}"
+          npm config get registry
+          cat ~/.npmrc 2>/dev/null | sed -E 's/(_authToken=).*/\1<redacted>/' || true
       - id: semantic
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_LOGLEVEL: verbose
       - if: steps.semantic.outputs.published == 'true'
         uses: actions/upload-artifact@v4
         with:
