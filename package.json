@@ -17,6 +17,7 @@
     "content:enrich-references-bulk": "poetry run papyrus batch enrich-references",
     "lint": "eslint .",
     "test:newsroom": "node scripts/test-newsroom-session.cjs && node scripts/test-newsroom-forum-routes.cjs && node scripts/test-theme-packs.cjs",
+    "test:schema-parity": "tsx scripts/test-schema-parity.ts",
     "test:theme-packs": "node scripts/test-theme-packs.cjs",
     "test:anth-us-brand": "node scripts/test-anth-us-brand.cjs",
     "test:newsroom-card-layout": "node scripts/test-newsroom-card-layout.cjs",
