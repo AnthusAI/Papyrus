@@ -140,6 +140,10 @@ or ending in `.html`, first gets Amplify's own 301 to the directory-style URL,
 then the 404. Verify with a random missing path (expect 404 and the custom
 body), for example Anth.us-Papyrus `bin/check-404.py <base-url>`.
 
+The `amplify-app-shell` template sets this catch-all (`/<*>` -> `/404.html`,
+`404-200`) on every generated reader app, so a `markus-static` reader must emit
+`404.html` at its artifact root.
+
 ## SSR Pretext path (amplify-ssr)
 
 Papyrus itself: Next.js + Amplify Gen 2 backend (`ampx pipeline-deploy`),

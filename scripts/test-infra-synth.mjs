@@ -110,6 +110,7 @@ try {
       assert.equal(JSON.stringify(readerPolicies).includes("ssm:"), false, `${example}: reader role keeps SSM access`);
       assert.equal(/^backend:/m.test(readerSpec), false);
       assert.equal(/npm run build/.test(readerSpec), false);
+      assert.deepEqual(readerApp.Properties.CustomRules, [{ Source: "/<*>", Target: "/404.html", Status: "404-200" }], `${example}: reader catch-all serves a real 404 with 404.html`);
       assert.match(stagingSpec, /upload-preview/);
     }
 

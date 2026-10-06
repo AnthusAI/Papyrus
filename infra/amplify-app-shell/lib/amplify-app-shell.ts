@@ -293,6 +293,7 @@ export class AmplifyAppShellStack extends Stack {
       platform: "WEB",
       iamServiceRole: readerServiceRole.roleArn,
       buildSpec: readerBuildSpec(config),
+      customRules: [{ source: "/<*>", target: "/404.html", status: "404-200" }],
     });
 
     const readerBranch = new amplify.CfnBranch(this, "ReaderBranch", {
