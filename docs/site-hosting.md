@@ -317,3 +317,56 @@ itself. Both are read by `lib/site-env.ts`.
 
 Check a running deployment with
 `node scripts/check-staging-guards.mjs <base-url> <staging|production>`.
+
+## Static staging (Markus sites)
+
+A Markus-static site previews its DRAFT build on the CMS app's `staging`
+branch. The preview is a prebuilt site stored in the private `preview/` prefix
+of the media bucket and served by a gated Next route. Design: `docs/standard-site.md`
+section 1.10.
+
+Environment on the staging branch (never on `main`):
+`SITE_ENV=staging`, `PAPYRUS_STAGING_PREVIEW=static`,
+`PAPYRUS_CONTENT_SOURCE=published` (unused in static mode).
+
+How a request is served:
+
+1. `middleware.ts` applies the same Cognito gate as Pretext staging (anonymous
+   goes to `/newsroom`, non-editors get 403). In static mode the gate covers
+   every path except `/_next`, `/api`, `/newsroom*`, favicon, icons and
+   `robots.txt`, including `.html`, `.css` and image paths.
+2. The middleware rewrites the path to `/__preview<path>`
+   (`/articles/foo.html` reads `preview/articles/foo.html`). The route folder
+   is `app/%5F_preview/[[...path]]` because Next treats a folder starting with
+   `_` as private; `%5F` yields the literal `/__preview` URL segment.
+3. The route tries `preview/<path>`, `preview/<path>.html`,
+   `preview/<path>/index.html` and presigns the first existing object with the
+   VIEWER's own Cognito credentials (`getUrl` through the server runner, 60
+   seconds). AWS enforces access: `amplify/storage/resource.ts` grants
+   `preview/*` read to the `editor` and `admin` groups only. The route then
+   streams the object with `Cache-Control: private, no-store` and
+   `X-Robots-Tag: noindex, nofollow`.
+4. The route returns 404 unless the deployment is staging with
+   `PAPYRUS_STAGING_PREVIEW=static`. Production never rewrites.
+
+Staging build contract (the generated build spec, `PPY-39f928`, implements it):
+
+```bash
+papyrus auth refresh-jwt --write-env .env
+papyrus content export-published --drafts --out content-export --clean
+python reader/build.py --content content-export --out dist
+papyrus content upload-preview --dir dist
+```
+
+then the CMS Next build (frontend-only, no `backend:` phase). The build role
+needs write access to `preview/*`; the storage rule grants none to users.
+
+`papyrus content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json]`
+syncs DIR to the prefix: new or changed files are uploaded (sha256 in object
+metadata, content type from the extension, `Cache-Control: no-store`), keys
+under the prefix that are not in DIR are deleted, any prefix other than
+`preview/` and an empty DIR are refused.
+
+Limits: responses are proxied through compute, so very large objects may hit
+the platform response-size limit; measure on a real site before adding a
+redirect to the presigned URL.

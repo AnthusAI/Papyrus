@@ -201,6 +201,7 @@ from .convert_bodies_commands import content_convert_bodies
 from .markus_derive_commands import content_markus_derive
 from .markus_export_commands import content_export_published
 from .markus_import_commands import content_import_markus
+from .preview_upload_commands import content_upload_preview
 from .publish_commands import content_publish, content_unpublish
 from .markus_renderer.commands import markus_build
 
@@ -219,6 +220,7 @@ PORTED_COMMANDS = frozenset(
         "content:unpublish",
         "content:convert-bodies",
         "content:export-published",
+        "content:upload-preview",
         "corpora:status",
         "corpora:worker-bootstrap",
         "corpora:sync-from-cloud",
@@ -414,6 +416,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_convert_bodies(flags)
     elif route == "content:export-published":
         content_export_published(flags)
+    elif route == "content:upload-preview":
+        content_upload_preview(flags)
     elif route == "corpora:status":
         corpora_status(flags)
     elif route == "corpora:worker-bootstrap":
@@ -1456,6 +1460,7 @@ def print_usage() -> None:
     print("  auth refresh-jwt, batch register-catalog/enrich-references,")
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
     print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--json],")
+    print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--json],")
