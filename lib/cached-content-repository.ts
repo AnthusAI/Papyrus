@@ -10,6 +10,7 @@ import type {
 } from "./content-types";
 import { graphqlContentRepository } from "./graphql-content-repository";
 import { READER_REVALIDATE_SECONDS } from "./reader-route-config";
+import { getContentSource } from "./site-env";
 
 const bypassReaderCacheInDevelopment = process.env.NODE_ENV === "development";
 
@@ -34,7 +35,7 @@ function withReaderCache<T>(
   tags: string[],
   loader: () => Promise<T>,
 ): Promise<T> {
-  if (bypassReaderCacheInDevelopment) return loader();
+  if (bypassReaderCacheInDevelopment || getContentSource() === "drafts") return loader();
   return unstable_cache(loader, cacheKey, {
     tags,
     revalidate: READER_REVALIDATE_SECONDS,

@@ -1,6 +1,9 @@
 import type { ContentRepository } from "./content-types";
 import { graphqlContentRepository } from "./graphql-content-repository";
 import { getLayoutScenario } from "./layout-scenarios";
+import { assertContentSourceMatchesEnv } from "./site-env";
+
+assertContentSourceMatchesEnv();
 
 export const contentRepository: ContentRepository = {
   loadEditionContent({ scenarioId, editionDate, editionSlug } = {}) {
