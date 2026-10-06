@@ -14,9 +14,9 @@ build.
 
 | Resource | Purpose |
 | --- | --- |
-| CMS app `<siteId>-cms` (`WEB_COMPUTE`) | Branch `main` (production, owns the backend) and `staging` (frontend only, reads the production backend) |
+| CMS app `<siteId>-cms` (`WEB_COMPUTE`) | Branch `main` (production, owns the backend) and, unless `cms.staging` is `false`, `staging` (frontend only, reads the production backend) |
 | Reader app `<siteId>-reader` (`WEB`), `markus-static` only | Branch `main`; static build from the published content export |
-| Domains | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex |
+| Domains (optional) | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex. Omit `cms.domainName` / `reader.domainName` / `hostedZoneId` to create no `AWS::Amplify::Domain` and use the default `amplifyapp.com` URLs |
 | CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
 | Compute role | SSR rendering role for the CMS app |
 | GitHub CI role `<siteId>-github-ci` (when `github` is set) | Assumed by GitHub Actions through OIDC for the listed branches only; Amplify jobs on the site's apps, SSM secret reads, optional `cloudformation:*` on this stack (`ciCanDeployInfra`). See [CI access without keys](../../docs/site-hosting.md#ci-access-without-keys) |
@@ -37,7 +37,16 @@ Schema and validation: `lib/site-config.ts` (`parseSiteConfig`). Examples:
 [`examples/pilobol-us.site.json`](examples/pilobol-us.site.json) (`markus-static`)
 and [`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`).
 `cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` must include
-`https://<cms domain>/`, `https://<staging domain>/` and `http://localhost:3001/`.
+`http://localhost:3001/` plus `https://<cms domain>/` when `cms.domainName` is set
+and `https://<staging domain>/` when staging is enabled and has a domain. Without
+a domain the stack appends the app's default `https://main.<app>.amplifyapp.com/`
+(and `https://staging.<app>.amplifyapp.com/`) to the branch variable itself.
+
+Domain-free and staging-free setup: omit `hostedZoneId`, `cms.domainName`,
+`cms.stagingDomainName` and `reader.domainName` (a zone id is only accepted
+alongside a domain), and set `cms.staging` to `false` to skip the staging branch
+(the default `github.branches` then drops `staging`). Add the domains later and
+re-deploy the stack.
 
 The optional `github` block (`owner`, `repo`, `branches` default `["main","staging"]`,
 `ciCanDeployInfra` default `false`) must match `repository` and rejects wildcards.
