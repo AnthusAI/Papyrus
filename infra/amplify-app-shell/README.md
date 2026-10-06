@@ -19,6 +19,7 @@ build.
 | Domains | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex |
 | CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
 | Compute role | SSR rendering role for the CMS app |
+| GitHub CI role `<siteId>-github-ci` (when `github` is set) | Assumed by GitHub Actions through OIDC for the listed branches only; Amplify jobs on the site's apps, SSM secret reads, optional `cloudformation:*` on this stack (`ciCanDeployInfra`). See [CI access without keys](../../docs/site-hosting.md#ci-access-without-keys) |
 | Reader service role | Least privilege: `ssm:GetParameter(s)` on the CMS app's `/amplify/<cmsAppId>/*` and `/amplify/shared/<cmsAppId>/*`, `s3:GetObject` on `amplify-*/media/*` |
 
 No repository and no access token are configured. Apps are manual-deploy until
@@ -37,6 +38,12 @@ Schema and validation: `lib/site-config.ts` (`parseSiteConfig`). Examples:
 and [`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`).
 `cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` must include
 `https://<cms domain>/`, `https://<staging domain>/` and `http://localhost:3001/`.
+
+The optional `github` block (`owner`, `repo`, `branches` default `["main","staging"]`,
+`ciCanDeployInfra` default `false`) must match `repository` and rejects wildcards.
+The account-global OIDC provider is a separate stack:
+`papyrus-infra synth --account-stack github-oidc` (deploy once per account, and
+only if `aws iam list-open-id-connect-providers` shows none).
 
 ## Use from a publication repo
 

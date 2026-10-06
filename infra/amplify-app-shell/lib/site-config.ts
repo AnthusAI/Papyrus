@@ -21,7 +21,15 @@ export type AmplifyAppShellSiteConfig = {
   };
   papyrusVersion: string;
   storagePreviewPrefix?: string;
+  github?: {
+    owner: string;
+    repo: string;
+    branches: string[];
+    ciCanDeployInfra: boolean;
+  };
 };
+
+export const DEFAULT_CI_BRANCHES = ["main", "staging"];
 
 const SITE_ID_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const REPOSITORY_PATTERN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -30,6 +38,8 @@ const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
 const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
 const PAPYRUS_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+\.\d+)?$/;
+const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
+const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const LOCAL_DEVELOPMENT_ORIGIN = "http://localhost:3001/";
 
 function fail(field: string, problem: string): never {
@@ -87,7 +97,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "cms", "reader", "papyrusVersion", "storagePreviewPrefix"],
+    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
     "site",
   );
 
@@ -133,6 +143,32 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     fail("reader", `is required when frontend is "markus-static"`);
   }
 
+  let github: AmplifyAppShellSiteConfig["github"];
+  if (record.github !== undefined) {
+    const githubRecord = requireObject(record.github, "github");
+    rejectUnknownKeys(githubRecord, ["owner", "repo", "branches", "ciCanDeployInfra"], "github");
+    const owner = requireString(githubRecord.owner, "github.owner", GITHUB_OWNER_PATTERN, "plain GitHub login");
+    const repo = requireString(githubRecord.repo, "github.repo", GITHUB_REPO_PATTERN);
+    if (repository !== `https://github.com/${owner}/${repo}`) {
+      fail("github", `owner/repo must match repository ${repository}`);
+    }
+    let branches = DEFAULT_CI_BRANCHES;
+    if (githubRecord.branches !== undefined) {
+      if (!Array.isArray(githubRecord.branches) || githubRecord.branches.length === 0) {
+        fail("github.branches", "must be a non-empty array of branch names");
+      }
+      branches = (githubRecord.branches as unknown[]).map((branch, index) => {
+        if (typeof branch === "string" && /[*?]/.test(branch)) {
+          fail(`github.branches[${index}]`, `must not contain wildcards: ${JSON.stringify(branch)}`);
+        }
+        return requireString(branch, `github.branches[${index}]`, BRANCH_NAME_PATTERN);
+      });
+    }
+    const ciCanDeployInfra = githubRecord.ciCanDeployInfra ?? false;
+    if (typeof ciCanDeployInfra !== "boolean") fail("github.ciCanDeployInfra", "must be a boolean");
+    github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean };
+  }
+
   const config: AmplifyAppShellSiteConfig = {
     siteId,
     repository,
@@ -143,6 +179,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     reader,
     papyrusVersion,
     storagePreviewPrefix,
+    github,
   };
 
   const redirectValue = cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS;
