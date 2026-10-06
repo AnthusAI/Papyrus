@@ -37,6 +37,7 @@
     "test:pilobol-sample-ast": "node scripts/check-pilobol-sample-ast-stale.mjs",
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:infra-synth": "node scripts/test-infra-synth.mjs",
+    "test:root-route-redirect": "tsx scripts/test-root-route-redirect.ts",
     "test:renderer-config": "tsx scripts/test-renderer-config.ts",
     "test:site-env": "tsx scripts/test-site-env.ts",
     "test:content-source": "tsx scripts/test-content-source.ts",

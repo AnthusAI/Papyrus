@@ -29,6 +29,7 @@ jobs:
       - run: npm run test:markus-projection
       - run: npm run test:markus-to-article
       - run: npm run test:renderer-config
+      - run: npm run test:root-route-redirect
       - run: npm run test:infra-site-config
       - run: npm ci
         working-directory: infra/amplify-app-shell
