@@ -1,0 +1,27 @@
+[
+  {
+    "itemId": "item-1",
+    "srcPath": "assets/my-post/diagram.png",
+    "expected": "media-item-1-234fb67e98"
+  },
+  {
+    "itemId": "a1b2c3d4-0000-4000-8000-000000000001",
+    "srcPath": "assets/harbor-lights/cover.jpg",
+    "expected": "media-a1b2c3d4-0000-4000-8000-000000000001-5a5644324c"
+  },
+  {
+    "itemId": "demo-article-published",
+    "srcPath": "assets/night-ferry/ferry-2.webp",
+    "expected": "media-demo-article-published-be939b1240"
+  },
+  {
+    "itemId": "item-é",
+    "srcPath": "assets/résumé/photo.avif",
+    "expected": "media-item-é-fe475053e1"
+  },
+  {
+    "itemId": "x",
+    "srcPath": "assets/a/b.svg",
+    "expected": "media-x-212cbbc119"
+  }
+]

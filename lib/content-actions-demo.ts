@@ -22,7 +22,15 @@ function titleFromYaml(frontMatterYaml: string | null, fallback: string): string
   return fallback;
 }
 
+const DEMO_IMAGE_DIRECTIVE = /^::image\{([^}]*)\}$/;
+
+function demoAttribute(attributes: string, name: string): string {
+  const match = new RegExp(`${name}="([^"]*)"`).exec(attributes);
+  return match ? match[1] : "";
+}
+
 function demoEnvelope(bodyMarkus: string) {
+  const images: Record<string, Record<string, unknown>> = {};
   const children = bodyMarkus
     .split(/\n{2,}/)
     .map((block) => block.trim())
@@ -32,13 +40,23 @@ function demoEnvelope(bodyMarkus: string) {
       if (heading) {
         return { type: "heading", level: heading[1].length, inline: [{ type: "text", text: heading[2] }], line: null };
       }
+      const image = DEMO_IMAGE_DIRECTIVE.exec(block);
+      if (image) {
+        const token = `PAPYRUSMARKUP${String(Object.keys(images).length + 1).padStart(5, "0")}END`;
+        images[token] = {
+          src: demoAttribute(image[1], "src"),
+          alt: demoAttribute(image[1], "alt"),
+          layout: demoAttribute(image[1], "layout") || null,
+        };
+        return { type: "paragraph", inline: [{ type: "text", text: token }], line: null };
+      }
       return { type: "paragraph", inline: [{ type: "text", text: block }], line: null };
     });
   return {
     schemaVersion: 1,
     markus: { version: "demo", irSchemaVersion: 1 },
     document: { type: "document", schema_version: 1, front_matter: {}, children },
-    papyrus: { images: {}, citations: {}, citationLists: {}, entries: {}, bibliography: [] },
+    papyrus: { images, citations: {}, citationLists: {}, entries: {}, bibliography: [] },
   };
 }
 

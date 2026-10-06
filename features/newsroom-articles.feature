@@ -57,3 +57,41 @@ Feature: Newsroom articles editor
     When I open a new article at 390 by 844
     Then the articles screen should not scroll horizontally
     And the article Edit and Preview tabs should be visible
+
+  Scenario: Insert image is disabled until the article is saved
+    Given I open a new article at 1280 by 900
+    Then the article Insert image button should be disabled
+    When I enter the article title "Dockside"
+    And I enter the article body:
+      """
+      Gulls on the pier.
+      """
+    And I save the article draft
+    Then the article notice should say "Draft saved."
+    And the article Insert image button should be enabled
+
+  Scenario: Inserting an image adds an image directive at the cursor
+    Given I open a new article at 1280 by 900
+    When I enter the article title "Harbor Images"
+    And I enter the article body:
+      """
+      The lights came on at dusk.
+      """
+    And I save the article draft
+    Then the article notice should say "Draft saved."
+    When I choose the image file "features/fixtures/pixel.png"
+    Then the article body should contain "::image{src=\"assets/harbor-images/pixel.png\""
+    And the article preview should show the uploaded image
+
+  Scenario: Choosing a file that is not an image leaves the body unchanged
+    Given I open a new article at 1280 by 900
+    When I enter the article title "Harbor Notes"
+    And I enter the article body:
+      """
+      The lights came on at dusk.
+      """
+    And I save the article draft
+    Then the article notice should say "Draft saved."
+    When I choose the image file "package.json"
+    Then the article image error should say "Choose a PNG"
+    And the article body should not contain "::image"

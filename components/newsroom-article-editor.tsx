@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, ExternalLinkIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon, ImagePlusIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,12 @@ import {
   type ErrorLocation,
   type NewsroomArticleEditorState,
 } from "../lib/newsroom-articles";
+import { resolveMediaBackend } from "../lib/newsroom-media-backend";
+import {
+  insertDirectiveAtSelection,
+  readImageDimensions,
+  uploadArticleImage,
+} from "../lib/newsroom-media";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
 import { cn } from "../lib/utils";
@@ -105,9 +111,14 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
   const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
   const [sections, setSections] = useState<string[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
 
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaBackend = useMemo(() => resolveMediaBackend(demo), [demo]);
   const validationSequence = useRef(0);
 
   useEffect(() => {
@@ -146,6 +157,33 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
       cancelled = true;
     };
   }, [backend, blocked]);
+
+  const savedItemId = editor?.id ?? null;
+  useEffect(() => {
+    if (blocked || savedItemId === null) return;
+    let cancelled = false;
+    mediaBackend
+      .listMediaAssets(savedItemId)
+      .then(async (assets) => {
+        const entries = await Promise.all(
+          assets.map(async (asset) => {
+            if (!asset.srcPath || !asset.storagePath) return null;
+            try {
+              return [asset.srcPath, await mediaBackend.imageUrl(asset.storagePath)] as const;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        if (cancelled) return;
+        const loaded = Object.fromEntries(entries.filter((entry) => entry !== null));
+        setImageUrls((current) => ({ ...loaded, ...current }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [blocked, mediaBackend, savedItemId]);
 
   const frontMatterYaml = editor?.frontMatterYaml ?? null;
   const bodyMarkus = editor?.bodyMarkus ?? null;
@@ -205,6 +243,35 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
       target.focus();
       target.setSelectionRange(index, index);
     }, 0);
+  };
+
+  const insertImage = async (file: File) => {
+    if (!editor || editor.id === null) return;
+    setImageUploading(true);
+    setImageError(null);
+    try {
+      const uploaded = await uploadArticleImage(mediaBackend, readImageDimensions, {
+        itemId: editor.id,
+        slug: editor.slug,
+        file,
+      });
+      const textarea = bodyRef.current;
+      const start = textarea?.selectionStart ?? editor.bodyMarkus.length;
+      const end = textarea?.selectionEnd ?? editor.bodyMarkus.length;
+      const inserted = insertDirectiveAtSelection(editor.bodyMarkus, start, end, uploaded.directive);
+      setImageUrls((current) => ({ ...current, [uploaded.srcPath]: uploaded.imageUrl }));
+      patchEditor({ bodyMarkus: inserted.body });
+      window.setTimeout(() => {
+        const target = bodyRef.current;
+        if (!target) return;
+        target.focus();
+        target.setSelectionRange(inserted.altSelectionStart, inserted.altSelectionStart);
+      }, 0);
+    } catch (error) {
+      setImageError(failureMessage(error));
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   const saveDraft = useCallback(async (): Promise<string | null> => {
@@ -517,18 +584,55 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                 />
               </label>
 
-              <label className="block space-y-1 text-sm font-medium">
-                <span>Body (Markus)</span>
+              <div className="space-y-1 text-sm font-medium">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label htmlFor="newsroom-article-body">Body (Markus)</label>
+                  <Button
+                    data-newsroom-article-insert-image
+                    disabled={editor.id === null || imageUploading || busy !== null}
+                    onClick={() => imageInputRef.current?.click()}
+                    size="xs"
+                    type="button"
+                    variant="outline"
+                  >
+                    {imageUploading ? <Spinner /> : <ImagePlusIcon aria-hidden="true" />}
+                    Insert image
+                  </Button>
+                  <input
+                    accept="image/*"
+                    aria-label="Image file"
+                    className="hidden"
+                    data-newsroom-article-image-input
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (file) void insertImage(file);
+                    }}
+                    ref={imageInputRef}
+                    type="file"
+                  />
+                </div>
+                {editor.id === null ? (
+                  <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-hint>
+                    Save the draft once to enable image upload.
+                  </p>
+                ) : null}
+                {imageError ? (
+                  <p className="text-xs font-normal text-destructive" data-newsroom-article-image-error role="alert">
+                    {imageError}
+                  </p>
+                ) : null}
                 <Textarea
                   className={TEXTAREA_CLASS}
                   data-newsroom-article-body
+                  id="newsroom-article-body"
                   onChange={(event) => patchEditor({ bodyMarkus: event.target.value })}
                   ref={bodyRef}
                   rows={28}
                   spellCheck={false}
                   value={editor.bodyMarkus}
                 />
-              </label>
+              </div>
 
               {validation.status === "unavailable" ? (
                 <NewsroomOpsStatusBanner tone="error">{validation.message}</NewsroomOpsStatusBanner>
@@ -574,7 +678,7 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}
                 {bodyIr ? (
-                  <MarkusIrPreview bodyIr={bodyIr} />
+                  <MarkusIrPreview bodyIr={bodyIr} imageUrls={imageUrls} />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     {invalid ? "Fix the errors to see a preview." : "The preview appears once the markup is valid."}

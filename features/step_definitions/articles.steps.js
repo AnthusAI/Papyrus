@@ -116,3 +116,57 @@ Then("the article Edit and Preview tabs should be visible", async function () {
   await page.getByRole("tab", { name: "Edit" }).waitFor({ state: "visible", timeout: 10_000 });
   await page.getByRole("tab", { name: "Preview" }).waitFor({ state: "visible", timeout: 10_000 });
 });
+
+Then("the article Insert image button should be disabled", async function () {
+  const button = requirePage(this).locator("[data-newsroom-article-insert-image]");
+  await button.waitFor({ state: "visible", timeout: 10_000 });
+  assert.equal(await button.isDisabled(), true);
+});
+
+Then("the article Insert image button should be enabled", async function () {
+  const button = requirePage(this).locator("[data-newsroom-article-insert-image]");
+  await button.waitFor({ state: "visible", timeout: 10_000 });
+  await requirePage(this).waitForFunction(
+    () => document.querySelector("[data-newsroom-article-insert-image]")?.disabled === false,
+    null,
+    { timeout: 10_000 },
+  );
+});
+
+When("I choose the image file {string}", async function (relativePath) {
+  await requirePage(this).locator("[data-newsroom-article-image-input]").setInputFiles(relativePath);
+});
+
+Then("the article body should contain {string}", async function (text) {
+  const body = requirePage(this).locator("[data-newsroom-article-body]");
+  await requirePage(this).waitForFunction(
+    (expected) => document.querySelector("[data-newsroom-article-body]")?.value.includes(expected),
+    text,
+    { timeout: 10_000 },
+  );
+  assert.ok((await body.inputValue()).includes(text));
+});
+
+Then("the article body should not contain {string}", async function (text) {
+  const value = await requirePage(this).locator("[data-newsroom-article-body]").inputValue();
+  assert.ok(!value.includes(text), `Body unexpectedly contains ${text}`);
+});
+
+Then("the article image error should say {string}", async function (text) {
+  await requirePage(this)
+    .locator("[data-newsroom-article-image-error]")
+    .getByText(text)
+    .waitFor({ state: "visible", timeout: 10_000 });
+});
+
+Then("the article preview should show the uploaded image", async function () {
+  const page = requirePage(this);
+  await page.waitForFunction(
+    () => {
+      const image = document.querySelector("[data-newsroom-article-preview] img[data-markus-preview-image-loaded]");
+      return Boolean(image && image.complete && image.naturalWidth >= 1);
+    },
+    null,
+    { timeout: 15_000 },
+  );
+});
