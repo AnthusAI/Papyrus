@@ -1,8 +1,6 @@
 import React from "react";
 import { ThreatIntelligencePictogramVideo } from "./pictogram-video";
 
-import "babulus-browser-bundle";
-
 declare global {
   interface Window {
     Babulus?: {

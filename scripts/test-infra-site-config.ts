@@ -45,6 +45,17 @@ assertRejects(mutated("pilobol-us.site.json", (c) => (c.frontend = "gatsby")), "
 assertRejects(mutated("pretext.site.json", (c) => (c.reader = { domainName: "example.test", buildCommand: "x", baseDirectory: "dist" })), "reader");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.papyrusVersion = "latest")), "papyrusVersion");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.githubTokenSecretName = "amplify/github-app-token")), "githubTokenSecretName");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.branches = ["main", "release/*"])), "wildcards");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.branches = ["*"])), "github.branches[0]");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.branches = [])), "github.branches");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "Anthus*")), "github.owner");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "AnthusAI/other")), "github.owner");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "Other")), "must match repository");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.ciCanDeployInfra = "yes")), "ciCanDeployInfra");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.token = "x")), "github.token");
+assert.deepEqual(pretextConfig.github?.branches, ["main", "staging"]);
+assert.equal(pretextConfig.github?.ciCanDeployInfra, true);
+assert.equal(staticConfig.github?.ciCanDeployInfra, false);
 assertRejects("not an object", "site");
 
 assert.equal(papyrusVersionToPep440("1.0.0"), "1.0.0");
