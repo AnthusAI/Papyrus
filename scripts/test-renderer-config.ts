@@ -12,6 +12,10 @@ import {
   type PretextRendererConfig,
   type RendererConfig,
 } from "../lib/renderer-config";
+import {
+  generateArticleStaticParams,
+  generateEditionDateStaticParams,
+} from "../lib/reader-static-params";
 import { buildDefaultEmptyEditionLayoutPlan } from "../lib/empty-edition-layout-plan";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -80,12 +84,23 @@ function testMarkusSiteRendererError() {
   assert(error.message.includes("markus-build"), "error cites static build path");
 }
 
-function main() {
+async function testMarkusSitesEnumerateNoReaderStaticParams() {
+  const articleParams = await generateArticleStaticParams("markus");
+  assert(articleParams.length === 0, "markus brand enumerates no article static params");
+  const editionParams = await generateEditionDateStaticParams("markus");
+  assert(editionParams.length === 0, "markus brand enumerates no edition date static params");
+}
+
+async function main() {
   testTypeGuards();
   testAssertPretextRendererConfig();
   testExhaustiveDiscriminant();
   testMarkusSiteRendererError();
+  await testMarkusSitesEnumerateNoReaderStaticParams();
   console.log("PASS: renderer-config discriminated union tests");
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
