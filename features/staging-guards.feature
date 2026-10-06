@@ -21,3 +21,13 @@ Feature: Deployment environment guards
     When I open the newsroom as an anonymous visitor
     Then the page should not declare noindex
     And the page should not show the staging banner
+
+  @staging-static
+  Scenario: Static staging rewrites site pages to the preview route
+    Given static staging is configured with PAPYRUS_STAGING_PREVIEW "static"
+    Then "/articles/foo.html" is rewritten to "/__preview/articles/foo.html"
+    And "/" is rewritten to "/__preview/"
+    And "/newsroom" is not rewritten
+    And "/api/x" is not rewritten
+    And "/_next/static/a.js" is not rewritten
+    And the preview route is disabled for SITE_ENV "production"

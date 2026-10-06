@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 import { getSiteBrand } from "./lib/site-brand";
 import { getSiteEnv, isIndexable } from "./lib/site-env";
 import { getStagingAccess } from "./lib/staging-gate";
+import {
+  isPreviewGatedPath,
+  isStaticPreviewEnabled,
+  previewRewritePathname,
+  shouldRewriteToPreview,
+} from "./lib/staging-preview-object";
 
 function usesNewsroomRootPaths(): boolean {
   const brand = getSiteBrand();
@@ -27,6 +33,11 @@ function isStagingGatedPath(pathname: string): boolean {
 }
 
 function routeRequest(request: NextRequest): NextResponse {
+  if (isStaticPreviewEnabled() && shouldRewriteToPreview(request.nextUrl.pathname)) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = previewRewritePathname(request.nextUrl.pathname);
+    return NextResponse.rewrite(rewriteUrl);
+  }
   if (!usesNewsroomRootPaths()) {
     return NextResponse.next();
   }
@@ -59,7 +70,9 @@ function routeRequest(request: NextRequest): NextResponse {
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   let sessionResponse: NextResponse | null = null;
-  if (getSiteEnv() === "staging" && isStagingGatedPath(request.nextUrl.pathname)) {
+  const { pathname } = request.nextUrl;
+  const gated = isStaticPreviewEnabled() ? isPreviewGatedPath(pathname) : isStagingGatedPath(pathname);
+  if (getSiteEnv() === "staging" && gated) {
     sessionResponse = NextResponse.next();
     const access = await getStagingAccess(request, sessionResponse);
     if (access === "anonymous") {
