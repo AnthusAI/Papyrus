@@ -10,6 +10,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from .convert_bodies_commands import derive_from_paragraphs
 from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
@@ -220,6 +221,14 @@ def apply_seed_house_ads(layout_plan: dict[str, Any], house_ads: Any) -> dict[st
     return layout_plan
 
 
+def seed_article_markus_body(article: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    paragraphs = [str(paragraph) for paragraph in article.get("body") or []]
+    body_markus, body_ir, skip_reason = derive_from_paragraphs(paragraphs)
+    if body_ir is None:
+        raise ValueError(f"Seed article {article.get('slug')} body cannot be converted to Markus: {skip_reason}")
+    return body_markus, body_ir
+
+
 def seed_article_records(article: dict[str, Any], index: int, edition_config: dict[str, Any]) -> list[dict[str, Any]]:
     item_id = f"item-{article['slug']}"
     section_slug = slugify(article.get("section") or "")
@@ -230,6 +239,7 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
     if excerpt:
         editorial_payload["customExcerpt"] = excerpt
 
+    body_markus, body_ir = seed_article_markus_body(article)
     item_record = with_version_fields(
         {
             "id": item_id,
@@ -243,7 +253,8 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
             "title": article.get("headline"),
             "headline": article.get("headline"),
             "deck": article.get("deck"),
-            "body": article.get("body") or [],
+            "bodyMarkus": body_markus,
+            "bodyIr": to_aws_json(body_ir),
             "byline": article.get("byline"),
             "dateline": article.get("dateline"),
             "publishedAt": edition_config["publishedAt"],
@@ -277,7 +288,8 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
                 "title": article.get("headline"),
                 "headline": article.get("headline"),
                 "deck": article.get("deck"),
-                "body": article.get("body") or [],
+                "bodyMarkus": body_markus,
+                "bodyIr": to_aws_json(body_ir),
                 "byline": article.get("byline"),
                 "dateline": article.get("dateline"),
                 "publishedAt": edition_config["publishedAt"],

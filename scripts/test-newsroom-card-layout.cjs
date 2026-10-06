@@ -108,7 +108,7 @@ assert.match(css, /\.newsroom-card--span-3x2/);
 assert.match(css, /@media \(max-width: 971px\)[\s\S]*\.newsroom-card--span-3x1,[\s\S]*grid-column: span 2;/);
 assert.match(css, /@media \(max-width: 1157px\)[\s\S]*\[data-news-desk-section="references"\] \.newsroom-card-grid[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
 assert.match(css, /@media \(max-width: 1157px\)[\s\S]*\[data-news-desk-section="references"\] \.newsroom-card--span-3x1,[\s\S]*grid-column: span 2;/);
-assert.match(css, /@media \(max-width: 1100px\)[\s\S]*\.newsroom-list-detail-shell \.news-desk-main-column,[\s\S]*\.newsroom-list-detail-shell \.news-desk-rail-column[\s\S]*grid-column: 1 \/ -1;/);
+assert.match(css, /@media \(max-width: 1157px\)[\s\S]*\.newsroom-list-detail-shell \.news-desk-main-column,[\s\S]*\.newsroom-list-detail-shell \.news-desk-rail-column[\s\S]*grid-column: 1 \/ -1;/);
 assert.match(css, /@media \(max-width: 430px\)[\s\S]*\.newsroom-card--span-3x1,[\s\S]*grid-column: span 1;/);
 assert.doesNotMatch(css, /\.newsroom-card--span-[^{]+\.newsroom-card__title\s*\{[\s\S]*?font-size:/);
 assert.match(css, /\.newsroom-card\[data-newsroom-card-quality="low"\] \.newsroom-card__title\s*\{[\s\S]*?-webkit-line-clamp: 4;/);

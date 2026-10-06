@@ -11,17 +11,26 @@ INDEX_MODELS = {
     "itemBySlug": "Item",
     "mediaAssetsByItemAndSortKey": "MediaAsset",
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
+    "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
 }
 
 
 class FakeAuthoringClient:
-    def __init__(self, records: dict[str, list[dict[str, Any]]] | None = None) -> None:
+    def __init__(
+        self,
+        records: dict[str, list[dict[str, Any]]] | None = None,
+        attachments: dict[str, list[dict[str, Any]]] | None = None,
+    ) -> None:
+        self.updates: list[tuple[str, dict[str, Any]]] = []
         self.tables: dict[str, dict[str, dict[str, Any]]] = {}
         self.calls: list[tuple[str, str, Any]] = []
         self.fail_after: tuple[str, str] | None = None
         for model, rows in (records or {}).items():
             for row in rows:
                 self.tables.setdefault(model, {})[row["id"]] = copy.deepcopy(row)
+        for owner_id, rows in (attachments or {}).items():
+            for row in rows:
+                self.tables.setdefault("ModelAttachment", {})[row["id"]] = {**copy.deepcopy(row), "ownerId": owner_id}
 
     def _table(self, model_name: str) -> dict[str, dict[str, Any]]:
         return self.tables.setdefault(model_name, {})
@@ -55,6 +64,7 @@ class FakeAuthoringClient:
 
     def update_record(self, model_name: str, payload: dict[str, Any]) -> None:
         self.calls.append(("update", model_name, payload["id"]))
+        self.updates.append((model_name, payload))
         row = self._table(model_name).setdefault(payload["id"], {})
         row.update(copy.deepcopy(payload))
         self._maybe_fail("update", model_name)

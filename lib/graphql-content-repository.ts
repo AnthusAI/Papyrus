@@ -15,6 +15,7 @@ import {
   type PublicationItem,
   type PublicationItemType,
 } from "./publication-items";
+import { BodyIrError, matchBodyImages, projectBodyIr, type BodyProjection, type BodyProjectionImage } from "./markus-body";
 import { SITE_BRAND } from "./site-brand";
 
 const AUTH_MODE = "identityPool";
@@ -74,7 +75,6 @@ type GraphQLItem = {
   title?: string | null;
   headline?: string | null;
   deck?: string | null;
-  body?: Array<string | null> | null;
   bodyMarkus?: string | null;
   bodyIr?: unknown;
   aliases?: Array<string | null> | null;
@@ -119,7 +119,6 @@ type ContentAttachmentPointer = {
 };
 
 type ResolvedItemContent = {
-  body: string[] | null;
   excerpt: string | null;
 };
 
@@ -636,11 +635,9 @@ function readGetResponse<T>(response: GraphQLGetResponse<T>): T | null {
 
 async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsset[]): Promise<Article> {
   const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
-  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const bodyProjection = projectPublishedItemBody(item);
   const videoAssets = mediaAssets.filter((asset) => asset.type === "video");
-  const assets = (
-    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
-  ).filter((asset): asset is ArticleImageAsset => asset !== null);
+  const assets = await normalizeItemImageAssets(item, mediaAssets, bodyProjection.imageSrcs);
   const primaryImage = assets.find((asset) => asset.roles?.includes("lead")) ?? assets[0];
   const normalizedVideos = (
     await Promise.all(videoAssets.map((asset) => normalizeVideoAsset(item, asset, primaryImage)))
@@ -659,21 +656,59 @@ async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsse
     image: primaryImage,
     video: leadVideo,
     assets: [...assets, ...normalizedVideos],
-    pullQuotes: compactStrings(item.pullQuotes),
-    body: resolvedContent.body ?? compactStrings(item.body),
+    pullQuotes: bodyProjection.pullQuotes,
+    body: bodyProjection.body,
   };
 }
 
+function projectPublishedItemBody(item: GraphQLItem): BodyProjection {
+  if (item.bodyIr === null || item.bodyIr === undefined || item.bodyIr === "") {
+    throw new BodyIrError(`PublishedItem ${item.slug} has no bodyIr; run: papyrus content convert-bodies`);
+  }
+  return projectBodyIr(item.bodyIr);
+}
+
+async function normalizeItemImageAssets(
+  item: GraphQLItem,
+  mediaAssets: GraphQLMediaAsset[],
+  bodyImages: BodyProjectionImage[],
+): Promise<ArticleImageAsset[]> {
+  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const matches = matchBodyImages(
+    bodyImages,
+    imageAssets.map((asset) => {
+      const srcPath = parseObjectMetadata(asset.metadata)?.srcPath;
+      return typeof srcPath === "string" ? srcPath : null;
+    }),
+  );
+  const normalizedMedia = (
+    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
+  ).filter((asset): asset is ArticleImageAsset => asset !== null);
+  const externalImages = matches.flatMap((match, index): ArticleImageAsset[] =>
+    match.kind === "external"
+      ? [
+          {
+            id: `${item.id}-body-image-${index}`,
+            type: "image",
+            src: match.image.src,
+            alt: match.image.alt,
+            caption: match.image.caption,
+            credit: match.image.credit ?? match.image.caption ?? "Media asset",
+          },
+        ]
+      : [],
+  );
+  return [...normalizedMedia, ...externalImages];
+}
+
 async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLMediaAsset[]): Promise<PublicationItem | null> {
-  const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
   if (item.type === "article") return articleToPublicationItem(await normalizeArticle(item, mediaAssets));
   const type = normalizePublicationItemType(item.type);
   if (!type) return null;
-  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
+  const bodyProjection = projectPublishedItemBody(item);
   const videoAssets = mediaAssets.filter((asset) => asset.type === "video");
-  const assets = (
-    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
-  ).filter((asset): asset is ArticleImageAsset => asset !== null);
+  const assets = await normalizeItemImageAssets(item, mediaAssets, bodyProjection.imageSrcs);
   const image = assets[0] ?? undefined;
   const normalizedVideos = (
     await Promise.all(videoAssets.map((asset) => normalizeVideoAsset(item, asset, image)))
@@ -686,7 +721,7 @@ async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLM
     title: item.headline ?? item.title ?? item.slug,
     deck: item.deck ?? undefined,
     excerpt: resolvedContent.excerpt ?? undefined,
-    body: resolvedContent.body ?? compactStrings(item.body),
+    body: bodyProjection.body,
     image,
     video,
     assets: [...assets, ...normalizedVideos],
@@ -696,10 +731,8 @@ async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLM
 
 async function resolveItemContentFromAttachments(editorial: unknown): Promise<ResolvedItemContent> {
   const pointers = parseContentAttachmentPointers(editorial);
-  const bodyText = await readAttachmentPointerText(pointers.body);
   const excerptText = await readAttachmentPointerText(pointers.excerpt);
   return {
-    body: bodyText ? textToParagraphs(bodyText) : null,
     excerpt: excerptText?.trim() || readInlineExcerpt(editorial) || null,
   };
 }
@@ -718,11 +751,10 @@ async function readAttachmentPointerText(pointer: ContentAttachmentPointer | nul
   }
 }
 
-function parseContentAttachmentPointers(editorial: unknown): { body: ContentAttachmentPointer | null; excerpt: ContentAttachmentPointer | null } {
+function parseContentAttachmentPointers(editorial: unknown): { excerpt: ContentAttachmentPointer | null } {
   const parsed = parseObjectMetadata(editorial);
   const attachments = readContentAttachmentObject(parsed);
   return {
-    body: parseAttachmentPointer(attachments?.body),
     excerpt: parseAttachmentPointer(attachments?.excerpt),
   };
 }
@@ -751,14 +783,6 @@ function parseAttachmentPointer(value: unknown): ContentAttachmentPointer | null
     mediaType: typeof record.mediaType === "string" ? record.mediaType : null,
     role: typeof record.role === "string" ? record.role : null,
   };
-}
-
-function textToParagraphs(value: string): string[] {
-  return value
-    .replace(/\r\n/g, "\n")
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean);
 }
 
 function readInlineExcerpt(editorial: unknown): string | null {
@@ -949,10 +973,6 @@ function parseImageRoles(role: string | null | undefined): ArticleImageAsset["ro
       IMAGE_ROLES.includes(candidate as NonNullable<ArticleImageAsset["roles"]>[number]),
     );
   return roles.length > 0 ? roles : ["lead", "continuation", "continuationInset"];
-}
-
-function compactStrings(values: Array<string | null> | null | undefined): string[] {
-  return (values ?? []).filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
 function normalizeShortSlug(value: string | null | undefined): string | undefined {

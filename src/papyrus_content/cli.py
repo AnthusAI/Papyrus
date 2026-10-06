@@ -197,7 +197,7 @@ from .steering import (
     resolve_classifier_for_corpus,
     selected_corpus_configs,
 )
-from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
+from .convert_bodies_commands import content_convert_bodies
 from .markus_derive_commands import content_markus_derive
 from .publish_commands import content_publish, content_unpublish
 from .markus_renderer.commands import markus_build
@@ -214,6 +214,7 @@ PORTED_COMMANDS = frozenset(
         "content:markus-derive",
         "content:publish",
         "content:unpublish",
+        "content:convert-bodies",
         "corpora:status",
         "corpora:worker-bootstrap",
         "corpora:sync-from-cloud",
@@ -403,6 +404,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_publish(flags)
     elif route == "content:unpublish":
         content_unpublish(flags)
+    elif route == "content:convert-bodies":
+        content_convert_bodies(flags)
     elif route == "corpora:status":
         corpora_status(flags)
     elif route == "corpora:worker-bootstrap":
@@ -703,10 +706,16 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "policy:check-reference-action-contract":
         check_reference_action_contract(flags)
     elif route == "videos:render":
+        from publications.threat_intelligence.videoml.videos_commands import videos_render
+
         videos_render(flags)
     elif route == "videos:seed":
+        from publications.threat_intelligence.videoml.videos_commands import videos_seed
+
         videos_seed(flags)
     elif route == "videos:attach":
+        from publications.threat_intelligence.videoml.videos_commands import videos_attach
+
         videos_attach(flags)
     elif route == "editorial:diagnose":
         editorial_diagnose(flags)
@@ -1437,6 +1446,7 @@ def print_usage() -> None:
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
     print("  auth refresh-jwt, batch register-catalog/enrich-references,")
+    print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--json],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")

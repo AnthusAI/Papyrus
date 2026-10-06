@@ -3,6 +3,7 @@ name = "papyrus-newsroom"
 version = "0.1.0"
 description = "Papyrus newsroom Python tools and CLI."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "PyYAML >=6.0.2,<7.0.0",
@@ -15,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 markus = [
     "anthus-markus >=0.5.1,<1.0.0",
+    "Pillow >=10,<12",
 ]
 newsroom = [
     "boto3 >=1.34.0,<2.0.0",
@@ -22,6 +24,10 @@ newsroom = [
     "tiktoken >=0.12.0,<0.13.0",
     "tactus >=0.52,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AnthusAI/Papyrus"
+Repository = "https://github.com/AnthusAI/Papyrus"
 
 [project.scripts]
 papyrus = "papyrus.cli:main"
