@@ -95,7 +95,47 @@ try {
       assert.match(stagingSpec, /upload-preview/);
     }
 
+    const github = JSON.parse(fs.readFileSync(site, "utf8")).github;
+    const roles = resourcesOfType(template, "AWS::IAM::Role");
+    const ciRole = roles.find((role) => role.Properties.RoleName === `${siteId}-github-ci`);
+    assert.ok(ciRole, `${example}: CI role exists`);
+    assert.equal(ciRole.Properties.MaxSessionDuration, 3600);
+    assert.equal(ciRole.Properties.ManagedPolicyArns, undefined, `${example}: CI role has managed policies`);
+    const trust = ciRole.Properties.AssumeRolePolicyDocument.Statement;
+    assert.equal(trust.length, 1);
+    assert.equal(trust[0].Action, "sts:AssumeRoleWithWebIdentity");
+    const flattenArn = (value) => (typeof value === "string" ? value : value["Fn::Join"][1].map((part) => (typeof part === "string" ? part : "aws")).join(""));
+    assert.equal(flattenArn(trust[0].Principal.Federated), "arn:aws:iam::335163751677:oidc-provider/token.actions.githubusercontent.com");
+    assert.deepEqual(trust[0].Condition.StringEquals, { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" });
+    const expectedSubjects = (github.branches ?? ["main", "staging"]).map((branch) => `repo:${github.owner}/${github.repo}:ref:refs/heads/${branch}`);
+    assert.deepEqual(trust[0].Condition.StringLike, { "token.actions.githubusercontent.com:sub": expectedSubjects });
+    for (const subject of expectedSubjects) assert.equal(/[*?]/.test(subject), false, `${example}: wildcard subject ${subject}`);
+    assert.equal(Object.keys(trust[0].Condition).length, 2);
+
+    const ciStatements = ciRole.Properties.Policies
+      ? ciRole.Properties.Policies.flatMap((policy) => policy.PolicyDocument.Statement)
+      : Object.values(template.Resources)
+          .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref && template.Resources[role.Ref] === ciRole))
+          .flatMap((resource) => resource.Properties.PolicyDocument.Statement);
+    assert.ok(ciStatements.length >= 3, `${example}: CI policy statements`);
+    const asList = (value) => (Array.isArray(value) ? value : [value]);
+    for (const statement of ciStatements) {
+      const actions = asList(statement.Action);
+      assert.equal(actions.includes("*"), false, `${example}: CI action *`);
+      assert.equal(asList(statement.Resource).includes("*") && actions.some((action) => action.endsWith(":*")), false, `${example}: CI service wildcard on Resource *`);
+    }
+    const cloudformationStatements = ciStatements.filter((statement) => asList(statement.Action).some((action) => action.startsWith("cloudformation:")));
+    assert.equal(cloudformationStatements.length, github.ciCanDeployInfra ? 1 : 0, `${example}: cloudformation statement only when ciCanDeployInfra`);
+    if (github.ciCanDeployInfra) {
+      assert.match(JSON.stringify(cloudformationStatements[0].Resource), new RegExp(`stack/amplify-app-shell-${siteId}/`));
+    }
+    const amplifyStatement = ciStatements.find((statement) => asList(statement.Action).includes("amplify:StartJob"));
+    assert.deepEqual([...asList(amplifyStatement.Action)].sort(), ["amplify:GetJob", "amplify:ListBranches", "amplify:ListJobs", "amplify:StartJob"]);
+    assert.equal(JSON.stringify(template).includes("AdministratorAccess"), true, "service role keeps its documented AdministratorAccess");
+    assert.equal(JSON.stringify(ciRole).includes("AdministratorAccess"), false);
+
     const outputs = Object.keys(template.Outputs);
+    assert.ok(outputs.includes("GithubCiRoleArn"), `${example}: GithubCiRoleArn output`);
     assert.ok(outputs.includes("CmsAppId"), `${example}: CmsAppId output`);
     assert.equal(outputs.includes("ReaderAppId"), expectedApps === 2, `${example}: ReaderAppId output`);
     assert.ok(outputs.includes("StagingOrigin"));
@@ -108,6 +148,16 @@ try {
   for (const spec of specsSeen.filter((candidate) => /npm /.test(candidate))) {
     assert.match(spec, /npm ci/);
   }
+
+  const accountOut = path.join(infraApp, "cdk.out.account");
+  const accountPrinted = run("node", [cli, "synth", "--account-stack", "github-oidc", "--out", accountOut], { cwd: infraApp });
+  assert.match(accountPrinted, /synthesized github-oidc-provider/);
+  const accountTemplate = JSON.parse(fs.readFileSync(path.join(accountOut, fs.readdirSync(accountOut).find((name) => name.endsWith(".template.json"))), "utf8"));
+  const providers = resourcesOfType(accountTemplate, "Custom::AWSCDKOpenIdConnectProvider");
+  assert.equal(providers.length, 1, "exactly one OIDC provider");
+  assert.equal(Object.values(accountTemplate.Resources).filter((resource) => /OpenIdConnect|OIDC/i.test(resource.Type) && resource.Type !== "AWS::IAM::Role" && resource.Type !== "AWS::Lambda::Function").length, 1);
+  assert.equal(providers[0].Properties.Url, "https://token.actions.githubusercontent.com");
+  assert.deepEqual(providers[0].Properties.ClientIDList, ["sts.amazonaws.com"]);
 
   const withoutCdk = path.join(work, "no-cdk");
   fs.mkdirSync(path.join(withoutCdk, "node_modules/@anthusai"), { recursive: true });

@@ -171,6 +171,7 @@ try {
   );
 }
 export const { AmplifyAppShellStack } = await import("./amplify-app-shell.js");
+export const { GithubOidcProviderStack } = await import("./github-oidc-provider.js");
 export { parseSiteConfig } from "./site-config.js";
 export { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec, buildSpecFor } from "./build-specs.js";
 `);
