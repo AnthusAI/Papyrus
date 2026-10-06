@@ -48,6 +48,16 @@ alongside a domain), and set `cms.staging` to `false` to skip the staging branch
 (the default `github.branches` then drops `staging`). Add the domains later and
 re-deploy the stack.
 
+Optional `stackName` (default `amplify-app-shell-<siteId>`) names the CloudFormation
+stack, so a new stack for the same `siteId` can coexist with an older one until the
+older stack is deleted. Existing sites that omit it synthesize identically.
+
+The generated reader build runs `papyrus content export-published --auth guest`
+(Cognito identity pool guest, no credentials, no SSM token; boto3 comes with the
+`markus` extra), so the reader role has no SSM access. Put
+`PAPYRUS_GRAPHQL_ENDPOINT`, `PAPYRUS_IDENTITY_POOL_ID`, `PAPYRUS_MEDIA_BUCKET` and
+`AWS_REGION` in `reader.environment` (or ship `amplify_outputs.json`).
+
 The optional `github` block (`owner`, `repo`, `branches` default `["main","staging"]`,
 `ciCanDeployInfra` default `false`) must match `repository` and rejects wildcards.
 The account-global OIDC provider is a separate stack:

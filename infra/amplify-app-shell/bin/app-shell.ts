@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as cdk from "aws-cdk-lib";
 import { AmplifyAppShellStack } from "../lib/amplify-app-shell";
-import { parseSiteConfig } from "../lib/site-config";
+import { parseSiteConfig, resolveStackName } from "../lib/site-config";
 
 const app = new cdk.App();
 
@@ -19,7 +19,7 @@ const env = process.env.CDK_DEFAULT_ENV
 
 new AmplifyAppShellStack(app, `AmplifyAppShell-${config.siteId}`, config, {
   env,
-  stackName: `amplify-app-shell-${config.siteId}`,
+  stackName: resolveStackName(config),
   description: `Amplify app shell for ${config.siteId} (Papyrus CMS and reader). Backend deploys via ampx pipeline-deploy.`,
 });
 

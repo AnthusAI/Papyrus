@@ -4,7 +4,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveStagingDomainName } from "./site-config";
+import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveStackName, resolveStagingDomainName } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -144,7 +144,7 @@ export class AmplifyAppShellStack extends Stack {
     }
 
     if (config.reader) {
-      this.readerAppId = this.addReaderApp(config, config.reader, cmsApp.attrAppId);
+      this.readerAppId = this.addReaderApp(config, config.reader);
     }
 
     if (config.github) {
@@ -216,7 +216,7 @@ export class AmplifyAppShellStack extends Stack {
           sid: "DeployThisSitesAppShellStack",
           actions: ["cloudformation:*"],
           resources: [
-            this.formatArn({ service: "cloudformation", resource: "stack", resourceName: `amplify-app-shell-${config.siteId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+            this.formatArn({ service: "cloudformation", resource: "stack", resourceName: `${resolveStackName(config)}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
           ],
         }),
       );
@@ -228,25 +228,14 @@ export class AmplifyAppShellStack extends Stack {
   private addReaderApp(
     config: AmplifyAppShellSiteConfig,
     reader: NonNullable<AmplifyAppShellSiteConfig["reader"]>,
-    cmsAppId: string,
   ): string {
     const readerAppName = reader.appName ?? `${config.siteId}-reader`;
     const readerBranchName = reader.branchName ?? "main";
 
     const readerServiceRole = new iam.Role(this, "ReaderServiceRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
-      description: `Static reader build role for Amplify app ${readerAppName} (reads the CMS app's SSM secrets and media only)`,
+      description: `Static reader build role for Amplify app ${readerAppName} (reads published media only; content is read as a Cognito guest)`,
     });
-    readerServiceRole.addToPolicy(
-      new iam.PolicyStatement({
-        sid: "ReadSiteSecretsForJwtMinting",
-        actions: ["ssm:GetParameter", "ssm:GetParameters"],
-        resources: [
-          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/${cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/shared/${cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-        ],
-      }),
-    );
     readerServiceRole.addToPolicy(
       new iam.PolicyStatement({
         sid: "ReadMediaForExport",

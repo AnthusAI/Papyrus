@@ -4,6 +4,7 @@ export type AmplifyAppShellSiteConfig = {
   brand: string;
   frontend: "pretext" | "markus-static";
   hostedZoneId?: string;
+  stackName?: string;
   cms: {
     appName?: string;
     domainName?: string;
@@ -37,6 +38,7 @@ const REPOSITORY_PATTERN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_
 const HOSTED_ZONE_ID_PATTERN = /^Z[A-Z0-9]+$/;
 const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
+const STACK_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9-]{0,127}$/;
 const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
 const PAPYRUS_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+\.\d+)?$/;
 const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
@@ -96,6 +98,10 @@ export function resolveStagingDomainName(config: Pick<AmplifyAppShellSiteConfig,
   return ["staging", ...rest].join(".");
 }
 
+export function resolveStackName(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "stackName">): string {
+  return config.stackName ?? `amplify-app-shell-${config.siteId}`;
+}
+
 export function resolveStoragePreviewPrefix(config: Pick<AmplifyAppShellSiteConfig, "storagePreviewPrefix">): string {
   return config.storagePreviewPrefix ?? "preview/";
 }
@@ -104,7 +110,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
+    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
     "site",
   );
 
@@ -116,6 +122,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     fail("frontend", `must be "pretext" or "markus-static", got ${JSON.stringify(frontend)}`);
   }
   const hostedZoneId = optionalString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
+  const stackName = optionalString(record.stackName, "stackName", STACK_NAME_PATTERN, "CloudFormation stack name");
   const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
@@ -201,6 +208,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     brand,
     frontend,
     hostedZoneId,
+    stackName,
     cms,
     reader,
     papyrusVersion,
