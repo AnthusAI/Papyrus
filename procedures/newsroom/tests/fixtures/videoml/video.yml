@@ -1,0 +1,28 @@
+schemaVersion: 1
+outputDir: video/out
+browserBundle: public/videoml/browser-bundle.js
+leadSlugs:
+  - sample-article
+scene:
+  dark:
+    background: "#191918"
+    color: "#eeeeec"
+    vars:
+      "--color-accent": "#e54d2e"
+  light:
+    background: "#ffffff"
+    color: "#111111"
+    vars:
+      "--color-accent": "#c54028"
+components:
+  titleSlide: sample-title-slide
+  quoteCard: sample-quote-card
+slideProps:
+  eyebrowRule: true
+postRoll:
+  eyebrow: Sample Publisher
+  title: SAMPLE NEWS
+  tagline: A sample tagline.
+  voice: "To learn more, check out the {date} edition of Sample News."
+tts:
+  provider: openai
