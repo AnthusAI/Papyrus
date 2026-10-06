@@ -17,6 +17,8 @@ const baseFiles = [
   "lib/define-site.js",
   "routes.manifest.json",
   "infra/index.js",
+  "infra/site-config.js",
+  "infra/build-specs.js",
 ];
 
 function buildFixture(root, { omit, requiresDist }) {

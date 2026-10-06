@@ -29,6 +29,10 @@ jobs:
       - run: npm run test:markus-projection
       - run: npm run test:markus-to-article
       - run: npm run test:renderer-config
+      - run: npm run test:infra-site-config
+      - run: npm ci
+        working-directory: infra/amplify-app-shell
+      - run: npm run test:infra-synth
       - run: node amplify/functions/reader-settings/handler.test.mjs
       - run: node amplify/functions/shared/email-submission.test.mjs
 

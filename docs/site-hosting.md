@@ -146,6 +146,38 @@ Papyrus itself: Next.js + Amplify Gen 2 backend (`ampx pipeline-deploy`),
 artifacts under `.next/`, platform `WEB_COMPUTE`. Reader traffic hits AppSync
 at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 
+## One-time GitHub App connection per app
+
+The app shell (`@anthusai/papyrus/infra`, driven by the publication's
+`infra/site.json`) creates Amplify apps with no repository and no access token.
+Amplify only builds from GitHub after the **Amplify GitHub App** is connected
+to each app. This is a console step: there is no API for the handshake. It
+replaces the old PAT in Secrets Manager (`amplify/github-app-token`); delete
+that secret once every app is connected.
+
+Per app (`<siteId>-cms`, then `<siteId>-reader` for static sites):
+
+1. AWS Console, **AWS Amplify**, **All apps**, choose the app.
+2. **Hosting** (or the **Connect repository** banner), **Connect repository**.
+3. Choose **GitHub**, **Continue**.
+4. In the GitHub pop-up, **Install & authorize** the **AWS Amplify** GitHub App
+   for the `AnthusAI` organization, with access to only the site's repository.
+5. Back in Amplify pick repository `AnthusAI/<repo>` and branch `main`, **Next**.
+6. Review the build settings and leave the generated spec, **Save and deploy**.
+7. In the CMS app, if CDK did not create it, add the `staging` branch under
+   **Hosting**, **Branches**, **Connect branch**.
+
+Record the date in the site's runbook.
+
+### Python 3.12 in Amplify builds
+
+The Amplify AL2023 build image defaults to Python 3.10 (per AWS docs; not yet
+verified on a real build), and `papyrus-newsroom` needs 3.12. Generated build
+specs that run Python install `uv`, then `uv python install 3.12`,
+`uv venv --python 3.12 .venv` and
+`uv pip install --python .venv "papyrus-newsroom[markus]==<papyrusVersion>"`.
+The uv cache is kept under `.uv-cache/` and listed in the spec's cache paths.
+
 ## Custom domains and Route 53
 
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).

@@ -143,17 +143,15 @@ fs.writeFileSync(
 
 // ---- infra: app-shell CDK constructs (subpath export `@anthusai/papyrus/infra`) ----
 {
-  const src = path.join(repo, "infra/amplify-app-shell");
+  const src = path.join(repo, "infra/amplify-app-shell/lib");
   fs.mkdirSync(path.join(stage, "infra"), { recursive: true });
-  const construct = fs.readFileSync(path.join(src, "lib/amplify-app-shell.ts"), "utf8")
-    .replace('import type { AmplifyAppShellSiteConfig } from "../sites/pilobol-us";', "");
-  const siteType = fs.readFileSync(path.join(src, "sites/pilobol-us.ts"), "utf8").match(/export type AmplifyAppShellSiteConfig = \{[\s\S]*?\n\};/)[0];
-  const libTs = `${siteType}\n\n${construct}`;
-  fs.writeFileSync(path.join(stage, "infra/amplify-app-shell.ts"), libTs);
-  fs.writeFileSync(
-    path.join(stage, "infra/amplify-app-shell.js"),
-    ts.transpileModule(libTs, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText,
-  );
+  for (const name of fs.readdirSync(src).filter((n) => n.endsWith(".ts"))) {
+    const source = fs.readFileSync(path.join(src, name), "utf8");
+    fs.writeFileSync(path.join(stage, "infra", name), source);
+    const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText
+      .replace(/(from\s+["'])(\.\/[^"']+)(["'])/g, "$1$2.js$3");
+    fs.writeFileSync(path.join(stage, "infra", name.replace(/\.ts$/, ".js")), compiled);
+  }
   fs.writeFileSync(path.join(stage, "infra/index.js"), `// aws-cdk-lib and constructs are OPTIONAL peers of @anthusai/papyrus: only a publication's infra/ package installs them.
 try {
   await import("aws-cdk-lib");
@@ -166,6 +164,8 @@ try {
   );
 }
 export const { AmplifyAppShellStack } = await import("./amplify-app-shell.js");
+export { parseSiteConfig } from "./site-config.js";
+export { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec, buildSpecFor } from "./build-specs.js";
 `);
 }
 

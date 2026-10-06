@@ -1,0 +1,15 @@
+{
+  "siteId": "pretext-example",
+  "repository": "https://github.com/AnthusAI/Example-Pretext-Site",
+  "brand": "pretext-example",
+  "frontend": "pretext",
+  "hostedZoneId": "Z0000000EXAMPLE",
+  "papyrusVersion": "1.0.0-next.1",
+  "cms": {
+    "domainName": "newsroom.example.test",
+    "environment": {
+      "PAPYRUS_EDITION_SLUG": "current",
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://newsroom.example.test/,https://staging.example.test/"
+    }
+  }
+}
