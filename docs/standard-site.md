@@ -105,6 +105,12 @@ Papyrus; and it gains a staging site and deploy-on-push for everything.
   project/                         # the site's own Kanbus board
 ```
 
+A Markus-brand site (`renderer: { kind: "markus" }`) has no Next.js reader: the
+CMS app is the newsroom only and the public site is the static Markus build.
+Its reader routes (`/articles/[slug]`, `/[year]/[month]/[day]`) therefore
+enumerate no static params, so `next build` never prerenders articles from the
+CMS content, which would throw `MarkusSiteRendererError`.
+
 Moves **out of the Papyrus repo** into publication repos: `publications/threat_intelligence/`
 (except the generic VideoML pipeline, 1.11), `publications/pilobol_us/`,
 `publications/pilobolus/`, `publications/anth_us/`, `publications/anthus/`.

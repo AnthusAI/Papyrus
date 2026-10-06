@@ -1,4 +1,6 @@
 import { graphqlContentRepository } from "./graphql-content-repository";
+import { getRendererKind } from "./site-brand";
+import type { RendererConfig } from "./renderer-config";
 
 const MONTH_NAMES = [
   "january",
@@ -21,7 +23,10 @@ type EditionDateStaticParam = {
   day: string;
 };
 
-export async function generateEditionDateStaticParams(): Promise<EditionDateStaticParam[]> {
+export async function generateEditionDateStaticParams(
+  rendererKind: RendererConfig["kind"] = getRendererKind(),
+): Promise<EditionDateStaticParam[]> {
+  if (rendererKind === "markus") return [];
   if (process.env.NODE_ENV === "development") return [];
 
   const { editions } = await graphqlContentRepository.listPublishedEditions({ limit: 100 });
@@ -33,7 +38,10 @@ export async function generateEditionDateStaticParams(): Promise<EditionDateStat
   return params;
 }
 
-export async function generateArticleStaticParams(): Promise<Array<{ slug: string }>> {
+export async function generateArticleStaticParams(
+  rendererKind: RendererConfig["kind"] = getRendererKind(),
+): Promise<Array<{ slug: string }>> {
+  if (rendererKind === "markus") return [];
   if (process.env.NODE_ENV === "development") return [];
 
   const slugs = await graphqlContentRepository.listArticleSlugs();
