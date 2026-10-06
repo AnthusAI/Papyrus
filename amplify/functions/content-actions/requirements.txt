@@ -1,0 +1,4 @@
+PyYAML>=6.0.2,<7
+citeproc-py>=0.8.2,<1
+anthus-markus==0.5.1
+Pillow>=10,<12

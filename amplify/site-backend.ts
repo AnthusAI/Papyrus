@@ -19,6 +19,7 @@ import { assignmentAction } from "./functions/assignment-action/resource";
 import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
 import { graphqlJwtAuthorizer } from "./functions/graphql-jwt-authorizer/resource";
+import { contentActions } from "./functions/content-actions/resource";
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
 import { manageUserRole } from "./functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
@@ -90,6 +91,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     assignmentAction,
     auth: defineSiteAuth(site.auth ?? authConfigFromEnv()),
     categoryAction,
+    contentActions,
     data,
     graphqlJwtAuthorizer,
     knowledgeQuery,
@@ -386,6 +388,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   for (const resource of [
     backend.assignmentAction,
     backend.categoryAction,
+    backend.contentActions,
     backend.emailSubmissionProcessor,
     backend.knowledgeQuery,
     backend.modelAttachmentUpload,
@@ -399,6 +402,18 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.assignmentAction.resources.lambda as LambdaFunction);
   grantNewsroomReadWrite(backend.categoryAction.resources.lambda as LambdaFunction);
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
+  const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
+  grantNewsroomReadWriteDelete(contentActionsLambda);
+  contentActionsLambda.addEnvironment(
+    "PAPYRUS_GRAPHQL_ENDPOINT",
+    backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
+  );
+  contentActionsLambda.addToRolePolicy(
+    new PolicyStatement({
+      actions: ["appsync:GraphQL"],
+      resources: ["*"],
+    }),
+  );
   grantNewsroomReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
   grantMediaReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
   if (backend.sesInboundReceive) {

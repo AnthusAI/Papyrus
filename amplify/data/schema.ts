@@ -1,6 +1,7 @@
 import { type ClientSchema, a } from "@aws-amplify/backend";
 import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
+import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
 import { manageUserRole } from "../functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "../functions/model-attachment-upload/resource";
@@ -401,6 +402,34 @@ export const schema = a.schema({
     .returns(a.ref("NewsroomSummary"))
     .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
     .handler(a.handler.function(newsroomSummary)),
+
+  deriveMarkus: a
+    .query()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  saveItemDraft: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  publishItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  unpublishItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
 
   knowledgeQuery: a
     .query()
@@ -1944,6 +1973,7 @@ export const schema = a.schema({
     ]),
 }).authorization((allow) => [
   allow.resource(categoryAction),
+  allow.resource(contentActions),
   allow.resource(manageUserRole),
   allow.resource(modelAttachmentUpload),
   allow.resource(newsroomSummary),
