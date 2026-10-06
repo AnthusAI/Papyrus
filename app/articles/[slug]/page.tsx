@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSiteRenderer } from "../../../lib/site-renderer";
 import { getCachedArticle } from "../../../lib/cached-content-repository";
-import { generateArticleStaticParams } from "../../../lib/reader-static-params";
+import { generateArticleStaticParams, siteServesNextReaderRoutes } from "../../../lib/reader-static-params";
 import { SITE_BRAND } from "../../../lib/site-brand";
 
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
@@ -16,6 +16,7 @@ type ArticlePageProps = {
 };
 
 export async function generateMetadata({ params }: ArticlePageProps) {
+  if (!siteServesNextReaderRoutes()) return {};
   const { slug } = await params;
   const article = await getCachedArticle(slug);
   if (!article) return {};
@@ -26,6 +27,7 @@ export async function generateMetadata({ params }: ArticlePageProps) {
 }
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
+  if (!siteServesNextReaderRoutes()) notFound();
   const { slug } = await params;
   const article = await getCachedArticle(slug);
   if (!article) notFound();
