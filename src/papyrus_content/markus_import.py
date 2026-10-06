@@ -369,13 +369,29 @@ def _imported_hash(existing: dict) -> str | None:
     return (_parse_json_object(existing.get("metadata")).get("source") or {}).get("importedContentHash")
 
 
+def _semantic_value(value: Any) -> Any:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped[:1] in ("{", "["):
+            try:
+                return json.loads(stripped)
+            except ValueError:
+                return value
+    return value
+
+
+def _field_differs(existing_value: Any, wanted_value: Any) -> bool:
+    return _semantic_value(existing_value) != _semantic_value(wanted_value)
+
+
 def _media_differs(client, item_id: str, planned: list[PlannedMedia]) -> bool:
     existing = {row["id"]: row for row in client.list_by_index("mediaAssetsByItemAndSortKey", item_id)}
     wanted = {entry.row["id"]: entry.row for entry in planned}
     if set(existing) != set(wanted):
         return True
     return any(
-        any(existing[row_id].get(name) != value for name, value in row.items()) for row_id, row in wanted.items()
+        any(_field_differs(existing[row_id].get(name), value) for name, value in row.items())
+        for row_id, row in wanted.items()
     )
 
 

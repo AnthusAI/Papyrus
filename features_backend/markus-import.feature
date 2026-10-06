@@ -15,6 +15,14 @@ Feature: Importing a Markus content directory into the CMS
     Then everything is unchanged
     And no records were written
 
+  Scenario: Importing twice is a no-op when the backend reorders media metadata keys
+    Given the fixture content directory
+    And I import it
+    And the backend returns media metadata with reordered keys
+    When I import it again
+    Then everything is unchanged
+    And no records were written
+
   Scenario: A CMS edit is not overwritten by a re-import
     Given the fixture content directory
     And I import it

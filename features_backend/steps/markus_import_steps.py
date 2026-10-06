@@ -46,6 +46,23 @@ def import_it(context) -> None:
     run(context)
 
 
+@given("the backend returns media metadata with reordered keys")
+def reorder_media_metadata(context) -> None:
+    import json
+
+    original = context.client.list_by_index
+
+    def reordered(index_name, key_value, **kwargs):
+        rows = original(index_name, key_value, **kwargs)
+        for row in rows:
+            if isinstance(row.get("metadata"), str):
+                parsed = json.loads(row["metadata"])
+                row["metadata"] = json.dumps(dict(reversed(list(parsed.items()))))
+        return rows
+
+    context.client.list_by_index = reordered
+
+
 @when("I import it again")
 def import_again(context) -> None:
     context.client.calls.clear()
