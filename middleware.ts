@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSiteBrand } from "./lib/site-brand";
+import { getSiteEnv, isIndexable } from "./lib/site-env";
+import { getStagingAccess } from "./lib/staging-gate";
 
 function usesNewsroomRootPaths(): boolean {
   const brand = getSiteBrand();
@@ -17,7 +19,14 @@ function isStaticOrApiPath(pathname: string): boolean {
   );
 }
 
-export function middleware(request: NextRequest) {
+function isStagingGatedPath(pathname: string): boolean {
+  if (isStaticOrApiPath(pathname)) return false;
+  if (pathname === "/robots.txt") return false;
+  if (pathname === "/newsroom" || pathname.startsWith("/newsroom/")) return false;
+  return true;
+}
+
+function routeRequest(request: NextRequest): NextResponse {
   if (!usesNewsroomRootPaths()) {
     return NextResponse.next();
   }
@@ -48,6 +57,34 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  let sessionResponse: NextResponse | null = null;
+  if (getSiteEnv() === "staging" && isStagingGatedPath(request.nextUrl.pathname)) {
+    sessionResponse = NextResponse.next();
+    const access = await getStagingAccess(request, sessionResponse);
+    if (access === "anonymous") {
+      return withRobotsHeader(NextResponse.redirect(new URL("/newsroom", request.url)));
+    }
+    if (access === "forbidden") {
+      return withRobotsHeader(new NextResponse("Staging is limited to editors and admins.", { status: 403 }));
+    }
+  }
+
+  const response = routeRequest(request);
+  if (sessionResponse) {
+    for (const cookie of sessionResponse.headers.getSetCookie()) {
+      response.headers.append("set-cookie", cookie);
+    }
+  }
+  return withRobotsHeader(response);
+}
+
+function withRobotsHeader(response: NextResponse): NextResponse {
+  if (!isIndexable()) response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return response;
+}
+
 export const config = {
+  runtime: "nodejs",
   matcher: ["/((?!_next/static|_next/image|favicon.ico|icon).*)"],
 };

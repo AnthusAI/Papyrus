@@ -6,6 +6,8 @@ import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getPresentationChoices, getSiteBrand } from "../lib/site-brand";
 import { getSiteStack } from "../lib/site-stack";
+import { isIndexable, showStagingBanner } from "../lib/site-env";
+import { StagingBanner } from "../components/staging-banner";
 import "./tailwind.css";
 import "./globals.css";
 import "papyrus-site-theme";
@@ -27,6 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: siteBrand.appTitle,
     description: siteBrand.appDescription,
+    ...(isIndexable() ? {} : { robots: { index: false, follow: false } }),
     icons: {
       icon: [
         { url: `/icon-light.png?v=${faviconVersion}`, type: "image/png" },
@@ -127,6 +130,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   window.addEventListener("papyrus:settings-changed", apply);
 })();`}
         </Script>
+        {showStagingBanner() ? <StagingBanner /> : null}
         <AmplifyClientProvider>
           <TooltipProvider>
             <PapyrusConsoleShell>{children}</PapyrusConsoleShell>

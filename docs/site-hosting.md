@@ -197,3 +197,39 @@ visit any page with `?notrack=1` once per browser to stop counting that browser
 (localStorage flag `<sitename>-no-analytics`, which sets Google's
 `ga-disable-<ID>`); `?notrack=0` turns counting back on. There is no other
 consent handling.
+
+## `SITE_ENV` and `PAPYRUS_CONTENT_SOURCE` (staging for Pretext sites)
+
+Two environment variables select what a deployment serves and how it presents
+itself. Both are read by `lib/site-env.ts`.
+
+| Deployment | `SITE_ENV` | `PAPYRUS_CONTENT_SOURCE` |
+| --- | --- | --- |
+| Production | `production` | unset or `published` |
+| Pretext staging | `staging` | `drafts` |
+| Static staging (Markus) | `staging` | `published` (with `PAPYRUS_STAGING_PREVIEW=static`) |
+| Local development | unset (`development`) | unset or `published` |
+
+- `SITE_ENV=production` on an Amplify branch other than `main` (`AWS_BRANCH`)
+  resolves to `staging`, so a mis-configured branch stays guarded.
+- `drafts` reads the `Item`, `Edition`, `EditionItem` and `MediaAsset` models
+  over the signed-in editor's Cognito session (`userPool`, from request
+  cookies), uncached. `published` reads the `Published*` models over the
+  identity pool (guest). A signed-in user who is not an editor or admin cannot
+  read `PublishedItem` over `userPool`, so the two modes use different auth
+  modes by design.
+- `PAPYRUS_CONTENT_SOURCE=drafts` is refused unless `SITE_ENV=staging`: the
+  server fails when `lib/content-repository.ts` loads. **Production never sets
+  `drafts`.**
+- Not production means: `Disallow: /` in `robots.txt`, `noindex` meta and
+  `X-Robots-Tag`, a "STAGING" banner, and no analytics (`analyticsAllowed()`).
+- On a staging deployment the middleware redirects anonymous visitors to
+  `/newsroom` (sign-in), returns 403 to signed-in users outside the `editor`
+  and `admin` groups, and AppSync enforces the same rule on the data. The
+  staging origin must be in `PAPYRUS_OAUTH_REDIRECT_URLS` for hosted-UI
+  sign-in.
+- Known gap: Pretext index pages list items through editions; a CMS draft that
+  is not in an edition is reachable at `/articles/<slug>` only.
+
+Check a running deployment with
+`node scripts/check-staging-guards.mjs <base-url> <staging|production>`.
