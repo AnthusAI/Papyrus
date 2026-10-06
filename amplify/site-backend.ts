@@ -13,6 +13,7 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import { CfnIndex, CfnVectorBucket, CfnVectorBucketPolicy } from "aws-cdk-lib/aws-s3vectors";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
 import { authConfigFromEnv, defineSiteAuth } from "./auth/resource";
 import { data } from "./data/resource";
 import { assignmentAction } from "./functions/assignment-action/resource";
@@ -414,6 +415,25 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       resources: ["*"],
     }),
   );
+  const rebuildSettings = rebuildTriggerSettings({
+    reader: site.reader,
+    stagingBuildEnabled: site.stagingBuild?.enabled === true,
+    cmsAppId: amplifyAppId,
+    region: Stack.of(contentActionsLambda).region,
+    account: Stack.of(contentActionsLambda).account,
+  });
+  for (const [name, value] of Object.entries(rebuildSettings.environment)) {
+    contentActionsLambda.addEnvironment(name, value);
+  }
+  if (rebuildSettings.resources.length > 0) {
+    contentActionsLambda.addToRolePolicy(
+      new PolicyStatement({ actions: rebuildSettings.actions, resources: rebuildSettings.resources }),
+    );
+  }
+  if ((site.revalidateBaseUrl ?? "").trim() !== "") {
+    backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_BASE_URL", (site.revalidateBaseUrl ?? "").trim());
+    backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_SECRET", secret("PAPYRUS_REVALIDATE_SECRET"));
+  }
   grantNewsroomReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
   grantMediaReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
   if (backend.sesInboundReceive) {

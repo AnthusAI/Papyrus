@@ -129,5 +129,102 @@ class ContentActionsHandlerTest(unittest.TestCase):
         self.assertEqual(content_actions_handler.actor_from_event({"identity": {"sub": "s"}}), "s")
 
 
+class ContentActionsSiteTriggerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = FakeAuthoringClient()
+        patcher = mock.patch.object(
+            content_actions_handler, "create_authoring_client", return_value=(self.client, {})
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        environment = mock.patch.dict(
+            "os.environ",
+            {"PAPYRUS_READER_AMPLIFY_APP_ID": "reader1", "PAPYRUS_READER_BRANCH": "live"},
+            clear=False,
+        )
+        environment.start()
+        self.addCleanup(environment.stop)
+
+    def call(self, field: str, payload, **kwargs) -> dict:
+        return content_actions_handler.handler(event(field, payload, **kwargs), None)
+
+    def saved_item_id(self) -> str:
+        return self.call("saveItemDraft", save_payload())["item"]["id"]
+
+    def test_changed_publish_starts_a_rebuild(self) -> None:
+        item_id = self.saved_item_id()
+        with mock.patch.object(
+            content_actions_handler, "trigger_rebuild", return_value={"started": True, "jobId": "42"}
+        ) as trigger:
+            result = self.call("publishItem", {"id": item_id})
+        trigger.assert_called_once_with(reader_app_id="reader1", reader_branch="live")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["rebuild"], {"started": True, "jobId": "42"})
+
+    def test_unchanged_publish_triggers_nothing(self) -> None:
+        item_id = self.saved_item_id()
+        self.call("publishItem", {"id": item_id})
+        with mock.patch.object(content_actions_handler, "trigger_rebuild") as trigger:
+            result = self.call("publishItem", {"id": item_id})
+        trigger.assert_not_called()
+        self.assertFalse(result["changed"])
+        self.assertNotIn("rebuild", result)
+
+    def test_unpublish_starts_a_rebuild(self) -> None:
+        item_id = self.saved_item_id()
+        self.call("publishItem", {"id": item_id})
+        with mock.patch.object(content_actions_handler, "trigger_rebuild", return_value={"started": False, "reason": "pending-job-exists"}):
+            result = self.call("unpublishItem", {"id": item_id})
+        self.assertEqual(result["rebuild"], {"started": False, "reason": "pending-job-exists"})
+
+    def test_a_failed_trigger_does_not_fail_the_publish(self) -> None:
+        item_id = self.saved_item_id()
+        failed = {"started": False, "error": "RuntimeError: boom"}
+        with mock.patch.object(content_actions_handler, "trigger_rebuild", return_value=failed):
+            result = self.call("publishItem", {"id": item_id})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["rebuild"], failed)
+        self.assertIn(result["publishedId"], self.client.tables["PublishedItem"])
+
+    def test_revalidation_failure_is_reported_and_publish_still_succeeds(self) -> None:
+        item_id = self.saved_item_id()
+        with mock.patch.dict("os.environ", {"PAPYRUS_REVALIDATE_BASE_URL": "https://reader.test"}), mock.patch.object(
+            content_actions_handler, "trigger_pretext_revalidation", side_effect=RuntimeError("down")
+        ), mock.patch.object(content_actions_handler, "trigger_rebuild", return_value={"started": True, "jobId": "1"}):
+            result = self.call("publishItem", {"id": item_id})
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["revalidated"]["ok"])
+        self.assertTrue(result["rebuild"]["started"])
+
+    def test_revalidation_receives_the_item_slug(self) -> None:
+        item_id = self.saved_item_id()
+        with mock.patch.dict("os.environ", {"PAPYRUS_REVALIDATE_BASE_URL": "https://reader.test"}), mock.patch.object(
+            content_actions_handler, "trigger_pretext_revalidation", return_value={"ok": True}
+        ) as revalidate, mock.patch.object(content_actions_handler, "trigger_rebuild", return_value={"started": True}):
+            result = self.call("publishItem", {"id": item_id})
+        revalidate.assert_called_once_with(["my-post"], None, base_url="https://reader.test")
+        self.assertEqual(result["revalidated"], {"ok": True})
+
+    def test_unconfigured_site_adds_no_trigger_fields(self) -> None:
+        item_id = self.saved_item_id()
+        with mock.patch.dict("os.environ", {"PAPYRUS_READER_AMPLIFY_APP_ID": ""}):
+            result = self.call("publishItem", {"id": item_id})
+        self.assertEqual(set(result), {"ok", "changed", "publishedId", "versionNumber"})
+
+    def test_request_staging_build(self) -> None:
+        with mock.patch.dict("os.environ", {"PAPYRUS_CMS_AMPLIFY_APP_ID": "cms1"}), mock.patch.object(
+            content_actions_handler, "trigger_staging_build", return_value={"started": True, "jobId": "7"}
+        ) as trigger:
+            result = self.call("requestStagingBuild", {})
+        trigger.assert_called_once_with(cms_app_id="cms1", staging_branch="staging")
+        self.assertEqual(result, {"ok": True, "build": {"started": True, "jobId": "7"}})
+
+    def test_request_staging_build_without_configuration_fails_cleanly(self) -> None:
+        with mock.patch.dict("os.environ", {"PAPYRUS_CMS_AMPLIFY_APP_ID": ""}):
+            result = self.call("requestStagingBuild", {})
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["errors"][0]["code"], "staging-build-not-configured")
+
+
 if __name__ == "__main__":
     unittest.main()

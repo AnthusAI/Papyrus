@@ -14,6 +14,7 @@ from .markus_import import (
     plan_import,
     run_import,
 )
+from .rebuild_trigger import reader_target_from_environment, trigger_rebuild
 from .options import normalize_string, parse_comma_list, parse_options, resolve_mutation_apply
 
 
@@ -60,6 +61,10 @@ def content_import_markus(flags: list[str]) -> None:
     plan = plan_import(import_options, client, store)
     report = run_import(plan, client, store, apply=apply)
     payload = report.to_dict()
+    app_id = normalize_string(options.get("rebuild-app-id")) or reader_target_from_environment()[0]
+    if apply and report.ok and payload["published"] and app_id and not options.get("no-trigger"):
+        branch = normalize_string(options.get("rebuild-branch")) or reader_target_from_environment()[1]
+        payload["rebuild"] = trigger_rebuild(reader_app_id=app_id, reader_branch=branch)
     if options.get("json"):
         print(json.dumps(payload, indent=2))
     else:
@@ -70,6 +75,8 @@ def content_import_markus(flags: list[str]) -> None:
             "mediaUploaded", "mediaUnchanged", "readerOwnedAssets", "notInSource",
         ):
             print(f"  {key}: {payload[key]}")
+        if "rebuild" in payload:
+            print(f"  rebuild: {json.dumps(payload['rebuild'])}")
         for message in payload["errors"]:
             print(f"  error: {message}")
     if not report.ok:
