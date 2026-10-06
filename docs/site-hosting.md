@@ -279,7 +279,8 @@ Copy into the site's runbook and fill in:
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).
 2. Give the registrar the zone NS records (Kanbus comment for the operator).
 3. Create the Amplify app and verify on the default `*.amplifyapp.com` URL first
-   (leave `hostedZoneId` and every `domainName` out of `site.json`; set
+   (a new stack that must coexist with an older stack for the same `siteId` sets
+   `stackName`; leave `hostedZoneId` and every `domainName` out of `site.json`; set
    `cms.staging: false` to skip the staging branch too).
 4. Add custom domains: add `hostedZoneId` and the `domainName` fields to
    `site.json`, add the domain origins to `PAPYRUS_OAUTH_REDIRECT_URLS`, and
@@ -406,8 +407,12 @@ python reader/build.py --content content-export --out dist
 papyrus content upload-preview --dir dist
 ```
 
-then the CMS Next build (frontend-only, no `backend:` phase). The build role
+Then the CMS Next build (frontend-only, no `backend:` phase). The build role
 needs write access to `preview/*`; the storage rule grants none to users.
+
+The static reader build is different: it runs
+`papyrus content export-published --auth guest --out content-export --clean`
+with no credentials and no `refresh-jwt`.
 
 `papyrus content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json]`
 syncs DIR to the prefix: new or changed files are uploaded (sha256 in object

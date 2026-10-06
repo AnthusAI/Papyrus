@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { buildSpecFor } from "../infra/build-specs.js";
-import { parseSiteConfig } from "../infra/site-config.js";
+import { parseSiteConfig, resolveStackName } from "../infra/site-config.js";
 
 const USAGE = [
   "Usage: papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]",
@@ -89,7 +89,7 @@ const { App } = createRequire(path.join(process.cwd(), "noop.js"))("aws-cdk-lib"
 const app = new App({ outdir: path.resolve(opt("out", "cdk.out")) });
 new AmplifyAppShellStack(app, `AmplifyAppShell-${config.siteId}`, config, {
   env: { account: opt("account", "335163751677"), region: opt("region", "us-east-1") },
-  stackName: `amplify-app-shell-${config.siteId}`,
+  stackName: resolveStackName(config),
 });
 app.synth();
-console.log(`synthesized amplify-app-shell-${config.siteId} -> ${path.resolve(opt("out", "cdk.out"))}`);
+console.log(`synthesized ${resolveStackName(config)} -> ${path.resolve(opt("out", "cdk.out"))}`);

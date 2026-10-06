@@ -115,8 +115,7 @@ export function readerBuildSpec(config: AmplifyAppShellSiteConfig): string {
     ...frontendSection(
       [
         ...pythonProvisioningCommands(config),
-        "papyrus auth refresh-jwt --write-env .env",
-        "papyrus content export-published --out content-export --clean",
+        "papyrus content export-published --auth guest --out content-export --clean",
       ],
       [readerConfig.buildCommand],
       readerConfig.baseDirectory,

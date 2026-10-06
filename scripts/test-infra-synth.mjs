@@ -90,6 +90,12 @@ try {
       const readerSpec = buildSpecOf(readerApp);
       assert.match(readerSpec, /uv python install 3\.12/);
       assert.match(readerSpec, /papyrus-newsroom\[markus\]==/);
+      assert.match(readerSpec, /export-published --auth guest/);
+      assert.equal(/refresh-jwt/.test(readerSpec), false, `${example}: reader spec mints a JWT`);
+      const readerRoleKey = Object.keys(template.Resources).find((key) => key.startsWith("ReaderServiceRole") && template.Resources[key].Type === "AWS::IAM::Role");
+      const readerPolicies = Object.values(template.Resources).filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === readerRoleKey));
+      assert.ok(readerPolicies.length > 0, `${example}: reader role policy exists`);
+      assert.equal(JSON.stringify(readerPolicies).includes("ssm:"), false, `${example}: reader role keeps SSM access`);
       assert.equal(/^backend:/m.test(readerSpec), false);
       assert.equal(/npm run build/.test(readerSpec), false);
       assert.match(stagingSpec, /upload-preview/);
@@ -216,6 +222,15 @@ try {
     message = String(error.stderr);
   }
   assert.match(message, /optional peer dependencies/, "synth without the CDK must explain the optional peers");
+
+  const renamed = synthVariant("renamed-stack", "pilobol-us.site.json", (config) => {
+    config.stackName = "pilobol-us-new";
+    config.github.ciCanDeployInfra = true;
+  });
+  assert.ok(renamed.Resources, "stackName variant synthesizes");
+  const renamedPrinted = run("node", [cli, "synth", "--site", path.join(work, "renamed-stack.site.json"), "--out", path.join(infraApp, "cdk.out.renamed-print")], { cwd: infraApp });
+  assert.match(renamedPrinted, /synthesized pilobol-us-new/);
+  assert.match(JSON.stringify(renamed), /stack\/pilobol-us-new\//);
 
   const staticSpec = run("node", [cli, "print-buildspec", "--site", path.join(shell, "examples/pilobol-us.site.json"), "--app", "reader"], { cwd: infraApp });
   assert.match(staticSpec, /^version: 1/);

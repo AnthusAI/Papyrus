@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { isStagingEnabled, parseSiteConfig, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { isStagingEnabled, parseSiteConfig, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -85,6 +85,10 @@ assert.deepEqual(pretextConfig.github?.branches, ["main", "staging"]);
 assert.equal(pretextConfig.github?.ciCanDeployInfra, true);
 assert.equal(staticConfig.github?.ciCanDeployInfra, false);
 assertRejects("not an object", "site");
+
+assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", () => {}))), "amplify-app-shell-pretext-example");
+assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", (c) => (c.stackName = "pretext-new")))), "pretext-new");
+assertRejects(mutated("pretext.site.json", (c) => (c.stackName = "-bad")), "stackName");
 
 assert.equal(papyrusVersionToPep440("1.0.0"), "1.0.0");
 assert.equal(papyrusVersionToPep440("1.0.0-next.12"), "1.0.0.dev12");
