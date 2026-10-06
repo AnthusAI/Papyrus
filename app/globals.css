@@ -2282,6 +2282,25 @@ img {
   width: 100%;
 }
 
+.article-video__preview-frame {
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 0;
+  display: block;
+  width: 100%;
+}
+
+.article-video__preview-controls {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.article-video__preview-controls input[type="range"] {
+  flex: 1;
+}
+
 .article-video__credit {
   color: rgb(var(--ink-solid-rgb) / 0.62);
   font-size: 0.82rem;

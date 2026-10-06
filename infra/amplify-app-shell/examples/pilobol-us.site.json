@@ -23,5 +23,13 @@
     "domainName": "pilobol.us",
     "buildCommand": "python3 reader/build.py --content content-export --out dist",
     "baseDirectory": "dist"
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "Pilobol.us",
+    "branches": [
+      "main",
+      "staging"
+    ]
   }
 }

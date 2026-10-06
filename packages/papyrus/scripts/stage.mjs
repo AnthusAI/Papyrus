@@ -53,6 +53,9 @@ function walk(rel) {
   } else copyFile(rel);
 }
 for (const root of COPY_ROOTS) walk(root);
+for (const entry of fs.readdirSync(path.join(repo, "scripts/videoml"), { recursive: true, withFileTypes: true })) {
+  if (entry.isFile()) copyFile(path.relative(repo, path.join(entry.parentPath, entry.name)));
+}
 
 // Pull in files outside the copied roots that copied code imports (transitively),
 // e.g. publications/<id>/brand.ts and theme.css.
@@ -171,6 +174,7 @@ try {
   );
 }
 export const { AmplifyAppShellStack } = await import("./amplify-app-shell.js");
+export const { GithubOidcProviderStack } = await import("./github-oidc-provider.js");
 export { parseSiteConfig } from "./site-config.js";
 export { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec, buildSpecFor } from "./build-specs.js";
 `);

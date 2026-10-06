@@ -201,7 +201,7 @@ class CommandTests(unittest.TestCase):
         client = FakeAuthoringClient()
         buffer = io.StringIO()
         with mock.patch("papyrus_content.markus_import_commands.create_authoring_client", return_value=(client, {})), \
-                mock.patch("papyrus_content.markus_import_commands.storage_bucket_from_amplify_outputs", return_value=None), \
+                mock.patch("papyrus_content.markus_import_commands.configured_media_bucket", return_value=None), \
                 contextlib.redirect_stdout(buffer):
             content_import_markus(
                 ["--content-dir", str(FIXTURE), "--draft-dirs", "drafts=articles", "--dry-run", "--json"]
@@ -218,7 +218,7 @@ class CommandTests(unittest.TestCase):
                 "papyrus_content.markus_import_commands.create_authoring_client",
                 return_value=(FakeAuthoringClient(), {}),
             ), mock.patch(
-                "papyrus_content.markus_import_commands.storage_bucket_from_amplify_outputs", return_value=None
+                "papyrus_content.markus_import_commands.configured_media_bucket", return_value=None
             ), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:
                     content_import_markus(["--content-dir", directory, "--dry-run", "--json"])
