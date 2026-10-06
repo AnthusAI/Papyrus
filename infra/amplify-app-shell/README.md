@@ -15,7 +15,7 @@ build.
 | Resource | Purpose |
 | --- | --- |
 | CMS app `<siteId>-cms` (`WEB_COMPUTE`) | Branch `main` (production, owns the backend) and, unless `cms.staging` is `false`, `staging` (frontend only, reads the production backend) |
-| Reader app `<siteId>-reader` (`WEB`), `markus-static` only | Branch `main`; static build from the published content export |
+| Reader app `<siteId>-reader` (`WEB`), `markus-static` only | Branch `main`; static build from the published content export; catch-all rule `/<*>` -> `/404.html` with status `404-200` (real 404 with the site's `404.html`) |
 | Domains (optional) | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex. Omit `cms.domainName` / `reader.domainName` / `hostedZoneId` to create no `AWS::Amplify::Domain` and use the default `amplifyapp.com` URLs |
 | CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
 | Compute role | SSR rendering role for the CMS app |
