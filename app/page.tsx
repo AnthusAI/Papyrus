@@ -15,7 +15,8 @@ import {
 } from "../lib/public-placeholder-config";
 import type { PublicationItem } from "../lib/publication-items";
 import { SITE_BRAND, rootRoute } from "../lib/site-brand";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { buildRootRedirectTarget } from "../lib/root-route-redirect";
 import NewsDeskRootPage, { type NewsDeskRootSearchParams } from "./newsroom/page";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +42,12 @@ export default async function Home({ searchParams }: HomePageProps) {
     return <NewsDeskRootPage searchParams={searchParams} />;
   }
 
-  if (rootRoute.kind === "redirect" && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
-    redirect(rootRoute.destination);
+  if (rootRoute.kind === "redirect") {
+    redirect(buildRootRedirectTarget(rootRoute.destination, resolvedSearchParams));
+  }
+
+  if (SITE_BRAND.renderer.kind === "markus") {
+    notFound();
   }
 
   // Resolved only on the reader path: Markus brands (renderer "markus") have

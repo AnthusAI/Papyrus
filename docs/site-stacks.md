@@ -32,7 +32,11 @@ type SiteStack = {
 `SiteBrand` also carries an optional `rootRoute` (see `lib/site-brand.ts`):
 `{ kind: "reader" }` (default — render the publication home page at `/`) or
 `{ kind: "redirect", destination }` (send `/` to a path/URL, e.g. for a
-CMS-only deployment whose reader lives on another app).
+CMS-only deployment whose reader lives on another app). A redirect root sends
+every request to `/`, including OAuth `code`/`state`/`error` callbacks, to the
+destination with the query string preserved so the sign-in listener on the
+newsroom path can finish. A Markus-renderer brand has no Next.js reader, so a
+root that would fall through to the reader answers 404 instead of an error.
 ```
 
 `app/layout.tsx` exposes the live choice on `<html>`:
