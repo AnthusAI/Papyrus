@@ -102,7 +102,8 @@ let editorClient = null;
 let editorCredentials = null;
 
 try {
-  Amplify.configure(outputs, { ssr: true });
+  // No { ssr: true }: its cookie token storage needs a browser `document`; this Node script builds the cookie header itself.
+  Amplify.configure(outputs);
 
   const editor = await createUser("editor");
   const outsider = await createUser(null);
@@ -129,7 +130,7 @@ try {
     byline: "Staging Test",
     dateline: "NEWSROOM",
     publishedAt: new Date().toISOString(),
-    bodyIr,
+    bodyIr: JSON.stringify(bodyIr),
   }, { authMode: "userPool" });
   if (created.errors?.length) throw new Error(`could not create the draft Item: ${JSON.stringify(created.errors)}`);
 

@@ -29,7 +29,7 @@ def load_handler_module():
 
 def call_action(context, field: str, payload: dict) -> dict:
     event = {
-        "info": {"fieldName": field},
+        "fieldName": field,
         "arguments": {"input": json.dumps(payload)},
         "identity": {"username": "behave-editor"},
     }

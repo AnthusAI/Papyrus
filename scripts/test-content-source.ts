@@ -55,8 +55,15 @@ injectModule("aws-amplify/data", {
     return { models: clientModels };
   },
 });
+injectModule("@aws-amplify/adapter-nextjs/api", {
+  generateServerClientUsingCookies: (options: { authMode: string; cookies: unknown }) => {
+    calls.push({ model: "client", method: "generateServerClientUsingCookies", authMode: options.authMode, input: options.cookies });
+    return { models: clientModels };
+  },
+});
 injectModule("./lib/amplify-server-runtime.ts", {
   getAmplifyServerRuntime: () => ({
+    config: {},
     runWithAmplifyServerContext: async (args: { nextServerContext: unknown; operation: () => Promise<unknown> }) => {
       calls.push({ model: "runtime", method: "nextServerContext", authMode: null, input: args.nextServerContext });
       return args.operation();
@@ -99,8 +106,10 @@ async function main() {
   assert.equal(draftLookup.authMode, "userPool");
   assert.equal(calls.some((call) => call.model === "PublishedItem"), false, "drafts mode must not touch PublishedItem");
   assert.ok(draft, "a draft article is returned in drafts mode");
-  assert.equal(calls.find((call) => call.method === "generateClient")?.authMode, "userPool");
-  assert.deepEqual(calls.find((call) => call.method === "nextServerContext")?.input, { cookies: requireFromRepository("next/headers").cookies });
+  const cookieClient = calls.find((call) => call.method === "generateServerClientUsingCookies");
+  assert.equal(cookieClient?.authMode, "userPool", "drafts mode reads with a cookie-session client over userPool");
+  assert.equal(cookieClient?.input, requireFromRepository("next/headers").cookies);
+  assert.equal(calls.some((call) => call.method === "generateClient"), false, "drafts mode must not use the cookie-less global client");
 
   calls.length = 0;
   await graphqlContentRepository.listArticleSlugs();
