@@ -67,3 +67,29 @@ CMS Item (+ editorial.video)  or  stored <slug>--videoml script
   -> <outputDir>/<slug>[-light].mp4
   -> videos attach -> S3 media/videos/ + MediaAsset
 ```
+
+## Brand video components
+
+Papyrus ships the VideoML mechanics; a publication supplies its own scene components.
+
+- `@videoml` already registers generic `TitleSlide` and `QuoteCard` components, so the default config (`titleSlide: "title-slide"`, `quoteCard: "quote-card"`) needs no bundle entry of its own. Add one when the brand wants its own scene components.
+- Register the brand's components in a TSX module and point the brand at it in `papyrus.config.ts`:
+
+```ts
+brand: { ..., video: { bundleEntry: "publication/video/browser-bundle.tsx", sceneComponents: { "quote-card": "acme-quote-card" } } }
+```
+
+The module registers components through `window.Babulus.registerComponent("AcmeQuoteCard", AcmeQuoteCard)`. A DSL element `<acme-quote-card>` renders the component registered as `AcmeQuoteCard`. The standard entry (`window.Babulus`, `window.renderFrame`) is bundled in front of the brand's module, so the module does not import anything for registration. React is read from `window.React` (the render shell loads React 18).
+
+- `sceneComponents` maps generic DSL element names to the brand's (used by the browser preview to rewrite stored scripts such as `<quote-card>`). The Python `components` config must name the same elements.
+- `video.rhythm` is reserved for brand layout tokens that scene components read; Papyrus does not interpret it.
+- The module can call `window.PapyrusVideo?.registerPreviewRetheme((xml, theme) => xml)` to swap a stored dark script to a light palette in the preview bundle.
+
+Build the bundles from the publication root (the brand is `PAPYRUS_SITE_BRAND`, else `defaultBrand`):
+
+```bash
+npx papyrus-app videoml-bundle              # public/videoml/browser-bundle.js (render)
+npx papyrus-app videoml-bundle --preview    # public/videoml/preview-bundle.js, preview.html, vendor/ (reader preview)
+```
+
+Inside the Papyrus repo the same builders are `npm run videoml:bundle` and `npm run videoml:preview-bundle`. The publication installs `@videoml/cli`, `@videoml/toolchain`, `@videoml/player`, `gsap`, `framer-motion`, `d3`, `three` and `esbuild` as devDependencies. Point the Python `VideoConfig.browserBundle` at `public/videoml/browser-bundle.js`. A missing `brand.video.bundleEntry` fails with a message naming the brand.

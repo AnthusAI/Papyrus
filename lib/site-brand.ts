@@ -34,6 +34,18 @@ export type SiteBrandDemoEdition = {
   editionVideo?: ArticleVideoAsset;
 };
 
+/**
+ * Video slot: how a publication supplies its own VideoML scene components.
+ * Paths are relative to the publication root.
+ */
+export type SiteBrandVideo = {
+  /** TSX module that registers the brand's `@videoml` scene components via `window.Babulus.registerComponent`. */
+  bundleEntry: string;
+  /** DSL element aliases for the browser preview, e.g. `{ "quote-card": "acme-quote-card" }`. */
+  sceneComponents?: Record<string, string>;
+  rhythm?: Record<string, unknown>;
+};
+
 export type SiteBrand = {
   id: SiteBrandId;
   appTitle: string;
@@ -76,6 +88,7 @@ export type SiteBrand = {
   publicationName: string;
   components?: SiteBrandComponents;
   demoEdition?: SiteBrandDemoEdition;
+  video?: SiteBrandVideo;
 };
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';

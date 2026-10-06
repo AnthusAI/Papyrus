@@ -28,6 +28,14 @@ try {
   );
   assert.ok(tarballEntries.includes("package/lib/empty-theme.css"), "the tarball must ship lib/empty-theme.css");
   assert.ok(!tarballEntries.includes("package/app/dev-themes.css"), "the tarball must not ship app/dev-themes.css");
+  for (const shipped of [
+    "package/scripts/videoml/build-browser-bundle.mjs",
+    "package/scripts/videoml/build-preview-bundle.mjs",
+    "package/scripts/videoml/standard-entry.tsx",
+    "package/lib/video-script.ts",
+  ]) {
+    assert.ok(tarballEntries.includes(shipped), `the tarball must ship ${shipped}`);
+  }
   console.log("test-package-contents: ok");
 } finally {
   fs.rmSync(outDir, { recursive: true, force: true });
