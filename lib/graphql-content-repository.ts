@@ -817,7 +817,7 @@ async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsse
 
 function projectPublishedItemBody(item: GraphQLItem): BodyProjection {
   if (item.bodyIr === null || item.bodyIr === undefined || item.bodyIr === "") {
-    throw new BodyIrError(`PublishedItem ${item.slug} has no bodyIr; run: papyrus content convert-bodies`);
+    throw new BodyIrError(`PublishedItem ${item.slug} has no bodyIr; run: papyrus ops content convert-bodies`);
   }
   return projectBodyIr(item.bodyIr);
 }

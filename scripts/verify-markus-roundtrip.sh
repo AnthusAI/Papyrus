@@ -29,10 +29,10 @@ if [[ -n "$drafts_map" ]]; then
   rm -rf "$original_tree/${drafts_map%%=*}"
 fi
 
-import_args=(content import-markus --content-dir "$content_dir")
+import_args=(ops content import-markus --content-dir "$content_dir")
 [[ -n "$drafts_map" ]] && import_args+=(--draft-dirs "$drafts_map")
 $papyrus_cmd "${import_args[@]}"
-$papyrus_cmd content export-published --out "$exported_tree" --clean
+$papyrus_cmd ops content export-published --out "$exported_tree" --clean
 
 if [[ -d "$content_dir/assets" ]]; then
   mkdir -p "$exported_tree/assets"

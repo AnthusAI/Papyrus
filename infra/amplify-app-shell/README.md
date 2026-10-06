@@ -52,7 +52,7 @@ Optional `stackName` (default `amplify-app-shell-<siteId>`) names the CloudForma
 stack, so a new stack for the same `siteId` can coexist with an older one until the
 older stack is deleted. Existing sites that omit it synthesize identically.
 
-The generated reader build runs `papyrus content export-published --auth guest`
+The generated reader build runs `papyrus ops content export-published --auth guest`
 (Cognito identity pool guest, no credentials, no SSM token; boto3 comes with the
 `markus` extra), so the reader role has no SSM access. Put
 `PAPYRUS_GRAPHQL_ENDPOINT`, `PAPYRUS_IDENTITY_POOL_ID`, `PAPYRUS_MEDIA_BUCKET` and

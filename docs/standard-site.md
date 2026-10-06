@@ -310,7 +310,7 @@ Both frontends consume the **`Published*` projection** (`PublishedItem`,
 `PublishedMediaAsset`, `PublishedEdition`, `PublishedEditionItem`, categories),
 guest-readable. Pretext SSR reads it live through `ContentRepository`
 (exists). Markus static reads a build-time **snapshot** of it:
-`papyrus content export --out <dir>` (does not exist) writes `manifest.json`
+`papyrus ops content export --out <dir>` (does not exist) writes `manifest.json`
 (contract version `papyrus-published/v1`, site, generated-at, index),
 `items/<slug>.json`, and a media manifest with final URLs.
 
@@ -381,7 +381,7 @@ always, and uses `userPool` only for drafts (editor/admin).
 | | Pretext SSR | Markus static |
 | --- | --- | --- |
 | Where | `staging` branch of the CMS app, `staging.<domain>` | `staging` branch of the CMS app, `staging.<domain>` |
-| Drafts | SSR reads Items live with the editor's own Cognito token | `papyrus content export --drafts` at build (minted JWT, 1.6), then the site's `reader/` Markus build |
+| Drafts | SSR reads Items live with the editor's own Cognito token | `papyrus ops content export --drafts` at build (minted JWT, 1.6), then the site's `reader/` Markus build |
 | Gate | Next middleware: Cognito session in `editor`/`admin` else hosted-UI login | Same middleware in front of a catch-all route that serves the built site |
 | Freshness | Immediate | Rebuild: "Preview" in `/newsroom` starts the staging job (webhook); minutes, not instant |
 | Guards | `SITE_ENV=staging`: noindex meta, `Disallow: /`, staging banner, no analytics | Same, via the shared `SITE_ENV` helper |
@@ -618,7 +618,7 @@ CMS app and backend
 
 Staging
 - [ ] A `staging` branch builds frontend-only against the production backend's outputs. **Not testable without the GitHub App/Amplify** (branch deployment against another branch's backend); the frontend-only pattern passes locally.
-- [x] Guest reads `PublishedItem` through `ContentRepository` and cannot see a draft (404). [ ] Draft visible on staging via the Pretext path and `papyrus content export --drafts` (neither exists yet).
+- [x] Guest reads `PublishedItem` through `ContentRepository` and cannot see a draft (404). [ ] Draft visible on staging via the Pretext path and `papyrus ops content export --drafts` (neither exists yet).
 - [x] Authorization enforced by AppSync (12/12 checks): editor reads draft `Item`; guest and signed-in non-editor get Unauthorized; staging route redirects anonymous, 403s non-editors, shows the draft with a STAGING banner to editors.
 - [ ] noindex, `Disallow: /` and banner guards (`SITE_ENV`) and Markus drafts export: not tested.
 

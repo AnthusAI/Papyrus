@@ -56,7 +56,7 @@ the domains move last (a domain belongs to one app).
 
 One repo `AnthusAI/Pilobol.us` (agreed D1) depends on the published packages (exact prerelease pins, D3) and feeds
 two new apps: CMS (`WEB_COMPUTE`: `main` = `newsroom.pilobol.us`, `staging` = `staging.pilobol.us`) and reader (`WEB`: `pilobol.us`,
-`www`). The reader builds from `papyrus content export-published --auth guest` (D2: unauthenticated Cognito identity,
+`www`). The reader builds from `papyrus ops content export-published --auth guest` (D2: unauthenticated Cognito identity,
 public values as env vars, no role or token). Staging is the standard Cognito-gated drafts preview. Publish triggers a reader
 build through `amplify:StartJob`. The brand is registered from the repo (`pilobol-us`, newsroom at `/newsroom`, D5); humans publish in
 `/newsroom` (D6). The Git content path is deleted; Git history (tag `pre-cms-cutover`) is the rollback. The 22 PILO stories stay in

@@ -1,6 +1,6 @@
 /**
  * Exercises `projectBodyIr` (lib/markus-body.ts) against bodyIr envelopes
- * produced by `papyrus content markus-derive --emit-ir` from the PPY-e169c5
+ * produced by `papyrus ops content markus-derive --emit-ir` from the PPY-e169c5
  * fixtures (scripts/fixtures/body-ir/). Run with:
  *
  *   npx tsx scripts/test-markus-body.ts

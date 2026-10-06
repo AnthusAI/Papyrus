@@ -402,19 +402,19 @@ Staging build contract (the generated build spec, `PPY-39f928`, implements it):
 
 ```bash
 papyrus auth refresh-jwt --write-env .env
-papyrus content export-published --drafts --out content-export --clean
+papyrus ops content export-published --drafts --out content-export --clean
 python reader/build.py --content content-export --out dist
-papyrus content upload-preview --dir dist
+papyrus ops content upload-preview --dir dist
 ```
 
 Then the CMS Next build (frontend-only, no `backend:` phase). The build role
 needs write access to `preview/*`; the storage rule grants none to users.
 
 The static reader build is different: it runs
-`papyrus content export-published --auth guest --out content-export --clean`
+`papyrus ops content export-published --auth guest --out content-export --clean`
 with no credentials and no `refresh-jwt`.
 
-`papyrus content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json]`
+`papyrus ops content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json]`
 syncs DIR to the prefix: new or changed files are uploaded (sha256 in object
 metadata, content type from the extension, `Cache-Control: no-store`), keys
 under the prefix that are not in DIR are deleted, any prefix other than

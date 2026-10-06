@@ -91,9 +91,9 @@ export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
     preBuild.push(
       ...pythonProvisioningCommands(config),
       "papyrus auth refresh-jwt --write-env .env",
-      "papyrus content export-published --drafts --out content-export --clean",
+      "papyrus ops content export-published --drafts --out content-export --clean",
       readerConfig.buildCommand,
-      `papyrus content upload-preview --dir ${readerConfig.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
+      `papyrus ops content upload-preview --dir ${readerConfig.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
     );
     cachePaths.push(".uv-cache/**/*");
   }
@@ -115,7 +115,7 @@ export function readerBuildSpec(config: AmplifyAppShellSiteConfig): string {
     ...frontendSection(
       [
         ...pythonProvisioningCommands(config),
-        "papyrus content export-published --auth guest --out content-export --clean",
+        "papyrus ops content export-published --auth guest --out content-export --clean",
       ],
       [readerConfig.buildCommand],
       readerConfig.baseDirectory,

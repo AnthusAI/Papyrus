@@ -198,6 +198,11 @@ try {
     assert.match(spec, /npm ci|uv pip install/, "spec installs dependencies reproducibly");
     assert.equal(/npm install/.test(spec), false, "spec uses npm install instead of npm ci");
   }
+  for (const spec of specsSeen) {
+    for (const line of spec.split("\n").filter((candidate) => /\bpapyrus\s+(ops\s+)?content\b/.test(candidate))) {
+      assert.match(line.trim(), /^- papyrus ops content /, `content command must be invoked as 'papyrus ops content': ${line.trim()}`);
+    }
+  }
   for (const spec of specsSeen.filter((candidate) => /npm /.test(candidate))) {
     assert.match(spec, /npm ci/);
   }
@@ -234,6 +239,8 @@ try {
 
   const staticSpec = run("node", [cli, "print-buildspec", "--site", path.join(shell, "examples/pilobol-us.site.json"), "--app", "reader"], { cwd: infraApp });
   assert.match(staticSpec, /^version: 1/);
+  assert.match(staticSpec, /^\s*- papyrus ops content export-published /m);
+  assert.equal(/papyrus content /.test(staticSpec), false, "reader spec calls the nonexistent 'papyrus content'");
 
   console.log("infra synth tests passed");
 } finally {
