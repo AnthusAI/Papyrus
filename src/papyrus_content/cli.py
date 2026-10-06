@@ -199,6 +199,7 @@ from .steering import (
 )
 from .convert_bodies_commands import content_convert_bodies
 from .markus_derive_commands import content_markus_derive
+from .markus_import_commands import content_import_markus
 from .publish_commands import content_publish, content_unpublish
 from .markus_renderer.commands import markus_build
 
@@ -212,6 +213,7 @@ PORTED_COMMANDS = frozenset(
         "content:backfill-item-body-attachments",
         "content:scrub-item-inline-body",
         "content:markus-derive",
+        "content:import-markus",
         "content:publish",
         "content:unpublish",
         "content:convert-bodies",
@@ -400,6 +402,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_scrub_item_inline_body(flags)
     elif route == "content:markus-derive":
         content_markus_derive(flags)
+    elif route == "content:import-markus":
+        content_import_markus(flags)
     elif route == "content:publish":
         content_publish(flags)
     elif route == "content:unpublish":
@@ -1448,6 +1452,7 @@ def print_usage() -> None:
     print("  auth refresh-jwt, batch register-catalog/enrich-references,")
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
+    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--json],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")
