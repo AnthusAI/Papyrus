@@ -1,3 +1,4 @@
+import { generateServerClientUsingCookies } from "@aws-amplify/adapter-nextjs/api";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import type { Article, ArticleImage, ArticleImageAsset, ArticleImageLayout, ArticleImageThemeVariants, ArticleVideoAsset, ArticleVideoThemeVariants } from "./articles";
@@ -17,7 +18,7 @@ import {
 } from "./publication-items";
 import { BodyIrError, matchBodyImages, projectBodyIr, type BodyProjection, type BodyProjectionImage } from "./markus-body";
 import { SITE_BRAND } from "./site-brand";
-import { currentContentSource, runWithContentSource } from "./content-source-context";
+import { currentContentSource, currentRequestClient, runWithContentSource } from "./content-source-context";
 import { getContentSource } from "./site-env";
 
 const DEFAULT_EDITION_SLUG = "current";
@@ -143,12 +144,18 @@ function isVisibleItemStatus(status: string): boolean {
 }
 
 async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise<T> {
-  const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
+  const { runWithAmplifyServerContext, config } = getAmplifyServerRuntime();
   const source = getContentSource();
-  const nextServerContext = source === "drafts" ? { cookies: (await import("next/headers")).cookies } : null;
+  if (source === "drafts") {
+    // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
+    // kept in the request's async context (never a module global) so one visitor's session cannot serve another.
+    const { cookies } = await import("next/headers");
+    const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
+    return runWithContentSource(source, operation, client);
+  }
   return runWithContentSource(source, () =>
     runWithAmplifyServerContext({
-      nextServerContext,
+      nextServerContext: null,
       operation: async () => {
         readerContextClient = generateClient<Schema>({ authMode: authMode() });
         try {
@@ -241,6 +248,8 @@ export const graphqlContentRepository: ContentRepository = {
 };
 
 function getClient(): DataClient {
+  const requestClient = currentRequestClient<DataClient>();
+  if (requestClient) return requestClient;
   if (readerContextClient) return readerContextClient;
 
   if (!buildTimeClient) {

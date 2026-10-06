@@ -22,7 +22,7 @@ def event(field: str, payload, *, as_string: bool = True) -> dict:
     import json
 
     return {
-        "info": {"fieldName": field},
+        "fieldName": field,
         "arguments": {"input": json.dumps(payload) if as_string else payload},
         "identity": {"username": "editor-one", "sub": "sub-1"},
     }

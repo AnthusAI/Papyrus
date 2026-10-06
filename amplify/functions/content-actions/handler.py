@@ -130,7 +130,7 @@ def request_staging_build_action() -> dict:
 
 
 def handler(event, context):
-    field = event["info"]["fieldName"]
+    field = event["fieldName"]
     arguments = parse_input(event["arguments"]["input"])
     actor = actor_from_event(event)
     try:
