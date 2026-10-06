@@ -1,5 +1,8 @@
 # Video pipeline (Threat Intelligence seed edition)
 
+> The Python pipeline moved to `papyrus videos` (`src/papyrus_content/videoml/`). Generic stages, scene rules and the post-roll contract: [docs/video-pipeline.md](../../../docs/video-pipeline.md) and [skills/produce-video/SKILL.md](../../../skills/produce-video/SKILL.md). This file keeps the Threat Intelligence branding and seed-edition specifics; sections that name `video_pipeline.py` describe the former implementation.
+
+
 Papyrus can generate narrated summary videos for Threat Intelligence seed articles using [VideoML](https://github.com/AnthusAI/videoml-toolchain) (`vml` CLI). The Python CLI orchestrates DSL generation and invokes `vml pipeline` as a subprocess; VideoML handles TTS, timing, and MP4 rendering.
 
 **Branding, pictogram policy, and content rules:** [skills/produce-video/SKILL.md](../skills/produce-video/SKILL.md)

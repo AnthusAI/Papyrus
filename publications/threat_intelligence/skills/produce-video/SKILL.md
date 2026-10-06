@@ -1,5 +1,7 @@
 # Produce Video (Threat Intelligence / Papyrus seed editions)
 
+> The Python pipeline moved to `papyrus videos` (`src/papyrus_content/videoml/`). Generic stages, scene rules and the post-roll contract: [docs/video-pipeline.md](../../../../docs/video-pipeline.md) and [skills/produce-video/SKILL.md](../../../../skills/produce-video/SKILL.md). This file keeps the Threat Intelligence branding and seed-edition specifics; sections that name `video_pipeline.py` describe the former implementation.
+
 Use this skill when generating or updating narrated MP4 briefings for Threat Intelligence seed
 editions, article summary videos, or edition overview teasers.
 
