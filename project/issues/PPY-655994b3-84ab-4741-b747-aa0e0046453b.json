@@ -24,12 +24,47 @@
       "text": "Confirmed 2026-10-05 by Ryan: Papyrus is NOT being ported to TypeScript (that is Chatticus). The plan stands as written (Python + TypeScript, two packages). Epic comment 4174c5 is retracted.",
       "created_at": "2026-10-05T19:58:17.582252Z",
       "comment_type": "default"
+    },
+    {
+      "id": "81291dc8-c304-4954-b82e-805bed63d7ee",
+      "author": "home",
+      "text": "RELEASE GATE (orchestrator, 2026-10-05): once PRT (PPY-cddfb8, PR #109) is on develop, the Pretext reader REQUIRES bodyIr on every item and throws without it. p.apyr.us and newsroom.pilobol.us (and TI) build from Papyrus main and their data has body[] only. DO NOT release develop -> main (or let any site update to a Papyrus version containing PRT) until, per site: (1) the SCH schema is deployed to that site's backend, (2) 'papyrus content convert-bodies' has been run with --apply against that site's backend after a reviewed dry run, (3) the result is verified in a browser. Merging PRT into develop is safe (develop is not deployed).",
+      "created_at": "2026-10-05T20:52:30.111715Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4921857a-ec51-4ac3-9626-420b8ffd126e",
+      "author": "home",
+      "text": "RELEASE GATE addendum (BRD, PR #114): after BRD reaches main, PAPYRUS_SITE_BRAND must be an EXACT registered id (aliases removed; unknown ids throw at startup): p.apyr.us unset/papyrus OK; newsroom.pilobol.us must be exactly 'pilobol-us' (it is today); Threat Intelligence exactly 'threat-intelligence'; anth.us exactly 'anth-us'. The ?brand= cookie override is gone. Verify each production app's env var BEFORE promoting develop to main. This is in addition to the convert-bodies gate for PRT (#109).",
+      "created_at": "2026-10-06T01:00:43.085781Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "19753b75-1ac1-46f1-aad8-e23ce1f3fff1",
+      "author": "home",
+      "text": "RELEASE GATE addendum (PRV, PR #119): middleware.ts now declares runtime 'nodejs' for ALL sites (needed for fs via getAmplifyServerRuntime). Not verified on Amplify WEB_COMPUTE. Before promoting develop -> main: deploy a build with this middleware to a non-production Amplify branch/app and confirm pages, the /newsroom redirect and robots.txt work, and that production-mode behaviour is unchanged (no gate, no banner, no noindex). Also still unproven against a real backend: staging-auth-test.mjs (editor/non-editor/anonymous) and the content-actions Lambda (LMB #116): both need one scratch sandbox proof (AWS SSO login by Ryan).",
+      "created_at": "2026-10-06T01:31:37.102995Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c91ed6b5-1b4a-4235-bd0d-8b690dba3d76",
+      "author": "home",
+      "text": "RELEASE GATE addendum (STG, PR #123): (a) PAPYRUS_STAGING_PREVIEW must be set ONLY on the staging branch, never inherited by main; (b) Amplify WEB_COMPUTE 6 MB response limit may break proxying large images through the preview route: measure on the Anth.us staging output before relying on it (307 fallback not implemented); (c) static-staging proof against a real sandbox not yet run (plan in PR #123 body); (d) nodejs middleware runtime still unverified on Amplify (see PRV addendum).",
+      "created_at": "2026-10-06T11:00:03.801996Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "93b7c813-87c5-494e-a827-d990a7c83094",
+      "author": "home",
+      "text": "Amplify connect test DONE 2026-10-06: connecting a repo to a repo-less Amplify app via the console works (see the new infra sub-task for caveats: console flipped platform WEB_COMPUTE->WEB; console created a new service role). Scratch app d6b1dbr1ddpl1, its role and the scratch repo AnthusAI/amplify-connect-test deleted and verified.",
+      "created_at": "2026-10-06T12:17:48.031051Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-05T13:18:51.958631Z",
-  "updated_at": "2026-10-05T19:58:17.582275Z",
+  "updated_at": "2026-10-06T12:17:48.031085Z",
   "closed_at": null,
-  "right_now_summary": "The team is building the CMS, Markdown importer, article editor, publish flow, and rebuild pipeline.",
-  "right_now_updated_at": "2026-10-05T19:58:19.188061Z",
+  "right_now_summary": "Live S3 publishing and Amplify release checks still need verification before promotion.",
+  "right_now_updated_at": "2026-10-06T12:17:50.117814Z",
   "custom": {}
 }

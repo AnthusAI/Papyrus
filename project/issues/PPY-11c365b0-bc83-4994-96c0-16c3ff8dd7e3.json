@@ -1,0 +1,39 @@
+{
+  "id": "PPY-11c365b0-bc83-4994-96c0-16c3ff8dd7e3",
+  "title": "Pilobol.us P3-13: production reader cutover to the CMS-built path with parity gate, 7-day soak, instant Git rollback",
+  "description": "## Goal\nCut the production reader (pilobol.us, app d1od6t7lzbwanr, branch main) over to the CMS-built path with NO byte of the live site changing, then soak with the Git path kept as an instant rollback.\n\n## Context (FACT, plan decisions D7, D8)\n- DNS and domains do not change: pilobol.us and www stay on d1od6t7lzbwanr.\n- After the reader-switch ticket, the reader app spec supports both paths by env: PILOBOL_SOURCE=cms selects the CMS export, unset selects Git (unchanged). The in-build parity gate (PILOBOL_PARITY_LIVE_URL) makes a non-identical build FAIL, which leaves the live deployment untouched.\n- Branch env on main is currently empty (verified), so aws amplify update-branch --environment-variables replaces nothing important; always send the full map.\n- Narration: every article page embeds the Auritus widget; the narration job hash covers text, voice and backend; HTML byte-identity implies zero text drift. Auritus v0.27.2: a wrong voice now fails loudly instead of substituting.\n- Git content stays frozen at the cutover commit; the rollback to the Git path publishes that frozen content, so articles published in the CMS after cutover are NOT in Git unless snapshot-exported first.\n\n## Exact steps\n1. Preconditions: production import (parity proven), reader switch, staging and rebuild proofs all accepted; Ryan go/no-go in chat; no publish planned in the window (desk automation is board-only already).\n2. Tag the Git state: git tag pre-cms-cutover on Pilobol.us main (Ryan yes) and record the commit and the last good job id (196 or later).\n3. Backend config: change reader.branchName from cms-reader to main in papyrus.config.ts; merge; CMS main build redeploys the config (LIVE, Ryan yes). Verify the Lambda role policy now names branches/main.\n4. LIVE (Ryan yes): aws amplify update-branch --app-id d1od6t7lzbwanr --branch-name main --environment-variables PILOBOL_SOURCE=cms,PILOBOL_PARITY_LIVE_URL=https://pilobol.us,PAPYRUS_GRAPHQL_ENDPOINT=...,PAPYRUS_IDENTITY_POOL_ID=...,PAPYRUS_MEDIA_BUCKET=...,AWS_REGION=us-east-1; then aws amplify start-job --app-id d1od6t7lzbwanr --branch-name main --job-type RELEASE. The job either passes the gate and deploys identical bytes, or fails and nothing changes.\n5. After SUCCEED: verify-parity.py --dist <scratch Git build of the tagged commit> --live https://pilobol.us --narration = 94/94 and 11/11; open 3 article pages in a browser (Ryan); curl -I for cache-control headers; check one image URL.\n6. LIVE (Ryan yes): update-branch again WITHOUT PILOBOL_PARITY_LIVE_URL (the gate is for the first build only); keep PILOBOL_SOURCE=cms. Run papyrus content rebuild --reader --app-id d1od6t7lzbwanr once: a second no-op build proves the production StartJob path.\n7. Soak (7 days, D7): daily check of the job list for main; first real article is published through the newsroom (human publish) and its rebuild observed. Git web/content is not edited.\n\n## Acceptance checks\n- Parity gate build SUCCEED; live == Git baseline 94/94; narration 11/11; later rebuild-on-publish job on main SUCCEED after the first real publish.\n\n## Rollback (seconds)\nR1: aws amplify update-branch --app-id d1od6t7lzbwanr --branch-name main --environment-variables (the empty map) then start-job: the Git path rebuilds the frozen Git content. If new articles were published in the CMS meanwhile: papyrus content export-published --out <scratch> first, commit those files into web/content on a feature branch, merge, then do R1 (so no article disappears). R2: Amplify console \"Redeploy this version\" of the last Git-built job. DNS never changed.\n\n## Risks\n- The only moment the live site can change is step 4 and it is fenced by the parity gate. A CMS outage during any later build fails the build and keeps the old deployment (fail-closed).\n- A deploy that is accepted but wrong in a way bytes cannot show (cache headers, 404 behavior) is covered by step 5 checks.\n\n## Needs Ryan\nGo/no-go; yes for steps 2, 3, 4, 6; the browser check in step 5.\n\n## Common rules (apply to every Phase 3 Pilobol.us ticket)\n- Plan: docs/migrations/pilobol-us.md (AnthusAI/Papyrus, PR from branch docs/PPY-3367d3-pilobol-us-migration-plan). Facts there were verified 2026-10-06; marked FACT or ASSUMPTION. Re-verify anything you depend on before acting.\n- LIVE steps (marked LIVE) touch production resources (apps d1od6t7lzbwanr and d11eu9hbs2mipk, their branches, domains, stack amplify-app-shell-pilobol-us, the CMS backend). Do them ONLY after Ryan's explicit yes in chat for that step. Everything else is read-only AWS (list/get/describe) or scratch work.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, region us-east-1 (SSO login is Ryan's). Never print an env var or secret VALUE (names only; the apps hold secrets in env vars and SSM). Never run ampx pipeline-deploy locally (Amplify builds do that).\n- The local checkout /Users/home/Projects/Pilobol.us is read-only for us, and its build REWRITES content front matter and generated files: never build there. Build only in scratch copies of a fresh clone (git clone https://github.com/AnthusAI/Pilobol.us, or git archive origin/main).\n- Papyrus repo work: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, branch feature/PPY-<id>-<slug> (or chore/ for docs), PR into develop, never merge to main, never git stash, conventional commits, commit trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. Pilobol.us repo work: a feature branch and a PR; never push or merge to its main (production reader deploys from main). In /Users/home/Projects/Papyrus run only kbs; never git add or commit there. Tickets live on the PPY board; do not use kbs in the Pilobol.us repo (PILO board is stories only).\n- Keep article text byte-identical everywhere. Narration (Auritus) hashes cover article text: any text change re-queues Batch jobs.\n- Update this ticket with branch, PR link, command output and numbers when done.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d9194c9f-f96d-423b-893e-339717e90a67",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-bd249d3b-eeb5-4d26-a6a3-50400324926d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-d0c5ad1f-50f1-481c-a4cb-5565bdbe39d0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8b0f915e-2151-414a-91bb-ea3ad3fc5469",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-06T12:39:27.341425Z",
+  "updated_at": "2026-10-06T12:41:23.759960Z",
+  "closed_at": null,
+  "right_now_summary": "The production CMS cutover awaits Ryan’s approval and required parity and rebuild checks.",
+  "right_now_updated_at": "2026-10-06T12:41:25.051246Z",
+  "custom": {}
+}

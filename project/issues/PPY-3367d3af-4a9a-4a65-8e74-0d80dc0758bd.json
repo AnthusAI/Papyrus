@@ -10,11 +10,19 @@
   "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a594dde6-4f4d-4494-95f5-1742f8be8c4c",
+      "author": "home",
+      "text": "PILOBOL.US MIGRATION PLAN (2026-10-06). PLAN ONLY, nothing executed, nothing live changed. Doc: docs/migrations/pilobol-us.md, PR https://github.com/AnthusAI/Papyrus/pull/128 (do not merge before Ryan approves). 14 sub-tasks, label phase-3, each fully specified (Goal, Context with FACT/ASSUMPTION, Exact steps, Acceptance, Rollback, Risks, Needs Ryan).\n\nKEY FACTS (read-only, verified today): production CMS backend d11eu9hbs2mipk is EMPTY (39 DynamoDB tables all 0 rows, media bucket 0 objects, Cognito 0 users), so schema deploy + build move happen BEFORE import and convert-bodies does not apply (the CMS app serves no Pretext article route for this brand). A scratch build of Pilobol.us@main equals the live site byte for byte (94/94 files), with the old pinned renderer and with Papyrus develop; an offline import/export round trip of the 21 tracked files (the 23 count included 2 generated pages) rebuilds the same 94 files. Gaps found: template cannot adopt existing apps; repo amplify.yml would override the CMS app spec; root-level newsroom brand loops the staging gate; generated reader spec lacks boto3.\n\nEXECUTION ORDER (id, ticket, est days, Ryan)\nWave A (parallel): P3-01 PPY-4287e7 parity harness 0.5; P3-02 PPY-54b7e3 guest-read export-published 1.5; P3-03 PPY-7835f2 infra adopts live apps + reviewed change set 2 (Ryan: yes to change set); P3-07 PPY-b17cbe reader spec to the app, no behavior change 0.5 (needs P3-01; Ryan M3)\nWave B: P3-04 PPY-af5c03 repo scaffold on packages 3 (after P3-03); P3-05 PPY-97f03c isolated proof backend on CMS branch cms-proof, GitHub App connect 2 (Ryan M1, M2); P3-06 PPY-0a84e5 rehearse import/export/parity on proof backend 1.5 (after P3-05, P3-01)\nWave C: P3-08 PPY-eb1b18 production CMS off Papyrus main + schema deploy to the empty backend 1.5 (after P3-06, P3-07; Ryan M4); P3-09 PPY-d9194c import 21 items + offline parity vs live 0.5 (Ryan M5)\nWave D: P3-10 PPY-bd249d reader reads CMS export, cms-reader proof branch, in-build parity gate 2 (after P3-09, P3-02, P3-07; Ryan M6 GitHub App for the reader app); then in parallel P3-11 PPY-d0c5ad staging site + STG gate items 2 (Ryan M7) and P3-12 PPY-8b0f91 rebuild-on-publish proof 1.5\nWave E: P3-13 PPY-11c365 cutover with parity gate, 7-day soak, instant Git rollback 1 (Ryan M8 go/no-go)\nWave F: P3-14 PPY-4a3c07 retire Git content, remove Pilobol.us from Papyrus, docs, delete PAT 1.5 (Ryan M9)\n\nCritical path: P3-03 > P3-04 > P3-05 > P3-06 > P3-08 > P3-09 > P3-10 > P3-11 > P3-13 = 15.5 agent-days to cutover, then 7-day soak + P3-14. Total about 21.5 agent-days.\n\nTOP RISKS: live byte drift (fenced by parity harness + in-build gate that fails the build instead of deploying); GitHub App connection behavior on a PAT-connected, CFN-owned app (unverified; replacement fallback on the empty backend); Python 3.12 provisioning on Amplify unproven; prerelease pins in production; secrets in app env vars (names only).\n\nDECISIONS FOR RYAN (recommendations in the doc): D1 one repo (AnthusAI/Pilobol.us) vs second CMS repo (rec: one); D2 reader credentials guest read vs SSM JWT (rec: guest); D3 pin prerelease 1.0.0-next.N now (rec: yes); D4 7-day soak with Git frozen (rec: yes); D5 newsroom URL moves to /newsroom (rec: yes); D6 humans publish via /newsroom after cutover (rec: yes).\n",
+      "created_at": "2026-10-06T12:44:27.764101Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-05T13:18:55.602938Z",
-  "updated_at": "2026-10-05T13:18:55.602963Z",
+  "updated_at": "2026-10-06T12:44:27.764123Z",
   "closed_at": null,
-  "right_now_summary": "Phase 3 is migrating Pilobol.us, Anth.us, and Threat Intelligence to the standard pattern.",
-  "right_now_updated_at": "2026-10-05T13:18:57.359098Z",
+  "right_now_summary": "The migration plan is set, but approvals, parity checks, and production changes remain.",
+  "right_now_updated_at": "2026-10-06T12:44:29.469632Z",
   "custom": {}
 }

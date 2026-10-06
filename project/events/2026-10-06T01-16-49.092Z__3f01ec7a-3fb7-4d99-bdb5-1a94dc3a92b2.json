@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3f01ec7a-3fb7-4d99-bdb5-1a94dc3a92b2",
+  "issue_id": "PPY-ca4f680b-7955-438b-80ca-18533e263f2c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T01:16:49.092Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "S3MediaStore: real storage-backed media store for import-markus and videos attach (Papyrus)",
+    "description": "Found 2026-10-06 while merging PR #115 (import-markus) and #118 (videos attach). Both use a MediaStore abstraction but only a directory-backed store (tests/offline) and a stand-in exist on develop; there is NO real implementation that uploads files to the site's S3 media bucket and returns the storagePath that MediaAsset rows reference (via Amplify Storage with signed getUrl at read time; do not make the bucket public; AGENTS.md: S3 not raw-public, media/* editor write). Needed before the Phase 3 imports and before 'papyrus videos attach' can work for real. Scope (YAGNI): a small S3MediaStore (put_object/head_object, content-hash keys so re-runs are idempotent, region/bucket from the site's amplify outputs or env, IAM via the caller's AWS profile or the Lambda role, never stored keys), wired as the default store for import-markus and videos attach, with unit tests using a stubbed boto3 client and one documented sandbox proof. Also check how EXP (PPY-1d0f3d, export-published) reads media back so the key scheme is shared. Depends on: PUB/IMP/VID1 merged (done).",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-655994b3-84ab-4741-b747-aa0e0046453b",
+    "labels": [
+      "phase-2"
+    ]
+  }
+}
