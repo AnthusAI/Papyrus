@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .graphql_authoring import create_authoring_client
+from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
+from .guest_auth import GuestSession, guest_auth_requested, resolve_guest_configuration
 from .markus_export import EmptyExportError, ExportError, export_content
 from .markus_import import AbsentMediaStore
 from .media_store import S3MediaStore, configured_media_bucket
@@ -17,9 +18,24 @@ def content_export_published(flags: list[str]) -> None:
     out_raw = normalize_string(options.get("out"))
     if not out_raw:
         raise ValueError("Pass --out <directory>.")
-    client, _claims = create_authoring_client()
-    bucket = configured_media_bucket(normalize_string(options.get("bucket")))
-    store = S3MediaStore(bucket) if bucket else AbsentMediaStore()
+    explicit_bucket = normalize_string(options.get("bucket"))
+    if guest_auth_requested(options.get("auth")):
+        if options.get("drafts"):
+            raise ValueError("--auth guest reads published content only; it cannot be combined with --drafts.")
+        configuration = resolve_guest_configuration(explicit_bucket)
+        session = GuestSession(configuration)
+        client = PapyrusGraphQLAuthoringClient(
+            endpoint=configuration.endpoint, auth_token="", header_factory=session.appsync_headers
+        )
+        store = (
+            S3MediaStore(configuration.bucket, client=session.s3_client())
+            if configuration.bucket
+            else AbsentMediaStore()
+        )
+    else:
+        client, _claims = create_authoring_client()
+        bucket = configured_media_bucket(explicit_bucket)
+        store = S3MediaStore(bucket) if bucket else AbsentMediaStore()
     try:
         report = export_content(
             client,

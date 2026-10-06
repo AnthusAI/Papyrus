@@ -59,7 +59,7 @@ class S3MediaStore:
         try:
             import boto3
         except ImportError as error:
-            raise RuntimeError("boto3 is required for S3 media: install papyrus-newsroom[newsroom].") from error
+            raise RuntimeError("boto3 is required for S3 media: install papyrus-newsroom[markus].") from error
         resolved_region = region or storage_region_from_amplify_outputs()
         self._client = boto3.client("s3", region_name=resolved_region) if resolved_region else boto3.client("s3")
 
