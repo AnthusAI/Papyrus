@@ -110,7 +110,7 @@ under `.papyrus-runs/story-cycle-<run-id>/` and should create no GraphQL
 records.
 
 Run without `--dry-run` when the plan is acceptable and the current
-`PAPYRUS_GRAPHQL_ENDPOINT` / `PAPYRUS_GRAPHQL_JWT` point at the intended
+`PAPYRUS_GRAPHQL_ENDPOINT` / `AWS_PROFILE` point at the intended
 environment. Apply mode may persist `Assignment`, `AssignmentEvent`, `Message`,
 `ModelAttachment`, and `SemanticRelation` records. It must not create `Item` or
 `EditionItem` records during packet generation.

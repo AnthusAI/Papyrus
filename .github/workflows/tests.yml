@@ -46,7 +46,7 @@ jobs:
       - run: pip install poetry
       - run: poetry install --no-interaction --extras "newsroom markus"
       # Explicit exclusions, each with a reason; nothing is skipped silently.
-      #   test_content_cli_live          live: needs PAPYRUS_GRAPHQL_JWT, AWS and network
+      #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
       #   test_references_commands       PPY-c22e1c (stale assertions)
       #   test_tavily_research           PPY-c22e1c (stale assertions)
       #   test_relations_commands        PPY-c22e1c (stale assertions)

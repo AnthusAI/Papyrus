@@ -137,7 +137,7 @@ class GuestRefusalTests(unittest.TestCase):
 
         with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "guest"}):
             with self.assertRaisesRegex(ValueError, "read-only"):
-                graphql_request_headers(endpoint=ENDPOINT, body=b"{}", token="t")
+                graphql_request_headers(endpoint=ENDPOINT, body=b"{}")
 
     def test_guest_requested_by_flag_or_environment(self):
         self.assertTrue(guest_auth_requested("guest"))

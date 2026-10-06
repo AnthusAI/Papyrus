@@ -96,7 +96,7 @@ PAPYRUS_SEED_VIDEOS=1 npm run seed:amplify
 
 Without `PAPYRUS_SEED_VIDEOS=1`, seed still creates `MediaAsset(type="video")` rows with `externalUrl` pointing at `/seed-art/...` for local Next.js serving, but skips S3 upload.
 
-Alternatively, refresh GraphQL seed records from Python (requires JWT authoring lane):
+Alternatively, refresh GraphQL seed records from Python (requires AWS credentials for the authoring role):
 
 ```bash
 poetry run papyrus videos attach --article the-balance-of-power-is-shifting

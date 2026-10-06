@@ -26,7 +26,7 @@ publication slots.
 - `AGENTS.md`: project rules, data boundaries, auth lanes, and layout
   invariants.
 - `README.md`: current Newsroom and production workflow overview.
-- `skills/category-steering/SKILL.md`: category, taxonomy, graph, JWT, and S3
+- `skills/category-steering/SKILL.md`: category, taxonomy, graph, auth, and S3
   curation-cycle workflow.
 - `skills/reference-intake/SKILL.md`: how new source materials become
   cloud-visible references.
@@ -50,7 +50,7 @@ reference/category/graph state, not guess from stale local files.
 - Edition planning includes creating or updating the dated private `Edition`
   record. Do not treat the edition as only a date string in assignment metadata.
 - Assignment events are append-only audit records. Lifecycle changes should use
-  protected actions or the JWT authoring lane and write `AssignmentEvent` rows.
+  protected actions or the IAM authoring CLI and write `AssignmentEvent` rows.
 - Research and reporting assignments are not reader-facing content. Do not
   attach assignments directly to `EditionItem` rows.
 - Research agents produce private `research_packet` Messages. Reporting agents
@@ -158,7 +158,7 @@ UI picked the wrong default edition.
      has a convention;
    - optional edition lineage/id if updating an existing edition record.
 2. Create or update the private dated `Edition` planning record through the
-   current editor/admin or JWT authoring lane. The edition record is the
+   current editor/admin or IAM authoring role. The edition record is the
    ontological anchor for the assignment batch, even before any reader-facing
    `EditionItem` placements exist.
 3. Define section/lane targets:
@@ -397,7 +397,7 @@ be generated from a signal report plus section slots. Its target behavior:
 - append `AssignmentEvent` audit rows;
 - emit a verification report with counts by section, lane, queue, and target type.
 
-Until that CLI exists, use the currently implemented protected actions and JWT
+Until that CLI exists, use the currently implemented protected actions and IAM
 authoring tools. If they cannot create the needed rows, report the missing
 tooling explicitly.
 
@@ -435,4 +435,4 @@ Report:
 - target categories, references, and semantic nodes used;
 - any missing category/reference freshness prerequisites;
 - whether the work is only planned, dry-run, or actually written through the
-  editor/admin or JWT-authoring lane.
+  editor/admin or IAM-authoring role.

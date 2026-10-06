@@ -29,11 +29,12 @@ accept them.
 Local CLI and AppSync both need authoring credentials:
 
 - `PAPYRUS_GRAPHQL_ENDPOINT` — production or sandbox AppSync URL
-- `PAPYRUS_GRAPHQL_JWT` — short-lived JWT for the Lambda authorizer lane
+- AWS credentials (`AWS_PROFILE`) for the site's authoring role; requests are
+  signed with SigV4 (IAM)
 
-Copy from [`.env.example`](../.env.example). Mint production JWTs per
-[skills/category-steering/SKILL.md](../skills/category-steering/SKILL.md); do
-not commit tokens.
+Copy from [`.env.example`](../.env.example). See
+[skills/category-steering/SKILL.md](../skills/category-steering/SKILL.md) for
+the production setup; there is no token to commit.
 
 Semantic search also needs a configured vector index (`PAPYRUS_S3_VECTOR_INDEX_ARN`
 or `custom.knowledgeQuery.s3VectorIndexArn` in Amplify outputs). If vectors are
@@ -133,9 +134,9 @@ AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
 
 | Symptom | Likely cause |
 |--------|----------------|
-| `Semantic search failed: HTTP Error 401` | Expired or missing `PAPYRUS_GRAPHQL_JWT` |
+| `Semantic search failed: HTTP Error 401` | Expired or missing AWS credentials, or a principal without `appsync:GraphQL` |
 | `No accepted reference evidence` with empty `semanticMatches` | No vectors, no accepted refs for query, or index not synced |
-| `cliExecution: remote` but you expected local edits | Default is remote when endpoint + JWT are set; pass `--execution local` |
+| `cliExecution: remote` but you expected local edits | Default is remote when the endpoint is set and AWS credentials resolve; pass `--execution local` |
 | Graph hits but no passages | `extractMode: auto` on semantic-only queries; use anchors or `extractMode: always` |
 
 Check `structured.request.semanticQuerySource`: `explicit`, `anchor_derived`,

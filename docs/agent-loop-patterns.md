@@ -6,7 +6,7 @@ how that relates to the common **ReAct** pattern, and how it differs from
 
 Internal knowledge-base searches for these topics returned no accepted
 reference hits in the current environment (semantic search returned 401 against
-the vector provider with the available JWT). The implementation detail below
+the vector provider with the available credentials). The implementation detail below
 comes from procedures, runtime code, and skills in this repo.
 
 ## ReAct-style looping (what Papyrus has)

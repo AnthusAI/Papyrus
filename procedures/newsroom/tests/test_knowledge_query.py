@@ -1850,8 +1850,9 @@ class KnowledgeQueryTests(unittest.TestCase):
             os.environ,
             {
                 "PAPYRUS_GRAPHQL_ENDPOINT": "https://example.appsync-api.us-east-1.amazonaws.com/graphql",
-                "PAPYRUS_GRAPHQL_JWT": "test-jwt",
-                "PAPYRUS_GRAPHQL_AUTH_PREFIX": "PapyrusJwt",
+                "AWS_ACCESS_KEY_ID": "AKIDEXAMPLE",
+                "AWS_SECRET_ACCESS_KEY": "secret-example",
+                "AWS_SESSION_TOKEN": "session-example",
             },
             clear=False,
         ), mock.patch("papyrus_knowledge_query.cli.urllib.request.urlopen", side_effect=fake_urlopen), \
@@ -1862,13 +1863,14 @@ class KnowledgeQueryTests(unittest.TestCase):
         result = json.loads(stdout.getvalue())
         self.assertEqual(result["context"]["text"], "remote context")
         self.assertEqual(result["debug"]["cliExecution"], "remote")
-        self.assertEqual(captured["authorization"], "PapyrusJwt test-jwt")
+        self.assertTrue(captured["authorization"].startswith("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/"))
+        self.assertIn("/us-east-1/appsync/aws4_request", captured["authorization"])
         self.assertEqual(captured["body"]["variables"]["input"], '{"anchors":[],"semanticQuery":"LLM","scope":{},"profile":"researcher","output":{"format":"both","maxTokens":1200}}')
 
     def test_newsroom_cli_remote_requires_graphql_auth(self):
         from papyrus_newsroom import cli as newsroom_cli
 
-        with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_ENDPOINT": "", "PAPYRUS_GRAPHQL_JWT": ""}, clear=False):
+        with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_ENDPOINT": ""}, clear=False):
             with self.assertRaises(RuntimeError):
                 newsroom_cli.main(["knowledge-query", "--query", "LLM"])
 

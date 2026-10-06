@@ -1,6 +1,6 @@
 ---
 name: category-steering
-description: Use this skill when working on Papyrus category, taxonomy, graph, reference, curation-cycle, Biblicus integration, S3 corpus, or production JWT authoring workflows.
+description: Use this skill when working on Papyrus category, taxonomy, graph, reference, curation-cycle, Biblicus integration, S3 corpus, or production authoring workflows.
 ---
 
 # Category Steering Skill
@@ -42,10 +42,11 @@ from configuration and steering state, not application logic.
 Read `/Users/ryan/Projects/Biblicus/docs/` only for Biblicus command contracts.
 Do not modify Biblicus files.
 
-## Auth And JWT Setup
+## Auth Setup
 
-The content CLI writes through AppSync's Lambda-authorizer lane. It does not use
-a browser login, Cognito editor session, or local auth-session cache.
+The content CLI signs every AppSync request with SigV4 (IAM) from the standard
+AWS credential chain. It does not use a browser login, Cognito editor session,
+stored token, or local auth-session cache.
 
 Production authoring environment:
 
@@ -55,26 +56,11 @@ export AWS_REGION=us-east-1
 export PAPYRUS_GRAPHQL_ENDPOINT="https://64hviw44q5cq5nwjcigmasowlq.appsync-api.us-east-1.amazonaws.com/graphql"
 ```
 
-Mint a short-lived production JWT from the Amplify SSM parameter
-`/amplify/dbsyytcm9drqa/main-branch-cb38ada667/PAPYRUS_JWT_SECRET`.
+Set `AWS_PROFILE` to a profile that can assume the production site's
+`<siteId>-papyrus-authoring` role (`docs/site-hosting.md`, "Running the CLI
+locally"). Nothing is stored in `.env`.
 
-```bash
-export PAPYRUS_GRAPHQL_JWT="$(npm run -s auth:refresh-jwt)"
-```
-
-Optional local persistence for this workspace:
-
-```bash
-npm run auth:refresh-jwt -- --write-env .env
-```
-
-If your shell still has an older exported token, refresh the active shell too:
-
-```bash
-eval "$(npm run -s auth:refresh-jwt -- --format shell)"
-```
-
-Smoke-check the authoring lane before mutating data:
+Smoke-check the authoring credentials before mutating data:
 
 ```bash
 poetry run papyrus ops content inspect

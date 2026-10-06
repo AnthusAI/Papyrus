@@ -72,7 +72,7 @@ def _run_papyrus_content(argv: list[str]) -> subprocess.CompletedProcess[str]:
 
 @lru_cache(maxsize=1)
 def graphql_live_available() -> bool:
-    if not os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip():
+    if not os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip():
         return False
     result = _run_papyrus_content(["content", "inspect"])
     return result.returncode == 0
@@ -91,13 +91,13 @@ class ContentCliLocalLiveTests(unittest.TestCase):
 
 
 @unittest.skipUnless(
-    os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip(),
-    "Set PAPYRUS_GRAPHQL_JWT for GraphQL live CLI tests.",
+    os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip(),
+    "Set PAPYRUS_GRAPHQL_ENDPOINT and AWS_PROFILE (papyrus-authoring role) for GraphQL live CLI tests.",
 )
 @unittest.skipUnless(
     graphql_live_available(),
-    "GraphQL authoring auth is unavailable (expired JWT, wrong endpoint, or 401). "
-    "Run: npm run auth:refresh-jwt -- --write-env .env and align PAPYRUS_GRAPHQL_ENDPOINT with that deployment.",
+    "GraphQL authoring auth is unavailable (no AWS credentials, wrong endpoint, or access denied). "
+    "Set AWS_PROFILE to a profile that assumes the papyrus-authoring role and align PAPYRUS_GRAPHQL_ENDPOINT with that deployment.",
 )
 class ContentCliGraphQLLiveTests(unittest.TestCase):
     def test_python_graphql_commands(self) -> None:

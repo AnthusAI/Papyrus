@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 import shlex
@@ -8,7 +7,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 import yaml
@@ -21,20 +19,25 @@ from papyrus.operator.pod_references import find_reference_by_url, normalize_ref
 def _run_papyrus(context, command: str, *, clean_env: bool = False) -> None:
     context.last_command = command
     env = {} if clean_env else os.environ.copy()
-    env.pop("PAPYRUS_GRAPHQL_JWT", None)
     env["PYTHONPATH"] = f"{context.repo_root / 'src'}:{context.repo_root}"
     if context.config_path:
         env["PAPYRUS_OPERATOR_CONFIG"] = str(context.config_path)
     if getattr(context, "fixture_root_active", False) and not getattr(context, "pod_root", None):
         env["PAPYRUS_OPERATOR_FIXTURE_ROOT"] = str(context.fixture_root)
-    if getattr(context, "tmp_env_path", None) and context.tmp_env_path.exists():
-        env["PAPYRUS_GRAPHQL_JWT"] = _read_env_value(context.tmp_env_path, "PAPYRUS_GRAPHQL_JWT")
-    if getattr(context, "expired_jwt", False):
-        env["PAPYRUS_GRAPHQL_JWT"] = _mint_test_jwt(expired=True)
-    elif getattr(context, "missing_jwt", False):
-        env.pop("PAPYRUS_GRAPHQL_JWT", None)
-    if getattr(context, "auth_secret", None):
-        env["PAPYRUS_SANDBOX_JWT_SECRET"] = context.auth_secret
+    if getattr(context, "no_aws_credentials", False):
+        for name in (
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN",
+            "AWS_PROFILE",
+            "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+            "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+            "AWS_WEB_IDENTITY_TOKEN_FILE",
+        ):
+            env.pop(name, None)
+        env["AWS_EC2_METADATA_DISABLED"] = "true"
+        env["AWS_CONFIG_FILE"] = os.devnull
+        env["AWS_SHARED_CREDENTIALS_FILE"] = os.devnull
 
     argv = shlex.split(command)
     if argv and argv[0] == "papyrus":
@@ -49,23 +52,6 @@ def _run_papyrus(context, command: str, *, clean_env: bool = False) -> None:
         check=False,
     )
     context.last_result = completed
-
-
-def _mint_test_jwt(*, expired: bool) -> str:
-    header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).decode().rstrip("=")
-    now = int(time.time())
-    exp = now - 60 if expired else now + 3600
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"exp": exp, "sub": "operator-cli-test"}).encode()
-    ).decode().rstrip("=")
-    return f"{header}.{payload}.signature"
-
-
-def _read_env_value(path: Path, key: str) -> str:
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.startswith(f"{key}="):
-            return line.split("=", 1)[1]
-    return ""
 
 
 @given("the operator CLI fixture root is available")
@@ -102,28 +88,18 @@ def step_local_pod_fixture(context):
     _write_config(context)
 
 
-@given("cloud auth fixtures can mint a JWT")
-def step_cloud_auth_fixture(context):
-    context.auth_secret = "operator-cli-test-secret"
+@given("no operator CLI fixtures are loaded")
+def step_no_fixtures(context):
+    context.fixture_root_active = False
 
 
-@given("`PAPYRUS_GRAPHQL_JWT` is expired")
-def step_expired_jwt(context):
-    context.expired_jwt = True
-
-
-@given("`PAPYRUS_GRAPHQL_JWT` is missing")
-def step_missing_jwt(context):
-    context.missing_jwt = True
+@given("no AWS credentials are available")
+def step_no_aws_credentials(context):
+    context.no_aws_credentials = True
 
 
 @when("I run `{command}`")
 def step_run_command(context, command):
-    if "<tmp-env>" in command:
-        tmp_dir = Path(tempfile.mkdtemp(prefix="operator-cli-env-"))
-        context.tmp_dirs.append(tmp_dir)
-        context.tmp_env_path = tmp_dir / ".env"
-        command = command.replace("<tmp-env>", str(context.tmp_env_path))
     _run_papyrus(context, command)
 
 
@@ -230,19 +206,14 @@ def step_reference_file_missing(context, url):
     assert record is None
 
 
-@then('stderr should mention `papyrus auth refresh`')
-def step_stderr_mentions_auth_refresh(context):
-    assert "papyrus auth refresh" in (context.last_result.stderr or "")
-
-
 @then('stderr should mention `{item}`')
 def step_stderr_mentions_item(context, item):
     assert item in (context.last_result.stderr or "")
 
 
-@then('stderr should not mention `papyrus auth refresh`')
-def step_stderr_no_auth_refresh(context):
-    assert "papyrus auth refresh" not in (context.last_result.stderr or "")
+@then('stderr should not mention `{item}`')
+def step_stderr_not_mentions_item(context, item):
+    assert item not in (context.last_result.stderr or "")
 
 
 @then('stderr should not contain "{text}"')
@@ -255,11 +226,17 @@ def step_no_traceback(context):
     assert "Traceback" not in (context.last_result.stderr or "")
 
 
-@then('stdout should mention `references`, `assignments`, `auth`, and `knowledge`')
+@then('stdout should mention `references`, `assignments`, and `knowledge`')
 def step_stdout_mentions_groups(context):
     output = context.last_result.stdout or ""
-    for item in ("references", "assignments", "auth", "knowledge"):
+    for item in ("references", "assignments", "knowledge"):
         assert item in output
+
+
+@then("stdout should not list an `auth` group")
+def step_stdout_has_no_auth_group(context):
+    lines = (context.last_result.stdout or "").splitlines()
+    assert not any(line.split()[:1] == ["auth"] for line in lines)
 
 
 @then('stdout should mention `{item}`')
@@ -399,18 +376,6 @@ def step_help_kbs_owns_board(context):
     output = context.last_result.stdout or ""
     assert "kbs" in output
     assert "transitions" in output.lower() or "columns" in output.lower()
-
-
-@then("stdout should confirm the JWT was written")
-def step_jwt_written(context):
-    output = context.last_result.stdout or ""
-    assert "PAPYRUS_GRAPHQL_JWT" in output
-
-
-@then('the file "{path}" should contain `PAPYRUS_GRAPHQL_JWT`')
-def step_env_contains_jwt(context, path):
-    resolved = Path(path.replace("<tmp-env>", str(context.tmp_env_path)))
-    assert "PAPYRUS_GRAPHQL_JWT=" in resolved.read_text(encoding="utf-8")
 
 
 @then("local and cloud should accept the same flags:")

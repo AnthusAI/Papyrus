@@ -79,6 +79,9 @@ try {
     const stagingSpec = buildSpecOf(stagingBranch);
     assert.equal(/^backend:/m.test(stagingSpec), false, `${example}: staging spec has a backend phase`);
     assert.match(stagingSpec, /ampx generate outputs/);
+    assert.equal(/jwt/i.test(stagingSpec), false, `${example}: staging spec mentions a JWT`);
+    assert.equal(/jwt/i.test(templateText), false, `${example}: template mentions a JWT`);
+    assert.equal(templateText.includes("ssm:"), false, `${example}: template grants SSM access`);
     specsSeen.push(stagingSpec, ...apps.map(buildSpecOf));
 
     const productionSpec = buildSpecOf(apps.find((app) => app.Properties.Platform === "WEB_COMPUTE"));
@@ -140,7 +143,34 @@ try {
     assert.equal(JSON.stringify(template).includes("AdministratorAccess"), true, "service role keeps its documented AdministratorAccess");
     assert.equal(JSON.stringify(ciRole).includes("AdministratorAccess"), false);
 
+    const authoringRole = roles.find((role) => role.Properties.RoleName === `${siteId}-papyrus-authoring`);
+    assert.ok(authoringRole, `${example}: authoring role exists`);
+    const authoringTrust = authoringRole.Properties.AssumeRolePolicyDocument.Statement;
+    assert.equal(authoringTrust.length, 1);
+    assert.equal(authoringTrust[0].Action, "sts:AssumeRole");
+    assert.deepEqual(Object.keys(authoringTrust[0].Principal), ["AWS"]);
+    assert.match(JSON.stringify(authoringTrust[0].Principal.AWS), /:root/);
+    assert.equal(authoringRole.Properties.ManagedPolicyArns, undefined, `${example}: authoring role has managed policies`);
+    const authoringKey = Object.keys(template.Resources).find((key) => template.Resources[key] === authoringRole);
+    const authoringStatements = Object.values(template.Resources)
+      .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === authoringKey))
+      .flatMap((resource) => resource.Properties.PolicyDocument.Statement);
+    const authoringAppSync = authoringStatements.find((statement) => asList(statement.Action).includes("appsync:GraphQL"));
+    assert.ok(authoringAppSync, `${example}: authoring role may sign AppSync requests`);
+    const appSyncResources = JSON.stringify(authoringAppSync.Resource);
+    assert.match(appSyncResources, /types\/Query\/fields\/\*/);
+    assert.match(appSyncResources, /types\/Mutation\/fields\/\*/);
+    assert.equal(appSyncResources.includes("Subscription"), false);
+    for (const statement of authoringStatements) {
+      const actions = asList(statement.Action);
+      assert.equal(actions.includes("*"), false, `${example}: authoring action *`);
+      assert.equal(actions.some((action) => action.endsWith(":*")), false, `${example}: authoring service wildcard`);
+      assert.equal(asList(statement.Resource).includes("*"), false, `${example}: authoring Resource *`);
+    }
+    assert.ok(ciStatements.some((statement) => asList(statement.Action).includes("appsync:GraphQL")), `${example}: CI role may sign AppSync requests`);
+
     const outputs = Object.keys(template.Outputs);
+    assert.ok(outputs.includes("PapyrusAuthoringRoleArn"), `${example}: PapyrusAuthoringRoleArn output`);
     assert.ok(outputs.includes("GithubCiRoleArn"), `${example}: GithubCiRoleArn output`);
     assert.ok(outputs.includes("CmsAppId"), `${example}: CmsAppId output`);
     assert.equal(outputs.includes("ReaderAppId"), expectedApps === 2, `${example}: ReaderAppId output`);

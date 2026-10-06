@@ -241,11 +241,14 @@ access keys or tokens are stored anywhere. Two pieces:
    (`branches` defaults to `main` and `staging`; no wildcards are accepted).
    The trust policy allows only `repo:<owner>/<repo>:ref:refs/heads/<branch>`
    for those branches with audience `sts.amazonaws.com`, session limit 1 hour.
-   Permissions: `amplify:StartJob/ListJobs/GetJob/ListBranches` on the site's
-   apps, `ssm:GetParameter(s)` on the site's `amplify/<appId>/*` secret paths,
-   `sts:GetCallerIdentity`, and `cloudformation:*` on the
+   Permissions: the same authoring statements as the `<siteId>-papyrus-authoring`
+   role (see "Authoring role and the CLI" below: `appsync:GraphQL` on Query and
+   Mutation fields, `media/*` and `preview/*` object access in the site's
+   storage bucket, `amplify:StartJob/ListJobs/GetJob/ListBranches` on the site's
+   apps), `sts:GetCallerIdentity`, and `cloudformation:*` on the
    `amplify-app-shell-<siteId>` stack only when `ciCanDeployInfra` is true.
-   The role ARN is the `GithubCiRoleArn` stack output.
+   There is no SSM or secret access. The role ARN is the `GithubCiRoleArn`
+   stack output.
 
 Do not use GitHub environments in these workflows: environment-scoped jobs
 emit `repo:<owner>/<repo>:environment:<name>` as the subject, which the role
@@ -263,6 +266,54 @@ Prove a role with `scripts/verify-oidc-role.sh <role-arn> <app-id>` from a
 throwaway workflow on a listed branch (allowed: `amplify list-jobs`; denied:
 `iam list-users`), and confirm a run from an unlisted branch fails at the
 assume-role step.
+
+## Authoring role and the CLI
+
+Every app-shell stack creates the role `<siteId>-papyrus-authoring`
+(`PapyrusAuthoringRoleArn` output). The Papyrus CLI never uses a token: each
+AppSync request is signed with SigV4 from the standard AWS credential chain, so
+automation and humans use whatever credentials they already have (SSO profile,
+OIDC role, Amplify build role, any role in the account).
+
+Authorization is IAM only. The data API enables AppSync IAM authorization
+(`enableIamAuthorizationMode`), under which access for IAM principals is
+decided by IAM policy, not by schema rules. A principal may call the API only if
+its own identity policy allows `appsync:GraphQL`. The authoring role carries
+that permission, scoped to `Query` and `Mutation` fields of AppSync APIs in the
+account and region (not `Subscription`; the API ID does not exist when the stack
+is created, so it cannot be named). It also carries `s3:GetObject/PutObject/DeleteObject`
+on `media/*` and the preview prefix of the site's `amplify-<cmsAppId>-*`
+bucket, `s3:ListBucket` limited to those prefixes, and
+`amplify:StartJob/ListJobs/GetJob/ListBranches` on the site's apps. The trust
+policy is the account root: a principal can assume it only if its own policy
+allows `sts:AssumeRole` on the role (an SSO administrator permission set does).
+The GitHub CI role carries the same statements directly, so OIDC jobs need no
+second hop.
+
+### Running the CLI locally
+
+Add a profile that assumes the authoring role from your SSO profile in
+`~/.aws/config` (the role ARN is the stack output):
+
+```ini
+[profile legacy-authoring]
+role_arn = arn:aws:iam::335163751677:role/<siteId>-papyrus-authoring
+source_profile = legacy
+region = us-east-1
+```
+
+Then sign in and run any authoring command with that profile:
+
+```bash
+aws sso login --profile legacy
+export PAPYRUS_GRAPHQL_ENDPOINT=https://<api-id>.appsync-api.us-east-1.amazonaws.com/graphql
+AWS_PROFILE=legacy-authoring papyrus ops content inspect
+AWS_PROFILE=legacy-authoring papyrus ops content import-markus --content-dir content ...
+```
+
+`AWS_PROFILE=legacy papyrus ops content ...` (your SSO administrator profile)
+works as well, because administrators already hold `appsync:GraphQL`. `content
+inspect` prints the caller identity so you can confirm which role signed.
 
 ### Per-site runbook checklist
 
@@ -401,18 +452,19 @@ How a request is served:
 Staging build contract (the generated build spec, `PPY-39f928`, implements it):
 
 ```bash
-papyrus auth refresh-jwt --write-env .env
 papyrus ops content export-published --drafts --out content-export --clean
 python reader/build.py --content content-export --out dist
 papyrus ops content upload-preview --dir dist
 ```
 
-Then the CMS Next build (frontend-only, no `backend:` phase). The build role
-needs write access to `preview/*`; the storage rule grants none to users.
+Then the CMS Next build (frontend-only, no `backend:` phase). The build runs as
+the Amplify service role; the CLI signs AppSync requests with that role's
+credentials (SigV4) and the role writes `preview/*`, which the storage rule
+grants to no user. No token is minted.
 
 The static reader build is different: it runs
 `papyrus ops content export-published --auth guest --out content-export --clean`
-with no credentials and no `refresh-jwt`.
+with no AWS credentials of its own (Cognito guest read).
 
 `papyrus ops content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json]`
 syncs DIR to the prefix: new or changed files are uploaded (sha256 in object

@@ -3017,15 +3017,6 @@ fn optional_env(name: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn normalize_jwt(token: String) -> String {
-    token
-        .trim()
-        .trim_start_matches("Bearer ")
-        .trim_start_matches("bearer ")
-        .trim()
-        .to_string()
-}
-
 fn format_error_chain(error: &anyhow::Error) -> String {
     error
         .chain()

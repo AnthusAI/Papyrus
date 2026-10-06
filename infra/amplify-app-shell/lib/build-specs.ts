@@ -90,7 +90,6 @@ export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
     const readerConfig = reader(config);
     preBuild.push(
       ...pythonProvisioningCommands(config),
-      "papyrus auth refresh-jwt --write-env .env",
       "papyrus ops content export-published --drafts --out content-export --clean",
       readerConfig.buildCommand,
       `papyrus ops content upload-preview --dir ${readerConfig.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,

@@ -20,8 +20,7 @@ reference state agree, and accepted references have extracted text attachments.
 ## New Worker Setup
 
 1. Clone Papyrus and Biblicus on the worker.
-2. Configure `AWS_PROFILE`, `AWS_REGION`, `PAPYRUS_GRAPHQL_ENDPOINT`, and
-   `PAPYRUS_GRAPHQL_JWT`.
+2. Configure `AWS_PROFILE`, `AWS_REGION`, and `PAPYRUS_GRAPHQL_ENDPOINT`.
 3. For sandbox work, generate a run-local steering config whose `s3Prefix`
    values point at the sandbox bucket from `amplify_outputs.json`:
 

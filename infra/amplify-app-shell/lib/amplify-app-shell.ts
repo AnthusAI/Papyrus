@@ -4,7 +4,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveStackName, resolveStagingDomainName } from "./site-config";
+import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -21,6 +21,10 @@ function environmentVariables(variables: Record<string, string>): amplify.CfnBra
  *     one, no AWS::Amplify::Domain is created and the default amplifyapp.com
  *     URL is used), IAM service and compute roles
  *   - `cms.staging: false` omits the staging branch and its domain
+ *
+ * The stack also creates the `<siteId>-papyrus-authoring` role. The CLI signs
+ * AppSync requests (SigV4) with credentials for that role (SSO, OIDC or any
+ * principal in the account that may assume it); no token is stored anywhere.
  *
  * No repository and no access token are configured: the apps are manual-deploy
  * until Amplify's GitHub App is connected once in the console
@@ -147,9 +151,59 @@ export class AmplifyAppShellStack extends Stack {
       this.readerAppId = this.addReaderApp(config, config.reader);
     }
 
+    const amplifyAppIds = [cmsApp.attrAppId, ...(this.readerAppId ? [this.readerAppId] : [])];
+    this.addAuthoringRole(config, cmsApp.attrAppId, amplifyAppIds);
+
     if (config.github) {
-      this.addGithubCiRole(config, config.github, [cmsApp.attrAppId, ...(this.readerAppId ? [this.readerAppId] : [])]);
+      this.addGithubCiRole(config, config.github, amplifyAppIds);
     }
+  }
+
+  private authoringStatements(config: AmplifyAppShellSiteConfig, cmsAppId: string, amplifyAppIds: string[]): iam.PolicyStatement[] {
+    const mediaBucketArn = `arn:${this.partition}:s3:::amplify-${cmsAppId}-*`;
+    return [
+      new iam.PolicyStatement({
+        sid: "SignAppSyncAuthoringRequests",
+        actions: ["appsync:GraphQL"],
+        resources: ["Query", "Mutation"].map((typeName) =>
+          this.formatArn({ service: "appsync", resource: "apis", resourceName: `*/types/${typeName}/fields/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+        ),
+      }),
+      new iam.PolicyStatement({
+        sid: "ReadWriteMediaAndPreview",
+        actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+        resources: [`${mediaBucketArn}/media/*`, `${mediaBucketArn}/${resolveStoragePreviewPrefix(config)}*`],
+      }),
+      new iam.PolicyStatement({
+        sid: "ListMediaAndPreview",
+        actions: ["s3:ListBucket"],
+        resources: [mediaBucketArn],
+        conditions: { StringLike: { "s3:prefix": ["media/*", `${resolveStoragePreviewPrefix(config)}*`] } },
+      }),
+      new iam.PolicyStatement({
+        sid: "StartAndInspectAmplifyJobs",
+        actions: ["amplify:StartJob", "amplify:ListJobs", "amplify:GetJob", "amplify:ListBranches"],
+        resources: amplifyAppIds.flatMap((appId) => [
+          this.formatArn({ service: "amplify", resource: "apps", resourceName: appId, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+          this.formatArn({ service: "amplify", resource: "apps", resourceName: `${appId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+        ]),
+      }),
+    ];
+  }
+
+  private addAuthoringRole(config: AmplifyAppShellSiteConfig, cmsAppId: string, amplifyAppIds: string[]): void {
+    const authoringRole = new iam.Role(this, "PapyrusAuthoringRole", {
+      roleName: `${config.siteId}-papyrus-authoring`,
+      description: `Papyrus CLI authoring role for ${config.siteId}: AppSync (SigV4), media and preview storage, rebuild jobs. Assumable by principals in this account that are allowed sts:AssumeRole on it.`,
+      assumedBy: new iam.AccountRootPrincipal(),
+    });
+    for (const statement of this.authoringStatements(config, cmsAppId, amplifyAppIds)) {
+      authoringRole.addToPolicy(statement);
+    }
+    new CfnOutput(this, "PapyrusAuthoringRoleArn", {
+      value: authoringRole.roleArn,
+      description: `Role the Papyrus CLI assumes for ${config.siteId} (profile role_arn)`,
+    });
   }
 
   private addGithubCiRole(
@@ -183,26 +237,9 @@ export class AmplifyAppShellStack extends Stack {
       }),
     });
 
-    ciRole.addToPolicy(
-      new iam.PolicyStatement({
-        sid: "StartAndInspectAmplifyJobs",
-        actions: ["amplify:StartJob", "amplify:ListJobs", "amplify:GetJob", "amplify:ListBranches"],
-        resources: amplifyAppIds.flatMap((appId) => [
-          this.formatArn({ service: "amplify", resource: "apps", resourceName: appId, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-          this.formatArn({ service: "amplify", resource: "apps", resourceName: `${appId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-        ]),
-      }),
-    );
-    ciRole.addToPolicy(
-      new iam.PolicyStatement({
-        sid: "ReadSiteSecretsForJwtMinting",
-        actions: ["ssm:GetParameter", "ssm:GetParameters"],
-        resources: [
-          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/${this.cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/shared/${this.cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-        ],
-      }),
-    );
+    for (const statement of this.authoringStatements(config, this.cmsAppId, amplifyAppIds)) {
+      ciRole.addToPolicy(statement);
+    }
     ciRole.addToPolicy(
       new iam.PolicyStatement({
         sid: "WhoAmI",

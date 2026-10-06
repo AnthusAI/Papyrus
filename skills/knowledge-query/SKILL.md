@@ -343,8 +343,8 @@ Check `structured.request.semanticQuerySource`:
 
 ## CLI Usage
 
-Requires `PAPYRUS_GRAPHQL_ENDPOINT` and `PAPYRUS_GRAPHQL_JWT` for default
-remote execution. Use `--execution local` when changing engine code under
+Requires `PAPYRUS_GRAPHQL_ENDPOINT` and AWS credentials (`AWS_PROFILE`; SigV4)
+for default remote execution. Use `--execution local` when changing engine code under
 `src/papyrus_knowledge_query/`.
 
 Semantic-only smoke:
@@ -409,7 +409,7 @@ poetry run papyrus knowledge query \
 The CLI uses local environment configuration:
 
 - `PAPYRUS_GRAPHQL_ENDPOINT`
-- `PAPYRUS_GRAPHQL_JWT`
+- AWS credentials from the standard chain (`AWS_PROFILE`)
 - optional `PAPYRUS_S3_VECTOR_INDEX_ARN`
 - optional `OPENAI_API_KEY`
 
@@ -423,9 +423,12 @@ jq -n --arg input "$INPUT_JSON" '{
   query: "query KnowledgeQuery($input: AWSJSON!) { knowledgeQuery(input: $input) }",
   variables: { input: $input }
 }' |
+eval "$(aws configure export-credentials --format env)"
 curl -sS "$PAPYRUS_GRAPHQL_ENDPOINT" \
+  --aws-sigv4 "aws:amz:us-east-1:appsync" \
+  --user "$AWS_ACCESS_KEY_ID:$AWS_SECRET_ACCESS_KEY" \
+  -H "x-amz-security-token: $AWS_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "Authorization: PapyrusJwt $PAPYRUS_GRAPHQL_JWT" \
   --data-binary @- |
 jq '.data.knowledgeQuery | fromjson? // .'
 ```

@@ -1675,10 +1675,6 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(assignment["liveAssignment"]["doctrine"][0]["scope"], "publication")
         self.assertEqual(item["layout"]["source"], "newsroom-live-assignment")
 
-    def test_lambda_auth_header_matches_authoring_lane(self):
-        token = papyrus_newsroom._lambda_auth_token("Bearer abc.def.ghi")
-        self.assertEqual(token, "PapyrusJwt abc.def.ghi")
-
     def test_biblicus_tool_resolves_config_and_uses_project_venv(self):
         completed = mock.Mock(returncode=0, stdout="ok", stderr="")
         with mock.patch.object(papyrus_newsroom.subprocess, "run", return_value=completed) as run:

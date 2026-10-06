@@ -5,21 +5,15 @@ Cron automation `ai-ml-research-papers` dispatches a high-priority Science-desk
 runs `assignments research-intake-now` to discover fresh academic paper
 prospects.
 
-## Required automation secrets
+## Required automation configuration
 
-Configure these in the Cursor automation secret list (in addition to
+Configure these in the automation environment (in addition to
 `OPENAI_API_KEY` for web search execution):
 
-| Secret | Purpose |
+| Setting | Purpose |
 | --- | --- |
-| `PAPYRUS_JWT_SECRET` | Mint short-lived `PAPYRUS_GRAPHQL_JWT` without AWS CLI |
+| AWS credentials | Run under an OIDC role or an SSO profile that assumes the site's `<siteId>-papyrus-authoring` role (`AWS_PROFILE`); the CLI signs AppSync requests with SigV4. No token or shared secret is used |
 | `PAPYRUS_GRAPHQL_ENDPOINT` | Optional; defaults to production AppSync URL |
-
-Alternatively provide `PAPYRUS_GRAPHQL_JWT` directly (short-lived; must be
-refreshed periodically).
-
-For SSM-based minting instead of a direct secret, also add
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION`.
 
 ## Commands
 

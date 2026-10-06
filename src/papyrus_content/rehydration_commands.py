@@ -176,9 +176,9 @@ class RecordAudit:
 
 def rehydration_audit_records(flags: list[str]) -> None:
     options = parse_options(flags)
-    client, claims = create_authoring_client()
+    client, _ = create_authoring_client()
     models = resolve_rehydration_models(options)
-    preflight = rehydration_preflight(options, claims)
+    preflight = rehydration_preflight(options)
     report = collect_rehydration_audit(client, models)
     payload = {
         "ok": report["summary"]["missing"] == 0 and report["summary"]["stale"] == 0,
@@ -230,9 +230,9 @@ def rehydration_audit_records(flags: list[str]) -> None:
 
 def rehydration_backfill_records(flags: list[str]) -> None:
     options = parse_options(flags)
-    client, claims = create_authoring_client()
+    client, _ = create_authoring_client()
     models = resolve_rehydration_models(options)
-    preflight = rehydration_preflight(options, claims)
+    preflight = rehydration_preflight(options)
     assert_bucket_alignment_for_apply(options, preflight)
     report = collect_rehydration_audit(client, models)
     actionable = [entry for entry in report["audits"] if entry.status in {"missing", "stale"}]
@@ -302,9 +302,9 @@ def rehydration_export_manifest(flags: list[str]) -> None:
     options = parse_options(flags)
     if not options.get("output"):
         raise ValueError("rehydration export-manifest requires --output <manifest.json>.")
-    client, claims = create_authoring_client()
+    client, _ = create_authoring_client()
     models = resolve_rehydration_models(options)
-    preflight = rehydration_preflight(options, claims)
+    preflight = rehydration_preflight(options)
     report = collect_rehydration_audit(client, models)
     manifest = {
         "schemaVersion": 1,
@@ -335,8 +335,8 @@ def rehydration_hydrate(flags: list[str]) -> None:
     source_prefix = str(options.get("source-prefix") or "newsroom/payloads/").strip()
     if not source_prefix.endswith("/"):
         source_prefix = f"{source_prefix}/"
-    client, claims = create_authoring_client()
-    preflight = rehydration_preflight(options, claims)
+    client, _ = create_authoring_client()
+    preflight = rehydration_preflight(options)
     aws_profile = normalize_optional_string(options.get("aws-profile"))
     objects = list_s3_objects(source_bucket, source_prefix, profile=aws_profile)
     record_objects = [obj for obj in objects if str(obj.get("Key") or "").endswith("/record/record.json")]
@@ -642,19 +642,12 @@ def canonical_json_bytes(payload: Any) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def rehydration_preflight(options: dict[str, Any], claims: dict[str, Any]) -> dict[str, Any]:
+def rehydration_preflight(options: dict[str, Any]) -> dict[str, Any]:
     profile = str(options.get("aws-profile") or "").strip() or None
     caller = aws_caller_identity(profile)
     expected_bucket = storage_bucket_from_amplify_outputs()
     configured_buckets = steering_buckets(options.get("config"), options.get("corpus-key"))
     return {
-        "jwt": {
-            "issuer": claims.get("iss"),
-            "subject": claims.get("sub"),
-            "audience": claims.get("aud"),
-            "groups": claims.get("groups"),
-            "scope": claims.get("scope"),
-        },
         "aws": {
             "profile": profile,
             "callerIdentity": caller,

@@ -40,5 +40,5 @@ export PAPYRUS_CONTENT_SOURCE=graphql
 export PAPYRUS_EDITION_SLUG=current
 ```
 
-See [docs/bootstrap.md](docs/bootstrap.md) for Amplify branch env vars, JWT mint,
+See [docs/bootstrap.md](docs/bootstrap.md) for Amplify branch env vars, the authoring role,
 and reference registration.
