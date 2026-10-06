@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import io
 import json
 import unittest
@@ -15,6 +20,7 @@ from papyrus_content.convert_bodies_commands import (
     split_paragraphs,
 )
 from papyrus_content.markus_renderer.derive import derive_body, plain_paragraphs
+from fake_client import FakeAuthoringClient  # noqa: E402
 
 NASTY_PARAGRAPHS = [
     "Cats & dogs: *stars*",
@@ -46,26 +52,6 @@ SKIPPED_PARAGRAPHS = [
     ("&amp; &lt;", "not-lossless"),
     ("[@key]", "derive-failed:citation-key"),
 ]
-
-
-class FakeAuthoringClient:
-    def __init__(self, records: dict[str, list[dict]], attachments: dict[str, list[dict]] | None = None) -> None:
-        self.records = records
-        self.attachments = attachments or {}
-        self.updates: list[tuple[str, dict]] = []
-
-    def list_records(self, model_name: str) -> list[dict]:
-        return [dict(record) for record in self.records.get(model_name, [])]
-
-    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100) -> list[dict]:
-        assert index_name == "modelAttachmentsByOwnerRoleAndSortKey"
-        return self.attachments.get(key_value, [])
-
-    def update_record(self, model_name: str, input_payload: dict) -> None:
-        self.updates.append((model_name, input_payload))
-        for record in self.records[model_name]:
-            if record["id"] == input_payload["id"]:
-                record.update(input_payload)
 
 
 def article(record_id: str, body: list[str] | None, **extra) -> dict:

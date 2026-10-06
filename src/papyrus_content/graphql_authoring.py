@@ -381,6 +381,17 @@ mutation CreateModelAttachmentDownload($attachmentId: ID!) {
 """
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
+    "mediaAssetsByItemAndSortKey": {
+        "field": "listMediaAssetsByItemAndSortKey",
+        "partitionKey": "itemId",
+        "fields": MEDIA_ASSET_FIELDS,
+    },
+    "publishedMediaAssetsByItemAndSortKey": {
+        "field": "listPublishedMediaAssetsByItemAndSortKey",
+        "partitionKey": "publishedItemId",
+        "fields": PUBLISHED_MEDIA_ASSET_FIELDS,
+    },
     "assignmentsByQueueStatusAndPriority": {
         "field": "listAssignmentsByQueueStatusAndPriority",
         "partitionKey": "queueStatusKey",
