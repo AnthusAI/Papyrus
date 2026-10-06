@@ -3,17 +3,18 @@ export type AmplifyAppShellSiteConfig = {
   repository: string;
   brand: string;
   frontend: "pretext" | "markus-static";
-  hostedZoneId: string;
+  hostedZoneId?: string;
   cms: {
     appName?: string;
-    domainName: string;
+    domainName?: string;
+    staging?: boolean;
     buildComputeType?: "STANDARD" | "STANDARD_8GB";
     environment: Record<string, string>;
     stagingDomainName?: string;
   };
   reader?: {
     appName?: string;
-    domainName: string;
+    domainName?: string;
     branchName?: string;
     buildCommand: string;
     baseDirectory: string;
@@ -83,8 +84,14 @@ function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[], f
   }
 }
 
-export function resolveStagingDomainName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string {
+export function isStagingEnabled(config: Pick<AmplifyAppShellSiteConfig, "cms">): boolean {
+  return config.cms.staging !== false;
+}
+
+export function resolveStagingDomainName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string | undefined {
+  if (!isStagingEnabled(config)) return undefined;
   if (config.cms.stagingDomainName) return config.cms.stagingDomainName;
+  if (!config.cms.domainName) return undefined;
   const [, ...rest] = config.cms.domainName.split(".");
   return ["staging", ...rest].join(".");
 }
@@ -108,23 +115,34 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (frontend !== "pretext" && frontend !== "markus-static") {
     fail("frontend", `must be "pretext" or "markus-static", got ${JSON.stringify(frontend)}`);
   }
-  const hostedZoneId = requireString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
+  const hostedZoneId = optionalString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
   const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
   const cmsRecord = requireObject(record.cms, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "buildComputeType", "environment", "stagingDomainName"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "buildComputeType", "environment", "stagingDomainName"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
   }
+  if (cmsRecord.staging !== undefined && typeof cmsRecord.staging !== "boolean") {
+    fail("cms.staging", `must be a boolean, got ${JSON.stringify(cmsRecord.staging)}`);
+  }
   const cms: AmplifyAppShellSiteConfig["cms"] = {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
-    domainName: requireString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
+    domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
+    staging: cmsRecord.staging as boolean | undefined,
     buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
   };
+
+  if (cms.staging === false && cms.stagingDomainName) {
+    fail("cms.stagingDomainName", "must not be set when cms.staging is false");
+  }
+  if (cms.stagingDomainName && !cms.domainName) {
+    fail("cms.stagingDomainName", "requires cms.domainName");
+  }
 
   let reader: AmplifyAppShellSiteConfig["reader"];
   if (record.reader !== undefined) {
@@ -133,7 +151,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     rejectUnknownKeys(readerRecord, ["appName", "domainName", "branchName", "buildCommand", "baseDirectory", "environment"], "reader");
     reader = {
       appName: optionalString(readerRecord.appName, "reader.appName", APP_NAME_PATTERN),
-      domainName: requireString(readerRecord.domainName, "reader.domainName", HOST_NAME_PATTERN, "host name"),
+      domainName: optionalString(readerRecord.domainName, "reader.domainName", HOST_NAME_PATTERN, "host name"),
       branchName: optionalString(readerRecord.branchName, "reader.branchName", BRANCH_NAME_PATTERN),
       buildCommand: requireString(readerRecord.buildCommand, "reader.buildCommand"),
       baseDirectory: requireString(readerRecord.baseDirectory, "reader.baseDirectory"),
@@ -152,7 +170,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     if (repository !== `https://github.com/${owner}/${repo}`) {
       fail("github", `owner/repo must match repository ${repository}`);
     }
-    let branches = DEFAULT_CI_BRANCHES;
+    let branches = cms.staging === false ? DEFAULT_CI_BRANCHES.filter((branch) => branch !== "staging") : DEFAULT_CI_BRANCHES;
     if (githubRecord.branches !== undefined) {
       if (!Array.isArray(githubRecord.branches) || githubRecord.branches.length === 0) {
         fail("github.branches", "must be a non-empty array of branch names");
@@ -167,6 +185,14 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     const ciCanDeployInfra = githubRecord.ciCanDeployInfra ?? false;
     if (typeof ciCanDeployInfra !== "boolean") fail("github.ciCanDeployInfra", "must be a boolean");
     github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean };
+  }
+
+  const hasDomain = cms.domainName !== undefined || reader?.domainName !== undefined;
+  if (hasDomain && hostedZoneId === undefined) {
+    fail("hostedZoneId", "is required when cms.domainName or reader.domainName is set");
+  }
+  if (!hasDomain && hostedZoneId !== undefined) {
+    fail("hostedZoneId", "is only allowed when cms.domainName or reader.domainName is set");
   }
 
   const config: AmplifyAppShellSiteConfig = {
@@ -185,9 +211,10 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const redirectValue = cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS;
   if (redirectValue === undefined) fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", "is required");
   const redirectUrls = redirectValue.split(",").map((url) => url.trim());
+  const stagingDomainName = resolveStagingDomainName(config);
   const requiredOrigins = [
-    `https://${cms.domainName}/`,
-    `https://${resolveStagingDomainName(config)}/`,
+    ...(cms.domainName ? [`https://${cms.domainName}/`] : []),
+    ...(stagingDomainName ? [`https://${stagingDomainName}/`] : []),
     LOCAL_DEVELOPMENT_ORIGIN,
   ];
   for (const origin of requiredOrigins) {

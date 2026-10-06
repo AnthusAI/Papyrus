@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { parseSiteConfig, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { isStagingEnabled, parseSiteConfig, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -53,6 +53,34 @@ assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "AnthusAI
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "Other")), "must match repository");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.ciCanDeployInfra = "yes")), "ciCanDeployInfra");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.token = "x")), "github.token");
+const domainFree = (c: any) => {
+  delete c.hostedZoneId;
+  delete c.cms.domainName;
+  c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/";
+};
+const domainFreeConfig = parseSiteConfig(mutated("pretext.site.json", domainFree));
+assert.equal(domainFreeConfig.cms.domainName, undefined);
+assert.equal(domainFreeConfig.hostedZoneId, undefined);
+assert.equal(resolveStagingDomainName(domainFreeConfig), undefined);
+const noStagingConfig = parseSiteConfig(mutated("pretext.site.json", (c) => {
+  c.cms.staging = false;
+  c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.example.test/";
+}));
+assert.equal(isStagingEnabled(noStagingConfig), false);
+assert.equal(resolveStagingDomainName(noStagingConfig), undefined);
+assert.deepEqual(noStagingConfig.github?.branches, ["main"]);
+parseSiteConfig(mutated("pilobol-us.site.json", (c) => {
+  domainFree(c);
+  delete c.reader.domainName;
+  delete c.cms.stagingDomainName;
+}));
+assertRejects(mutated("pretext.site.json", (c) => delete c.hostedZoneId), "hostedZoneId");
+assertRejects(mutated("pretext.site.json", (c) => delete c.cms.domainName), "only allowed when");
+assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.hostedZoneId = "Z0000000EXAMPLE"; }), "only allowed when");
+assertRejects(mutated("pretext.site.json", (c) => (c.cms.staging = "no")), "cms.staging");
+assertRejects(mutated("pretext.site.json", (c) => { c.cms.staging = false; c.cms.stagingDomainName = "s.example.test"; }), "must not be set when cms.staging is false");
+assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.stagingDomainName = "s.example.test"; }), "requires cms.domainName");
+assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "https://x.example.test/"; }), "http://localhost:3001/");
 assert.deepEqual(pretextConfig.github?.branches, ["main", "staging"]);
 assert.equal(pretextConfig.github?.ciCanDeployInfra, true);
 assert.equal(staticConfig.github?.ciCanDeployInfra, false);

@@ -141,6 +141,53 @@ try {
     assert.ok(outputs.includes("StagingOrigin"));
   }
 
+  const synthVariant = (label, example, change) => {
+    const config = JSON.parse(fs.readFileSync(path.join(shell, "examples", example), "utf8"));
+    change(config);
+    const variantSite = path.join(work, `${label}.site.json`);
+    fs.writeFileSync(variantSite, JSON.stringify(config));
+    const variantOut = path.join(infraApp, `cdk.out.${label}`);
+    run("node", [cli, "synth", "--site", variantSite, "--out", variantOut], { cwd: infraApp });
+    const text = fs.readFileSync(path.join(variantOut, fs.readdirSync(variantOut).find((name) => name.endsWith(".template.json"))), "utf8");
+    assert.equal(text.includes("AccessToken"), false, `${label}: AccessToken`);
+    assert.equal(text.includes("OauthToken"), false, `${label}: OauthToken`);
+    assert.equal(text.includes("Repository"), false, `${label}: Repository`);
+    return JSON.parse(text);
+  };
+  const removeDomains = (config) => {
+    delete config.hostedZoneId;
+    delete config.cms.domainName;
+    delete config.cms.stagingDomainName;
+    if (config.reader) delete config.reader.domainName;
+    config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/";
+  };
+
+  const noDomains = synthVariant("no-domains", "pretext.site.json", removeDomains);
+  assert.equal(resourcesOfType(noDomains, "AWS::Amplify::Domain").length, 0, "no domains: no Domain resources");
+  const noDomainBranches = resourcesOfType(noDomains, "AWS::Amplify::Branch");
+  assert.equal(noDomainBranches.length, 2, "no domains: both branches remain");
+  const noDomainRedirects = JSON.stringify(noDomainBranches.find((branch) => branch.Properties.BranchName === "main").Properties.EnvironmentVariables);
+  assert.match(noDomainRedirects, /https:\/\/main\./);
+  assert.match(noDomainRedirects, /amplifyapp\.com|DefaultDomain/);
+  assert.match(JSON.stringify(noDomains.Outputs.CmsOrigin), /DefaultDomain/);
+
+  const noStaging = synthVariant("no-staging", "pretext.site.json", (config) => {
+    config.cms.staging = false;
+    config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.example.test/";
+  });
+  assert.deepEqual(resourcesOfType(noStaging, "AWS::Amplify::Branch").map((branch) => branch.Properties.BranchName), ["main"]);
+  assert.equal(resourcesOfType(noStaging, "AWS::Amplify::Domain").length, 1, "no staging: only the production domain");
+  assert.equal(Object.keys(noStaging.Outputs).includes("StagingOrigin"), false);
+
+  const bare = synthVariant("bare", "pilobol-us.site.json", (config) => {
+    removeDomains(config);
+    config.cms.staging = false;
+  });
+  assert.equal(resourcesOfType(bare, "AWS::Amplify::Domain").length, 0);
+  assert.equal(resourcesOfType(bare, "AWS::Amplify::App").length, 2);
+  assert.deepEqual(resourcesOfType(bare, "AWS::Amplify::Branch").map((branch) => branch.Properties.BranchName).sort(), ["main", "main"]);
+  assert.ok(Object.keys(bare.Outputs).includes("ReaderOrigin"));
+
   for (const spec of specsSeen) {
     assert.match(spec, /npm ci|uv pip install/, "spec installs dependencies reproducibly");
     assert.equal(/npm install/.test(spec), false, "spec uses npm install instead of npm ci");

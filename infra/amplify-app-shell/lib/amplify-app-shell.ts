@@ -1,10 +1,10 @@
 import { Construct } from "constructs";
-import { ArnFormat, CfnOutput, Duration, Stack, StackProps } from "aws-cdk-lib";
+import { ArnFormat, CfnOutput, Duration, Fn, Stack, StackProps } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, resolveStagingDomainName } from "./site-config";
+import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveStagingDomainName } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -17,7 +17,10 @@ function environmentVariables(variables: Record<string, string>): amplify.CfnBra
  *   - CMS app (WEB_COMPUTE) with branches `main` (production, owns the backend)
  *     and `staging` (frontend only, reads the production backend)
  *   - for `markus-static` sites, a reader app (WEB) with branch `main`
- *   - one domain association per branch/app, IAM service and compute roles
+ *   - a domain association per branch/app when a domain is configured (without
+ *     one, no AWS::Amplify::Domain is created and the default amplifyapp.com
+ *     URL is used), IAM service and compute roles
+ *   - `cms.staging: false` omits the staging branch and its domain
  *
  * No repository and no access token are configured: the apps are manual-deploy
  * until Amplify's GitHub App is connected once in the console
@@ -32,6 +35,7 @@ export class AmplifyAppShellStack extends Stack {
     super(scope, id, props);
 
     const cmsAppName = config.cms.appName ?? `${config.siteId}-cms`;
+    const stagingEnabled = isStagingEnabled(config);
     const stagingDomainName = resolveStagingDomainName(config);
 
     const cmsServiceRole = new iam.Role(this, "AmplifyServiceRole", {
@@ -64,6 +68,20 @@ export class AmplifyAppShellStack extends Stack {
       ? { PAPYRUS_STAGING_PREVIEW: "static" }
       : { PAPYRUS_CONTENT_SOURCE: "drafts" };
 
+    const productionOrigin = config.cms.domainName
+      ? `https://${config.cms.domainName}/`
+      : Fn.join("", ["https://main.", cmsApp.attrDefaultDomain, "/"]);
+    const stagingOrigin = stagingDomainName
+      ? `https://${stagingDomainName}/`
+      : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain, "/"]);
+    const defaultOriginsToAllow = [
+      ...(config.cms.domainName ? [] : [productionOrigin]),
+      ...(stagingEnabled && !stagingDomainName ? [stagingOrigin] : []),
+    ];
+    const oauthRedirectUrls = defaultOriginsToAllow.length === 0
+      ? config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS
+      : Fn.join(",", [config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS, ...defaultOriginsToAllow]);
+
     const productionBranch = new amplify.CfnBranch(this, "Branch", {
       appId: cmsApp.attrAppId,
       branchName: "main",
@@ -72,46 +90,58 @@ export class AmplifyAppShellStack extends Stack {
       enablePerformanceMode: false,
       environmentVariables: environmentVariables({
         ...config.cms.environment,
+        PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
         PAPYRUS_SITE_BRAND: config.brand,
         SITE_ENV: "production",
         PAPYRUS_CONTENT_SOURCE: "published",
       }),
     });
 
-    const stagingBranch = new amplify.CfnBranch(this, "StagingBranch", {
-      appId: cmsApp.attrAppId,
-      branchName: "staging",
-      stage: "BETA",
-      enableAutoBuild: true,
-      enablePerformanceMode: false,
-      buildSpec: cmsStagingBuildSpec(config),
-      environmentVariables: environmentVariables({
-        ...config.cms.environment,
-        PAPYRUS_SITE_BRAND: config.brand,
-        SITE_ENV: "staging",
-        ...stagingMode,
-        NEXT_PUBLIC_PAPYRUS_STAGING_URL: `https://${stagingDomainName}`,
-      }),
-    });
+    if (stagingEnabled) {
+      const stagingBranch = new amplify.CfnBranch(this, "StagingBranch", {
+        appId: cmsApp.attrAppId,
+        branchName: "staging",
+        stage: "BETA",
+        enableAutoBuild: true,
+        enablePerformanceMode: false,
+        buildSpec: cmsStagingBuildSpec(config),
+        environmentVariables: environmentVariables({
+          ...config.cms.environment,
+          PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
+          PAPYRUS_SITE_BRAND: config.brand,
+          SITE_ENV: "staging",
+          ...stagingMode,
+          NEXT_PUBLIC_PAPYRUS_STAGING_URL: stagingDomainName
+            ? `https://${stagingDomainName}`
+            : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain]),
+        }),
+      });
 
-    const productionDomain = new amplify.CfnDomain(this, "Domain", {
-      appId: cmsApp.attrAppId,
-      domainName: config.cms.domainName,
-      subDomainSettings: [{ branchName: "main", prefix: "" }],
-    });
-    productionDomain.addResourceDependency(productionBranch);
+      if (stagingDomainName) {
+        const stagingDomain = new amplify.CfnDomain(this, "StagingDomain", {
+          appId: cmsApp.attrAppId,
+          domainName: stagingDomainName,
+          subDomainSettings: [{ branchName: "staging", prefix: "" }],
+        });
+        stagingDomain.addResourceDependency(stagingBranch);
+      }
+    }
 
-    const stagingDomain = new amplify.CfnDomain(this, "StagingDomain", {
-      appId: cmsApp.attrAppId,
-      domainName: stagingDomainName,
-      subDomainSettings: [{ branchName: "staging", prefix: "" }],
-    });
-    stagingDomain.addResourceDependency(stagingBranch);
+    if (config.cms.domainName) {
+      const productionDomain = new amplify.CfnDomain(this, "Domain", {
+        appId: cmsApp.attrAppId,
+        domainName: config.cms.domainName,
+        subDomainSettings: [{ branchName: "main", prefix: "" }],
+      });
+      productionDomain.addResourceDependency(productionBranch);
+    }
 
     this.cmsAppId = cmsApp.attrAppId;
     new CfnOutput(this, "CmsAppId", { value: cmsApp.attrAppId, description: `Amplify app id for ${cmsAppName}` });
-    new CfnOutput(this, "CmsOrigin", { value: `https://${config.cms.domainName}/` });
-    new CfnOutput(this, "StagingOrigin", { value: `https://${stagingDomainName}/` });
+    new CfnOutput(this, "CmsOrigin", { value: productionOrigin });
+    if (stagingEnabled) {
+      new CfnOutput(this, "StagingOrigin", { value: stagingOrigin });
+    }
 
     if (config.reader) {
       this.readerAppId = this.addReaderApp(config, config.reader, cmsApp.attrAppId);
@@ -245,15 +275,21 @@ export class AmplifyAppShellStack extends Stack {
       }),
     });
 
-    const readerDomain = new amplify.CfnDomain(this, "ReaderDomain", {
-      appId: readerApp.attrAppId,
-      domainName: reader.domainName,
-      subDomainSettings: [{ branchName: readerBranchName, prefix: "" }],
-    });
-    readerDomain.addResourceDependency(readerBranch);
+    if (reader.domainName) {
+      const readerDomain = new amplify.CfnDomain(this, "ReaderDomain", {
+        appId: readerApp.attrAppId,
+        domainName: reader.domainName,
+        subDomainSettings: [{ branchName: readerBranchName, prefix: "" }],
+      });
+      readerDomain.addResourceDependency(readerBranch);
+    }
 
     new CfnOutput(this, "ReaderAppId", { value: readerApp.attrAppId, description: `Amplify app id for ${readerAppName}` });
-    new CfnOutput(this, "ReaderOrigin", { value: `https://${reader.domainName}/` });
+    new CfnOutput(this, "ReaderOrigin", {
+      value: reader.domainName
+        ? `https://${reader.domainName}/`
+        : Fn.join("", [`https://${readerBranchName}.`, readerApp.attrDefaultDomain, "/"]),
+    });
     return readerApp.attrAppId;
   }
 }

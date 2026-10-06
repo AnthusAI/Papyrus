@@ -157,17 +157,61 @@ that secret once every app is connected.
 
 Per app (`<siteId>-cms`, then `<siteId>-reader` for static sites):
 
-1. AWS Console, **AWS Amplify**, **All apps**, choose the app.
-2. **Hosting** (or the **Connect repository** banner), **Connect repository**.
-3. Choose **GitHub**, **Continue**.
-4. In the GitHub pop-up, **Install & authorize** the **AWS Amplify** GitHub App
+1. Record the app's state first: `aws amplify get-app --app-id <id>` and note
+   `platform`, `iamServiceRoleArn` and `computeRoleArn`.
+2. AWS Console, **AWS Amplify**, **All apps**, choose the app.
+3. **Hosting** (or the **Connect repository** banner), **Connect repository**.
+4. Choose **GitHub**, **Continue**.
+5. In the GitHub pop-up, **Install & authorize** the **AWS Amplify** GitHub App
    for the `AnthusAI` organization, with access to only the site's repository.
-5. Back in Amplify pick repository `AnthusAI/<repo>` and branch `main`, **Next**.
-6. Review the build settings and leave the generated spec, **Save and deploy**.
-7. In the CMS app, if CDK did not create it, add the `staging` branch under
-   **Hosting**, **Branches**, **Connect branch**.
+6. Back in Amplify pick repository `AnthusAI/<repo>` and branch `main`, **Next**.
+7. The wizard asks for a service role and build settings. The template already
+   set both, so do **only** the GitHub connection: if it offers to create a new
+   service role, choose the existing template role (named like
+   `amplify-app-shell-<siteId>-AmplifyServiceRole...`) instead. **Save and deploy**.
+8. Run `aws amplify get-app --app-id <id>` again and compare (see below).
+9. If the stack has `cms.staging` enabled and the `staging` branch is missing,
+   add it under **Hosting**, **Branches**, **Connect branch**.
 
 Record the date in the site's runbook.
+
+### Verify and repair after connecting
+
+Connecting a repository to a repo-less app works and keeps the same app id; the
+repository, a service role and a first build are set (proven 2026-10-06, the
+build succeeded). Two side effects were observed, so always diff `get-app`
+before and after:
+
+- **Platform flip.** The console runs framework auto-detection on the repository
+  and changed the CMS app's `platform` from `WEB_COMPUTE` to `WEB` when the repo
+  was README-only. A real Next.js repository should detect as `WEB_COMPUTE`, but
+  verify. Fix:
+
+  ```bash
+  aws amplify update-app --app-id <id> --platform WEB_COMPUTE
+  ```
+
+  The reader app stays `WEB`.
+- **Service role replaced.** The console created a new role
+  (`amplifyconsole-backend-role`, `AdministratorAccess-Amplify`) and attached it
+  to the app. The CMS app needs the template's role (`AdministratorAccess`, for
+  `ampx pipeline-deploy`) and the reader app its least-privilege role. If
+  `iamServiceRoleArn` changed, restore the value you recorded before connecting
+  (the template's role is also listed by
+  `aws cloudformation describe-stack-resources --stack-name amplify-app-shell-<siteId>`):
+
+  ```bash
+  aws amplify update-app --app-id <id> --iam-service-role-arn <template service role arn>
+  ```
+
+  Re-deploying the app-shell stack also restores it, but only if CloudFormation
+  sees drift, so prefer the explicit command. Delete the stray
+  `amplifyconsole-backend-role` once nothing uses it.
+
+Run these with the profile and region from `AGENTS.local.md`. Domains and the
+staging branch are optional in `site.json`, so an app can be stood up and proven
+on its default `amplifyapp.com` URL first and given domains later (see
+[Custom domains and Route 53](#custom-domains-and-route-53)).
 
 ### Python 3.12 in Amplify builds
 
@@ -234,8 +278,12 @@ Copy into the site's runbook and fill in:
 
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).
 2. Give the registrar the zone NS records (Kanbus comment for the operator).
-3. Create the Amplify app and verify on the default `*.amplifyapp.com` URL first.
-4. Add custom domains in Amplify; let Amplify create alias records in the hosted zone.
+3. Create the Amplify app and verify on the default `*.amplifyapp.com` URL first
+   (leave `hostedZoneId` and every `domainName` out of `site.json`; set
+   `cms.staging: false` to skip the staging branch too).
+4. Add custom domains: add `hostedZoneId` and the `domainName` fields to
+   `site.json`, add the domain origins to `PAPYRUS_OAUTH_REDIRECT_URLS`, and
+   re-deploy the stack (or add them in the Amplify console); let Amplify create alias records in the hosted zone.
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 
