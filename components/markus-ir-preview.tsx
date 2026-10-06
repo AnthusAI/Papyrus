@@ -20,6 +20,7 @@ type PreviewSidecar = {
 type PreviewContext = {
   sidecar: PreviewSidecar;
   citationNumbers: Map<string, number>;
+  imageUrls: Record<string, string>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -55,6 +56,19 @@ function imagePlaceholder(token: string, context: PreviewContext): ReactNode {
   const entry = context.sidecar.images[token];
   const src = typeof entry?.src === "string" ? entry.src : "";
   const alt = typeof entry?.alt === "string" ? entry.alt : "";
+  const url = context.imageUrls[src];
+  if (url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt={alt}
+        className="my-3 h-auto max-w-full rounded-lg"
+        data-markus-preview-image-loaded
+        loading="lazy"
+        src={url}
+      />
+    );
+  }
   return (
     <div
       className="my-3 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-xs text-muted-foreground"
@@ -258,7 +272,13 @@ function renderBlocks(nodes: MarkusNode[], context: PreviewContext): ReactNode[]
   );
 }
 
-export function MarkusIrPreview({ bodyIr }: { bodyIr: unknown }) {
+export function MarkusIrPreview({
+  bodyIr,
+  imageUrls = {},
+}: {
+  bodyIr: unknown;
+  imageUrls?: Record<string, string>;
+}) {
   try {
     const envelope = typeof bodyIr === "string" ? JSON.parse(bodyIr) : bodyIr;
     if (!isRecord(envelope)) throw new Error("bodyIr must be a JSON object");
@@ -267,6 +287,7 @@ export function MarkusIrPreview({ bodyIr }: { bodyIr: unknown }) {
     const context: PreviewContext = {
       sidecar,
       citationNumbers: numberCitationsByFirstAppearance(envelope.document, sidecar),
+      imageUrls,
     };
     return <div data-markus-preview>{renderBlocks(document.children, context)}</div>;
   } catch (error) {

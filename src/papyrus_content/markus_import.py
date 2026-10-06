@@ -282,6 +282,10 @@ def _resolve_image(image_root: Path, source_path: str) -> Path | None:
     return candidate
 
 
+def media_id_for(item_id: str, source_path: str) -> str:
+    return f"media-{item_id}-{hashlib.sha256(source_path.encode('utf-8')).hexdigest()[:10]}"
+
+
 def _plan_media(
     source: SourceFile, item_id: str, image_root: Path, errors: list[str], envelope_sources: list[str]
 ) -> list[PlannedMedia]:
@@ -305,7 +309,7 @@ def _plan_media(
             local_path.suffix.lower(), mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
         )
         row = {
-            "id": f"media-{item_id}-{hashlib.sha256(source_path.encode('utf-8')).hexdigest()[:10]}",
+            "id": media_id_for(item_id, source_path),
             "itemId": item_id,
             "type": "image",
             "role": role,
