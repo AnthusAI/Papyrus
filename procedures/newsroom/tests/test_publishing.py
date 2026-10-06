@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import contextlib
 import io
 import json
@@ -17,7 +22,7 @@ from papyrus_content.publishing import (
     unpublish_item,
 )
 from papyrus_content.publish_commands import content_publish, content_unpublish
-from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from fake_client import FakeAuthoringClient  # noqa: E402
 
 FRONT_MATTER = (
     "title: Forty Billion Dollars Stopped Existing in Four Days\n"

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 import io
 import json
 import unittest
@@ -15,7 +20,7 @@ from papyrus_content.convert_bodies_commands import (
     split_paragraphs,
 )
 from papyrus_content.markus_renderer.derive import derive_body, plain_paragraphs
-from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from fake_client import FakeAuthoringClient  # noqa: E402
 
 NASTY_PARAGRAPHS = [
     "Cats & dogs: *stars*",
