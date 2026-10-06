@@ -31,7 +31,7 @@ const outRoot = path.resolve(opt("out", path.join(repo, "dist-packages")));
 const stage = path.join(outRoot, "stage-papyrus");
 
 const COPY_ROOTS = ["app", "components", "lib", "renderers", "amplify", "middleware.ts"];
-const SKIP = [/^amplify\/backend\.ts$/, /\.test\.(mjs|ts)$/, /^amplify\/fixtures\//, /^amplify\/seed\//, /\.DS_Store$/, /__pycache__/, /\.pyc$/];
+const SKIP = [/^app\/dev-themes\.css$/, /^amplify\/backend\.ts$/, /\.test\.(mjs|ts)$/, /^amplify\/fixtures\//, /^amplify\/seed\//, /\.DS_Store$/, /__pycache__/, /\.pyc$/];
 const CODE_EXT = [".ts", ".tsx", ".mts", ".js", ".mjs", ".cjs", ".json", ".css"];
 
 fs.rmSync(stage, { recursive: true, force: true });
@@ -81,6 +81,13 @@ while (queue.length) {
       queue.push(target);
     }
   }
+}
+
+const pulledInPublications = [...copied].filter((rel) => rel.startsWith("publications/")).sort();
+if (pulledInPublications.length > 0) {
+  throw new Error(
+    `The package must contain no publication code, but staging pulled in: ${pulledInPublications.join(", ")}`,
+  );
 }
 
 // ---- rewrites -------------------------------------------------------------

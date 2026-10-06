@@ -108,10 +108,11 @@ Papyrus; and it gains a staging site and deploy-on-push for everything.
 Moves **out of the Papyrus repo** into publication repos: `publications/threat_intelligence/`
 (except the generic VideoML pipeline, 1.11), `publications/pilobol_us/`,
 `publications/pilobolus/`, `publications/anth_us/`, `publications/anthus/`.
-Papyrus keeps `publications/papyrus/` only as a reference brand for its own dev
-and tests. See conflict C1. The spike tarball still carries 16 `publications/*`
-files (TI, anth-us, pilobol-us brands) because core's `lib/site-brand.ts`
-imports the built-in brands; removing them is a named Phase 2 item.
+Papyrus keeps only the `papyrus` reference brand in core (its theme CSS is
+`app/papyrus-theme.css`) and, until Phase 3, registers the TI, Pilobol.us and
+Anth.us brands in the repo-root `papyrus.config.ts` only. The package contains
+no `publications/*` files: `stage.mjs` fails if staging pulls one in, and
+`scripts/test-package-contents.mjs` asserts it. See conflict C1.
 
 ### 1.3 Packaging Papyrus (replaces the pin)
 
@@ -194,9 +195,11 @@ The hard part: Next route files and `amplify/backend.ts` are not libraries.
 
 | Option | How | For | Against |
 | --- | --- | --- | --- |
-| **A. Thin Next shell + generated route shims (recommended)** | Publication repo is a normal Next app. `withPapyrus(nextConfig)` sets `transpilePackages`, an alias `papyrus-site` -> `./papyrus.config.ts`, and the Tailwind source globs. `papyrus-app sync` (run by `predev` and `prebuild`, output gitignored) writes one-line shims for Papyrus's routes (`export { default } from "@anthusai/papyrus/app/newsroom/page"`, with the route-segment exports `dynamic`/`revalidate` copied literally) and `middleware.ts`. Site-owned files at the same path win | Repo root is an ordinary Next app (Amplify detection, editors, Renovate); brand is a normal import; upgrading Papyrus is a version bump, with no generated code in git to drift | Route-segment config must be literal (generator handles it); Tailwind/shadcn must scan package files; needs a spike |
+| **A. Thin Next shell + generated route shims (recommended)** | Publication repo is a normal Next app. `withPapyrus(nextConfig)` sets `transpilePackages`, aliases `papyrus-site` -> `./papyrus.config.ts` and `papyrus-site-theme` -> `./publication/theme.css` (a shipped empty stylesheet when that file is absent), and the Tailwind source globs. `papyrus-app sync` (run by `predev` and `prebuild`, output gitignored) writes one-line shims for Papyrus's routes (`export { default } from "@anthusai/papyrus/app/newsroom/page"`, with the route-segment exports `dynamic`/`revalidate` copied literally) and `middleware.ts`. Site-owned files at the same path win | Repo root is an ordinary Next app (Amplify detection, editors, Renovate); brand is a normal import; upgrading Papyrus is a version bump, with no generated code in git to drift | Route-segment config must be literal (generator handles it); Tailwind/shadcn must scan package files; needs a spike |
 | B. Assemble from the package at build | `papyrus-app assemble` unpacks an app template from the package into a build dir and builds there | No shims | Build in a non-root dir (Amplify SSR detection risk); site code is overlaid onto a copy; harder local dev |
 | C. Prebuilt app image | Papyrus ships a built app; site supplies runtime config | Nothing to build | Brand and `NEXT_PUBLIC_*` are compile-time; Amplify Hosting builds from source; staging and routes cannot be customized |
+
+**Theme CSS alias (decided in PPY-672ea6).** Papyrus's `app/layout.tsx` imports `papyrus-site-theme` next to `./globals.css`, so the package carries no publication CSS. Verified in a scratch consumer (tarball + `withPapyrus`, own `papyrus.config.ts` registering brand `scratch`): the alias resolves under webpack (`next dev`, `next build`) and turbopack (`next dev --turbopack`), both with `publication/theme.css` present and with it absent (the empty stylesheet). No site-owned `app/layout.tsx` fallback is needed. For the turbopack alias the empty stylesheet must be given as a project-relative file path, not a package specifier. A consumer's `tsconfig.json` maps `papyrus-site`, `papyrus-amplify-outputs` and `papyrus-site-theme` in `paths`, and declares `declare module "*.css";`.
 
 **Backend: options**
 

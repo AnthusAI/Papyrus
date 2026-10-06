@@ -18,21 +18,14 @@ import type { ArticleVideoAsset } from "../../lib/articles";
 import type { PresentationTarget, RenderEditionProps } from "../../lib/renderer";
 import { SITE_BRAND, enforcePresentation, getDefaultPretextLayout } from "../../lib/site-brand";
 import { ArticleVideoFigure } from "../../components/article-video";
-import { BlogPageBackground as ThreatIntelligenceBlogPageBackground } from "../../publications/threat_intelligence/blog-defense/page-background";
 import { BlogPageBackground as GenericBlogPageBackground } from "../../components/blog-page-background";
 import { Newspaper } from "../../components/newspaper";
-import { PictogramFigure as ThreatIntelligencePictogramFigure } from "../../publications/threat_intelligence/pictograms/figure";
 import { PictogramFigure as GenericPictogramFigure } from "../../components/pictogram-figure";
 import { PresentationFooter } from "../../components/presentation-footer";
 import { readLocalReaderSettings, resolveReaderSettings, subscribeReaderSettingsChanges } from "../../components/reader-settings";
 
-// Threat Intelligence supplies its own blog background and figure media; any
-// other publication gets the generic fallback (components/). This is the
-// coupling docs/pluggable-publishers.md section 2.6 flags, decoupled here
-// per PPY-d79ff2 by making the choice publication-conditional instead of
-// hardcoded.
-const BlogPageBackground = SITE_BRAND.id === "threat-intelligence" ? ThreatIntelligenceBlogPageBackground : GenericBlogPageBackground;
-const PictogramFigure = SITE_BRAND.id === "threat-intelligence" ? ThreatIntelligencePictogramFigure : GenericPictogramFigure;
+const BlogPageBackground = SITE_BRAND.components?.BlogPageBackground ?? GenericBlogPageBackground;
+const PictogramFigure = SITE_BRAND.components?.PictogramFigure ?? GenericPictogramFigure;
 
 export type { PresentationTarget };
 

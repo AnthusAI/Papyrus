@@ -1,8 +1,9 @@
+import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
+import type { Article, ArticleVideoAsset } from "./articles";
+import type { BlogPageBackgroundProps } from "../components/blog-page-background";
+import type { PictogramFigureProps } from "../components/pictogram-figure";
 import papyrusSite from "papyrus-site";
-import { threatIntelligenceBrand } from "../publications/threat_intelligence/brand";
-import { pilobolUsBrand } from "../publications/pilobol_us/brand";
-import { anthUsBrand } from "../publications/anth_us/brand";
 import {
   DEFAULT_THEME_PACK_TOKENS,
   type HostingConfig,
@@ -16,6 +17,22 @@ import {
 
 /** Open string: a publication registers its own brand through `papyrus.config.ts` (`defineSite`). */
 export type SiteBrandId = string;
+
+/** Brand-specific replacements for generic Pretext components. */
+export type SiteBrandComponents = {
+  PictogramFigure?: ComponentType<PictogramFigureProps>;
+  BlogPageBackground?: ComponentType<BlogPageBackgroundProps>;
+};
+
+/** Default scenario content a brand supplies for the layout lab. */
+export type SiteBrandDemoEdition = {
+  title: string;
+  editionDate: string;
+  description: string;
+  articles: Article[];
+  suppressNewsDeskAppendix?: boolean;
+  editionVideo?: ArticleVideoAsset;
+};
 
 export type SiteBrand = {
   id: SiteBrandId;
@@ -57,11 +74,13 @@ export type SiteBrand = {
   newsroomSectionsConfigPath: string;
   analysisProfilesPath: string;
   publicationName: string;
+  components?: SiteBrandComponents;
+  demoEdition?: SiteBrandDemoEdition;
 };
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
 
-const BUILT_IN_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
+const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   papyrus: {
     id: "papyrus",
     appTitle: "Papyrus",
@@ -88,63 +107,46 @@ const BUILT_IN_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
     publicationName: "Anthus Threat Intelligence",
   },
-  "threat-intelligence": threatIntelligenceBrand,
-  "pilobol-us": pilobolUsBrand,
-  "anth-us": anthUsBrand,
 };
 
 /**
- * Built-in reference brands plus whatever the publication registered in its
+ * The Papyrus reference brand plus whatever the publication registered in its
  * own `papyrus.config.ts` (resolved through the `papyrus-site` alias).
  */
 const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
-  ...BUILT_IN_SITE_BRANDS,
+  ...REFERENCE_SITE_BRANDS,
   ...Object.fromEntries((papyrusSite.brands ?? []).map((brand) => [brand.id, brand])),
 };
 
 export function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
   if (!value) return null;
-  const normalized = value.trim().toLowerCase().replace(/[._]/g, "-");
-  if (!normalized) return null;
-  if (normalized === "papyrus") return "papyrus";
-  // NOTE: the bare alias `anthus` has resolved to `threat-intelligence` since
-  // that brand was added and is kept pointing there so existing
-  // PAPYRUS_SITE_BRAND values do not silently change meaning. The Anth.us
-  // publication is therefore addressed as `anth-us` / `anth.us` / `anth_us`
-  // only. Do not "tidy" this by moving `anthus` across.
-  if (normalized === "threat-intelligence" || normalized === "threat-intel" || normalized === "anthus") {
-    return "threat-intelligence";
-  }
-  if (normalized === "anth-us") {
-    // `normalized` has already mapped `.` and `_` to `-`, so this covers
-    // `anth.us` and `anth_us` too.
-    return "anth-us";
-  }
-  // Bare `pilobol` is deliberately NOT an alias (f268e72): the brand name is
-  // Pilobolus; Pilobol.us is the domain and `pilobol-us` the technical id.
-  if (normalized === "pilobol-us" || normalized === "pilobolus") {
-    return "pilobol-us";
-  }
-  // Registered brands (publication-owned `papyrus.config.ts`): exact id only.
-  if (Object.prototype.hasOwnProperty.call(SITE_BRANDS, normalized)) return normalized;
-  return null;
+  const trimmed = value.trim();
+  return Object.prototype.hasOwnProperty.call(SITE_BRANDS, trimmed) ? trimmed : null;
+}
+
+function unknownBrandError(value: string): Error {
+  return new Error(`Unknown brand '${value}'. Registered: ${Object.keys(SITE_BRANDS).join(", ")}`);
 }
 
 export function resolveSiteBrandId(
   raw: string | undefined | null = process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND ?? process.env.PAPYRUS_SITE_BRAND,
 ): SiteBrandId {
-  return normalizeSiteBrandId(raw) ?? papyrusSite.defaultBrand ?? "papyrus";
-}
-
-/** Cookie set by middleware when `?brand=` is present (demo without rebuild). */
-export function resolveRuntimeSiteBrandId(
-  cookieOverride: string | undefined | null = null,
-): SiteBrandId {
-  return normalizeSiteBrandId(cookieOverride) ?? resolveSiteBrandId();
+  const requested = raw?.trim();
+  if (requested) {
+    const normalized = normalizeSiteBrandId(requested);
+    if (normalized === null) throw unknownBrandError(requested);
+    return normalized;
+  }
+  const fallback = papyrusSite.defaultBrand ?? "papyrus";
+  const normalizedFallback = normalizeSiteBrandId(fallback);
+  if (normalizedFallback === null) throw unknownBrandError(fallback);
+  return normalizedFallback;
 }
 
 export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand {
-  return SITE_BRANDS[id];
+  const brand = Object.prototype.hasOwnProperty.call(SITE_BRANDS, id) ? SITE_BRANDS[id] : undefined;
+  if (!brand) throw unknownBrandError(id);
+  return brand;
 }
 
 export const SITE_BRAND = getSiteBrand();

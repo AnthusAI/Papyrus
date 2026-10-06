@@ -5,7 +5,6 @@ import { createDefaultEditionLayoutPlan, type EditionLayoutPlan } from "./layout
 import { articleToPublicationItem, cloneArticle } from "./publication-items";
 import { PILOBOL_SAMPLE_SCENARIO_ID, createPilobolSampleEditionContent } from "./pilobol-sample";
 import { SITE_BRAND } from "./site-brand";
-import threatIntelligenceSeedContent from "../publications/threat_intelligence/seed/seed-edition-content.json";
 
 export type LayoutScenario = EditionContent & {
   source: "scenario";
@@ -190,7 +189,8 @@ function getDefaultScenarioSeed(): {
   editionVideo?: ArticleVideoAsset;
   newsDeskAppendix?: NewsDeskAppendix | null;
 } {
-  if (SITE_BRAND.id !== "threat-intelligence") {
+  const demoEdition = SITE_BRAND.demoEdition;
+  if (!demoEdition) {
     return {
       title: "Current Edition",
       editionDate,
@@ -201,12 +201,12 @@ function getDefaultScenarioSeed(): {
   }
 
   return {
-    title: threatIntelligenceSeedContent.title,
-    editionDate: threatIntelligenceSeedContent.publishDate,
-    description: threatIntelligenceSeedContent.description,
-    articles: threatIntelligenceSeedContent.articles as Article[],
-    suppressNewsDeskAppendix: threatIntelligenceSeedContent.suppressNewsDeskAppendix === true,
-    editionVideo: threatIntelligenceSeedContent.video as ArticleVideoAsset | undefined,
+    title: demoEdition.title,
+    editionDate: demoEdition.editionDate,
+    description: demoEdition.description,
+    articles: demoEdition.articles,
+    suppressNewsDeskAppendix: demoEdition.suppressNewsDeskAppendix === true,
+    editionVideo: demoEdition.editionVideo,
     newsDeskAppendix: null,
   };
 }

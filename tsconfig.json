@@ -31,6 +31,9 @@
       "papyrus-site": [
         "./papyrus.config.ts"
       ],
+      "papyrus-site-theme": [
+        "./app/dev-themes.css"
+      ],
       "papyrus-amplify-outputs": [
         "./amplify_outputs.json"
       ]
