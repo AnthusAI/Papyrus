@@ -21,6 +21,12 @@ export type PapyrusSiteBackendConfig = {
    */
   productionAppId?: string;
   auth?: PapyrusAuthConfig;
+  /** Static reader app (Markus-static sites) that a publish rebuilds through IAM `amplify:StartJob`. */
+  reader?: { amplifyAppId: string; branchName?: string };
+  /** Lets the newsroom start the `staging` branch build of this CMS app. */
+  stagingBuild?: { enabled: boolean };
+  /** Base URL of a Pretext reader whose `/api/revalidate` a publish calls (secret `PAPYRUS_REVALIDATE_SECRET`). */
+  revalidateBaseUrl?: string;
   features?: {
     consoleResponder?: boolean;
     inboundEmail?: boolean;

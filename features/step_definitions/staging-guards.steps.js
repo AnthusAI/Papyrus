@@ -56,3 +56,38 @@ Then("I should be redirected to the newsroom sign-in", function () {
   assert.equal(this.guardRoot.response.status, 307);
   assert.equal(new URL(this.guardRoot.response.headers.get("location"), this.baseUrl).pathname, "/newsroom");
 });
+
+const { execFileSync } = require("node:child_process");
+
+function probePreviewRewrite(environment, pathname) {
+  const script = `
+    import { isStaticPreviewEnabled, previewRewritePathname, shouldRewriteToPreview } from "./lib/staging-preview-object";
+    const pathname = process.argv[1];
+    const enabled = isStaticPreviewEnabled();
+    console.log(JSON.stringify({ enabled, rewrite: enabled && shouldRewriteToPreview(pathname) ? previewRewritePathname(pathname) : null }));
+  `;
+  const output = execFileSync("npx", ["tsx", "--eval", script, pathname], {
+    cwd: process.cwd(),
+    env: { ...process.env, ...environment },
+    encoding: "utf8",
+  });
+  return JSON.parse(output.trim().split("\n").pop());
+}
+
+Given("static staging is configured with PAPYRUS_STAGING_PREVIEW {string}", function (mode) {
+  this.previewEnvironment = { SITE_ENV: "staging", PAPYRUS_STAGING_PREVIEW: mode };
+});
+
+Then("{string} is rewritten to {string}", function (pathname, expected) {
+  assert.equal(probePreviewRewrite(this.previewEnvironment, pathname).rewrite, expected);
+});
+
+Then("{string} is not rewritten", function (pathname) {
+  assert.equal(probePreviewRewrite(this.previewEnvironment, pathname).rewrite, null);
+});
+
+Then("the preview route is disabled for SITE_ENV {string}", function (siteEnv) {
+  const result = probePreviewRewrite({ ...this.previewEnvironment, SITE_ENV: siteEnv }, "/articles/foo.html");
+  assert.equal(result.enabled, false);
+  assert.equal(result.rewrite, null);
+});

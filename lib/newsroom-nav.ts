@@ -2,6 +2,7 @@ import { newsroomHref, toPublicNewsroomPath } from "./newsroom-base-path";
 
 export type NewsroomNavTabId =
   | "overview"
+  | "articles"
   | "messages"
   | "insights"
   | "assignments"
@@ -22,6 +23,7 @@ export type NewsroomNavItem = {
 
 export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
   { id: "overview", label: "Overview", detail: "Desk home", href: newsroomHref(), mobilePrimary: true },
+  { id: "articles", label: "Articles", detail: "Drafts & published", href: newsroomHref("articles"), mobilePrimary: true },
   { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments"), mobilePrimary: true },
   { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references"), mobilePrimary: true },
   { id: "messages", label: "Messages", detail: "Forum", href: newsroomHref("messages") },

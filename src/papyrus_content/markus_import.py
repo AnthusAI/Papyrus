@@ -70,46 +70,6 @@ class MediaStore(Protocol):
     def has(self, storage_path: str, sha256: str) -> bool: ...
 
 
-class S3MediaStore:
-    def __init__(self, bucket: str) -> None:
-        try:
-            import boto3
-        except ImportError as error:
-            raise RuntimeError("boto3 is required for S3 media: install papyrus-newsroom[newsroom].") from error
-        self.bucket = bucket
-        self._client = boto3.client("s3")
-
-    def _stored_sha256(self, storage_path: str) -> str | None:
-        from botocore.exceptions import ClientError
-
-        try:
-            head = self._client.head_object(Bucket=self.bucket, Key=storage_path)
-        except ClientError as error:
-            if error.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
-                return None
-            raise
-        return (head.get("Metadata") or {}).get("sha256")
-
-    def has(self, storage_path: str, sha256: str) -> bool:
-        return self._stored_sha256(storage_path) == sha256
-
-    def put(self, storage_path: str, local_path: Path, *, content_type: str, sha256: str) -> str:
-        if self.has(storage_path, sha256):
-            return "unchanged"
-        self._client.put_object(
-            Bucket=self.bucket,
-            Key=storage_path,
-            Body=local_path.read_bytes(),
-            ContentType=content_type,
-            Metadata={"sha256": sha256},
-        )
-        return "uploaded"
-
-    def get(self, storage_path: str, dest: Path) -> None:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        self._client.download_file(self.bucket, storage_path, str(dest))
-
-
 class DirMediaStore:
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
@@ -322,6 +282,10 @@ def _resolve_image(image_root: Path, source_path: str) -> Path | None:
     return candidate
 
 
+def media_id_for(item_id: str, source_path: str) -> str:
+    return f"media-{item_id}-{hashlib.sha256(source_path.encode('utf-8')).hexdigest()[:10]}"
+
+
 def _plan_media(
     source: SourceFile, item_id: str, image_root: Path, errors: list[str], envelope_sources: list[str]
 ) -> list[PlannedMedia]:
@@ -345,7 +309,7 @@ def _plan_media(
             local_path.suffix.lower(), mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
         )
         row = {
-            "id": f"media-{item_id}-{hashlib.sha256(source_path.encode('utf-8')).hexdigest()[:10]}",
+            "id": media_id_for(item_id, source_path),
             "itemId": item_id,
             "type": "image",
             "role": role,

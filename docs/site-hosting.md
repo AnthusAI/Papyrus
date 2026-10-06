@@ -178,6 +178,58 @@ specs that run Python install `uv`, then `uv python install 3.12`,
 `uv pip install --python .venv "papyrus-newsroom[markus]==<papyrusVersion>"`.
 The uv cache is kept under `.uv-cache/` and listed in the spec's cache paths.
 
+## CI access without keys
+
+GitHub Actions in a publication repo reaches AWS with GitHub OIDC: no AWS
+access keys or tokens are stored anywhere. Two pieces:
+
+1. **Account-level provider, once per AWS account** (`GithubOidcProviderStack`
+   in `@anthusai/papyrus/infra`). Run `aws iam list-open-id-connect-providers`
+   first. If `token.actions.githubusercontent.com` is listed (account
+   `335163751677` already has it), do **not** deploy the stack: a second
+   provider for the same URL fails, and site roles only reference the provider
+   by ARN. If it is missing, a human deploys it once:
+   `npx papyrus-infra synth --account-stack github-oidc` then
+   `cdk deploy -a cdk.out GithubOidcProviderStack` with `AWS_PROFILE=legacy`.
+2. **Per-site role** `<siteId>-github-ci`, created by the app-shell stack when
+   `infra/site.json` has a `github` block:
+   `{ "owner": "AnthusAI", "repo": "<repo>", "branches": ["main", "staging"], "ciCanDeployInfra": false }`
+   (`branches` defaults to `main` and `staging`; no wildcards are accepted).
+   The trust policy allows only `repo:<owner>/<repo>:ref:refs/heads/<branch>`
+   for those branches with audience `sts.amazonaws.com`, session limit 1 hour.
+   Permissions: `amplify:StartJob/ListJobs/GetJob/ListBranches` on the site's
+   apps, `ssm:GetParameter(s)` on the site's `amplify/<appId>/*` secret paths,
+   `sts:GetCallerIdentity`, and `cloudformation:*` on the
+   `amplify-app-shell-<siteId>` stack only when `ciCanDeployInfra` is true.
+   The role ARN is the `GithubCiRoleArn` stack output.
+
+Do not use GitHub environments in these workflows: environment-scoped jobs
+emit `repo:<owner>/<repo>:environment:<name>` as the subject, which the role
+does not trust.
+
+```yaml
+permissions: { id-token: write, contents: read }
+steps:
+  - uses: aws-actions/configure-aws-credentials@v4
+    with: { role-to-assume: arn:aws:iam::335163751677:role/<siteId>-github-ci, aws-region: us-east-1 }
+  - run: aws amplify start-job --app-id <id> --branch-name main --job-type RELEASE
+```
+
+Prove a role with `scripts/verify-oidc-role.sh <role-arn> <app-id>` from a
+throwaway workflow on a listed branch (allowed: `amplify list-jobs`; denied:
+`iam list-users`), and confirm a run from an unlisted branch fails at the
+assume-role step.
+
+### Per-site runbook checklist
+
+Copy into the site's runbook and fill in:
+
+- [ ] Amplify GitHub App connected for `<siteId>-cms` (date: ____)
+- [ ] Amplify GitHub App connected for `<siteId>-reader`, static sites only (date: ____)
+- [ ] OIDC role ARN: `arn:aws:iam::335163751677:role/<siteId>-github-ci`
+- [ ] Secrets live in SSM only (nothing in GitHub secrets or Amplify variables)
+- [ ] Old PAT secret (`amplify/github-app-token`) deleted
+
 ## Custom domains and Route 53
 
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).
@@ -265,3 +317,56 @@ itself. Both are read by `lib/site-env.ts`.
 
 Check a running deployment with
 `node scripts/check-staging-guards.mjs <base-url> <staging|production>`.
+
+## Static staging (Markus sites)
+
+A Markus-static site previews its DRAFT build on the CMS app's `staging`
+branch. The preview is a prebuilt site stored in the private `preview/` prefix
+of the media bucket and served by a gated Next route. Design: `docs/standard-site.md`
+section 1.10.
+
+Environment on the staging branch (never on `main`):
+`SITE_ENV=staging`, `PAPYRUS_STAGING_PREVIEW=static`,
+`PAPYRUS_CONTENT_SOURCE=published` (unused in static mode).
+
+How a request is served:
+
+1. `middleware.ts` applies the same Cognito gate as Pretext staging (anonymous
+   goes to `/newsroom`, non-editors get 403). In static mode the gate covers
+   every path except `/_next`, `/api`, `/newsroom*`, favicon, icons and
+   `robots.txt`, including `.html`, `.css` and image paths.
+2. The middleware rewrites the path to `/__preview<path>`
+   (`/articles/foo.html` reads `preview/articles/foo.html`). The route folder
+   is `app/%5F_preview/[[...path]]` because Next treats a folder starting with
+   `_` as private; `%5F` yields the literal `/__preview` URL segment.
+3. The route tries `preview/<path>`, `preview/<path>.html`,
+   `preview/<path>/index.html` and presigns the first existing object with the
+   VIEWER's own Cognito credentials (`getUrl` through the server runner, 60
+   seconds). AWS enforces access: `amplify/storage/resource.ts` grants
+   `preview/*` read to the `editor` and `admin` groups only. The route then
+   streams the object with `Cache-Control: private, no-store` and
+   `X-Robots-Tag: noindex, nofollow`.
+4. The route returns 404 unless the deployment is staging with
+   `PAPYRUS_STAGING_PREVIEW=static`. Production never rewrites.
+
+Staging build contract (the generated build spec, `PPY-39f928`, implements it):
+
+```bash
+papyrus auth refresh-jwt --write-env .env
+papyrus content export-published --drafts --out content-export --clean
+python reader/build.py --content content-export --out dist
+papyrus content upload-preview --dir dist
+```
+
+then the CMS Next build (frontend-only, no `backend:` phase). The build role
+needs write access to `preview/*`; the storage rule grants none to users.
+
+`papyrus content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json]`
+syncs DIR to the prefix: new or changed files are uploaded (sha256 in object
+metadata, content type from the extension, `Cache-Control: no-store`), keys
+under the prefix that are not in DIR are deleted, any prefix other than
+`preview/` and an empty DIR are refused.
+
+Limits: responses are proxied through compute, so very large objects may hit
+the platform response-size limit; measure on a real site before adding a
+redirect to the presigned URL.

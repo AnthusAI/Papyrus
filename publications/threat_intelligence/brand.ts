@@ -42,6 +42,7 @@ export const threatIntelligenceBrand: SiteBrand = {
   analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
   publicationName: "Anthus Threat Intelligence",
   components: { PictogramFigure, BlogPageBackground },
+  video: { bundleEntry: "publications/threat_intelligence/videoml/browser-bundle.tsx" },
   demoEdition: {
     title: seedContent.title,
     editionDate: seedContent.publishDate,

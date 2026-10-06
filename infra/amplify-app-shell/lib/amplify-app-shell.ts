@@ -1,7 +1,8 @@
 import { Construct } from "constructs";
-import { ArnFormat, CfnOutput, Stack, StackProps } from "aws-cdk-lib";
+import { ArnFormat, CfnOutput, Duration, Stack, StackProps } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
+import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { AmplifyAppShellSiteConfig, resolveStagingDomainName } from "./site-config";
 
@@ -115,6 +116,83 @@ export class AmplifyAppShellStack extends Stack {
     if (config.reader) {
       this.readerAppId = this.addReaderApp(config, config.reader, cmsApp.attrAppId);
     }
+
+    if (config.github) {
+      this.addGithubCiRole(config, config.github, [cmsApp.attrAppId, ...(this.readerAppId ? [this.readerAppId] : [])]);
+    }
+  }
+
+  private addGithubCiRole(
+    config: AmplifyAppShellSiteConfig,
+    github: NonNullable<AmplifyAppShellSiteConfig["github"]>,
+    amplifyAppIds: string[],
+  ): void {
+    const provider = iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(
+      this,
+      "GithubOidcProvider",
+      this.formatArn({
+        service: "iam",
+        region: "",
+        resource: "oidc-provider",
+        resourceName: GITHUB_OIDC_PROVIDER_HOST,
+        arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+      }),
+    );
+
+    const ciRole = new iam.Role(this, "GithubCiRole", {
+      roleName: `${config.siteId}-github-ci`,
+      description: `GitHub Actions role for ${github.owner}/${github.repo} (OIDC, least privilege, no admin policy)`,
+      maxSessionDuration: Duration.hours(1),
+      assumedBy: new iam.OpenIdConnectPrincipal(provider, {
+        StringEquals: { [`${GITHUB_OIDC_PROVIDER_HOST}:aud`]: "sts.amazonaws.com" },
+        StringLike: {
+          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: github.branches.map(
+            (branch) => `repo:${github.owner}/${github.repo}:ref:refs/heads/${branch}`,
+          ),
+        },
+      }),
+    });
+
+    ciRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "StartAndInspectAmplifyJobs",
+        actions: ["amplify:StartJob", "amplify:ListJobs", "amplify:GetJob", "amplify:ListBranches"],
+        resources: amplifyAppIds.flatMap((appId) => [
+          this.formatArn({ service: "amplify", resource: "apps", resourceName: appId, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+          this.formatArn({ service: "amplify", resource: "apps", resourceName: `${appId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+        ]),
+      }),
+    );
+    ciRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "ReadSiteSecretsForJwtMinting",
+        actions: ["ssm:GetParameter", "ssm:GetParameters"],
+        resources: [
+          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/${this.cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/shared/${this.cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+        ],
+      }),
+    );
+    ciRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "WhoAmI",
+        actions: ["sts:GetCallerIdentity"],
+        resources: ["*"],
+      }),
+    );
+    if (github.ciCanDeployInfra) {
+      ciRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: "DeployThisSitesAppShellStack",
+          actions: ["cloudformation:*"],
+          resources: [
+            this.formatArn({ service: "cloudformation", resource: "stack", resourceName: `amplify-app-shell-${config.siteId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+          ],
+        }),
+      );
+    }
+
+    new CfnOutput(this, "GithubCiRoleArn", { value: ciRole.roleArn, description: `Role for GitHub Actions in ${github.owner}/${github.repo}` });
   }
 
   private addReaderApp(

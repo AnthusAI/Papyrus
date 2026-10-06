@@ -3,6 +3,7 @@
 import {
   BookOpenIcon,
   ClipboardListIcon,
+  FileTextIcon,
   LayoutGridIcon,
   MenuIcon,
   SearchIcon,
@@ -55,6 +56,7 @@ type NewsroomOpsShellProps = {
 
 const MOBILE_TAB_ICONS: Record<string, typeof LayoutGridIcon> = {
   overview: LayoutGridIcon,
+  articles: FileTextIcon,
   assignments: ClipboardListIcon,
   references: BookOpenIcon,
   topics: TagsIcon,
@@ -198,7 +200,7 @@ export function NewsroomOpsShell({
           className="shrink-0 border-t border-border bg-card/95 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1 md:hidden"
           data-newsroom-ops-bottom-nav
         >
-          <ul className="grid grid-cols-5 gap-1 px-2">
+          <ul className="grid grid-cols-6 gap-1 px-1">
             {mobilePrimary.map((item) => {
               const Icon = MOBILE_TAB_ICONS[item.id] ?? LayoutGridIcon;
               const active = resolvedActiveTab === item.id;

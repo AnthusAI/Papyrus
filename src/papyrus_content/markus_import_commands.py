@@ -6,15 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .env import storage_bucket_from_amplify_outputs
+from .media_store import S3MediaStore, configured_media_bucket
 from .graphql_authoring import create_authoring_client
 from .markus_import import (
     AbsentMediaStore,
     ImportOptions,
-    S3MediaStore,
     plan_import,
     run_import,
 )
+from .rebuild_trigger import reader_target_from_environment, trigger_rebuild
 from .options import normalize_string, parse_comma_list, parse_options, resolve_mutation_apply
 
 
@@ -51,7 +51,7 @@ def content_import_markus(flags: list[str]) -> None:
     apply = resolve_mutation_apply(options, "content import-markus")
     import_options = import_options_from_flags(options)
     client, _claims = create_authoring_client()
-    bucket = normalize_string(options.get("bucket")) or storage_bucket_from_amplify_outputs()
+    bucket = configured_media_bucket(normalize_string(options.get("bucket")))
     if bucket:
         store = S3MediaStore(bucket)
     elif apply:
@@ -61,6 +61,10 @@ def content_import_markus(flags: list[str]) -> None:
     plan = plan_import(import_options, client, store)
     report = run_import(plan, client, store, apply=apply)
     payload = report.to_dict()
+    app_id = normalize_string(options.get("rebuild-app-id")) or reader_target_from_environment()[0]
+    if apply and report.ok and payload["published"] and app_id and not options.get("no-trigger"):
+        branch = normalize_string(options.get("rebuild-branch")) or reader_target_from_environment()[1]
+        payload["rebuild"] = trigger_rebuild(reader_app_id=app_id, reader_branch=branch)
     if options.get("json"):
         print(json.dumps(payload, indent=2))
     else:
@@ -71,6 +75,8 @@ def content_import_markus(flags: list[str]) -> None:
             "mediaUploaded", "mediaUnchanged", "readerOwnedAssets", "notInSource",
         ):
             print(f"  {key}: {payload[key]}")
+        if "rebuild" in payload:
+            print(f"  rebuild: {json.dumps(payload['rebuild'])}")
         for message in payload["errors"]:
             print(f"  error: {message}")
     if not report.ok:
