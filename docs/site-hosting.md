@@ -40,6 +40,8 @@ type HostingConfig =
 Do not add a required-but-ignored hosting field on Markus sites before eca592
 lands.
 
+A Markus brand that still runs the Shadcn CMS on Amplify SSR (for example the Pilobol.us CMS app) builds with `next build`, but its reader routes (`/articles/[slug]`, `/[year]/[month]/[day]`) are not served by Next.js. Their `generateStaticParams` return `[]` and the pages respond `notFound()`, even when the backend holds published articles; the reader is built separately by `markus-build`.
+
 ## Amplify platform mapping
 
 | `HostingConfig.kind` | Amplify platform | Build output | Content at runtime |
