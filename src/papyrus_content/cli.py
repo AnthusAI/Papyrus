@@ -1462,7 +1462,7 @@ def print_usage() -> None:
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
     print("  auth refresh-jwt, batch register-catalog/enrich-references,")
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
-    print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--json],")
+    print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")

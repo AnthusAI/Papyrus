@@ -57,6 +57,9 @@ def graphql_request_headers(
     token: str | None = None,
     allow_knowledge_fallback: bool = False,
 ) -> dict[str, str]:
+    from .guest_auth import refuse_guest_auth
+
+    refuse_guest_auth("this command")
     if graphql_use_iam():
         return iam_signed_graphql_headers(endpoint, body)
     auth_token = token if token is not None else resolve_graphql_jwt(allow_knowledge_fallback=allow_knowledge_fallback)

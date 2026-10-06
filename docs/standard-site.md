@@ -159,8 +159,9 @@ or cost becomes a real problem.
 **Python extras.** Base install = PyYAML, citeproc-py, `limatus`. `limatus` is a
 **base** dependency because the `papyrus` CLI imports it at import time
 (`papyrus_content/editorial_*.py`) and Ryan plans to integrate it more deeply.
-The `markus` extra is `anthus-markus` (the static Markus reader build needs
-base + `markus`). The `newsroom` extra is boto3, markitdown, tiktoken, tactus.
+The `markus` extra is `anthus-markus`, Pillow and boto3 (the static Markus reader
+build needs base + `markus`; boto3 serves guest S3 media and the guest Cognito
+identity lane of `export-published --auth guest`). The `newsroom` extra is boto3, markitdown, tiktoken, tactus.
 Reader builds stay light; `pip install "papyrus-newsroom[newsroom]"` is for
 operators, agents and Lambda bundling. Dev installs need `poetry install
 --all-extras`.

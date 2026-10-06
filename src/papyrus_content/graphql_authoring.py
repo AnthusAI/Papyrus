@@ -4,9 +4,10 @@ import json
 import http.client
 import os
 import urllib.parse
-from typing import Any
+from typing import Any, Callable
 
 from .env import graphql_endpoint, graphql_jwt, graphql_timeout_seconds
+from .guest_auth import refuse_guest_auth
 from .graphql_http import graphql_request_headers, graphql_use_iam, running_in_aws_lambda
 
 VERSION_FIELDS = (
@@ -547,8 +548,14 @@ MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 
 class PapyrusGraphQLAuthoringClient:
-    def __init__(self, endpoint: str | None = None, auth_token: str | None = None) -> None:
+    def __init__(
+        self,
+        endpoint: str | None = None,
+        auth_token: str | None = None,
+        header_factory: Callable[[bytes], dict[str, str]] | None = None,
+    ) -> None:
         self.endpoint = endpoint or graphql_endpoint()
+        self.header_factory = header_factory
         self.use_iam = graphql_use_iam()
         if self.use_iam:
             self.auth_token = auth_token or ""
@@ -566,6 +573,8 @@ class PapyrusGraphQLAuthoringClient:
         self._connection: http.client.HTTPSConnection | None = None
 
     def _request_headers(self, payload: bytes) -> dict[str, str]:
+        if self.header_factory is not None:
+            return self.header_factory(payload)
         if self.use_iam:
             from .graphql_http import iam_signed_graphql_headers
 
@@ -868,6 +877,7 @@ class PapyrusGraphQLAuthoringClient:
 def create_authoring_client() -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
     from .env import decode_jwt_claims
 
+    refuse_guest_auth("this command")
     if graphql_use_iam():
         return PapyrusGraphQLAuthoringClient(auth_token=""), {}
     token = graphql_jwt()
