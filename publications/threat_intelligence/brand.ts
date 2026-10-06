@@ -1,5 +1,9 @@
+import type { Article, ArticleVideoAsset } from "../../lib/articles";
 import type { SiteBrand } from "../../lib/site-brand";
 import { DEFAULT_THEME_PACK_TOKENS } from "../../lib/site-stack";
+import { BlogPageBackground } from "./blog-defense/page-background";
+import { PictogramFigure } from "./pictograms/figure";
+import seedContent from "./seed/seed-edition-content.json";
 
 export const threatIntelligenceBrand: SiteBrand = {
   id: "threat-intelligence",
@@ -37,4 +41,13 @@ export const threatIntelligenceBrand: SiteBrand = {
   newsroomSectionsConfigPath: "corpora/papyrus-newsroom-sections.yml",
   analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
   publicationName: "Anthus Threat Intelligence",
+  components: { PictogramFigure, BlogPageBackground },
+  demoEdition: {
+    title: seedContent.title,
+    editionDate: seedContent.publishDate,
+    description: seedContent.description,
+    articles: seedContent.articles as Article[],
+    suppressNewsDeskAppendix: seedContent.suppressNewsDeskAppendix === true,
+    editionVideo: seedContent.video as ArticleVideoAsset | undefined,
+  },
 };

@@ -1,4 +1,9 @@
 import { defineSite } from "./lib/define-site";
+import { anthUsBrand } from "./publications/anth_us/brand";
+import { pilobolUsBrand } from "./publications/pilobol_us/brand";
+import { threatIntelligenceBrand } from "./publications/threat_intelligence/brand";
 
-// Papyrus's own dev/test site: built-in reference brands only (PAPYRUS_SITE_BRAND selects).
-export default defineSite({});
+export default defineSite({
+  brands: [threatIntelligenceBrand, pilobolUsBrand, anthUsBrand],
+  defaultBrand: "papyrus",
+});

@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
-import { cookies } from "next/headers";
 import Script from "next/script";
 import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getPresentationChoices, getSiteBrand, resolveRuntimeSiteBrandId } from "../lib/site-brand";
+import { getPresentationChoices, getSiteBrand } from "../lib/site-brand";
 import { getSiteStack } from "../lib/site-stack";
 import "./tailwind.css";
 import "./globals.css";
+import "papyrus-site-theme";
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -22,16 +22,8 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 const faviconVersion = "20260517-1";
 const defaultTheme = "system";
-const BRAND_OVERRIDE_COOKIE = "papyrus-site-brand-override";
-
-async function resolveLayoutSiteBrand() {
-  const cookieStore = await cookies();
-  const brandId = resolveRuntimeSiteBrandId(cookieStore.get(BRAND_OVERRIDE_COOKIE)?.value ?? null);
-  return getSiteBrand(brandId);
-}
-
 export async function generateMetadata(): Promise<Metadata> {
-  const siteBrand = await resolveLayoutSiteBrand();
+  const siteBrand = getSiteBrand();
   return {
     title: siteBrand.appTitle,
     description: siteBrand.appDescription,
@@ -45,7 +37,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const siteBrand = await resolveLayoutSiteBrand();
+  const siteBrand = getSiteBrand();
   const presentationChoices = getPresentationChoices(siteBrand);
   const siteStack = getSiteStack(siteBrand);
 

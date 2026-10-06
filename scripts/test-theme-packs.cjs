@@ -12,7 +12,6 @@ const {
   getSiteBrand,
   getRootRoute,
   normalizeSiteBrandId,
-  resolveRuntimeSiteBrandId,
   resolveSiteBrandId,
 } = require("../lib/site-brand.ts");
 const { isDemoAmplifyOutputs } = require("../lib/demo-amplify-outputs.ts");
@@ -29,23 +28,20 @@ const {
 const { getSiteStack, PILOBOL_US_THEME_PACK_TOKENS } = require("../lib/site-stack.ts");
 
 assert.equal(resolveSiteBrandId("pilobol-us"), "pilobol-us");
-assert.equal(resolveSiteBrandId("pilobolus"), "pilobol-us");
-assert.equal(resolveSiteBrandId("pilobol.us"), "pilobol-us");
+assert.equal(normalizeSiteBrandId("pilobol-us"), "pilobol-us");
+assert.equal(normalizeSiteBrandId("pilobolus"), null);
+assert.equal(normalizeSiteBrandId("pilobol.us"), null);
 assert.equal(normalizeSiteBrandId("pilobol"), null);
-assert.equal(resolveSiteBrandId("pilobol"), "papyrus");
 assert.equal(normalizeSiteBrandId("unknown"), null);
-assert.equal(resolveSiteBrandId("not-a-brand"), "papyrus");
-
-assert.equal(resolveRuntimeSiteBrandId("pilobol-us"), "pilobol-us");
-assert.equal(resolveRuntimeSiteBrandId(null), resolveSiteBrandId());
+assert.throws(() => resolveSiteBrandId("not-a-brand"), /Unknown brand 'not-a-brand'\. Registered: /);
 
 const pilobolusDemo = getNewsroomDemoProfile("pilobol-us");
 assert.match(pilobolusDemo.canonicalCorpusName, /Pilobolus/);
 assert.equal(pilobolusDemo.classifierId, "pilobolus-demo-classifier");
 
 const middlewareSource = fs.readFileSync(path.join(process.cwd(), "middleware.ts"), "utf8");
-assert.match(middlewareSource, /papyrus-site-brand-override/);
-assert.match(middlewareSource, /normalizeSiteBrandId/);
+assert.doesNotMatch(middlewareSource, /papyrus-site-brand-override/);
+assert.doesNotMatch(middlewareSource, /normalizeSiteBrandId/);
 
 assert.equal(isDemoAmplifyOutputs(), false);
 
@@ -140,7 +136,7 @@ assert.match(shellSource, /data-newsroom-ops-shell/);
 assert.match(shellSource, /data-newsroom-ops-bottom-nav/);
 assert.match(shellSource, /SheetContent/);
 
-const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "publications/papyrus/theme.css"), "utf8");
+const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "app/papyrus-theme.css"), "utf8");
 assert.match(defaultPackCss, /data-theme-pack="papyrus"/);
 assert.match(defaultPackCss, /--theme-paper:\s*var\(--background\)/);
 
@@ -182,7 +178,7 @@ assert.match(ensureScript, /installDemoOutputs/);
 const newsDeskPageSource = fs.readFileSync(path.join(process.cwd(), "components/news-desk-page.tsx"), "utf8");
 assert.match(newsDeskPageSource, /getBrandSteeringConfigPath\(brand\)/);
 assert.match(newsDeskPageSource, /createDemoCategorySteeringDashboard\(brand\.id/);
-assert.match(newsDeskPageSource, /BRAND_OVERRIDE_COOKIE/);
+assert.doesNotMatch(newsDeskPageSource, /BRAND_OVERRIDE_COOKIE/);
 
 (async () => {
   const pilobolusCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(pilobolus));

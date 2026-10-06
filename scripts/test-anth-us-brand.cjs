@@ -29,14 +29,12 @@ const { getSiteStack, ANTH_US_THEME_PACK_TOKENS } = require("../lib/site-stack.t
 // --- brand resolution -----------------------------------------------------
 
 assert.equal(resolveSiteBrandId("anth-us"), "anth-us");
-assert.equal(resolveSiteBrandId("anth.us"), "anth-us");
-assert.equal(resolveSiteBrandId("anth_us"), "anth-us");
-assert.equal(normalizeSiteBrandId("ANTH-US"), "anth-us");
-
-// The bare alias `anthus` is older than this publication and still means the
-// Threat Intelligence brand. Changing it would silently repoint existing
-// PAPYRUS_SITE_BRAND values at a different publication.
-assert.equal(resolveSiteBrandId("anthus"), "threat-intelligence");
+assert.equal(normalizeSiteBrandId("anth-us"), "anth-us");
+assert.equal(normalizeSiteBrandId("anth.us"), null);
+assert.equal(normalizeSiteBrandId("anth_us"), null);
+assert.equal(normalizeSiteBrandId("ANTH-US"), null);
+assert.equal(normalizeSiteBrandId("anthus"), null);
+assert.equal(normalizeSiteBrandId("pilobolus"), null);
 
 // --- brand values, all traceable to the live Gatsby site ------------------
 
@@ -130,12 +128,15 @@ assert.doesNotMatch(themeCss, /(?:^|[^-])font-family\s*:/);
 assert.doesNotMatch(themeCss, /@font-face/);
 assert.doesNotMatch(themeCss, /Jersey 25|Montserrat|Geist Mono/i);
 
-// The pack is imported, not inlined: no Anthus hexes in framework CSS.
+// The pack is imported through the dev-only theme aggregator, not inlined: no
+// Anthus hexes in framework CSS.
 const sharedGlobals = fs.readFileSync(
   path.join(process.cwd(), "app/globals.css"),
   "utf8",
 );
-assert.match(sharedGlobals, /@import "\.\.\/publications\/anth_us\/theme\.css";/);
+const devThemes = fs.readFileSync(path.join(process.cwd(), "app/dev-themes.css"), "utf8");
+assert.match(devThemes, /@import "\.\.\/publications\/anth_us\/theme\.css";/);
+assert.doesNotMatch(sharedGlobals, /publications\//);
 assert.doesNotMatch(sharedGlobals, /#f1f9fe|#dc5497|#ff57b4|#fedded|#9b165d/i);
 
 // --- stack axes stay independent -----------------------------------------

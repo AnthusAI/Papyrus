@@ -1,16 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getSiteBrand, normalizeSiteBrandId, resolveSiteBrandId } from "./lib/site-brand";
+import { getSiteBrand } from "./lib/site-brand";
 
-const BRAND_OVERRIDE_COOKIE = "papyrus-site-brand-override";
-
-function usesNewsroomRootPaths(request: NextRequest): boolean {
-  const cookieBrand = request.cookies.get(BRAND_OVERRIDE_COOKIE)?.value;
-  const brandId = normalizeSiteBrandId(cookieBrand)
-    ?? normalizeSiteBrandId(request.nextUrl.searchParams.get("brand"))
-    ?? resolveSiteBrandId();
-  // Brand property (not a hard-coded id) so publication-registered brands work.
-  return getSiteBrand(brandId).rootRoute?.kind === "newsroom" && getSiteBrand(brandId).newsroomBasePath === "";
+function usesNewsroomRootPaths(): boolean {
+  const brand = getSiteBrand();
+  return brand.rootRoute?.kind === "newsroom" && brand.newsroomBasePath === "";
 }
 
 function isStaticOrApiPath(pathname: string): boolean {
@@ -24,26 +18,13 @@ function isStaticOrApiPath(pathname: string): boolean {
 }
 
 export function middleware(request: NextRequest) {
-  const brandParam = request.nextUrl.searchParams.get("brand");
-  const brandId = normalizeSiteBrandId(brandParam);
-  let response: NextResponse | null = null;
-
-  if (brandId) {
-    response = NextResponse.next();
-    response.cookies.set(BRAND_OVERRIDE_COOKIE, brandId, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "lax",
-    });
-  }
-
-  if (!usesNewsroomRootPaths(request)) {
-    return response ?? NextResponse.next();
+  if (!usesNewsroomRootPaths()) {
+    return NextResponse.next();
   }
 
   const { pathname } = request.nextUrl;
   if (isStaticOrApiPath(pathname)) {
-    return response ?? NextResponse.next();
+    return NextResponse.next();
   }
 
   if (pathname === "/newsroom" || pathname === "/newsroom/") {
@@ -55,22 +36,16 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === "/" || pathname === "") {
-    return response ?? NextResponse.next();
+    return NextResponse.next();
   }
 
   if (!pathname.startsWith("/newsroom")) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/newsroom${pathname}`;
-    const rewrite = NextResponse.rewrite(rewriteUrl);
-    if (response) {
-      for (const cookie of response.cookies.getAll()) {
-        rewrite.cookies.set(cookie);
-      }
-    }
-    return rewrite;
+    return NextResponse.rewrite(rewriteUrl);
   }
 
-  return response ?? NextResponse.next();
+  return NextResponse.next();
 }
 
 export const config = {

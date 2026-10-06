@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { NewsDeskWorkspace, type NewsDeskTab } from "./topic-steering-workspace";
 import {
   createDemoCategorySteeringDashboard,
@@ -7,7 +6,6 @@ import {
   loadConfiguredCorpusSummaries,
 } from "../lib/category-repository";
 import {
-  BRAND_OVERRIDE_COOKIE,
   getBrandAnalysisProfilesPath,
   getBrandNewsroomSectionsConfigPath,
   getBrandSteeringConfigPath,
@@ -65,8 +63,7 @@ export async function NewsDeskPage({ section: routeSection, sectionPageId, selec
     proposal: getFirstSearchParam(resolvedSearchParams, "proposal"),
   };
   const useDemoDashboard = getFirstSearchParam(resolvedSearchParams, "demo") === "1";
-  const brandOverride = (await cookies()).get(BRAND_OVERRIDE_COOKIE)?.value ?? null;
-  const brand = resolveActiveSiteBrand(brandOverride);
+  const brand = resolveActiveSiteBrand();
   const analysisProfiles = await loadAnalysisProfileSummaries(getBrandAnalysisProfilesPath(brand));
   const configuredCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(brand));
   const dashboard = useDemoDashboard

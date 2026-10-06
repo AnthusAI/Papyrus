@@ -40,7 +40,7 @@ pilobol-us. It is not the platform default.
 
 | `themePack` | Brand env | CSS | Notes |
 | --- | --- | --- | --- |
-| `papyrus` | `papyrus` (default) | `publications/papyrus/theme.css` | Identity pack: aliases `--theme-*` to existing Shadcn `:root` tokens |
+| `papyrus` | `papyrus` (default) | `app/papyrus-theme.css` | Identity pack: aliases `--theme-*` to existing Shadcn `:root` tokens |
 | `threat-intelligence` | `threat-intelligence` | `publications/threat_intelligence/theme.css` | Reader + ops sand/tomato tokens |
 | `pilobol-us` | `pilobol-us` | `publications/pilobol_us/theme.css` | Official Markus fungus-among-us colors, copied in; **no** font stack |
 | `anth-us` | `anth-us` | `publications/anth_us/theme.css` | Anthus magenta/blue, copied from the live Gatsby site; light-only (the source site has no dark mode); **no** font stack |
@@ -56,6 +56,9 @@ Forbidden in shared ops primitives:
 - One-off Pilobolus hexes (`#f1ead9`, `#3f5d43`, `#a35a2a`, …)
 - Site poem / masthead font stacks
 
-Add a new pack by copying `publications/papyrus/` or `publications/pilobol_us/`,
-registering the brand in `lib/site-brand.ts`, and adding a `ThemePackId`. Do
-not fork the Next.js app.
+Add a new pack by copying `app/papyrus-theme.css` or `publications/pilobol_us/`,
+registering the brand in `papyrus.config.ts` (`defineSite({ brands })`), and
+exposing its CSS through the `papyrus-site-theme` alias: a publication repo
+puts it at `publication/theme.css`; Papyrus's own repo lists the reference
+publications in `app/dev-themes.css`. `ThemePackId` is an open string. Do not
+fork the Next.js app.

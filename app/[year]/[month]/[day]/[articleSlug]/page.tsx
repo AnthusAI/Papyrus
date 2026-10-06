@@ -52,8 +52,8 @@ export default async function DateScopedArticlePage({ params }: DateScopedArticl
       editionFooter={{
         editionBasePath,
         entries: buildPresentationFooterEntries(content),
-        subtitle: SITE_BRAND.id === "threat-intelligence" ? "" : (content.description?.trim() || "Inside Papyrus"),
-        title: SITE_BRAND.id === "threat-intelligence" ? "ANTHUS THREAT INTELLIGENCE" : undefined,
+        subtitle: SITE_BRAND.footerSubtitleOverride ?? (content.description?.trim() || "Inside Papyrus"),
+        title: SITE_BRAND.footerTitle,
       }}
       item={item}
       backHref={`${editionBasePath}#${item.slug}`}
