@@ -1,4 +1,4 @@
 ---
-title: Stories
+title: Archive
 ---
-All stories.
+All articles.

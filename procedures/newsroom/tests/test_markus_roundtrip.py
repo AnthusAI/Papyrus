@@ -1,6 +1,5 @@
 import filecmp
 import hashlib
-import importlib.util
 import shutil
 import sys
 import tempfile
@@ -17,7 +16,7 @@ from papyrus_content.markus_renderer.build import build_markus_site  # noqa: E40
 from papyrus_content.markus_renderer.citations import CitationRendering  # noqa: E402
 from papyrus_content.markus_renderer.images import ImagePipeline  # noqa: E402
 from papyrus_content.markus_renderer.content_markup import split_front_matter  # noqa: E402
-from papyrus_content.media_store import DirMediaStore  # noqa: E402
+from papyrus_content.markus_import import DirMediaStore  # noqa: E402
 from papyrus_content.publishing import ItemFields, item_id_for, publish_item, save_item  # noqa: E402
 from papyrus_content.record_helpers import slugify, to_aws_json  # noqa: E402
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E402
@@ -25,7 +24,6 @@ from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E
 FIXTURE = Path(__file__).parent / "fixtures" / "markus-content"
 READER_OWNED = ("assets/site.js",)
 NOW = "2026-10-05T12:00:00Z"
-IMPORTER_AVAILABLE = importlib.util.find_spec("papyrus_content.markus_import") is not None
 
 
 def stand_in_import(content_dir: Path, client, store: DirMediaStore) -> None:
@@ -119,7 +117,6 @@ class RoundTripTests(unittest.TestCase):
     def test_stand_in_import_export_is_byte_identical_and_builds_identical_html(self):
         self.check(stand_in_import)
 
-    @unittest.skipUnless(IMPORTER_AVAILABLE, "PPY-22a3b4 (papyrus_content.markus_import) has not landed; remove this skip when it merges")
     @unittest.skipUnless(shutil.which("markus"), "markus 0.5.1 executable required")
     def test_markus_importer_round_trip(self):
         from papyrus_content.markus_import import ImportOptions, plan_import, run_import  # noqa: PLC0415

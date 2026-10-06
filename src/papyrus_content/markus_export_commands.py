@@ -7,7 +7,8 @@ from pathlib import Path
 
 from .graphql_authoring import create_authoring_client
 from .markus_export import EmptyExportError, ExportError, export_content
-from .media_store import S3MediaStore
+from .env import storage_bucket_from_amplify_outputs
+from .markus_import import AbsentMediaStore, S3MediaStore
 from .options import normalize_string, parse_options
 
 
@@ -17,7 +18,8 @@ def content_export_published(flags: list[str]) -> None:
     if not out_raw:
         raise ValueError("Pass --out <directory>.")
     client, _claims = create_authoring_client()
-    store = S3MediaStore(normalize_string(options.get("bucket")))
+    bucket = normalize_string(options.get("bucket")) or storage_bucket_from_amplify_outputs()
+    store = S3MediaStore(bucket) if bucket else AbsentMediaStore()
     try:
         report = export_content(
             client,

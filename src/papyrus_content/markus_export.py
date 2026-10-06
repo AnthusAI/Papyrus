@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .markus_renderer.derive import compose_source
-from .media_store import MediaStore
+from .markus_import import MediaStore
 from .publishing import utc_now_iso
 
 EXPORT_CONTRACT = "papyrus-export/v1"

@@ -1,1 +1,1 @@
-window.site = true;
+window.siteReaderBehavior = true;

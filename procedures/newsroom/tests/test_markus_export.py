@@ -16,7 +16,7 @@ from papyrus_content.markus_export import (  # noqa: E402
     export_content,
     item_output_path,
 )
-from papyrus_content.media_store import DirMediaStore  # noqa: E402
+from papyrus_content.markus_import import DirMediaStore  # noqa: E402
 from papyrus_content.publishing import ItemFields, publish_item, save_item  # noqa: E402
 from papyrus_content.record_helpers import to_aws_json  # noqa: E402
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E402

@@ -1,4 +1,4 @@
 ---
-title: Work in progress
+title: Work in Progress
 ---
-Draft body.
+Not ready.

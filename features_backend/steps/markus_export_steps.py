@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content.markus_export import EmptyExportError, export_content  # noqa: E402
-from papyrus_content.media_store import DirMediaStore  # noqa: E402
+from papyrus_content.markus_import import DirMediaStore  # noqa: E402
 from papyrus_content.publishing import ItemFields, publish_item, save_item  # noqa: E402
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E402
 

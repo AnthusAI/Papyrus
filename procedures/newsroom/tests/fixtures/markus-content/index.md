@@ -1,4 +1,4 @@
 ---
 title: Home
 ---
-Welcome.
+Welcome home.

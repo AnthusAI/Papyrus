@@ -53,6 +53,8 @@ export type PythonBundleOptions = {
   checkoutExtras?: (outputDir: string) => void;
   /** Extra pip requirements in package mode, beyond `papyrus-newsroom`. */
   requirements?: string[];
+  /** Package mode: install `papyrus-newsroom` with `--no-deps`, then only `requirements`. */
+  noDeps?: boolean;
   /** Copy `<cwd>/corpora/*.yml` into the asset (publication-owned steering config). */
   corpora?: boolean;
 };
@@ -77,11 +79,30 @@ function bundleFromPip(outputDir: string, options: PythonBundleOptions): void {
       // Older pip (e.g. a Python 3.9 build image) checks Requires-Python against the host interpreter, not --python-version.
       "--ignore-requires-python",
       ...extra,
-      pipSpec(),
+      ...(options.noDeps ? [] : [pipSpec()]),
       ...(options.requirements ?? []),
     ],
     { stdio: "inherit" },
   );
+  if (options.noDeps) {
+    execFileSync(
+      python,
+      [
+        "-m", "pip", "install",
+        "--target", outputDir,
+        "--no-cache-dir",
+        "--no-deps",
+        "--platform", "manylinux2014_aarch64",
+        "--implementation", "cp",
+        "--python-version", "3.12",
+        "--only-binary=:all:",
+        "--ignore-requires-python",
+        ...extra,
+        pipSpec(),
+      ],
+      { stdio: "inherit" },
+    );
+  }
   fs.copyFileSync(
     path.join(packageRoot, "amplify/functions", options.functionDir, "handler.py"),
     path.join(outputDir, "handler.py"),
@@ -98,7 +119,7 @@ function bundleFromPip(outputDir: string, options: PythonBundleOptions): void {
   }
 }
 
-function bundleFromCheckout(outputDir: string, options: PythonBundleOptions): void {
+export function bundleFromCheckout(outputDir: string, options: PythonBundleOptions): void {
   fs.copyFileSync(
     path.join(packageRoot, "amplify/functions", options.functionDir, "handler.py"),
     path.join(outputDir, "handler.py"),
