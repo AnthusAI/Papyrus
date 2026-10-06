@@ -1,122 +1,181 @@
 import { Construct } from "constructs";
-import { Stack, StackProps, SecretValue } from "aws-cdk-lib";
+import { ArnFormat, CfnOutput, Stack, StackProps } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
-import type { AmplifyAppShellSiteConfig } from "../sites/pilobol-us";
+import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
+import { AmplifyAppShellSiteConfig, resolveStagingDomainName } from "./site-config";
+
+function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
+  return Object.entries(variables).map(([name, value]) => ({ name, value }));
+}
 
 /**
- * Provisions the Amplify *app shell* for a Papyrus publication CMS:
+ * Provisions the Amplify *app shell* of a Papyrus publication from its
+ * site.json:
  *
- *   - AWS::Amplify::App (WEB_COMPUTE, GitHub repo connection via PAT in Secrets Manager)
- *   - AWS::Amplify::Branch (main, with PAPYRUS_SITE_BRAND env vars)
- *   - AWS::Amplify::Domain (newsroom.<site>.us on the site's Route 53 zone)
- *   - IAM service role (backend deploy) + compute role (SSR rendering)
+ *   - CMS app (WEB_COMPUTE) with branches `main` (production, owns the backend)
+ *     and `staging` (frontend only, reads the production backend)
+ *   - for `markus-static` sites, a reader app (WEB) with branch `main`
+ *   - one domain association per branch/app, IAM service and compute roles
  *
- * The Papyrus *backend* (AppSync, Storage, Lambda) is NOT created here. It
- * deploys via `ampx pipeline-deploy` from the repo `amplify.yml` once Amplify
- * CI runs a build on the branch. This stack only creates the container the
- * backend deploys into, so the app is never "created manually" in the console.
- *
- * The GitHub access token is read from Secrets Manager by dynamic reference,
- * so the token value never appears in the synthesized template.
+ * No repository and no access token are configured: the apps are manual-deploy
+ * until Amplify's GitHub App is connected once in the console
+ * (docs/site-hosting.md). The Papyrus backend itself is created inside the CMS
+ * app by `ampx pipeline-deploy` from the production build.
  */
 export class AmplifyAppShellStack extends Stack {
-  public readonly appId: string;
-  public readonly defaultDomain: string;
+  public readonly cmsAppId: string;
+  public readonly readerAppId?: string;
 
   constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
     super(scope, id, props);
 
-    const githubToken = SecretValue.secretsManager(config.githubTokenSecretName).unsafeUnwrap();
+    const cmsAppName = config.cms.appName ?? `${config.siteId}-cms`;
+    const stagingDomainName = resolveStagingDomainName(config);
 
-    // Service role Amplify assumes to deploy the backend (ampx pipeline-deploy
-    // creates AppSync, Storage, Lambda, etc., so it needs broad permissions).
-    const serviceRole = new iam.Role(this, "AmplifyServiceRole", {
+    const cmsServiceRole = new iam.Role(this, "AmplifyServiceRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
-      description: `Backend deploy service role for Amplify app ${config.appName}`,
+      description: `Backend deploy and staging build service role for Amplify app ${cmsAppName} (AdministratorAccess: documented risk)`,
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess")],
     });
 
-    // WEB_COMPUTE (Next.js SSR) requires a compute role for the rendering server.
     const computeRole = new iam.Role(this, "AmplifyComputeRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
-      description: `SSR compute role for Amplify app ${config.appName}`,
+      description: `SSR compute role for Amplify app ${cmsAppName}`,
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
         iam.ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
       ],
     });
 
-    const app = new amplify.CfnApp(this, "App", {
-      name: config.appName,
-      description: config.description,
-      platform: config.platform,
-      repository: config.repository,
-      accessToken: githubToken,
-      iamServiceRole: serviceRole.roleArn,
+    const cmsApp = new amplify.CfnApp(this, "App", {
+      name: cmsAppName,
+      description: `Papyrus newsroom CMS for ${config.siteId} (WEB_COMPUTE)`,
+      platform: "WEB_COMPUTE",
+      iamServiceRole: cmsServiceRole.roleArn,
       computeRoleArn: computeRole.roleArn,
-      buildSpec: this.buildSpec(),
+      buildSpec: cmsProductionBuildSpec(config),
+      jobConfig: config.cms.buildComputeType ? { buildComputeType: config.cms.buildComputeType } : undefined,
       customRules: [{ source: "/<*>", target: "/index.html", status: "404-200" }],
     });
 
-    this.appId = app.attrAppId;
-    this.defaultDomain = `${app.attrAppId}.amplifyapp.com`;
+    const stagingMode: Record<string, string> = config.frontend === "markus-static"
+      ? { PAPYRUS_STAGING_PREVIEW: "static" }
+      : { PAPYRUS_CONTENT_SOURCE: "drafts" };
 
-    const branch = new amplify.CfnBranch(this, "Branch", {
-      appId: app.attrAppId,
-      branchName: config.branchName,
+    const productionBranch = new amplify.CfnBranch(this, "Branch", {
+      appId: cmsApp.attrAppId,
+      branchName: "main",
       stage: "PRODUCTION",
-      enableAutoBuild: config.enableAutoBuild ?? true,
+      enableAutoBuild: true,
       enablePerformanceMode: false,
-      environmentVariables: Object.entries(config.environment).map(([key, value]) => ({
-        name: key,
-        value,
-      })),
+      environmentVariables: environmentVariables({
+        ...config.cms.environment,
+        PAPYRUS_SITE_BRAND: config.brand,
+        SITE_ENV: "production",
+        PAPYRUS_CONTENT_SOURCE: "published",
+      }),
     });
-    branch.addResourceDependency(app);
 
-    const domain = new amplify.CfnDomain(this, "Domain", {
-      appId: app.attrAppId,
-      domainName: config.domainName,
-      subDomainSettings: [{ branchName: config.branchName, prefix: "" }],
+    const stagingBranch = new amplify.CfnBranch(this, "StagingBranch", {
+      appId: cmsApp.attrAppId,
+      branchName: "staging",
+      stage: "BETA",
+      enableAutoBuild: true,
+      enablePerformanceMode: false,
+      buildSpec: cmsStagingBuildSpec(config),
+      environmentVariables: environmentVariables({
+        ...config.cms.environment,
+        PAPYRUS_SITE_BRAND: config.brand,
+        SITE_ENV: "staging",
+        ...stagingMode,
+        NEXT_PUBLIC_PAPYRUS_STAGING_URL: `https://${stagingDomainName}`,
+      }),
     });
-    domain.addResourceDependency(branch);
 
-    this.exportValue(app.attrAppId, { description: `Amplify app id for ${config.appName}` });
+    const productionDomain = new amplify.CfnDomain(this, "Domain", {
+      appId: cmsApp.attrAppId,
+      domainName: config.cms.domainName,
+      subDomainSettings: [{ branchName: "main", prefix: "" }],
+    });
+    productionDomain.addResourceDependency(productionBranch);
+
+    const stagingDomain = new amplify.CfnDomain(this, "StagingDomain", {
+      appId: cmsApp.attrAppId,
+      domainName: stagingDomainName,
+      subDomainSettings: [{ branchName: "staging", prefix: "" }],
+    });
+    stagingDomain.addResourceDependency(stagingBranch);
+
+    this.cmsAppId = cmsApp.attrAppId;
+    new CfnOutput(this, "CmsAppId", { value: cmsApp.attrAppId, description: `Amplify app id for ${cmsAppName}` });
+    new CfnOutput(this, "CmsOrigin", { value: `https://${config.cms.domainName}/` });
+    new CfnOutput(this, "StagingOrigin", { value: `https://${stagingDomainName}/` });
+
+    if (config.reader) {
+      this.readerAppId = this.addReaderApp(config, config.reader, cmsApp.attrAppId);
+    }
   }
 
-  /**
-   * Build spec mirrors the repo root amplify.yml so the app deploys the full
-   * Papyrus backend + Next.js frontend on every build. Inlined because Amplify
-   * needs a buildSpec on the app for the first deploy before the repo is cloned.
-   */
-  private buildSpec(): string {
-    return [
-      "version: 1",
-      "backend:",
-      "  phases:",
-      "    build:",
-      "      commands:",
-      "        - npm install --cache .npm --prefer-offline",
-      "        - |",
-      "          if [ -z \"${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}\" ]; then",
-      "            export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true",
-      "          fi",
-      "        - npx ampx pipeline-deploy --debug --branch $AWS_BRANCH --app-id $AWS_APP_ID",
-      "frontend:",
-      "  phases:",
-      "    build:",
-      "      commands:",
-      "        - env | grep -e '^PAPYRUS_CONTENT_SOURCE=' -e '^PAPYRUS_EDITION_SLUG=' -e '^PAPYRUS_REVALIDATE_SECRET=' >> .env.production",
-      "        - npm run build",
-      "  artifacts:",
-      "    baseDirectory: .next",
-      "    files:",
-      "      - '**/*'",
-      "  cache:",
-      "    paths:",
-      "      - .next/cache/**/*",
-      "      - .npm/**/*",
-    ].join("\n");
+  private addReaderApp(
+    config: AmplifyAppShellSiteConfig,
+    reader: NonNullable<AmplifyAppShellSiteConfig["reader"]>,
+    cmsAppId: string,
+  ): string {
+    const readerAppName = reader.appName ?? `${config.siteId}-reader`;
+    const readerBranchName = reader.branchName ?? "main";
+
+    const readerServiceRole = new iam.Role(this, "ReaderServiceRole", {
+      assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
+      description: `Static reader build role for Amplify app ${readerAppName} (reads the CMS app's SSM secrets and media only)`,
+    });
+    readerServiceRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "ReadSiteSecretsForJwtMinting",
+        actions: ["ssm:GetParameter", "ssm:GetParameters"],
+        resources: [
+          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/${cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+          this.formatArn({ service: "ssm", resource: "parameter", resourceName: `amplify/shared/${cmsAppId}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+        ],
+      }),
+    );
+    readerServiceRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "ReadMediaForExport",
+        actions: ["s3:GetObject"],
+        resources: ["arn:aws:s3:::amplify-*/media/*"],
+      }),
+    );
+
+    const readerApp = new amplify.CfnApp(this, "ReaderApp", {
+      name: readerAppName,
+      description: `Papyrus static reader for ${config.siteId} (WEB)`,
+      platform: "WEB",
+      iamServiceRole: readerServiceRole.roleArn,
+      buildSpec: readerBuildSpec(config),
+    });
+
+    const readerBranch = new amplify.CfnBranch(this, "ReaderBranch", {
+      appId: readerApp.attrAppId,
+      branchName: readerBranchName,
+      stage: "PRODUCTION",
+      enableAutoBuild: true,
+      environmentVariables: environmentVariables({
+        ...(reader.environment ?? {}),
+        PAPYRUS_SITE_BRAND: config.brand,
+        SITE_ENV: "production",
+      }),
+    });
+
+    const readerDomain = new amplify.CfnDomain(this, "ReaderDomain", {
+      appId: readerApp.attrAppId,
+      domainName: reader.domainName,
+      subDomainSettings: [{ branchName: readerBranchName, prefix: "" }],
+    });
+    readerDomain.addResourceDependency(readerBranch);
+
+    new CfnOutput(this, "ReaderAppId", { value: readerApp.attrAppId, description: `Amplify app id for ${readerAppName}` });
+    new CfnOutput(this, "ReaderOrigin", { value: `https://${reader.domainName}/` });
+    return readerApp.attrAppId;
   }
 }

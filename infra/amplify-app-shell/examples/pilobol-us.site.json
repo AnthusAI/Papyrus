@@ -1,0 +1,27 @@
+{
+  "siteId": "pilobol-us",
+  "repository": "https://github.com/AnthusAI/Pilobol.us",
+  "brand": "pilobol-us",
+  "frontend": "markus-static",
+  "hostedZoneId": "Z09961547QX1VHIXOBD7",
+  "papyrusVersion": "1.0.0",
+  "cms": {
+    "domainName": "newsroom.pilobol.us",
+    "stagingDomainName": "staging.pilobol.us",
+    "buildComputeType": "STANDARD_8GB",
+    "environment": {
+      "PAPYRUS_EDITION_SLUG": "current",
+      "PAPYRUS_ENABLE_CONSOLE_RESPONDER": "false",
+      "PAPYRUS_ENABLE_SLACK": "false",
+      "PAPYRUS_ENABLE_INBOUND_EMAIL": "false",
+      "PAPYRUS_ENABLE_STORAGE_BACKUPS": "false",
+      "PAPYRUS_COGNITO_DOMAIN_PREFIX": "papyrus-pilobol-us",
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://newsroom.pilobol.us/,https://staging.pilobol.us/"
+    }
+  },
+  "reader": {
+    "domainName": "pilobol.us",
+    "buildCommand": "python3 reader/build.py --content content-export --out dist",
+    "baseDirectory": "dist"
+  }
+}

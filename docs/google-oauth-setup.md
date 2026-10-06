@@ -172,7 +172,7 @@ Redeploy the app shell so Amplify picks up env changes:
 
 ```bash
 cd infra/amplify-app-shell
-npm run deploy:pilobol-us
+SITE=examples/pilobol-us.site.json npm run deploy
 ```
 
 `amplify/auth/resource.ts` reads these at backend synth time on the next Amplify
@@ -237,7 +237,7 @@ finished. The domain is only created when `externalProviders` is active.
 
 1. Remove `PAPYRUS_DISABLE_GOOGLE_OAUTH` (or set it to `0`) in the CDK site
    config.
-2. Redeploy the app shell (`npm run deploy:pilobol-us`).
+2. Redeploy the app shell (`SITE=examples/pilobol-us.site.json npm run deploy`).
 3. Trigger an Amplify backend deploy:
 
    ```bash
@@ -285,7 +285,7 @@ SSM secrets can remain (unused) or be deleted.
 | OAuth consent screen | Google Console | scopes: email, profile, openid |
 | Google JS origin | OAuth client → Authorized JavaScript origins | `https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com` |
 | Google redirect URI | OAuth client → Authorized redirect URIs | `https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com/oauth2/idpresponse` |
-| `PAPYRUS_COGNITO_DOMAIN_PREFIX` | `infra/amplify-app-shell/sites/pilobol-us.ts` | `papyrus-pilobol-us` |
+| `PAPYRUS_COGNITO_DOMAIN_PREFIX` | `infra/site.json` (`cms.environment`) | `papyrus-pilobol-us` |
 | `PAPYRUS_OAUTH_REDIRECT_URLS` | same | `http://localhost:3001/,https://newsroom.pilobol.us/,https://main.d11eu9hbs2mipk.amplifyapp.com/` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | SSM `/amplify/d11eu9hbs2mipk/main-branch-3c5f57c311/...` | from Google client |
 | `PAPYRUS_DISABLE_GOOGLE_OAUTH` | same | remove when secrets are set |

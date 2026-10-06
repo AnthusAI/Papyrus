@@ -1,66 +1,67 @@
 # Amplify app-shell CDK
 
-IaC for the Amplify **app shell** of a Papyrus publication CMS. The app shell
-is the `AWS::Amplify::App` + branch + custom domain + IAM roles — the
-container that the Papyrus backend (`amplify/backend.ts`) deploys into via
-`ampx pipeline-deploy`. This is the part that used to be created manually in
-the Amplify console; it is now CDK so a new site's CMS app is reproducible.
+IaC for the Amplify **app shell** of a Papyrus publication. The code ships in
+the npm package as `@anthusai/papyrus/infra`; each publication supplies its own
+`infra/site.json`, so adding a site never edits Papyrus. This directory is the
+source of that code (`lib/`), plus example site files and a local CDK entry
+point for developing it.
 
-The Papyrus backend itself is **not** defined here. It deploys from the repo
-`amplify.yml` build phase (`npx ampx pipeline-deploy`) once Amplify CI runs a
-build on the branch.
+The Papyrus backend (AppSync, Storage, Lambda) is **not** defined here. It is
+created inside the CMS app by `ampx pipeline-deploy` during the production
+build.
 
-## Layout
-
-```text
-infra/amplify-app-shell/
-  bin/app-shell.ts        # CDK app entry; selects site via -c site=<id>
-  lib/amplify-app-shell.ts # AmplifyAppShellStack construct
-  sites/pilobol-us.ts     # per-site config (add new sites here)
-  cdk.json                # default context: site=pilobol-us
-```
-
-## Prerequisites
-
-- CDK bootstrapped in the target account/region (`cdk bootstrap`). Already
-  done for `us-east-1` / `335163751677` (bootstrap v32).
-- A Secrets Manager secret holding a GitHub access token with `repo` (and
-  `admin:repo_hook` for auto-build webhooks) scope, scoped to `AnthusAI/Papyrus`.
-  Default secret name: `amplify/github-app-token`. Replace the initial token with
-  a dedicated fine-grained PAT.
-
-## Deploy a site
-
-```bash
-cd infra/amplify-app-shell
-npm install
-npm run deploy:pilobol-us     # = cdk deploy -c site=pilobol-us
-```
-
-Outputs the new Amplify `appId`. The custom domain DNS records are placed
-automatically by Amplify when the Route 53 hosted zone is in the same account.
-
-## Add a new site
-
-1. Add an entry to `SITES` in `sites/pilobol-us.ts` (or a new site file).
-2. Set the brand's `readerDeployment` (static reader) and `hosting: amplify-ssr`
-   (this CMS) in `publications/<brand>/brand.ts`.
-3. `npm run deploy:<site-id>`.
-4. Populate secrets on the new app (`ampx console` or SSM) for `OPENAI_API_KEY`
-   and the JWT secret, then trigger a backend build.
-
-## What this stack creates
+## What a site gets
 
 | Resource | Purpose |
 | --- | --- |
-| `AWS::Amplify::App` | WEB_COMPUTE app connected to `AnthusAI/Papyrus` via PAT |
-| `AWS::Amplify::Branch` | `main` with `PAPYRUS_SITE_BRAND=<brand>` env vars |
-| `AWS::Amplify::Domain` | `newsroom.<site>.us` on the site's Route 53 zone |
-| `IAM::Role` (service) | Backend deploy role (ampx pipeline-deploy) |
-| `IAM::Role` (compute) | SSR rendering role for WEB_COMPUTE |
+| CMS app `<siteId>-cms` (`WEB_COMPUTE`) | Branch `main` (production, owns the backend) and `staging` (frontend only, reads the production backend) |
+| Reader app `<siteId>-reader` (`WEB`), `markus-static` only | Branch `main`; static build from the published content export |
+| Domains | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex |
+| CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
+| Compute role | SSR rendering role for the CMS app |
+| Reader service role | Least privilege: `ssm:GetParameter(s)` on the CMS app's `/amplify/<cmsAppId>/*` and `/amplify/shared/<cmsAppId>/*`, `s3:GetObject` on `amplify-*/media/*` |
+
+No repository and no access token are configured. Apps are manual-deploy until
+Amplify's GitHub App is connected once per app in the console (see
+[`docs/site-hosting.md`](../../docs/site-hosting.md#one-time-github-app-connection-per-app)).
+
+Build specs are generated from the site config (`lib/build-specs.ts`) and set
+on the apps and on the `staging` branch; no `amplify.yml` is needed. Every spec
+uses `npm ci`; specs that run Python provision 3.12 with `uv` because the
+Amplify build image defaults to Python 3.10 and `papyrus-newsroom` needs 3.12.
+
+## `infra/site.json`
+
+Schema and validation: `lib/site-config.ts` (`parseSiteConfig`). Examples:
+[`examples/pilobol-us.site.json`](examples/pilobol-us.site.json) (`markus-static`)
+and [`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`).
+`cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` must include
+`https://<cms domain>/`, `https://<staging domain>/` and `http://localhost:3001/`.
+
+## Use from a publication repo
+
+```bash
+cd infra
+npm install @anthusai/papyrus aws-cdk-lib constructs
+npx papyrus-infra synth --site site.json
+npx papyrus-infra print-buildspec --site site.json --app cms-production   # or cms-staging, reader
+```
+
+`synth` prints `synthesized amplify-app-shell-<siteId>` and writes `cdk.out/`.
+Deploying (`cdk deploy`) is a separate, reviewed step.
+
+## Develop this code
+
+```bash
+cd infra/amplify-app-shell
+npm ci
+npm run build                                   # tsc --noEmit
+SITE=examples/pilobol-us.site.json npm run synth
+cd ../.. && npx tsx scripts/test-infra-site-config.ts && node scripts/test-infra-synth.mjs
+```
 
 ## Related
 
-- [`docs/site-workspace.md`](../../docs/site-workspace.md) — local workspace convention.
-- [`docs/site-hosting.md`](../../docs/site-hosting.md) — split reader + CMS hosting.
-- [`publications/pilobol_us/docs/bootstrap.md`](../../publications/pilobol_us/docs/bootstrap.md) — Pilobolus runbook.
+- [`docs/standard-site.md`](../../docs/standard-site.md) sections 1.6 and 1.10.
+- [`docs/site-hosting.md`](../../docs/site-hosting.md) hosting options and the GitHub App connection.
+- [`publications/pilobol_us/docs/bootstrap.md`](../../publications/pilobol_us/docs/bootstrap.md) Pilobolus runbook.

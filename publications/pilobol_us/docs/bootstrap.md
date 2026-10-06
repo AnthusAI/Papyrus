@@ -75,8 +75,15 @@ Media bucket:    amplify-d11eu9hbs2mipk-ma-papyrusmediabucket0dab24-nictgfucsrga
 JWT SSM param:   /amplify/d11eu9hbs2mipk/main-branch-3c5f57c311/PAPYRUS_JWT_SECRET
 ```
 
-The app shell is provisioned by `infra/amplify-app-shell` (CDK); the backend
-deploys via `ampx pipeline-deploy` on the first Amplify CI build of `main`.
+The app shell is provisioned by `@anthusai/papyrus/infra` (CDK) from the
+publication's `infra/site.json` (see
+[`infra/amplify-app-shell/README.md`](../../../infra/amplify-app-shell/README.md)):
+no GitHub token is stored. After the one-time GitHub App connection per app
+([`docs/site-hosting.md`](../../../docs/site-hosting.md#one-time-github-app-connection-per-app)),
+the backend deploys via `ampx pipeline-deploy` on the first Amplify CI build of
+`main`, pinned to the `papyrusVersion` in `site.json` (no floating `main` of
+`AnthusAI/Papyrus`). The `Repository` line above describes the legacy app
+`d11eu9hbs2mipk` until the Phase 3 migration.
 
 ## 2. DNS
 

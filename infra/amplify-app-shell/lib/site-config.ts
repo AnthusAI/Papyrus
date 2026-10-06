@@ -1,0 +1,163 @@
+export type AmplifyAppShellSiteConfig = {
+  siteId: string;
+  repository: string;
+  brand: string;
+  frontend: "pretext" | "markus-static";
+  hostedZoneId: string;
+  cms: {
+    appName?: string;
+    domainName: string;
+    buildComputeType?: "STANDARD" | "STANDARD_8GB";
+    environment: Record<string, string>;
+    stagingDomainName?: string;
+  };
+  reader?: {
+    appName?: string;
+    domainName: string;
+    branchName?: string;
+    buildCommand: string;
+    baseDirectory: string;
+    environment?: Record<string, string>;
+  };
+  papyrusVersion: string;
+  storagePreviewPrefix?: string;
+};
+
+const SITE_ID_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+const REPOSITORY_PATTERN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const HOSTED_ZONE_ID_PATTERN = /^Z[A-Z0-9]+$/;
+const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
+const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
+const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
+const PAPYRUS_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+\.\d+)?$/;
+const LOCAL_DEVELOPMENT_ORIGIN = "http://localhost:3001/";
+
+function fail(field: string, problem: string): never {
+  throw new Error(`site.json: ${field} ${problem}`);
+}
+
+function requireObject(value: unknown, field: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    fail(field, "must be an object");
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireString(value: unknown, field: string, pattern?: RegExp, patternHint?: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    fail(field, "must be a non-empty string");
+  }
+  if (pattern && !pattern.test(value as string)) {
+    fail(field, `is invalid${patternHint ? ` (${patternHint})` : ""}: ${JSON.stringify(value)}`);
+  }
+  return value as string;
+}
+
+function optionalString(value: unknown, field: string, pattern?: RegExp, patternHint?: string): string | undefined {
+  return value === undefined ? undefined : requireString(value, field, pattern, patternHint);
+}
+
+function requireStringRecord(value: unknown, field: string): Record<string, string> {
+  const record = requireObject(value, field);
+  const result: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(record)) {
+    if (typeof entry !== "string") fail(`${field}.${key}`, "must be a string");
+    result[key] = entry as string;
+  }
+  return result;
+}
+
+function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[], field: string): void {
+  for (const key of Object.keys(record)) {
+    if (!allowed.includes(key)) fail(`${field}.${key}`, `is not a known field (known: ${allowed.join(", ")})`);
+  }
+}
+
+export function resolveStagingDomainName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string {
+  if (config.cms.stagingDomainName) return config.cms.stagingDomainName;
+  const [, ...rest] = config.cms.domainName.split(".");
+  return ["staging", ...rest].join(".");
+}
+
+export function resolveStoragePreviewPrefix(config: Pick<AmplifyAppShellSiteConfig, "storagePreviewPrefix">): string {
+  return config.storagePreviewPrefix ?? "preview/";
+}
+
+export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
+  const record = requireObject(raw, "site");
+  rejectUnknownKeys(
+    record,
+    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "cms", "reader", "papyrusVersion", "storagePreviewPrefix"],
+    "site",
+  );
+
+  const siteId = requireString(record.siteId, "siteId", SITE_ID_PATTERN, "kebab-case");
+  const repository = requireString(record.repository, "repository", REPOSITORY_PATTERN, "https://github.com/<org>/<repo>");
+  const brand = requireString(record.brand, "brand");
+  const frontend = requireString(record.frontend, "frontend");
+  if (frontend !== "pretext" && frontend !== "markus-static") {
+    fail("frontend", `must be "pretext" or "markus-static", got ${JSON.stringify(frontend)}`);
+  }
+  const hostedZoneId = requireString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
+  const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
+  const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
+
+  const cmsRecord = requireObject(record.cms, "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "buildComputeType", "environment", "stagingDomainName"], "cms");
+  const buildComputeType = cmsRecord.buildComputeType;
+  if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
+    fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
+  }
+  const cms: AmplifyAppShellSiteConfig["cms"] = {
+    appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
+    domainName: requireString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
+    buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
+    environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
+    stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
+  };
+
+  let reader: AmplifyAppShellSiteConfig["reader"];
+  if (record.reader !== undefined) {
+    if (frontend !== "markus-static") fail("reader", `is only allowed when frontend is "markus-static"`);
+    const readerRecord = requireObject(record.reader, "reader");
+    rejectUnknownKeys(readerRecord, ["appName", "domainName", "branchName", "buildCommand", "baseDirectory", "environment"], "reader");
+    reader = {
+      appName: optionalString(readerRecord.appName, "reader.appName", APP_NAME_PATTERN),
+      domainName: requireString(readerRecord.domainName, "reader.domainName", HOST_NAME_PATTERN, "host name"),
+      branchName: optionalString(readerRecord.branchName, "reader.branchName", BRANCH_NAME_PATTERN),
+      buildCommand: requireString(readerRecord.buildCommand, "reader.buildCommand"),
+      baseDirectory: requireString(readerRecord.baseDirectory, "reader.baseDirectory"),
+      environment: readerRecord.environment === undefined ? undefined : requireStringRecord(readerRecord.environment, "reader.environment"),
+    };
+  } else if (frontend === "markus-static") {
+    fail("reader", `is required when frontend is "markus-static"`);
+  }
+
+  const config: AmplifyAppShellSiteConfig = {
+    siteId,
+    repository,
+    brand,
+    frontend,
+    hostedZoneId,
+    cms,
+    reader,
+    papyrusVersion,
+    storagePreviewPrefix,
+  };
+
+  const redirectValue = cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS;
+  if (redirectValue === undefined) fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", "is required");
+  const redirectUrls = redirectValue.split(",").map((url) => url.trim());
+  const requiredOrigins = [
+    `https://${cms.domainName}/`,
+    `https://${resolveStagingDomainName(config)}/`,
+    LOCAL_DEVELOPMENT_ORIGIN,
+  ];
+  for (const origin of requiredOrigins) {
+    if (!redirectUrls.includes(origin)) {
+      fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", `must include ${origin}`);
+    }
+  }
+
+  return config;
+}

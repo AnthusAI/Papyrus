@@ -10,5 +10,8 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": ["bin", "lib", "sites"]
+  "include": [
+    "bin",
+    "lib"
+  ]
 }

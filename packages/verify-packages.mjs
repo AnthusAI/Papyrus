@@ -58,6 +58,8 @@ for (const required of [
   "package/lib/define-site.js",
   "package/routes.manifest.json",
   "package/infra/index.js",
+  "package/infra/site-config.js",
+  "package/infra/build-specs.js",
 ]) {
   if (!listing.includes(required)) fail(`tarball does not contain ${required}`);
 }
@@ -98,6 +100,11 @@ try {
   const listed = tryRun("npm", ["ls", "aws-cdk-lib", "constructs"], { cwd: consumer });
   if (/aws-cdk-lib@|constructs@/.test(listed.stdout)) fail(`consumer install pulled optional peers:\n${listed.stdout}`);
   pass("consumer install does not install aws-cdk-lib or constructs");
+
+  const infraImport = tryRun("node", ["--input-type=module", "-e", 'await import("@anthusai/papyrus/infra")'], { cwd: consumer });
+  if (infraImport.status === 0) fail("importing @anthusai/papyrus/infra succeeded without aws-cdk-lib");
+  if (!/optional peer dependencies/.test(infraImport.stderr)) fail(`infra import failed without the clear message:\n${infraImport.stderr}`);
+  pass("importing @anthusai/papyrus/infra without the CDK fails with the clear message");
 
   const secondVersion = "0.0.0-smoke.2";
   const secondOut = path.join(work, "second");
