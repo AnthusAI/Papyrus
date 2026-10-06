@@ -206,10 +206,10 @@ dynamically.
 
 The Data API is multi-auth. Public site reads use the API key from Amplify
 outputs. Cognito user-pool auth remains available for future app/editor
-surfaces. CLI authoring uses the separate Lambda authorizer, with
-`PAPYRUS_GRAPHQL_JWT` sent directly to AppSync. Deploying that lane requires an
-Amplify secret named `PAPYRUS_JWT_SECRET`; the authorizer also enforces the
-configured issuer, audience, and scope values.
+surfaces. CLI authoring uses IAM: requests are signed with SigV4 from the
+standard AWS credential chain (an SSO or role profile that assumes the site's
+`<siteId>-papyrus-authoring` role, an OIDC role, or an Amplify build role).
+There is no token or shared secret to deploy or rotate.
 
 Cloud content is seeded from fixture content in `lib/articles.ts` and
 `lib/layout-plan.ts`. The seed uploads article images to Storage and creates the
@@ -227,15 +227,16 @@ Papyrus already follows that split:
 - App-level settings belong in `.env`.
 - The seed script can still use Cognito editor credentials when seeding through
   Amplify Auth.
-- The content CLI uses a direct bearer token in `PAPYRUS_GRAPHQL_JWT` for
-  authoring requests. It does not log into a Papyrus user pool.
+- The content CLI signs authoring requests with SigV4 from the AWS credential
+  chain (`AWS_PROFILE`). It does not log into a Papyrus user pool and stores no
+  token.
 
 Papyrus has three distinct GraphQL auth lanes:
 
 - the site reads GraphQL content with API-key auth;
 - Cognito user-pool auth remains available for app/editor surfaces;
-- the authoring CLI writes content with a JWT accepted by AppSync through the
-  configured Lambda authorizer.
+- the authoring CLI writes content with IAM (SigV4) credentials for the
+  authoring role.
 
 ## Newsroom
 
@@ -397,12 +398,12 @@ item versions; `SemanticRelation` rows point to exact subject/object versions.
 Public readers use only published projections: `PublishedEdition`,
 `PublishedEditionItem`, `PublishedItem`, `PublishedMediaAsset`,
 `PublishedCategorySet`, and `PublishedCategory`. Private canonical tables are
-editor/admin and JWT-authoring only; API-key reads are limited to the projection
+editor/admin and IAM-authoring only; API-key reads are limited to the projection
 tables. Publishing materializes approved current versions into projections, so
 the reader path stays a direct AppSync read without a Lambda call.
 
 Raw Biblicus steering payloads and import internals live in `KnowledgeRawPayload`,
-which is private to editor/admin users and the JWT-authorized worker lane.
+which is private to editor/admin users and the IAM-authorized worker lane.
 Actual corpus contents do not belong in GraphQL. `Reference` records store only
 strict metadata such as Biblicus `item_id`, title, authors, source URI, S3/corpus
 path, media type, checksum, dates, and sanitized provenance. Stable IDs such as
@@ -534,8 +535,8 @@ Accepted references, ontology, and graph neighbors are queried through one
 shared engine (`knowledgeQuery`). Coding agents and newsroom procedures should
 use it for **internal research** before web search or new reference intake.
 
-Quick start (requires `PAPYRUS_GRAPHQL_ENDPOINT` and `PAPYRUS_GRAPHQL_JWT` in
-`.env`; see `.env.example`):
+Quick start (requires `PAPYRUS_GRAPHQL_ENDPOINT` in `.env`, see `.env.example`,
+and AWS credentials via `AWS_PROFILE`):
 
 ```bash
 PYTHONPATH=src python -m papyrus_newsroom knowledge-query \
@@ -731,10 +732,12 @@ poetry run papyrus knowledge query --query "AI in games" --anchor newsroomSectio
 poetry run papyrus assignments build-assignment-agent-context --assignment-id <assignment-id> --max-tokens 4000 --recent-days 30
 ```
 
-Set `PAPYRUS_GRAPHQL_ENDPOINT` and `PAPYRUS_GRAPHQL_JWT` before running
-authoring commands. The JWT is sent in the AppSync `Authorization` header using
-the Papyrus Lambda-authorizer scheme. No Papyrus editor login or local
-auth-session cache is involved.
+Set `PAPYRUS_GRAPHQL_ENDPOINT` and `AWS_PROFILE` before running authoring
+commands. Requests are signed with SigV4 (IAM) from the standard AWS credential
+chain: an SSO profile that assumes the site's `<siteId>-papyrus-authoring` role,
+an OIDC role, or an Amplify build role. No Papyrus editor login, stored token,
+or local auth-session cache is involved. See
+[Running the CLI locally](docs/site-hosting.md#running-the-cli-locally).
 
 The CLI still contains legacy `diff` and `sync` commands for source-driven
 publishing, but those commands require a local source adapter. The runtime no
@@ -742,8 +745,8 @@ longer has a committed `content/articles` Markdown store, so do not cite
 `content sync edition current` as the production publishing path unless a
 current source payload exists and has been validated.
 
-`content delete all --yes` removes CMS records through the same
-JWT/Lambda-authorizer authoring lane. Use it only for an explicitly requested
+`content delete all --yes` removes CMS records through the same IAM authoring
+credentials. Use it only for an explicitly requested
 reset. Do not use it for production content refreshes.
 
 For local cloud work, use an AWS profile, for example:
@@ -832,8 +835,7 @@ Current execution limitation (important):
 
 Production content lives in Amplify Data. The reader path uses API-key GraphQL
 reads through `ContentRepository`; production writes and repairs should use the
-JWT/Lambda-authorizer authoring lane or an explicit AWS-backed maintenance
-script. Do not repair production by adding a runtime Markdown content source.
+IAM-signed authoring CLI or an explicit AWS-backed maintenance script. Do not repair production by adding a runtime Markdown content source.
 
 Production authoring uses the deployed AppSync API, not the sandbox:
 
@@ -841,32 +843,15 @@ Production authoring uses the deployed AppSync API, not the sandbox:
 export AWS_PROFILE=default
 export AWS_REGION=us-east-1
 export PAPYRUS_GRAPHQL_ENDPOINT=https://ur2anu47d5f67eq7sjzoqpyuze.appsync-api.us-east-1.amazonaws.com/graphql
-export PAPYRUS_JWT_SECRET_SSM_PARAM=/amplify/d3on1y5vlrxmam/main-branch-aeb7dfa526/PAPYRUS_JWT_SECRET
 ```
 
-Mint a fresh short-lived JWT from the production Amplify SSM secret:
+`AWS_PROFILE` must resolve to credentials that may assume the production site's
+authoring role (`aws sso login --profile <profile>` for SSO profiles).
 
 The full production authoring and category/graph steering guide lives in the
 agent skill at [skills/category-steering/SKILL.md](skills/category-steering/SKILL.md).
 
-```bash
-export PAPYRUS_GRAPHQL_JWT="$(npm run -s auth:refresh-jwt)"
-```
-
-Or write it directly into local `.env` for this workspace:
-
-```bash
-npm run auth:refresh-jwt -- --write-env .env
-```
-
-If your shell already exported an old `PAPYRUS_GRAPHQL_JWT`, refresh the active
-shell value directly:
-
-```bash
-eval "$(npm run -s auth:refresh-jwt -- --format shell)"
-```
-
-Then verify the authoring lane before writing:
+Then verify the authoring credentials before writing:
 
 ```bash
 poetry run papyrus ops content inspect
@@ -874,8 +859,9 @@ poetry run papyrus ops content list articles
 ```
 
 Treat `poetry run papyrus ops content inspect` as a hard preflight gate for live
-CLI smoke runs. If it fails (for example `401 Unauthorized`), refresh JWT auth
-first and do not continue with live write/read smoke commands.
+CLI smoke runs. If it fails (for example `401 Unauthorized` or no credentials),
+fix the AWS profile or role first and do not continue with live write/read smoke
+commands.
 
 For production content refreshes, use targeted GraphQL upserts. The safe pattern
 is:
@@ -960,7 +946,7 @@ inside the feature file.
   `PublicationItem` objects.
 - `amplify/` defines the Gen2 Auth, Data, Storage, and seed resources for the
   cloud content backend.
-- `papyrus` is the JWT-backed content authoring CLI for
+- `papyrus` is the IAM-signed (SigV4) content authoring CLI for
   GraphQL inspect/list/diff/sync workflows.
 - `lib/content-types.ts` defines `EditionContent` and `ContentRepository`.
 - `lib/publication-items.ts` defines generic publication items and article

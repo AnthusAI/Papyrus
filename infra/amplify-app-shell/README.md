@@ -19,8 +19,9 @@ build.
 | Domains (optional) | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex. Omit `cms.domainName` / `reader.domainName` / `hostedZoneId` to create no `AWS::Amplify::Domain` and use the default `amplifyapp.com` URLs |
 | CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
 | Compute role | SSR rendering role for the CMS app |
-| GitHub CI role `<siteId>-github-ci` (when `github` is set) | Assumed by GitHub Actions through OIDC for the listed branches only; Amplify jobs on the site's apps, SSM secret reads, optional `cloudformation:*` on this stack (`ciCanDeployInfra`). See [CI access without keys](../../docs/site-hosting.md#ci-access-without-keys) |
-| Reader service role | Least privilege: `ssm:GetParameter(s)` on the CMS app's `/amplify/<cmsAppId>/*` and `/amplify/shared/<cmsAppId>/*`, `s3:GetObject` on `amplify-*/media/*` |
+| Authoring role `<siteId>-papyrus-authoring` | What the Papyrus CLI signs AppSync requests (SigV4) with: `appsync:GraphQL` on Query/Mutation fields, `media/*` and preview object access in the site's storage bucket, Amplify jobs on the site's apps. Trust is the account root. No token exists. See [Authoring role and the CLI](../../docs/site-hosting.md#authoring-role-and-the-cli) |
+| GitHub CI role `<siteId>-github-ci` (when `github` is set) | Assumed by GitHub Actions through OIDC for the listed branches only; the same statements as the authoring role, optional `cloudformation:*` on this stack (`ciCanDeployInfra`). See [CI access without keys](../../docs/site-hosting.md#ci-access-without-keys) |
+| Reader service role | Least privilege: `s3:GetObject` on `amplify-*/media/*` |
 
 No repository and no access token are configured. Apps are manual-deploy until
 Amplify's GitHub App is connected once per app in the console (see

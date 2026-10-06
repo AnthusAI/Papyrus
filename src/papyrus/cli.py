@@ -47,7 +47,7 @@ def _delegate_newsroom(argv: list[str]) -> int:
 
 
 def _operator_groups_with_help() -> set[str]:
-    return {"references", "assignments", "auth", "knowledge"}
+    return {"references", "assignments", "knowledge"}
 
 
 def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
@@ -200,15 +200,6 @@ def _map_ops(command: str, flags: list[str]) -> int:
     return 0
 
 
-def _map_auth(command: str, flags: list[str]) -> int:
-    if command == "refresh":
-        return dispatch_operator_command("auth", "refresh", flags)
-    if command == "refresh-jwt":
-        _delegate_content("auth", "refresh-jwt", flags)
-        return 0
-    raise ValueError(f"Unsupported papyrus auth command: {command}")
-
-
 def _find_operator_repo_root(start: Path) -> Path | None:
     resolved = start.resolve()
     for candidate in [resolved, *resolved.parents]:
@@ -300,11 +291,6 @@ def main(argv: list[str] | None = None) -> int:
             if command is None:
                 raise ValueError("papyrus analysis requires <command>.")
             return _map_analysis(command, flags)
-        if group == "auth":
-            if command is None:
-                print_group_help(group)
-                return 0
-            return _map_auth(command, flags)
         if group in {"editions", "batch"}:
             if command is None:
                 raise ValueError(f"papyrus {group} requires <command>.")
@@ -359,8 +345,6 @@ def main(argv: list[str] | None = None) -> int:
         if not should_suppress_traceback(error):
             traceback.print_exc()
         if isinstance(error, ValueError) and "unknown backend" in str(error):
-            return 2
-        if isinstance(error, ValueError) and "PAPYRUS_GRAPHQL_JWT" in str(error):
             return 2
         return 1
 

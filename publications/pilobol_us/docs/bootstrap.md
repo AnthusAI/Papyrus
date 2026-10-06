@@ -63,7 +63,7 @@ PAPYRUS_REVALIDATE_SECRET=<generate>
 ```
 
 Trigger the first deploy. Note the new `appId`, AppSync endpoint, media bucket,
-and JWT SSM parameter path from `amplify_outputs.json` / CloudFormation outputs.
+and the authoring role ARN from `amplify_outputs.json` / CloudFormation outputs.
 
 Record them here after first deploy:
 
@@ -72,7 +72,7 @@ appId:           d11eu9hbs2mipk
 defaultDomain:   d11eu9hbs2mipk.amplifyapp.com
 GraphQL:         https://q2c7ulf45rh2nesbg6p3yki4si.appsync-api.us-east-1.amazonaws.com/graphql
 Media bucket:    amplify-d11eu9hbs2mipk-ma-papyrusmediabucket0dab24-nictgfucsrga
-JWT SSM param:   /amplify/d11eu9hbs2mipk/main-branch-3c5f57c311/PAPYRUS_JWT_SECRET
+Authoring role:  arn:aws:iam::335163751677:role/<siteId>-papyrus-authoring
 ```
 
 The app shell is provisioned by `@anthusai/papyrus/infra` (CDK) from the
@@ -100,13 +100,12 @@ Hosted zone: `pilobol.us` (`Z09961547QX1VHIXOBD7`). Apex + `www` belong to the
 PAPYRUS_SITE_BRAND=pilobol-us
 NEXT_PUBLIC_PAPYRUS_SITE_BRAND=pilobol-us
 PAPYRUS_GRAPHQL_ENDPOINT=<from amplify_outputs.json>
-PAPYRUS_JWT_SECRET_SSM_PARAM=/amplify/<appId>/main-branch-<hash>/PAPYRUS_JWT_SECRET
 ```
 
-Mint a CLI JWT:
+Run the CLI with AWS credentials for the authoring role (no token to mint):
 
 ```bash
-PYTHONPATH=src python -m papyrus.cli auth refresh-jwt --write-env .env
+AWS_PROFILE=<profile> PYTHONPATH=src python -m papyrus.cli ops content inspect
 ```
 
 ## 4. Materialize newsroom config

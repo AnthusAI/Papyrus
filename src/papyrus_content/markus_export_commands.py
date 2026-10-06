@@ -25,7 +25,7 @@ def content_export_published(flags: list[str]) -> None:
         configuration = resolve_guest_configuration(explicit_bucket)
         session = GuestSession(configuration)
         client = PapyrusGraphQLAuthoringClient(
-            endpoint=configuration.endpoint, auth_token="", header_factory=session.appsync_headers
+            endpoint=configuration.endpoint, header_factory=session.appsync_headers
         )
         store = (
             S3MediaStore(configuration.bucket, client=session.s3_client())

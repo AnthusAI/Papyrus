@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from papyrus_content.graphql_http import iam_signed_graphql_headers
 
 
 CONSOLE_THREAD_ANCHOR_KEY = "site#papyrus"
@@ -761,7 +762,6 @@ def scenario_prompt(
 @dataclass
 class GraphqlClient:
     endpoint: str
-    jwt: str
     schema_cache: dict[str, set[str]] | None = None
 
     @classmethod
@@ -769,14 +769,14 @@ class GraphqlClient:
         _load_env_file(repo_root / ".env.local")
         _load_env_file(repo_root / ".env")
         endpoint = _required_env("PAPYRUS_GRAPHQL_ENDPOINT", _endpoint_from_outputs(repo_root))
-        jwt = _required_env("PAPYRUS_GRAPHQL_JWT")
-        return cls(endpoint=endpoint, jwt=re.sub(r"^Bearer\s+", "", jwt.strip(), flags=re.IGNORECASE))
+        return cls(endpoint=endpoint)
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None, field: str | None = None) -> Any:
+        body = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
         response = requests.post(
             self.endpoint,
-            headers={"content-type": "application/json", "authorization": f"PapyrusJwt {self.jwt}"},
-            json={"query": query, "variables": variables or {}},
+            headers=iam_signed_graphql_headers(self.endpoint, body),
+            data=body,
             timeout=60,
         )
         payload: dict[str, Any] = {}

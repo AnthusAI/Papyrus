@@ -8,7 +8,7 @@ import * as route53 from "aws-cdk-lib/aws-route53";
 import * as ses from "aws-cdk-lib/aws-ses";
 import * as sesActions from "aws-cdk-lib/aws-ses-actions";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
-import { CfnEventSourceMapping, CfnFunction, Function as LambdaFunction, FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
+import { CfnEventSourceMapping, Function as LambdaFunction, FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { CfnIndex, CfnVectorBucket, CfnVectorBucketPolicy } from "aws-cdk-lib/aws-s3vectors";
 import { dirname, resolve } from "node:path";
@@ -19,7 +19,6 @@ import { data } from "./data/resource";
 import { assignmentAction } from "./functions/assignment-action/resource";
 import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
-import { graphqlJwtAuthorizer } from "./functions/graphql-jwt-authorizer/resource";
 import { contentActions } from "./functions/content-actions/resource";
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
 import { manageUserRole } from "./functions/manage-user-role/resource";
@@ -94,7 +93,6 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     categoryAction,
     contentActions,
     data,
-    graphqlJwtAuthorizer,
     knowledgeQuery,
     manageUserRole,
     modelAttachmentUpload,
@@ -160,43 +158,19 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     const messageThreadTable = backend.data.resources.tables.MessageThread;
     const dataStack = Stack.of(messageTable);
     const graphqlEndpoint = backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl;
-    const jwtAuthorizerCfn = backend.graphqlJwtAuthorizer.resources.lambda.node.defaultChild as CfnFunction | undefined;
-    const jwtAuthorizerEnvironment = jwtAuthorizerCfn?.environment;
-    const jwtAuthorizerVariables =
-      jwtAuthorizerEnvironment
-      && typeof jwtAuthorizerEnvironment === "object"
-      && "variables" in jwtAuthorizerEnvironment
-        ? (jwtAuthorizerEnvironment as { variables?: Record<string, string> }).variables
-        : undefined;
-    const jwtSsmEnvConfig =
-      process.env.AMPLIFY_SSM_ENV_CONFIG?.trim()
-      || jwtAuthorizerVariables?.AMPLIFY_SSM_ENV_CONFIG?.trim()
-      || "";
+    const amplifySsmEnvConfig = process.env.AMPLIFY_SSM_ENV_CONFIG?.trim() || "";
 
     if (enableConsoleResponder) {
-      const consoleChatResponder = new ConsoleChatResponderStack(dataStack, "ConsoleChatResponder", {
+      new ConsoleChatResponderStack(dataStack, "ConsoleChatResponder", {
         messageTable,
         messageStreamArn,
         threadTable: messageThreadTable,
         projectRoot,
         graphqlEndpoint,
-        amplifySsmEnvConfig: jwtSsmEnvConfig || undefined,
         responseTarget: process.env.PAPYRUS_CONSOLE_RESPONSE_TARGET,
         model: process.env.PAPYRUS_CONSOLE_MODEL,
         prebuiltImageUri: process.env.PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI,
       });
-      if (jwtSsmEnvConfig) {
-        consoleChatResponder.responderFunction.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", jwtSsmEnvConfig);
-      }
-      const jwtSecretSsmParam =
-        process.env.PAPYRUS_JWT_SECRET_SSM_PARAM?.trim()
-        || (productionAppId !== "" && amplifyAppId === productionAppId
-          ? `/amplify/${amplifyAppId}/main-branch-cb38ada667/PAPYRUS_JWT_SECRET`
-          : "/amplify/papyrus/ryan-sandbox-adcd88a186/PAPYRUS_JWT_SECRET");
-      consoleChatResponder.responderFunction.addEnvironment(
-        "PAPYRUS_JWT_SECRET_SSM_PARAM",
-        jwtSecretSsmParam,
-      );
     }
 
     if (enableSlackAgent) {
@@ -217,9 +191,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         "PAPYRUS_SLACK_ALLOWED_USER_IDS",
         (process.env.PAPYRUS_SLACK_ALLOWED_USER_IDS ?? "").trim(),
       );
-      if (jwtSsmEnvConfig) {
-        backend.slackEvents.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", jwtSsmEnvConfig);
-        backend.slackDelivery.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", jwtSsmEnvConfig);
+      if (amplifySsmEnvConfig) {
+        backend.slackEvents.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
+        backend.slackDelivery.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
       }
       backend.slackDelivery.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
       backend.slackDelivery.addEnvironment(

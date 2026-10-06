@@ -25,9 +25,9 @@ or `UserProfile.email`. This is a lightweight guard, not cryptographic proof of
 identity.
 
 **AppSync access:** `papyrus-ses-inbound-receive` and
-`papyrus-email-submission-processor` call GraphQL with **IAM only** (no JWT).
+`papyrus-email-submission-processor` call GraphQL with **IAM only**.
 They are granted access via `allow.resource(...)` on the data schema and
-`appsync:GraphQL` on their execution roles. JWT authoring is for CLI tools only.
+`appsync:GraphQL` on their execution roles. The CLI uses IAM too, with the authoring role.
 
 ## Submission contract
 

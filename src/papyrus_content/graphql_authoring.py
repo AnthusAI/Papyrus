@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import json
 import http.client
-import os
 import urllib.parse
 from typing import Any, Callable
 
-from .env import graphql_endpoint, graphql_jwt, graphql_timeout_seconds
+from .env import graphql_endpoint, graphql_timeout_seconds
 from .guest_auth import refuse_guest_auth
-from .graphql_http import graphql_request_headers, graphql_use_iam, running_in_aws_lambda
+from .graphql_http import iam_signed_graphql_headers
 
 VERSION_FIELDS = (
     "lineageId versionNumber previousVersionId versionState versionCreatedAt "
@@ -551,18 +550,10 @@ class PapyrusGraphQLAuthoringClient:
     def __init__(
         self,
         endpoint: str | None = None,
-        auth_token: str | None = None,
         header_factory: Callable[[bytes], dict[str, str]] | None = None,
     ) -> None:
         self.endpoint = endpoint or graphql_endpoint()
         self.header_factory = header_factory
-        self.use_iam = graphql_use_iam()
-        if self.use_iam:
-            self.auth_token = auth_token or ""
-        elif auth_token is not None:
-            self.auth_token = auth_token
-        else:
-            self.auth_token = graphql_jwt()
         self.timeout_seconds = graphql_timeout_seconds()
         self._parsed_endpoint = urllib.parse.urlparse(self.endpoint)
         if self._parsed_endpoint.scheme != "https":
@@ -575,13 +566,7 @@ class PapyrusGraphQLAuthoringClient:
     def _request_headers(self, payload: bytes) -> dict[str, str]:
         if self.header_factory is not None:
             return self.header_factory(payload)
-        if self.use_iam:
-            from .graphql_http import iam_signed_graphql_headers
-
-            return iam_signed_graphql_headers(self.endpoint, payload)
-        headers = graphql_request_headers(endpoint=self.endpoint, body=payload, token=self.auth_token)
-        headers["Connection"] = "keep-alive"
-        return headers
+        return iam_signed_graphql_headers(self.endpoint, payload)
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
@@ -875,13 +860,8 @@ class PapyrusGraphQLAuthoringClient:
 
 
 def create_authoring_client() -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
-    from .env import decode_jwt_claims
-
     refuse_guest_auth("this command")
-    if graphql_use_iam():
-        return PapyrusGraphQLAuthoringClient(auth_token=""), {}
-    token = graphql_jwt()
-    return PapyrusGraphQLAuthoringClient(auth_token=token), decode_jwt_claims(token)
+    return PapyrusGraphQLAuthoringClient(), {}
 
 
 def model_attachment_upload_variables(attachment: dict[str, Any]) -> dict[str, Any]:

@@ -25,12 +25,6 @@ Feature: Operator CLI
     And stdout should list the available `assignments` subcommands
     And stdout should mention `list`
 
-    When I run `papyrus auth`
-    Then the exit code should be 0
-    And stderr should be empty
-    And stdout should list the available `auth` subcommands
-    And stdout should mention `refresh`
-
     When I run `papyrus knowledge`
     Then the exit code should be 0
     And stderr should be empty
@@ -40,7 +34,8 @@ Feature: Operator CLI
   Scenario: Top-level help documents operator groups without requiring PYTHONPATH
     When I run `papyrus --help`
     Then the exit code should be 0
-    And stdout should mention `references`, `assignments`, `auth`, and `knowledge`
+    And stdout should mention `references`, `assignments`, and `knowledge`
+    And stdout should not list an `auth` group
     And stdout should explain that backend selection comes from project config or `--backend`
 
   @install
@@ -255,34 +250,30 @@ Feature: Operator CLI
   # ---------------------------------------------------------------------------
 
   @auth @cloud-backend
-  Scenario: auth refresh mints a JWT without a traceback
-    Given operator CLI config selects backend "cloud"
-    And cloud auth fixtures can mint a JWT
-    When I run `papyrus auth refresh --write-env <tmp-env>`
-    Then the exit code should be 0
-    And stderr should be empty
-    And stdout should confirm the JWT was written
-    And the file "<tmp-env>" should contain `PAPYRUS_GRAPHQL_JWT`
+  Scenario: The auth group no longer exists because no token is minted
+    When I run `papyrus auth refresh`
+    Then the exit code should be 1
+    And stderr should mention `Unsupported papyrus group: auth`
+    And stderr should not contain "Traceback"
 
   @auth @cloud-backend
-  Scenario: Expired JWT surfaces operator guidance instead of a traceback
+  Scenario: Cloud authoring without AWS credentials surfaces operator guidance instead of a traceback
     Given operator CLI config selects backend "cloud"
-    And the cloud references fixture is loaded
-    And `PAPYRUS_GRAPHQL_JWT` is expired
-    When I run `papyrus references list --limit 1`
+    And no operator CLI fixtures are loaded
+    And no AWS credentials are available
+    When I run `papyrus assignments list --limit 1`
     Then the exit code should be 2
-    And stderr should mention `papyrus auth refresh`
+    And stderr should mention `AWS_PROFILE`
     And stderr should not contain "Traceback"
-    And stderr should not contain "ValueError: PAPYRUS_GRAPHQL_JWT is expired"
 
   @auth @local-backend
-  Scenario: Local pod backend does not require cloud JWT for references list
+  Scenario: Local pod backend does not require AWS credentials for references list
     Given operator CLI config selects backend "local"
     And the local pod fixture "anthus-blog" is configured
-    And `PAPYRUS_GRAPHQL_JWT` is missing
+    And no AWS credentials are available
     When I run `papyrus references list --limit 1`
     Then the exit code should be 0
-    And stderr should not mention `papyrus auth refresh`
+    And stderr should not mention `AWS_PROFILE`
 
   # ---------------------------------------------------------------------------
   # Parity contract

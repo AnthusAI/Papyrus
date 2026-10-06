@@ -4,10 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from papyrus_content.env import decode_jwt_claims, graphql_jwt, is_jwt_expired, load_dotenv
+from papyrus_content.env import load_dotenv
+from papyrus_content.graphql_http import aws_credentials_available
 
 from ..config import OperatorConfig
-from ..errors import OperatorError, jwt_guidance_error
+from ..errors import OperatorError
 from ..output import OperatorRow
 from .base import (
   OperatorBackend,
@@ -26,19 +27,13 @@ class CloudBackend(OperatorBackend):
 
   def _ensure_auth(self) -> None:
     load_dotenv()
-    import os
-
-    token = os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip()
-    if not token:
-      if self._fixture_root():
-        return
-      raise jwt_guidance_error(
-        "Missing PAPYRUS_GRAPHQL_JWT. Run: papyrus auth refresh --write-env .env"
-      )
-    claims = decode_jwt_claims(token)
-    if is_jwt_expired(claims):
-      raise jwt_guidance_error(
-        "PAPYRUS_GRAPHQL_JWT is expired. Run: papyrus auth refresh --write-env .env"
+    if self._fixture_root():
+      return
+    if not aws_credentials_available():
+      raise OperatorError(
+        "No AWS credentials for cloud authoring. Set AWS_PROFILE to a profile that can assume the "
+        "papyrus-authoring role (for example: aws sso login --profile <profile>).",
+        exit_code=2,
       )
 
   def list_references(

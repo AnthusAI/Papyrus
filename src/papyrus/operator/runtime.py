@@ -3,7 +3,6 @@ from __future__ import annotations
 import sys
 import traceback
 
-from .commands.auth import run_auth_refresh
 from .commands.references import (
   run_assignments_list,
   run_references_list,
@@ -20,13 +19,12 @@ OPERATOR_COMMANDS = {
   ("references", "show"),
   ("references", "register"),
   ("assignments", "list"),
-  ("auth", "refresh"),
 }
 
 
 def is_operator_command(group: str, command: str | None) -> bool:
   if command is None:
-    return group in {"references", "assignments", "auth", "knowledge"}
+    return group in {"references", "assignments", "knowledge"}
   return (group, command) in OPERATOR_COMMANDS
 
 
@@ -48,16 +46,11 @@ def dispatch_operator_command(group: str, command: str | None, flags: list[str])
       return run_references_register(config, flags)
     if group == "assignments" and command == "list":
       return run_assignments_list(config, flags)
-    if group == "auth" and command == "refresh":
-      return run_auth_refresh(flags)
     raise OperatorError(f"Unsupported operator command: papyrus {group} {command}")
   except ValueError as error:
     message = str(error)
     if "unknown backend" in message:
       print(message, file=sys.stderr)
-      return 2
-    if "PAPYRUS_GRAPHQL_JWT" in message:
-      print(_friendly_jwt_message(message), file=sys.stderr)
       return 2
     raise
   except OperatorError as error:
@@ -79,15 +72,7 @@ def _flag_value(flags: list[str], name: str) -> str | None:
   return None
 
 
-def _friendly_jwt_message(message: str) -> str:
-  if "expired" in message.lower():
-    return "PAPYRUS_GRAPHQL_JWT is expired. Run: papyrus auth refresh --write-env .env"
-  return "Missing PAPYRUS_GRAPHQL_JWT. Run: papyrus auth refresh --write-env .env"
-
-
 def format_unexpected_error(error: BaseException) -> str:
-  if isinstance(error, ValueError) and "PAPYRUS_GRAPHQL_JWT" in str(error):
-    return _friendly_jwt_message(str(error))
   return str(error)
 
 

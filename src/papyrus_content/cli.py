@@ -30,7 +30,6 @@ from .analysis_commands import (
     analysis_reindex_plan,
     analysis_run_now,
 )
-from .auth_commands import refresh_jwt
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
@@ -351,7 +350,6 @@ PORTED_COMMANDS = frozenset(
         "categories:review-proposal",
         "categories:reset",
         "categories:run-curation-cycle",
-        "auth:refresh-jwt",
         "batch:register-catalog",
         "batch:enrich-references",
         "test:category-mappers",
@@ -706,8 +704,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         categories_reset(flags)
     elif route == "categories:run-curation-cycle":
         categories_run_curation_cycle(flags)
-    elif route == "auth:refresh-jwt":
-        refresh_jwt(flags)
     elif route == "batch:register-catalog":
         register_catalog_batches(flags)
     elif route == "batch:enrich-references":
@@ -1460,7 +1456,7 @@ def print_usage() -> None:
     print("  categories import/export/draft/review/curation-cycle/rebuild-roots commands,")
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
-    print("  auth refresh-jwt, batch register-catalog/enrich-references,")
+    print("  batch register-catalog/enrich-references,")
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
     print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")

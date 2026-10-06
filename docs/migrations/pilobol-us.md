@@ -30,7 +30,7 @@ Marks: **FACT** (verified 2026-10-06, read-only AWS, public GETs, scratch builds
 * **Template gaps** (`infra/amplify-app-shell`): always creates domains and a staging branch, and for `markus-static`
   a reader app with a domain; generated reader/staging specs install `papyrus-newsroom[markus]`, but S3 media needs
   `boto3` (extra `newsroom`). Console connect of a repo-less app works (PPY-a91e9c). FACT.
-* **Reader auth.** `export-published` has no guest mode today (JWT lane or default AWS creds). Published items and
+* **Reader auth.** `export-published` has no guest mode today (it signs with the AWS credential chain). Published items and
   `media/*` are guest-readable. FACT.
 * **Brand.** The CMS app serves no Pretext article route for this brand, so the `bodyIr`/`convert-bodies` release gate
   does not apply; brand ids are exact (`pilobol-us`). The current brand puts the newsroom at the site root, which loops the
@@ -114,7 +114,7 @@ Add about 1 day if Python 3.12 provisioning on Amplify needs a workaround.
 | Console connect flips platform to `WEB` or replaces the service role (seen in the connect test) | Check after connect; `aws amplify update-app --platform WEB_COMPUTE` (P3-04) |
 | Python 3.12 via `uv` on the Amplify image, and Lambda bundling from `papyrus-newsroom==<pin>`, unproven | First exercised in P3-04 and P3-06; +1 day budget |
 | Prerelease pins move or vanish | Exact pins and a from-scratch lockfile; bump by reviewed PR; move to `1.0.0` after Ryan promotes `develop` |
-| Secrets in app env vars and SSM | Names only everywhere; JWT minted only with Ryan's yes, scratch `.env` deleted; guest read removes the reader's need; public repo holds none |
+| Secrets in app env vars and SSM | Names only everywhere; no token exists (SigV4 from the authoring role), scratch `.env` deleted; guest read removes the reader's need; public repo holds none |
 | Domain move: a domain is on one app only; certificate wait | Delete old domain associations first, then add via stack update; downtime accepted |
 | Staging gate loop with a root-level newsroom | Brand uses `/newsroom`; probed in P3-07 |
 | 6 MB response limit for the largest asset on staging | Measured in P3-07; exclude files over 5 MB from the staging upload if needed |
@@ -130,6 +130,6 @@ Agreed 2026-10-06: D1 one repo, D2 guest read, D3 exact prerelease pins, D5 news
 | # | When | What |
 | --- | --- | --- |
 | M1 | P3-04 | `aws sso login --profile legacy`; yes to the new stack deploy |
-| M2 | P3-04 (one console sitting) | Install the AWS Amplify GitHub App on `AnthusAI/Pilobol.us`; connect the new CMS app and the new reader app (and the `staging` branch in P3-07); set backend secrets (`PAPYRUS_JWT_SECRET`, `OPENAI_API_KEY`); browser check of `/newsroom`; create the first admin |
-| M3 | P3-05 to P3-08 | Yes to the JWT mint and the import apply; yes to env vars and merges; sign in as editor and non-editor for the staging probes; click Publish/Unpublish for the rebuild proof |
+| M2 | P3-04 (one console sitting) | Install the AWS Amplify GitHub App on `AnthusAI/Pilobol.us`; connect the new CMS app and the new reader app (and the `staging` branch in P3-07); set backend secrets (`OPENAI_API_KEY`); browser check of `/newsroom`; create the first admin |
+| M3 | P3-05 to P3-08 | Yes to using the authoring role for the import apply; yes to env vars and merges; sign in as editor and non-editor for the staging probes; click Publish/Unpublish for the rebuild proof |
 | M4 | P3-09 | Yes to deleting the old domains, apps, stack, empty backend and the PAT secret (Ryan or on his explicit yes); yes to the domain stack update |

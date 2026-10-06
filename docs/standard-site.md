@@ -278,11 +278,12 @@ knows one site, hardcoded (C4). Standard:
 | Amplify to pull from the repo | **Amplify GitHub App**, installed per publication repo. The connection handshake is a one-time console step (Amplify offers no API for it; Anth.us-Papyrus documents this). The runbook records it per site. The CDK shell no longer takes an access token or a Secrets Manager PAT |
 | CI to call AWS (infra deploy on `infra/` changes, `aws amplify start-job`, content CLI jobs) | **GitHub OIDC**: one account-level `AWS::IAM::OidcProvider`, plus per repo a role whose trust is `repo:AnthusAI/<repo>:ref:refs/heads/<branch>`, least privilege (no AdministratorAccess), created by the shell |
 | Amplify builds to reach AWS | The Amplify service role (no keys) |
-| Staging build to read drafts | A short-lived JWT minted per build through the existing JWT-authorizer lane from the backend's SSM secret, read via the build role. No stored token |
+| Staging build to read drafts | The Amplify build role's credentials sign AppSync requests with SigV4 (IAM). No token, no secret |
+| Local CLI and automation to write content | SigV4 with the standard AWS credential chain: an SSO profile that assumes the site's `<siteId>-papyrus-authoring` role, or an OIDC role. No token, no JWT authorizer |
 | Publishing Papyrus | npm and PyPI trusted publishing |
 
 Environment variables are per branch; secrets (`OPENAI_API_KEY`,
-`PAPYRUS_JWT_SECRET`, Google OAuth) live in SSM/Amplify secrets per site and
+Google OAuth) live in SSM/Amplify secrets per site and
 are never shared across sites. Site variables: `PAPYRUS_SITE_BRAND` (validated
 against `papyrus.config.ts`), `PAPYRUS_CONTENT_SOURCE` (`published` or `drafts`),
 `PAPYRUS_EDITION_SLUG`, `PAPYRUS_REVALIDATE_SECRET`, `PAPYRUS_ENABLE_*` flags,
@@ -381,7 +382,7 @@ always, and uses `userPool` only for drafts (editor/admin).
 | | Pretext SSR | Markus static |
 | --- | --- | --- |
 | Where | `staging` branch of the CMS app, `staging.<domain>` | `staging` branch of the CMS app, `staging.<domain>` |
-| Drafts | SSR reads Items live with the editor's own Cognito token | `papyrus ops content export --drafts` at build (minted JWT, 1.6), then the site's `reader/` Markus build |
+| Drafts | SSR reads Items live with the editor's own Cognito token | `papyrus ops content export --drafts` at build (build-role SigV4, 1.6), then the site's `reader/` Markus build |
 | Gate | Next middleware: Cognito session in `editor`/`admin` else hosted-UI login | Same middleware in front of a catch-all route that serves the built site |
 | Freshness | Immediate | Rebuild: "Preview" in `/newsroom` starts the staging job (webhook); minutes, not instant |
 | Guards | `SITE_ENV=staging`: noindex meta, `Disallow: /`, staging banner, no analytics | Same, via the shared `SITE_ENV` helper |

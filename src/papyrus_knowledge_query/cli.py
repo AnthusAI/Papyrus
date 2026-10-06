@@ -8,6 +8,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.graphql_http import aws_credentials_available, iam_signed_graphql_headers
+
 from .engine import run_knowledge_query
 from .services import build_environment_services
 from .uris import parse_papyrus_uri
@@ -146,18 +148,17 @@ def _should_run_remote(args: argparse.Namespace) -> bool:
     if execution == "local":
         return False
     endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
-    token = os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip() or os.environ.get("PAPYRUS_KNOWLEDGE_QUERY_JWT", "").strip()
     if execution == "remote":
-        if not endpoint or not token:
-            raise RuntimeError("remote knowledge-query execution requires PAPYRUS_GRAPHQL_ENDPOINT and PAPYRUS_GRAPHQL_JWT")
+        if not endpoint or not aws_credentials_available():
+            raise RuntimeError(
+                "remote knowledge-query execution requires PAPYRUS_GRAPHQL_ENDPOINT and AWS credentials (set AWS_PROFILE)"
+            )
         return True
-    return bool(endpoint and token)
+    return bool(endpoint and aws_credentials_available())
 
 
 def _run_remote_knowledge_query(payload: dict[str, Any]) -> dict[str, Any]:
     endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
-    token = os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip() or os.environ.get("PAPYRUS_KNOWLEDGE_QUERY_JWT", "").strip()
-    prefix = os.environ.get("PAPYRUS_GRAPHQL_AUTH_PREFIX", "PapyrusJwt").strip()
     input_json = json.dumps(payload, separators=(",", ":"))
     body = json.dumps(
         {
@@ -168,10 +169,7 @@ def _run_remote_knowledge_query(payload: dict[str, Any]) -> dict[str, Any]:
     request = urllib.request.Request(
         endpoint,
         data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"{prefix} {token}" if prefix else token,
-        },
+        headers=iam_signed_graphql_headers(endpoint, body),
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=330) as response:  # nosec B310 - configured AppSync endpoint

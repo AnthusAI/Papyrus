@@ -188,8 +188,8 @@ Amplify Gen 2 secrets live in SSM Parameter Store:
 ```
 
 Find `<hash>` from the backend stack name
-`amplify-<appId>-main-branch-<hash>` or from the JWT authorizer Lambda's
-`AMPLIFY_SSM_ENV_CONFIG` environment variable.
+`amplify-<appId>-main-branch-<hash>` or from the `AMPLIFY_SSM_ENV_CONFIG` environment variable of any
+Amplify function that uses a secret.
 
 Pilobolus (`appId=d11eu9hbs2mipk`, `hash=3c5f57c311`):
 

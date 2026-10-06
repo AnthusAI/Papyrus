@@ -6378,7 +6378,7 @@ def _download_attachment_json(attachment_id: str) -> dict[str, Any]:
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     from papyrus_content.graphql_http import execute_graphql
 
-    return execute_graphql(query, variables, timeout=90, allow_knowledge_fallback=True)
+    return execute_graphql(query, variables, timeout=90)
 
 
 def _resolve_section_keys(sections: list[str]) -> list[str]:

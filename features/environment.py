@@ -27,7 +27,6 @@ def before_scenario(context, scenario):
     context.config_path = None
     context.last_command = ""
     context.last_result = None
-    context.tmp_env_path = None
     context.content_store_reads: list[str] = []
     context.fixture_root_active = True
 

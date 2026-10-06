@@ -4289,44 +4289,6 @@ def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     return execute_graphql(query, variables, timeout=60)
 
 
-def _lambda_auth_token(token: str) -> str:
-    sanitized = re.sub(r"^Bearer\\s+", "", token.strip(), flags=re.IGNORECASE)
-    return f"PapyrusJwt {sanitized}"
-
-
-def _iam_signed_graphql_headers(endpoint: str, body: bytes) -> dict[str, str]:
-    try:
-        from botocore.auth import SigV4Auth
-        from botocore.awsrequest import AWSRequest
-        from botocore.session import Session
-    except Exception as exc:  # pragma: no cover
-        raise RuntimeError("PAPYRUS_GRAPHQL_JWT is missing and botocore is unavailable for IAM AppSync signing.") from exc
-
-    parsed = urllib.parse.urlparse(endpoint)
-    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or _region_from_appsync_host(parsed.netloc)
-    session = Session()
-    credentials = session.get_credentials()
-    if credentials is None:
-        raise RuntimeError("PAPYRUS_GRAPHQL_JWT is missing and AWS credentials are unavailable for IAM AppSync signing.")
-    frozen = credentials.get_frozen_credentials()
-    request = AWSRequest(
-        method="POST",
-        url=endpoint,
-        data=body,
-        headers={
-            "content-type": "application/json",
-            "host": parsed.netloc,
-        },
-    )
-    SigV4Auth(frozen, "appsync", region).add_auth(request)
-    return {str(key): str(value) for key, value in request.headers.items()}
-
-
-def _region_from_appsync_host(host: str) -> str:
-    match = re.search(r"\.appsync-api\.([a-z0-9-]+)\.amazonaws\.com", host)
-    return match.group(1) if match else "us-east-1"
-
-
 def _extract_response_text(payload: dict[str, Any]) -> str:
     if isinstance(payload.get("output_text"), str):
         return payload["output_text"]
