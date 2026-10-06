@@ -6,12 +6,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .env import storage_bucket_from_amplify_outputs
+from .media_store import S3MediaStore, configured_media_bucket
 from .graphql_authoring import create_authoring_client
 from .markus_import import (
     AbsentMediaStore,
     ImportOptions,
-    S3MediaStore,
     plan_import,
     run_import,
 )
@@ -51,7 +50,7 @@ def content_import_markus(flags: list[str]) -> None:
     apply = resolve_mutation_apply(options, "content import-markus")
     import_options = import_options_from_flags(options)
     client, _claims = create_authoring_client()
-    bucket = normalize_string(options.get("bucket")) or storage_bucket_from_amplify_outputs()
+    bucket = configured_media_bucket(normalize_string(options.get("bucket")))
     if bucket:
         store = S3MediaStore(bucket)
     elif apply:
