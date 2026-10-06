@@ -259,7 +259,7 @@ async function main() {
     await seedNewsroomSections(seededAt);
     await seedPublicationDoctrine(seededAt);
     await seedProcedureDefinitions(seededAt);
-    console.log("Seeded sections, doctrine and procedures. Seed articles with: poetry run papyrus content seed-edition");
+    console.log("Seeded sections, doctrine and procedures. Seed articles with: poetry run papyrus ops content seed-edition");
   } finally {
     await signOut();
   }

@@ -634,13 +634,13 @@ reproducible fixture layer for testing.
 For Amplify development, run `npm run sandbox` to provision a local cloud
 sandbox. After the sandbox has generated `amplify_outputs.json`, run
 `npm run seed:amplify` to seed users, sections, doctrine and procedures, then
-`poetry run papyrus content seed-edition` to seed the fixture edition, articles
+`poetry run papyrus ops content seed-edition` to seed the fixture edition, articles
 (as Markus `bodyMarkus`/`bodyIr`) and media.
 
 Seed content supports optional profiles so one Papyrus-based site can keep
 custom fixture content without overwriting the base default fixture:
 
-- Set `PAPYRUS_SEED_PROFILE=<profile-id>` before `poetry run papyrus content seed-edition`
+- Set `PAPYRUS_SEED_PROFILE=<profile-id>` before `poetry run papyrus ops content seed-edition`
 - Optional profile file path:
   `amplify/seed/profiles/<profile-id>/seed-edition-content.json`
 - Fallback path (always available):
@@ -920,7 +920,7 @@ curl -sS "$PAPYRUS_BASE_URL/api/archive/editions?limit=1"
 ```
 
 For local sandbox content, use `npm run seed:amplify` (users, sections,
-doctrine, procedures) and `poetry run papyrus content seed-edition` (fixture
+doctrine, procedures) and `poetry run papyrus ops content seed-edition` (fixture
 edition, articles and media). The seed-edition path uploads media to Storage and
 sets `publishedAt` on the seeded edition. Treat it as a sandbox/dev workflow,
 not as an implicit production publish command.
