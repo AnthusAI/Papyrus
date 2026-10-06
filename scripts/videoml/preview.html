@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Video preview</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+
+      #preview-root {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="preview-root"></div>
+    <script src="./vendor/react.production.min.js"></script>
+    <script src="./vendor/react-dom.production.min.js"></script>
+    <script src="./preview-bundle.js"></script>
+    <script>
+      const root = document.getElementById("preview-root");
+      const params = new URLSearchParams(window.location.search);
+      let cleanup = null;
+
+      function showMessage(text) {
+        root.textContent = text;
+        root.style.cssText = "color:#eee;font:14px/1.4 system-ui,sans-serif;padding:24px;";
+      }
+
+      function readPayload(overrides) {
+        const target = (overrides && overrides.target) || params.get("target") || "";
+        const theme = (overrides && overrides.theme) || params.get("theme") || "light";
+        const audioSrc = (overrides && overrides.audio) || params.get("audio") || "";
+        const xml = target ? sessionStorage.getItem("papyrus-video-preview:" + target) : null;
+        return { theme, xml, audioSrc };
+      }
+
+      function mountPreview(payload) {
+        if (!payload || typeof payload.xml !== "string" || !payload.xml.trim()) {
+          showMessage("No VideoML DSL available for preview.");
+          return;
+        }
+        if (typeof cleanup === "function") {
+          cleanup();
+          cleanup = null;
+        }
+        root.textContent = "";
+        root.removeAttribute("style");
+        cleanup = window.mountPapyrusVideoPreview(root, {
+          xml: payload.xml,
+          theme: payload.theme || "light",
+          audioSrc: payload.audioSrc || undefined,
+          autoPlay: false,
+        });
+      }
+
+      window.addEventListener("message", (event) => {
+        const payload = event.data;
+        if (payload && payload.kind === "papyrus-video-refresh") mountPreview(readPayload(payload));
+      });
+
+      mountPreview(readPayload());
+
+      if (window.parent !== window) {
+        window.parent.postMessage({ kind: "papyrus-video-ready" }, "*");
+      }
+    </script>
+  </body>
+</html>
