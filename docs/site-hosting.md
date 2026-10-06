@@ -208,6 +208,17 @@ before and after:
   sees drift, so prefer the explicit command. Delete the stray
   `amplifyconsole-backend-role` once nothing uses it.
 
+- **Branches recreated, environment variables lost.** The console flow deleted the
+  stack's `main` and `staging` branches and recreated only `main`, with no
+  environment variables (observed 2026-10-06 on the Pilobol.us CMS). Without
+  `PAPYRUS_COGNITO_DOMAIN_PREFIX` and `PAPYRUS_OAUTH_REDIRECT_URLS` the backend build
+  creates no Cognito domain and the CMS login fails with "oauth param not
+  configured". Check with
+  `aws amplify list-branches --app-id <id> --query 'branches[].[branchName,environmentVariables]'`.
+  CloudFormation does not see this as drift. Recreate the `staging` branch first
+  (**Hosting**, **Branches**, **Connect branch**), then deploy the stack with a change
+  to the branch variables so CloudFormation rewrites them on both branches.
+
 Run these with the profile and region from `AGENTS.local.md`. Domains and the
 staging branch are optional in `site.json`, so an app can be stood up and proven
 on its default `amplifyapp.com` URL first and given domains later (see
@@ -324,6 +335,22 @@ Copy into the site's runbook and fill in:
 - [ ] OIDC role ARN: `arn:aws:iam::335163751677:role/<siteId>-github-ci`
 - [ ] Secrets live in SSM only (nothing in GitHub secrets or Amplify variables)
 - [ ] Old PAT secret (`amplify/github-app-token`) deleted
+
+## Google sign-in
+
+Google is the standard CMS sign-in. `cms.cognitoDomainPrefix` in `infra/site.json`
+is required and becomes the stable Cognito hosted-UI domain; the template never
+sets `PAPYRUS_DISABLE_GOOGLE_OAUTH`. After the first stack deploy, per app:
+
+1. In Google Cloud Console, on the OAuth client, add the origin
+   `https://<prefix>.auth.us-east-1.amazoncognito.com` and the redirect URI
+   `https://<prefix>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`. The same
+   client can serve several sites.
+2. In the Amplify console, **Hosting**, **Secrets**, set `GOOGLE_CLIENT_ID` and
+   `GOOGLE_CLIENT_SECRET` for branch `main`.
+3. Redeploy the CMS `main` branch. Details: [`google-oauth-setup.md`](google-oauth-setup.md).
+
+- [ ] Google secrets set on the CMS app (date: ____)
 
 ## Custom domains and Route 53
 

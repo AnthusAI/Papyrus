@@ -84,6 +84,15 @@ try {
     assert.equal(templateText.includes("ssm:"), false, `${example}: template grants SSM access`);
     specsSeen.push(stagingSpec, ...apps.map(buildSpecOf));
 
+    const expectedPrefix = JSON.parse(fs.readFileSync(site, "utf8")).cms.cognitoDomainPrefix;
+    const cmsBranches = branches.filter((candidate) => candidate.Properties.EnvironmentVariables.some((variable) => variable.Name === "PAPYRUS_OAUTH_REDIRECT_URLS"));
+    assert.ok(cmsBranches.length >= 1, `${example}: CMS branches found`);
+    for (const branch of cmsBranches) {
+      const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
+      assert.equal(variables.PAPYRUS_COGNITO_DOMAIN_PREFIX, expectedPrefix, `${example}: ${branch.Properties.BranchName} Cognito domain prefix`);
+      assert.equal("PAPYRUS_DISABLE_GOOGLE_OAUTH" in variables, false, `${example}: ${branch.Properties.BranchName} disables Google sign-in`);
+    }
+
     const productionSpec = buildSpecOf(apps.find((app) => app.Properties.Platform === "WEB_COMPUTE"));
     assert.match(productionSpec, /^backend:/m);
     assert.match(productionSpec, /npx ampx pipeline-deploy/);

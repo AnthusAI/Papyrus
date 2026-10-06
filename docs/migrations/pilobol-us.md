@@ -123,13 +123,13 @@ Add about 1 day if Python 3.12 provisioning on Amplify needs a workaround.
 ## 6. Decisions
 
 Agreed 2026-10-06: D1 one repo, D2 guest read, D3 exact prerelease pins, D5 newsroom at `/newsroom`, D6 humans publish; D4 changed to hard cutover.
-**Open: none.** (Optional: whether to enable Google sign-in on the new backend; default off, email sign-in.)
+**Open: none.** Google sign-in is the standard on the new backend (D7, Ryan 2026-10-06): `cms.cognitoDomainPrefix` in `infra/site.json`, secrets `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` set in the Amplify console, see [`google-oauth-setup.md`](../google-oauth-setup.md).
 
 ## 7. Moments Ryan is needed (four)
 
 | # | When | What |
 | --- | --- | --- |
 | M1 | P3-04 | `aws sso login --profile legacy`; yes to the new stack deploy |
-| M2 | P3-04 (one console sitting) | Install the AWS Amplify GitHub App on `AnthusAI/Pilobol.us`; connect the new CMS app and the new reader app (and the `staging` branch in P3-07); set backend secrets (`OPENAI_API_KEY`); browser check of `/newsroom`; create the first admin |
+| M2 | P3-04 (one console sitting) | Install the AWS Amplify GitHub App on `AnthusAI/Pilobol.us`; connect the new CMS app and the new reader app (and the `staging` branch in P3-07); set backend secrets (`OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); browser check of `/newsroom`; create the first admin |
 | M3 | P3-05 to P3-08 | Yes to using the authoring role for the import apply; yes to env vars and merges; sign in as editor and non-editor for the staging probes; click Publish/Unpublish for the rebuild proof |
 | M4 | P3-09 | Yes to deleting the old domains, apps, stack, empty backend and the PAT secret (Ryan or on his explicit yes); yes to the domain stack update |

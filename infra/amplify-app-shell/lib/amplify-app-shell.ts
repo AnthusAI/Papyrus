@@ -22,7 +22,11 @@ function environmentVariables(variables: Record<string, string>): amplify.CfnBra
  *     URL is used), IAM service and compute roles
  *   - `cms.staging: false` omits the staging branch and its domain
  *
- * The stack also creates the `<siteId>-papyrus-authoring` role. The CLI signs
+ * Google sign-in is always on: the branches never set PAPYRUS_DISABLE_GOOGLE_OAUTH,
+and `cms.cognitoDomainPrefix` becomes the stable hosted-UI domain
+(PAPYRUS_COGNITO_DOMAIN_PREFIX). The secrets GOOGLE_CLIENT_ID and
+GOOGLE_CLIENT_SECRET are Amplify backend secrets set in the console, never here.
+The stack also creates the `<siteId>-papyrus-authoring` role. The CLI signs
  * AppSync requests (SigV4) with credentials for that role (SSO, OIDC or any
  * principal in the account that may assume it); no token is stored anywhere.
  *
@@ -94,6 +98,7 @@ export class AmplifyAppShellStack extends Stack {
       enablePerformanceMode: false,
       environmentVariables: environmentVariables({
         ...config.cms.environment,
+        PAPYRUS_COGNITO_DOMAIN_PREFIX: config.cms.cognitoDomainPrefix,
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
         PAPYRUS_SITE_BRAND: config.brand,
         SITE_ENV: "production",
@@ -111,6 +116,7 @@ export class AmplifyAppShellStack extends Stack {
         buildSpec: cmsStagingBuildSpec(config),
         environmentVariables: environmentVariables({
           ...config.cms.environment,
+          PAPYRUS_COGNITO_DOMAIN_PREFIX: config.cms.cognitoDomainPrefix,
           PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
           PAPYRUS_SITE_BRAND: config.brand,
           SITE_ENV: "staging",

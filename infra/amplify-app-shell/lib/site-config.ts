@@ -9,6 +9,7 @@ export type AmplifyAppShellSiteConfig = {
     appName?: string;
     domainName?: string;
     staging?: boolean;
+    cognitoDomainPrefix: string;
     buildComputeType?: "STANDARD" | "STANDARD_8GB";
     environment: Record<string, string>;
     stagingDomainName?: string;
@@ -43,6 +44,9 @@ const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
 const PAPYRUS_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+\.\d+)?$/;
 const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH"];
 const LOCAL_DEVELOPMENT_ORIGIN = "http://localhost:3001/";
 
 function fail(field: string, problem: string): never {
@@ -127,7 +131,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
   const cmsRecord = requireObject(record.cms, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "buildComputeType", "environment", "stagingDomainName"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -139,10 +143,26 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
     staging: cmsRecord.staging as boolean | undefined,
+    cognitoDomainPrefix: requireString(
+      cmsRecord.cognitoDomainPrefix,
+      "cms.cognitoDomainPrefix",
+      COGNITO_DOMAIN_PREFIX_PATTERN,
+      "lowercase letters, digits and hyphens; globally unique per region",
+    ),
     buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
   };
+
+  const reservedWord = COGNITO_RESERVED_WORDS.find((word) => cms.cognitoDomainPrefix.includes(word));
+  if (reservedWord) {
+    fail("cms.cognitoDomainPrefix", `must not contain "${reservedWord}" (Cognito reserves it): ${JSON.stringify(cms.cognitoDomainPrefix)}`);
+  }
+  for (const key of TEMPLATE_MANAGED_ENVIRONMENT_KEYS) {
+    if (key in cms.environment) {
+      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on and the Cognito domain comes from cms.cognitoDomainPrefix");
+    }
+  }
 
   if (cms.staging === false && cms.stagingDomainName) {
     fail("cms.stagingDomainName", "must not be set when cms.staging is false");

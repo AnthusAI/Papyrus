@@ -283,11 +283,15 @@ knows one site, hardcoded (C4). Standard:
 | Publishing Papyrus | npm and PyPI trusted publishing |
 
 Environment variables are per branch; secrets (`OPENAI_API_KEY`,
-Google OAuth) live in SSM/Amplify secrets per site and
-are never shared across sites. Site variables: `PAPYRUS_SITE_BRAND` (validated
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) live in SSM/Amplify secrets per site and
+are never shared across sites. **Google is the standard CMS sign-in**: every
+site gets the Google provider and a stable Cognito hosted-UI domain
+(`cms.cognitoDomainPrefix` in `infra/site.json`, set on the branches by the app
+shell); the two Google secrets are Amplify backend secrets set once in the
+console ([`google-oauth-setup.md`](google-oauth-setup.md)). Site variables: `PAPYRUS_SITE_BRAND` (validated
 against `papyrus.config.ts`), `PAPYRUS_CONTENT_SOURCE` (`published` or `drafts`),
 `PAPYRUS_EDITION_SLUG`, `PAPYRUS_REVALIDATE_SECRET`, `PAPYRUS_ENABLE_*` flags,
-`PAPYRUS_COGNITO_DOMAIN_PREFIX`, `PAPYRUS_OAUTH_REDIRECT_URLS`, `SITE_ENV`.
+`PAPYRUS_COGNITO_DOMAIN_PREFIX` (from `cms.cognitoDomainPrefix`), `PAPYRUS_OAUTH_REDIRECT_URLS`, `SITE_ENV`. `PAPYRUS_DISABLE_GOOGLE_OAUTH` is for personal sandboxes only and is rejected in `site.json`.
 
 ### 1.7 CMS app and public site topology
 

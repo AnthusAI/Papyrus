@@ -154,10 +154,12 @@ PYTHONPATH=src python -m papyrus.cli references create-from-catalog \
   --status accepted
 ```
 
-## 6. Google sign-in (optional)
+## 6. Google sign-in
 
-Google OAuth is **disabled** by default (`PAPYRUS_DISABLE_GOOGLE_OAUTH=1`) until
-you create a Google OAuth client and store credentials in SSM.
+Google is the standard sign-in. The site's `infra/site.json` sets
+`cms.cognitoDomainPrefix`; the Amplify backend secrets `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` come from a Google OAuth client (an existing client can
+be reused by adding the new Cognito origin and redirect URI to it).
 
 Follow [`docs/google-oauth-setup.md`](../../../docs/google-oauth-setup.md) for the
 full Google Cloud Console walkthrough. Pilobolus uses:

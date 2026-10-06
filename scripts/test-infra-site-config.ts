@@ -84,6 +84,12 @@ assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.environ
 assert.deepEqual(pretextConfig.github?.branches, ["main", "staging"]);
 assert.equal(pretextConfig.github?.ciCanDeployInfra, true);
 assert.equal(staticConfig.github?.ciCanDeployInfra, false);
+assert.equal(staticConfig.cms.cognitoDomainPrefix, "papyrus-pilobol-us");
+assertRejects(mutated("pilobol-us.site.json", (c) => delete c.cms.cognitoDomainPrefix), "cms.cognitoDomainPrefix");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.cognitoDomainPrefix = "Papyrus_Pilobol")), "cms.cognitoDomainPrefix");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.cognitoDomainPrefix = "my-cognito-cms")), "reserves");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_DISABLE_GOOGLE_OAUTH = "1")), "cms.environment.PAPYRUS_DISABLE_GOOGLE_OAUTH");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX = "x-cms")), "cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX");
 assertRejects("not an object", "site");
 
 assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", () => {}))), "amplify-app-shell-pretext-example");
