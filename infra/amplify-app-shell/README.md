@@ -37,6 +37,13 @@ Amplify build image defaults to Python 3.10 and `papyrus-newsroom` needs 3.12.
 Schema and validation: `lib/site-config.ts` (`parseSiteConfig`). Examples:
 [`examples/pilobol-us.site.json`](examples/pilobol-us.site.json) (`markus-static`)
 and [`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`).
+`cms.cognitoDomainPrefix` is required: the stable Cognito hosted-UI domain
+(`https://<prefix>.auth.<region>.amazoncognito.com`) that Google sign-in needs. The
+stack sets it as `PAPYRUS_COGNITO_DOMAIN_PREFIX` on the CMS branches. Google is
+always on: `PAPYRUS_DISABLE_GOOGLE_OAUTH` and `PAPYRUS_COGNITO_DOMAIN_PREFIX` are
+rejected in `cms.environment`. The secrets `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are Amplify backend secrets set in the console, see
+[`docs/google-oauth-setup.md`](../../docs/google-oauth-setup.md).
 `cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` must include
 `http://localhost:3001/` plus `https://<cms domain>/` when `cms.domainName` is set
 and `https://<staging domain>/` when staging is enabled and has a domain. Without
