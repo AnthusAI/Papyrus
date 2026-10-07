@@ -186,6 +186,15 @@ how those constraints are solved.
 text cuts, how tall pages are, or which image variant wins. It receives placed
 pages, blocks, lines, images, and CSS variables from the layout engine.
 
+## How a Papyrus Publication Fits Together
+
+![How a Papyrus publication fits together: a CMS app and a separate reader app on Amplify, with Publish starting the reader build](docs/images/publication-architecture.svg)
+
+- **Two Amplify apps.** The CMS app holds the newsroom UI and the data backend; a separate reader app builds and hosts the static publication site.
+- **Publish starts a build.** The `content-actions` Lambda behind Publish calls Amplify `StartJob` on the reader app's `main` branch. The build exports published items, renders static HTML, and deploys.
+- **Who reads the API as whom.** Editors use Cognito, `content-actions` uses IAM, and the reader build reads published items as a read-only guest.
+- **Where Git fits.** Git/GitHub holds code, theme, and the build script, not articles. A push to `main` rebuilds both apps.
+
 ## Cloud Content
 
 Papyrus includes an Amplify Gen2 backend in `amplify/`. The backend is defined
