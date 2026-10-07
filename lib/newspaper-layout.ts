@@ -1,3 +1,4 @@
+import { toPublicReaderPath } from "./reader-base-path";
 import type { ArticleImageAsset, ArticleImageThemeVariants } from "./articles";
 import {
   type ArticleFrameBlockSpec,
@@ -896,9 +897,9 @@ function solveFrontFooter(blocks: SolvedBlock[], config: LayoutConfig, pageNumbe
     : Math.min(entries.length, Math.max(1, config.columnCount <= 1 ? 1 : config.columnCount <= 3 ? 2 : 4));
   const sectionRows = entries.length === 0 ? 0 : Math.ceil(entries.length / sectionColumns);
   const utilityEntries: SolvedFrontFooterUtilityEntry[] = [
-    { id: "archive", label: "Archive", href: "/archive", disabled: false },
+    { id: "archive", label: "Archive", href: toPublicReaderPath("/archive"), disabled: false },
     { id: "newsDesk", label: "Newsroom", href: "/newsroom", disabled: false },
-    { id: "settings", label: "Settings", href: "/settings", disabled: false },
+    { id: "settings", label: "Settings", href: toPublicReaderPath("/settings"), disabled: false },
     { id: "login", label: "LOGIN", disabled: true },
   ];
   const rowCount = 1 + Math.max(sectionRows, utilityEntries.length);

@@ -1,3 +1,4 @@
+import { toInternalReaderPath, toPublicReaderPath } from "./reader-base-path";
 import { PAPYRUS_OBJECT_KINDS, type PapyrusObjectKind } from "./papyrus-object-kinds";
 import {
   buildNewsroomIndexWebPath,
@@ -52,7 +53,7 @@ export function buildWebUiContext(webPath: string): PapyrusWebUiContext {
 export function webPathToPapyrusLocation(webPath: string): PapyrusWebUiContext {
   const normalized = normalizeWebPath(webPath);
   const url = new URL(normalized, "https://papyrus.local");
-  const pathname = url.pathname || "/";
+  const pathname = toInternalReaderPath(url.pathname || "/");
 
   if (pathname === "/" || pathname === "") {
     return location("papyrus://site/home", normalized, { label: "Papyrus home" });
@@ -215,9 +216,9 @@ export function papyrusUriToWebPath(uri: string): PapyrusUriToWebPathResult {
   const { kind, id } = parsed;
 
   if (kind === "site") {
-    if (id === "home") return { ok: true, papyrusLocationUri: raw, webPath: "/" };
-    if (id === "archive") return { ok: true, papyrusLocationUri: raw, webPath: "/archive" };
-    if (id === "settings") return { ok: true, papyrusLocationUri: raw, webPath: "/settings" };
+    if (id === "home") return { ok: true, papyrusLocationUri: raw, webPath: toPublicReaderPath("/") };
+    if (id === "archive") return { ok: true, papyrusLocationUri: raw, webPath: toPublicReaderPath("/archive") };
+    if (id === "settings") return { ok: true, papyrusLocationUri: raw, webPath: toPublicReaderPath("/settings") };
     if (id.startsWith("path/")) {
       return { ok: true, papyrusLocationUri: raw, webPath: `/${decodeURIComponent(id.slice("path/".length))}` };
     }
@@ -449,7 +450,7 @@ function objectKindToWebPath(kind: PapyrusObjectKind, objectId: string): string 
   if (kind === "category") return `/newsroom/topics?category=${encoded}`;
   if (kind === "semanticNode") return `/newsroom/concepts?node=${encoded}`;
   if (kind === "newsroomSection") return `/newsroom/sections/${encoded}`;
-  if (kind === "item") return `/articles/${encoded}`;
+  if (kind === "item") return toPublicReaderPath(`/articles/${encoded}`);
   return `/newsroom?object=${encodeURIComponent(kind)}:${encoded}`;
 }
 

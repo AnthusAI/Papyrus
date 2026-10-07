@@ -1,5 +1,6 @@
 "use client";
 
+import { toPublicReaderPath } from "../lib/reader-base-path";
 import { signOut } from "aws-amplify/auth";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -114,7 +115,7 @@ export function SettingsPage() {
   return (
     <main className="settings-page">
       <nav className="edition-progress edition-progress--newsroom settings-progress" aria-label="Settings navigation">
-        <Link className="edition-progress__button edition-progress__button--previous" href="/">
+        <Link className="edition-progress__button edition-progress__button--previous" href={toPublicReaderPath("/")}>
           <svg aria-hidden="true" className="edition-progress__icon" focusable="false" viewBox="0 0 10 10">
             <path d="M7.5 1 2.5 5 7.5 9Z" fill="currentColor" />
           </svg>
