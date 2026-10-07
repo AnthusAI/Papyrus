@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { toPublicNewsroomPath } from "../../../lib/newsroom-base-path";
 import { NewsDeskPage } from "../../../components/news-desk-page";
 import type { NewsDeskTab } from "../../../components/topic-steering-workspace";
 
@@ -39,9 +40,9 @@ const NEWS_DESK_ROUTE_SECTIONS = new Set<NewsDeskTab>([
 
 export default async function NewsDeskSectionPage({ params, searchParams }: NewsDeskSectionPageProps) {
   const { section } = await params;
-  if (section === "users") redirect("/newsroom/administration/users");
-  if (section === "doctrine") redirect("/newsroom/administration/policies");
-  if (section === "desks") redirect("/newsroom/topics");
+  if (section === "users") redirect(toPublicNewsroomPath("/newsroom/administration/users"));
+  if (section === "doctrine") redirect(toPublicNewsroomPath("/newsroom/administration/policies"));
+  if (section === "desks") redirect(toPublicNewsroomPath("/newsroom/topics"));
   if (!NEWS_DESK_ROUTE_SECTIONS.has(section as NewsDeskTab)) notFound();
   return <NewsDeskPage section={section} searchParams={searchParams} />;
 }

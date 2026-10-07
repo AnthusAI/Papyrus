@@ -1,5 +1,6 @@
 "use client";
 
+import { newsroomHref } from "../lib/newsroom-base-path";
 import Link from "next/link";
 import { SITE_BRAND } from "../lib/site-brand";
 import type { NewsDeskShellState } from "../lib/news-desk-session";
@@ -32,7 +33,7 @@ export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: 
           <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
           {shell?.phase === "signedOut" || shell?.phase === "error" ? (
             <div className="news-desk-access-panel__auth">
-              <ReaderAuthControl postAuthPath="/newsroom" showIdentity />
+              <ReaderAuthControl postAuthPath={newsroomHref()} showIdentity />
             </div>
           ) : null}
         </div>

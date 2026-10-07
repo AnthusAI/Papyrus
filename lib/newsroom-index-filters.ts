@@ -1,3 +1,4 @@
+import { browserPathToInternalNewsroomPath, toPublicNewsroomPath } from "./newsroom-base-path";
 export type NewsroomIndexTab = "references" | "messages" | "assignments" | "insights";
 
 export type ReferenceIndexOrder = "published" | "imported";
@@ -147,10 +148,10 @@ export function buildNewsroomIndexWebPath(
   tab: NewsroomIndexTab,
   filters: ReferencesIndexFilters | MessagesIndexFilters | AssignmentsIndexFilters | InsightsIndexFilters,
 ): string {
-  if (tab === "references") return `/newsroom/references${buildReferencesIndexQuery(filters as ReferencesIndexFilters)}`;
-  if (tab === "messages") return `/newsroom/messages${buildMessagesIndexQuery(filters as MessagesIndexFilters)}`;
-  if (tab === "insights") return `/newsroom/insights${buildInsightsIndexQuery(filters as InsightsIndexFilters)}`;
-  return `/newsroom/assignments${buildAssignmentsIndexQuery(filters as AssignmentsIndexFilters)}`;
+  if (tab === "references") return toPublicNewsroomPath(`/newsroom/references${buildReferencesIndexQuery(filters as ReferencesIndexFilters)}`);
+  if (tab === "messages") return toPublicNewsroomPath(`/newsroom/messages${buildMessagesIndexQuery(filters as MessagesIndexFilters)}`);
+  if (tab === "insights") return toPublicNewsroomPath(`/newsroom/insights${buildInsightsIndexQuery(filters as InsightsIndexFilters)}`);
+  return toPublicNewsroomPath(`/newsroom/assignments${buildAssignmentsIndexQuery(filters as AssignmentsIndexFilters)}`);
 }
 
 export function syncBrowserNewsroomIndexUrl(
@@ -168,8 +169,9 @@ export function syncBrowserNewsroomIndexUrl(
 
 /** Lineage id from `/newsroom/references/<id>` (not index-only URLs). */
 export function parseReferenceLineageIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
-  if (!pathname?.startsWith("/newsroom/references/")) return null;
-  const segment = pathname.slice("/newsroom/references/".length).split("/")[0]?.trim() ?? "";
+  const internalPathname = pathname ? browserPathToInternalNewsroomPath(pathname) : null;
+  if (!internalPathname?.startsWith("/newsroom/references/")) return null;
+  const segment = internalPathname.slice("/newsroom/references/".length).split("/")[0]?.trim() ?? "";
   if (!segment) return null;
   try {
     return decodeURIComponent(segment);
@@ -180,8 +182,9 @@ export function parseReferenceLineageIdFromNewsroomPathname(pathname: string | n
 
 /** Assignment id from `/newsroom/assignments/<id>` (not index-only URLs). */
 export function parseAssignmentIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
-  if (!pathname?.startsWith("/newsroom/assignments/")) return null;
-  const segment = pathname.slice("/newsroom/assignments/".length).split("/")[0]?.trim() ?? "";
+  const internalPathname = pathname ? browserPathToInternalNewsroomPath(pathname) : null;
+  if (!internalPathname?.startsWith("/newsroom/assignments/")) return null;
+  const segment = internalPathname.slice("/newsroom/assignments/".length).split("/")[0]?.trim() ?? "";
   if (!segment) return null;
   try {
     return decodeURIComponent(segment);
@@ -191,8 +194,9 @@ export function parseAssignmentIdFromNewsroomPathname(pathname: string | null | 
 }
 
 export function parseInsightThreadIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
-  if (!pathname?.startsWith("/newsroom/insights/")) return null;
-  const segment = pathname.slice("/newsroom/insights/".length).split("/")[0]?.trim() ?? "";
+  const internalPathname = pathname ? browserPathToInternalNewsroomPath(pathname) : null;
+  if (!internalPathname?.startsWith("/newsroom/insights/")) return null;
+  const segment = internalPathname.slice("/newsroom/insights/".length).split("/")[0]?.trim() ?? "";
   if (!segment) return null;
   try {
     return decodeURIComponent(segment);

@@ -12,7 +12,8 @@ function isStaticOrApiPath(pathname: string): boolean {
 
 export { isStaticOrApiPath };
 
-export function isStagingGatedPath(pathname: string, readerBasePath: string = ""): boolean {
+export function isStagingGatedPath(pathname: string, readerBasePath: string = "", newsroomAtRoot: boolean = false): boolean {
+  if (newsroomAtRoot) return false;
   if (isStaticOrApiPath(pathname)) return false;
   if (pathname === "/robots.txt") return false;
   if (pathname === "/newsroom" || pathname.startsWith("/newsroom/")) return false;

@@ -74,3 +74,7 @@ and not a signal to implement Markus inside ops.
 Common hosting pairings (`amplify-ssr`+`pretext`, `amplify-static`+`markus`)
 are documented in [site-hosting.md](site-hosting.md). They are examples, not
 locks.
+
+## CMS-only hosts: newsroom at `/`
+
+A brand with `rootRoute: { kind: "newsroom" }` and `newsroomBasePath: ""` serves the newsroom at `/` (`/articles`, `/references`, ...). `/newsroom/*` redirects to `/*` and keeps the query string. Add both `https://<host>/` and `https://<host>/newsroom` to the Cognito redirect URLs while bookmarks and in-flight sign-ins may still use the old path. Internal Next.js routes stay under `app/newsroom`; use `newsroomHref` / `toPublicNewsroomPath` from `lib/newsroom-base-path.ts` for every browser-visible URL.
