@@ -1,0 +1,30 @@
+{
+  "id": "PPY-16a680a0-fe36-4897-bd26-8acd7f649143",
+  "title": "import-markus re-run is not a no-op: media metadata JSON key order",
+  "description": "import-markus re-run reported updated 12 / unchanged 9 because _media_differs compares MediaAsset metadata JSON key order (AppSync reorders keys). Fix: semantic compare; audit Item comparison path.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a8c3dd3f-f965-4f81-94b5-b13eb37a0331",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/136 (branch feature/PPY-16a680-import-idempotent). Root cause: `_media_differs` compared MediaAsset `metadata` JSON strings byte-for-byte; AppSync reorders keys. Fix: parse JSON-encoded values before comparing. Item path compares `contentHash` strings, unaffected. New behave scenario fails without fix; full backend behave and CI (python, ts, smoke) pass. Not merged.",
+      "created_at": "2026-10-06T19:36:14.837792Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T19:31:22.339683Z",
+  "updated_at": "2026-10-06T19:36:36.366882Z",
+  "closed_at": "2026-10-06T19:36:36.366848Z",
+  "right_now_summary": "A fix for metadata key-order comparisons passes tests, but PR #136 still awaits merge.",
+  "right_now_updated_at": "2026-10-06T19:36:38.182203Z",
+  "custom": {}
+}

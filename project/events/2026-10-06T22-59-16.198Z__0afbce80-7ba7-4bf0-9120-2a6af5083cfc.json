@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0afbce80-7ba7-4bf0-9120-2a6af5083cfc",
+  "issue_id": "PPY-1e036d48-4d9e-4d56-abbd-3a2b29c4a88e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T22:59:16.198Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markus-brand sites must not enumerate Next reader static params (CMS build fails)",
+    "description": "Pilobol.us CMS Amplify app dv0pdx67fk80m builds fail since scaffold PR #50: generateArticleStaticParams in lib/reader-static-params.ts lists CMS article slugs from GraphQL (now non-empty), but app/articles/[slug]/page.tsx throws MarkusSiteRendererError for Markus brands during prerender. Job 5 (next.12) had no slugs, 5 pages; job 7 (next.15) 15 pages, fails on /articles/believe-the-rainbow. Fix: both static-params generators return [] for Markus brands.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

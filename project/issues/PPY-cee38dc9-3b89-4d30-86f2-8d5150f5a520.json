@@ -1,0 +1,30 @@
+{
+  "id": "PPY-cee38dc9-3b89-4d30-86f2-8d5150f5a520",
+  "title": "Google sign-in is the standard: default on, stable Cognito domain from site.json",
+  "description": "Ryan's firm requirement: CMS sign-in is Google, always. The new Pilobol.us CMS (app dv0pdx67fk80m) fails LOGIN with 'oauth param not configured' because its pool has no hosted-UI domain and no Google provider. Fix the template so a site created from it gets Google by default with a stable Cognito domain (cms.cognitoDomainPrefix in infra/site.json), update synth tests and docs. No AWS changes.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3caed51f-d0cf-47d4-8902-8042acfbc280",
+      "author": "home",
+      "text": "Root cause: (1) Pilobol.us infra/site.json (main) sets `PAPYRUS_DISABLE_GOOGLE_OAUTH=1` and the template copies cms.environment to the branches; `defineSiteAuth` creates the Cognito domain only inside the Google block, so no domain and no provider. (2) Live: the console GitHub connect at 13:09-13:10 EDT deleted the stack-made `main` and `staging` branches and recreated only `main` with NO env vars (CloudTrail), so the 17:10Z build created UserPool + client, no UserPoolDomain, no IdP. Fix in PR https://github.com/AnthusAI/Papyrus/pull/134 (branch feature/PPY-cee38d-google-sign-in): required `cms.cognitoDomainPrefix`, template sets PAPYRUS_COGNITO_DOMAIN_PREFIX, rejects the disable flag, synth tests, docs. CI python+ts pass. Not merged.",
+      "created_at": "2026-10-06T17:43:36.783723Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T17:38:21.057345Z",
+  "updated_at": "2026-10-06T17:44:38.813186Z",
+  "closed_at": "2026-10-06T17:44:38.812929Z",
+  "right_now_summary": "PR #134 adds default Google sign-in and a stable Cognito domain; CI passes, but it is not merged.",
+  "right_now_updated_at": "2026-10-06T17:44:40.415611Z",
+  "custom": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-dc4a8715-0b78-40f6-af35-0c69f2d045e8",
+  "title": "Newsroom landing page has no link to the Articles list",
+  "description": "Reported by Ryan on the new Pilobol.us CMS (https://main.dv0pdx67fk80m.amplifyapp.com/newsroom): the landing page has no link of any kind to /newsroom/articles. The Articles list works when the URL is typed (21 rows: 18 published, 3 drafts) but is not discoverable. Add a link or nav entry to the Articles view from the newsroom landing page and shell; check the other newsroom sections for the same problem.",
+  "type": "bug",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-07T00:00:41.578985Z",
+  "updated_at": "2026-10-07T00:00:41.581877Z",
+  "closed_at": null,
+  "right_now_summary": "The newsroom landing page still does not link to the Articles list.",
+  "right_now_updated_at": "2026-10-07T00:00:43.191094Z",
+  "custom": {}
+}

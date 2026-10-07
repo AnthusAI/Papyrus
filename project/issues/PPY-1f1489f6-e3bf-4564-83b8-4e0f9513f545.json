@@ -52,12 +52,19 @@
       "text": "RETRACTION (Ryan, 2026-10-05, confirmed directly in the orchestrating session): comment 4174c5 ('Papyrus is being PORTED FROM PYTHON TO TYPESCRIPT') is WRONG. It's CHATTICUS that is being ported to TypeScript, NOT Papyrus. Papyrus stays Python + TypeScript: papyrus-newsroom (PyPI) and @anthusai/papyrus (npm, incl. /infra) remain the two packages in docs/standard-site.md (merged PRs #98/#99/#102); Python Lambdas and the Python Markus renderer stay. The Phase 2 plan (PPY-655994 and its 19 sub-tasks) is built on the Python+TypeScript design and stands. Ignore 4174c5.",
       "created_at": "2026-10-05T19:58:15.256939Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4e3a16fa-f470-4e34-9bc7-5872402ae7b0",
+      "author": "home",
+      "text": "Ryan removed the earlier Papyrus sites Cognito redirect URIs/origins from Google OAuth client 94722830066-7pf0ui44... (project 94722830066) to make room under the 10 unverified-domain limit and reuses that client for the new Pilobol.us CMS (papyrus-pilobol-us-cms.auth.us-east-1.amazoncognito.com). Google sign-in on the OLD sites (p.apyr.us, Threat Intelligence, old newsroom.pilobol.us, anything using their auto-generated Cognito domains) is now expected to be broken until each is migrated to the template (each gets its own cognitoDomainPrefix) and its URIs are re-added; plan the re-add (or a client per site) when migrating them.",
+      "created_at": "2026-10-06T17:59:39.048892Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-05T13:08:22.888848Z",
-  "updated_at": "2026-10-05T19:58:15.256971Z",
+  "updated_at": "2026-10-06T17:59:39.049175Z",
   "closed_at": null,
-  "right_now_summary": "The team is finalizing the migration plan and verifying package deployments before moving all four sites.",
-  "right_now_updated_at": "2026-10-06T12:44:31.385912Z",
+  "right_now_summary": "Research is underway to align all four sites on one cloud CMS and app-style UI.",
+  "right_now_updated_at": "2026-10-07T10:37:37.386734Z",
   "custom": {}
 }

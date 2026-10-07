@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2a70ac56-f3fd-4cf7-8db8-43f87432211e",
+  "issue_id": "PPY-cee38dc9-3b89-4d30-86f2-8d5150f5a520",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T17:38:21.057Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Google sign-in is the standard: default on, stable Cognito domain from site.json",
+    "description": "Ryan's firm requirement: CMS sign-in is Google, always. The new Pilobol.us CMS (app dv0pdx67fk80m) fails LOGIN with 'oauth param not configured' because its pool has no hosted-UI domain and no Google provider. Fix the template so a site created from it gets Google by default with a stable Cognito domain (cms.cognitoDomainPrefix in infra/site.json), update synth tests and docs. No AWS changes.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

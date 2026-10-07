@@ -1,0 +1,30 @@
+{
+  "id": "PPY-6cf34138-7f9a-4a4e-8e39-994093c89c32",
+  "title": "Newsroom sign-in is Google-redirect only: \"oauth param not configured\" on a backend with Google OAuth disabled; add email+password sign-in",
+  "description": "Newsroom LOGIN calls signInWithRedirect Google only (components/reader-auth-control.tsx). Backends without Google OAuth fail with \"oauth param not configured\". When OAuth is not configured, present email+password sign-in, sign-up with confirmation code, sign-out; keep Google when configured; staging gate must accept email+password sessions.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "5a77a0ed-f2ea-4b4f-8716-3bd609e5b84a",
+      "author": "home",
+      "text": "Closed as not needed: Ryan requires Google sign-in only (decision 2026-10-06). The real fix was PPY-cee38d / Pilobol.us#48 (Google on, auth config from the scaffold). The agent working this was stopped; no code landed.",
+      "created_at": "2026-10-07T10:37:01.657197Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T17:33:07.688385Z",
+  "updated_at": "2026-10-07T10:37:07.664551Z",
+  "closed_at": "2026-10-07T10:37:07.664520Z",
+  "right_now_summary": "Google-only sign-in was accepted, so no email-and-password support was added.",
+  "right_now_updated_at": "2026-10-07T10:37:09.605896Z",
+  "custom": {}
+}

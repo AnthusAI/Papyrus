@@ -1,0 +1,30 @@
+{
+  "id": "PPY-fe42ebd5-01e1-4221-a08d-9d18b5254f4f",
+  "title": "App-shell template cannot attach www to a reader app domain",
+  "description": "The Pilobol.us cutover needs the new reader app (dssc97s4q5kgk) to serve both pilobol.us and www.pilobol.us (branch main). addReaderApp in infra/amplify-app-shell/lib/amplify-app-shell.ts creates the domain association with only prefix \"\" (apex); site.json has no way to add www. Fix at template level: optional reader.includeWww boolean; apex+www subDomainSettings both on the reader branch; unchanged when unset. Add synth and site-config tests, README and docs updates.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "45a69309-07db-428d-98cd-d2e741579def",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/140 (not merged). Adds `reader.includeWww` (boolean, requires `reader.domainName`). CI green.",
+      "created_at": "2026-10-07T01:56:17.719766Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T01:49:34.061647Z",
+  "updated_at": "2026-10-07T01:56:37.674743Z",
+  "closed_at": "2026-10-07T01:56:37.674707Z",
+  "right_now_summary": "A pull request adds optional `reader.includeWww` support, with tests and documentation updates, but it awaits merge.",
+  "right_now_updated_at": "2026-10-07T01:56:38.900547Z",
+  "custom": {}
+}

@@ -1,0 +1,37 @@
+{
+  "id": "PPY-dc52734e-3353-4fde-b1b8-17aba3aefe34",
+  "title": "Pilobol.us CMS build fails: Markus brand prerenders Next reader routes",
+  "description": "CMS Amplify app dv0pdx67fk80m builds fail since published articles exist in the backend: generateArticleStaticParams lists slugs from GraphQL, then app/articles/[slug]/page.tsx calls getSiteRenderer(), which throws MarkusSiteRendererError for Markus brands. Fix: Markus brands return [] from reader generateStaticParams and reader pages notFound().",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "de45bd06-aed2-4292-987d-0ecf884bff1e",
+      "author": "home",
+      "text": "Root cause: job 5 (next.12) generated 5 static pages; job 7 (next.15) generated 15. Published articles now exist in the backend, so `generateArticleStaticParams` (GraphQL listArticleSlugs) returns slugs and `/articles/[slug]` throws MarkusSiteRendererError for brand pilobol-us. Fix: PR https://github.com/AnthusAI/Papyrus/pull/139 on branch feature/PPY-dc5273-markus-no-next-reader-routes (Markus brands return [] and notFound()). Verified locally with a scaffold build: before 15 pages exit 1, with fixed files overlaid 5 pages exit 1->0. Follow-ups: merge, release next.16, bump Pilobol.us pin, rebuild CMS.",
+      "created_at": "2026-10-06T23:15:07.991759Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8a7604af-c3b5-436f-b3bf-970fbb4e76d0",
+      "author": "home",
+      "text": "Pilobol.us PR https://github.com/AnthusAI/Pilobol.us/pull/52 pins @anthusai/papyrus 1.0.0-next.16 / papyrus-newsroom 1.0.0.dev16. Local next build exit 0. Reader stack AmplifyAppShell-pilobol-us updated (buildspec dev15 -> dev16 only). Awaiting merge, which triggers CMS + reader builds.",
+      "created_at": "2026-10-06T23:33:35.919162Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T23:07:28.687905Z",
+  "updated_at": "2026-10-06T23:33:35.919205Z",
+  "closed_at": "2026-10-06T23:17:56.631268Z",
+  "right_now_summary": "A fix is ready and awaits merge before the CMS and reader builds can run.",
+  "right_now_updated_at": "2026-10-06T23:33:37.056788Z",
+  "custom": {}
+}

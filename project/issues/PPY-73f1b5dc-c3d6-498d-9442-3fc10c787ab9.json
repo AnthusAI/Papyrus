@@ -1,0 +1,37 @@
+{
+  "id": "PPY-73f1b5dc-c3d6-498d-9442-3fc10c787ab9",
+  "title": "Pilobol.us scaffold does not wire the reader app, so publish never rebuilds it",
+  "description": "Verified: Ryan published an edit to item articles/the-part-of-the-machine-that-could-talk in the new Pilobol.us CMS (app dv0pdx67fk80m) at about 20:00 EDT 2026-10-06 and no reader rebuild started (reader app dssc97s4q5kgk has no job after job 7 at 19:34). Cause: the backend passes site.reader ({ amplifyAppId, branchName? }) to rebuildTriggerSettings, which sets PAPYRUS_READER_AMPLIFY_APP_ID and PAPYRUS_READER_BRANCH on the content-actions Lambda and grants amplify:StartJob/ListJobs on that app branch jobs. The scaffold papyrus.config.ts backend (AnthusAI/Pilobol.us main) has no reader key, so the live Lambda env has PAPYRUS_CMS_AMPLIFY_APP_ID and PAPYRUS_STAGING_BRANCH but not the reader vars. Fix: add reader: { amplifyAppId: \"dssc97s4q5kgk\", branchName: \"main\" } to the backend block of Pilobol.us papyrus.config.ts.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "95b5306f-d495-4e1d-9e22-672aece660d0",
+      "author": "home",
+      "text": "PR opened against AnthusAI/Pilobol.us main adding the `reader` key to papyrus.config.ts backend; not merged.",
+      "created_at": "2026-10-07T00:04:57.115288Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b9c85025-4fee-4a9f-90a3-1a834d866b71",
+      "author": "home",
+      "text": "Fix PR: https://github.com/AnthusAI/Pilobol.us/pull/53 (adds the `reader` key to the papyrus.config.ts backend; not merged, Ryan merges).",
+      "created_at": "2026-10-07T00:05:17.920797Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T00:03:05.664773Z",
+  "updated_at": "2026-10-07T10:36:57.541468Z",
+  "closed_at": "2026-10-07T10:36:57.541439Z",
+  "right_now_summary": "A pull request adds the reader app wiring, but Ryan has not merged it yet.",
+  "right_now_updated_at": "2026-10-07T10:36:58.748416Z",
+  "custom": {}
+}

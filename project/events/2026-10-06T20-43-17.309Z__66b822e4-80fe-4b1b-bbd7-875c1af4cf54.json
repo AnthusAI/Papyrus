@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "66b822e4-80fe-4b1b-bbd7-875c1af4cf54",
+  "issue_id": "PPY-a960cb5b-fa93-485e-98a7-ad5ac11a478d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T20:43:17.309Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "New Pilobol.us reader app serves the homepage body for unknown paths instead of the custom 404 page",
+    "description": "",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}
