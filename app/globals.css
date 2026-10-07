@@ -45,6 +45,7 @@
   --color-surface-foreground: var(--surface-foreground);
   --color-foreground-strong: var(--foreground-strong);
   --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-subtle: var(--foreground-subtle);
 }
 
 :root {
@@ -71,6 +72,7 @@
   --surface-foreground: var(--card-foreground);
   --foreground-strong: var(--slate-12);
   --foreground-muted: var(--slate-10);
+  --foreground-subtle: var(--slate-9);
   --border: var(--slate-6);
   --input: var(--slate-6);
   --ring: var(--slate-8);

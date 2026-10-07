@@ -52,10 +52,12 @@ export default async function DateScopedArticlePage({ params }: DateScopedArticl
       editionFooter={{
         editionBasePath,
         entries: buildPresentationFooterEntries(content),
+        sections: content.sections.map((section) => ({ key: section.key, label: section.label })),
         subtitle: SITE_BRAND.footerSubtitleOverride ?? (content.description?.trim() || "Inside Papyrus"),
         title: SITE_BRAND.footerTitle,
       }}
       item={item}
+      videoScript={content.videoScripts?.[item.slug] ?? null}
       backHref={`${editionBasePath}#${item.slug}`}
     />
   );
