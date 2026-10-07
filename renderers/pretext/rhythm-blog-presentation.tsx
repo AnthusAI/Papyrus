@@ -15,7 +15,7 @@ import {
   type PublicationItem,
 } from "../../lib/publication-items";
 import { SITE_BRAND } from "../../lib/site-brand";
-import type { VideoScriptRef } from "../../lib/video-script";
+import { EDITION_OVERVIEW_VIDEO_KEY, type VideoScriptRef } from "../../lib/video-script";
 import { ArticleVideoFigure } from "../../components/article-video";
 import { BlogPageBackground as GenericBlogPageBackground } from "../../components/blog-page-background";
 import { PictogramFigure as GenericPictogramFigure } from "../../components/pictogram-figure";
@@ -40,7 +40,6 @@ import { BLOG_RHYTHM, getFeaturedLayoutStyle, getRhythmShellStyle } from "./rhyt
 const BlogPageBackground = SITE_BRAND.components?.BlogPageBackground ?? GenericBlogPageBackground;
 const PictogramFigure = SITE_BRAND.components?.PictogramFigure ?? GenericPictogramFigure;
 const BLOG_TEXT_STYLE = createDefaultBlogTextStyle(SITE_BRAND.textFont);
-const EDITION_OVERVIEW_VIDEO_KEY = "edition-overview";
 const SECONDARY_PAIR_ITEM_INDEX = 2;
 
 type PapyrusTestWindow = Window & typeof globalThis & {

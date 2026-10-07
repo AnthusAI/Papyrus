@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeDevPreviewDsl, parseVideoScriptRef, videomlItemSlug } from "../lib/video-script";
+import { collectVideoScriptTargets, normalizeDevPreviewDsl, parseVideoScriptRef, videomlItemSlug } from "../lib/video-script";
 
 test("parseVideoScriptRef reads the videoScript payload of an item", () => {
   const result = parseVideoScriptRef({
@@ -47,4 +47,16 @@ test("normalizeDevPreviewDsl without aliases leaves the script unchanged", () =>
   const dsl = '<quote-card props="{}" />';
   assert.equal(normalizeDevPreviewDsl(dsl), dsl);
   assert.equal(normalizeDevPreviewDsl(dsl, {}), dsl);
+});
+
+test("collectVideoScriptTargets lists the edition overview and each item that has a video, once", () => {
+  const items = [
+    { slug: "a", video: { src: "a.mp4" } },
+    { slug: "b" },
+    { slug: "c", video: { src: "c.mp4" } },
+    { slug: "a", video: { src: "a.mp4" } },
+  ];
+  assert.deepEqual(collectVideoScriptTargets(items, true), ["edition-overview", "a", "c"]);
+  assert.deepEqual(collectVideoScriptTargets(items, false), ["a", "c"]);
+  assert.deepEqual(collectVideoScriptTargets([], false), []);
 });

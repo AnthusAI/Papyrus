@@ -21,6 +21,20 @@ export type VideoScriptRef = {
   targetKind: VideoScriptTargetKind;
 };
 
+export const EDITION_OVERVIEW_VIDEO_KEY = "edition-overview";
+
+export function collectVideoScriptTargets(
+  items: ReadonlyArray<{ slug: string; video?: unknown }>,
+  hasEditionVideo: boolean,
+): string[] {
+  const targets = new Set<string>();
+  if (hasEditionVideo) targets.add(EDITION_OVERVIEW_VIDEO_KEY);
+  for (const item of items) {
+    if (item.video) targets.add(item.slug);
+  }
+  return [...targets];
+}
+
 export function videomlItemSlug(targetSlug: string): string {
   return `${targetSlug}--videoml`;
 }
