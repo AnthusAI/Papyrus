@@ -24,10 +24,10 @@ const FRONTEND_ENVIRONMENT_CAPTURE =
 
 const CHECKOUT_AS_PAPYRUS_ROOT = "PAPYRUS_ROOT=\"$PWD\"";
 
-const RUNTIME_OUTPUTS_COMMANDS = [
-  "cp amplify_outputs.json .next/amplify_outputs.json",
-  "echo PAPYRUS_AMPLIFY_OUTPUTS=.next/amplify_outputs.json >> .env.production",
-];
+const RUNTIME_OUTPUTS_ENVIRONMENT =
+  "echo PAPYRUS_AMPLIFY_OUTPUTS=.next/amplify_outputs.json >> .env.production";
+
+const RUNTIME_OUTPUTS_COPY = "cp amplify_outputs.json .next/amplify_outputs.json";
 
 function pythonProvisioningCommands(config: AmplifyAppShellSiteConfig): string[] {
   return [
@@ -85,8 +85,9 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
       [],
       [
         FRONTEND_ENVIRONMENT_CAPTURE,
+        ...(config.frontend === "pretext" ? [RUNTIME_OUTPUTS_ENVIRONMENT] : []),
         "npx papyrus-app sync && npm run build",
-        ...(config.frontend === "pretext" ? RUNTIME_OUTPUTS_COMMANDS : []),
+        ...(config.frontend === "pretext" ? [RUNTIME_OUTPUTS_COPY] : []),
       ],
       ".next",
       [".next/cache/**/*", ".npm/**/*"],
@@ -113,8 +114,9 @@ export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
       preBuild,
       [
         FRONTEND_ENVIRONMENT_CAPTURE,
+        RUNTIME_OUTPUTS_ENVIRONMENT,
         "npx papyrus-app sync && npm run build",
-        ...RUNTIME_OUTPUTS_COMMANDS,
+        RUNTIME_OUTPUTS_COPY,
       ],
       ".next",
       cachePaths,

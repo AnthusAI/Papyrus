@@ -118,6 +118,17 @@ try {
     assert.equal(/cp amplify_outputs\.json \.next\/amplify_outputs\.json/.test(productionSpec), isPretext, `${example}: production ships amplify_outputs.json into the compute bundle only for a Pretext site`);
     assert.equal(/echo PAPYRUS_AMPLIFY_OUTPUTS=\.next\/amplify_outputs\.json >> \.env\.production/.test(productionSpec), isPretext, `${example}: production runtime reads the shipped amplify_outputs.json only for a Pretext site`);
 
+    const outputsOrderOf = (spec) => ({
+      environment: spec.indexOf("echo PAPYRUS_AMPLIFY_OUTPUTS="),
+      build: spec.indexOf("npm run build"),
+      copy: spec.indexOf("cp amplify_outputs.json .next/amplify_outputs.json"),
+    });
+    if (isPretext) {
+      const order = outputsOrderOf(productionSpec);
+      assert.ok(order.environment >= 0 && order.environment < order.build, `${example}: production writes PAPYRUS_AMPLIFY_OUTPUTS to .env.production before npm run build`);
+      assert.ok(order.copy > order.build, `${example}: production copies amplify_outputs.json into .next after npm run build`);
+    }
+
     if (expectedApps === 2) {
       const readerApp = apps.find((app) => app.Properties.Platform === "WEB");
       const readerSpec = buildSpecOf(readerApp);
@@ -137,6 +148,9 @@ try {
       assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content upload-preview/, `${example}: staging upload finds the checkout's amplify_outputs.json`);
       assert.match(stagingSpec, /cp amplify_outputs\.json \.next\/amplify_outputs\.json/, `${example}: staging ships amplify_outputs.json into the compute bundle`);
       assert.match(stagingSpec, /echo PAPYRUS_AMPLIFY_OUTPUTS=\.next\/amplify_outputs\.json >> \.env\.production/, `${example}: staging runtime reads the shipped amplify_outputs.json`);
+      const stagingOrder = outputsOrderOf(stagingSpec);
+      assert.ok(stagingOrder.environment >= 0 && stagingOrder.environment < stagingOrder.build, `${example}: staging writes PAPYRUS_AMPLIFY_OUTPUTS to .env.production before npm run build`);
+      assert.ok(stagingOrder.copy > stagingOrder.build, `${example}: staging copies amplify_outputs.json into .next after npm run build`);
     }
 
     const github = JSON.parse(fs.readFileSync(site, "utf8")).github;
