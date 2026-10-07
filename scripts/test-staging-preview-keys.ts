@@ -33,6 +33,12 @@ for (const excluded of ["/newsroom", "/newsroom/articles", "/api/x", "/_next/sta
 }
 assert.equal(isPreviewGatedPath("/__preview/index.html"), true);
 assert.equal(isPreviewGatedPath("/newsroom"), false);
+assert.equal(shouldRewriteToPreview("/", true), false);
+assert.equal(shouldRewriteToPreview("/articles", true), false);
+assert.equal(shouldRewriteToPreview("/articles/foo.html", true), true);
+assert.equal(isPreviewGatedPath("/", true), false);
+assert.equal(isPreviewGatedPath("/articles/foo.html", true), true);
+assert.equal(isPreviewGatedPath("/__preview/", true), true);
 assert.equal(previewRewritePathname("/articles/foo.html"), "/__preview/articles/foo.html");
 
 assert.equal(isStaticPreviewEnabled({ SITE_ENV: "staging", PAPYRUS_STAGING_PREVIEW: "static" }), true);

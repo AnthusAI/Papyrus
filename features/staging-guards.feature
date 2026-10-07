@@ -31,3 +31,11 @@ Feature: Deployment environment guards
     And "/api/x" is not rewritten
     And "/_next/static/a.js" is not rewritten
     And the preview route is disabled for SITE_ENV "production"
+
+  @staging-static
+  Scenario: Static staging with the newsroom at the root leaves the root to the newsroom
+    Given static staging is configured with PAPYRUS_STAGING_PREVIEW "static"
+    And the newsroom is mounted at the site root
+    Then "/" is not rewritten
+    And "/articles" is not rewritten
+    And "/articles/foo.html" is rewritten to "/__preview/articles/foo.html"

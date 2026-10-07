@@ -59,14 +59,14 @@ Then("I should be redirected to the newsroom sign-in", function () {
 
 const { execFileSync } = require("node:child_process");
 
-function probePreviewRewrite(environment, pathname) {
+function probePreviewRewrite(environment, pathname, newsroomAtRoot = false) {
   const script = `
     import { isStaticPreviewEnabled, previewRewritePathname, shouldRewriteToPreview } from "./lib/staging-preview-object";
     const pathname = process.argv[1];
     const enabled = isStaticPreviewEnabled();
-    console.log(JSON.stringify({ enabled, rewrite: enabled && shouldRewriteToPreview(pathname) ? previewRewritePathname(pathname) : null }));
+    console.log(JSON.stringify({ enabled, rewrite: enabled && shouldRewriteToPreview(pathname, process.argv[2] === "root") ? previewRewritePathname(pathname) : null }));
   `;
-  const output = execFileSync("npx", ["tsx", "--eval", script, pathname], {
+  const output = execFileSync("npx", ["tsx", "--eval", script, pathname, newsroomAtRoot ? "root" : "default"], {
     cwd: process.cwd(),
     env: { ...process.env, ...environment },
     encoding: "utf8",
@@ -78,12 +78,16 @@ Given("static staging is configured with PAPYRUS_STAGING_PREVIEW {string}", func
   this.previewEnvironment = { SITE_ENV: "staging", PAPYRUS_STAGING_PREVIEW: mode };
 });
 
+Given("the newsroom is mounted at the site root", function () {
+  this.newsroomAtRoot = true;
+});
+
 Then("{string} is rewritten to {string}", function (pathname, expected) {
-  assert.equal(probePreviewRewrite(this.previewEnvironment, pathname).rewrite, expected);
+  assert.equal(probePreviewRewrite(this.previewEnvironment, pathname, this.newsroomAtRoot === true).rewrite, expected);
 });
 
 Then("{string} is not rewritten", function (pathname) {
-  assert.equal(probePreviewRewrite(this.previewEnvironment, pathname).rewrite, null);
+  assert.equal(probePreviewRewrite(this.previewEnvironment, pathname, this.newsroomAtRoot === true).rewrite, null);
 });
 
 Then("the preview route is disabled for SITE_ENV {string}", function (siteEnv) {

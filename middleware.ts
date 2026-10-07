@@ -23,7 +23,7 @@ function isStagingGatedPathForBrand(pathname: string): boolean {
 }
 
 function routeRequest(request: NextRequest): NextResponse {
-  if (isStaticPreviewEnabled() && shouldRewriteToPreview(request.nextUrl.pathname)) {
+  if (isStaticPreviewEnabled() && shouldRewriteToPreview(request.nextUrl.pathname, usesNewsroomRootPaths())) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = previewRewritePathname(request.nextUrl.pathname);
     return NextResponse.rewrite(rewriteUrl);
@@ -61,8 +61,8 @@ function routeRequest(request: NextRequest): NextResponse {
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   let sessionResponse: NextResponse | null = null;
   const { pathname } = request.nextUrl;
-  const gated = isStaticPreviewEnabled() && !usesNewsroomRootPaths()
-    ? isPreviewGatedPath(pathname)
+  const gated = isStaticPreviewEnabled()
+    ? isPreviewGatedPath(pathname, usesNewsroomRootPaths())
     : isStagingGatedPathForBrand(pathname);
   if (getSiteEnv() === "staging" && gated) {
     sessionResponse = NextResponse.next();
