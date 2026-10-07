@@ -18,6 +18,7 @@ import { SITE_BRAND, rootRoute } from "../lib/site-brand";
 import { notFound, redirect } from "next/navigation";
 import { getReaderBasePath } from "../lib/reader-base-path";
 import { buildRootRedirectTarget } from "../lib/root-route-redirect";
+import { NewsroomClientShell } from "../components/newsroom-client-shell";
 import NewsDeskRootPage, { type NewsDeskRootSearchParams } from "./newsroom/page";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +43,11 @@ export default async function Home({ searchParams }: HomePageProps) {
   const publicationOwnsRoot = getReaderBasePath() !== "";
 
   if (!publicationOwnsRoot && rootRoute.kind === "newsroom" && !scenarioId) {
-    return <NewsDeskRootPage searchParams={searchParams} />;
+    return (
+      <NewsroomClientShell>
+        <NewsDeskRootPage searchParams={searchParams} />
+      </NewsroomClientShell>
+    );
   }
 
   if (!publicationOwnsRoot && rootRoute.kind === "redirect") {

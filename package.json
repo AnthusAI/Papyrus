@@ -35,7 +35,7 @@
     "test:newsroom-articles": "tsx scripts/test-newsroom-articles.ts",
     "test:newsroom-media": "tsx scripts/test-newsroom-media.ts",
     "test:newsroom-nav": "tsx scripts/test-newsroom-nav.ts",
-    "test:newsroom-root-paths": "tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us SITE_ENV=staging tsx scripts/test-newsroom-root-middleware.ts",
+    "test:newsroom-root-paths": "tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us SITE_ENV=staging tsx scripts/test-newsroom-root-middleware.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-provider.ts",
     "test:pilobol-sample-ast": "node scripts/check-pilobol-sample-ast-stale.mjs",
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:amplify-outputs-path": "tsx scripts/test-amplify-outputs-path.ts",
