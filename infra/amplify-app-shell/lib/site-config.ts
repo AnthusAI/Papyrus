@@ -8,11 +8,13 @@ export type AmplifyAppShellSiteConfig = {
   cms: {
     appName?: string;
     domainName?: string;
+    domainPrefix?: string;
     staging?: boolean;
     cognitoDomainPrefix: string;
     buildComputeType?: "STANDARD" | "STANDARD_8GB";
     environment: Record<string, string>;
     stagingDomainName?: string;
+    stagingDomainPrefix?: string;
   };
   reader?: {
     appName?: string;
@@ -38,6 +40,7 @@ const SITE_ID_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const REPOSITORY_PATTERN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const HOSTED_ZONE_ID_PATTERN = /^Z[A-Z0-9]+$/;
 const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
+const DOMAIN_PREFIX_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
 const STACK_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9-]{0,127}$/;
 const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
@@ -94,8 +97,16 @@ export function isStagingEnabled(config: Pick<AmplifyAppShellSiteConfig, "cms">)
   return config.cms.staging !== false;
 }
 
+export function resolveCmsHostName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string | undefined {
+  if (!config.cms.domainName) return undefined;
+  return config.cms.domainPrefix ? `${config.cms.domainPrefix}.${config.cms.domainName}` : config.cms.domainName;
+}
+
 export function resolveStagingDomainName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string | undefined {
   if (!isStagingEnabled(config)) return undefined;
+  if (config.cms.domainPrefix) {
+    return config.cms.stagingDomainPrefix ? `${config.cms.stagingDomainPrefix}.${config.cms.domainName}` : undefined;
+  }
   if (config.cms.stagingDomainName) return config.cms.stagingDomainName;
   if (!config.cms.domainName) return undefined;
   const [, ...rest] = config.cms.domainName.split(".");
@@ -131,7 +142,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
   const cmsRecord = requireObject(record.cms, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -142,6 +153,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const cms: AmplifyAppShellSiteConfig["cms"] = {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
+    domainPrefix: optionalString(cmsRecord.domainPrefix, "cms.domainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     staging: cmsRecord.staging as boolean | undefined,
     cognitoDomainPrefix: requireString(
       cmsRecord.cognitoDomainPrefix,
@@ -152,6 +164,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
+    stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
   };
 
   const reservedWord = COGNITO_RESERVED_WORDS.find((word) => cms.cognitoDomainPrefix.includes(word));
@@ -169,6 +182,24 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   }
   if (cms.stagingDomainName && !cms.domainName) {
     fail("cms.stagingDomainName", "requires cms.domainName");
+  }
+  if (cms.domainPrefix && !cms.domainName) {
+    fail("cms.domainPrefix", "requires cms.domainName (the root domain)");
+  }
+  if (cms.stagingDomainPrefix && !cms.domainPrefix) {
+    fail("cms.stagingDomainPrefix", "requires cms.domainPrefix");
+  }
+  if (cms.domainPrefix && cms.stagingDomainName) {
+    fail("cms.stagingDomainName", "must not be set with cms.domainPrefix: use cms.stagingDomainPrefix");
+  }
+  if (cms.staging === false && cms.stagingDomainPrefix) {
+    fail("cms.stagingDomainPrefix", "must not be set when cms.staging is false");
+  }
+  if (cms.domainPrefix && cms.staging !== false && !cms.stagingDomainPrefix) {
+    fail("cms.stagingDomainPrefix", "is required when cms.domainPrefix is set and staging is enabled: the staging host is never derived under a shared root domain");
+  }
+  if (cms.domainPrefix && cms.stagingDomainPrefix === cms.domainPrefix) {
+    fail("cms.stagingDomainPrefix", "must differ from cms.domainPrefix");
   }
 
   let reader: AmplifyAppShellSiteConfig["reader"];
@@ -241,7 +272,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const redirectUrls = redirectValue.split(",").map((url) => url.trim());
   const stagingDomainName = resolveStagingDomainName(config);
   const requiredOrigins = [
-    ...(cms.domainName ? [`https://${cms.domainName}/`] : []),
+    ...(resolveCmsHostName(config) ? [`https://${resolveCmsHostName(config)}/`] : []),
     ...(stagingDomainName ? [`https://${stagingDomainName}/`] : []),
     LOCAL_DEVELOPMENT_ORIGIN,
   ];

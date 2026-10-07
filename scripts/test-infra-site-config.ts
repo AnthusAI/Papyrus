@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { isStagingEnabled, parseSiteConfig, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -91,6 +91,25 @@ assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.cognitoDomainPrefix 
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.cognitoDomainPrefix = "my-cognito-cms")), "reserves");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_DISABLE_GOOGLE_OAUTH = "1")), "cms.environment.PAPYRUS_DISABLE_GOOGLE_OAUTH");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX = "x-cms")), "cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX");
+const sharedRootConfig = parseSiteConfig(readExample("threat-intelligence.site.json"));
+assert.equal(sharedRootConfig.cms.domainName, "anth.us");
+assert.equal(resolveCmsHostName(sharedRootConfig), "threat-intelligence.anth.us");
+assert.equal(resolveStagingDomainName(sharedRootConfig), "threat-intelligence-staging.anth.us");
+assert.equal(resolveCmsHostName(pretextConfig), "newsroom.example.test");
+assertRejects(mutated("threat-intelligence.site.json", (c) => delete c.cms.stagingDomainPrefix), "cms.stagingDomainPrefix");
+assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.stagingDomainPrefix = "threat-intelligence")), "must differ");
+assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.stagingDomainName = "staging.anth.us")), "cms.stagingDomainPrefix");
+assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.domainPrefix = "Threat.Intel")), "cms.domainPrefix");
+assertRejects(mutated("threat-intelligence.site.json", (c) => { c.cms.staging = false; }), "must not be set when cms.staging is false");
+assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://anth.us/,https://threat-intelligence-staging.anth.us/")), "https://threat-intelligence.anth.us/");
+assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://threat-intelligence.anth.us/")), "https://threat-intelligence-staging.anth.us/");
+assertRejects(mutated("pretext.site.json", (c) => (c.cms.stagingDomainPrefix = "s")), "requires cms.domainPrefix");
+assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.domainPrefix = "x"; }), "requires cms.domainName");
+parseSiteConfig(mutated("threat-intelligence.site.json", (c) => {
+  c.cms.staging = false;
+  delete c.cms.stagingDomainPrefix;
+  c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://threat-intelligence.anth.us/";
+}));
 assertRejects("not an object", "site");
 
 assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", () => {}))), "amplify-app-shell-pretext-example");
