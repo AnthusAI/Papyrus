@@ -82,7 +82,7 @@ export function webPathToPapyrusLocation(webPath: string): PapyrusWebUiContext {
   }
 
   if (!pathname.startsWith("/newsroom")) {
-    const tail = pathname.replace(/^\/+/, "");
+    const tail = (url.pathname || "/").replace(/^\/+/, "");
     return location(`papyrus://site/path/${encodeURIComponent(tail)}`, normalized, { label: pathname });
   }
 

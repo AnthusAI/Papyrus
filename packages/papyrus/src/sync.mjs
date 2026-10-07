@@ -47,8 +47,32 @@ export function middlewareShim(manifest) {
   ].join("\n");
 }
 
-export function sync({ root = process.cwd(), log = console.log } = {}) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(pkgRoot, "routes.manifest.json"), "utf8"));
+const RESERVED_FIRST_SEGMENTS = new Set(["newsroom", "api", "_next", "_preview", "%5F_preview"]);
+
+export function normalizeReaderBasePath(value) {
+  const trimmed = (value ?? "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+export function readReaderBasePath(root) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(root, "papyrus.config.ts"), "utf8");
+  } catch {
+    return "";
+  }
+  const match = text.match(/\breaderBasePath\s*:\s*(["'`])([^"'`]*)\1/);
+  return normalizeReaderBasePath(match ? match[2] : "");
+}
+
+export function sync({ root = process.cwd(), log = console.log, manifest: manifestOverride, readerBasePath: readerBasePathOverride } = {}) {
+  const manifest = manifestOverride ?? JSON.parse(fs.readFileSync(path.join(pkgRoot, "routes.manifest.json"), "utf8"));
+  const readerBasePath = normalizeReaderBasePath(readerBasePathOverride ?? readReaderBasePath(root));
+  if (readerBasePath && RESERVED_FIRST_SEGMENTS.has(readerBasePath.split("/")[1])) {
+    throw new Error(`readerBasePath "${readerBasePath}" collides with a Papyrus-owned route (newsroom, api, _preview)`);
+  }
+  const readerRouteFile = (file) => (readerBasePath ? file.replace(/^app\//, `app${readerBasePath}/`) : file);
   const generated = [];
   const skipped = [];
   const write = (relPath, content) => {
@@ -61,7 +85,7 @@ export function sync({ root = process.cwd(), log = console.log } = {}) {
     fs.writeFileSync(dest, content);
     generated.push(relPath);
   };
-  for (const route of manifest.routes) write(route.file, shimFor(route));
+  for (const route of manifest.routes) write(route.reader ? readerRouteFile(route.file) : route.file, shimFor(route));
   write("middleware.ts", middlewareShim(manifest));
 
   // Remove shims that are no longer in the manifest (e.g. after an upgrade).
@@ -81,7 +105,7 @@ export function sync({ root = process.cwd(), log = console.log } = {}) {
   const re = new RegExp(`${GITIGNORE_BEGIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${GITIGNORE_END}`);
   fs.writeFileSync(giFile, re.test(gi) ? gi.replace(re, block) : `${gi}${gi.endsWith("\n") || !gi ? "" : "\n"}${block}\n`);
 
-  log(`papyrus-app sync: ${generated.length} shim(s) written, ${skipped.length} site-owned file(s) kept (${PKG}@${manifest.version})`);
+  log(`papyrus-app sync: ${generated.length} shim(s) written, ${skipped.length} site-owned file(s) kept (${PKG}@${manifest.version})${readerBasePath ? `, reader mounted at ${readerBasePath}` : ""}`);
   for (const rel of skipped) log(`  site-owned: ${rel}`);
   return { generated, skipped };
 }

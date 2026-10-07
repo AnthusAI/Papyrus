@@ -16,6 +16,7 @@ import {
 import type { PublicationItem } from "../lib/publication-items";
 import { SITE_BRAND, rootRoute } from "../lib/site-brand";
 import { notFound, redirect } from "next/navigation";
+import { getReaderBasePath } from "../lib/reader-base-path";
 import { buildRootRedirectTarget } from "../lib/root-route-redirect";
 import NewsDeskRootPage, { type NewsDeskRootSearchParams } from "./newsroom/page";
 
@@ -38,11 +39,13 @@ export default async function Home({ searchParams }: HomePageProps) {
   // co-hosts reader + CMS uses the default "reader" (render the publication
   // home page here). A CMS-only site points the root at the newsroom or
   // anywhere else. Preserve the scenario and OAuth-callback paths.
-  if (rootRoute.kind === "newsroom" && !scenarioId) {
+  const publicationOwnsRoot = getReaderBasePath() !== "";
+
+  if (!publicationOwnsRoot && rootRoute.kind === "newsroom" && !scenarioId) {
     return <NewsDeskRootPage searchParams={searchParams} />;
   }
 
-  if (rootRoute.kind === "redirect") {
+  if (!publicationOwnsRoot && rootRoute.kind === "redirect") {
     redirect(buildRootRedirectTarget(rootRoute.destination, resolvedSearchParams));
   }
 
