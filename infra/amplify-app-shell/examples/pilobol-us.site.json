@@ -21,7 +21,6 @@
   },
   "reader": {
     "domainName": "pilobol.us",
-    "includeWww": true,
     "buildCommand": "python3 reader/build.py --content content-export --out dist",
     "baseDirectory": "dist"
   },

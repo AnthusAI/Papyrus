@@ -16,7 +16,7 @@ build.
 | --- | --- |
 | CMS app `<siteId>-cms` (`WEB_COMPUTE`) | Branch `main` (production, owns the backend) and, unless `cms.staging` is `false`, `staging` (frontend only, reads the production backend) |
 | Reader app `<siteId>-reader` (`WEB`), `markus-static` only | Branch `main`; static build from the published content export; catch-all rule `/<*>` -> `/404.html` with status `404-200` (real 404 with the site's `404.html`) |
-| Domains (optional) | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex (plus `www` when `reader.includeWww` is `true`). Omit `cms.domainName` / `reader.domainName` / `hostedZoneId` to create no `AWS::Amplify::Domain` and use the default `amplifyapp.com` URLs |
+| Domains (optional) | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex. Omit `cms.domainName` / `reader.domainName` / `hostedZoneId` to create no `AWS::Amplify::Domain` and use the default `amplifyapp.com` URLs |
 | CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
 | Compute role | SSR rendering role for the CMS app |
 | Authoring role `<siteId>-papyrus-authoring` | What the Papyrus CLI signs AppSync requests (SigV4) with: `appsync:GraphQL` on Query/Mutation fields, `media/*` and preview object access in the site's storage bucket, Amplify jobs on the site's apps. Trust is the account root. No token exists. See [Authoring role and the CLI](../../docs/site-hosting.md#authoring-role-and-the-cli) |
@@ -49,11 +49,6 @@ rejected in `cms.environment`. The secrets `GOOGLE_CLIENT_ID` and
 and `https://<staging domain>/` when staging is enabled and has a domain. Without
 a domain the stack appends the app's default `https://main.<app>.amplifyapp.com/`
 (and `https://staging.<app>.amplifyapp.com/`) to the branch variable itself.
-
-To serve `www.<domain>` from the reader app as well, set
-`"reader": { "domainName": "pilobol.us", "includeWww": true, ... }`. The reader
-domain association then maps both the apex and `www` to the reader branch
-(`main` unless `reader.branchName` is set). Omit it for apex only.
 
 Domain-free and staging-free setup: omit `hostedZoneId`, `cms.domainName`,
 `cms.stagingDomainName` and `reader.domainName` (a zone id is only accepted
