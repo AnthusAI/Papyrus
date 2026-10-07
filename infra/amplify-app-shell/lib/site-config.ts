@@ -1,3 +1,8 @@
+export type CmsRedirect = {
+  source: string;
+  status: 301 | 302;
+};
+
 export type AmplifyAppShellSiteConfig = {
   siteId: string;
   repository: string;
@@ -16,6 +21,7 @@ export type AmplifyAppShellSiteConfig = {
     environment: Record<string, string>;
     stagingDomainName?: string;
     stagingDomainPrefix?: string;
+    redirects?: CmsRedirect[];
   };
   reader?: {
     appName?: string;
@@ -94,6 +100,24 @@ function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[], f
   }
 }
 
+function parseRedirects(value: unknown): CmsRedirect[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) fail("cms.redirects", "must be a non-empty array");
+  return (value as unknown[]).map((entry, index) => {
+    const field = `cms.redirects[${index}]`;
+    const record = requireObject(entry, field);
+    rejectUnknownKeys(record, ["source", "status"], field);
+    const source = requireString(record.source, `${field}.source`, HOST_NAME_PATTERN, "host name without scheme or path");
+    const status = record.status ?? 301;
+    if (status !== 301 && status !== 302) fail(`${field}.status`, `must be 301 or 302, got ${JSON.stringify(status)}`);
+    return { source, status };
+  });
+}
+
+export function resolveRedirectSubDomainPrefix(rootDomain: string, source: string): string {
+  return source === rootDomain ? "" : source.slice(0, -rootDomain.length - 1);
+}
+
 export function isStagingEnabled(config: Pick<AmplifyAppShellSiteConfig, "cms">): boolean {
   return config.cms.staging !== false;
 }
@@ -143,7 +167,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
   const cmsRecord = requireObject(record.cms, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -170,6 +194,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
+    redirects: parseRedirects(cmsRecord.redirects),
   };
 
   const reservedWord = COGNITO_RESERVED_WORDS.find((word) => cms.cognitoDomainPrefix.includes(word));
@@ -205,6 +230,22 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   }
   if (cms.domainPrefix && cms.stagingDomainPrefix === cms.domainPrefix) {
     fail("cms.stagingDomainPrefix", "must differ from cms.domainPrefix");
+  }
+
+  if (cms.redirects) {
+    if (!cms.domainPrefix) fail("cms.redirects", "requires cms.domainPrefix (redirects target the primary host under a shared root domain)");
+    cms.redirects.forEach((redirect, index) => {
+      const field = `cms.redirects[${index}].source`;
+      const root = cms.domainName as string;
+      if (redirect.source !== root && !(redirect.source.endsWith(`.${root}`) && DOMAIN_PREFIX_PATTERN.test(redirect.source.slice(0, -root.length - 1)))) {
+        fail(field, `must be the root domain ${root} or a single label under it: ${JSON.stringify(redirect.source)}`);
+      }
+      if (redirect.source === resolveCmsHostName({ cms })) fail(field, "must differ from the primary host");
+      if (redirect.source === resolveStagingDomainName({ cms })) fail(field, "must differ from the staging host");
+    });
+    if (new Set(cms.redirects.map((redirect) => redirect.source)).size !== cms.redirects.length) {
+      fail("cms.redirects", "must not repeat a source");
+    }
   }
 
   let reader: AmplifyAppShellSiteConfig["reader"];

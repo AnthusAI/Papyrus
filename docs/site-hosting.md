@@ -376,6 +376,12 @@ predictable; without it Amplify generates the domain (see
    the root, `cms.domainPrefix` and an explicit `cms.stagingDomainPrefix`; the
    stack emits one domain association for the root with both prefixes. The
    staging host is never derived there. See the app-shell README.
+   To redirect the root domain apex to the primary host (for example `apyr.us`
+   to `https://p.apyr.us`), add `cms.redirects: [{ "source": "apyr.us", "status": 301 }]`
+   (see `examples/p-apyr-us.site.json`): the stack emits an Amplify app rule
+   ahead of the 404-200 catch-all and associates the apex with the app. Another
+   app that holds the same hosts (the old app) must release them first, and
+   the template never writes Route 53 records, so MX stays untouched.
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 

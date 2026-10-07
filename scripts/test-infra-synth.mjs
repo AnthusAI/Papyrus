@@ -55,6 +55,7 @@ try {
     ["pretext.site.json", 1, 2, 2],
     ["pilobol-us.site.json", 2, 3, 3],
     ["threat-intelligence.site.json", 1, 2, 1],
+    ["p-apyr-us.site.json", 1, 2, 1],
   ]) {
     const site = path.join(shell, "examples", example);
     const siteId = JSON.parse(fs.readFileSync(site, "utf8")).siteId;
@@ -226,6 +227,26 @@ try {
   assert.match(JSON.stringify(sharedRoot.Outputs.CmsOrigin), /https:\/\/threat-intelligence\.anth\.us\//);
   assert.match(JSON.stringify(sharedRoot.Outputs.StagingOrigin), /https:\/\/threat-intelligence-staging\.anth\.us\//);
   assert.equal(/(^|[^-a-z0-9])staging\.anth\.us/.test(JSON.stringify(sharedRoot)), false, "shared root: derived staging.anth.us must not appear");
+
+  const apexRedirect = synthVariant("apex-redirect", "p-apyr-us.site.json", () => {});
+  const apexRedirectDomains = resourcesOfType(apexRedirect, "AWS::Amplify::Domain");
+  assert.equal(apexRedirectDomains.length, 1, "apex redirect: one association for the root domain");
+  assert.equal(apexRedirectDomains[0].Properties.DomainName, "apyr.us");
+  assert.deepEqual(apexRedirectDomains[0].Properties.SubDomainSettings, [
+    { BranchName: "main", Prefix: "p" },
+    { BranchName: "main", Prefix: "" },
+    { BranchName: "staging", Prefix: "p-staging" },
+  ]);
+  assert.deepEqual(resourcesOfType(apexRedirect, "AWS::Amplify::App")[0].Properties.CustomRules, [
+    { Source: "https://apyr.us", Target: "https://p.apyr.us", Status: "301" },
+    { Source: "/<*>", Target: "/index.html", Status: "404-200" },
+  ], "apex redirect rule comes before the 404-200 catch-all");
+  assert.equal(/"AWS::Route53::RecordSet"/.test(JSON.stringify(apexRedirect)), false, "apex redirect: the template creates no Route 53 records (MX untouched)");
+  assert.match(JSON.stringify(apexRedirect.Outputs.CmsOrigin), /https:\/\/p\.apyr\.us\//);
+  assert.match(JSON.stringify(apexRedirect.Outputs.StagingOrigin), /https:\/\/p-staging\.apyr\.us\//);
+
+  const withoutRedirects = resourcesOfType(synthVariant("no-redirects", "p-apyr-us.site.json", (config) => { delete config.cms.redirects; }), "AWS::Amplify::App")[0];
+  assert.deepEqual(withoutRedirects.Properties.CustomRules, [{ Source: "/<*>", Target: "/index.html", Status: "404-200" }], "no redirects: only the catch-all");
 
   const singleHostDomains = resourcesOfType(synthVariant("single-host", "pretext.site.json", () => {}), "AWS::Amplify::Domain");
   assert.deepEqual(singleHostDomains.map((domain) => [domain.Properties.DomainName, domain.Properties.SubDomainSettings]).sort(), [
