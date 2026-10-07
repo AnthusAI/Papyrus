@@ -312,6 +312,36 @@ p.apyr.us is its own publication repo with one `WEB_COMPUTE` app: marketing and
 pricing as site-owned Next routes (like chattic.us), `/information` in the
 Pretext blog layout, `/newsroom` from the package.
 
+#### Mounting the reader under a base path
+
+A publication that owns `/` (marketing pages) sets `readerBasePath` in its brand
+in `papyrus.config.ts`, as a string literal:
+
+```ts
+brand: { /* ... */ readerBasePath: "/information" }
+```
+
+`papyrus-app sync` reads that literal and writes the reader route shims (home,
+`/[year]/[month]/[day]` and its page/section/article routes, `/articles/[slug]`,
+`/archive`, `/settings`; marked `reader: true` in `routes.manifest.json`) under
+`app/information/...` instead of the root. `/newsroom`, `/api`, `/_preview`,
+`robots.txt` and `middleware.ts` stay where they are, and a site-owned
+`app/page.tsx` is kept as usual. With no `readerBasePath`, sync output is
+byte-identical to before. `newsroom`, `api` and `_preview` are rejected as base paths.
+
+- Staging gate: with a base path only the reader (`/information` and below) is
+  gated; `/` and other site-owned pages are public, `/newsroom`, `/api` and
+  `/robots.txt` stay public as before. Anonymous staging visitors to the reader
+  redirect once to `/newsroom`.
+- Root route: when a base path is set the reader home at the base path ignores
+  `rootRoute` (the publication owns `/`); without one, `rootRoute` behaves as before.
+- `papyrus://site/home|archive|settings` carry the prefix; `papyrus://site/path/...`
+  stays unprefixed because it holds the literal public path (including `/newsroom`).
+- robots: `/robots.txt` is site-wide and unchanged; Papyrus ships no sitemap and
+  no canonical link tags, so there is nothing to prefix (date-route canonical
+  redirects already carry the prefix).
+- OAuth return: the callback lands on `/newsroom` and is unaffected.
+
 ### 1.8 One published-content contract
 
 Both frontends consume the **`Published*` projection** (`PublishedItem`,
