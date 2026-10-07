@@ -266,7 +266,9 @@ knows one site, hardcoded (C4). Standard:
   `newsroom.<domain>` (CMS), `staging.<domain>` (staging), apex (reader). A site
   under a root domain shared with another app sets `cms.domainName` (root),
   `cms.domainPrefix` and `cms.stagingDomainPrefix` instead (one association,
-  explicit staging host).
+  explicit staging host). `cms.redirects` (`{source, status}`, 301 or 302)
+  redirects the root apex or another host under the root to the primary host
+  (`examples/p-apyr-us.site.json`: `apyr.us` to `p.apyr.us`, staging `p-staging`).
   Account `335163751677`, us-east-1.
 - Account-global resources (S3 Vectors index, SES rule sets, backup vault) are
   namespaced by brand by rule, replacing the `dbsyytcm9drqa` special cases (C5).

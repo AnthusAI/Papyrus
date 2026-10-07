@@ -4,7 +4,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveCmsHostName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -71,7 +71,14 @@ export class AmplifyAppShellStack extends Stack {
       computeRoleArn: computeRole.roleArn,
       buildSpec: cmsProductionBuildSpec(config),
       jobConfig: config.cms.buildComputeType ? { buildComputeType: config.cms.buildComputeType } : undefined,
-      customRules: [{ source: "/<*>", target: "/index.html", status: "404-200" }],
+      customRules: [
+        ...(config.cms.redirects ?? []).map((redirect) => ({
+          source: `https://${redirect.source}`,
+          target: `https://${resolveCmsHostName(config)}`,
+          status: String(redirect.status),
+        })),
+        { source: "/<*>", target: "/index.html", status: "404-200" },
+      ],
     });
 
     const stagingMode: Record<string, string> = config.frontend === "markus-static"
@@ -147,6 +154,10 @@ export class AmplifyAppShellStack extends Stack {
       const subDomainSettings = sharedRootDomain
         ? [
             { branchName: "main", prefix: config.cms.domainPrefix as string },
+            ...(config.cms.redirects ?? []).map((redirect) => ({
+              branchName: "main",
+              prefix: resolveRedirectSubDomainPrefix(config.cms.domainName as string, redirect.source),
+            })),
             ...(stagingBranch ? [{ branchName: "staging", prefix: config.cms.stagingDomainPrefix as string }] : []),
           ]
         : [{ branchName: "main", prefix: "" }];

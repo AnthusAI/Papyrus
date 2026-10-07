@@ -72,6 +72,20 @@ host is `staging.<zone>` unless `cms.stagingDomainName` is set. Whether Amplify 
 a second app claim a prefix on a root another app already holds is proven with a
 real deploy, not by synth (see the Threat Intelligence cutover).
 
+Redirect the root domain apex (and optionally other hosts under the root) to the
+primary host: `cms.redirects: [{ "source": "apyr.us", "status": 301 }]` (status
+301 or 302, default 301; requires `cms.domainPrefix`).
+[`examples/p-apyr-us.site.json`](examples/p-apyr-us.site.json) serves
+`https://p.apyr.us/` (staging `https://p-staging.apyr.us/`) and redirects `apyr.us`.
+The stack puts one Amplify app custom rule per entry (`https://<source>` to
+`https://<primary host>`) ahead of the `/<*>` 404-200 catch-all, and adds a
+`main` sub-domain setting for the source's prefix (empty for the apex) to the same
+root `AWS::Amplify::Domain`; the app must be associated with the apex for the rule
+to run. The template creates no Route 53 records, so existing MX records (such as
+`p.apyr.us` inbound email) are never touched. Synth cannot prove path/query
+preservation, the apex plus prefix coexisting in one association, or taking the
+hosts over from the old app: verify at cutover.
+
 Domain-free and staging-free setup: omit `hostedZoneId`, `cms.domainName`,
 `cms.stagingDomainName` and `reader.domainName` (a zone id is only accepted
 alongside a domain), and set `cms.staging` to `false` to skip the staging branch

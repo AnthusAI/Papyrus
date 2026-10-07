@@ -114,6 +114,20 @@ parseSiteConfig(mutated("threat-intelligence.site.json", (c) => {
   delete c.cms.stagingDomainPrefix;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://threat-intelligence.anth.us/";
 }));
+const apexRedirectConfig = parseSiteConfig(readExample("p-apyr-us.site.json"));
+assert.equal(resolveCmsHostName(apexRedirectConfig), "p.apyr.us");
+assert.equal(resolveStagingDomainName(apexRedirectConfig), "p-staging.apyr.us");
+assert.deepEqual(apexRedirectConfig.cms.redirects, [{ source: "apyr.us", status: 301 }]);
+assert.equal(parseSiteConfig(mutated("p-apyr-us.site.json", (c) => delete c.cms.redirects[0].status)).cms.redirects?.[0].status, 301);
+assert.equal(parseSiteConfig(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].status = 302))).cms.redirects?.[0].status, 302);
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].status = 307)), "cms.redirects[0].status");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].to = "https://x.test")), "cms.redirects[0].to");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects = [])), "cms.redirects");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].source = "other.test")), "cms.redirects[0].source");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].source = "p.apyr.us")), "must differ from the primary host");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].source = "p-staging.apyr.us")), "must differ from the staging host");
+assertRejects(mutated("p-apyr-us.site.json", (c) => c.cms.redirects.push({ source: "apyr.us" })), "must not repeat");
+assertRejects(mutated("pretext.site.json", (c) => (c.cms.redirects = [{ source: "newsroom.example.test" }])), "cms.redirects");
 assertRejects("not an object", "site");
 
 assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", () => {}))), "amplify-app-shell-pretext-example");
