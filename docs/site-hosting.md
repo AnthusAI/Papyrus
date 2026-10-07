@@ -95,7 +95,7 @@ Runbook: [`publications/pilobol_us/docs/bootstrap.md`](../publications/pilobol_u
    matching the template. Do not reuse the Papyrus production app (`dbsyytcm9drqa` /
    p.apyr.us) for a Markus pod.
 5. **DNS** — Route 53 public hosted zone for the publication domain; comment NS
-   records for the registrar; attach apex + `www` in Amplify domain management.
+   records for the registrar; attach the apex in Amplify domain management.
 6. **CI invariants** — repo-committed Markdown; `markus convert` **without**
    `--allow-html` for static Markus builds.
 
@@ -369,8 +369,6 @@ sets `PAPYRUS_DISABLE_GOOGLE_OAUTH`. After the first stack deploy, per app:
 4. Add custom domains: add `hostedZoneId` and the `domainName` fields to
    `site.json`, add the domain origins to `PAPYRUS_OAUTH_REDIRECT_URLS`, and
    re-deploy the stack (or add them in the Amplify console); let Amplify create alias records in the hosted zone.
-   Set `reader.includeWww: true` to also serve `www.<reader.domainName>` from
-   the reader app (apex and `www` both map to the reader branch).
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 
