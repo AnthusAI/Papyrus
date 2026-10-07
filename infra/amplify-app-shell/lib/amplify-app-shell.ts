@@ -312,7 +312,10 @@ export class AmplifyAppShellStack extends Stack {
       const readerDomain = new amplify.CfnDomain(this, "ReaderDomain", {
         appId: readerApp.attrAppId,
         domainName: reader.domainName,
-        subDomainSettings: [{ branchName: readerBranchName, prefix: "" }],
+        subDomainSettings: [
+          { branchName: readerBranchName, prefix: "" },
+          ...(reader.includeWww ? [{ branchName: readerBranchName, prefix: "www" }] : []),
+        ],
       });
       readerDomain.addResourceDependency(readerBranch);
     }

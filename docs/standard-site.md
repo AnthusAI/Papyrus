@@ -263,7 +263,7 @@ knows one site, hardcoded (C4). Standard:
   compute IAM roles; read access for the staging build to the backend's
   drafts and preview S3 prefix (1.10); the GitHub OIDC role (below).
 - Naming: `<site-id>-cms`, `<site-id>-reader`; stack `amplify-app-shell-<site-id>`;
-  `newsroom.<domain>` (CMS), `staging.<domain>` (staging), apex (reader).
+  `newsroom.<domain>` (CMS), `staging.<domain>` (staging), apex (reader; plus `www` when `reader.includeWww` is `true`).
   Account `335163751677`, us-east-1.
 - Account-global resources (S3 Vectors index, SES rule sets, backup vault) are
   namespaced by brand by rule, replacing the `dbsyytcm9drqa` special cases (C5).

@@ -25,6 +25,10 @@ function assertRejects(raw: unknown, fieldFragment: string): void {
 const staticConfig = parseSiteConfig(readExample("pilobol-us.site.json"));
 assert.equal(staticConfig.siteId, "pilobol-us");
 assert.equal(staticConfig.reader?.domainName, "pilobol.us");
+assert.equal(staticConfig.reader?.includeWww, true);
+assert.equal(parseSiteConfig(mutated("pilobol-us.site.json", (c) => delete c.reader.includeWww)).reader?.includeWww, undefined);
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = "yes")), "reader.includeWww");
+assertRejects(mutated("pilobol-us.site.json", (c) => { c.reader.includeWww = true; delete c.reader.domainName; }), "requires reader.domainName");
 
 const pretextConfig = parseSiteConfig(readExample("pretext.site.json"));
 assert.equal(pretextConfig.frontend, "pretext");
@@ -72,6 +76,7 @@ assert.deepEqual(noStagingConfig.github?.branches, ["main"]);
 parseSiteConfig(mutated("pilobol-us.site.json", (c) => {
   domainFree(c);
   delete c.reader.domainName;
+  delete c.reader.includeWww;
   delete c.cms.stagingDomainName;
 }));
 assertRejects(mutated("pretext.site.json", (c) => delete c.hostedZoneId), "hostedZoneId");

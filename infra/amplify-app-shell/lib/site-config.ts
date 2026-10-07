@@ -17,6 +17,7 @@ export type AmplifyAppShellSiteConfig = {
   reader?: {
     appName?: string;
     domainName?: string;
+    includeWww?: boolean;
     branchName?: string;
     buildCommand: string;
     baseDirectory: string;
@@ -175,10 +176,17 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (record.reader !== undefined) {
     if (frontend !== "markus-static") fail("reader", `is only allowed when frontend is "markus-static"`);
     const readerRecord = requireObject(record.reader, "reader");
-    rejectUnknownKeys(readerRecord, ["appName", "domainName", "branchName", "buildCommand", "baseDirectory", "environment"], "reader");
+    rejectUnknownKeys(readerRecord, ["appName", "domainName", "includeWww", "branchName", "buildCommand", "baseDirectory", "environment"], "reader");
+    if (readerRecord.includeWww !== undefined && typeof readerRecord.includeWww !== "boolean") {
+      fail("reader.includeWww", `must be a boolean, got ${JSON.stringify(readerRecord.includeWww)}`);
+    }
+    if (readerRecord.includeWww !== undefined && readerRecord.domainName === undefined) {
+      fail("reader.includeWww", "requires reader.domainName");
+    }
     reader = {
       appName: optionalString(readerRecord.appName, "reader.appName", APP_NAME_PATTERN),
       domainName: optionalString(readerRecord.domainName, "reader.domainName", HOST_NAME_PATTERN, "host name"),
+      includeWww: readerRecord.includeWww as boolean | undefined,
       branchName: optionalString(readerRecord.branchName, "reader.branchName", BRANCH_NAME_PATTERN),
       buildCommand: requireString(readerRecord.buildCommand, "reader.buildCommand"),
       baseDirectory: requireString(readerRecord.baseDirectory, "reader.baseDirectory"),
