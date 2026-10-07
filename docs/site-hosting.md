@@ -360,6 +360,43 @@ predictable; without it Amplify generates the domain (see
 
 - [ ] Google secrets set on the CMS app (date: ____)
 
+## Revalidation secret (Pretext sites)
+
+A Pretext publish refreshes the live pages immediately: `content-actions` calls
+the reader's `POST /api/revalidate` with a shared secret. The secret is an SSM
+SecureString that a human creates once and that is never in `site.json`, Git or
+an Amplify variable (those are wiped by stack updates or are visible in
+`get-app`). The template derives the parameter name `/papyrus/<siteId>/revalidate-secret`,
+sets its *name* (not the value) as branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`
+on `main`, and grants `ssm:GetParameter` on exactly that parameter to the app's
+SSR compute role. The backend (`amplify/site-backend.ts`, when `revalidateBaseUrl`
+is set) passes the same name to `content-actions` and grants it the same single
+read. Both sides read the parameter at runtime (the route caches it for five
+minutes, so rotation takes effect without a redeploy); a missing or unreadable
+parameter makes the route answer 401 and the trigger report an error, never
+a bypass.
+
+| Secret | Where it lives | Set by |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets | human, console |
+| `PAPYRUS_REVALIDATE_SECRET` value | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | human, once (below) |
+
+One-time step after the first stack deploy (never echo the value):
+
+```bash
+AWS_PROFILE=legacy aws ssm put-parameter --region us-east-1 \
+  --name "/papyrus/<siteId>/revalidate-secret" --type SecureString \
+  --value "$(openssl rand -hex 32)"
+```
+
+Rotate by re-running it with `--overwrite`. The new value is live within five
+minutes. Migration from the old mechanism: `PAPYRUS_REVALIDATE_SECRET` as a branch
+variable, `readerCache.revalidateSecret` in `.papyrus/config.yaml` and the
+`secret("PAPYRUS_REVALIDATE_SECRET")` backend secret are no longer read. Delete
+them, create the SSM parameter, and redeploy; do not reuse the old value.
+Sites not on the template must set `PAPYRUS_REVALIDATE_SECRET_PARAMETER` on the
+branch and grant their compute role and `content-actions` role the read themselves.
+
 ## Custom domains and Route 53
 
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).

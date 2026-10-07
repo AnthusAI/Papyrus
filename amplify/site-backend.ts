@@ -416,7 +416,20 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   }
   if ((site.revalidateBaseUrl ?? "").trim() !== "") {
     backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_BASE_URL", (site.revalidateBaseUrl ?? "").trim());
-    backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_SECRET", secret("PAPYRUS_REVALIDATE_SECRET"));
+    const revalidateSecretParameter = (process.env.PAPYRUS_REVALIDATE_SECRET_PARAMETER ?? "").trim();
+    if (!revalidateSecretParameter.startsWith("/")) {
+      throw new Error(
+        "revalidateBaseUrl is set but PAPYRUS_REVALIDATE_SECRET_PARAMETER is not (an SSM parameter name starting with /). The app-shell template sets it on the production branch for Pretext sites; see docs/site-hosting.md.",
+      );
+    }
+    backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_SECRET_PARAMETER", revalidateSecretParameter);
+    const revalidateStack = Stack.of(contentActionsLambda);
+    contentActionsLambda.addToRolePolicy(
+      new PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [`arn:${revalidateStack.partition}:ssm:${revalidateStack.region}:${revalidateStack.account}:parameter${revalidateSecretParameter}`],
+      }),
+    );
   }
   grantNewsroomReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
   grantMediaReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);

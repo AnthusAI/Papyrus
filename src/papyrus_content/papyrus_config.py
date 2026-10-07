@@ -7,6 +7,7 @@ from urllib.parse import quote, unquote, urlparse
 
 import yaml
 
+from .amplify_ssm_secrets import _read_ssm_secret
 from .env import PAPYRUS_ROOT
 
 DEFAULT_PAPYRUS_CONFIG = ".papyrus/config.yaml"
@@ -75,10 +76,6 @@ def normalize_papyrus_config(raw_config: Any, config_path: str) -> dict[str, Any
     base_url = _optional_string(public_site.get("baseUrl"))
     if base_url:
         base_url = normalize_public_site_base_url(base_url)
-    reader_cache = raw_config.get("readerCache") or {}
-    if reader_cache is not None and not isinstance(reader_cache, dict):
-        raise ValueError("Papyrus config readerCache must be an object.")
-    reader_cache = reader_cache if isinstance(reader_cache, dict) else {}
     openai = raw_config.get("openai") or {}
     if openai is not None and not isinstance(openai, dict):
         raise ValueError("Papyrus config openai must be an object.")
@@ -93,9 +90,6 @@ def normalize_papyrus_config(raw_config: Any, config_path: str) -> dict[str, Any
         },
         "publicSite": {
             "baseUrl": base_url,
-        },
-        "readerCache": {
-            "revalidateSecret": _optional_string(reader_cache.get("revalidateSecret")),
         },
         "openai": {
             "apiKey": _optional_string(openai.get("api_key")),
@@ -151,15 +145,10 @@ def resolve_public_site_base_url() -> str:
 
 
 def resolve_reader_cache_revalidate_secret() -> str | None:
-    env_value = str(os.environ.get("PAPYRUS_REVALIDATE_SECRET") or "").strip()
-    if env_value:
-        return env_value
-    config = load_papyrus_config()
-    if config:
-        configured = str((config.get("readerCache") or {}).get("revalidateSecret") or "").strip()
-        if configured:
-            return configured
-    return None
+    parameter_name = str(os.environ.get("PAPYRUS_REVALIDATE_SECRET_PARAMETER") or "").strip()
+    if not parameter_name:
+        return None
+    return _read_ssm_secret(parameter_name)
 
 
 def resolve_openai_api_key() -> str | None:

@@ -4,7 +4,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -63,6 +63,19 @@ export class AmplifyAppShellStack extends Stack {
       ],
     });
 
+    const revalidateSecretParameterName = config.frontend === "pretext" ? resolveRevalidateSecretParameterName(config) : undefined;
+    if (revalidateSecretParameterName) {
+      computeRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: "ReadRevalidateSecret",
+          actions: ["ssm:GetParameter"],
+          resources: [
+            this.formatArn({ service: "ssm", resource: "parameter", resourceName: revalidateSecretParameterName.slice(1), arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
+          ],
+        }),
+      );
+    }
+
     const cmsApp = new amplify.CfnApp(this, "App", {
       name: cmsAppName,
       description: `Papyrus newsroom CMS for ${config.siteId} (WEB_COMPUTE)`,
@@ -114,6 +127,7 @@ export class AmplifyAppShellStack extends Stack {
         PAPYRUS_SITE_BRAND: config.brand,
         SITE_ENV: "production",
         PAPYRUS_CONTENT_SOURCE: "published",
+        ...(revalidateSecretParameterName ? { PAPYRUS_REVALIDATE_SECRET_PARAMETER: revalidateSecretParameterName } : {}),
       }),
     });
 

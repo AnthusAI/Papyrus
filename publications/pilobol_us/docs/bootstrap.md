@@ -59,7 +59,6 @@ PAPYRUS_CONTENT_SOURCE=graphql
 PAPYRUS_EDITION_SLUG=current
 PAPYRUS_ENABLE_CONSOLE_RESPONDER=false
 PAPYRUS_ENABLE_SLACK=false
-PAPYRUS_REVALIDATE_SECRET=<generate>
 ```
 
 Trigger the first deploy. Note the new `appId`, AppSync endpoint, media bucket,
