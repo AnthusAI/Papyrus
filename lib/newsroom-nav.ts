@@ -30,6 +30,7 @@ export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
   { id: "insights", label: "Insights", detail: "Research threads", href: newsroomHref("insights") },
   { id: "topics", label: "Topics", detail: "Taxonomy", href: newsroomHref("topics"), mobilePrimary: true },
   { id: "concepts", label: "Concepts", detail: "Ontology", href: newsroomHref("concepts") },
+  { id: "search", label: "Search", detail: "Knowledge base", href: newsroomHref("search") },
   { id: "administration", label: "Administration", detail: "Users & policies", href: newsroomHref("administration") },
 ];
 
