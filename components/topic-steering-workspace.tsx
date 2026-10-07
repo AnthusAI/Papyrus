@@ -76,6 +76,7 @@ import { buildNewsroomKnowledgeQueryInput, type NewsroomKnowledgeQueryAnchor as 
 import { NewsroomConsoleProgressToggle, PapyrusConsoleChatIcon, usePapyrusConsole } from "./papyrus-console-shell";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { SITE_BRAND } from "../lib/site-brand";
+import { browserPathToInternalNewsroomPath, toPublicNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { cn } from "../lib/utils";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
@@ -15187,14 +15188,14 @@ function normalizeKnowledgeQueryAnchorKind(value: string | null | undefined): Kn
 
 function normalizeNewsroomFromHref(value: string | null | undefined): string | null {
   if (!value) return null;
-  const trimmed = value.trim();
+  const trimmed = browserPathToInternalNewsroomPath(value.trim());
   if (!trimmed.startsWith("/newsroom")) return null;
-  return trimmed;
+  return toPublicNewsroomPath(trimmed);
 }
 
 function currentNewsroomOriginHref(fallback: string | null): string | null {
   if (typeof window === "undefined") return fallback;
-  const current = `${window.location.pathname}${window.location.search}`;
+  const current = browserPathToInternalNewsroomPath(`${window.location.pathname}${window.location.search}`);
   return current.startsWith("/newsroom/search") ? fallback : normalizeNewsroomFromHref(current);
 }
 
@@ -15228,7 +15229,7 @@ function buildNewsroomSearchHref(request: NewsroomSearchRequest, demo?: boolean)
   if (request.from) params.set("from", request.from);
   if (demo) params.set("demo", "1");
   const queryString = params.toString();
-  return queryString ? `/newsroom/search?${queryString}` : "/newsroom/search";
+  return toPublicNewsroomPath(queryString ? `/newsroom/search?${queryString}` : "/newsroom/search");
 }
 
 function focusNewsroomSearchForm() {

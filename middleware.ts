@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSiteBrand } from "./lib/site-brand";
+import { newsroomHref } from "./lib/newsroom-base-path";
 import { getReaderBasePath } from "./lib/reader-base-path";
 import { isStagingGatedPath, isStaticOrApiPath } from "./lib/staging-gated-path";
 import { getSiteEnv, isIndexable } from "./lib/site-env";
@@ -18,7 +19,7 @@ function usesNewsroomRootPaths(): boolean {
 }
 
 function isStagingGatedPathForBrand(pathname: string): boolean {
-  return isStagingGatedPath(pathname, getReaderBasePath());
+  return isStagingGatedPath(pathname, getReaderBasePath(), usesNewsroomRootPaths());
 }
 
 function routeRequest(request: NextRequest): NextResponse {
@@ -60,12 +61,14 @@ function routeRequest(request: NextRequest): NextResponse {
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   let sessionResponse: NextResponse | null = null;
   const { pathname } = request.nextUrl;
-  const gated = isStaticPreviewEnabled() ? isPreviewGatedPath(pathname) : isStagingGatedPathForBrand(pathname);
+  const gated = isStaticPreviewEnabled() && !usesNewsroomRootPaths()
+    ? isPreviewGatedPath(pathname)
+    : isStagingGatedPathForBrand(pathname);
   if (getSiteEnv() === "staging" && gated) {
     sessionResponse = NextResponse.next();
     const access = await getStagingAccess(request, sessionResponse);
     if (access === "anonymous") {
-      return withRobotsHeader(NextResponse.redirect(new URL("/newsroom", request.url)));
+      return withRobotsHeader(NextResponse.redirect(new URL(newsroomHref(), request.url)));
     }
     if (access === "forbidden") {
       return withRobotsHeader(new NextResponse("Staging is limited to editors and admins.", { status: 403 }));

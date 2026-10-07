@@ -1,3 +1,4 @@
+import { toPublicNewsroomPath } from "./newsroom-base-path";
 import type {
   AssignmentRecord,
   CategorySteeringCategory,
@@ -175,6 +176,10 @@ export function predicateLabel(predicate: string, direction: "outgoing" | "incom
 }
 
 export function newsDeskHrefForSemanticObject(kind: string, lineageId: string): string {
+  return toPublicNewsroomPath(internalNewsDeskHrefForSemanticObject(kind, lineageId));
+}
+
+function internalNewsDeskHrefForSemanticObject(kind: string, lineageId: string): string {
   const encoded = encodeURIComponent(lineageId);
   if (kind === "reference") return `/newsroom/references/${encoded}`;
   if (kind === "category") return `/newsroom/topics?category=${encoded}`;

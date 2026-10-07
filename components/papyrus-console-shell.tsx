@@ -1,5 +1,6 @@
 "use client";
 
+import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
 import type { BotAvatarState } from "anthus-vultus";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -152,7 +153,8 @@ export function PapyrusConsoleShell({ children }: PapyrusConsoleShellProps) {
   const [session, setSession] = useState<ReaderSessionSnapshot | null>(null);
   const [open, setOpen] = useState(false);
   const [openingReferenceChat, setOpeningReferenceChat] = useState(false);
-  const isNewsroomPath = pathname === "/newsroom" || pathname.startsWith("/newsroom/");
+  const internalPathname = browserPathToInternalNewsroomPath(pathname);
+  const isNewsroomPath = internalPathname === "/newsroom" || internalPathname.startsWith("/newsroom/");
   const canUseConsole = Boolean(session?.hasSession && session.groups.some((group) => group === "editor" || group === "admin"));
   const shouldOfferConsole = isNewsroomPath && canUseConsole;
 
@@ -433,7 +435,7 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
   const handledNavigationMessageIdsRef = useRef<Set<string>>(new Set());
 
   const currentWebPath = useMemo(() => {
-    const path = pathname ?? "/newsroom";
+    const path = browserPathToInternalNewsroomPath(pathname ?? "/newsroom");
     const query = searchParams.toString();
     return query ? `${path}?${query}` : path;
   }, [pathname, searchParams]);
