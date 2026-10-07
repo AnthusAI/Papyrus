@@ -153,10 +153,11 @@ artifacts under `.next/`, platform `WEB_COMPUTE`. Reader traffic hits AppSync
 at request time. **Do not copy this `amplify.yml` onto a Markus static pod.**
 
 Pretext sites (and the staging app) ship `amplify_outputs.json` into the SSR
-bundle. The generated build spec appends `PAPYRUS_AMPLIFY_OUTPUTS=.next/amplify_outputs.json`
-to `.env.production` BEFORE `npm run build` (the file must exist when Next
-builds the compute bundle) and copies the file into `.next/` AFTER the build
-(the build recreates `.next/`). `scripts/test-infra-synth.mjs` asserts the order.
+bundle: the generated build spec copies it to `.next/amplify_outputs.json` AFTER
+`npm run build` (the build recreates `.next/`), and the runtime finds it there
+when the checkout-root copy is absent. Do not set `PAPYRUS_AMPLIFY_OUTPUTS` in
+`.env.production`: `next build` loads that file and reads the path during page
+data collection, before the copy exists, which fails the build.
 
 ## One-time GitHub App connection per app
 

@@ -6,7 +6,11 @@ export function getAmplifyOutputsPath(): string {
   if (explicit) {
     return path.isAbsolute(explicit) ? explicit : path.join(process.cwd(), explicit);
   }
-  return path.join(process.cwd(), "amplify_outputs.json");
+  const checkoutRootPath = path.join(process.cwd(), "amplify_outputs.json");
+  if (fs.existsSync(checkoutRootPath)) return checkoutRootPath;
+  const shippedBundlePath = path.join(process.cwd(), ".next", "amplify_outputs.json");
+  if (fs.existsSync(shippedBundlePath)) return shippedBundlePath;
+  return checkoutRootPath;
 }
 
 export function readAmplifyOutputsFile(): Record<string, unknown> | null {
