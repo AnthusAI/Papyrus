@@ -199,6 +199,7 @@ from .steering import (
 from .convert_bodies_commands import content_convert_bodies
 from .markus_derive_commands import content_markus_derive
 from .markus_export_commands import content_export_published
+from .backend_copy_commands import content_copy_backend
 from .markus_import_commands import content_import_markus
 from .preview_upload_commands import content_upload_preview
 from .publish_commands import content_publish, content_rebuild, content_unpublish
@@ -220,6 +221,7 @@ PORTED_COMMANDS = frozenset(
         "content:rebuild",
         "content:convert-bodies",
         "content:export-published",
+        "content:copy-backend",
         "content:upload-preview",
         "corpora:status",
         "corpora:worker-bootstrap",
@@ -415,6 +417,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_rebuild(flags)
     elif route == "content:convert-bodies":
         content_convert_bodies(flags)
+    elif route == "content:copy-backend":
+        content_copy_backend(flags)
     elif route == "content:export-published":
         content_export_published(flags)
     elif route == "content:upload-preview":
