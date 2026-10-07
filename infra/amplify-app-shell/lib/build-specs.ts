@@ -24,6 +24,11 @@ const FRONTEND_ENVIRONMENT_CAPTURE =
 
 const CHECKOUT_AS_PAPYRUS_ROOT = "PAPYRUS_ROOT=\"$PWD\"";
 
+const STAGING_RUNTIME_OUTPUTS_COMMANDS = [
+  "cp amplify_outputs.json .next/amplify_outputs.json",
+  "echo PAPYRUS_AMPLIFY_OUTPUTS=.next/amplify_outputs.json >> .env.production",
+];
+
 function pythonProvisioningCommands(config: AmplifyAppShellSiteConfig): string[] {
   return [
     "export UV_CACHE_DIR=\"$PWD/.uv-cache\"",
@@ -102,7 +107,11 @@ export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
     "version: 1",
     ...frontendSection(
       preBuild,
-      [FRONTEND_ENVIRONMENT_CAPTURE, "npx papyrus-app sync && npm run build"],
+      [
+        FRONTEND_ENVIRONMENT_CAPTURE,
+        "npx papyrus-app sync && npm run build",
+        ...STAGING_RUNTIME_OUTPUTS_COMMANDS,
+      ],
       ".next",
       cachePaths,
     ),

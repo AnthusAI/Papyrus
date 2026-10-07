@@ -117,6 +117,8 @@ try {
       assert.match(stagingSpec, /upload-preview/);
       assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content export-published --drafts/, `${example}: staging export finds the checkout's amplify_outputs.json`);
       assert.match(stagingSpec, /PAPYRUS_ROOT="\$PWD" papyrus ops content upload-preview/, `${example}: staging upload finds the checkout's amplify_outputs.json`);
+      assert.match(stagingSpec, /cp amplify_outputs\.json \.next\/amplify_outputs\.json/, `${example}: staging ships amplify_outputs.json into the compute bundle`);
+      assert.match(stagingSpec, /echo PAPYRUS_AMPLIFY_OUTPUTS=\.next\/amplify_outputs\.json >> \.env\.production/, `${example}: staging runtime reads the shipped amplify_outputs.json`);
     }
 
     const github = JSON.parse(fs.readFileSync(site, "utf8")).github;
