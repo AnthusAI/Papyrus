@@ -80,6 +80,8 @@ export type SiteBrand = {
   rootRoute?: RootRouteConfig;
   /** Public URL prefix for newsroom routes. Default `/newsroom`; use `""` on a CMS-only subdomain. */
   newsroomBasePath?: string;
+  /** Public URL prefix for the Pretext reader (home, editions, articles, archive, settings). Default `""`; e.g. `/information`. */
+  readerBasePath?: string;
   opsChrome: OpsChrome;
   corpusKey: string;
   steeringConfigPath: string;

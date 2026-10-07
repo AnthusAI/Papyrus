@@ -1,6 +1,7 @@
 import { getEditionSectionItems } from "./edition-sections";
 import type { EditionContent } from "./content-types";
 import type { PublicationItem } from "./publication-items";
+import { toPublicReaderPath } from "./reader-base-path";
 
 export type PresentationFooterEntry = {
   section: string;
@@ -43,9 +44,9 @@ export type PresentationFooterGeometry = {
 };
 
 export const PRESENTATION_FOOTER_UTILITIES: PresentationFooterUtilityEntry[] = [
-  { id: "archive", label: "Archive", href: "/archive", disabled: false },
+  { id: "archive", label: "Archive", href: toPublicReaderPath("/archive"), disabled: false },
   { id: "newsDesk", label: "Newsroom", href: "/newsroom", disabled: false },
-  { id: "settings", label: "Settings", href: "/settings", disabled: false },
+  { id: "settings", label: "Settings", href: toPublicReaderPath("/settings"), disabled: false },
   { id: "login", label: "LOGIN", disabled: true },
 ];
 

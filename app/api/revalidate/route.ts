@@ -1,3 +1,4 @@
+import { toPublicReaderPath } from "../../../lib/reader-base-path";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import {
@@ -44,8 +45,8 @@ export async function POST(request: Request) {
     if (!normalized) continue;
     revalidateTag(articleCacheTag(normalized));
     revalidatedTags.add(articleCacheTag(normalized));
-    revalidatePath(`/articles/${encodeURIComponent(normalized)}`);
-    revalidatedPaths.add(`/articles/${encodeURIComponent(normalized)}`);
+    revalidatePath(toPublicReaderPath(`/articles/${encodeURIComponent(normalized)}`));
+    revalidatedPaths.add(toPublicReaderPath(`/articles/${encodeURIComponent(normalized)}`));
     if (editionDate) {
       revalidateTag(editionItemCacheTag(editionDate, normalized));
       revalidatedTags.add(editionItemCacheTag(editionDate, normalized));
@@ -76,8 +77,8 @@ export async function POST(request: Request) {
   revalidatedTags.add(ARCHIVE_CACHE_TAG);
   revalidateTag(ARTICLES_CACHE_TAG);
   revalidatedTags.add(ARTICLES_CACHE_TAG);
-  revalidatePath("/archive");
-  revalidatedPaths.add("/archive");
+  revalidatePath(toPublicReaderPath("/archive"));
+  revalidatedPaths.add(toPublicReaderPath("/archive"));
 
   for (const path of body.paths ?? []) {
     const normalized = path.trim();
