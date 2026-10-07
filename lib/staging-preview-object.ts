@@ -8,6 +8,7 @@ export const PREVIEW_KEY_PREFIX = "preview/";
 
 const PRESIGN_SECONDS = 60;
 const NOT_FOUND_ERROR_NAMES = ["NotFound", "NoSuchKey"];
+const FORBIDDEN_ERROR_NAMES = ["Forbidden", "AccessDenied"];
 const PREVIEW_EXCLUDED_PREFIXES = ["/newsroom", "/api", "/_next", PREVIEW_ROUTE_PREFIX];
 
 export function isStaticPreviewEnabled(environment: Record<string, string | undefined> = process.env): boolean {
@@ -32,13 +33,14 @@ export function previewCandidateKeys(requestPath: string): string[] | null {
   return [base, `${base}.html`, `${base}/index.html`];
 }
 
-export function shouldRewriteToPreview(pathname: string): boolean {
+export function shouldRewriteToPreview(pathname: string, newsroomAtRoot: boolean = false): boolean {
   if (pathname === "/favicon.ico" || pathname === "/robots.txt" || pathname.startsWith("/icon")) return false;
-  return !PREVIEW_EXCLUDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  if (PREVIEW_EXCLUDED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return false;
+  return !newsroomAtRoot || pathname.endsWith(".html");
 }
 
-export function isPreviewGatedPath(pathname: string): boolean {
-  return shouldRewriteToPreview(pathname) || pathname === PREVIEW_ROUTE_PREFIX || pathname.startsWith(`${PREVIEW_ROUTE_PREFIX}/`);
+export function isPreviewGatedPath(pathname: string, newsroomAtRoot: boolean = false): boolean {
+  return shouldRewriteToPreview(pathname, newsroomAtRoot) || pathname === PREVIEW_ROUTE_PREFIX || pathname.startsWith(`${PREVIEW_ROUTE_PREFIX}/`);
 }
 
 export function previewRewritePathname(pathname: string): string {
@@ -52,6 +54,12 @@ export function previewRequestPath(pathname: string): string {
 function isNotFoundError(error: unknown): boolean {
   const name = (error as { name?: string } | null)?.name ?? "";
   return NOT_FOUND_ERROR_NAMES.includes(name);
+}
+
+function isForbiddenError(error: unknown): boolean {
+  const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number }; metadata?: { httpStatusCode?: number } } | null;
+  const status = candidate?.$metadata?.httpStatusCode ?? candidate?.metadata?.httpStatusCode;
+  return status === 403 || FORBIDDEN_ERROR_NAMES.includes(candidate?.name ?? "");
 }
 
 async function presignFirstExistingKey(candidateKeys: string[]): Promise<URL | null> {
@@ -83,7 +91,15 @@ export async function streamPreviewObject(pathname: string): Promise<Response> {
   if (!isStaticPreviewEnabled()) return notFound();
   const candidateKeys = previewCandidateKeys(previewRequestPath(pathname));
   if (!candidateKeys) return notFound();
-  const presigned = await presignFirstExistingKey(candidateKeys);
+  let presigned: URL | null;
+  try {
+    presigned = await presignFirstExistingKey(candidateKeys);
+  } catch (error) {
+    if (isForbiddenError(error)) {
+      return new Response("Staging preview is limited to editors and admins.", { status: 403, headers: { "Cache-Control": "private, no-store" } });
+    }
+    throw error;
+  }
   if (!presigned) return notFound();
   const upstream = await fetch(presigned);
   if (!upstream.ok || !upstream.body) return notFound();

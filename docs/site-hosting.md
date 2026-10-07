@@ -538,6 +538,11 @@ How a request is served:
    `X-Robots-Tag: noindex, nofollow`.
 4. The route returns 404 unless the deployment is staging with
    `PAPYRUS_STAGING_PREVIEW=static`. Production never rewrites.
+5. A CMS-only host with the newsroom at the root (`newsroomBasePath ""`) owns
+   `/` and every path without a `.html` suffix, so only `.html` paths are
+   rewritten to the preview and gated; anonymous requests to them go to the
+   newsroom sign-in. A storage 403 from the route (a signed-in user outside
+   the `editor` and `admin` groups) returns 403, never 500.
 
 Staging build contract (the generated build spec, `PPY-39f928`, implements it):
 
