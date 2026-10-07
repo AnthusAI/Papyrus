@@ -39,11 +39,14 @@ Schema and validation: `lib/site-config.ts` (`parseSiteConfig`). Examples:
 [`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`) and
 [`examples/threat-intelligence.site.json`](examples/threat-intelligence.site.json)
 (`pretext`, host under a shared root domain).
-`cms.cognitoDomainPrefix` is required: the stable Cognito hosted-UI domain
+`cms.cognitoDomainPrefix` is required: the Cognito hosted-UI domain
 (`https://<prefix>.auth.<region>.amazoncognito.com`) that Google sign-in needs. The
-stack sets it as `PAPYRUS_COGNITO_DOMAIN_PREFIX` on the CMS branches. Google is
-always on: `PAPYRUS_DISABLE_GOOGLE_OAUTH` and `PAPYRUS_COGNITO_DOMAIN_PREFIX` are
-rejected in `cms.environment`. The secrets `GOOGLE_CLIENT_ID` and
+stack sets it as `PAPYRUS_COGNITO_DOMAIN_PREFIX` on the CMS branches. It is only
+used when `cms.applyCognitoDomainPrefix` is `true` (`PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX`);
+otherwise Amplify keeps its generated domain, so existing live pools do not
+change (see `docs/google-oauth-setup.md`). Google is always on:
+`PAPYRUS_DISABLE_GOOGLE_OAUTH`, `PAPYRUS_COGNITO_DOMAIN_PREFIX` and
+`PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX` are rejected in `cms.environment`. The secrets `GOOGLE_CLIENT_ID` and
 `GOOGLE_CLIENT_SECRET` are Amplify backend secrets set in the console, see
 [`docs/google-oauth-setup.md`](../../docs/google-oauth-setup.md).
 `cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` must include

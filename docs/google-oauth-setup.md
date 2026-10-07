@@ -25,9 +25,9 @@ Do **not** put `https://newsroom.pilobol.us/` in Google's redirect URIs. Google
 never redirects there. Cognito sends the user back to your app after Google
 authenticates them.
 
-The Cognito domain is predictable because `cms.cognitoDomainPrefix` in
-`infra/site.json` is required and the template sets it on the branches (see
-below). Format:
+The Cognito domain is predictable only when `cms.applyCognitoDomainPrefix` is
+`true` in `infra/site.json` (see "Cognito domain: prefix or generated" below).
+Amplify Gen2 otherwise generates a hex domain and ignores the prefix. Format:
 
 ```text
 https://<prefix>.auth.<aws-region>.amazoncognito.com
@@ -36,7 +36,7 @@ https://<prefix>.auth.<aws-region>.amazoncognito.com/oauth2/idpresponse
 
 ## Overview
 
-1. Set `cms.cognitoDomainPrefix` in `infra/site.json` (IaC; the template puts it on the branches).
+1. Set `cms.cognitoDomainPrefix` and `cms.applyCognitoDomainPrefix: true` in `infra/site.json` (IaC; the template puts them on the branches). For an existing site that already has a generated domain, read "Cognito domain: prefix or generated" first.
 2. Use a Google OAuth client (an existing one is fine, see "Reusing a client"), and add the new Cognito origin and redirect URI to it.
 3. Set the Amplify backend secrets `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on the app.
 4. Deploy the stack, then run a backend build so Cognito gets the domain and the Google provider.
@@ -112,11 +112,12 @@ login. When you are ready for production, return to the consent screen and click
    https://<PAPYRUS_COGNITO_DOMAIN_PREFIX>.auth.us-east-1.amazoncognito.com
    ```
 
-   The prefix is `cms.cognitoDomainPrefix` from `infra/site.json`. Pilobolus
-   (new CMS, app `dv0pdx67fk80m`):
+   The prefix is `cms.cognitoDomainPrefix` from `infra/site.json` when
+   `cms.applyCognitoDomainPrefix` is `true`; otherwise use the generated domain.
+   Pilobolus (new CMS, app `dv0pdx67fk80m`, still on the generated domain):
 
    ```text
-   https://papyrus-pilobol-us-cms.auth.us-east-1.amazoncognito.com
+   https://69a74c507e157f784c3c.auth.us-east-1.amazoncognito.com
    ```
 
    After a backend deploy, confirm the live value with the stack output
@@ -132,7 +133,7 @@ login. When you are ready for production, return to the consent screen and click
    Pilobolus (new CMS):
 
    ```text
-   https://papyrus-pilobol-us-cms.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
+   https://69a74c507e157f784c3c.auth.us-east-1.amazoncognito.com/oauth2/idpresponse
    ```
 
    > If Google shows *"Invalid Redirect: domain must be added to the authorized
@@ -167,11 +168,36 @@ edited in the Amplify console.
 
 | Field | Purpose |
 | --- | --- |
-| `cms.cognitoDomainPrefix` | Required. Stable Cognito domain (lowercase letters, digits, hyphens; unique per region; must not contain `aws`, `amazon` or `cognito`). The template sets `PAPYRUS_COGNITO_DOMAIN_PREFIX` on the CMS branches |
+| `cms.cognitoDomainPrefix` | Required. The Cognito domain you want (lowercase letters, digits, hyphens; unique per region; must not contain `aws`, `amazon` or `cognito`). The template sets `PAPYRUS_COGNITO_DOMAIN_PREFIX` on the CMS branches. It takes effect only with `applyCognitoDomainPrefix` |
+| `cms.applyCognitoDomainPrefix` | Optional, default off. When `true` the backend uses `cognitoDomainPrefix` as the user pool domain (template sets `PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX=true`). Without it Amplify's generated domain is kept |
 | `cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` | Comma-separated app URLs Cognito may redirect to after sign-in/sign-out. Without a custom domain the template appends the app's default `amplifyapp.com` URLs |
 
-`PAPYRUS_DISABLE_GOOGLE_OAUTH` and `PAPYRUS_COGNITO_DOMAIN_PREFIX` are rejected
-inside `cms.environment`: Google is always on and the prefix has its own field.
+`PAPYRUS_DISABLE_GOOGLE_OAUTH`, `PAPYRUS_COGNITO_DOMAIN_PREFIX` and
+`PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX` are rejected inside `cms.environment`:
+Google is always on and the prefix has its own fields.
+
+### Cognito domain: prefix or generated
+
+Amplify Gen2's auth factory overwrites the `domainPrefix` passed to `defineAuth`
+with a hash of the backend id (a 20-character hex name, for example Pilobol.us's
+`69a74c507e157f784c3c`). Papyrus therefore sets the user pool domain itself, and
+only when `cms.applyCognitoDomainPrefix` is `true`.
+
+- **New site:** set both fields before the first backend deploy. The domain is
+  the prefix, so the Google origin and redirect URI are known up front.
+- **Existing site on the generated domain:** leave `applyCognitoDomainPrefix`
+  unset. Nothing changes on the next deploy, and the real domain is read with
+  `aws cognito-idp describe-user-pool --user-pool-id <id> --query UserPool.Domain`
+  or the stack output `oauthCognitoDomain`.
+- **Switching an existing site to the prefix:** Cognito cannot rename a pool
+  domain in place. CloudFormation replaces `AWS::Cognito::UserPoolDomain`: it
+  creates the prefix domain, then deletes the generated one. The pool, users and
+  groups are kept, but the hosted-UI URL changes, so sign-in with Google fails
+  until you (1) add the new origin and `/oauth2/idpresponse` redirect URI to the
+  Google OAuth client before deploying (the old ones may stay until after), (2)
+  set `applyCognitoDomainPrefix: true`, deploy the stack, and run a backend
+  build, and (3) remove the old Google URIs. A prefix already taken in the
+  region by another pool makes the deploy fail and roll back.
 
 Deploy the stack so Amplify gets the branch variables:
 
@@ -239,7 +265,7 @@ aws cloudformation describe-stacks \
   --output text
 ```
 
-Expected for the new Pilobolus CMS: `papyrus-pilobol-us-cms.auth.us-east-1.amazoncognito.com`
+Actual for the new Pilobolus CMS (generated, prefix not applied): `69a74c507e157f784c3c.auth.us-east-1.amazoncognito.com`
 
 If this is empty, the backend deploy has not finished, or the branch lost its
 environment variables (see "Verify and repair after connecting" in
@@ -296,7 +322,7 @@ hosted-UI domain is not created either, so the CMS login button cannot work.
 | OAuth consent screen | Google Console | scopes: email, profile, openid |
 | Google JS origin | OAuth client → Authorized JavaScript origins | `https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com` |
 | Google redirect URI | OAuth client → Authorized redirect URIs | `https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com/oauth2/idpresponse` |
-| `cms.cognitoDomainPrefix` | `infra/site.json` | `papyrus-pilobol-us-cms` |
+| `cms.cognitoDomainPrefix` (with `applyCognitoDomainPrefix`) | `infra/site.json` | `papyrus-pilobol-us-cms` (not applied; live domain is `69a74c507e157f784c3c`) |
 | `PAPYRUS_OAUTH_REDIRECT_URLS` | `infra/site.json` (`cms.environment`) | `http://localhost:3001/,https://newsroom.pilobol.us/,https://staging.pilobol.us/` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Amplify console, **Hosting**, **Secrets** (app, branch `main`) | from the Google client |
 | Deploy | stack deploy, then Amplify RELEASE on `main` | after the secrets are set |

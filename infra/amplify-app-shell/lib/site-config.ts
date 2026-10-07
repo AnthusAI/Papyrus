@@ -11,6 +11,7 @@ export type AmplifyAppShellSiteConfig = {
     domainPrefix?: string;
     staging?: boolean;
     cognitoDomainPrefix: string;
+    applyCognitoDomainPrefix?: boolean;
     buildComputeType?: "STANDARD" | "STANDARD_8GB";
     environment: Record<string, string>;
     stagingDomainName?: string;
@@ -49,7 +50,7 @@ const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH"];
 const LOCAL_DEVELOPMENT_ORIGIN = "http://localhost:3001/";
 
 function fail(field: string, problem: string): never {
@@ -142,13 +143,16 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
   const cmsRecord = requireObject(record.cms, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
   }
   if (cmsRecord.staging !== undefined && typeof cmsRecord.staging !== "boolean") {
     fail("cms.staging", `must be a boolean, got ${JSON.stringify(cmsRecord.staging)}`);
+  }
+  if (cmsRecord.applyCognitoDomainPrefix !== undefined && typeof cmsRecord.applyCognitoDomainPrefix !== "boolean") {
+    fail("cms.applyCognitoDomainPrefix", `must be a boolean, got ${JSON.stringify(cmsRecord.applyCognitoDomainPrefix)}`);
   }
   const cms: AmplifyAppShellSiteConfig["cms"] = {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
@@ -161,6 +165,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
       COGNITO_DOMAIN_PREFIX_PATTERN,
       "lowercase letters, digits and hyphens; globally unique per region",
     ),
+    applyCognitoDomainPrefix: cmsRecord.applyCognitoDomainPrefix as boolean | undefined,
     buildComputeType: buildComputeType as "STANDARD" | "STANDARD_8GB" | undefined,
     environment: requireStringRecord(cmsRecord.environment, "cms.environment"),
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),

@@ -1,5 +1,7 @@
 import { defineAuth, secret } from "@aws-amplify/backend";
 import { manageUserRole } from "../functions/manage-user-role/resource";
+import { Stack } from "aws-cdk-lib";
+import { CfnUserPoolDomain } from "aws-cdk-lib/aws-cognito";
 import type { PapyrusAuthConfig } from "../site-backend-config";
 
 // Default OAuth redirect URLs for the p.apyr.us app. Other publications pass
@@ -28,16 +30,14 @@ export function authConfigFromEnv(): PapyrusAuthConfig {
   return {
     redirectUrls: resolveAuthRedirectUrls(),
     disableGoogleOAuth: process.env.PAPYRUS_DISABLE_GOOGLE_OAUTH === "1",
-    // Stable Cognito hosted-UI domain prefix for Google OAuth redirect URIs.
-    // See docs/google-oauth-setup.md.
     cognitoDomainPrefix: (process.env.PAPYRUS_COGNITO_DOMAIN_PREFIX ?? "").trim(),
+    applyCognitoDomainPrefix: process.env.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX === "true",
   };
 }
 
 export function defineSiteAuth(config: PapyrusAuthConfig) {
   const authRedirectUrls = config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS;
   const disableGoogleOAuth = config.disableGoogleOAuth === true;
-  const cognitoDomainPrefix = (config.cognitoDomainPrefix ?? "").trim();
   return defineAuth({
     loginWith: {
       email: true,
@@ -53,7 +53,6 @@ export function defineSiteAuth(config: PapyrusAuthConfig) {
               scopes: ["EMAIL", "PROFILE", "OPENID"],
               callbackUrls: authRedirectUrls,
               logoutUrls: authRedirectUrls,
-              ...(cognitoDomainPrefix ? { domainPrefix: cognitoDomainPrefix } : {}),
             },
           }),
     },
@@ -62,4 +61,22 @@ export function defineSiteAuth(config: PapyrusAuthConfig) {
       allow.resource(manageUserRole).to(["addUserToGroup", "removeUserFromGroup", "listUsers", "listGroupsForUser"]),
     ],
   });
+}
+
+// Amplify Gen2's auth factory overwrites `externalProviders.domainPrefix` with a
+// hash of the backend id, so the prefix cannot be passed through `defineAuth`.
+// This sets the user pool domain on the synthesized resource instead. Cognito
+// cannot rename a pool domain in place: CloudFormation replaces the domain,
+// which changes the hosted-UI URL and the Google redirect URI. Callers must
+// only use it when the site opted in (see docs/google-oauth-setup.md).
+export function applyCognitoDomainPrefix(authStack: Stack, cognitoDomainPrefix: string): void {
+  const domainResources = authStack.node
+    .findAll()
+    .filter((construct): construct is CfnUserPoolDomain => construct instanceof CfnUserPoolDomain);
+  if (domainResources.length !== 1) {
+    throw new Error(
+      `Expected exactly one Cognito user pool domain in the auth stack to apply cognitoDomainPrefix, found ${domainResources.length}`,
+    );
+  }
+  domainResources[0].domain = cognitoDomainPrefix;
 }

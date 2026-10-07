@@ -8,6 +8,7 @@
   "cms": {
     "domainName": "newsroom.example.test",
     "cognitoDomainPrefix": "papyrus-pretext-example",
+    "applyCognitoDomainPrefix": true,
     "environment": {
       "PAPYRUS_EDITION_SLUG": "current",
       "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://newsroom.example.test/,https://staging.example.test/"

@@ -7,8 +7,13 @@ export type PapyrusAuthConfig = {
   /** OAuth callback/logout URLs for Google sign-in (ignored when Google is disabled). */
   redirectUrls?: string[];
   disableGoogleOAuth?: boolean;
-  /** Stable Cognito hosted-UI domain prefix. */
+  /** Desired Cognito hosted-UI domain prefix. Only applied when `applyCognitoDomainPrefix` is true. */
   cognitoDomainPrefix?: string;
+  /**
+   * Opt in to the prefix. Off by default because changing a live pool's
+   * domain replaces it and changes the Google redirect URI.
+   */
+  applyCognitoDomainPrefix?: boolean;
 };
 
 export type PapyrusSiteBackendConfig = {

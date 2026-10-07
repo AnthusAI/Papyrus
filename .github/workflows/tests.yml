@@ -34,6 +34,7 @@ jobs:
       - run: npm ci
         working-directory: infra/amplify-app-shell
       - run: npm run test:infra-synth
+      - run: npm run test:cognito-domain-prefix
       - run: node amplify/functions/reader-settings/handler.test.mjs
       - run: node amplify/functions/shared/email-submission.test.mjs
 
