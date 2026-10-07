@@ -111,6 +111,12 @@ export type SiteBrand = {
   analysisProfilesPath: string;
   publicationName: string;
   components?: SiteBrandComponents;
+  /**
+   * Video player chrome. `"native"` (default) is the browser's controls;
+   * `"framed"` wraps the media in `.article-video__media` and renders a
+   * "Play Video" button with a seek bar (`.article-video__cta*`), styled by the publication CSS.
+   */
+  videoPlayer?: "native" | "framed";
   /** Blog presentation layout. Default `"classic"`. See `SiteBrandBlogLayout`. */
   blogLayout?: SiteBrandBlogLayout;
   /**

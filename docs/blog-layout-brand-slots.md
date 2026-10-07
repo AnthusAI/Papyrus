@@ -32,6 +32,7 @@ Optional tokens: `--blog-hrule-foreground`, `--blog-section-rule`, `--blog-secti
 | `mastheadTaglineLines?: { emphasis: string; tail: string }[]` | Rhythm layout: structured tagline. |
 | `components.BlogPageBackground` | Header artwork. Now also receives `headerObstacles` (measured header text boxes, in the layer's coordinates) and `rhythm`, so art can keep clear of the text and align to the grid. Obstacle geometry stays in the brand. |
 | `components.PictogramFigure` | Existing slot. Rhythm layout also passes `frameWidth` and `frameHeight` (solved image frame). |
+| `videoPlayer?: "native" \| "framed"` | `"framed"` renders `.article-video__media` plus a "Play Video" button and seek bar (`.article-video__cta*`, `.article-video--framed`); the publication CSS styles them. Default `"native"` is unchanged. |
 | `fonts?: SiteBrandFont[]` | Brand font slot, below. |
 
 ## Font slot
@@ -62,6 +63,25 @@ layout re-measures once the declared families finish loading (`use-brand-fonts-r
    import generic pieces from `@anthusai/papyrus/lib/...` and `@anthusai/papyrus/components/...`.
 2. `papyrus.config.ts` registers it: `defineSite({ brands: [brand], defaultBrand: brand.id })`.
 3. `publication/theme.css` carries the look (found by `withPapyrus()` as `papyrus-site-theme`).
+
+## Migrating a fork's theme.css
+
+Forks of the Threat Intelligence layout set `--ti-rhythm`, `--ti-row-height`, `--ti-paint-buffer` and
+`--ti-paint-height` inline on the shell. Papyrus sets the brand-neutral `--blog-rhythm`,
+`--blog-row-height`, `--blog-paint-buffer` and `--blog-paint-height` instead. A publication's
+`theme.css` that reads `--ti-*` must define them itself at `:root` (for example
+`--ti-rhythm: 4px; --ti-row-height: calc(var(--ti-rhythm) * 4)`) or switch to the `--blog-*` names.
+
+## Middleware runtime
+
+`papyrus-app sync` copies `runtime` from Papyrus's `middleware.ts` config into the generated
+`middleware.ts` shim (`runtime: "nodejs"`, needed by the staging gate); a site-owned middleware is no
+longer required.
+
+## Content notes
+
+Edition excerpts honor `editorial.customExcerpt` (and `newsroom.customExcerpt`) after `excerpt`.
+Rendering a published item needs `bodyIr`; `papyrus ops content convert-bodies` supplies it.
 
 ## Tests
 
