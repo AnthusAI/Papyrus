@@ -21,6 +21,9 @@ async function run() {
   const legacyHome = await middleware(new NextRequest(`${origin}/newsroom`));
   assert.equal(legacyHome.headers.get("location"), `${origin}/`);
 
+  const legacyHomeWithOAuthReturn = await middleware(new NextRequest(`${origin}/newsroom?code=abc&state=xyz`));
+  assert.equal(legacyHomeWithOAuthReturn.headers.get("location"), `${origin}/?code=abc&state=xyz`);
+
   const legacyDeep = await middleware(new NextRequest(`${origin}/newsroom/references/r1?code=abc&state=xyz`));
   assert.equal(legacyDeep.headers.get("location"), `${origin}/references/r1?code=abc&state=xyz`);
 

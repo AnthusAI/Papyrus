@@ -38,7 +38,7 @@ function routeRequest(request: NextRequest): NextResponse {
   }
 
   if (pathname === "/newsroom" || pathname === "/newsroom/") {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
   }
   if (pathname.startsWith("/newsroom/")) {
     const target = pathname.slice("/newsroom".length) || "/";
