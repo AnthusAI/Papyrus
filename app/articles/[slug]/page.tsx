@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSiteRenderer } from "../../../lib/site-renderer";
-import { getCachedArticle } from "../../../lib/cached-content-repository";
+import { getCachedArticle, getCachedVideoScript } from "../../../lib/cached-content-repository";
 import { generateArticleStaticParams, siteServesNextReaderRoutes } from "../../../lib/reader-static-params";
 import { SITE_BRAND } from "../../../lib/site-brand";
 
@@ -29,9 +29,9 @@ export async function generateMetadata({ params }: ArticlePageProps) {
 export default async function ArticlePage({ params }: ArticlePageProps) {
   if (!siteServesNextReaderRoutes()) notFound();
   const { slug } = await params;
-  const article = await getCachedArticle(slug);
+  const [article, videoScript] = await Promise.all([getCachedArticle(slug), getCachedVideoScript(slug)]);
   if (!article) notFound();
 
   const siteRenderer = getSiteRenderer();
-  return <siteRenderer.renderArticle article={article} backHref="/" />;
+  return <siteRenderer.renderArticle article={article} videoScript={videoScript} backHref="/" />;
 }

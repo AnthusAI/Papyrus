@@ -18,6 +18,8 @@ import {
 } from "./publication-items";
 import { BodyIrError, matchBodyImages, projectBodyIr, type BodyProjection, type BodyProjectionImage } from "./markus-body";
 import { SITE_BRAND } from "./site-brand";
+import { shouldFetchVideoScripts } from "./video-mode";
+import { collectVideoScriptTargets, parseVideoScriptRef, videomlItemSlug, type VideoScriptRef } from "./video-script";
 import { currentContentSource, currentRequestClient, runWithContentSource } from "./content-source-context";
 import { getContentSource } from "./site-env";
 
@@ -236,6 +238,10 @@ export const graphqlContentRepository: ContentRepository = {
     return withReaderGraphQLContext(() => loadEditionItem(editionDate, itemSlug));
   },
 
+  loadVideoScript(targetSlug) {
+    return withReaderGraphQLContext(() => loadVideoScriptForTarget(targetSlug));
+  },
+
   listArticleSlugs() {
     return withReaderGraphQLContext(async () => {
       const items = await listItemsByTypeStatus(`${ARTICLE_TYPE}#${PUBLISHED_STATUS}`);
@@ -379,6 +385,9 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
   const sanitizedLayoutPlan = pruneLayoutPlanUnavailableItems(layoutPlan, availableItemSlugs, edition.id);
   validateEditionLayoutPlanForItems(sanitizedLayoutPlan, items, `PublishedEdition(${edition.id}).layoutPlan`);
 
+  const editionVideo = await normalizeEditionVideoAsset(editionMetadata?.editionVideo);
+  const videoScripts = await loadEditionVideoScripts(items, editionVideo);
+
   return {
     id: edition.id,
     source: "graphql",
@@ -389,8 +398,36 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
     items,
     sections: createEditionSectionPlan(items, edition.metadata),
     suppressNewsDeskAppendix: editionMetadata?.suppressNewsDeskAppendix === true,
-    editionVideo: await normalizeEditionVideoAsset(editionMetadata?.editionVideo),
+    editionVideo,
+    videoScripts,
   };
+}
+
+function videoScriptsEnabled(): boolean {
+  return Boolean(SITE_BRAND.videoPlayer) && shouldFetchVideoScripts();
+}
+
+async function loadVideoScriptForTarget(targetSlug: string): Promise<VideoScriptRef | null> {
+  if (!videoScriptsEnabled()) return null;
+  const item = await getItemBySlug(videomlItemSlug(targetSlug));
+  if (!item || item.type !== "videoml" || !isVisibleItemStatus(item.status)) return null;
+  return parseVideoScriptRef(item);
+}
+
+async function loadEditionVideoScripts(
+  items: PublicationItem[],
+  editionVideo: ArticleVideoAsset | null,
+): Promise<Record<string, VideoScriptRef> | undefined> {
+  if (!videoScriptsEnabled()) return undefined;
+  const targets = collectVideoScriptTargets(items, editionVideo !== null);
+  const entries = await Promise.all(
+    targets.map(async (targetSlug) => {
+      const script = await loadVideoScriptForTarget(targetSlug);
+      return script ? ([targetSlug, script] as const) : null;
+    }),
+  );
+  const videoScripts = Object.fromEntries(entries.filter((entry): entry is [string, VideoScriptRef] => entry !== null));
+  return Object.keys(videoScripts).length > 0 ? videoScripts : undefined;
 }
 
 async function normalizeEditionVideoAsset(value: unknown): Promise<ArticleVideoAsset | null> {

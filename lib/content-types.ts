@@ -104,4 +104,5 @@ export type ContentRepository = {
   getEditionArticle(options: GetEditionArticleOptions): Article | undefined | Promise<Article | undefined>;
   getEditionItem(options: GetEditionItemOptions): PublicationItem | undefined | Promise<PublicationItem | undefined>;
   listArticleSlugs(): string[] | Promise<string[]>;
+  loadVideoScript(targetSlug: string): VideoScriptRef | null | Promise<VideoScriptRef | null>;
 };
