@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getSiteBrand } from "./lib/site-brand";
+import { getReaderBasePath } from "./lib/reader-base-path";
+import { isStagingGatedPath, isStaticOrApiPath } from "./lib/staging-gated-path";
 import { getSiteEnv, isIndexable } from "./lib/site-env";
 import { getStagingAccess } from "./lib/staging-gate";
 import {
@@ -15,21 +17,8 @@ function usesNewsroomRootPaths(): boolean {
   return brand.rootRoute?.kind === "newsroom" && brand.newsroomBasePath === "";
 }
 
-function isStaticOrApiPath(pathname: string): boolean {
-  return (
-    pathname.startsWith("/_next")
-    || pathname.startsWith("/api")
-    || pathname === "/favicon.ico"
-    || pathname.startsWith("/icon")
-    || /\.[a-zA-Z0-9]+$/.test(pathname)
-  );
-}
-
-function isStagingGatedPath(pathname: string): boolean {
-  if (isStaticOrApiPath(pathname)) return false;
-  if (pathname === "/robots.txt") return false;
-  if (pathname === "/newsroom" || pathname.startsWith("/newsroom/")) return false;
-  return true;
+function isStagingGatedPathForBrand(pathname: string): boolean {
+  return isStagingGatedPath(pathname, getReaderBasePath());
 }
 
 function routeRequest(request: NextRequest): NextResponse {
@@ -71,7 +60,7 @@ function routeRequest(request: NextRequest): NextResponse {
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   let sessionResponse: NextResponse | null = null;
   const { pathname } = request.nextUrl;
-  const gated = isStaticPreviewEnabled() ? isPreviewGatedPath(pathname) : isStagingGatedPath(pathname);
+  const gated = isStaticPreviewEnabled() ? isPreviewGatedPath(pathname) : isStagingGatedPathForBrand(pathname);
   if (getSiteEnv() === "staging" && gated) {
     sessionResponse = NextResponse.next();
     const access = await getStagingAccess(request, sessionResponse);

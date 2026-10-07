@@ -183,6 +183,7 @@ export { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec, buildSpec
 // ---- route manifest -------------------------------------------------------
 const ROUTE_FILE = /^app\/(?:.*\/)?(page|layout|route|loading|error|not-found|template|default)\.(tsx|ts)$/;
 const SEGMENT_CONFIG = ["dynamic", "revalidate", "runtime", "maxDuration", "fetchCache", "preferredRegion", "dynamicParams"];
+const READER_ROUTE = /^app\/(?:page\.tsx|\[year\]\/|articles\/|archive\/|settings\/)/;
 const routes = [];
 for (const rel of [...copied].filter((r) => ROUTE_FILE.test(r)).sort()) {
   const text = fs.readFileSync(path.join(stage, rel), "utf8");
@@ -201,6 +202,7 @@ for (const rel of [...copied].filter((r) => ROUTE_FILE.test(r)).sort()) {
   }
   routes.push({
     file: rel,
+    ...(READER_ROUTE.test(rel) ? { reader: true } : {}),
     hasDefault: /export\s+default/.test(text),
     exports: [...exportsFound].filter((n) => !SEGMENT_CONFIG.includes(n) && n !== "default").sort(),
     config,
