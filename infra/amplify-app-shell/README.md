@@ -106,7 +106,10 @@ The generated staging build shares the production backend: it writes `amplify_ou
 with `ampx generate outputs --branch main` (the "No backend environment association
 found" line in the staging log is expected) and runs the `papyrus` commands with
 `PAPYRUS_ROOT="$PWD"`, because a pip-installed `papyrus` otherwise looks for
-`amplify_outputs.json` inside its virtual environment.
+`amplify_outputs.json` inside its virtual environment. Because the staging branch has no
+backend association, Amplify does not put `amplify_outputs.json` into the SSR compute
+bundle, so the build copies it to `.next/amplify_outputs.json` and points
+`PAPYRUS_AMPLIFY_OUTPUTS` at it for the staging gate at runtime.
 
 The optional `github` block (`owner`, `repo`, `branches` default `["main","staging"]`,
 `ciCanDeployInfra` default `false`) must match `repository` and rejects wildcards.
