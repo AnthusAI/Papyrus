@@ -369,6 +369,8 @@ sets `PAPYRUS_DISABLE_GOOGLE_OAUTH`. After the first stack deploy, per app:
 4. Add custom domains: add `hostedZoneId` and the `domainName` fields to
    `site.json`, add the domain origins to `PAPYRUS_OAUTH_REDIRECT_URLS`, and
    re-deploy the stack (or add them in the Amplify console); let Amplify create alias records in the hosted zone.
+   Set `reader.includeWww: true` to also serve `www.<reader.domainName>` from
+   the reader app (apex and `www` both map to the reader branch).
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 

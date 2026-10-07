@@ -204,7 +204,10 @@ try {
     delete config.hostedZoneId;
     delete config.cms.domainName;
     delete config.cms.stagingDomainName;
-    if (config.reader) delete config.reader.domainName;
+    if (config.reader) {
+      delete config.reader.domainName;
+      delete config.reader.includeWww;
+    }
     config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/";
   };
 
@@ -224,6 +227,16 @@ try {
   assert.deepEqual(resourcesOfType(noStaging, "AWS::Amplify::Branch").map((branch) => branch.Properties.BranchName), ["main"]);
   assert.equal(resourcesOfType(noStaging, "AWS::Amplify::Domain").length, 1, "no staging: only the production domain");
   assert.equal(Object.keys(noStaging.Outputs).includes("StagingOrigin"), false);
+
+  const readerDomainSettings = (template) => resourcesOfType(template, "AWS::Amplify::Domain")
+    .find((domain) => domain.Properties.DomainName === "pilobol.us").Properties.SubDomainSettings;
+  const withWww = synthVariant("reader-www", "pilobol-us.site.json", () => {});
+  assert.deepEqual(readerDomainSettings(withWww), [
+    { BranchName: "main", Prefix: "" },
+    { BranchName: "main", Prefix: "www" },
+  ], "reader.includeWww: apex and www on main");
+  const apexOnly = synthVariant("reader-apex-only", "pilobol-us.site.json", (config) => delete config.reader.includeWww);
+  assert.deepEqual(readerDomainSettings(apexOnly), [{ BranchName: "main", Prefix: "" }], "no includeWww: apex only");
 
   const bare = synthVariant("bare", "pilobol-us.site.json", (config) => {
     removeDomains(config);
