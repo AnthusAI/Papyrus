@@ -54,6 +54,7 @@ try {
   for (const [example, expectedApps, expectedBranches, expectedDomains] of [
     ["pretext.site.json", 1, 2, 2],
     ["pilobol-us.site.json", 2, 3, 3],
+    ["threat-intelligence.site.json", 1, 2, 1],
   ]) {
     const site = path.join(shell, "examples", example);
     const siteId = JSON.parse(fs.readFileSync(site, "utf8")).siteId;
@@ -209,6 +210,24 @@ try {
     }
     config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/";
   };
+
+  const sharedRoot = synthVariant("shared-root", "threat-intelligence.site.json", () => {});
+  const sharedRootDomains = resourcesOfType(sharedRoot, "AWS::Amplify::Domain");
+  assert.equal(sharedRootDomains.length, 1, "shared root: one association for the root domain");
+  assert.equal(sharedRootDomains[0].Properties.DomainName, "anth.us");
+  assert.deepEqual(sharedRootDomains[0].Properties.SubDomainSettings, [
+    { BranchName: "main", Prefix: "threat-intelligence" },
+    { BranchName: "staging", Prefix: "threat-intelligence-staging" },
+  ]);
+  assert.match(JSON.stringify(sharedRoot.Outputs.CmsOrigin), /https:\/\/threat-intelligence\.anth\.us\//);
+  assert.match(JSON.stringify(sharedRoot.Outputs.StagingOrigin), /https:\/\/threat-intelligence-staging\.anth\.us\//);
+  assert.equal(/(^|[^-a-z0-9])staging\.anth\.us/.test(JSON.stringify(sharedRoot)), false, "shared root: derived staging.anth.us must not appear");
+
+  const singleHostDomains = resourcesOfType(synthVariant("single-host", "pretext.site.json", () => {}), "AWS::Amplify::Domain");
+  assert.deepEqual(singleHostDomains.map((domain) => [domain.Properties.DomainName, domain.Properties.SubDomainSettings]).sort(), [
+    ["newsroom.example.test", [{ BranchName: "main", Prefix: "" }]],
+    ["staging.example.test", [{ BranchName: "staging", Prefix: "" }]],
+  ], "single host sites keep one association per host with an empty prefix");
 
   const noDomains = synthVariant("no-domains", "pretext.site.json", removeDomains);
   assert.equal(resourcesOfType(noDomains, "AWS::Amplify::Domain").length, 0, "no domains: no Domain resources");

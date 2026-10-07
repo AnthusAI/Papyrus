@@ -36,7 +36,9 @@ Amplify build image defaults to Python 3.10 and `papyrus-newsroom` needs 3.12.
 
 Schema and validation: `lib/site-config.ts` (`parseSiteConfig`). Examples:
 [`examples/pilobol-us.site.json`](examples/pilobol-us.site.json) (`markus-static`)
-and [`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`).
+[`examples/pretext.site.json`](examples/pretext.site.json) (`pretext`) and
+[`examples/threat-intelligence.site.json`](examples/threat-intelligence.site.json)
+(`pretext`, host under a shared root domain).
 `cms.cognitoDomainPrefix` is required: the stable Cognito hosted-UI domain
 (`https://<prefix>.auth.<region>.amazoncognito.com`) that Google sign-in needs. The
 stack sets it as `PAPYRUS_COGNITO_DOMAIN_PREFIX` on the CMS branches. Google is
@@ -49,6 +51,23 @@ rejected in `cms.environment`. The secrets `GOOGLE_CLIENT_ID` and
 and `https://<staging domain>/` when staging is enabled and has a domain. Without
 a domain the stack appends the app's default `https://main.<app>.amplifyapp.com/`
 (and `https://staging.<app>.amplifyapp.com/`) to the branch variable itself.
+
+Host under a shared root domain: when the root domain (for example `anth.us`) is
+also associated with another Amplify app, set `cms.domainName` to the ROOT domain,
+`cms.domainPrefix` to the host's label and `cms.stagingDomainPrefix` to an explicit
+staging label. [`examples/threat-intelligence.site.json`](examples/threat-intelligence.site.json)
+serves `https://threat-intelligence.anth.us/` with staging at
+`https://threat-intelligence-staging.anth.us/`. The stack then emits ONE
+`AWS::Amplify::Domain` for the root with two sub-domain settings (`main` to the
+prefix, `staging` to the staging prefix), because Amplify keys an association by
+root domain and an app can hold only one per domain. The staging host is never
+derived here (`staging.<zone>` would collide with the other app) and
+`cms.stagingDomainName` is rejected next to `cms.domainPrefix`; OAuth redirect
+URLs must include both full hosts. Sites that do not set the prefix fields are
+unchanged: `cms.domainName` is the full host with an empty prefix and the staging
+host is `staging.<zone>` unless `cms.stagingDomainName` is set. Whether Amplify lets
+a second app claim a prefix on a root another app already holds is proven with a
+real deploy, not by synth (see the Threat Intelligence cutover).
 
 Domain-free and staging-free setup: omit `hostedZoneId`, `cms.domainName`,
 `cms.stagingDomainName` and `reader.domainName` (a zone id is only accepted

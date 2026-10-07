@@ -4,7 +4,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveCmsHostName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -45,6 +45,7 @@ export class AmplifyAppShellStack extends Stack {
     const cmsAppName = config.cms.appName ?? `${config.siteId}-cms`;
     const stagingEnabled = isStagingEnabled(config);
     const stagingDomainName = resolveStagingDomainName(config);
+    const cmsHostName = resolveCmsHostName(config);
 
     const cmsServiceRole = new iam.Role(this, "AmplifyServiceRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
@@ -76,12 +77,13 @@ export class AmplifyAppShellStack extends Stack {
       ? { PAPYRUS_STAGING_PREVIEW: "static" }
       : { PAPYRUS_CONTENT_SOURCE: "drafts" };
 
-    const productionOrigin = config.cms.domainName
-      ? `https://${config.cms.domainName}/`
+    const productionOrigin = cmsHostName
+      ? `https://${cmsHostName}/`
       : Fn.join("", ["https://main.", cmsApp.attrDefaultDomain, "/"]);
     const stagingOrigin = stagingDomainName
       ? `https://${stagingDomainName}/`
       : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain, "/"]);
+    const sharedRootDomain = config.cms.domainPrefix !== undefined;
     const defaultOriginsToAllow = [
       ...(config.cms.domainName ? [] : [productionOrigin]),
       ...(stagingEnabled && !stagingDomainName ? [stagingOrigin] : []),
@@ -106,8 +108,9 @@ export class AmplifyAppShellStack extends Stack {
       }),
     });
 
+    let stagingBranch: amplify.CfnBranch | undefined;
     if (stagingEnabled) {
-      const stagingBranch = new amplify.CfnBranch(this, "StagingBranch", {
+      stagingBranch = new amplify.CfnBranch(this, "StagingBranch", {
         appId: cmsApp.attrAppId,
         branchName: "staging",
         stage: "BETA",
@@ -127,7 +130,7 @@ export class AmplifyAppShellStack extends Stack {
         }),
       });
 
-      if (stagingDomainName) {
+      if (stagingDomainName && !sharedRootDomain) {
         const stagingDomain = new amplify.CfnDomain(this, "StagingDomain", {
           appId: cmsApp.attrAppId,
           domainName: stagingDomainName,
@@ -138,12 +141,21 @@ export class AmplifyAppShellStack extends Stack {
     }
 
     if (config.cms.domainName) {
+      const subDomainSettings = sharedRootDomain
+        ? [
+            { branchName: "main", prefix: config.cms.domainPrefix as string },
+            ...(stagingBranch ? [{ branchName: "staging", prefix: config.cms.stagingDomainPrefix as string }] : []),
+          ]
+        : [{ branchName: "main", prefix: "" }];
       const productionDomain = new amplify.CfnDomain(this, "Domain", {
         appId: cmsApp.attrAppId,
         domainName: config.cms.domainName,
-        subDomainSettings: [{ branchName: "main", prefix: "" }],
+        subDomainSettings,
       });
       productionDomain.addResourceDependency(productionBranch);
+      if (sharedRootDomain && stagingBranch) {
+        productionDomain.addResourceDependency(stagingBranch);
+      }
     }
 
     this.cmsAppId = cmsApp.attrAppId;

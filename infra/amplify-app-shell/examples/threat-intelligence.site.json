@@ -1,0 +1,23 @@
+{
+  "siteId": "threat-intelligence",
+  "repository": "https://github.com/AnthusAI/Threat-Intelligence",
+  "brand": "threat-intelligence",
+  "frontend": "pretext",
+  "hostedZoneId": "Z02552332GG6AM25SFP73",
+  "papyrusVersion": "1.0.0-next.1",
+  "cms": {
+    "domainName": "anth.us",
+    "domainPrefix": "threat-intelligence",
+    "stagingDomainPrefix": "threat-intelligence-staging",
+    "cognitoDomainPrefix": "papyrus-threat-intelligence",
+    "environment": {
+      "PAPYRUS_EDITION_SLUG": "current",
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://threat-intelligence.anth.us/,https://threat-intelligence-staging.anth.us/"
+    }
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "Threat-Intelligence",
+    "ciCanDeployInfra": false
+  }
+}

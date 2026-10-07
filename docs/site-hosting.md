@@ -369,6 +369,11 @@ sets `PAPYRUS_DISABLE_GOOGLE_OAUTH`. After the first stack deploy, per app:
 4. Add custom domains: add `hostedZoneId` and the `domainName` fields to
    `site.json`, add the domain origins to `PAPYRUS_OAUTH_REDIRECT_URLS`, and
    re-deploy the stack (or add them in the Amplify console); let Amplify create alias records in the hosted zone.
+   A host under a root domain that another Amplify app also holds (for example
+   `threat-intelligence.anth.us` beside the Anth.us app) uses `cms.domainName` =
+   the root, `cms.domainPrefix` and an explicit `cms.stagingDomainPrefix`; the
+   stack emits one domain association for the root with both prefixes. The
+   staging host is never derived there. See the app-shell README.
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 
