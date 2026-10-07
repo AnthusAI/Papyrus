@@ -570,3 +570,7 @@ under the prefix that are not in DIR are deleted, any prefix other than
 Limits: responses are proxied through compute, so very large objects may hit
 the platform response-size limit; measure on a real site before adding a
 redirect to the presigned URL.
+
+## Reader media route (`/api/media/*`)
+
+`/api/media/<path>` serves only `media/` objects. Images are proxied through the compute function because the Next.js image optimizer does not follow redirects. Everything else (videos, audio, other files) answers `307` with a short-lived presigned S3 URL, so S3 serves the bytes and honors `Range`. Proxying large files fails with `413` because the SSR compute response size is capped.
