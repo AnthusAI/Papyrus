@@ -30,7 +30,7 @@ export type PapyrusSiteBackendConfig = {
   reader?: { amplifyAppId: string; branchName?: string };
   /** Lets the newsroom start the `staging` branch build of this CMS app. */
   stagingBuild?: { enabled: boolean };
-  /** Base URL of a Pretext reader whose `/api/revalidate` a publish calls (secret `PAPYRUS_REVALIDATE_SECRET`). */
+  /** Base URL of a Pretext reader whose `/api/revalidate` a publish calls (authenticated by the SSM secret named in branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`). */
   revalidateBaseUrl?: string;
   features?: {
     consoleResponder?: boolean;

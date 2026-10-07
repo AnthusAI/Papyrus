@@ -83,7 +83,22 @@ try {
     assert.match(stagingSpec, /ampx generate outputs/);
     assert.equal(/jwt/i.test(stagingSpec), false, `${example}: staging spec mentions a JWT`);
     assert.equal(/jwt/i.test(templateText), false, `${example}: template mentions a JWT`);
-    assert.equal(templateText.includes("ssm:"), false, `${example}: template grants SSM access`);
+    const ssmGrants = Object.values(template.Resources)
+      .filter((resource) => resource.Type === "AWS::IAM::Policy")
+      .flatMap((resource) => resource.Properties.PolicyDocument.Statement)
+      .filter((statement) => JSON.stringify(statement.Action).includes("ssm:"));
+    const isPretext = JSON.parse(fs.readFileSync(site, "utf8")).frontend === "pretext";
+    assert.equal(ssmGrants.length, isPretext ? 1 : 0, `${example}: SSM grants`);
+    if (isPretext) {
+      assert.deepEqual(ssmGrants[0].Action, "ssm:GetParameter", `${example}: SSM grant is a single read`);
+      assert.match(JSON.stringify(ssmGrants[0].Resource), new RegExp(`parameter/papyrus/${siteId}/revalidate-secret`), `${example}: SSM grant is the revalidate parameter`);
+      const computeRoleKey = Object.keys(template.Resources).find((key) => key.startsWith("AmplifyComputeRole") && template.Resources[key].Type === "AWS::IAM::Role");
+      const grantingPolicy = Object.values(template.Resources).find((resource) => resource.Type === "AWS::IAM::Policy" && JSON.stringify(resource.Properties.PolicyDocument).includes("ssm:GetParameter"));
+      assert.ok(grantingPolicy.Properties.Roles.some((role) => role.Ref === computeRoleKey), `${example}: compute role holds the SSM grant`);
+    }
+    const productionVariables = Object.fromEntries(branches.find((branch) => branch.Properties.BranchName === "main").Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
+    assert.equal(productionVariables.PAPYRUS_REVALIDATE_SECRET_PARAMETER, isPretext ? `/papyrus/${siteId}/revalidate-secret` : undefined, `${example}: revalidate parameter variable`);
+    assert.equal(templateText.includes("PAPYRUS_REVALIDATE_SECRET\""), false, `${example}: template carries a secret variable`);
     specsSeen.push(stagingSpec, ...apps.map(buildSpecOf));
 
     const siteCms = JSON.parse(fs.readFileSync(site, "utf8")).cms;

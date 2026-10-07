@@ -56,7 +56,11 @@ const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER"];
+export function resolveRevalidateSecretParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
+  return `/papyrus/${config.siteId}/revalidate-secret`;
+}
+
 const LOCAL_DEVELOPMENT_ORIGIN = "http://localhost:3001/";
 
 function fail(field: string, problem: string): never {
@@ -203,7 +207,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   }
   for (const key of TEMPLATE_MANAGED_ENVIRONMENT_KEYS) {
     if (key in cms.environment) {
-      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on and the Cognito domain comes from cms.cognitoDomainPrefix");
+      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix and the revalidation secret parameter is derived from siteId");
     }
   }
 

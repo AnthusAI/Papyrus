@@ -9,6 +9,7 @@ import {
   editionContentCacheTag,
   editionItemCacheTag,
 } from "../../../lib/cached-content-repository";
+import { isAuthorizedRevalidateRequest } from "../../../lib/revalidate-secret";
 import { getEditionArticlePath, getEditionDatePath } from "../../../lib/edition-routes";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +23,8 @@ type RevalidateRequestBody = {
 };
 
 export async function POST(request: Request) {
-  const configuredSecret = process.env.PAPYRUS_REVALIDATE_SECRET?.trim();
-  const providedSecret = request.headers.get("x-papyrus-revalidate-secret")?.trim();
-  if (!configuredSecret || providedSecret !== configuredSecret) {
+  const providedSecret = request.headers.get("x-papyrus-revalidate-secret");
+  if (!(await isAuthorizedRevalidateRequest(providedSecret))) {
     return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
 
