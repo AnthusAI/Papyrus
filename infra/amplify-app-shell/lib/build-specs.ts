@@ -22,6 +22,8 @@ const NPM_CLEAN_INSTALL = "npm ci --cache .npm --prefer-offline";
 const FRONTEND_ENVIRONMENT_CAPTURE =
   "env | grep -e '^PAPYRUS_' -e '^SITE_ENV=' -e '^NEXT_PUBLIC_' >> .env.production";
 
+const CHECKOUT_AS_PAPYRUS_ROOT = "PAPYRUS_ROOT=\"$PWD\"";
+
 function pythonProvisioningCommands(config: AmplifyAppShellSiteConfig): string[] {
   return [
     "export UV_CACHE_DIR=\"$PWD/.uv-cache\"",
@@ -90,9 +92,9 @@ export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
     const readerConfig = reader(config);
     preBuild.push(
       ...pythonProvisioningCommands(config),
-      "papyrus ops content export-published --drafts --out content-export --clean",
+      `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content export-published --drafts --out content-export --clean`,
       readerConfig.buildCommand,
-      `papyrus ops content upload-preview --dir ${readerConfig.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
+      `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content upload-preview --dir ${readerConfig.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
     );
     cachePaths.push(".uv-cache/**/*");
   }

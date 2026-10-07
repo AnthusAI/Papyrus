@@ -88,6 +88,12 @@ The generated reader build runs `papyrus ops content export-published --auth gue
 `PAPYRUS_GRAPHQL_ENDPOINT`, `PAPYRUS_IDENTITY_POOL_ID`, `PAPYRUS_MEDIA_BUCKET` and
 `AWS_REGION` in `reader.environment` (or ship `amplify_outputs.json`).
 
+The generated staging build shares the production backend: it writes `amplify_outputs.json`
+with `ampx generate outputs --branch main` (the "No backend environment association
+found" line in the staging log is expected) and runs the `papyrus` commands with
+`PAPYRUS_ROOT="$PWD"`, because a pip-installed `papyrus` otherwise looks for
+`amplify_outputs.json` inside its virtual environment.
+
 The optional `github` block (`owner`, `repo`, `branches` default `["main","staging"]`,
 `ciCanDeployInfra` default `false`) must match `repository` and rejects wildcards.
 The account-global OIDC provider is a separate stack:
