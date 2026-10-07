@@ -115,6 +115,8 @@ try {
     const productionSpec = buildSpecOf(apps.find((app) => app.Properties.Platform === "WEB_COMPUTE"));
     assert.match(productionSpec, /^backend:/m);
     assert.match(productionSpec, /npx ampx pipeline-deploy/);
+    assert.equal(/cp amplify_outputs\.json \.next\/amplify_outputs\.json/.test(productionSpec), isPretext, `${example}: production ships amplify_outputs.json into the compute bundle only for a Pretext site`);
+    assert.equal(/echo PAPYRUS_AMPLIFY_OUTPUTS=\.next\/amplify_outputs\.json >> \.env\.production/.test(productionSpec), isPretext, `${example}: production runtime reads the shipped amplify_outputs.json only for a Pretext site`);
 
     if (expectedApps === 2) {
       const readerApp = apps.find((app) => app.Properties.Platform === "WEB");

@@ -109,7 +109,11 @@ found" line in the staging log is expected) and runs the `papyrus` commands with
 `amplify_outputs.json` inside its virtual environment. Because the staging branch has no
 backend association, Amplify does not put `amplify_outputs.json` into the SSR compute
 bundle, so the build copies it to `.next/amplify_outputs.json` and points
-`PAPYRUS_AMPLIFY_OUTPUTS` at it for the staging gate at runtime.
+`PAPYRUS_AMPLIFY_OUTPUTS` at it for the staging gate at runtime. The production
+(`main`) build of a Pretext site does the same, because the Pretext reader pages are
+rendered by the same SSR compute bundle and fail with "Papyrus requires
+amplify_outputs.json" otherwise; a Markus site's CMS app serves no reader pages, so its
+production spec is unchanged.
 
 The optional `github` block (`owner`, `repo`, `branches` default `["main","staging"]`,
 `ciCanDeployInfra` default `false`) must match `repository` and rejects wildcards.
