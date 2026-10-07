@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Pause, Play } from "lucide-react";
 import type { ArticleVideoAsset } from "@/lib/articles";
 import { resolveThemedVideoSrc } from "@/lib/themed-image";
 import { useResolvedPapyrusTheme } from "@/components/use-resolved-papyrus-theme";
@@ -32,6 +33,8 @@ export function ArticleVideoFigure({
   const [duration, setDuration] = useState(0);
   const [previewReady, setPreviewReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const isFramed = getSiteBrand().videoPlayer === "framed";
 
   useEffect(() => {
     setHasHydrated(true);
@@ -91,6 +94,58 @@ export function ArticleVideoFigure({
     setCurrentTime(clamped);
   }, []);
 
+  const toggleNativePlayback = useCallback(() => {
+    const element = videoRef.current;
+    if (!element) return;
+    if (element.paused) void element.play().catch(() => setIsPlaying(false));
+    else element.pause();
+  }, []);
+
+  const seekNative = useCallback((nextTime: number) => {
+    const element = videoRef.current;
+    if (!element) return;
+    element.currentTime = Math.max(0, Number.isFinite(nextTime) ? nextTime : 0);
+    setCurrentTime(element.currentTime);
+  }, []);
+
+  const framedControls = (
+    <FramedVideoControls
+      currentTime={currentTime}
+      duration={duration}
+      isPlaying={isPlaying}
+      onSeek={usePreview ? seekPreview : seekNative}
+      onToggle={usePreview ? togglePreviewPlayback : toggleNativePlayback}
+    />
+  );
+
+  if (isFramed && usePreview) {
+    return (
+      <figure
+        className={`${figureClassName} article-video--framed article-video--preview`}
+        data-media-type="videoml-preview"
+        data-video-theme={resolvedTheme}
+        data-video-mode={videoMode}
+      >
+        <div className="article-video__media">
+          {hasHydrated ? (
+            <iframe
+              key={`${slug}-${resolvedTheme}-${src}`}
+              ref={iframeRef}
+              className="article-video__preview-frame"
+              src={previewSrc}
+              title={video.alt}
+              onLoad={() => setPreviewReady(true)}
+            />
+          ) : null}
+        </div>
+        {framedControls}
+        <span className="sr-only" data-video-slug={slug}>
+          {video.alt}
+        </span>
+      </figure>
+    );
+  }
+
   if (usePreview) {
     return (
       <figure
@@ -133,6 +188,43 @@ export function ArticleVideoFigure({
     );
   }
 
+  if (isFramed) {
+    return (
+      <figure
+        className={`${figureClassName} article-video--framed`}
+        data-media-type="video"
+        data-video-theme={resolvedTheme}
+        data-video-mode={videoMode}
+      >
+        <div className="article-video__media">
+          <video
+            ref={videoRef}
+            playsInline
+            preload="metadata"
+            poster={video.posterSrc}
+            aria-label={video.alt}
+            className="article-video__player"
+            key={hasHydrated ? src : "ssr"}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+            onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+            onDurationChange={(event) => {
+              const nextDuration = event.currentTarget.duration;
+              if (Number.isFinite(nextDuration) && nextDuration > 0) setDuration(nextDuration);
+            }}
+          >
+            <source src={src} type="video/mp4" />
+          </video>
+        </div>
+        {framedControls}
+        <span className="sr-only" data-video-slug={slug}>
+          {video.alt}
+        </span>
+      </figure>
+    );
+  }
+
   return (
     <figure className={figureClassName} data-media-type="video" data-video-theme={resolvedTheme} data-video-mode={videoMode}>
       <video
@@ -152,5 +244,48 @@ export function ArticleVideoFigure({
         {video.alt}
       </span>
     </figure>
+  );
+}
+
+function FramedVideoControls({
+  currentTime,
+  duration,
+  isPlaying,
+  onSeek,
+  onToggle,
+}: {
+  currentTime: number;
+  duration: number;
+  isPlaying: boolean;
+  onSeek: (nextTime: number) => void;
+  onToggle: () => void;
+}) {
+  const seekProgress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  return (
+    <div className="article-video__cta" data-playing={isPlaying ? "true" : "false"}>
+      <button type="button" className="article-video__cta-toggle" onClick={onToggle} aria-pressed={isPlaying}>
+        <span className="article-video__cta-label">
+          <span className="article-video__cta-label-sizer" aria-hidden="true">
+            Pause Video
+          </span>
+          <span className="article-video__cta-label-text">{isPlaying ? "Pause Video" : "Play Video"}</span>
+        </span>
+        <span className="article-video__cta-icon" aria-hidden="true">
+          {isPlaying ? <Pause /> : <Play />}
+        </span>
+      </button>
+      <input
+        className="article-video__cta-seek"
+        type="range"
+        min={0}
+        max={duration || 0}
+        step={0.1}
+        value={Math.min(currentTime, duration || 0)}
+        onChange={(event) => onSeek(Number(event.target.value))}
+        aria-label="Seek video"
+        disabled={!duration}
+        style={{ "--seek-progress": `${seekProgress}%` } as CSSProperties}
+      />
+    </div>
   );
 }

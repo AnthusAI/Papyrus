@@ -4,12 +4,14 @@ import Script from "next/script";
 import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { resolveBrandFontAssets } from "../lib/brand-fonts";
 import { getPresentationChoices, getSiteBrand } from "../lib/site-brand";
 import { getSiteStack } from "../lib/site-stack";
 import { isIndexable, showStagingBanner } from "../lib/site-env";
 import { StagingBanner } from "../components/staging-banner";
 import "./tailwind.css";
 import "./globals.css";
+import "./blog-rhythm.css";
 import "papyrus-site-theme";
 
 const playfairDisplay = Playfair_Display({
@@ -43,6 +45,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const siteBrand = getSiteBrand();
   const presentationChoices = getPresentationChoices(siteBrand);
   const siteStack = getSiteStack(siteBrand);
+  const brandFonts = resolveBrandFontAssets(siteBrand.fonts);
 
   return (
     <html
@@ -56,8 +59,21 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       data-default-presentation={siteBrand.defaultPresentation}
       data-presentation-choices={presentationChoices.join(",")}
       {...(siteBrand.forcedPresentation ? { "data-forced-presentation": siteBrand.forcedPresentation } : {})}
+      {...(siteBrand.blogLayout === "rhythm" ? { "data-blog-layout": "rhythm" } : {})}
+      {...(brandFonts.isEmpty ? {} : { style: brandFonts.rootStyle as React.CSSProperties })}
       suppressHydrationWarning
     >
+      {brandFonts.isEmpty ? null : (
+        <head>
+          {brandFonts.preconnectOrigins.map((origin) => (
+            <link crossOrigin="anonymous" href={origin} key={origin} rel="preconnect" />
+          ))}
+          {brandFonts.stylesheetHrefs.map((href) => (
+            <link href={href} key={href} rel="stylesheet" />
+          ))}
+          {brandFonts.fontFaceCss ? <style data-brand-fonts="true">{brandFonts.fontFaceCss}</style> : null}
+        </head>
+      )}
       <body className={`${playfairDisplay.variable} ${plusJakartaSans.variable}`}>
         <Script id="papyrus-favicon-color-scheme" strategy="beforeInteractive">
           {`(() => {

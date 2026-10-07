@@ -210,10 +210,15 @@ for (const rel of [...copied].filter((r) => ROUTE_FILE.test(r)).sort()) {
 }
 const middlewareText = fs.readFileSync(path.join(stage, "middleware.ts"), "utf8");
 const matcher = middlewareText.match(/matcher:\s*(\[[^\]]*\])/);
+const middlewareRuntime = middlewareText.match(/runtime:\s*["'](nodejs|edge)["']/);
 const manifest = {
   version,
   routes,
-  middleware: { file: "middleware.ts", matcher: matcher ? matcher[1] : null },
+  middleware: {
+    file: "middleware.ts",
+    matcher: matcher ? matcher[1] : null,
+    runtime: middlewareRuntime ? middlewareRuntime[1] : null,
+  },
 };
 fs.writeFileSync(path.join(stage, "routes.manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 

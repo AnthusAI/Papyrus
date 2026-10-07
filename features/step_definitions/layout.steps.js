@@ -2269,6 +2269,49 @@ Then("the blog presentation footer should include utility links", async function
   assert.deepEqual(report, ["archive", "newsDesk", "settings", "login"]);
 });
 
+Then("the blog presentation should follow the vertical rhythm", async function () {
+  const report = await getBlogRhythmReport(requirePage(this));
+  assert.deepEqual(report.errors, []);
+});
+
+Then("no blog measured line should be cropped", async function () {
+  const report = await getBlogMeasuredLineReport(requirePage(this));
+  assert.deepEqual(report.croppedLines, []);
+});
+
+Then("featured blog items in obstacle mode should match image height to compressed copy", async function () {
+  const report = await getBlogFeaturedLayoutReport(requirePage(this));
+  assert.deepEqual(report.errors, []);
+});
+
+When("I toggle the rhythm overlay", async function () {
+  const page = requirePage(this);
+  await page.keyboard.down("Control");
+  await page.keyboard.press("=");
+  await page.keyboard.up("Control");
+});
+
+Then("the blog rhythm overlay should be visible", async function () {
+  const page = requirePage(this);
+  await page.waitForFunction(() => document.querySelector(".blog-rhythm-shell")?.getAttribute("data-rhythm-overlay") === "true");
+  const report = await page.evaluate(() => {
+    const shell = document.querySelector(".blog-rhythm-shell");
+    if (!shell) return null;
+    const pseudo = getComputedStyle(shell, "::before");
+    return {
+      overlay: shell.getAttribute("data-rhythm-overlay"),
+      backgroundImage: pseudo.backgroundImage,
+      position: pseudo.position,
+      rhythm: getComputedStyle(shell).getPropertyValue("--blog-row-height").trim(),
+    };
+  });
+  assert.ok(report, "Expected blog rhythm shell");
+  assert.equal(report.overlay, "true");
+  assert.ok(report.rhythm.length > 0, "Expected blog rhythm token");
+  assert.notEqual(report.backgroundImage, "none");
+  assert.equal(report.position, "absolute");
+});
+
 Then("edition section route {string} should target section {string}", function (routePath, expectedSectionKey) {
   const route = parseDatedTestPath(routePath);
   const { parseEditionSectionRoute } = loadEditionRoutesModule();
@@ -4339,6 +4382,82 @@ async function getActivePageReport(page) {
       lineFurnitureOverlaps,
       deadColumns,
     };
+  });
+}
+
+async function getBlogRhythmReport(page) {
+  return page.evaluate(() => {
+    const shell = document.querySelector(".blog-rhythm-shell");
+    if (!shell) throw new Error("No blog rhythm shell");
+    const rhythm = Number.parseFloat(getComputedStyle(shell).getPropertyValue("--blog-row-height")) || 16;
+    const tolerance = 0.75;
+    const errors = [];
+    const isOnRhythm = (value) => {
+      const remainder = ((value % rhythm) + rhythm) % rhythm;
+      return remainder <= tolerance || Math.abs(remainder - rhythm) <= tolerance;
+    };
+    const requireRhythm = (label, value) => {
+      if (!Number.isFinite(value)) {
+        errors.push({ label, value, reason: "not finite" });
+        return;
+      }
+      if (!isOnRhythm(value)) errors.push({ label, value: Number(value.toFixed(3)), rhythm });
+    };
+
+    const items = Array.from(shell.querySelectorAll(".presentation-item[data-feature-layout]"));
+    for (const item of items) {
+      const textFrame = item.querySelector(".presentation-item__text-frame");
+      const media = item.querySelector(".presentation-item__media, .pictogram-figure__frame");
+      if (textFrame) requireRhythm(`featured text frame ${item.id}`, textFrame.getBoundingClientRect().height);
+      if (media) requireRhythm(`featured media ${item.id}`, media.getBoundingClientRect().height);
+    }
+
+    return { rhythm, errors };
+  });
+}
+
+async function getBlogMeasuredLineReport(page) {
+  return page.evaluate(() => {
+    const croppedLines = [];
+    const frames = Array.from(document.querySelectorAll(".presentation-page--blog .presentation-item__text-frame"));
+    for (const frame of frames) {
+      const frameRect = frame.getBoundingClientRect();
+      const lines = Array.from(frame.querySelectorAll(".presentation-measured-line"));
+      for (const line of lines) {
+        const lineRect = line.getBoundingClientRect();
+        if (lineRect.bottom - frameRect.top > frameRect.height + 0.75) {
+          croppedLines.push({
+            frameId: frame.closest(".presentation-item")?.id ?? "unknown",
+            lineBottom: lineRect.bottom - frameRect.top,
+            frameHeight: frameRect.height,
+            text: line.textContent?.trim() ?? "",
+          });
+        }
+      }
+    }
+    return { croppedLines };
+  });
+}
+
+async function getBlogFeaturedLayoutReport(page) {
+  return page.evaluate(() => {
+    const errors = [];
+    const items = Array.from(document.querySelectorAll('.presentation-item[data-feature-layout="obstacle"]'));
+    for (const item of items) {
+      const textFrame = item.querySelector(".presentation-item__text-frame");
+      const media = item.querySelector(".presentation-item__media, .pictogram-figure__frame");
+      if (!textFrame || !media) continue;
+      const textHeight = textFrame.getBoundingClientRect().height;
+      const imageHeight = media.getBoundingClientRect().height;
+      if (Math.abs(textHeight - imageHeight) > 1) {
+        errors.push({
+          itemId: item.id,
+          textHeight,
+          imageHeight,
+        });
+      }
+    }
+    return { errors };
   });
 }
 

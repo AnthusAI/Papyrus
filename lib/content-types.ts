@@ -1,6 +1,7 @@
 import type { Article, ArticleVideoAsset } from "./articles";
 import type { EditionLayoutPlan } from "./layout-plan";
 import type { PublicationItem } from "./publication-items";
+import type { VideoScriptRef } from "./video-script";
 
 export type ContentSource = "scenario" | "graphql";
 
@@ -55,6 +56,8 @@ export type EditionContent = {
   scenarioId?: string;
   description?: string;
   editionVideo?: ArticleVideoAsset | null;
+  /** Video scripts by item slug (`"edition-overview"` for the edition video), for the VideoML preview. */
+  videoScripts?: Record<string, VideoScriptRef>;
 };
 
 export type EditionRouteSummary = {

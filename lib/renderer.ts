@@ -4,6 +4,7 @@ import type { EditionContent } from "./content-types";
 import type { PretextLayout } from "./renderer-config";
 import type { PresentationFooterEntry } from "./presentation-footer";
 import type { PublicationItem } from "./publication-items";
+import type { VideoScriptRef } from "./video-script";
 
 /**
  * Renderer is the swappable render pipeline that turns standard content
@@ -36,6 +37,8 @@ export type RenderEditionProps = {
 export type ArticlePageEditionFooter = {
   editionBasePath: string;
   entries: PresentationFooterEntry[];
+  /** Section links for the rhythm blog layout's page header. Ignored by the classic layout. */
+  sections?: Array<{ key: string; label: string }>;
   subtitle: string;
   title?: string;
 };
@@ -46,6 +49,8 @@ export type RenderArticleProps = {
   backLabel?: string;
   editionFooter?: ArticlePageEditionFooter;
   editionDate?: string;
+  /** VideoML script for the preview player. */
+  videoScript?: VideoScriptRef | null;
 };
 
 export type RenderItemProps = {
@@ -54,6 +59,8 @@ export type RenderItemProps = {
   backLabel?: string;
   editionFooter?: ArticlePageEditionFooter;
   editionDate?: string;
+  /** VideoML script for the preview player. */
+  videoScript?: VideoScriptRef | null;
 };
 
 /**

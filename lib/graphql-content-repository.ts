@@ -939,15 +939,20 @@ function parseAttachmentPointer(value: unknown): ContentAttachmentPointer | null
   };
 }
 
-function readInlineExcerpt(editorial: unknown): string | null {
+export function readInlineExcerpt(editorial: unknown): string | null {
   const parsed = parseObjectMetadata(editorial);
   if (!parsed) return null;
   const direct = parsed.excerpt;
   if (typeof direct === "string" && direct.trim()) return direct.trim();
+  const custom = parsed.customExcerpt;
+  if (typeof custom === "string" && custom.trim()) return custom.trim();
   const newsroom = parsed.newsroom;
   if (!newsroom || typeof newsroom !== "object" || Array.isArray(newsroom)) return null;
-  const nestedExcerpt = (newsroom as Record<string, unknown>).excerpt;
-  return typeof nestedExcerpt === "string" && nestedExcerpt.trim() ? nestedExcerpt.trim() : null;
+  const newsroomRecord = newsroom as Record<string, unknown>;
+  const nestedExcerpt = newsroomRecord.excerpt;
+  if (typeof nestedExcerpt === "string" && nestedExcerpt.trim()) return nestedExcerpt.trim();
+  const nestedCustom = newsroomRecord.customExcerpt;
+  return typeof nestedCustom === "string" && nestedCustom.trim() ? nestedCustom.trim() : null;
 }
 
 function normalizePublicationItemType(value: string): Exclude<PublicationItemType, "article"> | null {

@@ -37,12 +37,12 @@ function shimFor(route) {
   return lines.join("\n") + "\n";
 }
 
-function middlewareShim(manifest) {
+export function middlewareShim(manifest) {
   const matcher = manifest.middleware.matcher ?? '["/((?!_next/static|_next/image|favicon.ico|icon).*)"]';
   return [
     MARKER,
     `export { middleware } from "${PKG}/middleware";`,
-    `export const config = { matcher: ${matcher} };`,
+    `export const config = { ${manifest.middleware.runtime ? `runtime: ${JSON.stringify(manifest.middleware.runtime)}, ` : ""}matcher: ${matcher} };`,
     "",
   ].join("\n");
 }

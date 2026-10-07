@@ -23,6 +23,18 @@ import { Newspaper } from "../../components/newspaper";
 import { PictogramFigure as GenericPictogramFigure } from "../../components/pictogram-figure";
 import { PresentationFooter } from "../../components/presentation-footer";
 import { readLocalReaderSettings, resolveReaderSettings, subscribeReaderSettingsChanges } from "../../components/reader-settings";
+import { RhythmBlogPresentation } from "./rhythm-blog-presentation";
+import {
+  getBlogFooterSectionHref,
+  getPresentationBodyText,
+  getPresentationItemRole,
+  getPresentationTitle,
+  getSectionAnchorId,
+  handleBlogFooterSectionClick,
+  MeasuredPresentationLines,
+  useMeasuredWidth,
+  usePresentationTargetScroll,
+} from "./presentation-shared";
 
 const BlogPageBackground = SITE_BRAND.components?.BlogPageBackground ?? GenericBlogPageBackground;
 const PictogramFigure = SITE_BRAND.components?.PictogramFigure ?? GenericPictogramFigure;
@@ -94,7 +106,9 @@ export function PresentationShell({
 
   return (
     <PresentationFrame>
-      {activePresentation === "blog" ? (
+      {activePresentation === "blog" && SITE_BRAND.blogLayout === "rhythm" ? (
+        <RhythmBlogPresentation {...presentationProps} />
+      ) : activePresentation === "blog" ? (
         <BlogPresentation {...presentationProps} />
       ) : (
         <MagazinePresentation {...presentationProps} />
@@ -340,67 +354,6 @@ function PresentationItem({
   );
 }
 
-function getPresentationItemRole(mode: "blog" | "magazine" | "magazine-feature", index?: number): "lead" | "secondary" {
-  if (mode === "magazine-feature") return "lead";
-  if (mode === "blog" && index === 0) return "lead";
-  return "secondary";
-}
-
-function MeasuredPresentationLines({ lines }: { lines: TextLine[] }) {
-  return (
-    <div className="presentation-measured-lines">
-      {lines.map((line, index) => (
-        <span
-          className="presentation-measured-line"
-          key={`${index}-${line.text}`}
-          style={{
-            "--line-font-family": line.fontFamily,
-            "--line-font-size": `${line.fontSize}px`,
-            "--line-height": `${line.lineHeight}px`,
-            "--line-paint-height": `${line.paintHeight}px`,
-            left: line.x,
-            top: line.y,
-          } as CSSProperties}
-        >
-          {line.text}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function useMeasuredWidth(ref: RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const update = () => setWidth(Math.max(1, Math.floor(node.getBoundingClientRect().width)));
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    window.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [ref]);
-  return width;
-}
-
-function usePresentationTargetScroll(targetSection: EditionSection | undefined) {
-  useEffect(() => {
-    const scrollToCurrentTarget = () => {
-      const hashTarget = parseItemAnchorHash(window.location.hash);
-      const targetId = hashTarget ?? (targetSection ? getSectionAnchorId(targetSection.key) : null);
-      if (!targetId) return;
-      document.getElementById(targetId)?.scrollIntoView({ block: "start" });
-    };
-    requestAnimationFrame(scrollToCurrentTarget);
-    window.addEventListener("hashchange", scrollToCurrentTarget);
-    return () => window.removeEventListener("hashchange", scrollToCurrentTarget);
-  }, [targetSection]);
-}
-
 function getSectionHref(content: EditionContent, section: EditionSection, editionBasePath?: string): string {
   if (SITE_BRAND.sectionLinkStrategy === "anchor") {
     const anchor = `#${getSectionAnchorId(section.key)}`;
@@ -411,35 +364,9 @@ function getSectionHref(content: EditionContent, section: EditionSection, editio
   return datedPath.startsWith("//") ? `#${getSectionAnchorId(section.key)}` : datedPath;
 }
 
-function getSectionAnchorId(sectionKey: string): string {
-  return `section-${sectionKey}`;
-}
-
 function getMeasuredTextHeight(lines: TextLine[]): number {
   const last = lines[lines.length - 1];
   return last ? last.y + last.paintHeight : 0;
-}
-
-function getPresentationTitle(item: PublicationItem): string {
-  return item.type === "article" ? item.headline : item.title;
-}
-
-function getPresentationBodyText(item: PublicationItem, mode: "blog" | "magazine" | "magazine-feature"): string {
-  const body = item.type === "article" ? item.body.join("\n\n") : (item.body ?? []).join("\n\n");
-  if (mode !== "blog") return body;
-  const excerpt = String(item.excerpt ?? "").trim();
-  if (excerpt) return excerpt;
-  return truncateWords(body, 80);
-}
-
-function parseItemAnchorHash(hash: string): string | null {
-  if (!hash) return null;
-  try {
-    const value = decodeURIComponent(hash.slice(1)).trim();
-    return /^[a-z0-9][a-z0-9-]*$/i.test(value) ? value : null;
-  } catch {
-    return null;
-  }
 }
 
 function formatMastheadDate(value: string): string {
@@ -454,17 +381,3 @@ function formatMastheadDate(value: string): string {
   }).format(date);
 }
 
-function getBlogFooterSectionHref(entry: PresentationFooterEntry, editionBasePath?: string): string {
-  const anchor = `#${getSectionAnchorId(entry.sectionKey)}`;
-  return editionBasePath ? `${editionBasePath}${anchor}` : anchor;
-}
-
-function handleBlogFooterSectionClick(
-  event: ReactMouseEvent<HTMLAnchorElement>,
-  entry: PresentationFooterEntry,
-  href: string,
-) {
-  event.preventDefault();
-  window.history.pushState(null, "", href);
-  document.getElementById(getSectionAnchorId(entry.sectionKey))?.scrollIntoView({ block: "start" });
-}

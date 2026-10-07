@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
 import type { Article, ArticleVideoAsset } from "./articles";
 import type { BlogPageBackgroundProps } from "../components/blog-page-background";
+import type { SiteBrandFont } from "./brand-fonts";
 import type { PictogramFigureProps } from "../components/pictogram-figure";
 import papyrusSite from "papyrus-site";
 import {
@@ -23,6 +24,23 @@ export type SiteBrandComponents = {
   PictogramFigure?: ComponentType<PictogramFigureProps>;
   BlogPageBackground?: ComponentType<BlogPageBackgroundProps>;
 };
+
+/**
+ * One line of a brand's header tagline: an emphasized lead and a plain tail,
+ * e.g. `{ emphasis: "Practical advice", tail: "for staying secure" }`.
+ */
+export type SiteBrandTaglineLine = {
+  emphasis: string;
+  tail: string;
+};
+
+/**
+ * Blog presentation layout. `"classic"` (the default) is the original blog
+ * layout. `"rhythm"` snaps every height and gap to the vertical rhythm grid,
+ * floats featured images on the grid, draws rhythm rules between items, adds
+ * the eyebrow/tagline header and the rhythm overlay hotkey (Ctrl+=).
+ */
+export type SiteBrandBlogLayout = "classic" | "rhythm";
 
 /** Default scenario content a brand supplies for the layout lab. */
 export type SiteBrandDemoEdition = {
@@ -53,6 +71,10 @@ export type SiteBrand = {
   mastheadTitle: string;
   mastheadSubtitle: string;
   mastheadTagline?: string;
+  /** Rhythm blog layout only: small line above the masthead title, e.g. "Acme Research". The first word is emphasized. */
+  mastheadEyebrow?: string;
+  /** Rhythm blog layout only: structured tagline; `mastheadTagline` stays the plain-text fallback. */
+  mastheadTaglineLines?: SiteBrandTaglineLine[];
   backToHomeLabel: string;
   articleTitleSuffix: string;
   placeholderByline: string;
@@ -89,6 +111,20 @@ export type SiteBrand = {
   analysisProfilesPath: string;
   publicationName: string;
   components?: SiteBrandComponents;
+  /**
+   * Video player chrome. `"native"` (default) is the browser's controls;
+   * `"framed"` wraps the media in `.article-video__media` and renders a
+   * "Play Video" button with a seek bar (`.article-video__cta*`), styled by the publication CSS.
+   */
+  videoPlayer?: "native" | "framed";
+  /** Blog presentation layout. Default `"classic"`. See `SiteBrandBlogLayout`. */
+  blogLayout?: SiteBrandBlogLayout;
+  /**
+   * Brand font slot: families the root layout loads (Google Fonts stylesheet
+   * or self-hosted files) and exposes as CSS custom properties. See
+   * `lib/brand-fonts.ts` and docs/brand-slots.md.
+   */
+  fonts?: SiteBrandFont[];
   demoEdition?: SiteBrandDemoEdition;
   video?: SiteBrandVideo;
 };

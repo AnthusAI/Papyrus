@@ -13,6 +13,7 @@ function buildCapabilities(raw) {
     rendererKind: raw.rendererKind ?? "pretext",
     defaultPresentation: raw.defaultPresentation ?? "newsprint",
     forcedPresentation,
+    blogLayout: raw.blogLayout || "classic",
     presentationChoices,
     allowsPresentationChoice: presentationChoices.length > 1,
     supportsNewsprint: presentationChoices.includes("newsprint"),
@@ -28,6 +29,7 @@ function readCapabilitiesFromDocument() {
     rendererKind: root.dataset.rendererKind ?? "pretext",
     defaultPresentation: root.dataset.defaultPresentation ?? "newsprint",
     forcedPresentation: root.dataset.forcedPresentation ?? null,
+    blogLayout: root.dataset.blogLayout ?? "classic",
     presentationChoices: root.dataset.presentationChoices ?? "",
   };
 }
@@ -51,6 +53,9 @@ function assertCapability(world, capability) {
   }
   if (capability === "blog" && !capabilities.supportsBlog) {
     return `Site brand "${capabilities.siteBrand}" does not support the blog presentation`;
+  }
+  if (capability === "rhythm-layout" && capabilities.blogLayout !== "rhythm") {
+    return `Site brand "${capabilities.siteBrand}" does not use the rhythm blog layout`;
   }
   if (capability === "magazine" && !capabilities.supportsMagazine) {
     return `Site brand "${capabilities.siteBrand}" does not support the magazine presentation`;
@@ -81,7 +86,7 @@ function getRequiredCapabilities(tags = []) {
     return [];
   }
 
-  const explicitPresentationTags = ["blog", "magazine", "presentation-choice"].filter((capability) => (
+  const explicitPresentationTags = ["blog", "magazine", "presentation-choice", "rhythm-layout"].filter((capability) => (
     scenarioRequiresCapability(tags, capability)
   ));
   if (explicitPresentationTags.length > 0) {

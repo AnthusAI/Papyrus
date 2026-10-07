@@ -29,6 +29,11 @@ jobs:
       - run: npm run test:markus-projection
       - run: npm run test:markus-to-article
       - run: npm run test:renderer-config
+      - run: npm run test:inline-excerpt
+      - run: npm run test:sync-middleware-shim
+      - run: npm run test:brand-fonts
+      - run: npm run test:rhythm-blog-layout
+      - run: npm run test:brand-render-snapshots
       - run: npm run test:root-route-redirect
       - run: npm run test:infra-site-config
       - run: npm ci
