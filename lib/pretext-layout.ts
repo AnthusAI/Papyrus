@@ -1,4 +1,5 @@
 import {
+  clearCache,
   layoutNextLine,
   prepareWithSegments,
   type LayoutCursor,
@@ -180,4 +181,8 @@ function toTextLine(line: LayoutLine, x: number, y: number, fontSize: number, fo
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+export function clearPretextMeasurementCache(): void {
+  clearCache();
 }
