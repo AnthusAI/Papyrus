@@ -139,6 +139,9 @@ export function ArticleVideoFigure({
           ) : null}
         </div>
         {framedControls}
+        <span className="sr-only" data-video-slug={slug}>
+          {video.alt}
+        </span>
       </figure>
     );
   }
@@ -215,6 +218,9 @@ export function ArticleVideoFigure({
           </video>
         </div>
         {framedControls}
+        <span className="sr-only" data-video-slug={slug}>
+          {video.alt}
+        </span>
       </figure>
     );
   }
