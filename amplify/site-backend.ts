@@ -14,7 +14,7 @@ import { CfnIndex, CfnVectorBucket, CfnVectorBucketPolicy } from "aws-cdk-lib/aw
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { authConfigFromEnv, defineSiteAuth } from "./auth/resource";
+import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
 import { data } from "./data/resource";
 import { assignmentAction } from "./functions/assignment-action/resource";
 import { categoryAction } from "./functions/category-action/resource";
@@ -87,9 +87,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const enableSlackAgent = site.features?.slack ?? readEnvFlag("PAPYRUS_ENABLE_SLACK", false);
   const enableStorageBackups = site.features?.storageBackups ?? readEnvFlag("PAPYRUS_ENABLE_STORAGE_BACKUPS", isAmplifyProductionPipeline);
 
+  const authConfig = site.auth ?? authConfigFromEnv();
   const backend = defineBackend({
     assignmentAction,
-    auth: defineSiteAuth(site.auth ?? authConfigFromEnv()),
+    auth: defineSiteAuth(authConfig),
     categoryAction,
     contentActions,
     data,
@@ -105,6 +106,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  const requestedCognitoDomainPrefix = (authConfig.cognitoDomainPrefix ?? "").trim();
+  if (
+    authConfig.applyCognitoDomainPrefix === true
+    && requestedCognitoDomainPrefix !== ""
+    && authConfig.disableGoogleOAuth !== true
+  ) {
+    applyCognitoDomainPrefix(backend.auth.stack, requestedCognitoDomainPrefix);
+  }
 
   const amplifyBackendDir = dirname(fileURLToPath(import.meta.url));
   // Repo root in a Papyrus checkout; package root when installed from npm.

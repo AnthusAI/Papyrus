@@ -90,6 +90,10 @@ assertRejects(mutated("pilobol-us.site.json", (c) => delete c.cms.cognitoDomainP
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.cognitoDomainPrefix = "Papyrus_Pilobol")), "cms.cognitoDomainPrefix");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.cognitoDomainPrefix = "my-cognito-cms")), "reserves");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_DISABLE_GOOGLE_OAUTH = "1")), "cms.environment.PAPYRUS_DISABLE_GOOGLE_OAUTH");
+assert.equal(staticConfig.cms.applyCognitoDomainPrefix, undefined);
+assert.equal(pretextConfig.cms.applyCognitoDomainPrefix, true);
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.applyCognitoDomainPrefix = "yes")), "cms.applyCognitoDomainPrefix");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX = "true")), "cms.environment.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX = "x-cms")), "cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX");
 const sharedRootConfig = parseSiteConfig(readExample("threat-intelligence.site.json"));
 assert.equal(sharedRootConfig.cms.domainName, "anth.us");

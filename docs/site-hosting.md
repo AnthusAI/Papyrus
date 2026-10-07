@@ -345,8 +345,10 @@ Copy into the site's runbook and fill in:
 ## Google sign-in
 
 Google is the standard CMS sign-in. `cms.cognitoDomainPrefix` in `infra/site.json`
-is required and becomes the stable Cognito hosted-UI domain; the template never
-sets `PAPYRUS_DISABLE_GOOGLE_OAUTH`. After the first stack deploy, per app:
+with `cms.applyCognitoDomainPrefix: true` makes the Cognito hosted-UI domain
+predictable; without it Amplify generates the domain (see
+[`google-oauth-setup.md`](google-oauth-setup.md)). The template never sets
+`PAPYRUS_DISABLE_GOOGLE_OAUTH`. After the first stack deploy, per app:
 
 1. In Google Cloud Console, on the OAuth client, add the origin
    `https://<prefix>.auth.us-east-1.amazoncognito.com` and the redirect URI
