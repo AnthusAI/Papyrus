@@ -32,6 +32,17 @@ export type PapyrusSiteBackendConfig = {
   stagingBuild?: { enabled: boolean };
   /** Base URL of a Pretext reader whose `/api/revalidate` a publish calls (authenticated by the SSM secret named in branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`). */
   revalidateBaseUrl?: string;
+  /**
+   * SES receipt options for a site that is not the legacy p.apyr.us backend.
+   * By default the site gets its own brand-named rule set that is never
+   * activated by CloudFormation (SES allows one active rule set per region).
+   */
+  inboundEmailSes?: {
+    /** Add this site's rule to a rule set another stack owns instead of creating one. */
+    existingReceiptRuleSetName?: string;
+    /** Let this stack verify the SES domain identity and write its TXT record. Default false: verify once by hand. */
+    manageDomainIdentity?: boolean;
+  };
   features?: {
     consoleResponder?: boolean;
     inboundEmail?: boolean;

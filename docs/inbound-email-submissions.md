@@ -54,18 +54,21 @@ Raw MIME is **retained until processing completes successfully**. On success the
 
 Intake is **idempotent per S3 object**: the `Message` id is derived from the bucket/key, and re-running intake for the same MIME re-invokes the processor instead of creating duplicates.
 
-Inbound email is enabled automatically only on the production Amplify `main` pipeline
-(`AWS_APP_ID=dbsyytcm9drqa`). For sandboxes, leave it off (default) or set
-`PAPYRUS_ENABLE_INBOUND_EMAIL=true` only when you intend to manage SES receipt rules.
-Disable explicitly with `PAPYRUS_ENABLE_INBOUND_EMAIL=false`.
+Inbound email is enabled automatically only on the legacy production Amplify `main`
+pipeline (`AWS_APP_ID=dbsyytcm9drqa`, the `productionAppId` of Papyrus's own config).
+A site built from the packages turns it on with `features.inboundEmail` in
+`papyrus.config.ts` or `PAPYRUS_ENABLE_INBOUND_EMAIL=true`; the config wins over the
+environment. Sandboxes never create SES receipt resources. Disable explicitly with
+`PAPYRUS_ENABLE_INBOUND_EMAIL=false`. How a second site coexists with the live rule
+set is in [Backend features and account-global names](site-hosting.md#backend-features-and-account-global-names).
 
 ## DNS and SES setup
 
 Before mail flows end-to-end:
 
 1. `p.apyr.us` must have an **MX** record pointing at `inbound-smtp.us-east-1.amazonaws.com` (priority 10). The site hostname should use a Route 53 **A alias** to CloudFront (not a CNAME), so MX can coexist with web traffic.
-2. Amplify provisions SES domain verification (`_amazonses.p.apyr.us` TXT) and activates the receipt rule set on deploy.
-3. Deploy the Amplify backend so receipt rules and DNS verification run in CI.
+2. The legacy p.apyr.us backend provisions SES domain verification (`_amazonses.p.apyr.us` TXT) and activates its receipt rule set on deploy. A site built from the packages does neither: it creates its own inactive rule set, and a human verifies the domain and activates the rule set once (see the site-hosting guide).
+3. Deploy the Amplify backend so the receipt rules are created.
 
 ## Procedure seed
 
