@@ -1,12 +1,7 @@
 import { defineBackend, secret } from "@aws-amplify/backend";
-import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
-import * as backup from "aws-cdk-lib/aws-backup";
-import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from "aws-cdk-lib/custom-resources";
+import { Stack } from "aws-cdk-lib";
+import type * as backup from "aws-cdk-lib/aws-backup";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
-import * as events from "aws-cdk-lib/aws-events";
-import * as route53 from "aws-cdk-lib/aws-route53";
-import * as ses from "aws-cdk-lib/aws-ses";
-import * as sesActions from "aws-cdk-lib/aws-ses-actions";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { CfnEventSourceMapping, Function as LambdaFunction, FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -30,7 +25,19 @@ import { emailSubmissionProcessor } from "./functions/email-submission-processor
 import { sesInboundReceive } from "./functions/ses-inbound-receive/resource";
 import { slackDelivery } from "./functions/slack-delivery/resource";
 import { slackEvents } from "./functions/slack-events/resource";
+import { addInboundEmailSesIntake } from "./inbound-email/ses-intake";
 import { InboundEmailStack } from "./inbound-email/stack";
+import {
+  deriveKnowledgeVectorIndexName,
+  deriveReceiptRuleName,
+  deriveReceiptRuleSetName,
+  deriveStorageBackupVaultName,
+  isLegacyProductionPipeline,
+  planInboundEmailSes,
+  resolveSiteBackendFeatureFlags,
+  type SiteBackendIdentity,
+} from "./site-backend-names";
+import { addStorageBackups } from "./storage-backups/construct";
 import { storage } from "./storage/resource";
 import type { PapyrusSite } from "../lib/define-site";
 
@@ -43,49 +50,26 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
   const amplifyBranch = (process.env.AWS_BRANCH ?? "").trim();
   const amplifyAppId = (process.env.AWS_APP_ID ?? "").trim();
-  // Amplify app id whose `main` branch is this site's production pipeline (owns
-  // account-global resources: SES rule set, backup vault, legacy S3 Vectors name).
+  // Amplify app id whose `main` branch is the original p.apyr.us backend; only
+  // that app keeps the historical account-global names (see site-backend-names.ts).
   const productionAppId = (site.productionAppId ?? "").trim();
-  const isAmplifyProductionPipeline =
-    amplifyBranch === "main" && productionAppId !== "" && amplifyAppId === productionAppId;
-
-  function readEnvFlag(name: string, defaultValue: boolean): boolean {
-    const raw = (process.env[name] ?? "").trim().toLowerCase();
-    if (["1", "true", "yes", "on"].includes(raw)) return true;
-    if (["0", "false", "no", "off"].includes(raw)) return false;
-    return defaultValue;
-  }
-
-  function sanitizeAwsName(value: string, maxLength = 50): string {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, maxLength);
-  }
-
-  // S3 Vectors index names are account-global. Keep the original name for the
-  // p.apyr.us production app so its existing index + data are not orphaned;
-  // namespace every other app's index by site brand so a second CMS app can
-  // deploy into the same account without colliding.
-  const papyrusSiteBrand = (
-    site.brandId
-    ?? process.env.PAPYRUS_SITE_BRAND
-    ?? process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND
-    ?? "papyrus"
-  ).trim().toLowerCase();
-  const knowledgeVectorIndexName =
-    productionAppId !== "" && amplifyAppId === productionAppId
-      ? "papyrus-knowledge"
-      : `papyrus-knowledge-${sanitizeAwsName(papyrusSiteBrand, 40)}`;
-
-  // SES active receipt rule sets and shared backup vault names are account-global.
-  // Keep them on the production pipeline only unless explicitly opted in.
-  // A feature flag in the site config wins over the environment.
-  const enableInboundEmail = site.features?.inboundEmail ?? readEnvFlag("PAPYRUS_ENABLE_INBOUND_EMAIL", isAmplifyProductionPipeline);
-  const enableSlackAgent = site.features?.slack ?? readEnvFlag("PAPYRUS_ENABLE_SLACK", false);
-  const enableStorageBackups = site.features?.storageBackups ?? readEnvFlag("PAPYRUS_ENABLE_STORAGE_BACKUPS", isAmplifyProductionPipeline);
+  const siteBackendIdentity: SiteBackendIdentity = {
+    brandId: (
+      site.brandId
+      ?? process.env.PAPYRUS_SITE_BRAND
+      ?? process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND
+      ?? "papyrus"
+    ).trim().toLowerCase(),
+    amplifyAppId,
+    amplifyBranch,
+    productionAppId,
+  };
+  const isAmplifyProductionPipeline = isLegacyProductionPipeline(siteBackendIdentity);
+  const knowledgeVectorIndexName = deriveKnowledgeVectorIndexName(siteBackendIdentity);
+  const featureFlags = resolveSiteBackendFeatureFlags(site.features, process.env, siteBackendIdentity);
+  const enableInboundEmail = featureFlags.inboundEmail;
+  const enableSlackAgent = featureFlags.slack;
+  const enableStorageBackups = featureFlags.storageBackups;
 
   const authConfig = site.auth ?? authConfigFromEnv();
   const backend = defineBackend({
@@ -119,7 +103,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const amplifyBackendDir = dirname(fileURLToPath(import.meta.url));
   // Repo root in a Papyrus checkout; package root when installed from npm.
   const projectRoot = resolve(amplifyBackendDir, "..");
-  const enableConsoleResponder = site.features?.consoleResponder ?? readEnvFlag("PAPYRUS_ENABLE_CONSOLE_RESPONDER", true);
+  const enableConsoleResponder = featureFlags.consoleResponder;
 
   if (
     enableConsoleResponder
@@ -291,41 +275,18 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
   if (enableStorageBackups) {
     const storageBackupsStack = backend.createStack("storage-backups");
-    const storageBackupVaultName = sanitizeAwsName(
-      process.env.PAPYRUS_STORAGE_BACKUP_VAULT_NAME?.trim()
-      || (isAmplifyProductionPipeline
-        ? `papyrus-${productionAppId}-main-media-backup-vault`
-        : `papyrus-${sanitizeAwsName(storageBackupsStack.stackName, 32)}-media-vault`),
+    const storageBackupVaultName = deriveStorageBackupVaultName(
+      siteBackendIdentity,
+      storageBackupsStack.stackName,
+      process.env.PAPYRUS_STORAGE_BACKUP_VAULT_NAME,
     );
 
-    storageBackupVault = new backup.BackupVault(storageBackupsStack, "PapyrusStorageBackupVault", {
+    const storageBackups = addStorageBackups(storageBackupsStack, {
+      storageBucket,
       backupVaultName: storageBackupVaultName,
-      removalPolicy: RemovalPolicy.RETAIN,
     });
-    storageBackupPlan = new backup.BackupPlan(storageBackupsStack, "PapyrusStorageBackupPlan", {
-      backupVault: storageBackupVault,
-    });
-
-    storageBackupPlan.addRule(
-      new backup.BackupPlanRule({
-        ruleName: "papyrus-storage-pitr-35d",
-        enableContinuousBackup: true,
-        deleteAfter: Duration.days(35),
-      }),
-    );
-
-    storageBackupPlan.addRule(
-      new backup.BackupPlanRule({
-        ruleName: "papyrus-storage-daily-365d",
-        scheduleExpression: events.Schedule.cron({ minute: "0", hour: "5" }),
-        deleteAfter: Duration.days(365),
-      }),
-    );
-
-    storageBackupPlan.addSelection("PapyrusStorageBackupSelection", {
-      allowRestores: true,
-      resources: [backup.BackupResource.fromArn(storageBucket.bucketArn)],
-    });
+    storageBackupVault = storageBackups.vault;
+    storageBackupPlan = storageBackups.plan;
   }
 
   // Grant S3 access on Lambda roles only (not storage bucket policies) to avoid
@@ -524,86 +485,26 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
     const inboundEventStack = Stack.of(receiveLambda);
 
-    // SES receipt rule sets are account-global; only provision on the production pipeline.
-    if (isAmplifyProductionPipeline) {
-    const inboundDnsZone = route53.HostedZone.fromHostedZoneAttributes(storageStack, "PapyrusInboundDnsZone", {
-      hostedZoneId: inboundDnsZoneId,
-      zoneName: inboundDnsZoneName,
-    });
-    const verifyInboundEmailDomain = new AwsCustomResource(storageStack, "VerifyInboundEmailDomain", {
-      onCreate: {
-        service: "SES",
-        action: "verifyDomainIdentity",
-        parameters: {
-          Domain: inboundEmailDomain,
-        },
-        physicalResourceId: PhysicalResourceId.of(`ses-domain-verify-${inboundEmailDomain}`),
-      },
-      onUpdate: {
-        service: "SES",
-        action: "verifyDomainIdentity",
-        parameters: {
-          Domain: inboundEmailDomain,
-        },
-        physicalResourceId: PhysicalResourceId.of(`ses-domain-verify-${inboundEmailDomain}`),
-      },
-      policy: AwsCustomResourcePolicy.fromSdkCalls({
-        resources: AwsCustomResourcePolicy.ANY_RESOURCE,
-      }),
-      timeout: Duration.minutes(2),
-    });
-    new route53.TxtRecord(storageStack, "PapyrusInboundEmailDomainVerification", {
-      zone: inboundDnsZone,
-      recordName: `_amazonses.${inboundDnsRecordName}`,
-      ttl: Duration.minutes(5),
-      values: [verifyInboundEmailDomain.getResponseField("VerificationToken")],
-    });
-
-    const inboundRuleSet = new ses.ReceiptRuleSet(storageStack, "PapyrusInboundEmailRuleSet", {
-      receiptRuleSetName: `papyrus-inbound-${inboundEmailDomain.replace(/\./g, "-")}`,
-    });
-    inboundRuleSet.addRule("PapyrusInboundSubmissions", {
-      recipients: inboundRecipients,
-      enabled: true,
-      scanEnabled: true,
-      tlsPolicy: ses.TlsPolicy.REQUIRE,
-      actions: [
-        new sesActions.S3({
-          bucket: storageBucket,
-          objectKeyPrefix: "inbound-email/",
-        }),
-      ],
-    });
-
-    new AwsCustomResource(storageStack, "ActivateInboundEmailRuleSet", {
-      onCreate: {
-        service: "SES",
-        action: "setActiveReceiptRuleSet",
-        parameters: {
-          RuleSetName: inboundRuleSet.receiptRuleSetName,
-        },
-        physicalResourceId: PhysicalResourceId.of(`activate-${inboundRuleSet.receiptRuleSetName}`),
-      },
-      onUpdate: {
-        service: "SES",
-        action: "setActiveReceiptRuleSet",
-        parameters: {
-          RuleSetName: inboundRuleSet.receiptRuleSetName,
-        },
-        physicalResourceId: PhysicalResourceId.of(`activate-${inboundRuleSet.receiptRuleSetName}`),
-      },
-      onDelete: {
-        service: "SES",
-        action: "setActiveReceiptRuleSet",
-        parameters: {
-          RuleSetName: null,
-        },
-      },
-      policy: AwsCustomResourcePolicy.fromSdkCalls({
-        resources: AwsCustomResourcePolicy.ANY_RESOURCE,
-      }),
-      timeout: Duration.minutes(2),
-    });
+    // SES allows one active receipt rule set per region, so a non-legacy site
+    // creates its own brand-named rule set and never activates it here.
+    const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
+    if (inboundSesPlan.createReceiptRules) {
+      addInboundEmailSesIntake(storageStack, {
+        storageBucket,
+        recipients: inboundRecipients,
+        ruleSetName: deriveReceiptRuleSetName(siteBackendIdentity, inboundEmailDomain),
+        existingRuleSetName: site.inboundEmailSes?.existingReceiptRuleSetName,
+        ruleName: deriveReceiptRuleName(siteBackendIdentity),
+        activateRuleSet: inboundSesPlan.activateReceiptRuleSet,
+        domainIdentity: inboundSesPlan.manageDomainIdentity
+          ? {
+              domain: inboundEmailDomain,
+              hostedZoneId: inboundDnsZoneId,
+              hostedZoneName: inboundDnsZoneName,
+              recordName: inboundDnsRecordName,
+            }
+          : undefined,
+      });
     }
 
     new InboundEmailStack(inboundEventStack, "InboundEmail", {
