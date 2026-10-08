@@ -6,6 +6,7 @@
 import {
   generateArticleStaticParams,
   generateEditionDateStaticParams,
+  siteEnumeratesReaderRoutesAtBuild,
   siteServesNextReaderRoutes,
 } from "../lib/reader-static-params";
 
@@ -18,6 +19,14 @@ async function main() {
   assert(!siteServesNextReaderRoutes("markus"), "markus sites do not serve Next reader routes");
 
   assert(siteServesNextReaderRoutes(), "reference brand serves Next reader routes");
+
+  assert(siteEnumeratesReaderRoutesAtBuild(), "published content source enumerates reader routes at build");
+
+  process.env.PAPYRUS_CONTENT_SOURCE = "drafts";
+  assert(!siteEnumeratesReaderRoutesAtBuild(), "drafts content source (staging) must not enumerate routes at build, cookies() is request-only");
+  assert((await generateEditionDateStaticParams()).length === 0, "drafts: no edition date params and no cookie-reading repository call at build");
+  assert((await generateArticleStaticParams()).length === 0, "drafts: no article params and no cookie-reading repository call at build");
+  delete process.env.PAPYRUS_CONTENT_SOURCE;
 
   console.log("PASS: reader static params");
 }

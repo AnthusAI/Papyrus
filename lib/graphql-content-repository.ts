@@ -152,6 +152,7 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
     // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
     // kept in the request's async context (never a module global) so one visitor's session cannot serve another.
     const { cookies } = await import("next/headers");
+    await cookies();
     const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
     return runWithContentSource(source, operation, client);
   }
