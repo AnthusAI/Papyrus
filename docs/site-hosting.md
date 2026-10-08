@@ -502,6 +502,11 @@ itself. Both are read by `lib/site-env.ts`.
   and `admin` groups, and AppSync enforces the same rule on the data. The
   staging origin must be in `PAPYRUS_OAUTH_REDIRECT_URLS` for hosted-UI
   sign-in.
+- Build time: `drafts` reads need the request's cookies, so `next build` cannot
+  enumerate editions or articles. `generateStaticParams` returns no routes
+  when the content source is `drafts` (`lib/reader-static-params.ts`); the
+  edition and article routes render on demand per request. Production
+  (`published`) still prerenders every published edition and article.
 - Known gap: Pretext index pages list items through editions; a CMS draft that
   is not in an edition is reachable at `/articles/<slug>` only.
 

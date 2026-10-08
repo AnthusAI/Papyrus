@@ -1,6 +1,11 @@
 import { graphqlContentRepository } from "./graphql-content-repository";
 import { SITE_BRAND } from "./site-brand";
+import { getContentSource } from "./site-env";
 import type { RendererConfig } from "./renderer-config";
+
+export function siteEnumeratesReaderRoutesAtBuild(): boolean {
+  return siteServesNextReaderRoutes() && getContentSource() !== "drafts";
+}
 
 export function siteServesNextReaderRoutes(rendererKind: RendererConfig["kind"] = SITE_BRAND.renderer.kind): boolean {
   return rendererKind !== "markus";
@@ -29,7 +34,7 @@ type EditionDateStaticParam = {
 
 export async function generateEditionDateStaticParams(): Promise<EditionDateStaticParam[]> {
   if (process.env.NODE_ENV === "development") return [];
-  if (!siteServesNextReaderRoutes()) return [];
+  if (!siteEnumeratesReaderRoutesAtBuild()) return [];
 
   const { editions } = await graphqlContentRepository.listPublishedEditions({ limit: 100 });
   const params: EditionDateStaticParam[] = [];
@@ -42,7 +47,7 @@ export async function generateEditionDateStaticParams(): Promise<EditionDateStat
 
 export async function generateArticleStaticParams(): Promise<Array<{ slug: string }>> {
   if (process.env.NODE_ENV === "development") return [];
-  if (!siteServesNextReaderRoutes()) return [];
+  if (!siteEnumeratesReaderRoutesAtBuild()) return [];
 
   const slugs = await graphqlContentRepository.listArticleSlugs();
   return slugs.map((slug) => ({ slug }));
