@@ -2,8 +2,16 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const SCHEMA_FILES = ["amplify/data/schema.ts", "amplify/data/resource.ts"];
-const MODEL_NAMES = ["Item", "PublishedItem"];
-const REQUIRED_FIELDS = ["bodyMarkus", "bodyIr", "aliases", "metadata"];
+// The deployed schema (schema.ts) and the typed schema (resource.ts) must agree
+// for every model the Python authoring client reads with a fixed field list.
+const MODEL_NAMES = [
+  "Item", "PublishedItem", "SemanticNode", "SemanticRelation", "Reference", "Message",
+  "Assignment", "KnowledgeRawPayload", "ModelAttachment",
+];
+const REQUIRED_FIELDS: Record<string, string[]> = {
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata"],
+  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata"],
+};
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
   const startPattern = new RegExp(`^  ${modelName}: `, "m");
@@ -33,7 +41,7 @@ for (const modelName of MODEL_NAMES) {
     failed = true;
     console.error(`${modelName} drift: only in ${SCHEMA_FILES[0]}: ${onlyFirst}; only in ${SCHEMA_FILES[1]}: ${onlySecond}`);
   }
-  for (const field of REQUIRED_FIELDS) {
+  for (const field of REQUIRED_FIELDS[modelName] ?? []) {
     for (let index = 0; index < perFile.length; index += 1) {
       if (!perFile[index].has(field)) {
         failed = true;
