@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
  *   `papyrus-amplify-outputs` -> ./amplify_outputs.json and
  *   `papyrus-site-theme` -> ./publication/theme.css when it exists, else the shipped
  *   empty lib/empty-theme.css (both webpack and turbopack),
+ * - trace the corpora/ YAML and amplify_outputs.json that the reader reads via fs at runtime,
  * - carry Papyrus's own server-external packages and image settings.
  */
 const SERVER_EXTERNAL = [
@@ -21,6 +22,15 @@ const SERVER_EXTERNAL = [
   "@aws-amplify/storage",
   "@aws-amplify/data-schema",
 ];
+
+export const RUNTIME_TRACED_FILES = ["./corpora/**/*", "./amplify_outputs.json"];
+
+export function mergeOutputFileTracingIncludes(existing = {}) {
+  const merged = { ...existing };
+  const current = merged["/**"] ?? [];
+  merged["/**"] = [...new Set([...current, ...RUNTIME_TRACED_FILES])];
+  return merged;
+}
 
 const EMPTY_THEME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../lib/empty-theme.css");
 
@@ -41,6 +51,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     ...nextConfig,
     transpilePackages: [...new Set([...(nextConfig.transpilePackages ?? []), "@anthusai/papyrus"])],
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
+    outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),
     images: nextConfig.images ?? { remotePatterns: [{ protocol: "https", hostname: "**" }] },
     experimental: { devtoolSegmentExplorer: false, ...nextConfig.experimental },
     turbopack: {

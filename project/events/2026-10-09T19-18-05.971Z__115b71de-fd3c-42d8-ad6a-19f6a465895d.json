@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "115b71de-fd3c-42d8-ad6a-19f6a465895d",
+  "issue_id": "PPY-efe84d81-e385-4b32-a7fa-b0c9ed8377c9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T19:18:05.971Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cyclotron status snapshot record keeps first-sweep updatedAt; only its attachment refreshes",
+    "description": "The relevance sweep rewrites the cyclotron status snapshot on every run, but only the attachment changes; the KnowledgeRawPayload record keeps its first-sweep timestamps.\n\nObserved on sandbox ppy-6b4094 (AppSync ygeieiyzfbavxpskh7vedqnpwq), cyclotron papyrus-relevance, 2026-10-09:\n- Record knowledge-raw-payload-cyclotron-status-papyrus-relevance: createdAt = updatedAt = 2026-10-09T19:06:30.796Z (first sweep).\n- Its raw_payload ModelAttachment (status active): updatedAt 2026-10-09T19:10:40.225Z; S3 object cyclotron-status.json LastModified 19:10:40, asOf 19:10:37, alignment.labels 5, accuracy 0.8, pending.decisionsAwaitingReview 25. That is the second sweep's status.\n\nCause: status_snapshot_record (src/papyrus_content/relevance_decisions.py) sets createdAt/updatedAt to now and puts the status in payload. expand_private_payload_records moves payload into the attachment, so the record's remaining fields (id, ownerType, ownerId, payloadKind) never change. records_equal_for_model ignores createdAt/updatedAt, so build_record_change_from_current returns noop for the record while the attachment updates.\n\nImpact: low. The Newsroom status panel (latestCyclotronStatus via loadModelPayloadsForOwner) sorts by the attachment's updatedAt and shows current data. Anything that reads the record's updatedAt to judge freshness (CLI, list views, staleness checks) sees the first sweep's time. Also, status_snapshot_record sends createdAt = now every run, which would overwrite createdAt if the record were ever updated.\n\n```gherkin\nFeature: Cyclotron status snapshot record tracks the latest sweep\n  Scenario: A second sweep refreshes the record timestamp\n    Given a sweep has written the cyclotron status snapshot\n    When a later sweep writes a changed status snapshot\n    Then the KnowledgeRawPayload record's updatedAt is the later sweep's time\n    And its createdAt is still the first sweep's time\n```",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "cyclotron"
+    ]
+  }
+}

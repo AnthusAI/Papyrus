@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { App, Stack } from "aws-cdk-lib";
+import { App, NestedStack, Stack, Token } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { addInboundEmailSesIntake } from "../amplify/inbound-email/ses-intake";
@@ -45,7 +45,7 @@ function synthSiteStack(identity: SiteBackendIdentity, options: { inbound: boole
   if (options.backups) {
     addStorageBackups(stack, {
       storageBucket: bucket,
-      backupVaultName: deriveStorageBackupVaultName(identity, stack.stackName),
+      backupVaultName: deriveStorageBackupVaultName(identity),
     });
   }
   return Template.fromStack(stack);
@@ -97,5 +97,38 @@ assert.ok(
   Object.keys(legacyTemplate.findResources("AWS::Backup::BackupVault")).some((id) => id === "PapyrusStorageBackupVault" || id.startsWith("PapyrusStorageBackupVault")),
   "legacy logical ids unchanged",
 );
+
+const tokenShapedIdentity: SiteBackendIdentity = {
+  brandId: "p-apyr-us",
+  amplifyAppId: "d2newsiteapp1",
+  amplifyBranch: "main",
+  productionAppId: "",
+};
+function synthTokenShapedBackend() {
+  const app = new App();
+  const stack = new Stack(app, "amplify-d2newsiteapp1-main-branch-abc", { env: { account: "712236451410", region: "us-east-1" } });
+  const nested = new NestedStack(stack, "storage-backups");
+  const bucket = new s3.Bucket(stack, "Media");
+  assert.ok(Token.isUnresolved(nested.stackName), "stack names are tokens at synth time");
+  addStorageBackups(nested, { storageBucket: bucket, backupVaultName: deriveStorageBackupVaultName(tokenShapedIdentity) });
+  addInboundEmailSesIntake(stack, {
+    storageBucket: bucket,
+    recipients: [`submissions@${domain}`],
+    ruleSetName: deriveReceiptRuleSetName(tokenShapedIdentity, domain),
+    ruleName: deriveReceiptRuleName(tokenShapedIdentity),
+    activateRuleSet: false,
+  });
+  return [
+    ...propertiesOf(Template.fromStack(nested), "AWS::Backup::BackupVault", "BackupVaultName"),
+    ...propertiesOf(Template.fromStack(stack), "AWS::SES::ReceiptRuleSet", "RuleSetName"),
+    ...propertiesOf(Template.fromStack(stack), "AWS::SES::ReceiptRule", "Rule"),
+  ];
+}
+const firstSynth = synthTokenShapedBackend();
+const secondSynth = synthTokenShapedBackend();
+assert.equal(firstSynth.length, 3);
+assert.deepEqual(firstSynth, secondSynth, "two synths of the same site must give identical names");
+assert.ok(firstSynth.every((name) => !/token/i.test(name)), `names must not contain token: ${firstSynth}`);
+assert.ok(firstSynth.every((name) => name.includes("p-apyr-us")), `names must contain the brand: ${firstSynth}`);
 
 console.log("site backend synth: ok");

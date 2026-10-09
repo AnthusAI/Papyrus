@@ -282,7 +282,6 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     const storageBackupsStack = backend.createStack("storage-backups");
     const storageBackupVaultName = deriveStorageBackupVaultName(
       siteBackendIdentity,
-      storageBackupsStack.stackName,
       process.env.PAPYRUS_STORAGE_BACKUP_VAULT_NAME,
     );
 

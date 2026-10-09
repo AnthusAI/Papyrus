@@ -200,6 +200,8 @@ The hard part: Next route files and `amplify/backend.ts` are not libraries.
 | B. Assemble from the package at build | `papyrus-app assemble` unpacks an app template from the package into a build dir and builds there | No shims | Build in a non-root dir (Amplify SSR detection risk); site code is overlaid onto a copy; harder local dev |
 | C. Prebuilt app image | Papyrus ships a built app; site supplies runtime config | Nothing to build | Brand and `NEXT_PUBLIC_*` are compile-time; Amplify Hosting builds from source; staging and routes cannot be customized |
 
+**Output file tracing (PPY-43aaa0).** `withPapyrus` merges `outputFileTracingIncludes["/**"]` with `./corpora/**/*` and `./amplify_outputs.json`, the files the reader reads via `fs` at runtime, so SSR on Amplify compute finds them. A publication scaffold no longer needs its own `outputFileTracingIncludes`; entries a publication sets are kept and merged without duplicates.
+
 **Theme CSS alias (decided in PPY-672ea6).** Papyrus's `app/layout.tsx` imports `papyrus-site-theme` next to `./globals.css`, so the package carries no publication CSS. Verified in a scratch consumer (tarball + `withPapyrus`, own `papyrus.config.ts` registering brand `scratch`): the alias resolves under webpack (`next dev`, `next build`) and turbopack (`next dev --turbopack`), both with `publication/theme.css` present and with it absent (the empty stylesheet). No site-owned `app/layout.tsx` fallback is needed. For the turbopack alias the empty stylesheet must be given as a project-relative file path, not a package specifier. A consumer's `tsconfig.json` maps `papyrus-site`, `papyrus-amplify-outputs` and `papyrus-site-theme` in `paths`, and declares `declare module "*.css";`.
 
 **Backend: options**
