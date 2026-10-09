@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "045c28d6-8962-457b-80af-cc2d0a984289",
+  "issue_id": "PPY-d478b1fd-5118-44aa-a7fe-5c52f81bfd90",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T16:39:23.589Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The candidate pipeline asks the relevance cyclotron about pending references",
+    "description": "As an editor, I want every pending candidate reference decided by the relevance cyclotron and my reviews sent back to it, so that the References tab shows what the cyclotron thinks and it learns what this publication values.\n\nNot included: changing any curation status (phase one never accepts or rejects a reference), the References tab UI (PPY-820acd11), the status strip (PPY-049b6e24).\n\n```gherkin\nFeature: The candidate pipeline asks the relevance cyclotron about pending references\n  A worker sweep decides every pending candidate reference, records the\n  decisions in the newsroom's records, sends editors' reviews back to the\n  cyclotron, writes the status snapshot, and keeps the cyclotron's store in\n  the private media bucket so the next worker can continue. It never accepts\n  or rejects a reference.\n\n  Background:\n    Given a publication with a relevance cyclotron\n    And two pending references and one accepted reference\n\n  Scenario: A sweep decides pending references and records the decisions\n    When the decide-relevance sweep runs with apply\n    Then each pending reference has a current relevance decision\n    And the accepted reference has no relevance decision\n    And the cyclotron status snapshot is recorded with 2 decisions awaiting review\n    And no reference changed its curation status\n    And the cyclotron store snapshot is in the private bucket\n\n  Scenario: A fresh worker continues from the private bucket without repeating model calls\n    Given the decide-relevance sweep has run with apply\n    When the decide-relevance sweep runs with apply on a fresh worker\n    Then the decision model was called once per pending reference in total\n    And each pending reference still has one current relevance decision\n\n  Scenario: An editor's review reaches the cyclotron\n    Given the decide-relevance sweep has run with apply\n    And an editor rejected the first pending reference as \"out_of_scope\" saying \"Vendor marketing.\"\n    When the decide-relevance sweep runs with apply\n    Then the cyclotron has a label \"exclude\" for the first pending reference with the explanation \"Vendor marketing.\"\n    And the cyclotron status snapshot is recorded with 1 decisions awaiting review\n\n  Scenario: A review that is not about relevance closes the decision without teaching\n    Given the decide-relevance sweep has run with apply\n    And an editor rejected the first pending reference as \"duplicate\" saying \"Already have it.\"\n    When the decide-relevance sweep runs with apply\n    Then the cyclotron has no label for the first pending reference\n    And the cyclotron status snapshot is recorded with 1 decisions awaiting review\n\n  Scenario: A second worker cannot sweep while another holds the claim\n    Given another worker holds the relevance cyclotron claim\n    When the decide-relevance sweep runs with apply\n    Then the sweep stops because the cyclotron is claimed\n    And the decision model was not called\n\n  Scenario: A dry run lists the work and calls no model\n    When the decide-relevance sweep runs without apply\n    Then the plan lists 2 pending references to decide\n    And the decision model was not called\n    And no records were written\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a1ca2f7-1a02-4640-ac58-7a6a0dd92874",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

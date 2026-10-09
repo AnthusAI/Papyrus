@@ -413,6 +413,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": ASSIGNMENT_EVENT_FIELDS,
         "partitionType": "ID",
     },
+    "referencesByCurationStatusKey": {
+        "field": "listReferencesByCurationStatusKeyAndUpdatedAt",
+        "partitionKey": "curationStatusKey",
+        "fields": REFERENCE_FIELDS,
+    },
     "semanticRelationsByObjectState": {
         "field": "listSemanticRelationsByObjectState",
         "partitionKey": "objectStateKey",
