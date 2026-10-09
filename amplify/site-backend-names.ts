@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { Token } from "aws-cdk-lib";
 
 export type SiteBackendFeatureFlags = {
   consoleResponder: boolean;
@@ -16,6 +17,21 @@ export function sanitizeAwsName(value: string, maxLength = 50): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, maxLength);
+}
+
+/**
+ * Account-global names are immutable in AWS, so they must be built from literal
+ * synth-time inputs only. A CDK token (or text that came from one, such as
+ * `token-token-17565`) makes the name change on every synth and fail with
+ * AlreadyExists, so this throws instead.
+ */
+export function assertLiteralResourceName(label: string, name: string): string {
+  if (Token.isUnresolved(name) || /token|\$\{/i.test(name)) {
+    throw new Error(
+      `${label} "${name}" is derived from an unresolved CDK token. Build account-global names from literal site config values only.`,
+    );
+  }
+  return name;
 }
 
 export function readBooleanEnvFlag(
@@ -67,23 +83,27 @@ export function resolveSiteBackendFeatureFlags(
 }
 
 export function deriveKnowledgeVectorIndexName(identity: SiteBackendIdentity): string {
-  return isLegacyProductionApp(identity)
+  const name = isLegacyProductionApp(identity)
     ? "papyrus-knowledge"
     : `papyrus-knowledge-${sanitizeAwsName(identity.brandId, 40)}`;
+  return assertLiteralResourceName("Knowledge vector index name", name);
 }
 
-export function deriveStorageBackupVaultName(
-  identity: SiteBackendIdentity,
-  backupsStackName: string,
-  explicitName?: string,
-): string {
+export function deriveStorageBackupVaultName(identity: SiteBackendIdentity, explicitName?: string): string {
   const explicit = (explicitName ?? "").trim();
-  if (explicit !== "") return sanitizeAwsName(explicit);
+  if (explicit !== "") return assertLiteralResourceName("Backup vault name", sanitizeAwsName(explicit));
   if (isLegacyProductionPipeline(identity)) {
-    return sanitizeAwsName(`papyrus-${identity.productionAppId}-main-media-backup-vault`);
+    return assertLiteralResourceName(
+      "Backup vault name",
+      sanitizeAwsName(`papyrus-${identity.productionAppId}-main-media-backup-vault`),
+    );
   }
-  const stackHash = createHash("sha256").update(backupsStackName).digest("hex").slice(0, 8);
-  return `papyrus-${sanitizeAwsName(identity.brandId, 20)}-${stackHash}-media-vault`;
+  const literalSiteKey = [identity.brandId, identity.amplifyAppId, identity.amplifyBranch].join("|");
+  const siteHash = createHash("sha256").update(literalSiteKey).digest("hex").slice(0, 8);
+  return assertLiteralResourceName(
+    "Backup vault name",
+    `papyrus-${sanitizeAwsName(identity.brandId, 20)}-${siteHash}-media-vault`,
+  );
 }
 
 /**
@@ -93,16 +113,16 @@ export function deriveStorageBackupVaultName(
  * its own brand-named rule set and never activates it from CloudFormation.
  */
 export function deriveReceiptRuleSetName(identity: SiteBackendIdentity, inboundEmailDomain: string): string {
-  if (isLegacyProductionApp(identity)) {
-    return `papyrus-inbound-${inboundEmailDomain.replace(/\./g, "-")}`;
-  }
-  return `papyrus-site-inbound-${sanitizeAwsName(identity.brandId, 40)}`;
+  const name = isLegacyProductionApp(identity)
+    ? `papyrus-inbound-${inboundEmailDomain.replace(/\./g, "-")}`
+    : `papyrus-site-inbound-${sanitizeAwsName(identity.brandId, 40)}`;
+  return assertLiteralResourceName("Receipt rule set name", name);
 }
 
 /** `undefined` keeps the legacy auto-generated rule name of the live p.apyr.us rule. */
 export function deriveReceiptRuleName(identity: SiteBackendIdentity): string | undefined {
   if (isLegacyProductionApp(identity)) return undefined;
-  return `${sanitizeAwsName(identity.brandId, 40)}-inbound-submissions`;
+  return assertLiteralResourceName("Receipt rule name", `${sanitizeAwsName(identity.brandId, 40)}-inbound-submissions`);
 }
 
 export type InboundEmailSesPlan = {
@@ -136,11 +156,10 @@ export type SiteGlobalResourceNames = {
 export function deriveSiteGlobalResourceNames(
   identity: SiteBackendIdentity,
   inboundEmailDomain: string,
-  backupsStackName: string,
 ): SiteGlobalResourceNames {
   return {
     knowledgeVectorIndexName: deriveKnowledgeVectorIndexName(identity),
-    storageBackupVaultName: deriveStorageBackupVaultName(identity, backupsStackName),
+    storageBackupVaultName: deriveStorageBackupVaultName(identity),
     receiptRuleSetName: deriveReceiptRuleSetName(identity, inboundEmailDomain),
     receiptRuleName: deriveReceiptRuleName(identity),
   };
