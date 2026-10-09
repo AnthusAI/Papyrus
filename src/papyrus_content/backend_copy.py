@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Protocol
+from typing import Any, Callable, Iterable, Protocol
 
 IDENTITY_MODELS = frozenset({"UserProfile", "UserIdentity", "UserRoleAssignment"})
 DEFAULT_MODELS = (
@@ -79,7 +81,7 @@ class RowBackend(Protocol):
 class ObjectStore(Protocol):
     def list_objects(self) -> list[ObjectInfo]: ...
 
-    def copy_object_from(self, source_store: Any, key: str) -> None: ...
+    def copy_object_from(self, source_store: Any, key: str) -> str | None: ...
 
 
 class CopyRefused(ValueError):
@@ -196,6 +198,7 @@ class PrefixPlan:
     bytes_to_copy: int = 0
     copied: int = 0
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -214,6 +217,7 @@ class PrefixPlan:
             "missingKeys": self.to_copy_missing,
             "differentKeys": self.to_copy_different,
             "errors": self.errors,
+            "warnings": self.warnings,
         }
 
 
@@ -226,6 +230,8 @@ class CopyPlan:
     errors: list[str] = field(default_factory=list)
     source_objects: list[ObjectInfo] = field(default_factory=list)
     target_objects: list[ObjectInfo] = field(default_factory=list)
+    source_account: str | None = None
+    target_account: str | None = None
 
     @property
     def invalid_row_count(self) -> int:
@@ -247,6 +253,8 @@ class CopyPlan:
         return {
             "mode": "apply" if self.applied else "dry-run",
             "ok": self.ok,
+            "sourceAccount": self.source_account,
+            "targetAccount": self.target_account,
             "models": [plan.to_dict() for plan in self.models],
             "s3Prefixes": [plan.to_dict() for plan in self.prefixes],
             "targetOnlyObjects": self.extra_target_only_objects,
@@ -443,6 +451,8 @@ def build_plan(
     source_store: ObjectStore | None,
     target_store: ObjectStore | None,
     selected_prefixes: list[str],
+    source_account: str | None = None,
+    target_account: str | None = None,
 ) -> CopyPlan:
     source_models = source.model_names()
     target_models = target.model_names()
@@ -455,7 +465,7 @@ def build_plan(
         else:
             reason = IDENTITY_REASON if model in IDENTITY_MODELS else NOT_SELECTED_REASON
             plans.append(plan_skipped_model(model, reason, source, target, target_models))
-    plan = CopyPlan(models=plans, prefixes=[])
+    plan = CopyPlan(models=plans, prefixes=[], source_account=source_account, target_account=target_account)
     if source_store is not None and target_store is not None:
         plan.source_objects = source_store.list_objects()
         plan.target_objects = target_store.list_objects()
@@ -470,12 +480,17 @@ def apply_plan(
     target: RowBackend,
     source_store: ObjectStore | None,
     target_store: ObjectStore | None,
+    *,
+    workers: int = 1,
+    progress: Callable[[int, int, int], None] | None = None,
 ) -> None:
     if plan.invalid_row_count:
         raise CopyRefused(
             f"{plan.invalid_row_count} row(s) would be rejected by the target schema; "
             "nothing was written. Fix or exclude them first."
         )
+    if workers < 1:
+        raise CopyRefused("The number of S3 workers must be at least 1.")
     plan.applied = True
     for model_plan in plan.models:
         for row in model_plan.pending_creates:
@@ -492,17 +507,56 @@ def apply_plan(
                 model_plan.errors.append(f"update failed: {error}")
     if source_store is None or target_store is None:
         return
-    for prefix_plan in plan.prefixes:
-        for key in [*prefix_plan.to_copy_missing, *prefix_plan.to_copy_different]:
-            try:
-                target_store.copy_object_from(source_store, key)
+    copy_planned_objects(plan, source_store, target_store, workers, progress)
+
+
+def copy_planned_objects(
+    plan: CopyPlan,
+    source_store: ObjectStore,
+    target_store: ObjectStore,
+    workers: int,
+    progress: Callable[[int, int, int], None] | None,
+) -> None:
+    size_by_key = {entry.key: entry.size for entry in plan.source_objects}
+    jobs = [
+        (prefix_plan, key)
+        for prefix_plan in plan.prefixes
+        for key in [*prefix_plan.to_copy_missing, *prefix_plan.to_copy_different]
+    ]
+    lock = threading.Lock()
+    finished = {"objects": 0, "bytes": 0}
+
+    def copy_one(job: tuple[PrefixPlan, str]) -> None:
+        prefix_plan, key = job
+        try:
+            warning = target_store.copy_object_from(source_store, key)
+            with lock:
                 prefix_plan.copied += 1
-            except Exception as error:
+                if warning:
+                    prefix_plan.warnings.append(f"{key}: {warning}")
+        except Exception as error:
+            with lock:
                 prefix_plan.errors.append(f"copy failed for {key}: {error}")
+        with lock:
+            finished["objects"] += 1
+            finished["bytes"] += size_by_key.get(key, 0)
+            snapshot = (finished["objects"], len(jobs), finished["bytes"])
+        if progress is not None:
+            progress(*snapshot)
+
+    if workers == 1:
+        for job in jobs:
+            copy_one(job)
+        return
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(copy_one, jobs))
 
 
 def render_table(plan: CopyPlan) -> str:
-    lines = [
+    lines = []
+    if plan.source_account or plan.target_account:
+        lines.append(f"source account {plan.source_account or '-'}, target account {plan.target_account or '-'}")
+    lines += [
         f"{'model':<24}{'action':<6}{'source':>8}{'target':>8}{'create':>8}{'update':>8}{'same':>8}{'invalid':>8}  note",
     ]
     for entry in plan.models:
