@@ -14,6 +14,7 @@ assert.equal(new Set(merged).size, merged.length, "every entry is unique");
 
 assert.equal(packageShipsTypeScriptSourceEntries({ exports: { "./x": "./src/x.tsx" } }), true);
 assert.equal(packageShipsTypeScriptSourceEntries({ exports: { ".": { types: "./index.d.ts", default: "./index.js" } } }), false);
+assert.equal(packageShipsTypeScriptSourceEntries({ exports: { ".": { "@zod/source": "./src/index.ts", import: "./index.js" } } }), false, "custom source conditions are opt-in and ignored");
 assert.equal(packageShipsTypeScriptSourceEntries({ main: "./index.ts" }), true);
 
 console.log("with-papyrus transpile tests passed");

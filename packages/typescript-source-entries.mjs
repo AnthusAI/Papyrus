@@ -1,7 +1,12 @@
 function collectEntryTargets(value, targets) {
   if (typeof value === "string") targets.push(value);
   else if (Array.isArray(value)) for (const item of value) collectEntryTargets(item, targets);
-  else if (value && typeof value === "object") for (const item of Object.values(value)) collectEntryTargets(item, targets);
+  else if (value && typeof value === "object") {
+    for (const [condition, item] of Object.entries(value)) {
+      if (condition.startsWith("@")) continue;
+      collectEntryTargets(item, targets);
+    }
+  }
 }
 
 const TYPESCRIPT_SOURCE_TARGET = /\.(ts|tsx|mts|cts)$/;
