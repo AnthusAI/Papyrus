@@ -226,7 +226,10 @@ before and after:
   environment variables (observed 2026-10-06 on the Pilobol.us CMS). Without
   `PAPYRUS_COGNITO_DOMAIN_PREFIX` and `PAPYRUS_OAUTH_REDIRECT_URLS` the backend build
   creates no Cognito domain and the CMS login fails with "oauth param not
-  configured". Check with
+  configured". `PAPYRUS_OAUTH_REDIRECT_URLS` may list bare origins: the backend adds the
+  `<origin>/newsroom` and `<origin>/` callback and logout variants itself, newsroom
+  first (no `/newsroom` on a CMS-only host with `newsroomBasePath: ""`), and the
+  template validation accepts an origin with or without a path. Check with
   `aws amplify list-branches --app-id <id> --query 'branches[].[branchName,environmentVariables]'`.
   CloudFormation does not see this as drift. Recreate the `staging` branch first
   (**Hosting**, **Branches**, **Connect branch**), then deploy the stack with a change

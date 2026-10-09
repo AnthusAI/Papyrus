@@ -3,10 +3,12 @@ import { manageUserRole } from "../functions/manage-user-role/resource";
 import { Stack } from "aws-cdk-lib";
 import { CfnUserPoolDomain } from "aws-cdk-lib/aws-cognito";
 import type { PapyrusAuthConfig } from "../site-backend-config";
+import { expandNewsroomRedirectUrls } from "./redirect-urls";
 
 // Default OAuth redirect URLs for the p.apyr.us app. Other publications pass
 // `auth.redirectUrls` to `defineSiteBackend` (or, for Papyrus's own backend,
 // the PAPYRUS_OAUTH_REDIRECT_URLS branch env var, comma-separated).
+// `defineSiteAuth` adds the newsroom and root variants of every origin listed.
 // See docs/google-oauth-setup.md.
 const DEFAULT_AUTH_REDIRECT_URLS = [
   "http://localhost:3001/",
@@ -36,7 +38,10 @@ export function authConfigFromEnv(): PapyrusAuthConfig {
 }
 
 export function defineSiteAuth(config: PapyrusAuthConfig) {
-  const authRedirectUrls = config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS;
+  const authRedirectUrls = expandNewsroomRedirectUrls(
+    config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS,
+    config.newsroomBasePath,
+  );
   const disableGoogleOAuth = config.disableGoogleOAuth === true;
   return defineAuth({
     loginWith: {

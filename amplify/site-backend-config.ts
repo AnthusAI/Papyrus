@@ -7,6 +7,12 @@ export type PapyrusAuthConfig = {
   /** OAuth callback/logout URLs for Google sign-in (ignored when Google is disabled). */
   redirectUrls?: string[];
   disableGoogleOAuth?: boolean;
+  /**
+   * Public newsroom path prefix for sign-in return URLs. Default `/newsroom`;
+   * `""` on a CMS-only host where the newsroom is the root. Filled from the
+   * active brand's `newsroomBasePath` by `defineSiteBackend` when unset.
+   */
+  newsroomBasePath?: string;
   /** Desired Cognito hosted-UI domain prefix. Only applied when `applyCognitoDomainPrefix` is true. */
   cognitoDomainPrefix?: string;
   /**
