@@ -116,3 +116,29 @@ the request as a `KnowledgeRawPayload`
 sweep applies it once, and the status then shows who set it and when it
 expires. Low-confidence decisions and the random audit share are always
 reviewed.
+
+## Record a run for the Cyclotron site
+
+```bash
+poetry run papyrus references export-relevance-recording --output papyrus-relevance-run.json \
+  --optimizer-price 0.40,0.10,1.60 --optimizer-price-source "<provider's published price page>, read <date>"
+```
+
+The export restores the latest store snapshot from the private bucket (or
+reads `--store <dir>`), makes no model call and writes nothing to Papyrus. It
+follows the Cyclotron editorial-run fixture's schema 2 with
+`source: "papyrus-live"`: one cycle per decision in order (the source's title
+and public URL, the decision shown before the review, the editor's label and
+reason code, the review program's reason and propensity, and the cyclotron's
+changes), windows of 100 decisions with metrics on reviewed decisions, routing,
+and measured usage and cost, and `usage_total` with the price basis.
+
+- **Consent.** An editor's explanation is included only when the editor ticked
+  "My explanation may be quoted publicly" on that review.
+  `--no-explanations` leaves every explanation out. Reviewer names never
+  appear.
+- **Prices.** Jev is priced at TypeSafe's published list price. Any optimizer
+  calls need `--optimizer-price IN,CACHED,OUT` (USD per million tokens) and
+  `--optimizer-price-source`; the export refuses to guess.
+- **Approval.** Ryan approves a recording before it is copied into
+  Cyclotron-web.

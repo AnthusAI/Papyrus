@@ -151,6 +151,14 @@ def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequ
                                   block["reviewControl"])
 
 
+def decision_model_identity(plan: RelevanceCyclotronPlan) -> str:
+    """The configured decision model's identity, without constructing a client (stores are keyed by it)."""
+    if plan.decision_model["provider"] == "jev":
+        from decision_flywheel.adapters.jev import JevConfiguration
+        return JevConfiguration(model=plan.decision_model["model"]).model_identity
+    raise ValueError(f"Unsupported decision model provider: {plan.decision_model['provider']}")
+
+
 def decision_model_from_environment(plan: RelevanceCyclotronPlan):
     """The configured batched decision model, with its key read from the environment."""
     if plan.decision_model["provider"] == "jev":

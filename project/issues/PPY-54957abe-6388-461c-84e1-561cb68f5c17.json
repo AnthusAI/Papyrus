@@ -3,7 +3,7 @@
   "title": "Record a Papyrus relevance run for the Cyclotron marketing demo",
   "description": "Export a fixture of real Papyrus reviews changing the relevance cyclotron for the Cyclotron-web services page, in the editorial-run-v1 shape with source papyrus-live, using the engine export (decision-flywheel-de484ad0). Include only explanations whose review was marked shareable; redact others. Pick one review that led to a promoted version and record its before and after decisions. Ordering: last, after at least one promoted version in production.\n\nAcceptance criteria:\n- The fixture contains no non-shareable explanation, no editor email and no private corpus text beyond titles and public URLs.\n- It names the cyclotron versions and the review that preceded the promotion.\n- Ryan approves the fixture before it is copied into Cyclotron-web.,",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -19,12 +19,28 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5914377d-4248-4a93-950f-b0a47f873869",
+      "author": "home",
+      "text": "Implemented on feature/PPY-54957a-cyclotron-recording (built on PPY-049b6e, PR #173): 'papyrus references export-relevance-recording --output <file>' restores the latest store snapshot (or --store), makes no model call, and writes the editorial-run schema 2 fixture with source papyrus-live: cycles in decision order (title, public URL, decision before review, editor label and reason code, review reason and propensity, cyclotron changes), windows of 100 decisions (metrics and routing on program/audit reviews, cyclotron changes, model calls, wall clock, usage and USD), usage_total, and attribution.price_basis (Jev at TypeSafe's published price; any optimizer price must be given with its source, or the export refuses). Explanations only where the editor ticked 'may be quoted publicly'; --no-explanations removes all; reviewer names never appear. Needs the engine's feat/sdk-usage (Cyclotron f1e1826: SDK usage per decision, Cyclotron.usage(), decision_log()); pyproject pins that commit until it merges. Spec: features_backend/cyclotron-relevance-recording.feature 5/5; all cyclotron backend scenarios 29/29; no new pytest failures. Not yet run on a real store: none exists until a sandbox sweep runs.",
+      "created_at": "2026-10-09T17:31:01.812872Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-09T14:52:56.281006Z",
-  "updated_at": "2026-10-09T14:53:24.443895Z",
+  "updated_at": "2026-10-09T17:31:01.812910Z",
   "closed_at": null,
-  "right_now_summary": "The Papyrus fixture still needs export, redaction, and Ryan’s approval before reaching Cyclotron-web.",
-  "right_now_updated_at": "2026-10-09T14:53:33.646986Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The export tool is built, but a real-store sweep is still needed to create the fixture.",
+  "right_now_updated_at": "2026-10-09T17:31:03.579664Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
