@@ -1,3 +1,4 @@
+@requires-cyclotron
 Feature: The candidate pipeline asks the relevance cyclotron about pending references
   A worker sweep decides every pending candidate reference, records the
   decisions in the newsroom's records, sends editors' reviews back to the

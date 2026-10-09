@@ -1,3 +1,4 @@
+@requires-cyclotron
 Feature: A Papyrus relevance run is recorded for the Cyclotron marketing site
   The recording follows the editorial-run fixture's schema 2 with source
   "papyrus-live". It shows real decisions before real reviews, measured model

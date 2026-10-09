@@ -1,3 +1,4 @@
+@requires-cyclotron
 Feature: Relevance cyclotron configuration
   One installation is one publication, and it configures one relevance
   cyclotron: the decision whether a candidate source should become a
