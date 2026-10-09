@@ -1242,7 +1242,7 @@ files = [
 
 [[package]]
 name = "decision-flywheel"
-version = "0.6.0"
+version = "0.14.0"
 description = "Model-neutral decision context optimization"
 optional = true
 python-versions = ">=3.10"
@@ -1272,8 +1272,8 @@ web = ["fastapi (>=0.115,<1)", "httpx (>=0.27,<1)", "python-dotenv (>=1,<2)", "s
 [package.source]
 type = "git"
 url = "https://github.com/AnthusAI/Cyclotron.git"
-reference = "f1e18268d9e25b57e30e5953406b5add9d70c8fd"
-resolved_reference = "f1e18268d9e25b57e30e5953406b5add9d70c8fd"
+reference = "9874b710c47d7396017e26c625f68286c413d52e"
+resolved_reference = "9874b710c47d7396017e26c625f68286c413d52e"
 
 [[package]]
 name = "defusedxml"
@@ -6270,4 +6270,4 @@ newsroom = ["boto3", "markitdown", "tactus", "tiktoken"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "811640e7f6cceb610ffb512b87f8830f1fad703b18451a10f67dcf63c2774502"
+content-hash = "dae6b2e13777b0b334a85f06afc2b0ddef957a8df6615adf676723848a4d7c24"
