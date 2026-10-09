@@ -261,6 +261,7 @@ PORTED_COMMANDS = frozenset(
         "references:execute-identifier-backfill",
         "references:export-analysis-manifest",
         "references:export-scope-training",
+        "references:decide-relevance",
         "references:backfill-reviewed-feed-key",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -513,6 +514,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_export_analysis_manifest(flags)
     elif route == "references:export-scope-training":
         references_export_scope_training(flags)
+    elif route == "references:decide-relevance":
+        from .relevance_sweep import references_decide_relevance
+        references_decide_relevance(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-corpus-storage-paths":

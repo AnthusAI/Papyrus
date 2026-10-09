@@ -3,7 +3,7 @@
   "title": "Hook the candidate pipeline: a decide-relevance sweep that decides, syncs reviews and writes status",
   "description": "Add papyrus references decide-relevance --corpus-key K [--apply] [--max-count N] in src/papyrus_content. Under an exclusive claim on a cyclotron.relevance Assignment, it restores the engine store from the media bucket, finds current pending References with no current decision (created by intake_research_packet_proposals in assignments_workflow.py and build_reference_catalog_registration_records in catalog.py, plus email submissions), builds an item (id = Reference lineageId; title, source URI and domain, ingestion rationale, summary or opening text, published date, discovering assignment and section), calls decide, and writes the decision relation. It then reads reference_curation Messages since its cursor, maps them to labels, calls review with selected_by program or reviewer, writes the status snapshot, and snapshots the store back. Run it after research-intake-now in the dispatch automation and on a schedule. Uses the Cyclotron SDK facade (decision-flywheel-0736e4a0) and portable store (decision-flywheel-f0285316). Ordering: after the data model task and those engine tasks.\n\nAcceptance criteria:\n- Dry run is the default and prints the plan; --apply writes; reruns are no-ops for unchanged items and versions.\n- Never changes curationStatus in phase one.\n- A second concurrent sweep exits before any model call.\n- Specs use a fake decision model and a fake GraphQL client; a live smoke on one sandbox publication is recorded in the issue.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -15,12 +15,28 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e12a02ec-a5b7-47a9-b115-ed27e676c12c",
+      "author": "home",
+      "text": "Implemented on feature/PPY-7a1ca2-cyclotron-intake-hook (built on PPY-4ac3d0): src/papyrus_content/relevance_sweep.py and 'papyrus references decide-relevance [--apply]'. Claim via the cyclotron.relevance Assignment (AssignmentClaimLease over apply_assignment_action), store restore/save in the private bucket (S3SnapshotStore), reviews from reference_curation Messages by the scope-training rule (message id as review id), decisions for all current pending references (listReferencesByCurationStatusKeyAndUpdatedAt added to the Python index definitions), status snapshot as KnowledgeRawPayload. Never changes curationStatus. Spec: features_backend/cyclotron-relevance-sweep.feature (story PPY-d478b1, 6 scenarios: decide and record, fresh worker without repeated model calls, review reaches the cyclotron, non-relevance review closes without a label, claimed by another worker, dry run). No new pytest/BDD failures. Notes: the claim is read-check-write (as Papyrus claims are today), and reviewed references are rescanned each sweep (idempotent; a cursor is a later optimization). Live smoke on a sandbox publication not yet run: needs a sandbox with the relevanceCyclotron block and a TYPESAFE_API_KEY.",
+      "created_at": "2026-10-09T16:44:35.614768Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-09T14:52:40.175013Z",
-  "updated_at": "2026-10-09T14:53:06.208813Z",
+  "updated_at": "2026-10-09T16:44:35.614802Z",
   "closed_at": null,
-  "right_now_summary": "The decide-relevance sweep is being built to score references, sync reviews, and write status.",
-  "right_now_updated_at": "2026-10-09T14:53:07.948410Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The relevance sweep is implemented and specified; only the live sandbox smoke test remains.",
+  "right_now_updated_at": "2026-10-09T16:44:37.061920Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

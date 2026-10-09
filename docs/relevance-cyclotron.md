@@ -70,3 +70,33 @@ The engine is the optional `cyclotron` extra, pinned to one Cyclotron commit:
 ```bash
 poetry install --extras "newsroom cyclotron"
 ```
+
+## Run the sweep
+
+```bash
+poetry run papyrus references decide-relevance            # dry run: lists pending references, no model call
+poetry run papyrus references decide-relevance --apply    # decide, send reviews, record status, save the store
+```
+
+Run it after research intake (`assignments research-intake-now --apply`) and
+on a schedule. Each run:
+
+1. Claims the `cyclotron.relevance` Assignment for this cyclotron; a second
+   worker stops before any model call while the claim is held.
+2. Restores the cyclotron store from `store.s3Prefix` when this worker has no
+   local copy.
+3. Sends editors' reviews of decided references to the cyclotron. The label
+   follows the existing scope-training rule: accepted is `include`; rejected
+   as `out_of_scope` or `policy_exclusion` is `exclude`; other outcomes close
+   the decision without a label. The editor's note is the explanation and the
+   curation Message id is the review id, so a rerun records nothing twice.
+4. Decides every current pending reference of the canonical corpus and
+   records each new decision as a `relevance_decision_is` relation. An
+   unchanged reference keeps its decision without a model call.
+5. Records the `cyclotron-status/v1` snapshot
+   (`knowledge-raw-payload-cyclotron-status-<cyclotronId>`), saves the store
+   snapshot to the private bucket, and releases the claim.
+
+The sweep never accepts, rejects or archives a reference. A reference an
+editor reopens to pending is decided again only when a new version is
+promoted.
