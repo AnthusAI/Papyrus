@@ -1,0 +1,23 @@
+{
+  "id": "PPY-cc99d6de-54cb-40d5-b088-eb739329e1e6",
+  "title": "Configure the relevance cyclotron per publication in the steering config",
+  "description": "Add a relevanceCyclotron block to the canonical corpus in corpora/<publication>-steering.yml: cyclotronId (papyrus-relevance), classifierId (relevant), labels include/exclude with include as the positive label, decision model provider and model, LLM optimizer model, store paths (worker var/cyclotrons/<id>.sqlite3 and media bucket prefix cyclotrons/<id>/), and review program settings (onboarding count, target accuracy, audit floor, confidence threshold). The first rubric is seeded from the publication doctrine (corpora/papyrus-publication-doctrine.yml mission and policy); the doctrine hash is part of the classifier version, so a doctrine edit makes a new cyclotron version. One installation is one publication: one cyclotron per installation.\n\nAcceptance criteria:\n- load_steering_config validates the block and rejects unknown labels or a missing positive label; specs cover a valid and an invalid block.\n- Changing doctrine text changes the computed cyclotron version; unchanged doctrine does not.\n- Provider keys are read from the environment or SSM, never from the YAML.\n- papyrus-config.example.yaml and the steering docs show the block with placeholder values.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-09T14:52:28.626729Z",
+  "updated_at": "2026-10-09T14:52:30.509537Z",
+  "closed_at": null,
+  "right_now_summary": "The steering config is being updated to define one relevance cyclotron per publication.",
+  "right_now_updated_at": "2026-10-09T14:52:32.493008Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

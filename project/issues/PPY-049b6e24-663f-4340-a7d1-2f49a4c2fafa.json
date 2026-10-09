@@ -1,0 +1,28 @@
+{
+  "id": "PPY-049b6e24-663f-4340-a7d1-2f49a4c2fafa",
+  "title": "Show the cyclotron status strip and review-rate override in the Newsroom",
+  "description": "Above the References list, render the Cyclotron status widget (decision-flywheel-a161455d) from the cyclotron-status KnowledgeRawPayload snapshot: version, agreement, says-sure versus is-right, review rate and its reason, last change and its version. The card variant opens from the strip and offers the review-rate override (rate and expiry) for editors in the write groups; the override is stored as a request the next sweep applies and logs. Ordering: after the pipeline hook; needs the engine review-rate program (decision-flywheel-a81068b4) and package release.\n\nAcceptance criteria:\n- Strip renders from the snapshot with no engine access from the browser; stale snapshots say how old they are.\n- Only editors in the write groups see the override; a non-editor sees the strip read-only.\n- The override appears in the next snapshot with who set it and when it expires.,",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-7a1ca2f7-1a02-4640-ac58-7a6a0dd92874",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-09T14:52:50.679479Z",
+  "updated_at": "2026-10-09T14:53:15.890489Z",
+  "closed_at": null,
+  "right_now_summary": "The Newsroom needs a Cyclotron status strip and an editor-only review-rate override.",
+  "right_now_updated_at": "2026-10-09T14:53:18.097236Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
