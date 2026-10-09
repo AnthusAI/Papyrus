@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "451228d1-52ff-4adf-8ef1-ad6a07a86572",
+  "issue_id": "PPY-d2dc61c9-cf5d-4850-9f7a-e0662e20a0fa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T16:26:01.578Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A publication configures its relevance cyclotron",
+    "description": "As a publication operator, I want to configure one relevance cyclotron in the steering config, so that the newsroom decides whether candidate sources are relevant using the publication's own doctrine and my chosen providers.\n\nNot included: running decisions (PPY-7a1ca2f7), storing them (PPY-4ac3d0c5), or any UI.\n\n```gherkin\nFeature: Relevance cyclotron configuration\n  Scenario: A publication configures its relevance cyclotron\n    Given a steering config with a relevance cyclotron block\n    And the publication doctrine\n    When the worker builds the relevance cyclotron\n    Then the cyclotron asks one yes-or-no question with include as the yes\n    And the question does not contain the doctrine\n    And the first rubric is the publication doctrine\n    And decisions use Jev and the LLM optimizer uses OpenAI\n\n  Scenario: Editing doctrine keeps the cyclotron definition\n    Given a steering config with a relevance cyclotron block\n    When the publication doctrine changes\n    Then the cyclotron definition is unchanged\n    And the first rubric follows the new doctrine\n\n  Scenario: An invalid block is refused with the field named\n    Given a steering config whose relevance cyclotron positive label is not one of its labels\n    When the steering config is loaded\n    Then loading fails naming relevanceCyclotron.positiveLabel\n\n  Scenario: Provider keys never come from the config\n    Given a steering config whose relevance cyclotron block contains an apiKey\n    When the steering config is loaded\n    Then loading fails saying keys come from the environment\n\n  Scenario: Without a block there is no relevance cyclotron\n    Given a steering config without a relevance cyclotron block\n    When the steering config is loaded\n    Then the publication has no relevance cyclotron\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cc99d6de-54cb-40d5-b088-eb739329e1e6",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

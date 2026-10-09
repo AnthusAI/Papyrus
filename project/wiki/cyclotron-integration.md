@@ -3,7 +3,8 @@
 Written 2026-10-09. The full design lives in the Cyclotron engine's wiki:
 [papyrus-integration.md](https://github.com/AnthusAI/Cyclotron/blob/docs/papyrus-integration/project/wiki/papyrus-integration.md)
 (branch `docs/papyrus-integration`, engine epic decision-flywheel-a73f05cc).
-This page is the Papyrus-side summary. Papyrus epic: PPY-b0396fee.
+This page is the Papyrus-side summary. Papyrus epic: PPY-b0396fee. Operator guide:
+[docs/relevance-cyclotron.md](../../docs/relevance-cyclotron.md).
 
 ## What changes
 

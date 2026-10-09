@@ -1,21 +1,37 @@
 {
   "id": "PPY-cc99d6de-54cb-40d5-b088-eb739329e1e6",
   "title": "Configure the relevance cyclotron per publication in the steering config",
-  "description": "Add a relevanceCyclotron block to the canonical corpus in corpora/<publication>-steering.yml: cyclotronId (papyrus-relevance), classifierId (relevant), labels include/exclude with include as the positive label, decision model provider and model, LLM optimizer model, store paths (worker var/cyclotrons/<id>.sqlite3 and media bucket prefix cyclotrons/<id>/), and review program settings (onboarding count, target accuracy, audit floor, confidence threshold). The first rubric is seeded from the publication doctrine (corpora/papyrus-publication-doctrine.yml mission and policy); the doctrine hash is part of the classifier version, so a doctrine edit makes a new cyclotron version. One installation is one publication: one cyclotron per installation.\n\nAcceptance criteria:\n- load_steering_config validates the block and rejects unknown labels or a missing positive label; specs cover a valid and an invalid block.\n- Changing doctrine text changes the computed cyclotron version; unchanged doctrine does not.\n- Provider keys are read from the environment or SSM, never from the YAML.\n- papyrus-config.example.yaml and the steering docs show the block with placeholder values.",
+  "description": "Add a top-level relevanceCyclotron block to the publication's steering config (corpora/<publication>-steering.yml). One installation is one publication, so there is one relevance cyclotron per installation, deciding over the canonical corpus's pending References.\n\nBlock fields: cyclotronId (default papyrus-relevance), classifierId (default relevant), question, labels (default include/exclude), positiveLabel (default include), decisionModel {provider, model} (default Jev), optimizer {provider, model} (default the OpenAI adapter; set to null to decide and record only), store {localPath, s3Prefix} for the worker's working copy and the snapshot location in the PRIVATE media bucket, maxRequestsPerSweep, and reviewProgram (rates, auditShare, confidenceThreshold, targetAccuracy, maxGapPoints, window, windowsRequired, minWindowLabels; placeholders until the engine's review-rate experiments set them).\n\nEngine requirements (Cyclotron SDK, docs/embedding.md):\n- The decision model must be batched (classify_many). Jev's adapter is; a single-classifier model does not fit.\n- Publication doctrine seeds the classifier's FIRST RUBRIC (Cyclotron.open seed_rubrics), never the question. The question and labels form the cyclotron definition, which a store refuses to change; the rubric is what the LLM optimizer may change. The seed is fixed when the store is created; changing a question or the classifiers later is engine task decision-flywheel-ade3088c (definition versions).\n- Provider keys come from the environment (or SSM on a worker), never from the YAML; the loader refuses key-like fields.\n\nAcceptance criteria:\n- load_steering_config validates the block and reports a field-named error for unknown labels, a missing positive label, a non-batched provider, or key-like fields; specs cover valid, invalid and absent blocks.\n- The built cyclotron's question excludes the doctrine and its first rubric is the doctrine text; editing doctrine changes the seed but not the definition fingerprint.\n- Providers default to Jev for decisions and the OpenAI adapter for the optimizer, and are configurable.\n- papyrus-config docs and the steering docs show the block with placeholder values.\n- The engine is pinned as a git dependency (Python) on a fixed Cyclotron commit.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "df6f03c3-383d-4136-98d8-cb6e57fe01e8",
+      "author": "home",
+      "text": "Implemented on feature/PPY-cc99d6-cyclotron-config: src/papyrus_content/relevance_cyclotron.py (block validation, doctrine seed rubric, build_relevance_cyclotron, provider factories reading keys from the environment), steering.py loads relevanceCyclotron (None when absent), pyproject extra 'cyclotron' pins decision-flywheel[jev,optimizer] to Cyclotron 6dd1f51 (feat/seed-rubric, which adds seed_rubrics; repin after it merges), poetry.lock adds only the new packages, docs/relevance-cyclotron.md. Spec: features_backend/cyclotron-relevance-config.feature (story PPY-d2dc61c9), 5 scenarios green; pytest and backend BDD show no new failures against the develop baseline (24 pytest and 3 BDD failures pre-exist).",
+      "created_at": "2026-10-09T16:30:29.440500Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-09T14:52:28.626729Z",
-  "updated_at": "2026-10-09T14:52:30.509537Z",
+  "updated_at": "2026-10-09T16:30:29.440534Z",
   "closed_at": null,
-  "right_now_summary": "The steering config is being updated to define one relevance cyclotron per publication.",
-  "right_now_updated_at": "2026-10-09T14:52:32.493008Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The relevance cyclotron config is implemented, documented, and covered by passing specs.",
+  "right_now_updated_at": "2026-10-09T16:30:31.393174Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
