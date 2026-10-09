@@ -1,3 +1,4 @@
+@requires-cyclotron
 Feature: Relevance decisions and reviews live in the newsroom's own records
   A decision is a relation from the candidate reference to a decision node,
   a newer decision supersedes the older one, the status snapshot is a raw

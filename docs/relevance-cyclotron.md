@@ -65,10 +65,11 @@ Rules the loader enforces:
 
 ## Install the engine
 
-The engine is the optional `cyclotron` extra, pinned to one Cyclotron main commit (9874b71):
+The engine is the optional `cyclotron` Poetry dependency group, pinned to one Cyclotron main commit (9874b71). It is a group and not an extra so the git requirement stays out of the published wheel. The default install and CI do not include it; the Cyclotron scenarios are tagged `@requires-cyclotron` and are skipped when `decision_flywheel` is not importable.
 
 ```bash
-poetry install --extras "newsroom cyclotron"
+poetry install --extras "newsroom" --with cyclotron
+poetry run behave features_backend --tags=@requires-cyclotron
 ```
 
 ## Run the sweep
