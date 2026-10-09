@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { ReviewControl, type ReviewReason } from "cyclotron/components/review-control";
 import { isScopeTrainingNegativeReason, REFERENCE_REJECTION_REASON_CODES } from "../lib/reference-policy";
 import {
@@ -20,19 +20,7 @@ export const RELEVANCE_REVIEW_REASONS: ReviewReason[] = REFERENCE_REJECTION_REAS
   ...(isScopeTrainingNegativeReason(code) ? {} : { noLabel: true }),
 }));
 
-const subscribeNever = () => () => undefined;
-
-/**
- * Rendered in the browser only: Cyclotron ui-v0.2.0's ReviewControl uses
- * React's useId, which this page's server and client trees number differently.
- * Remove the gate once the package uses ids derived from the item and decision.
- */
-export function ReferenceRelevanceReview(props: Parameters<typeof RelevanceReviewBody>[0]) {
-  const inBrowser = useSyncExternalStore(subscribeNever, () => true, () => false);
-  return inBrowser ? <RelevanceReviewBody {...props} /> : null;
-}
-
-export function RelevanceReviewBody({
+export function ReferenceRelevanceReview({
   disabled,
   decision,
   onCurate,

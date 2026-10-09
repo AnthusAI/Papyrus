@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "66a01688-14a0-4414-a080-1eadfaf35546",
+  "issue_id": "PPY-70d9fdd4-9393-45c3-bd56-73bacb5a44af",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:10:28.119Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Repin the Cyclotron engine and web package to their releases",
+    "description": "Pin the Python extra to Cyclotron main b2234be (the ui-v0.2.1 tag's commit) and the web package to the ui-v0.2.1 release tarball, then remove the References tab's browser-only rendering of the review control: ui-v0.2.1 derives the control's field ids from the item and decision, so server and client renders agree.\n\nDone when: pyproject and poetry.lock pin b2234be; package.json and the lockfile pin cyclotron-0.2.1.tgz; ReferenceRelevanceReview renders on the server; the References tab scenarios pass with no hydration error.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

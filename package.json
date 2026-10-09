@@ -141,7 +141,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "constructs": "^10.6.0",
-    "cyclotron": "https://github.com/AnthusAI/Cyclotron/releases/download/ui-v0.2.0/cyclotron-0.2.0.tgz",
+    "cyclotron": "https://github.com/AnthusAI/Cyclotron/releases/download/ui-v0.2.1/cyclotron-0.2.1.tgz",
     "esbuild": "^0.28.2",
     "gray-matter": "^4.0.3",
     "gsap": "^3.15.0",

@@ -65,7 +65,7 @@ Rules the loader enforces:
 
 ## Install the engine
 
-The engine is the optional `cyclotron` extra, pinned to one Cyclotron commit:
+The engine is the optional `cyclotron` extra, pinned to one Cyclotron release commit (main b2234be, tag ui-v0.2.1):
 
 ```bash
 poetry install --extras "newsroom cyclotron"
