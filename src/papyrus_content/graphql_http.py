@@ -75,17 +75,24 @@ def execute_graphql(
     return parsed.get("data") or {}
 
 
-def iam_signed_graphql_headers(endpoint: str, body: bytes) -> dict[str, str]:
+def iam_signed_graphql_headers(endpoint: str, body: bytes, session: Any = None) -> dict[str, str]:
     from botocore.auth import SigV4Auth
     from botocore.awsrequest import AWSRequest
 
     parsed = urllib.parse.urlparse(endpoint)
-    region = (
-        os.environ.get("AWS_REGION")
-        or os.environ.get("AWS_DEFAULT_REGION")
-        or region_from_appsync_host(parsed.netloc)
-    )
-    frozen = _aws_credentials().get_frozen_credentials()
+    if session is None:
+        region = (
+            os.environ.get("AWS_REGION")
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or region_from_appsync_host(parsed.netloc)
+        )
+        credentials = _aws_credentials()
+    else:
+        region = region_from_appsync_host(parsed.netloc)
+        credentials = session.get_credentials()
+        if credentials is None:
+            raise ValueError("The given AWS session has no credentials to sign AppSync requests.")
+    frozen = credentials.get_frozen_credentials()
     request = AWSRequest(
         method="POST",
         url=endpoint,

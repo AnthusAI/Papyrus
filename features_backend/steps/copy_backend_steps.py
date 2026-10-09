@@ -20,6 +20,7 @@ from papyrus_content.backend_copy import (  # noqa: E402
     ObjectInfo,
     apply_plan,
     build_plan,
+    render_table,
     write_manifests,
 )
 
@@ -313,3 +314,496 @@ def manifests_match(context) -> None:
 def manifests_have_keys(context) -> None:
     keys = json.loads((context.manifest_dir / "target/s3/keys.json").read_text())
     assert {"key": "media/a.png", "size": 10} in keys, keys
+
+
+import contextlib  # noqa: E402
+import hashlib  # noqa: E402
+import io  # noqa: E402
+import threading  # noqa: E402
+from collections import Counter  # noqa: E402
+from unittest import mock  # noqa: E402
+
+from botocore.credentials import Credentials  # noqa: E402
+
+from papyrus_content import backend_copy_commands  # noqa: E402
+from papyrus_content.backend_copy_aws import (  # noqa: E402
+    SOURCE_READ_ONLY_METHODS,
+    GraphQLRowBackend,
+    MemoryBudget,
+    ReadOnlyS3Client,
+    S3ObjectStore,
+)
+from papyrus_content.backend_copy_commands import content_copy_backend, resolve_transfer_mode  # noqa: E402
+
+MIB = 1024 * 1024
+SOURCE_APPSYNC = "https://source123.appsync-api.us-east-1.amazonaws.com/graphql"
+TARGET_APPSYNC = "https://target456.appsync-api.us-east-1.amazonaws.com/graphql"
+S3_WRITE_METHODS = frozenset(
+    {"put_object", "copy", "create_multipart_upload", "upload_part", "complete_multipart_upload", "abort_multipart_upload"}
+)
+
+
+def periodic_bytes(size: int, offset: int = 0) -> bytes:
+    pattern = bytes(range(251))
+    return (pattern * (size // 251 + 2))[offset % 251: offset % 251 + size]
+
+
+def plain_etag(data: bytes) -> str:
+    return hashlib.md5(data).hexdigest()
+
+
+def multipart_etag(parts: list[bytes]) -> str:
+    digests = b"".join(hashlib.md5(part).digest() for part in parts)
+    return f"{hashlib.md5(digests).hexdigest()}-{len(parts)}"
+
+
+class FakeBody:
+    def __init__(self, data: bytes) -> None:
+        self.stream = io.BytesIO(data)
+
+    def read(self, size: int = -1) -> bytes:
+        return self.stream.read(size)
+
+    def close(self) -> None:
+        self.stream.close()
+
+
+class FakePaginator:
+    def __init__(self, client) -> None:
+        self.client = client
+
+    def paginate(self, Bucket: str):
+        entries = [
+            {"Key": key, "Size": len(item["data"]), "ETag": f'"{item["etag"]}"'}
+            for key, item in sorted(self.client.objects.items())
+        ]
+        return [{"Contents": entries[:2]}, {"Contents": entries[2:]}] if len(entries) > 2 else [{"Contents": entries}]
+
+
+class FakeS3Client:
+    def __init__(self, objects: dict | None = None, peer=None) -> None:
+        self.objects = dict(objects or {})
+        self.peer = peer
+        self.calls: list[tuple[str, str]] = []
+        self.part_sizes: dict[str, list[int]] = {}
+        self.uploads: dict[str, dict] = {}
+        self.lock = threading.Lock()
+
+    def record(self, name: str, key: str = "") -> None:
+        with self.lock:
+            self.calls.append((name, key))
+
+    def get_paginator(self, name: str) -> FakePaginator:
+        self.record("get_paginator")
+        return FakePaginator(self)
+
+    def head_object(self, Bucket: str, Key: str, PartNumber: int | None = None) -> dict:
+        self.record("head_object", Key)
+        item = self.objects[Key]
+        length = len(item["data"])
+        if PartNumber == 1 and item.get("part_size"):
+            length = min(item["part_size"], length)
+        return {"ContentLength": length, "ETag": f'"{item["etag"]}"', **item["settings"]}
+
+    def get_object(self, Bucket: str, Key: str, IfMatch: str | None = None) -> dict:
+        self.record("get_object", Key)
+        item = self.objects[Key]
+        assert IfMatch is None or IfMatch == f'"{item["etag"]}"'
+        return {"Body": FakeBody(item["data"])}
+
+    def put_object(self, Bucket: str, Key: str, Body: bytes, **settings) -> dict:
+        self.record("put_object", Key)
+        etag = plain_etag(Body)
+        self.objects[Key] = {"data": Body, "etag": etag, "settings": settings}
+        return {"ETag": f'"{etag}"'}
+
+    def create_multipart_upload(self, Bucket: str, Key: str, **settings) -> dict:
+        self.record("create_multipart_upload", Key)
+        upload_id = f"upload-{Key}"
+        self.uploads[upload_id] = {"parts": {}, "settings": settings}
+        return {"UploadId": upload_id}
+
+    def upload_part(self, Bucket: str, Key: str, UploadId: str, PartNumber: int, Body: bytes) -> dict:
+        self.record("upload_part", Key)
+        self.uploads[UploadId]["parts"][PartNumber] = Body
+        return {"ETag": f'"{plain_etag(Body)}"'}
+
+    def complete_multipart_upload(self, Bucket: str, Key: str, UploadId: str, MultipartUpload: dict) -> dict:
+        self.record("complete_multipart_upload", Key)
+        upload = self.uploads.pop(UploadId)
+        parts = [upload["parts"][entry["PartNumber"]] for entry in MultipartUpload["Parts"]]
+        etag = multipart_etag(parts)
+        self.part_sizes[Key] = [len(part) for part in parts]
+        self.objects[Key] = {"data": b"".join(parts), "etag": etag, "settings": upload["settings"]}
+        return {"ETag": f'"{etag}"'}
+
+    def abort_multipart_upload(self, Bucket: str, Key: str, UploadId: str) -> None:
+        self.record("abort_multipart_upload", Key)
+        self.uploads.pop(UploadId, None)
+
+    def copy(self, CopySource: dict, Bucket: str, Key: str) -> None:
+        self.record("copy", Key)
+        self.objects[Key] = dict(self.peer.objects[Key])
+
+    def written(self) -> list[tuple[str, str]]:
+        return [call for call in self.calls if call[0] in S3_WRITE_METHODS]
+
+
+def fake_object(data: bytes, etag: str, settings: dict, part_size: int | None = None) -> dict:
+    return {"data": data, "etag": etag, "settings": settings, "part_size": part_size}
+
+
+def cross_account_objects() -> dict:
+    small = periodic_bytes(1000)
+    big_parts = [periodic_bytes(8 * MIB, 1), periodic_bytes(8 * MIB, 2), periodic_bytes(4 * MIB, 3)]
+    single = periodic_bytes(12 * MIB, 4)
+    return {
+        "media/small.txt": fake_object(
+            small,
+            plain_etag(small),
+            {"ContentType": "text/plain", "CacheControl": "max-age=60", "Metadata": {"origin": "legacy", "kind": "note"}},
+        ),
+        "media/big-multipart.bin": fake_object(
+            b"".join(big_parts),
+            multipart_etag(big_parts),
+            {"ContentType": "video/mp4", "ContentDisposition": "inline", "Metadata": {"origin": "legacy"}},
+            part_size=8 * MIB,
+        ),
+        "media/single-12.bin": fake_object(single, plain_etag(single), {"ContentType": "application/octet-stream"}),
+    }
+
+
+class FakeStsClient:
+    def __init__(self, session) -> None:
+        self.session = session
+
+    def get_caller_identity(self) -> dict:
+        self.session.calls.append(("sts", "get_caller_identity"))
+        return {"Account": self.session.account}
+
+
+class FakeCloudFormationClient:
+    def __init__(self, session) -> None:
+        self.session = session
+
+    def describe_stacks(self, StackName: str) -> dict:
+        self.session.calls.append(("cloudformation", "describe_stacks"))
+        outputs = {
+            "awsAppsyncApiEndpoint": self.session.appsync_endpoint,
+            "bucketName": self.session.bucket,
+            "storageRegion": "us-east-1",
+        }
+        return {"Stacks": [{"Outputs": [{"OutputKey": k, "OutputValue": v} for k, v in outputs.items()]}]}
+
+
+class FakeSession:
+    def __init__(self, account: str, access_key: str, appsync_endpoint: str, bucket: str) -> None:
+        self.account = account
+        self.access_key = access_key
+        self.appsync_endpoint = appsync_endpoint
+        self.bucket = bucket
+        self.calls: list[tuple[str, str]] = []
+        self.s3 = FakeS3Client()
+
+    def get_credentials(self):
+        return Credentials(self.access_key, "secret-" + self.access_key)
+
+    def client(self, service: str, **_options):
+        if service == "sts":
+            return FakeStsClient(self)
+        if service == "cloudformation":
+            return FakeCloudFormationClient(self)
+        return self.s3
+
+
+def make_sessions(context, source_account="111111111111", target_account="222222222222") -> None:
+    context.sessions = {
+        "legacy": FakeSession(source_account, "AKIASOURCEKEY", SOURCE_APPSYNC, "source-bucket"),
+        "papyrus-production": FakeSession(target_account, "AKIATARGETKEY", TARGET_APPSYNC, "target-bucket"),
+    }
+
+
+def session_factory_for(context):
+    return lambda profile: context.sessions[profile]
+
+
+class TrackingBudget(MemoryBudget):
+    def __init__(self, limit_bytes: int) -> None:
+        super().__init__(limit_bytes)
+        self.peak_bytes = 0
+
+    @contextlib.contextmanager
+    def hold(self, size_bytes: int):
+        with super().hold(size_bytes):
+            self.peak_bytes = max(self.peak_bytes, self._in_use)
+            yield
+
+
+class FlakyObjectStore(InMemoryObjectStore):
+    def __init__(self, objects, failing_key: str) -> None:
+        super().__init__(objects)
+        self.failing_key = failing_key
+        self.attempts: list[str] = []
+        self.lock = threading.Lock()
+
+    def copy_object_from(self, source_store, key: str):
+        with self.lock:
+            self.attempts.append(key)
+        if key == self.failing_key:
+            raise RuntimeError("simulated S3 failure")
+        with self.lock:
+            self.copies.append(key)
+            self.objects[key] = source_store.objects[key]
+
+
+def copy_with_stores(context, workers: int = 1) -> None:
+    context.source = InMemoryRowBackend({}, standard_schemas())
+    if not hasattr(context, "target") or context.target is None:
+        context.target = InMemoryRowBackend({}, standard_schemas())
+    context.plan = build_plan(
+        context.source,
+        context.target,
+        requested_models=None,
+        source_store=context.source_store,
+        target_store=context.target_store,
+        selected_prefixes=["media/"],
+        source_account=getattr(context, "plan_source_account", None),
+        target_account=getattr(context, "plan_target_account", None),
+    )
+    apply_plan(context.plan, context.target, context.source_store, context.target_store, workers=workers)
+
+
+@given("a source session and a target session with different credentials")
+def different_credentials(context) -> None:
+    make_sessions(context)
+
+
+@when("each side signs an AppSync request")
+def each_side_signs(context) -> None:
+    source = GraphQLRowBackend(SOURCE_APPSYNC, read_only=True, session=context.sessions["legacy"])
+    target = GraphQLRowBackend(TARGET_APPSYNC, read_only=False, session=context.sessions["papyrus-production"])
+    context.source_headers = source.client.header_factory(b"{}")
+    context.target_headers = target.client.header_factory(b"{}")
+
+
+@then("the source request is signed with the source access key only")
+def signed_with_source(context) -> None:
+    authorization = context.source_headers["Authorization"]
+    assert "Credential=AKIASOURCEKEY/" in authorization and "AKIATARGETKEY" not in authorization
+
+
+@then("the target request is signed with the target access key only")
+def signed_with_target(context) -> None:
+    authorization = context.target_headers["Authorization"]
+    assert "Credential=AKIATARGETKEY/" in authorization and "AKIASOURCEKEY" not in authorization
+
+
+@given("a source bucket and a target bucket that differ by one missing media object")
+def buckets_differ_by_one(context) -> None:
+    first, second = periodic_bytes(100), periodic_bytes(200, 5)
+    shared = fake_object(first, plain_etag(first), {})
+    context.source_client = FakeS3Client(
+        {"media/a.txt": shared, "media/b.txt": fake_object(second, plain_etag(second), {})}
+    )
+    context.target_client = FakeS3Client({"media/a.txt": shared}, peer=context.source_client)
+
+
+@when("I copy with the command defaults and apply")
+def copy_with_defaults(context) -> None:
+    context.transfer = resolve_transfer_mode(None, None, None)
+    context.source_store = S3ObjectStore("src", "us-east-1", client=ReadOnlyS3Client(context.source_client))
+    context.target_store = S3ObjectStore("dst", "us-east-1", client=context.target_client, transfer=context.transfer)
+    context.target = None
+    copy_with_stores(context)
+
+
+@then("the transfer mode is server-side")
+def mode_is_server_side(context) -> None:
+    assert context.transfer == "server-side", context.transfer
+
+
+@then("the missing media object was copied with a server-side copy and nothing was streamed")
+def copied_server_side(context) -> None:
+    assert context.target_client.written() == [("copy", "media/b.txt")], context.target_client.calls
+    assert not [call for call in context.source_client.calls if call[0] in ("get_object", "head_object")]
+
+
+@then("the plan reports no source or target account")
+def plan_without_accounts(context) -> None:
+    payload = context.plan.to_dict()
+    assert payload["sourceAccount"] is None and payload["targetAccount"] is None
+    assert "account" not in render_table(context.plan)
+
+
+@given("a source session in account {source:d} and a target session in account {target:d}")
+def sessions_in_accounts(context, source: int, target: int) -> None:
+    make_sessions(context, str(source), str(target))
+
+
+def run_command(context, flags: list[str]) -> str:
+    context.command_error = None
+    buffer = io.StringIO()
+    with mock.patch.object(
+        backend_copy_commands, "GraphQLRowBackend", lambda endpoint, read_only, session: InMemoryRowBackend({}, standard_schemas())
+    ), contextlib.redirect_stdout(buffer):
+        try:
+            content_copy_backend(flags, session_factory=session_factory_for(context))
+        except (ValueError, SystemExit) as error:
+            context.command_error = error
+    return buffer.getvalue()
+
+
+COMMAND_BASE = [
+    "--source-outputs", "stack:source-stack", "--target-outputs", "stack:target-stack",
+    "--source-profile", "legacy", "--target-profile", "papyrus-production", "--json",
+]
+
+
+@when("I run copy-backend expecting target account {account:d} with apply")
+def run_expecting_wrong_target(context, account: int) -> None:
+    run_command(context, [*COMMAND_BASE, "--expect-target-account", str(account), "--apply"])
+
+
+@then("the command stops naming account {account:d}")
+def command_stops(context, account: int) -> None:
+    assert isinstance(context.command_error, ValueError) and str(account) in str(context.command_error)
+
+
+@then("only the caller identity was read in either session")
+def only_identity_read(context) -> None:
+    for session in context.sessions.values():
+        assert session.calls == [("sts", "get_caller_identity")], session.calls
+        assert session.s3.calls == []
+
+
+@when("I run a dry run expecting accounts {source:d} and {target:d}")
+def run_matching_dry_run(context, source: int, target: int) -> None:
+    output = run_command(
+        context, [*COMMAND_BASE, "--expect-source-account", str(source), "--expect-target-account", str(target)]
+    )
+    assert context.command_error is None, context.command_error
+    context.command_plan = json.loads(output)
+
+
+@then("the plan reports source account {source:d} and target account {target:d}")
+def plan_reports_accounts(context, source: int, target: int) -> None:
+    assert context.command_plan["sourceAccount"] == str(source)
+    assert context.command_plan["targetAccount"] == str(target)
+    assert context.command_plan["mode"] == "dry-run"
+
+
+@given(
+    "a cross-account source bucket with a small object, a 20 MiB object uploaded in 8 MiB parts and a 12 MiB single upload"
+)
+def cross_account_source(context) -> None:
+    context.source_client = FakeS3Client(cross_account_objects())
+    context.source_store = S3ObjectStore("src", "us-east-1", client=ReadOnlyS3Client(context.source_client))
+    context.target = None
+
+
+@given("an empty cross-account target bucket")
+def cross_account_target(context) -> None:
+    context.target_client = FakeS3Client()
+    context.target_store = S3ObjectStore("dst", "us-east-1", client=context.target_client, transfer="stream")
+
+
+@given("I copy the objects in stream mode")
+@when("I copy the objects in stream mode")
+def copy_in_stream_mode(context) -> None:
+    context.source_client.calls.clear()
+    context.target_client.calls.clear()
+    copy_with_stores(context)
+    assert context.plan.ok, context.plan.to_dict()
+
+
+@when("I copy the objects in stream mode with {workers:d} workers and a {budget:d} MiB memory budget")
+def copy_with_budget(context, workers: int, budget: int) -> None:
+    context.tracking_budget = TrackingBudget(budget * MIB)
+    context.target_store.memory_budget = context.tracking_budget
+    copy_with_stores(context, workers=workers)
+    assert context.plan.ok, context.plan.to_dict()
+
+
+@then("every key exists in the target with the same size, content type, cache control and metadata")
+def stream_preserved(context) -> None:
+    for key, original in context.source_client.objects.items():
+        stored = context.target_client.objects[key]
+        assert stored["data"] == original["data"], key
+        for name in ("ContentType", "CacheControl", "ContentDisposition", "Metadata"):
+            assert stored["settings"].get(name) == original["settings"].get(name), (key, name)
+
+
+@then("the ETags of all three objects equal the source ETags")
+def stream_etags(context) -> None:
+    for key, original in context.source_client.objects.items():
+        assert context.target_client.objects[key]["etag"] == original["etag"], key
+    assert context.plan.prefixes[0].warnings == []
+
+
+@then("the 20 MiB object was uploaded in 3 parts of at most 8 MiB")
+def stream_parts(context) -> None:
+    assert context.target_client.part_sizes["media/big-multipart.bin"] == [8 * MIB, 8 * MIB, 4 * MIB]
+
+
+@then("no object is read from the source and nothing is written to the target")
+def nothing_streamed(context) -> None:
+    assert not [call for call in context.source_client.calls if call[0] in ("get_object", "head_object")]
+    assert context.target_client.written() == []
+
+
+@then("the source client received only list, head and get calls")
+def source_read_only(context) -> None:
+    names = {name for name, _key in context.source_client.calls}
+    assert names and names <= SOURCE_READ_ONLY_METHODS, names
+
+
+@then("a write attempted through the source store is refused")
+def source_write_refused(context) -> None:
+    try:
+        context.source_store.client.put_object(Bucket="src", Key="media/x", Body=b"x")
+    except RuntimeError as error:
+        assert "read-only" in str(error)
+        return
+    raise AssertionError("A write through the source store was not refused.")
+
+
+@given("a source bucket with 40 small objects under media where one key cannot be copied")
+def many_objects_one_failing(context) -> None:
+    context.source = InMemoryRowBackend({}, standard_schemas())
+    objects = {f"media/object-{number:02d}.bin": (number + 1, f"etag{number}") for number in range(40)}
+    context.source_store = FlakyObjectStore(objects, "media/object-17.bin")
+    context.source_store.objects = objects
+
+
+@when("I copy with {workers:d} workers and apply")
+def copy_with_workers(context, workers: int) -> None:
+    flaky = FlakyObjectStore({}, "media/object-17.bin")
+    context.target_store = flaky
+    context.target = InMemoryRowBackend({}, standard_schemas())
+    copy_with_stores(context, workers=workers)
+    context.flaky = flaky
+
+
+@then("every copyable object was copied exactly once")
+def copied_once(context) -> None:
+    attempts = Counter(context.flaky.attempts)
+    assert len(attempts) == 40 and set(attempts.values()) == {1}, attempts
+    assert len(context.flaky.copies) == 39 and len(set(context.flaky.copies)) == 39
+
+
+@then("the plan reports {count:d} error naming the failed key")
+def one_error(context, count: int) -> None:
+    errors = [message for entry in context.plan.prefixes for message in entry.errors]
+    assert len(errors) == count and "media/object-17.bin" in errors[0], errors
+    assert context.plan.ok is False
+
+
+@then("the other {count:d} objects are present in the target")
+def others_present(context, count: int) -> None:
+    present = [key for key in context.flaky.objects if key != "media/object-17.bin"]
+    assert len(present) == count
+
+
+@then("no more than {limit:d} MiB were held in memory at once")
+def memory_bounded(context, limit: int) -> None:
+    assert 0 < context.tracking_budget.peak_bytes <= limit * MIB, context.tracking_budget.peak_bytes

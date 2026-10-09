@@ -2,19 +2,23 @@
 
 ``GraphQLRowBackend`` discovers models, keys and writable fields from AppSync
 introspection, so the same copy works for any Papyrus data schema. Reads and
-writes are signed with SigV4 from the caller's AWS credential chain.
+writes are signed with SigV4 from the caller's AWS credential chain, or from a per-side
+boto3 session when a profile is given (PPY-66408d).
 """
 
 from __future__ import annotations
 
 import json
 import re
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
-from .backend_copy import FieldSpec, ModelSchema, ObjectInfo
+from .backend_copy import MULTIPART_ETAG_MARKER, FieldSpec, ModelSchema, ObjectInfo
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
+from .graphql_http import iam_signed_graphql_headers
 
 SCALAR_KINDS = ("SCALAR", "ENUM")
 CONNECTION_PATTERN = re.compile(r"Model(.+)Connection")
@@ -55,12 +59,14 @@ def unwrap_type(type_node: dict[str, Any]) -> tuple[str, str, bool, bool]:
     return node["kind"], node["name"], is_list, required
 
 
-def resolve_location(spec: str) -> BackendLocation:
+def resolve_location(spec: str, session: Any = None) -> BackendLocation:
     if spec.startswith(STACK_PREFIX):
-        import boto3
+        if session is None:
+            import boto3
 
+            session = boto3
         stack_name = spec[len(STACK_PREFIX):]
-        stacks = boto3.client("cloudformation").describe_stacks(StackName=stack_name)["Stacks"]
+        stacks = session.client("cloudformation").describe_stacks(StackName=stack_name)["Stacks"]
         outputs = {entry["OutputKey"]: entry["OutputValue"] for entry in stacks[0].get("Outputs", [])}
         endpoint = outputs.get("awsAppsyncApiEndpoint")
         if not endpoint:
@@ -80,8 +86,13 @@ def resolve_location(spec: str) -> BackendLocation:
 
 
 class GraphQLRowBackend:
-    def __init__(self, endpoint: str, *, read_only: bool, client: Any = None) -> None:
+    def __init__(self, endpoint: str, *, read_only: bool, client: Any = None, session: Any = None) -> None:
         self.read_only = read_only
+        if client is None and session is not None:
+            client = PapyrusGraphQLAuthoringClient(
+                endpoint,
+                header_factory=lambda body: iam_signed_graphql_headers(endpoint, body, session),
+            )
         self.client = client or PapyrusGraphQLAuthoringClient(endpoint)
         self._types: dict[str, dict[str, Any]] | None = None
         self._queries: dict[str, dict[str, Any]] = {}
@@ -191,14 +202,79 @@ class GraphQLRowBackend:
         self._write("update", model, row)
 
 
-class S3ObjectStore:
-    def __init__(self, bucket: str, region: str, client: Any = None) -> None:
-        if client is None:
-            import boto3
+SERVER_SIDE_TRANSFER = "server-side"
+STREAM_TRANSFER = "stream"
+S3_PART_SIZE_BYTES = 8 * 1024 * 1024
+STREAM_MEMORY_BUDGET_BYTES = 256 * 1024 * 1024
+STREAM_READ_CHUNK_BYTES = 1024 * 1024
+PRESERVED_OBJECT_SETTINGS = ("ContentType", "CacheControl", "ContentDisposition", "ContentEncoding", "ContentLanguage")
+SOURCE_READ_ONLY_METHODS = frozenset({"get_paginator", "list_objects_v2", "head_object", "get_object"})
 
-            client = boto3.client("s3", region_name=region)
+
+class ReadOnlyS3Client:
+    """Wraps the source S3 client so only list, head and get calls can ever be made."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in SOURCE_READ_ONLY_METHODS:
+            raise RuntimeError(f"The source bucket is read-only; refusing S3 call {name}.")
+        return getattr(self._client, name)
+
+
+class MemoryBudget:
+    """Bounds the bytes held in memory by all stream workers together."""
+
+    def __init__(self, limit_bytes: int) -> None:
+        self.limit_bytes = limit_bytes
+        self._in_use = 0
+        self._condition = threading.Condition()
+
+    @contextmanager
+    def hold(self, size_bytes: int) -> Iterator[None]:
+        claim = min(max(size_bytes, 1), self.limit_bytes)
+        with self._condition:
+            self._condition.wait_for(lambda: self._in_use == 0 or self._in_use + claim <= self.limit_bytes)
+            self._in_use += claim
+        try:
+            yield
+        finally:
+            with self._condition:
+                self._in_use -= claim
+                self._condition.notify_all()
+
+
+def read_exactly(body: Any, size_bytes: int) -> bytes:
+    chunks = bytearray()
+    while len(chunks) < size_bytes:
+        chunk = body.read(min(STREAM_READ_CHUNK_BYTES, size_bytes - len(chunks)))
+        if not chunk:
+            raise RuntimeError(f"The source stream ended after {len(chunks)} of {size_bytes} bytes.")
+        chunks.extend(chunk)
+    return bytes(chunks)
+
+
+class S3ObjectStore:
+    def __init__(
+        self,
+        bucket: str,
+        region: str,
+        client: Any = None,
+        session: Any = None,
+        transfer: str = SERVER_SIDE_TRANSFER,
+        memory_budget_bytes: int = STREAM_MEMORY_BUDGET_BYTES,
+    ) -> None:
+        if client is None:
+            if session is None:
+                import boto3
+
+                session = boto3
+            client = session.client("s3", region_name=region)
         self.bucket = bucket
         self.client = client
+        self.transfer = transfer
+        self.memory_budget = MemoryBudget(memory_budget_bytes)
 
     def list_objects(self) -> list[ObjectInfo]:
         paginator = self.client.get_paginator("list_objects_v2")
@@ -209,5 +285,80 @@ class S3ObjectStore:
         ]
         return sorted(objects, key=lambda entry: entry.key)
 
-    def copy_object_from(self, source_store: Any, key: str) -> None:
-        self.client.copy({"Bucket": source_store.bucket, "Key": key}, self.bucket, key)
+    def copy_object_from(self, source_store: Any, key: str) -> str | None:
+        if self.transfer == SERVER_SIDE_TRANSFER:
+            self.client.copy({"Bucket": source_store.bucket, "Key": key}, self.bucket, key)
+            return None
+        return self._stream_object_from(source_store, key)
+
+    def _source_part_size(self, source_store: Any, key: str, size_bytes: int) -> int:
+        try:
+            first_part = source_store.client.head_object(Bucket=source_store.bucket, Key=key, PartNumber=1)
+            part_size = int(first_part["ContentLength"])
+        except Exception:
+            return S3_PART_SIZE_BYTES
+        return part_size if 0 < part_size <= size_bytes else S3_PART_SIZE_BYTES
+
+    def _stream_object_from(self, source_store: Any, key: str) -> str | None:
+        head = source_store.client.head_object(Bucket=source_store.bucket, Key=key)
+        source_etag_raw = str(head["ETag"])
+        source_etag = source_etag_raw.strip('"')
+        size_bytes = int(head["ContentLength"])
+        settings: dict[str, Any] = {name: head[name] for name in PRESERVED_OBJECT_SETTINGS if head.get(name)}
+        if head.get("Metadata"):
+            settings["Metadata"] = dict(head["Metadata"])
+        multipart_source = MULTIPART_ETAG_MARKER in source_etag
+        reproducible = multipart_source or size_bytes <= self.memory_budget.limit_bytes
+        if multipart_source:
+            part_size = self._source_part_size(source_store, key, size_bytes)
+        else:
+            part_size = size_bytes if reproducible else S3_PART_SIZE_BYTES
+        body = source_store.client.get_object(Bucket=source_store.bucket, Key=key, IfMatch=source_etag_raw)["Body"]
+        try:
+            if multipart_source or not reproducible:
+                target_etag = self._upload_in_parts(body, key, size_bytes, part_size, settings)
+            else:
+                with self.memory_budget.hold(size_bytes):
+                    data = read_exactly(body, size_bytes)
+                    target_etag = str(
+                        self.client.put_object(Bucket=self.bucket, Key=key, Body=data, **settings)["ETag"]
+                    ).strip('"')
+        finally:
+            close = getattr(body, "close", None)
+            if close:
+                close()
+        if target_etag == source_etag:
+            return None
+        if not multipart_source and reproducible:
+            raise RuntimeError(f"ETag mismatch after copy: source {source_etag}, target {target_etag}.")
+        target_size = int(self.client.head_object(Bucket=self.bucket, Key=key)["ContentLength"])
+        if target_size != size_bytes:
+            raise RuntimeError(f"Size mismatch after copy: source {size_bytes}, target {target_size}.")
+        return (
+            f"ETag not reproduced (source {source_etag}, target {target_etag}); "
+            "size verified, content not checksum-verified."
+        )
+
+    def _upload_in_parts(self, body: Any, key: str, size_bytes: int, part_size: int, settings: dict[str, Any]) -> str:
+        upload_id = self.client.create_multipart_upload(Bucket=self.bucket, Key=key, **settings)["UploadId"]
+        try:
+            parts = []
+            remaining = size_bytes
+            part_number = 1
+            while remaining > 0:
+                want = min(part_size, remaining)
+                with self.memory_budget.hold(want):
+                    data = read_exactly(body, want)
+                    uploaded = self.client.upload_part(
+                        Bucket=self.bucket, Key=key, UploadId=upload_id, PartNumber=part_number, Body=data
+                    )
+                parts.append({"ETag": uploaded["ETag"], "PartNumber": part_number})
+                remaining -= want
+                part_number += 1
+            completed = self.client.complete_multipart_upload(
+                Bucket=self.bucket, Key=key, UploadId=upload_id, MultipartUpload={"Parts": parts}
+            )
+        except Exception:
+            self.client.abort_multipart_upload(Bucket=self.bucket, Key=key, UploadId=upload_id)
+            raise
+        return str(completed["ETag"]).strip('"')
