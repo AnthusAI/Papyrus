@@ -9,7 +9,7 @@ import { curationForRelevanceReview, currentRelevanceDecisions } from "../lib/re
 async function main() {
 // tsx compiles component JSX with the classic runtime outside Next.
 (globalThis as { React?: typeof React }).React = React;
-const { RELEVANCE_REVIEW_REASONS, ReferenceRelevanceReview, RelevanceReviewBody } = await import("../components/reference-relevance-review");
+const { RELEVANCE_REVIEW_REASONS, ReferenceRelevanceReview } = await import("../components/reference-relevance-review");
 
 // Demo mode carries a fixture decision for its pending reference; no network is involved.
 const dashboard = createDemoCategorySteeringDashboard();
@@ -22,11 +22,8 @@ assert.equal(decision.reviewControl, "thumbs");
 assert.equal(decision.positiveLabel, "include");
 
 // The editor sees the decision, its confidence and version, why it was sent, thumbs, and the shareable choice.
-// The server render leaves the control to the browser (see the component's note).
-assert.equal(renderToStaticMarkup(createElement(ReferenceRelevanceReview, {
-  decision, onCurate: () => undefined, referenceLineageId: pending.lineageId ?? pending.id,
-})), "");
-const html = renderToStaticMarkup(createElement(RelevanceReviewBody, {
+// The control renders on the server too: its field ids come from the item and decision.
+const html = renderToStaticMarkup(createElement(ReferenceRelevanceReview, {
   decision, onCurate: () => undefined, referenceLineageId: pending.lineageId ?? pending.id,
 }));
 for (const text of [
@@ -37,6 +34,7 @@ for (const text of [
   "No · exclude",
   "Submit review",
   "My explanation may be quoted publicly",
+  `id="cyclotron-review-${(pending.lineageId ?? pending.id).replace(/[^A-Za-z0-9_-]/g, "_")}-decision-demo-history-002-explanation"`,
 ]) assert.ok(html.includes(text), `review control shows: ${text}`);
 
 // Only Papyrus's existing reason codes; the ones not about relevance close the review without a label.
