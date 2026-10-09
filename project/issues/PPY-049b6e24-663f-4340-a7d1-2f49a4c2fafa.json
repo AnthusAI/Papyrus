@@ -3,7 +3,7 @@
   "title": "Show the cyclotron status strip and review-rate override in the Newsroom",
   "description": "Above the References list, render the Cyclotron status widget (decision-flywheel-a161455d) from the cyclotron-status KnowledgeRawPayload snapshot: version, agreement, says-sure versus is-right, review rate and its reason, last change and its version. The card variant opens from the strip and offers the review-rate override (rate and expiry) for editors in the write groups; the override is stored as a request the next sweep applies and logs. Ordering: after the pipeline hook; needs the engine review-rate program (decision-flywheel-a81068b4) and package release.\n\nAcceptance criteria:\n- Strip renders from the snapshot with no engine access from the browser; stale snapshots say how old they are.\n- Only editors in the write groups see the override; a non-editor sees the strip read-only.\n- The override appears in the next snapshot with who set it and when it expires.,",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,12 +15,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "03d4a4a0-5056-42be-9b6f-eb141af7f1c9",
+      "author": "home",
+      "text": "Implemented on feature/PPY-049b6e-cyclotron-status (built on the repin, PR #172): the References tab shows CyclotronStatusView's strip above the list (from the KnowledgeRawPayload snapshot the sweep records; demo mode uses a fixture), a stale-snapshot note, and 'What the cyclotron is doing' with the card (classifierName 'Relevant to this publication') and, for editors who may curate, a manual review rate form (rate and days, or clear). The request is a KnowledgeRawPayload the browser writes (knowledge-raw-payload-cyclotron-review-rate-request-<id>, JSON in a raw_payload attachment); the sweep applies the newest request once with the editor as set_by, and the status shows the override. Specs: features/newsroom-cyclotron-status.feature 2/2 plus the relevance scenarios 4/4 (6/6 twice against next dev, demo mode), scripts/test-relevance-status-ui.ts (in test:ci:ts), sweep scenarios 8/8 including two for the request. Also filed PPY-2cd49c (atomic Assignment claims) and PPY-90ae22 (scope-training export may be missing negatives), with evidence. test_markus_export fails on develop in this environment too (botocore crt credential provider).",
+      "created_at": "2026-10-09T17:21:25.968713Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-09T14:52:50.679479Z",
-  "updated_at": "2026-10-09T14:53:15.890489Z",
+  "updated_at": "2026-10-09T17:21:25.968748Z",
   "closed_at": null,
-  "right_now_summary": "The Newsroom needs a Cyclotron status strip and an editor-only review-rate override.",
-  "right_now_updated_at": "2026-10-09T14:53:18.097236Z",
+  "right_now_summary": "The References tab now shows cyclotron status and lets editors set a temporary review rate.",
+  "right_now_updated_at": "2026-10-09T17:21:27.356202Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

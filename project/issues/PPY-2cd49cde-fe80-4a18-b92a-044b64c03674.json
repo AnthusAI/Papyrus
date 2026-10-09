@@ -1,0 +1,24 @@
+{
+  "id": "PPY-2cd49cde-fe80-4a18-b92a-044b64c03674",
+  "title": "Make Assignment claims atomic before more than one worker runs",
+  "description": "Finding from the relevance sweep (PPY-7a1ca2), not built yet.\n\nEvidence: src/papyrus_content/assignments.py apply_assignment_action reads the Assignment with get_record, checks active_claim_held_by_different_assignee, then writes the claim with client.upsert. There is no condition on the write, so two workers that read before either writes can both believe they hold the claim. The relevance sweep's AssignmentClaimLease (src/papyrus_content/relevance_sweep.py) uses this path as the Cyclotron store's single-writer lease; with one scheduled worker that is safe, with several it is not, and two writers would corrupt the cyclotron store snapshot.\n\nAcceptance criteria:\n- A claim is a conditional write: it succeeds only if the Assignment is unclaimed, held by the same assignee, or its claim has expired (for example an AppSync update with a condition on assigneeKey and claimExpiresAt, or a DynamoDB conditional update through a protected action).\n- A losing worker gets a clear 'already claimed by' error before doing any work.\n- A spec runs two claims against the same Assignment concurrently and shows exactly one succeeds.\n- The relevance sweep keeps using the claim as its lease with no other change.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-09T17:12:49.108096Z",
+  "updated_at": "2026-10-09T17:12:49.108140Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The team plans to make Assignment claims atomic so only one worker can claim them at a time.",
+  "right_now_updated_at": "2026-10-09T17:12:57.346213Z",
+  "custom": {}
+}

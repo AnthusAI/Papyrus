@@ -71,3 +71,35 @@ Then("that reference row should be marked {string}", async function (mark) {
 Then("the reference detail should not show a relevance review", async function () {
   assert.equal(await requirePage(this).locator("[data-reference-relevance-review]").count(), 0);
 });
+
+Then("the cyclotron status strip should say {string}", async function (text) {
+  const strip = requirePage(this).locator("[data-reference-cyclotron-status] [data-variant='strip']").first();
+  await strip.waitFor({ state: "visible", timeout: 15_000 });
+  assert.match(await strip.innerText(), new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+When("I open what the cyclotron is doing", async function () {
+  await requirePage(this).getByRole("button", { name: "What the cyclotron is doing" }).click();
+});
+
+Then("the cyclotron card should be titled {string}", async function (title) {
+  await requirePage(this).locator("[data-reference-cyclotron-status] [data-variant='card']")
+    .getByRole("heading", { name: title }).waitFor({ state: "visible", timeout: 10_000 });
+});
+
+Then("the cyclotron card should explain {string}", async function (text) {
+  const card = requirePage(this).locator("[data-reference-cyclotron-status] [data-variant='card']").first();
+  assert.match(await card.innerText(), new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+When("I ask for a manual review rate of {string} for {string}", async function (rate, duration) {
+  const form = requirePage(this).locator("[data-reference-review-rate-form]");
+  await form.getByLabel("Manual review rate").selectOption({ label: rate });
+  await form.getByLabel("How long the manual rate lasts").selectOption({ label: duration });
+  await form.getByRole("button", { name: "Set manual rate" }).click();
+});
+
+Then("the review rate form should say the next sweep applies it", async function () {
+  await requirePage(this).locator("[data-reference-review-rate-form] [role='status']")
+    .filter({ hasText: "The next sweep applies it" }).waitFor({ state: "visible", timeout: 10_000 });
+});

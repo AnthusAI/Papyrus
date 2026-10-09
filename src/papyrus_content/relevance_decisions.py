@@ -25,6 +25,7 @@ from .reference_policy import scope_training_label_for_reference
 RELEVANCE_RELATION = "relevance_decision_is"
 DECISION_NODE_KIND = "relevanceDecision"
 STATUS_PAYLOAD_KIND = "cyclotron-status"
+REVIEW_RATE_REQUEST_KIND = "cyclotron-review-rate-request"
 
 
 def decision_node_key(label: str) -> str:
@@ -129,6 +130,11 @@ def current_relevance_decision(relations: Sequence[Mapping[str, Any]], reference
 
 def status_payload_id(cyclotron_id: str) -> str:
     return f"knowledge-raw-payload-cyclotron-status-{safe_id(cyclotron_id)}"
+
+
+def review_rate_request_id(cyclotron_id: str) -> str:
+    """The KnowledgeRawPayload an editor writes to ask for a manual review rate."""
+    return f"knowledge-raw-payload-cyclotron-review-rate-request-{safe_id(cyclotron_id)}"
 
 
 def status_snapshot_record(cyclotron_id: str, status: Mapping[str, Any], *, now: str) -> dict[str, Any]:

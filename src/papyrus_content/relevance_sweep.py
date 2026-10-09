@@ -33,7 +33,7 @@ from .reference_policy import normalize_reference_curation_status
 from .relevance_cyclotron import (RelevanceCyclotronPlan, build_relevance_cyclotron, decision_model_from_environment,
                                   optimizer_from_environment)
 from .relevance_decisions import (RELEVANCE_RELATION, current_relevance_decision, relevance_decision_records,
-                                  relevance_label_for_review, status_snapshot_record)
+                                  relevance_label_for_review, review_rate_request_id, status_snapshot_record)
 from .steering import require_corpus_config
 
 SWEEP_ASSIGNMENT_TYPE = "cyclotron.relevance"
@@ -198,6 +198,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                                    max_requests=plan.max_requests, review_program=plan.review_program,
                                    seed_rubrics=plan.seed_rubrics)
         try:
+            _apply_review_rate_request(client, cyclotron, plan, result.warnings)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
             records = []
             for reference in pending:
@@ -226,6 +227,49 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     finally:
         lease.release()
     return result
+
+
+def _apply_review_rate_request(client, cyclotron, plan: RelevanceCyclotronPlan, warnings: list[str]) -> None:
+    """Apply an editor's newest review-rate request once: a manual rate with an expiry, or clearing it.
+
+    The request is a KnowledgeRawPayload the Newsroom writes; the cyclotron
+    records who set the rate and when, and the status snapshot reports it.
+    """
+    record = client.get_record("KnowledgeRawPayload", review_rate_request_id(plan.definition.id))
+    request = _latest_payload(client, record) if record else None
+    if not request:
+        return
+    requested_at = _instant(request.get("requestedAt"))
+    set_by = str(request.get("setBy") or "newsroom editor")
+    override = cyclotron.status(plan.definition.classifiers[0].id).review_rate.override
+    try:
+        if request.get("clear"):
+            if override is not None and _instant(override.set_at) < requested_at:
+                cyclotron.clear_review_rate(set_by=set_by)
+            return
+        if override is not None and _instant(override.set_at) >= requested_at:
+            return  # already applied
+        expires_at = datetime.fromisoformat(request["expiresAt"].replace("Z", "+00:00")) if request.get("expiresAt") else None
+        cyclotron.set_review_rate(float(request["rate"]), set_by=set_by, expires_at=expires_at)
+    except (KeyError, TypeError, ValueError) as error:
+        warnings.append(f"review-rate request not applied: {error}")
+
+
+def _instant(value) -> datetime:
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _latest_payload(client, record: Mapping[str, Any]) -> dict[str, Any] | None:
+    attachments = [attachment for attachment in client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", record["id"])
+                   if attachment.get("role") == "raw_payload" and attachment.get("status") != "deleted"]
+    attachments.sort(key=lambda attachment: str(attachment.get("updatedAt") or attachment.get("createdAt") or ""))
+    for attachment in reversed(attachments):
+        payload = parse_jsonish((download_attachment_buffer(client, attachment) or b"").decode("utf-8", "replace"))
+        if isinstance(payload, dict):
+            return payload
+    return None
 
 
 def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str, warnings: list[str]) -> int:
