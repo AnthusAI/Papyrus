@@ -8,6 +8,8 @@ import { CookieStorage, Hub } from "aws-amplify/utils";
 import { useEffect } from "react";
 import { assertSandboxAmplifyOutputsForDev } from "../lib/amplify-outputs-guard";
 import amplifyOutputs from "papyrus-amplify-outputs";
+import { getPublicNewsroomBasePath } from "../lib/newsroom-base-path";
+import { prioritizeRedirectUrlsForOrigin } from "../lib/oauth-redirect-priority";
 
 let configured = false;
 
@@ -72,14 +74,10 @@ function prioritizeCurrentOrigin(config: ResourcesConfig): ResourcesConfig {
   const auth = (config as { auth?: { oauth?: Record<string, unknown> } }).auth;
   const oauth = auth?.oauth;
   if (!auth || !oauth) return config;
-  const origin = normalizeUrlOrigin(window.location.origin);
   const reorder = (urls: unknown) => {
     if (!Array.isArray(urls)) return urls;
-    const normalized = urls.filter((value): value is string => typeof value === "string");
-    const head = normalized.filter((value) => normalizeUrlOrigin(value) === origin);
-    if (!head.length) return normalized;
-    const tail = normalized.filter((value) => normalizeUrlOrigin(value) !== origin);
-    return [...head, ...tail];
+    const strings = urls.filter((value): value is string => typeof value === "string");
+    return prioritizeRedirectUrlsForOrigin(strings, window.location.origin, getPublicNewsroomBasePath());
   };
   return {
     ...config,
@@ -109,22 +107,6 @@ function redirectLoopbackToLocalhost(): void {
   if (hostname !== "127.0.0.1" && hostname !== "::1") return;
   const target = `${protocol}//localhost${port ? `:${port}` : ""}${pathname}${search}${hash}`;
   window.location.replace(target);
-}
-
-function normalizeUrlOrigin(value: string): string {
-  const trimmed = value.replace(/\/+$/, "");
-  try {
-    const parsed = new URL(trimmed);
-    const hostname = normalizeLoopbackHostname(parsed.hostname);
-    return `${parsed.protocol}//${hostname}${parsed.port ? `:${parsed.port}` : ""}`;
-  } catch {
-    return trimmed;
-  }
-}
-
-function normalizeLoopbackHostname(hostname: string): string {
-  if (hostname === "127.0.0.1" || hostname === "::1") return "localhost";
-  return hostname;
 }
 
 function extractAuthFailureDetail(error: unknown): string | null {

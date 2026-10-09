@@ -298,6 +298,8 @@ against `papyrus.config.ts`), `PAPYRUS_CONTENT_SOURCE` (`published` or `drafts`)
 `PAPYRUS_EDITION_SLUG`, `PAPYRUS_REVALIDATE_SECRET_PARAMETER` (Pretext only, set by the template: the SSM parameter *name* of the revalidation secret, never its value; see [`site-hosting.md`](site-hosting.md#revalidation-secret-pretext-sites)), `PAPYRUS_ENABLE_*` flags,
 `PAPYRUS_COGNITO_DOMAIN_PREFIX` (from `cms.cognitoDomainPrefix`), `PAPYRUS_OAUTH_REDIRECT_URLS`, `SITE_ENV`. `PAPYRUS_DISABLE_GOOGLE_OAUTH` is for personal sandboxes only and is rejected in `site.json`.
 
+`PAPYRUS_OAUTH_REDIRECT_URLS` is a list of origins (a trailing `/` or `/newsroom` is accepted). `defineSiteAuth` expands every origin to `<origin>/newsroom` then `<origin>/` for both callback and logout URLs (only `<origin>/` when the active brand has `newsroomBasePath: ""`), and `components/amplify-client-provider.tsx` signs in with the current origin's newsroom entry first, so sign-in lands on the newsroom (PPY-8b0477). Pure tests: `npm run test:oauth-redirect-urls`.
+
 ### 1.7 CMS app and public site topology
 
 The CMS app is always its own Amplify app; the public site is co-hosted in it

@@ -110,6 +110,13 @@ assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.environment
 assertRejects(mutated("pretext.site.json", (c) => (c.cms.stagingDomainPrefix = "s")), "requires cms.domainPrefix");
 assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.domainPrefix = "x"; }), "requires cms.domainName");
 parseSiteConfig(mutated("threat-intelligence.site.json", (c) => {
+  c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001,https://threat-intelligence.anth.us,https://threat-intelligence-staging.anth.us";
+}));
+parseSiteConfig(mutated("threat-intelligence.site.json", (c) => {
+  c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/newsroom,https://threat-intelligence.anth.us/newsroom,https://threat-intelligence-staging.anth.us/newsroom";
+}));
+assertRejects(mutated("threat-intelligence.site.json", (c) => (c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001,https://threat-intelligence.anth.us/newsroom,https://other.anth.us")), "https://threat-intelligence-staging.anth.us");
+parseSiteConfig(mutated("threat-intelligence.site.json", (c) => {
   c.cms.staging = false;
   delete c.cms.stagingDomainPrefix;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://threat-intelligence.anth.us/";

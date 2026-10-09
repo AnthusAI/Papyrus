@@ -71,7 +71,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const enableSlackAgent = featureFlags.slack;
   const enableStorageBackups = featureFlags.storageBackups;
 
-  const authConfig = site.auth ?? authConfigFromEnv();
+  const baseAuthConfig = site.auth ?? authConfigFromEnv();
+  const activeBrand = (papyrusSite.brands ?? []).find((brand) => brand.id.toLowerCase() === siteBackendIdentity.brandId);
+  const authConfig = {
+    ...baseAuthConfig,
+    newsroomBasePath: baseAuthConfig.newsroomBasePath ?? activeBrand?.newsroomBasePath,
+  };
   const backend = defineBackend({
     assignmentAction,
     auth: defineSiteAuth(authConfig),
