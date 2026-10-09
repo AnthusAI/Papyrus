@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Token } from "aws-cdk-lib";
 import {
   deriveKnowledgeVectorIndexName,
   deriveReceiptRuleName,
@@ -44,7 +45,7 @@ assert.equal(deriveKnowledgeVectorIndexName(legacyMain), "papyrus-knowledge");
 assert.equal(deriveKnowledgeVectorIndexName(newSiteMain), "papyrus-knowledge-p-apyr-us");
 assert.equal(deriveReceiptRuleSetName(legacyMain, domain), "papyrus-inbound-p-apyr-us");
 assert.equal(deriveReceiptRuleName(legacyMain), undefined);
-assert.equal(deriveStorageBackupVaultName(legacyMain, "stack"), `papyrus-${legacyAppId}-main-media-backup-vault`);
+assert.equal(deriveStorageBackupVaultName(legacyMain), `papyrus-${legacyAppId}-main-media-backup-vault`);
 
 assert.equal(deriveReceiptRuleSetName(newSiteMain, domain), "papyrus-site-inbound-p-apyr-us");
 assert.notEqual(deriveReceiptRuleSetName(newSiteMain, domain), deriveReceiptRuleSetName(legacyMain, domain));
@@ -53,8 +54,8 @@ assert.notEqual(
   deriveReceiptRuleSetName(legacyMain, domain),
 );
 
-const siteNames = [legacyMain, newSiteMain, otherSiteMain].map((identity, index) =>
-  deriveSiteGlobalResourceNames(identity, domain, `amplify-app${index}-main-branch-abc-storagebackups-XYZ`),
+const siteNames = [legacyMain, newSiteMain, otherSiteMain].map((identity) =>
+  deriveSiteGlobalResourceNames(identity, domain),
 );
 for (const key of ["knowledgeVectorIndexName", "storageBackupVaultName"] as const) {
   const values = siteNames.map((names) => names[key]);
@@ -73,11 +74,32 @@ for (const names of siteNames) {
 }
 
 const sameBrandTwoBranchVaults = [
-  deriveStorageBackupVaultName(newSiteMain, "amplify-d2newsiteapp1-main-branch-aaa-storagebackups"),
-  deriveStorageBackupVaultName(newSiteMain, "amplify-d2newsiteapp1-main-branch-bbb-storagebackups"),
+  deriveStorageBackupVaultName(newSiteMain),
+  deriveStorageBackupVaultName({ ...newSiteMain, amplifyBranch: "staging" }),
 ];
 assert.notEqual(sameBrandTwoBranchVaults[0], sameBrandTwoBranchVaults[1]);
-assert.equal(deriveStorageBackupVaultName(newSiteMain, "s", " my vault "), "my-vault");
+assert.equal(deriveStorageBackupVaultName(newSiteMain, " my vault "), "my-vault");
+
+assert.equal(deriveStorageBackupVaultName(newSiteMain), deriveStorageBackupVaultName({ ...newSiteMain }));
+assert.match(deriveStorageBackupVaultName(newSiteMain), /^papyrus-p-apyr-us-[0-9a-f]{8}-media-vault$/);
+for (const names of siteNames) {
+  for (const value of Object.values(names)) {
+    assert.ok(value === undefined || !/token/i.test(value), `name contains token: ${value}`);
+  }
+}
+assert.equal(siteNames[0].knowledgeVectorIndexName, "papyrus-knowledge");
+assert.equal(siteNames[0].receiptRuleSetName, "papyrus-inbound-p-apyr-us");
+
+const tokenBrand = { ...newSiteMain, brandId: Token.asString({ resolve: () => "x" }) };
+for (const derive of [
+  () => deriveKnowledgeVectorIndexName(tokenBrand),
+  () => deriveReceiptRuleSetName(tokenBrand, domain),
+  () => deriveReceiptRuleName(tokenBrand),
+  () => deriveStorageBackupVaultName(tokenBrand),
+]) {
+  assert.throws(derive, /unresolved CDK token/);
+}
+assert.throws(() => deriveStorageBackupVaultName(newSiteMain, Token.asString({ resolve: () => "x" })), /unresolved CDK token/);
 
 assert.deepEqual(planInboundEmailSes(newSiteMain, false, undefined), {
   createReceiptRules: false,
