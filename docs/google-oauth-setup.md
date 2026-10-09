@@ -21,6 +21,15 @@ same list.
 | **Google Cloud Console** | Authorized redirect URIs | Cognito IdP callback only | `https://papyrus-pilobol-us.auth.us-east-1.amazoncognito.com/oauth2/idpresponse` |
 | **Papyrus (`infra/site.json`)** | `cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS` | Where users land **after** Cognito finishes | `https://newsroom.pilobol.us/`, `http://localhost:3001/`, … |
 
+List each origin once (`https://newsroom.pilobol.us/` or just the origin). The
+backend (`defineSiteAuth`) registers both `<origin>/newsroom` and `<origin>/` as
+Cognito callback and logout URLs, newsroom first, and the client signs in with
+the first entry for the current origin, so a Google sign-in on a site that owns
+`/` (Threat Intelligence, p.apyr.us) returns to the newsroom instead of the
+public reader. A CMS-only host (brand `newsroomBasePath: ""`, e.g. Pilobol.us)
+gets only `<origin>/`, because `/` already is the newsroom. Nothing changes in
+Google: it needs only the Cognito domain URIs.
+
 Do **not** put `https://newsroom.pilobol.us/` in Google's redirect URIs. Google
 never redirects there. Cognito sends the user back to your app after Google
 authenticates them.

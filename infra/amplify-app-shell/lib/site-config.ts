@@ -57,6 +57,14 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER"];
+function originOfRedirectUrl(value: string): string {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return value;
+  }
+}
+
 export function resolveRevalidateSecretParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
   return `/papyrus/${config.siteId}/revalidate-secret`;
 }
@@ -321,14 +329,15 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (redirectValue === undefined) fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", "is required");
   const redirectUrls = redirectValue.split(",").map((url) => url.trim());
   const stagingDomainName = resolveStagingDomainName(config);
+  const listedOrigins = new Set(redirectUrls.map(originOfRedirectUrl));
   const requiredOrigins = [
-    ...(resolveCmsHostName(config) ? [`https://${resolveCmsHostName(config)}/`] : []),
-    ...(stagingDomainName ? [`https://${stagingDomainName}/`] : []),
-    LOCAL_DEVELOPMENT_ORIGIN,
+    ...(resolveCmsHostName(config) ? [`https://${resolveCmsHostName(config)}`] : []),
+    ...(stagingDomainName ? [`https://${stagingDomainName}`] : []),
+    originOfRedirectUrl(LOCAL_DEVELOPMENT_ORIGIN),
   ];
   for (const origin of requiredOrigins) {
-    if (!redirectUrls.includes(origin)) {
-      fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", `must include ${origin}`);
+    if (!listedOrigins.has(origin)) {
+      fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", `must include ${origin}/ (or just the origin: the backend also registers its newsroom path)`);
     }
   }
 

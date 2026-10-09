@@ -15,8 +15,6 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
-from decision_flywheel.batched_classification import BatchedAnswers  # noqa: E402
-from decision_flywheel.models import DecisionResult  # noqa: E402
 from papyrus_content.graphql_authoring import INDEX_DEFINITIONS  # noqa: E402
 from papyrus_content.relevance_decisions import current_relevance_decision  # noqa: E402
 from papyrus_content.relevance_sweep import CyclotronClaimed, run_decide_relevance, sweep_assignment_id  # noqa: E402
@@ -57,6 +55,9 @@ class Model:
         self.calls = 0
 
     async def classify_many(self, configs, target, training, **kwargs):
+        from decision_flywheel.batched_classification import BatchedAnswers
+        from decision_flywheel.models import DecisionResult
+
         self.calls += 1
         p = 0.8 if "security" in target.values["text"] else 0.3
         return BatchedAnswers({cid: {"decision": DecisionResult("include" if p > .5 else "exclude",
