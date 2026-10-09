@@ -151,9 +151,11 @@ import {
   type SemanticObjectSummary,
 } from "../lib/semantic-graph";
 import {
+  normalizeReferenceRejectionReasonCode,
   REFERENCE_REJECTION_REASON_CODES,
   referenceCurationStatusForAction,
 } from "../lib/reference-policy";
+import { currentRelevanceDecisions } from "../lib/relevance-decisions";
 import {
   referenceDisplaySummary,
   referenceMetadataField,
@@ -776,6 +778,7 @@ function NewsDeskDashboard({
   const [referenceAttachments, setReferenceAttachments] = useState(dashboard.referenceAttachments);
   const [messages, setMessages] = useState(dashboard.messages);
   const [semanticRelations, setSemanticRelations] = useState(dashboard.semanticRelations);
+  const relevanceDecisions = useMemo(() => currentRelevanceDecisions(semanticRelations), [semanticRelations]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
@@ -1507,7 +1510,13 @@ function NewsDeskDashboard({
     });
   }
 
-  function runReferenceCurationAction(reference: ReferenceRecord, action: ReferenceCurationAction, note?: string, reasonCode?: ReferenceRejectionReasonCode | null) {
+  function runReferenceCurationAction(
+    reference: ReferenceRecord,
+    action: ReferenceCurationAction,
+    note?: string,
+    reasonCode?: ReferenceRejectionReasonCode | null,
+    relevance?: { decisionRelationId: string; shareable: boolean },
+  ) {
     const nextStatus = referenceCurationStatusForAction(action);
     setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
     if (dashboard.isDemo) {
@@ -1535,6 +1544,7 @@ function NewsDeskDashboard({
           action,
           curationStatus: nextStatus,
           reasonCode: action === "reject" ? reasonCode ?? null : null,
+          ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
         },
       }, ...current]);
       setSemanticRelations((current) => [{
@@ -1575,6 +1585,8 @@ function NewsDeskDashboard({
               actorLabel: authState.label,
               note: note?.trim() || undefined,
               reasonCode: action === "reject" ? reasonCode ?? undefined : undefined,
+              decisionRelationId: relevance?.decisionRelationId,
+              shareable: relevance ? relevance.shareable : undefined,
             },
             { authMode: USER_POOL_AUTH_MODE },
           );
@@ -3153,6 +3165,14 @@ function NewsDeskDashboard({
             demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
             initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
+            decisions={relevanceDecisions}
+            onRelevanceReview={(reference, curation) => runReferenceCurationAction(
+              reference,
+              curation.action,
+              curation.note ?? undefined,
+              normalizeReferenceRejectionReasonCode(curation.reasonCode),
+              { decisionRelationId: curation.decisionRelationId, shareable: curation.shareable },
+            )}
             onReview={(reference, action) => runReferenceCurationAction(reference, action)}
             referenceAttachments={referenceAttachments}
             references={references}

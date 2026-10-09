@@ -40,7 +40,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
         raise ValueError(f"{FIELD} must be an object.")
     _refuse_secrets(raw, FIELD)
     known = {"cyclotronId", "classifierId", "question", "labels", "positiveLabel", "decisionModel",
-             "optimizer", "store", "maxRequestsPerSweep", "reviewProgram"}
+             "optimizer", "store", "maxRequestsPerSweep", "reviewProgram", "reviewControl"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ValueError(f"{FIELD} has unknown fields: {', '.join(unknown)}.")
@@ -51,6 +51,11 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     positive = raw.get("positiveLabel", labels[0])
     if positive not in labels:
         raise ValueError(f"{FIELD}.positiveLabel must be one of {FIELD}.labels ({', '.join(labels)}).")
+    # Thumbs fit a two-class decision with a declared positive label; per-class
+    # buttons are the general case (Ryan, 2026-10-09).
+    review_control = raw.get("reviewControl", "thumbs" if len(labels) == 2 and positive else "labels")
+    if review_control not in ("thumbs", "labels"):
+        raise ValueError(f"{FIELD}.reviewControl must be thumbs or labels.")
     decision_model = raw.get("decisionModel") or {}
     provider = _string(decision_model.get("provider", "jev"), f"{FIELD}.decisionModel.provider")
     if provider not in BATCHED_DECISION_PROVIDERS:
@@ -96,6 +101,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
                   "s3Prefix": s3_prefix},
         "maxRequestsPerSweep": max_requests,
         "reviewProgram": dict(program),
+        "reviewControl": review_control,
     }
 
 
@@ -124,6 +130,7 @@ class RelevanceCyclotronPlan:
     local_path: str
     s3_prefix: str | None
     max_requests: int
+    review_control: str = "labels"
 
 
 def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
@@ -140,7 +147,8 @@ def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequ
                                for key, value in block["reviewProgram"].items()})
     return RelevanceCyclotronPlan(definition, {classifier.id: doctrine_seed_rubric(doctrine)}, program,
                                   dict(block["decisionModel"]), dict(block["optimizer"]) if block["optimizer"] else None,
-                                  block["store"]["localPath"], block["store"]["s3Prefix"], block["maxRequestsPerSweep"])
+                                  block["store"]["localPath"], block["store"]["s3Prefix"], block["maxRequestsPerSweep"],
+                                  block["reviewControl"])
 
 
 def decision_model_from_environment(plan: RelevanceCyclotronPlan):

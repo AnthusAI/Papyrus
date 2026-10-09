@@ -35,3 +35,15 @@ Feature: Relevance cyclotron configuration
     Given a steering config without a relevance cyclotron block
     When the steering config is loaded
     Then the publication has no relevance cyclotron
+
+  Scenario: The review control follows the decision's shape
+    Given a steering config with a relevance cyclotron block
+    And the publication doctrine
+    When the worker builds the relevance cyclotron
+    Then editors review it with thumbs
+
+  Scenario: A publication can choose per-label buttons
+    Given a steering config whose relevance cyclotron asks for per-label buttons
+    And the publication doctrine
+    When the worker builds the relevance cyclotron
+    Then editors review it with one button per label

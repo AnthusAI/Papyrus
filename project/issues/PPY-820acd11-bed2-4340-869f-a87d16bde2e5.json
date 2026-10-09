@@ -3,7 +3,7 @@
   "title": "Add the rating UI to the References tab: decision, confidence, thumbs, reason and explanation",
   "description": "In components/newsroom-references-view.tsx, for each pending Reference show the decision and confidence (for example Include, 82% sure) and why it was picked for review, and add a Needs review filter first in the status tabs. Replace the Accept/Reject pair with the Cyclotron review control (decision-flywheel-dd270031) in thumbs mode: thumbs up accepts; thumbs down asks for a reason from REFERENCE_REJECTION_REASON_CODES (out of scope and policy exclusion mean exclude; duplicate, low quality, unavailable, provenance and other mean no label) and an optional explanation, plus a shareable checkbox. Archive stays. Wire onReview through runReferenceCurationAction in components/topic-steering-workspace.tsx, which today drops note and reasonCode for this tab. Ordering: after the data model and the pipeline hook; needs the Cyclotron package release (decision-flywheel-0dafa816).\n\nAcceptance criteria:\n- A review from the tab stores the reason, explanation, shareable flag and decisionRelationId through reviewReferenceCuration.\n- Items with no decision still work exactly as today.\n- Demo mode renders with fixture decisions and no network.\n- Vitest and the existing newsroom BDD features cover thumbs up, thumbs down with each reason class, and undo.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -19,12 +19,28 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "31110f7f-3798-45f1-8862-d4dd61a88dbf",
+      "author": "home",
+      "text": "Implemented on feature/PPY-820acd-cyclotron-review-ui (built on PPY-7a1ca2). The References tab shows each decided reference's decision and confidence in the list, a Needs review filter first, and in the detail the Cyclotron ReviewControl (cyclotron ui-v0.2.0 tarball, transpilePackages, components.css in the Newsroom layout) in thumbs mode with Papyrus's existing rejection reasons only (out_of_scope and policy_exclusion teach; the others close without a label), an explanation, and a shareable checkbox. Reviews go through reviewReferenceCuration with decisionRelationId and shareable. References without a decision keep Accept/Reject/Archive. The review control mode is per cyclotron (relevanceCyclotron.reviewControl) and travels in the decision metadata. Demo mode has a fixture decision. Specs: features/newsroom-reference-relevance.feature 4/4 against a local dev server (demo mode), scripts/test-relevance-review-ui.ts and test-relevance-decisions.ts (in test:ci:ts), backend config scenarios 7/7; typecheck and eslint clean; next build compiles (page-data collection needs cloud credentials, as on develop). Two existing reference scenarios in newspaper-layout.feature fail the same way with and without this change. Note: ReviewControl uses useId, which this page numbers differently on server and client; the control renders in the browser only until the engine derives ids from item and decision.",
+      "created_at": "2026-10-09T17:01:51.509201Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-09T14:52:45.136460Z",
-  "updated_at": "2026-10-09T14:53:12.616277Z",
+  "updated_at": "2026-10-09T17:01:51.509240Z",
   "closed_at": null,
-  "right_now_summary": "The team is adding rating controls, review reasons, explanations, and filters to the References tab.",
-  "right_now_updated_at": "2026-10-09T14:53:13.884231Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The References tab now shows decisions and supports thumbs-up or thumbs-down reviews with reasons and explanations.",
+  "right_now_updated_at": "2026-10-09T17:01:52.664707Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

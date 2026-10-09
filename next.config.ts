@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The Cyclotron web package ships TypeScript sources (review control, status widget).
+  transpilePackages: ["cyclotron"],
   distDir: process.env.NEXT_DIST_DIR || ".next",
   experimental: {
     // Work around unstable Next dev segment-explorer module wiring in webpack dev mode.

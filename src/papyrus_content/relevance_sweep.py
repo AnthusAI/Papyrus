@@ -208,7 +208,9 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                     continue
                 records.extend(relevance_decision_records(
                     reference, decision.to_json(), cyclotron_id=plan.definition.id,
-                    positive_label=plan.definition.classifiers[0].positive_label, now=now(), current_relations=current))
+                    positive_label=plan.definition.classifiers[0].positive_label, now=now(), current_relations=current,
+                    question=plan.definition.classifiers[0].question, labels=plan.definition.classifiers[0].labels,
+                    review_control=plan.review_control))
                 result.decided += 1
             classifier = plan.definition.classifiers[0].id
             result.status = cyclotron.status(classifier).to_json()

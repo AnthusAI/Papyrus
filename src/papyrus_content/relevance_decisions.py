@@ -63,7 +63,9 @@ def decision_node_record(label: str, *, now: str) -> dict[str, Any]:
 
 def relevance_decision_records(reference: Mapping[str, Any], decision: Mapping[str, Any], *, cyclotron_id: str,
                                positive_label: str, now: str,
-                               current_relations: Sequence[Mapping[str, Any]] = ()) -> list[dict[str, Any]]:
+                               current_relations: Sequence[Mapping[str, Any]] = (),
+                               question: str | None = None, labels: Sequence[str] | None = None,
+                               review_control: str | None = None) -> list[dict[str, Any]]:
     """Records for one decision (the SDK's Decision.to_json()) and the decisions it supersedes."""
     (classifier, result), = decision["classifiers"].items()
     label = result["label"]
@@ -98,6 +100,11 @@ def relevance_decision_records(reference: Mapping[str, Any], decision: Mapping[s
             "reviewDetail": review.get("detail"),
             "propensity": review.get("propensity"),
             "decidedAt": decision.get("createdAt"),
+            # What the References tab needs to show the review control.
+            "question": question,
+            "labels": list(labels) if labels else list(probabilities),
+            "positiveLabel": positive_label,
+            "reviewControl": review_control,
         },
     })
     relation["expected"]["id"] = f"semantic-relation-{hash_short([RELEVANCE_RELATION, decision['decisionId']])}"

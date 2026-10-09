@@ -45,6 +45,9 @@ assert.deepEqual(decisions.get("reference-a"), {
   reviewReason: "audit",
   reviewDetail: "Random audit sample.",
   classes: ["include", "exclude"],
+  positiveLabel: null,
+  question: null,
+  reviewControl: "labels",
 });
 
 // An editor's review records the decision it answered and whether its explanation may be shared.
