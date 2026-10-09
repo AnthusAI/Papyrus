@@ -47,3 +47,9 @@ Feature: Relevance cyclotron configuration
     And the publication doctrine
     When the worker builds the relevance cyclotron
     Then editors review it with one button per label
+
+  Scenario: The sandbox steering config carries the cyclotron to the sandbox bucket
+    Given the publication's steering config with a relevance cyclotron block
+    When the sandbox steering config is generated for the bucket "example-sandbox-media"
+    Then the cyclotron's store snapshot prefix is "s3://example-sandbox-media/cyclotrons/papyrus-relevance/"
+    And the corpus prefixes point at "example-sandbox-media"

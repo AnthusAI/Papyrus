@@ -172,3 +172,30 @@ def step_labels_mode(context):
 @then("editors review it with one button per label")
 def step_labels(context):
     assert context.plan.review_control == "labels"
+
+
+@given("the publication's steering config with a relevance cyclotron block")
+def step_repo_config(context):
+    context.source_config = REPO_ROOT / "corpora" / "papyrus-steering.yml"
+    assert "relevanceCyclotron" in yaml.safe_load(context.source_config.read_text(encoding="utf-8"))
+
+
+@when('the sandbox steering config is generated for the bucket "{bucket}"')
+def step_generate_sandbox(context, bucket):
+    import tempfile
+    from papyrus_content.categories_commands import categories_sandbox_steering_config
+    output = Path(tempfile.mkdtemp()) / "sandbox-steering.yml"
+    categories_sandbox_steering_config(["--config", "corpora/papyrus-steering.yml", "--bucket", bucket,
+                                        "--output", str(output)])
+    context.sandbox = load_steering_config(str(output))
+
+
+@then('the cyclotron\'s store snapshot prefix is "{prefix}"')
+def step_sandbox_prefix(context, prefix):
+    assert context.sandbox["relevanceCyclotron"]["store"]["s3Prefix"] == prefix
+    assert context.sandbox["relevanceCyclotron"]["optimizer"] is None
+
+
+@then('the corpus prefixes point at "{bucket}"')
+def step_corpus_prefixes(context, bucket):
+    assert all(corpus["s3Prefix"].startswith(f"s3://{bucket}/") for corpus in context.sandbox["corpora"])

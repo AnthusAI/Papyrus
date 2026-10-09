@@ -1,0 +1,36 @@
+{
+  "id": "PPY-ac39d831-39ae-46a2-ab7c-c78ebd1303cb",
+  "title": "The relevance cyclotron runs against a sandbox publication",
+  "description": "As Ryan, I want the relevance cyclotron run for real against a development sandbox, so that the decisions, reviews, status and recording are exercised with a real decision model before production.\n\nNot included: production runs; creating or redeploying AWS resources; the LLM optimizer (off for the first run).\n\n```gherkin\nFeature: A sandbox run of the relevance cyclotron\n  Scenario: The sandbox steering config carries the cyclotron to the sandbox bucket\n    Given the publication's steering config with a relevance cyclotron block\n    When the sandbox steering config is generated for a sandbox bucket\n    Then the cyclotron's store snapshot prefix points at the sandbox bucket\n\n  Scenario: A sweep decides the sandbox's pending references\n    Given a sandbox with pending candidate references\n    When the decide-relevance sweep runs with apply on at most 30 of them\n    Then each has a recorded decision and the status snapshot is recorded\n```",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0785072c-fa5f-456a-894e-b7204b9e385d",
+      "author": "home",
+      "text": "Stopped before --apply. Done: relevanceCyclotron block in corpora/papyrus-steering.yml (documented defaults, optimizer null, maxRequestsPerSweep 30); the sandbox steering generator now rewrites relevanceCyclotron.store.s3Prefix to the sandbox bucket (spec added, config feature 8/8). Reached the personal sandbox ppy-6b4094 (stack amplify-papyrus-ppy6b4094-sandbox-e7c1507645, AppSync 7bn4apchg5gbnbbigy6dhdoeuy, account 335163751677, read-only with AWS_PROFILE=legacy) and dry-ran the sweep: 0 pending references. Blockers: (1) the sandbox has no data at all: 0 References, 0 Messages, 0 Assignments, 0 SemanticRelationTypes; (2) its backend was deployed 2026-09-06 and predates this epic: reviewReferenceCuration has no decisionRelationId or shareable argument, so shareable reviews (and quoted explanations in the recording) cannot be recorded there; (3) no Cognito editor login exists for a browser review against it. Needed from Ryan: approval to redeploy that sandbox from develop (npx ampx sandbox --once --identifier ppy-6b4094, which updates existing AWS resources), and a source of up to 30 pending candidates (a research intake run with OpenAI web search, or a registered catalog), plus an editor user for the UI review.",
+      "created_at": "2026-10-09T17:45:04.383157Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
+  "created_at": "2026-10-09T17:44:13.742994Z",
+  "updated_at": "2026-10-09T17:45:04.383192Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The sandbox is empty and outdated; it needs a redeploy, test data, and editor access before the sweep.",
+  "right_now_updated_at": "2026-10-09T17:45:07.135943Z",
+  "custom": {}
+}

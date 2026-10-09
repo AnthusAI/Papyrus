@@ -13,3 +13,21 @@ corpora:
     localClassifiers:
       - classifierId: "threat-intelligence"
         label: "Threat Intelligence Topics"
+# The relevance cyclotron (docs/relevance-cyclotron.md). Documented defaults;
+# the LLM optimizer is off (null) until a first run has exercised decisions
+# and records. The sandbox steering generator rewrites store.s3Prefix to the
+# sandbox bucket, like the corpus prefixes.
+relevanceCyclotron:
+  cyclotronId: "papyrus-relevance"
+  classifierId: "relevant"
+  question: "Should this candidate source become a reference for this publication?"
+  labels: ["include", "exclude"]
+  positiveLabel: "include"
+  decisionModel:
+    provider: "jev"
+    model: "jev-1.13.0"
+  optimizer: null
+  store:
+    localPath: "var/cyclotrons/papyrus-relevance"
+    s3Prefix: "s3://amplify-d3on1y5vlrxmam-ma-papyrusmediabucket0dab24-vq9lqoedok0k/cyclotrons/papyrus-relevance/"
+  maxRequestsPerSweep: 30
