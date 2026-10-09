@@ -3,7 +3,7 @@
   "title": "Record relevance decisions and reviews in the existing GraphQL models",
   "description": "No new tables. A decision is a SemanticRelation with predicate relevance_decision_is from the Reference lineage to SemanticNode relevance.include or relevance.exclude, using the existing fields score (probability of include), confidence, classifierId, modelVersion (cyclotron version) and reviewRecommended, with metadata {decisionId, reviewReason, propensity, cycle}. Register the predicate in corpora/papyrus-semantic-relation-types.yml and lib/semantic-graph.ts, excluded from knowledge queries like other workflow relations. A review stays the existing reviewReferenceCuration mutation (amplify/data/resource.ts, amplify/functions/category-action/handler.ts), extended with optional decisionRelationId and shareable flags stored in the reference_curation Message metadata. The label rule is the existing scopeTrainingLabelForReference (lib/reference-policy.ts) and scope_training_label_for_reference. The status snapshot is a KnowledgeRawPayload row cyclotron-status-<cyclotronId> holding cyclotron-status/v1, the same pattern as the Newsroom summary snapshot. Ordering: after the configuration task.\n\nAcceptance criteria:\n- Handler specs show the mutation stores decisionRelationId and shareable, and still works without them.\n- A superseded decision (new cyclotron version) is marked superseded, not deleted; the current one is unique per Reference lineage.\n- Knowledge queries return no relevance_decision_is relations by default.\n- The References view model can read the current decision for a Reference without an extra round trip per row.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -15,12 +15,28 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "55f87a8c-7337-462f-816a-e1f5d935a6cd",
+      "author": "home",
+      "text": "Implemented on feature/PPY-4ac3d0-cyclotron-decisions (built on feature/PPY-cc99d6-cyclotron-config): relevance_decision_is relation type (domain workflow, so knowledge queries exclude it) in corpora/papyrus-semantic-relation-types.yml and lib/semantic-graph.ts; src/papyrus_content/relevance_decisions.py (decision node and relation records reusing score, confidence, classifierId, modelVersion, reviewRecommended; superseding; status snapshot as KnowledgeRawPayload with a raw_payload attachment; label from the existing scope-training rule); reviewReferenceCuration gains optional decisionRelationId and shareable (schema.ts and resource.ts, metadata via amplify/functions/shared/reference-curation-metadata.ts); lib/relevance-decisions.ts reads current decisions from loaded relations. Specs: features_backend/cyclotron-relevance-records.feature (story PPY-106510, 9 scenarios) and scripts/test-relevance-decisions.ts (in test:ci:ts). Schema parity ok; typecheck clean apart from the pre-existing missing amplify outputs; no new pytest or BDD failures. Needs a sandbox/schema deploy for the two new mutation arguments before the UI uses them.",
+      "created_at": "2026-10-09T16:37:24.483259Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-09T14:52:34.707930Z",
-  "updated_at": "2026-10-09T14:53:01.837421Z",
+  "updated_at": "2026-10-09T16:37:24.483292Z",
   "closed_at": null,
-  "right_now_summary": "The team is wiring relevance decisions and reviews into existing GraphQL models and snapshots.",
-  "right_now_updated_at": "2026-10-09T14:53:04.118438Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "Relevance decisions and reviews are recorded in existing models; sandbox deployment is needed before the UI uses new",
+  "right_now_updated_at": "2026-10-09T16:37:26.176453Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

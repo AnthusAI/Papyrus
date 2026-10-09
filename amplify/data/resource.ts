@@ -312,6 +312,8 @@ const schema = a.schema({
       actorLabel: a.string(),
       note: a.string(),
       reasonCode: a.string(),
+      decisionRelationId: a.id(),
+      shareable: a.boolean(),
     })
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
