@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 /**
  * Wrap a publication repo's Next config for Papyrus (SPIKE, PPY-82be6c).
- * - transpile the package (it ships TypeScript source),
+ * - transpile the package and the dependencies that ship TypeScript source (cyclotron),
  * - alias `papyrus-site` -> ./papyrus.config.ts,
  *   `papyrus-amplify-outputs` -> ./amplify_outputs.json and
  *   `papyrus-site-theme` -> ./publication/theme.css when it exists, else the shipped
@@ -22,6 +22,12 @@ const SERVER_EXTERNAL = [
   "@aws-amplify/storage",
   "@aws-amplify/data-schema",
 ];
+
+export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron"];
+
+export function mergeTranspilePackages(existing = []) {
+  return [...new Set([...existing, ...DEFAULT_TRANSPILE_PACKAGES])];
+}
 
 export const RUNTIME_TRACED_FILES = ["./corpora/**/*", "./amplify_outputs.json"];
 
@@ -49,7 +55,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
   return {
     distDir: process.env.NEXT_DIST_DIR || ".next",
     ...nextConfig,
-    transpilePackages: [...new Set([...(nextConfig.transpilePackages ?? []), "@anthusai/papyrus"])],
+    transpilePackages: mergeTranspilePackages(nextConfig.transpilePackages),
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
     outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),
     images: nextConfig.images ?? { remotePatterns: [{ protocol: "https", hostname: "**" }] },

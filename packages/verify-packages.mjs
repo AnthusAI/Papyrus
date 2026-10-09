@@ -9,6 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_TRANSPILE_PACKAGES } from "./papyrus/src/with-papyrus.mjs";
+import { packageShipsTypeScriptSourceEntries } from "./typescript-source-entries.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, "..");
@@ -97,6 +99,15 @@ try {
   run("npm", ["init", "-y"], { cwd: consumer });
   const install = tryRun("npm", ["install", tarball, "next@15", "react@19", "react-dom@19"], { cwd: consumer });
   if (install.status !== 0) fail(`consumer npm install failed: ${install.stderr}`);
+  for (const dependency of Object.keys(packageJson.dependencies ?? {})) {
+    const installedManifest = path.join(consumer, "node_modules", dependency, "package.json");
+    if (!fs.existsSync(installedManifest)) continue;
+    const dependencyJson = JSON.parse(fs.readFileSync(installedManifest, "utf8"));
+    if (packageShipsTypeScriptSourceEntries(dependencyJson) && !DEFAULT_TRANSPILE_PACKAGES.includes(dependency)) {
+      fail(`dependency ${dependency} ships TypeScript source entries but is not in the default transpilePackages of withPapyrus`);
+    }
+  }
+  pass("every dependency that ships TypeScript source is in the default transpilePackages");
   const listed = tryRun("npm", ["ls", "aws-cdk-lib", "constructs"], { cwd: consumer });
   if (/aws-cdk-lib@|constructs@/.test(listed.stdout)) fail(`consumer install pulled optional peers:\n${listed.stdout}`);
   pass("consumer install does not install aws-cdk-lib or constructs");
