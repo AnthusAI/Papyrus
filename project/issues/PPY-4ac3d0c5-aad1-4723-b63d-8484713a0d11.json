@@ -1,0 +1,28 @@
+{
+  "id": "PPY-4ac3d0c5-aad1-4723-b63d-8484713a0d11",
+  "title": "Record relevance decisions and reviews in the existing GraphQL models",
+  "description": "No new tables. A decision is a SemanticRelation with predicate relevance_decision_is from the Reference lineage to SemanticNode relevance.include or relevance.exclude, using the existing fields score (probability of include), confidence, classifierId, modelVersion (cyclotron version) and reviewRecommended, with metadata {decisionId, reviewReason, propensity, cycle}. Register the predicate in corpora/papyrus-semantic-relation-types.yml and lib/semantic-graph.ts, excluded from knowledge queries like other workflow relations. A review stays the existing reviewReferenceCuration mutation (amplify/data/resource.ts, amplify/functions/category-action/handler.ts), extended with optional decisionRelationId and shareable flags stored in the reference_curation Message metadata. The label rule is the existing scopeTrainingLabelForReference (lib/reference-policy.ts) and scope_training_label_for_reference. The status snapshot is a KnowledgeRawPayload row cyclotron-status-<cyclotronId> holding cyclotron-status/v1, the same pattern as the Newsroom summary snapshot. Ordering: after the configuration task.\n\nAcceptance criteria:\n- Handler specs show the mutation stores decisionRelationId and shareable, and still works without them.\n- A superseded decision (new cyclotron version) is marked superseded, not deleted; the current one is unique per Reference lineage.\n- Knowledge queries return no relevance_decision_is relations by default.\n- The References view model can read the current decision for a Reference without an extra round trip per row.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-cc99d6de-54cb-40d5-b088-eb739329e1e6",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-09T14:52:34.707930Z",
+  "updated_at": "2026-10-09T14:53:01.837421Z",
+  "closed_at": null,
+  "right_now_summary": "The team is wiring relevance decisions and reviews into existing GraphQL models and snapshots.",
+  "right_now_updated_at": "2026-10-09T14:53:04.118438Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
