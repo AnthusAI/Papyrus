@@ -156,3 +156,19 @@ def step_fails_keys(context):
 def step_no_cyclotron(context):
     assert context.error is None
     assert context.loaded["relevanceCyclotron"] is None
+
+
+@then("editors review it with thumbs")
+def step_thumbs(context):
+    assert context.plan.review_control == "thumbs"
+
+
+@given("a steering config whose relevance cyclotron asks for per-label buttons")
+def step_labels_mode(context):
+    before_each(context)
+    write_config(context, {**BLOCK, "reviewControl": "labels"})
+
+
+@then("editors review it with one button per label")
+def step_labels(context):
+    assert context.plan.review_control == "labels"

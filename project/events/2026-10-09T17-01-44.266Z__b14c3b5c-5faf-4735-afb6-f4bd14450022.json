@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "b14c3b5c-5faf-4735-afb6-f4bd14450022",
+  "issue_id": "PPY-90ca407d-46eb-482e-839e-eece29c9f94e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:01:44.266Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editors review the relevance cyclotron's decisions in the References tab",
+    "description": "As an editor, I want to see what the relevance cyclotron decided about each pending candidate and answer with thumbs up or down, a reason and an explanation, so that my ordinary curation teaches it what this publication values.\n\nNot included: new reason codes (only the existing curation reasons), the status strip (PPY-049b6e24), undo from the control.\n\n```gherkin\nFeature: Editors review the relevance cyclotron's decisions in the References tab\n  For each pending candidate reference the relevance cyclotron has decided,\n  the References tab shows the decision, how sure it is and why it was sent\n  to review. The editor answers with thumbs up or down, one of the existing\n  rejection reasons and an optional explanation, through the existing\n  curation action.\n\n  @brand-agnostic\n  Scenario: An editor sees a decision and why it was sent to review\n    Given I open the newsroom path \"/newsroom/references/reference-knowledge-corpus-demo-source-history-002?demo=1\" at 1280 by 900\n    Then the reference detail should show the cyclotron decision \"include · 82% sure · version 1\"\n    And the reference detail should say why the decision was sent to review\n    And the reference detail should offer thumbs for \"include\" and \"exclude\"\n    And no browser console errors should occur\n\n  @brand-agnostic\n  Scenario: A thumbs-down review needs one of the existing reasons and rejects the reference\n    Given I open the newsroom path \"/newsroom/references/reference-knowledge-corpus-demo-source-history-002?demo=1\" at 1280 by 900\n    When I give the decision a thumbs down\n    Then the review cannot be submitted without a reason\n    When I choose the reason \"Out of scope\" and explain \"Not our beat.\"\n    And I submit the review\n    Then the reference detail should show the status \"Rejected\"\n    And no browser console errors should occur\n\n  @brand-agnostic\n  Scenario: The Needs review filter lists the decisions sent to review\n    Given I open the references newsroom at 1280 by 900\n    When I choose the \"Needs review\" references filter\n    Then the references list should show only \"reference-knowledge-corpus-demo-source-history-002\"\n    And that reference row should be marked \"Needs review\"\n\n  @brand-agnostic\n  Scenario: A reference without a decision keeps the existing curation actions\n    Given I open the references newsroom at 1280 by 900\n    When I open reference \"reference-knowledge-corpus-demo-source-history-001\"\n    Then the reference detail should render the curation cluster\n    And the reference detail should not show a relevance review\n```\n\nAlso: the review control mode is a per-cyclotron setting (relevanceCyclotron.reviewControl: thumbs for a two-class decision with a positive label, per-label buttons otherwise; Ryan 2026-10-09), specified in features_backend/cyclotron-relevance-config.feature.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-820acd11-bed2-4340-869f-a87d16bde2e5",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}
