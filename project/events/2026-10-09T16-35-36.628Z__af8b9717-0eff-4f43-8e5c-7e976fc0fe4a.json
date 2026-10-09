@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "af8b9717-0eff-4f43-8e5c-7e976fc0fe4a",
+  "issue_id": "PPY-1065103c-aa73-4291-ba9d-3c40b8635bc8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T16:35:36.628Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Relevance decisions and reviews live in the newsroom's own records",
+    "description": "As an editor, I want the relevance cyclotron's decisions and my reviews stored in the newsroom's existing records, so that the References tab, knowledge queries and the cyclotron all read one system of record.\n\nNot included: running decisions (PPY-7a1ca2f7) or showing them (PPY-820acd11).\n\n```gherkin\nFeature: Relevance decisions and reviews live in the newsroom's own records\n  A decision is a relation from the candidate reference to a decision node,\n  a newer decision supersedes the older one, the status snapshot is a raw\n  payload, and an editor's curation becomes a cyclotron label by the\n  existing scope-training rule.\n\n  Scenario: A decision becomes the reference's current relevance decision\n    Given a pending reference\n    And a relevance decision of \"include\" at 82% sent to review as a random audit\n    When the decision is recorded\n    Then the reference has one current relevance decision of \"include\"\n    And the decision records its confidence, cyclotron classifier, version and that review is recommended\n    And the decision node \"relevance.include\" is recorded\n\n  Scenario: A newer decision supersedes the older one\n    Given a pending reference with a current relevance decision\n    And a relevance decision of \"exclude\" at 75% not sent to review\n    When the decision is recorded\n    Then the older decision is superseded\n    And the reference has one current relevance decision of \"exclude\"\n\n  Scenario: Relevance decisions stay out of knowledge queries\n    When the relation type \"relevance_decision_is\" is looked up\n    Then it is an operational workflow relation that knowledge queries exclude\n\n  Scenario: The status snapshot is a raw payload the newsroom can read\n    Given a cyclotron status snapshot\n    When the snapshot is recorded\n    Then it is a raw payload for the cyclotron with the snapshot as its private attachment\n\n  Scenario Outline: An editor's curation becomes a cyclotron label by the scope-training rule\n    Given a reference curated as \"<status>\" with reason \"<reason>\"\n    When its cyclotron label is read\n    Then the label is \"<label>\"\n\n    Examples:\n      | status   | reason           | label   |\n      | accepted |                  | include |\n      | rejected | out_of_scope     | exclude |\n      | rejected | policy_exclusion | exclude |\n      | rejected | duplicate        | none    |\n      | archived |                  | none    |\n```\n\nTS behaviour (scripts/test-relevance-decisions.ts): the References view reads the current decision per reference from relations it already loads; reviewReferenceCuration stores decisionRelationId and shareable when given and is unchanged without them.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4ac3d0c5-aad1-4723-b63d-8484713a0d11",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

@@ -4,6 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
+import { referenceCurationMetadata } from "../shared/reference-curation-metadata";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -225,14 +226,15 @@ async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandle
     { ownerKind: "message", ownerId: messageId, ownerLineageId: messageId },
     "metadata",
     "metadata",
-    {
+    referenceCurationMetadata({
       action,
       curationStatus: nextStatus,
       reasonCode,
-      curationReasonCode: reasonCode,
       referenceId,
       referenceLineageId,
-    },
+      decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
+      shareable: event.arguments.shareable ?? null,
+    }),
     { filename: "metadata.json", now },
   );
 
