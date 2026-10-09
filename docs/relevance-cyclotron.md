@@ -100,3 +100,19 @@ on a schedule. Each run:
 The sweep never accepts, rejects or archives a reference. A reference an
 editor reopens to pending is decided again only when a new version is
 promoted.
+
+## What editors see
+
+The References tab shows the cyclotron's status strip above the list (version,
+agreement, calibration as "says N%, right M%", the review rate and its
+state), read from the status snapshot the sweep records. "What the cyclotron
+is doing" opens the detail card: recall, precision and accuracy with plain
+explanations, the review rate's reason and next step, and the last change.
+
+Editors who may change curation can set a manual review rate for confident
+decisions (0% to 100%, for 1 to 30 days) or clear it. The Newsroom records
+the request as a `KnowledgeRawPayload`
+(`knowledge-raw-payload-cyclotron-review-rate-request-<cyclotronId>`); the next
+sweep applies it once, and the status then shows who set it and when it
+expires. Low-confidence decisions and the random audit share are always
+reviewed.

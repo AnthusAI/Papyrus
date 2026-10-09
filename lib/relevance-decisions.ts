@@ -18,6 +18,7 @@ export type RelevanceDecisionView = {
   question: string | null;
   /** Thumbs for a two-class decision with a positive label; per-class buttons otherwise. */
   reviewControl: "thumbs" | "labels";
+  cyclotronId: string | null;
 };
 
 /** What an editor submits from the review control. */
@@ -75,6 +76,7 @@ export function currentRelevanceDecisions(relations: SemanticRelationRecord[]): 
       positiveLabel: typeof metadata.positiveLabel === "string" ? metadata.positiveLabel : null,
       question: typeof metadata.question === "string" ? metadata.question : null,
       reviewControl: metadata.reviewControl === "thumbs" ? "thumbs" : "labels",
+      cyclotronId: typeof metadata.cyclotronId === "string" ? metadata.cyclotronId : null,
     });
   }
   return decisions;

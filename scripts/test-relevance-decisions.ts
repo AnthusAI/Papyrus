@@ -48,6 +48,7 @@ assert.deepEqual(decisions.get("reference-a"), {
   positiveLabel: null,
   question: null,
   reviewControl: "labels",
+  cyclotronId: null,
 });
 
 // An editor's review records the decision it answered and whether its explanation may be shared.

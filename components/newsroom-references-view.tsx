@@ -45,6 +45,8 @@ import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceRelevanceReview } from "./reference-relevance-review";
+import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
+import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import type { RelevanceCuration, RelevanceDecisionView } from "../lib/relevance-decisions";
 import {
   loadReferenceAttachmentsForLineageId,
@@ -52,6 +54,10 @@ import {
 } from "./news-desk-taxonomy-client";
 
 type NewsroomReferencesViewProps = {
+  /** The relevance cyclotron's status snapshot, shown above the list. */
+  cyclotronStatus?: CyclotronStatus | null;
+  /** Present for editors who may ask for a manual review rate. */
+  onRequestReviewRate?: (choice: ReviewRateChoice) => Promise<void> | void;
   demo?: boolean;
   /** The relevance cyclotron's current decisions, keyed by reference lineage. */
   decisions?: Map<string, RelevanceDecisionView>;
@@ -385,7 +391,9 @@ function ReferenceDetailPanel({
 }
 
 export function NewsroomReferencesView({
+  cyclotronStatus,
   decisions,
+  onRequestReviewRate,
   demo = false,
   disabled = false,
   onRelevanceReview,
@@ -499,6 +507,11 @@ export function NewsroomReferencesView({
             Review source intake before it becomes accepted evidence.
           </p>
         </div>
+        {cyclotronStatus ? (
+          <div className="shrink-0">
+            <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />
+          </div>
+        ) : null}
 
         <Tabs
           className="shrink-0"

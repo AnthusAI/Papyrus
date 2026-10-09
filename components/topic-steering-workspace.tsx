@@ -53,6 +53,8 @@ import {
   type ForumThreadWithMessages,
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
+  loadCyclotronStatus,
+  requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
 import { listConsoleThreads } from "../lib/console-chat-client";
 import {
@@ -156,6 +158,8 @@ import {
   referenceCurationStatusForAction,
 } from "../lib/reference-policy";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
+import { buildReviewRateRequest, DEMO_CYCLOTRON_STATUS } from "../lib/relevance-status";
+import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import {
   referenceDisplaySummary,
   referenceMetadataField,
@@ -779,6 +783,23 @@ function NewsDeskDashboard({
   const [messages, setMessages] = useState(dashboard.messages);
   const [semanticRelations, setSemanticRelations] = useState(dashboard.semanticRelations);
   const relevanceDecisions = useMemo(() => currentRelevanceDecisions(semanticRelations), [semanticRelations]);
+  const relevanceCyclotronId = useMemo(
+    () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
+    [relevanceDecisions],
+  );
+  const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
+  useEffect(() => {
+    if (!relevanceCyclotronId) return;
+    if (dashboard.isDemo) {
+      setCyclotronStatus(DEMO_CYCLOTRON_STATUS);
+      return;
+    }
+    let cancelled = false;
+    loadCyclotronStatus(relevanceCyclotronId)
+      .then((status) => { if (!cancelled) setCyclotronStatus(status); })
+      .catch(() => { if (!cancelled) setCyclotronStatus(null); });
+    return () => { cancelled = true; };
+  }, [dashboard.isDemo, relevanceCyclotronId]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
@@ -3165,7 +3186,13 @@ function NewsDeskDashboard({
             demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
             initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
+            cyclotronStatus={cyclotronStatus}
             decisions={relevanceDecisions}
+            onRequestReviewRate={relevanceCyclotronId ? async (choice) => {
+              const request = buildReviewRateRequest(choice, authState.label);
+              if (dashboard.isDemo) return;
+              await requestCyclotronReviewRate(relevanceCyclotronId, request);
+            } : undefined}
             onRelevanceReview={(reference, curation) => runReferenceCurationAction(
               reference,
               curation.action,

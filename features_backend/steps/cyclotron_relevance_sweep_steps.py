@@ -119,7 +119,9 @@ def run(context, *, apply=True, fresh_worker=False):
 
     with mock.patch("papyrus_content.relevance_sweep.knowledge_corpus_id", return_value=CORPUS_ID), \
             mock.patch("papyrus_content.records.upload_attachment_body", side_effect=store_body), \
-            mock.patch("papyrus_content.assignments.upload_attachment_body", side_effect=store_body):
+            mock.patch("papyrus_content.assignments.upload_attachment_body", side_effect=store_body), \
+            mock.patch("papyrus_content.relevance_sweep.download_attachment_buffer",
+                       side_effect=lambda client, attachment: client.bodies.get(attachment["id"])):
         try:
             context.result = run_decide_relevance(context.client, context.steering, DOCTRINE, apply=apply,
                                                   worker="worker-a", model=context.model, snapshots=context.bucket)
@@ -267,3 +269,52 @@ def step_no_calls(context):
 def step_plan(context, count):
     assert context.result.pending == [item["lineageId"] for item in sorted(
         context.pending, key=lambda r: r["importedAt"])][:count] and len(context.result.pending) == count
+
+
+def request_review_rate(context, payload, at):
+    from papyrus_content.relevance_decisions import review_rate_request_id
+    record_id = review_rate_request_id("papyrus-relevance")
+    context.client.upsert("KnowledgeRawPayload", {"id": record_id, "ownerType": "cyclotron", "ownerId": "papyrus-relevance",
+                                                   "payloadKind": "cyclotron-review-rate-request", "createdAt": at})
+    attachment_id = f"model-attachment-request-{at}"
+    context.client.upsert("ModelAttachment", {"id": attachment_id, "ownerKind": "knowledgeRawPayload", "ownerId": record_id,
+                                              "role": "raw_payload", "status": "active", "createdAt": at, "updatedAt": at,
+                                              "storagePath": f"newsroom/payloads/{attachment_id}.json"})
+    context.client.bodies[attachment_id] = json.dumps(payload).encode()
+
+
+@given("an editor asked for a {percent:d}% review rate for {days:d} days")
+def step_request_rate(context, percent, days):
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    request_review_rate(context, {"rate": percent / 100, "expiresAt": (now + timedelta(days=days)).isoformat(),
+                                  "setBy": "managing-editor", "requestedAt": now.isoformat()}, now.isoformat())
+
+
+@given("the editor then asked to clear the manual rate")
+def step_request_clear(context):
+    from datetime import datetime, timedelta, timezone
+    later = datetime.now(timezone.utc) + timedelta(seconds=1)
+    request_review_rate(context, {"clear": True, "setBy": "managing-editor", "requestedAt": later.isoformat()},
+                        later.isoformat())
+
+
+@then('the cyclotron status snapshot reports a manual rate of {percent:d}% set by "{who}"')
+def step_manual_rate(context, percent, who):
+    rate = status(context)["reviewRate"]
+    assert rate["state"] == "manual" and rate["rate"] == percent / 100, rate
+    assert rate["override"]["setBy"] == who and rate["override"]["expiresAt"]
+
+
+@then("the cyclotron applied the manual rate once")
+def step_applied_once(context):
+    from decision_flywheel import Cyclotron  # noqa: F401
+    with open_store(context) as cyclotron:
+        changes = [event for event in cyclotron.subscribe(limit=1000)["events"] if event["kind"] == "review-rate-changed"]
+    assert len(changes) == 1, changes
+
+
+@then("the cyclotron status snapshot reports no manual rate")
+def step_no_manual(context):
+    rate = status(context)["reviewRate"]
+    assert rate["override"] is None and rate["state"] != "manual", rate

@@ -3682,3 +3682,54 @@ function normalizeUnknownErrorMessage(error: unknown, fallback: string): string 
     return fallback;
   }
 }
+
+const CREATE_KNOWLEDGE_RAW_PAYLOAD_MUTATION = `
+  mutation CreateKnowledgeRawPayload($input: CreateKnowledgeRawPayloadInput!) {
+    createKnowledgeRawPayload(input: $input) { id }
+  }
+`;
+
+const GET_KNOWLEDGE_RAW_PAYLOAD_QUERY = `
+  query GetKnowledgeRawPayload($id: ID!) {
+    getKnowledgeRawPayload(id: $id) { id }
+  }
+`;
+
+/** The relevance cyclotron's latest cyclotron-status/v1 snapshot, as the sweep recorded it. */
+export async function loadCyclotronStatus(cyclotronId: string): Promise<import("cyclotron/cyclotron-status").CyclotronStatus | null> {
+  const { cyclotronStatusPayloadId, latestCyclotronStatus } = await import("../lib/relevance-status");
+  const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", cyclotronStatusPayloadId(cyclotronId), ["raw_payload"]);
+  return latestCyclotronStatus(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
+}
+
+/** Ask the next decide-relevance sweep to set or clear a manual review rate. */
+export async function requestCyclotronReviewRate(
+  cyclotronId: string,
+  request: import("../lib/relevance-status").ReviewRateRequest,
+): Promise<void> {
+  const { reviewRateRequestPayloadId, safeId } = await import("../lib/relevance-status");
+  const id = reviewRateRequestPayloadId(cyclotronId);
+  const existing = await runGraphql<{ getKnowledgeRawPayload?: { id: string } | null }>(GET_KNOWLEDGE_RAW_PAYLOAD_QUERY, { id });
+  if (!existing.getKnowledgeRawPayload) {
+    await runGraphql(CREATE_KNOWLEDGE_RAW_PAYLOAD_MUTATION, {
+      input: {
+        id,
+        ownerType: "cyclotron",
+        ownerId: safeId(cyclotronId),
+        payloadKind: "cyclotron-review-rate-request",
+        createdAt: request.requestedAt,
+        updatedAt: request.requestedAt,
+      },
+    });
+  }
+  await uploadModelPayloadForOwner({
+    ownerKind: "knowledgeRawPayload",
+    ownerId: id,
+    ownerLineageId: id,
+    role: "raw_payload",
+    sortKey: `review-rate-request-${request.requestedAt}`,
+    filename: "review-rate-request.json",
+    mediaType: "application/json",
+    content: JSON.stringify(request),
+  });
+}

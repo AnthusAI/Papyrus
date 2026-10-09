@@ -1689,6 +1689,7 @@ export function createDemoCategorySteeringDashboard(
         importedAt,
         metadata: JSON.stringify({
           decisionId: "decision-demo-history-002",
+          cyclotronId: "papyrus-relevance",
           label: "include",
           probabilities: { include: 0.82, exclude: 0.18 },
           labels: ["include", "exclude"],

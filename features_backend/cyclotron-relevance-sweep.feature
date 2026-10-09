@@ -48,3 +48,17 @@ Feature: The candidate pipeline asks the relevance cyclotron about pending refer
     Then the plan lists 2 pending references to decide
     And the decision model was not called
     And no records were written
+
+  Scenario: An editor's manual review rate reaches the cyclotron once
+    Given an editor asked for a 50% review rate for 7 days
+    When the decide-relevance sweep runs with apply
+    Then the cyclotron status snapshot reports a manual rate of 50% set by "managing-editor"
+    When the decide-relevance sweep runs with apply
+    Then the cyclotron applied the manual rate once
+
+  Scenario: An editor clears the manual review rate
+    Given an editor asked for a 50% review rate for 7 days
+    And the decide-relevance sweep has run with apply
+    And the editor then asked to clear the manual rate
+    When the decide-relevance sweep runs with apply
+    Then the cyclotron status snapshot reports no manual rate
