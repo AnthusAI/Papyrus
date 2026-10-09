@@ -61,7 +61,7 @@ class Model:
         p = 0.8 if "security" in target.values["text"] else 0.3
         return BatchedAnswers({cid: {"decision": DecisionResult("include" if p > .5 else "exclude",
                                                                 {"include": p, "exclude": 1 - p})}
-                               for cid in configs}, "scripted", {}, 1)
+                               for cid in configs}, "scripted", {"input_tokens": 1000, "output_tokens": 0}, 1)
 
 
 class LocalBucket:
@@ -209,6 +209,30 @@ def step_snapshot(context):
 @then("the decision model was called once per pending reference in total")
 def step_calls(context):
     assert context.model.calls == len(context.pending), context.model.calls
+
+
+def curate(context, item, *, status, action, reason, note, shareable):
+    row = context.client.tables["Reference"][item["id"]]
+    row.update({"curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}",
+                "curationStatusReason": note, "curationStatusUpdatedAt": "2026-10-09T12:00:00Z"})
+    message_id = f"message-reference-curation-{item['lineageId']}-{action}"
+    metadata = {"action": action, "reasonCode": reason, **({"shareable": shareable} if shareable is not None else {})}
+    context.client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "editor-7",
+                                      "createdAt": "2026-10-09T12:00:00Z", "metadata": json.dumps(metadata)})
+    context.client.upsert("SemanticRelation", {
+        "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
+        "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
+        "objectStateKey": f"reference#{item['lineageId']}#current", "subjectStateKey": f"message#{message_id}#current"})
+
+
+@given('an editor rejected the first pending reference as "{reason}" saying "{note}" and allowed quoting')
+def step_editor_rejects_shareable(context, reason, note):
+    curate(context, context.pending[0], status="rejected", action="reject", reason=reason, note=note, shareable=True)
+
+
+@given('an editor accepted the second pending reference saying "{note}"')
+def step_editor_accepts(context, note):
+    curate(context, context.pending[1], status="accepted", action="accept", reason=None, note=note, shareable=False)
 
 
 @given('an editor rejected the first pending reference as "{reason}" saying "{note}"')

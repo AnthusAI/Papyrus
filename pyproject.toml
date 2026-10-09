@@ -22,7 +22,7 @@ markus = [
 # The relevance cyclotron (Cyclotron's application SDK, the Jev decision model and
 # the OpenAI optimizer adapter), pinned to one engine commit.
 cyclotron = [
-    "decision-flywheel[jev,optimizer] @ git+https://github.com/AnthusAI/Cyclotron.git@b2234be79d83231a4ed69f17a928b5049ab364a4",
+    "decision-flywheel[jev,optimizer] @ git+https://github.com/AnthusAI/Cyclotron.git@9874b710c47d7396017e26c625f68286c413d52e",
 ]
 newsroom = [
     "boto3 >=1.34.0,<2.0.0",
