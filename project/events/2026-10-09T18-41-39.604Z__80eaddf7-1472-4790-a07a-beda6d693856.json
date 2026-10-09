@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "80eaddf7-1472-4790-a07a-beda6d693856",
+  "issue_id": "PPY-296a7feb-17d0-446d-a5a6-5e93a5b24de3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T18:41:39.604Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CLI-written model attachments are stored as ready and cannot be downloaded",
+    "description": "Found during the relevance cyclotron sandbox run (PPY-ac39d8).\n\nEvidence: src/papyrus_content/model_attachments.py builds every Python-written ModelAttachment with status 'ready' (build_json_model_payload_attachment and friends). completeModelAttachmentUpload stores the status it is given (amplify/functions/model-attachment-upload/handler.ts), and createModelAttachmentDownload refuses anything not 'active' ('ModelAttachment ... is ready, not active.'). So research packet metadata written by 'papyrus research apply', and the cyclotron status snapshot written by the decide-relevance sweep, cannot be read back through the download API (the References tab's status strip, research-packet proposal intake). Browser uploads default to 'active' and are unaffected.\n\n```gherkin\nFeature: Attachments the CLI writes can be read back\n  Scenario: A JSON payload the CLI uploads is active\n    Given a JSON payload built by the Python authoring tools\n    When it is uploaded and completed\n    Then its stored status is active\n```\n\nDone when Python-written attachments default to 'active' and a spec covers it. Records already stored as 'ready' are rewritten when their payloads are written again.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

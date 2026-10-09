@@ -95,7 +95,8 @@ def build_model_payload_attachment(input_payload: dict[str, Any]) -> dict[str, A
         "importRunId": input_payload.get("importRunId"),
         "createdAt": now,
         "updatedAt": now,
-        "status": input_payload.get("status") or "ready",
+        # Downloads require active; a CLI-written payload is complete once uploaded.
+        "status": input_payload.get("status") or "active",
     }
     return {"attachment": attachment, "body": body}
 
