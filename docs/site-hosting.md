@@ -432,6 +432,16 @@ branch and grant their compute role and `content-actions` role the read themselv
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 
+## Cross-account domains
+
+Lessons from the failed p.apyr.us cutover (the Route 53 zone stayed in the legacy account while the new app lives in the production account):
+
+- An Amplify hostname can belong to only one app across accounts. Creating the association in the new account is refused ("already associated with another Amplify app") while another account's app holds `p.apyr.us` or `apyr.us`.
+- Deleting an association deletes its CloudFront distribution and the Amplify-managed records. Re-creating it yields a NEW distribution and a NEW certificate, so the old site is down until the new association is AVAILABLE, and rolling back is a re-creation, not an undo.
+- A cross-account association waited 30 minutes in `PENDING_VERIFICATION`, although its validation CNAME was identical to the record already in the zone. The cause is unresolved. Do not retry the delete-first cutover without a diagnostic on a hostname nobody holds, for example a throwaway prefix.
+- Connecting a repository in the Amplify console overwrites the app `buildSpec` and branch environment variables. Restore the build spec with `aws amplify update-app --build-spec` and re-apply the branch variables from the stack.
+- Plan domain moves so the Route 53 zone lives in the same account as the app whenever possible; that avoids manual validation records and the cross-account refusal.
+
 ## Backend features and account-global names
 
 `defineSiteBackend(site)` creates four optional features, each behind a flag
