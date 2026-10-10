@@ -67,6 +67,25 @@ def resolve_transfer_mode(option: str | None, source_profile: str | None, target
     return chosen
 
 
+def resolve_s3_selection(prefix_option: str | None, keys_option: str | None) -> tuple[list[str], list[str]]:
+    keys = parse_selection(keys_option, []) if keys_option else []
+    if prefix_option == NO_PREFIXES_KEYWORD:
+        return [], keys
+    if prefix_option is None and keys:
+        return [], keys
+    return parse_selection(prefix_option, DEFAULT_S3_PREFIXES), keys
+
+
+def parse_key_field_defaults(option: str | None) -> dict[str, str]:
+    defaults: dict[str, str] = {}
+    for assignment in parse_selection(option, []):
+        name, separator, value = assignment.partition("=")
+        if not separator or "." not in name or not value:
+            raise ValueError(f"--key-field-defaults entries must look like Model.field=value, got {assignment}.")
+        defaults[name] = value
+    return defaults
+
+
 def make_progress_reporter() -> Callable[[int, int, int], None]:
     lock = threading.Lock()
     state = {"last": time.monotonic()}
@@ -109,8 +128,10 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
         raise ValueError("The source and the target must be different backends.")
 
     requested_models = parse_selection(normalize_string(options.get("models")), []) if options.get("models") else None
-    prefix_option = normalize_string(options.get("s3-prefixes"))
-    prefixes = [] if prefix_option == NO_PREFIXES_KEYWORD else parse_selection(prefix_option, DEFAULT_S3_PREFIXES)
+    prefixes, keys = resolve_s3_selection(
+        normalize_string(options.get("s3-prefixes")), normalize_string(options.get("s3-keys"))
+    )
+    key_field_defaults = parse_key_field_defaults(normalize_string(options.get("key-field-defaults")))
 
     source = GraphQLRowBackend(source_location.endpoint, read_only=True, session=source_session)
     target = GraphQLRowBackend(target_location.endpoint, read_only=False, session=target_session)
@@ -129,6 +150,8 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
         source_store=source_store,
         target_store=target_store,
         selected_prefixes=prefixes,
+        selected_keys=keys,
+        key_field_defaults=key_field_defaults,
         source_account=source_account,
         target_account=target_account,
     )
@@ -145,6 +168,8 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
                 source_store=source_store,
                 target_store=target_store,
                 selected_prefixes=prefixes,
+                selected_keys=keys,
+                key_field_defaults=key_field_defaults,
                 source_account=source_account,
                 target_account=target_account,
             )
@@ -155,6 +180,8 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
     else:
         print(f"content copy-backend ({'applied' if apply else 'dry run, nothing written'}): ok={plan.ok}")
         print(render_table(plan))
+        for message in plan.errors:
+            print(f"  error: {message}")
         for entry in plan.models:
             for invalid in entry.invalid:
                 print(f"  invalid {entry.model} {invalid['id']}: {','.join(invalid['problems'])}")
@@ -167,3 +194,4 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
                 print(f"  warning {entry.prefix}: {message}")
     if not plan.ok:
         raise SystemExit(1)
+
