@@ -586,6 +586,13 @@ itself. Both are read by `lib/site-env.ts`.
 - `PAPYRUS_CONTENT_SOURCE=drafts` is refused unless `SITE_ENV=staging`: the
   server fails when `lib/content-repository.ts` loads. **Production never sets
   `drafts`.**
+- `/robots.txt` comes from the package's `app/robots.ts` (`lib/robots-policy.ts`):
+  `Disallow: /` for staging and development, `Allow: /` for production (no
+  sitemap line; Papyrus ships none), and `Disallow: /` always on a CMS-only
+  host whose `rootRoute` is `newsroom`, because that host is an editing UI. A
+  site-owned `app/robots.ts` overrides it. Consumers need a package version
+  whose route manifest lists `app/robots.ts` (releases after next.37) and a
+  `papyrus-app sync`.
 - Not production means: `Disallow: /` in `robots.txt`, `noindex` meta and
   `X-Robots-Tag`, a "STAGING" banner, and no analytics (`analyticsAllowed()`).
 - On a staging deployment the middleware redirects anonymous visitors to
