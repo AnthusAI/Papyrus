@@ -31,6 +31,7 @@ DEFAULT_MODELS = (
     "PublishedEditionItem",
 )
 DEFAULT_S3_PREFIXES = ("media/",)
+BUILTIN_KEY_FIELD_DEFAULTS = {"Message.responseStatus": "COMPLETED"}
 SYSTEM_TIMESTAMP_FIELDS = frozenset({"createdAt", "updatedAt"})
 JSON_SCALAR_NAME = "AWSJSON"
 MULTIPART_ETAG_MARKER = "-"
@@ -57,6 +58,7 @@ class ModelSchema:
     key_fields: tuple[str, ...]
     readable: dict[str, FieldSpec]
     writable: dict[str, FieldSpec]
+    composite_sort_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -149,6 +151,8 @@ class ModelPlan:
     updated: list[str] = field(default_factory=list)
     unchanged: int = 0
     invalid: list[dict[str, Any]] = field(default_factory=list)
+    key_defaulted_rows: int = 0
+    key_default_values: dict[str, str] = field(default_factory=dict)
     dropped_fields: list[str] = field(default_factory=list)
     unwritable_timestamps: list[str] = field(default_factory=list)
     target_only_rows: int = 0
@@ -171,6 +175,7 @@ class ModelPlan:
             "updated": len(self.updated),
             "unchanged": self.unchanged,
             "invalid": len(self.invalid),
+            "keyFieldDefaults": {"count": self.key_defaulted_rows, "fields": dict(sorted(self.key_default_values.items()))},
             "targetOnlyRows": self.target_only_rows,
             "droppedFields": self.dropped_fields,
             "unwritableTimestamps": self.unwritable_timestamps,
@@ -317,7 +322,34 @@ def comparison_field_names(shared: list[str], key_fields: tuple[str, ...]) -> li
     return [name for name in shared if name not in SYSTEM_TIMESTAMP_FIELDS and name not in key_fields]
 
 
-def plan_selected_model(model: str, source: RowBackend, target: RowBackend) -> ModelPlan:
+def composite_sort_key_candidates(target_schema: ModelSchema, shared: list[str]) -> list[str]:
+    return [name for name in target_schema.composite_sort_fields if name in shared]
+
+
+def with_key_field_defaults(
+    model: str, row: dict[str, Any], candidates: list[str], defaults: dict[str, str]
+) -> tuple[dict[str, Any], dict[str, str]]:
+    applied = {
+        name: defaults[f"{model}.{name}"]
+        for name in candidates
+        if row.get(name) is None and f"{model}.{name}" in defaults
+    }
+    return ({**row, **applied} if applied else row), applied
+
+
+def unresolved_composite_sort_keys(target_schema: ModelSchema, row: dict[str, Any]) -> list[str]:
+    return [
+        f"null-composite-sort-key:{name}"
+        for name in target_schema.composite_sort_fields
+        if name in target_schema.writable
+        and not target_schema.writable[name].required
+        and row.get(name) is None
+    ]
+
+
+def plan_selected_model(
+    model: str, source: RowBackend, target: RowBackend, key_field_defaults: dict[str, str]
+) -> ModelPlan:
     source_schema = source.schema(model)
     target_schema = target.schema(model)
     plan = ModelPlan(model=model, selected=True, reason="selected")
@@ -332,6 +364,7 @@ def plan_selected_model(model: str, source: RowBackend, target: RowBackend) -> M
         name for name in SYSTEM_TIMESTAMP_FIELDS
         if name in source_schema.readable and name not in target_schema.writable
     )
+    key_candidates = composite_sort_key_candidates(target_schema, shared)
     compare_fields = comparison_field_names(shared, source_schema.key_fields)
     hash_fields = [name for name in shared if name not in SYSTEM_TIMESTAMP_FIELDS]
 
@@ -345,14 +378,22 @@ def plan_selected_model(model: str, source: RowBackend, target: RowBackend) -> M
         plan.source_rows += 1
         key = row_key(source_schema, row)
         seen_keys.add(key)
+        existing = target_by_key.get(key)
+        applied_defaults: dict[str, str] = {}
+        if existing is None:
+            row, applied_defaults = with_key_field_defaults(model, row, key_candidates, key_field_defaults)
         source_projection = row_projection(source_schema.readable, row, hash_fields)
         plan.source_hashes[key] = row_hash(source_projection)
         problems = validate_row(target_schema, row)
+        if existing is None:
+            problems += unresolved_composite_sort_keys(target_schema, row)
         if problems:
             plan.invalid.append({"id": row_label(source_schema, row), "problems": problems})
             continue
-        existing = target_by_key.get(key)
         if existing is None:
+            if applied_defaults:
+                plan.key_defaulted_rows += 1
+                plan.key_default_values.update(applied_defaults)
             plan.created.append(row_label(source_schema, row))
             plan.pending_creates.append(
                 {name: row[name] for name in shared if row.get(name) is not None}
@@ -410,9 +451,13 @@ def normalize_prefix(prefix: str) -> str:
 
 
 def plan_objects(
-    source_objects: list[ObjectInfo], target_objects: list[ObjectInfo], selected_prefixes: list[str]
+    source_objects: list[ObjectInfo],
+    target_objects: list[ObjectInfo],
+    selected_prefixes: list[str],
+    selected_keys: list[str] | None = None,
 ) -> tuple[list[PrefixPlan], int]:
     normalized = [normalize_prefix(prefix) for prefix in selected_prefixes]
+    exact_keys = set(selected_keys or [])
     target_by_key = {entry.key: entry for entry in target_objects}
     plans: dict[str, PrefixPlan] = {}
     for entry in source_objects:
@@ -420,7 +465,7 @@ def plan_objects(
         plan = plans.setdefault(top, PrefixPlan(prefix=top))
         plan.source_objects += 1
         plan.source_bytes += entry.size
-        if not any(entry.key.startswith(prefix) for prefix in normalized):
+        if entry.key not in exact_keys and not any(entry.key.startswith(prefix) for prefix in normalized):
             continue
         plan.selected = True
         plan.selected_objects += 1
@@ -451,9 +496,12 @@ def build_plan(
     source_store: ObjectStore | None,
     target_store: ObjectStore | None,
     selected_prefixes: list[str],
+    selected_keys: list[str] | None = None,
+    key_field_defaults: dict[str, str] | None = None,
     source_account: str | None = None,
     target_account: str | None = None,
 ) -> CopyPlan:
+    defaults = {**BUILTIN_KEY_FIELD_DEFAULTS, **(key_field_defaults or {})}
     source_models = source.model_names()
     target_models = target.model_names()
     selected = resolve_selected_models(requested_models, source_models, target_models)
@@ -461,7 +509,7 @@ def build_plan(
     ordered = [*selected, *[name for name in sorted(source_models) if name not in selected]]
     for model in ordered:
         if model in selected:
-            plans.append(plan_selected_model(model, source, target))
+            plans.append(plan_selected_model(model, source, target, defaults))
         else:
             reason = IDENTITY_REASON if model in IDENTITY_MODELS else NOT_SELECTED_REASON
             plans.append(plan_skipped_model(model, reason, source, target, target_models))
@@ -470,8 +518,10 @@ def build_plan(
         plan.source_objects = source_store.list_objects()
         plan.target_objects = target_store.list_objects()
         plan.prefixes, plan.extra_target_only_objects = plan_objects(
-            plan.source_objects, plan.target_objects, selected_prefixes
+            plan.source_objects, plan.target_objects, selected_prefixes, selected_keys
         )
+        source_keys = {entry.key for entry in plan.source_objects}
+        plan.errors += [f"S3 key not found in the source: {key}" for key in selected_keys or [] if key not in source_keys]
     return plan
 
 
@@ -564,6 +614,9 @@ def render_table(plan: CopyPlan) -> str:
         note = entry.reason if not entry.selected else ""
         if entry.selected and entry.dropped_fields:
             note = "target lacks: " + ",".join(entry.dropped_fields)
+        if entry.selected and entry.key_defaulted_rows:
+            defaults_text = ",".join(f"{name}={value}" for name, value in sorted(entry.key_default_values.items()))
+            note = (note + "; " if note else "") + f"{entry.key_defaulted_rows} rows get key defaults: {defaults_text}"
         if entry.selected and entry.target_only_rows:
             note = (note + "; " if note else "") + f"{entry.target_only_rows} target-only rows kept"
         lines.append(

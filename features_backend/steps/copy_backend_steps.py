@@ -49,13 +49,16 @@ class InMemoryRowBackend:
         self.schemas = schemas
         self.writes: list[tuple[str, str, dict]] = []
         self.reorder_json_on_read = False
+        self.composite_sort_fields: dict[str, tuple[str, ...]] = {}
 
     def model_names(self) -> list[str]:
         return sorted(self.schemas)
 
     def schema(self, model: str) -> ModelSchema:
         readable, writable = self.schemas[model]
-        return ModelSchema(model, ("id",), readable, {k: v for k, v in writable.items() if k != "createdAt"})
+        composite = self.composite_sort_fields.get(model, ())
+        kept = {k: v for k, v in writable.items() if k != "createdAt" or k in composite}
+        return ModelSchema(model, ("id",), readable, kept, composite_sort_fields=composite)
 
     def iterate_rows(self, model: str, field_names: list[str]):
         for row in self.tables.get(model, []):
@@ -67,6 +70,9 @@ class InMemoryRowBackend:
             yield projected
 
     def create_row(self, model: str, row: dict) -> None:
+        for name in self.composite_sort_fields.get(model, ()):
+            if row.get(name) is None:
+                raise RuntimeError(f"The composite sort key of the {model} index requires a value for {name}.")
         self.writes.append(("create", model, row))
         self.tables.setdefault(model, []).append(copy.deepcopy(row))
 
@@ -119,8 +125,8 @@ def make_target(context, schemas=None, tables=None) -> None:
     context.target_store = InMemoryObjectStore({})
 
 
-def run_copy(context, models=None, apply=False):
-    prefixes = list(DEFAULT_S3_PREFIXES)
+def run_copy(context, models=None, apply=False, prefixes=None, keys=None, key_field_defaults=None):
+    prefixes = list(DEFAULT_S3_PREFIXES) if prefixes is None else prefixes
     store_pair = (context.source_store, context.target_store)
     context.refusal = None
     try:
@@ -131,6 +137,8 @@ def run_copy(context, models=None, apply=False):
             source_store=store_pair[0],
             target_store=store_pair[1],
             selected_prefixes=prefixes,
+            selected_keys=keys or [],
+            key_field_defaults=key_field_defaults,
         )
         if apply:
             apply_plan(context.plan, context.target, *store_pair)
@@ -333,7 +341,7 @@ from papyrus_content.backend_copy_aws import (  # noqa: E402
     ReadOnlyS3Client,
     S3ObjectStore,
 )
-from papyrus_content.backend_copy_commands import content_copy_backend, resolve_transfer_mode  # noqa: E402
+from papyrus_content.backend_copy_commands import content_copy_backend, resolve_s3_selection, resolve_transfer_mode  # noqa: E402
 
 MIB = 1024 * 1024
 SOURCE_APPSYNC = "https://source123.appsync-api.us-east-1.amazonaws.com/graphql"
@@ -807,3 +815,181 @@ def others_present(context, count: int) -> None:
 @then("no more than {limit:d} MiB were held in memory at once")
 def memory_bounded(context, limit: int) -> None:
     assert 0 < context.tracking_budget.peak_bytes <= limit * MIB, context.tracking_budget.peak_bytes
+
+
+MESSAGE_FIELDS = {
+    "id": spec("id", "ID"),
+    "messageKind": spec("messageKind", required=True),
+    "content": spec("content"),
+    "responseTarget": spec("responseTarget"),
+    "responseStatus": spec("responseStatus"),
+    "createdAt": spec("createdAt", "AWSDateTime", required=True),
+}
+TICKET_FIELDS = {"id": spec("id", "ID"), "lane": spec("lane"), "title": spec("title")}
+MESSAGE_CREATED_AT = "2026-03-01T10:00:00.000Z"
+
+
+def message_row(identifier: str, response_status, response_target=None) -> dict:
+    return {
+        "id": identifier,
+        "messageKind": "ingestion_rationale",
+        "content": f"body of {identifier}",
+        "responseTarget": response_target,
+        "responseStatus": response_status,
+        "createdAt": MESSAGE_CREATED_AT,
+    }
+
+
+@given("a source backend with 3 messages of which 2 leave responseStatus null")
+def source_with_null_status_messages(context) -> None:
+    rows = [message_row("m1", None), message_row("m2", None), message_row("m3", "RUNNING", "cloud")]
+    context.source_rows = rows
+    context.source = InMemoryRowBackend({"Message": rows}, {"Message": (MESSAGE_FIELDS, MESSAGE_FIELDS)})
+    context.source_store = InMemoryObjectStore({})
+
+
+@given("a target backend whose Message index rejects a null responseStatus")
+def target_rejecting_null_status(context) -> None:
+    context.target = InMemoryRowBackend({}, {"Message": (MESSAGE_FIELDS, MESSAGE_FIELDS)})
+    context.target.composite_sort_fields = {"Message": ("responseStatus", "createdAt")}
+    context.target_store = InMemoryObjectStore({})
+
+
+@when("I copy the Message model with apply")
+@given("I copy the Message model with apply")
+def copy_message_model_with_apply(context) -> None:
+    context.target.writes.clear()
+    run_copy(context, models=["Message"], apply=True, prefixes=[])
+
+
+@when("I copy the Message model as a dry run")
+def copy_message_model_dry_run(context) -> None:
+    run_copy(context, models=["Message"], apply=False, prefixes=[])
+
+
+@when('I copy the Message model with apply and the key-field default "{assignment}"')
+def copy_message_model_with_override(context, assignment: str) -> None:
+    name, value = assignment.split("=")
+    run_copy(context, models=["Message"], apply=True, prefixes=[], key_field_defaults={name: value})
+
+
+@then("all {count:d} Message rows were written")
+def all_messages_written(context, count: int) -> None:
+    assert not context.plan.model("Message").errors, context.plan.model("Message").errors
+    assert len(context.target.tables["Message"]) == count
+
+
+@then("the {count:d} rows that had a null responseStatus now carry {value}")
+def null_status_rows_defaulted(context, count: int, value: str) -> None:
+    stored = {row["id"]: row for row in context.target.tables["Message"]}
+    assert [stored[name]["responseStatus"] for name in ("m1", "m2")] == [value, value]
+    assert stored["m3"]["responseStatus"] == "RUNNING"
+
+
+@then("the business fields and the null responseTarget of every row are unchanged")
+def business_fields_unchanged(context) -> None:
+    stored = {row["id"]: row for row in context.target.tables["Message"]}
+    for original in context.source_rows:
+        for name in ("id", "messageKind", "content", "createdAt"):
+            assert stored[original["id"]][name] == original[name], name
+        assert stored[original["id"]].get("responseTarget") == original["responseTarget"]
+
+
+@then("the plan reports {count:d} Message rows given key-field defaults")
+def plan_reports_key_defaults(context, count: int) -> None:
+    payload = context.plan.model("Message").to_dict()
+    assert payload["keyFieldDefaults"] == {"count": count, "fields": {"responseStatus": "COMPLETED"}}, payload
+
+
+@then("the plan is ok and lists {count:d} invalid rows")
+def plan_ok_without_invalid(context, count: int) -> None:
+    assert context.plan.ok and context.plan.invalid_row_count == count
+
+
+@then("the printed table names the Message key-field defaults")
+def table_names_key_defaults(context) -> None:
+    assert "2 rows get key defaults: responseStatus=COMPLETED" in render_table(context.plan)
+
+
+@given("a source backend with a Ticket whose composite sort-key field lane is null")
+def source_with_null_lane_ticket(context) -> None:
+    context.source = InMemoryRowBackend(
+        {"Ticket": [{"id": "t1", "lane": None, "title": "t"}]}, {"Ticket": (TICKET_FIELDS, TICKET_FIELDS)}
+    )
+    context.source_store = InMemoryObjectStore({})
+
+
+@given("a target backend whose Ticket index rejects a null lane")
+def target_rejecting_null_lane(context) -> None:
+    context.target = InMemoryRowBackend({}, {"Ticket": (TICKET_FIELDS, TICKET_FIELDS)})
+    context.target.composite_sort_fields = {"Ticket": ("lane",)}
+    context.target_store = InMemoryObjectStore({})
+
+
+@when("I copy the Ticket model with apply")
+def copy_ticket_model(context) -> None:
+    run_copy(context, models=["Ticket"], apply=True, prefixes=[])
+
+
+@then('the plan lists the Ticket row as invalid with "{problem}"')
+def ticket_invalid(context, problem: str) -> None:
+    assert context.plan.model("Ticket").invalid[0]["problems"] == [problem], context.plan.model("Ticket").invalid
+    assert not context.plan.ok
+
+
+@given("a source bucket with the corpora keys steering, steering backup and another file")
+def source_with_corpora_keys(context) -> None:
+    context.source = InMemoryRowBackend({}, standard_schemas())
+    context.source_store = InMemoryObjectStore(
+        {
+            "corpora/papyrus-steering.yml": (888, "e1"),
+            "corpora/papyrus-steering.yml.bak": (9, "e2"),
+            "corpora/other.yml": (4, "e3"),
+        }
+    )
+
+
+@when('I copy with the exact S3 key "{key}" and no prefixes')
+def copy_with_exact_key(context, key: str) -> None:
+    run_copy(context, apply=True, prefixes=[], keys=[key])
+
+
+@then("only the corpora/papyrus-steering.yml object is copied")
+def only_steering_copied(context) -> None:
+    assert context.target_store.copies == ["corpora/papyrus-steering.yml"], context.target_store.copies
+    assert context.plan.ok
+
+
+@then('the plan reports an error naming "{key}"')
+def plan_error_names_key(context, key: str) -> None:
+    assert not context.plan.ok and any(key in message for message in context.plan.errors), context.plan.errors
+
+
+@when('I resolve the S3 selection for prefixes "{prefixes}" and keys "{keys}"')
+def resolve_with_both(context, prefixes: str, keys: str) -> None:
+    context.selection = resolve_s3_selection(prefixes, keys)
+
+
+@when('I resolve the S3 selection for no prefixes option and keys "{keys}"')
+def resolve_with_keys_only(context, keys: str) -> None:
+    context.selection = resolve_s3_selection(None, keys)
+
+
+@when("I resolve the S3 selection for no prefixes option and no keys option")
+def resolve_with_neither(context) -> None:
+    context.selection = resolve_s3_selection(None, None)
+
+
+@then('the prefixes are "{prefixes}" and the keys are "{keys}"')
+def selection_both(context, prefixes: str, keys: str) -> None:
+    assert context.selection == ([prefixes], [keys]), context.selection
+
+
+@then('there are no prefixes and the keys are "{keys}"')
+def selection_keys_only(context, keys: str) -> None:
+    assert context.selection == ([], [keys]), context.selection
+
+
+@then('the prefixes are "{prefixes}" and there are no keys')
+def selection_default(context, prefixes: str) -> None:
+    assert context.selection == ([prefixes], []), context.selection

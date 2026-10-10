@@ -15,7 +15,8 @@ papyrus ops content copy-backend \
   --source-outputs <amplify_outputs.json | stack:<cloudformation-stack>> \
   --target-outputs <amplify_outputs.json | stack:<cloudformation-stack>> \
   [--models Item,PublishedItem,... | all] \
-  [--s3-prefixes media/,newsroom/ | none] \
+  [--s3-prefixes media/,newsroom/ | none] [--s3-keys corpora/a.yml,corpora/b.yml] \
+  [--key-field-defaults Model.field=value,...] \
   [--manifest-dir <dir>] [--json] [--apply] \
   [--source-profile <aws-profile>] [--target-profile <aws-profile>] \
   [--expect-source-account <id>] [--expect-target-account <id>] \
@@ -26,12 +27,14 @@ papyrus ops content copy-backend \
 * `stack:<name>` reads `awsAppsyncApiEndpoint`, `bucketName` and `storageRegion` from the CloudFormation stack outputs. A file needs `data.url` and `storage.bucket_name`.
 * Auth is the caller's AWS credential chain, SigV4 (`AWS_PROFILE=legacy`), for both sides unless a profile option is given (see Cross-account copy). The source is opened read-only.
 * Default models: NewsroomSection, Tag, Edition, Item, MediaAsset, EditionItem, ItemTag and the five Published* models. Default S3 prefix: `media/`. Everything else is printed in the plan as `skip` with its counts; nothing is excluded silently. `--models all` selects every model except identity models.
+* `--s3-keys k1,k2` selects exact object keys (no trailing slash is added, so `corpora/papyrus-steering.yml` selects that one object and nothing like `corpora/papyrus-steering.yml.bak`). It combines with `--s3-prefixes`. The `media/` default applies only when neither option is given, so `--s3-keys` alone copies only those keys. A key missing in the source is a plan error (exit code 1).
 * Identity models (UserProfile, UserIdentity, UserRoleAssignment) are refused even if named: people re-sign-in.
 
 ## Behaviour
 
 * Rows are matched by key (`id`), copied with all fields the target accepts, so ids, slugs, `type`, `versionNumber`, `publishedAt` and `editorial` JSON are preserved. Rows are copied by model, never filtered by `type`, so `videoml` rows carry over.
 * Idempotent: a row is unchanged when every non-null source field equals the target field after JSON normalization (AWSJSON strings are parsed and key order is ignored; PPY-16a680). Fields that are null in the source (for example `bodyIr` when the old backend lacks it) never overwrite target values, so convert-bodies output survives a re-run. `createdAt` and `updatedAt` are excluded from comparison.
+* Composite index sort keys (PPY-2b8771): AppSync rejects a create when a field of a composite secondary-index sort key is null (for example `Message.responseStatus` in `messagesByResponseTargetStatusCreatedAt`, sort keys `responseStatus`, `createdAt`). The tool reads these fields from the target's introspected index query types (`<Index>CompositeKeyConditionInput`). When a row to be created has one of them null, it gets a default for that field; nothing else changes (bodies, timestamps, ids, and the other null fields such as `responseTarget` stay as in the source). Built-in default: `Message.responseStatus=COMPLETED`, which is what the app itself writes for messages that need no response (category-action writes `responseTarget=none`, `responseStatus=COMPLETED`; the console responder only acts on `PENDING` rows for its own target, so these rows are never queued). Override or add with `--key-field-defaults Message.responseStatus=ARCHIVED,Model.field=value`. A null composite sort-key field with no default is listed as an invalid row (`null-composite-sort-key:<field>`) and `--apply` writes nothing. Defaults apply only to rows the target lacks; existing target rows are never touched by them. The plan table notes `N rows get key defaults: field=value` per model, and the JSON has `keyFieldDefaults` (`count`, `fields`) per model, in the dry run and in the apply summary.
 * Validation before any write: required target fields that are missing, enum values the target rejects and invalid JSON are listed per row. If any row is invalid, `--apply` writes nothing.
 * S3: objects are copied (server-side by default, see `--s3-transfer`) with the same key, only when missing or different (size differs, or both ETags are plain MD5 and differ; multipart ETags are not comparable and size decides).
 * Never deletes rows or objects in the target. Target-only rows and objects are counted and kept.

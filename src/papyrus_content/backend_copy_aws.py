@@ -23,6 +23,7 @@ from .graphql_http import iam_signed_graphql_headers
 SCALAR_KINDS = ("SCALAR", "ENUM")
 CONNECTION_PATTERN = re.compile(r"Model(.+)Connection")
 STACK_PREFIX = "stack:"
+COMPOSITE_CONDITION_SUFFIX = "CompositeKeyConditionInput"
 INTROSPECTION_QUERY = """
 query Introspect {
   __schema {
@@ -142,6 +143,22 @@ class GraphQLRowBackend:
             raise ValueError(f"No plain list query found for model {model}.")
         return min(candidates, key=lambda name: (len(name), name))
 
+    def _composite_sort_fields(self, model: str) -> tuple[str, ...]:
+        assert self._types is not None
+        connection = f"Model{model}Connection"
+        names: list[str] = []
+        for query in self._queries.values():
+            if unwrap_type(query["type"])[1] != connection:
+                continue
+            for argument in query["args"]:
+                condition_name = unwrap_type(argument["type"])[1]
+                if not condition_name.endswith(COMPOSITE_CONDITION_SUFFIX):
+                    continue
+                equality = next(item for item in self._types[condition_name]["inputFields"] if item["name"] == "eq")
+                key_type = unwrap_type(equality["type"])[1]
+                names += [item["name"] for item in self._types[key_type]["inputFields"]]
+        return tuple(dict.fromkeys(names))
+
     def schema(self, model: str) -> ModelSchema:
         if model in self._schemas:
             return self._schemas[model]
@@ -157,9 +174,10 @@ class GraphQLRowBackend:
             spec = self._field_spec(entry["name"], entry["type"])
             if spec is not None:
                 writable[entry["name"]] = spec
+        composite_sort_fields = self._composite_sort_fields(model)
         get_query = self._queries.get(f"get{model}")
         key_fields = tuple(argument["name"] for argument in get_query["args"]) if get_query else ("id",)
-        schema = ModelSchema(model, key_fields, readable, writable)
+        schema = ModelSchema(model, key_fields, readable, writable, composite_sort_fields)
         self._schemas[model] = schema
         return schema
 

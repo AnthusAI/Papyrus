@@ -134,3 +134,63 @@ Feature: Copying content from one Papyrus backend to another
     And an empty cross-account target bucket
     When I copy the objects in stream mode with 4 workers and a 16 MiB memory budget
     Then no more than 16 MiB were held in memory at once
+
+  Scenario: Rows with a null composite-index sort-key field are written with the app's neutral default
+    Given a source backend with 3 messages of which 2 leave responseStatus null
+    And a target backend whose Message index rejects a null responseStatus
+    When I copy the Message model with apply
+    Then all 3 Message rows were written
+    And the 2 rows that had a null responseStatus now carry COMPLETED
+    And the business fields and the null responseTarget of every row are unchanged
+    And the plan reports 2 Message rows given key-field defaults
+
+  Scenario: A dry run predicts the key-field defaults and does not fail
+    Given a source backend with 3 messages of which 2 leave responseStatus null
+    And a target backend whose Message index rejects a null responseStatus
+    When I copy the Message model as a dry run
+    Then the plan is ok and lists 0 invalid rows
+    And the plan reports 2 Message rows given key-field defaults
+    And the printed table names the Message key-field defaults
+    And no rows and no objects were written
+
+  Scenario: Re-running after key-field defaults were applied changes nothing
+    Given a source backend with 3 messages of which 2 leave responseStatus null
+    And a target backend whose Message index rejects a null responseStatus
+    And I copy the Message model with apply
+    When I copy the Message model with apply
+    Then every selected model is unchanged
+    And no rows and no objects were written
+
+  Scenario: An explicit key-field default overrides the built-in one
+    Given a source backend with 3 messages of which 2 leave responseStatus null
+    And a target backend whose Message index rejects a null responseStatus
+    When I copy the Message model with apply and the key-field default "Message.responseStatus=ARCHIVED"
+    Then the 2 rows that had a null responseStatus now carry ARCHIVED
+
+  Scenario: A null composite sort-key field without a default is listed as invalid
+    Given a source backend with a Ticket whose composite sort-key field lane is null
+    And a target backend whose Ticket index rejects a null lane
+    When I copy the Ticket model with apply
+    Then the plan lists the Ticket row as invalid with "null-composite-sort-key:lane"
+    And no rows and no objects were written
+
+  Scenario: An exact S3 key is selected without its look-alike neighbours
+    Given a source bucket with the corpora keys steering, steering backup and another file
+    And a target bucket with an extra object that the source lacks
+    When I copy with the exact S3 key "corpora/papyrus-steering.yml" and no prefixes
+    Then only the corpora/papyrus-steering.yml object is copied
+
+  Scenario: An exact S3 key that the source lacks is an error
+    Given a source bucket with the corpora keys steering, steering backup and another file
+    And a target bucket with an extra object that the source lacks
+    When I copy with the exact S3 key "corpora/missing.yml" and no prefixes
+    Then the plan reports an error naming "corpora/missing.yml"
+    And no rows and no objects were written
+
+  Scenario: Exact keys and prefixes combine and the media default applies only when neither is given
+    When I resolve the S3 selection for prefixes "newsroom/" and keys "corpora/papyrus-steering.yml"
+    Then the prefixes are "newsroom/" and the keys are "corpora/papyrus-steering.yml"
+    When I resolve the S3 selection for no prefixes option and keys "corpora/papyrus-steering.yml"
+    Then there are no prefixes and the keys are "corpora/papyrus-steering.yml"
+    When I resolve the S3 selection for no prefixes option and no keys option
+    Then the prefixes are "media/" and there are no keys
