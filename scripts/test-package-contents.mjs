@@ -36,6 +36,15 @@ try {
   ]) {
     assert.ok(tarballEntries.includes(shipped), `the tarball must ship ${shipped}`);
   }
+  const manifestEntry = tarballEntries.find((entry) => entry === "package/routes.manifest.json");
+  assert.ok(manifestEntry, "the tarball must ship routes.manifest.json");
+  const manifest = JSON.parse(
+    execFileSync("tar", ["-xzOf", report.tarball, manifestEntry], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }),
+  );
+  const robotsRoute = manifest.routes.find((route) => route.file === "app/robots.ts");
+  assert.ok(robotsRoute, "the route manifest must list app/robots.ts so consumers get a /robots.txt shim");
+  assert.equal(robotsRoute.hasDefault, true);
+  assert.equal(robotsRoute.config.dynamic, '"force-dynamic"');
   console.log("test-package-contents: ok");
 } finally {
   fs.rmSync(outDir, { recursive: true, force: true });

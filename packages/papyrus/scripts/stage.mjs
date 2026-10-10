@@ -181,7 +181,7 @@ export { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec, buildSpec
 }
 
 // ---- route manifest -------------------------------------------------------
-const ROUTE_FILE = /^app\/(?:.*\/)?(page|layout|route|loading|error|not-found|template|default)\.(tsx|ts)$/;
+const ROUTE_FILE = /^app\/(?:.*\/)?(page|layout|route|loading|error|not-found|template|default|robots)\.(tsx|ts)$/;
 const SEGMENT_CONFIG = ["dynamic", "revalidate", "runtime", "maxDuration", "fetchCache", "preferredRegion", "dynamicParams"];
 const READER_ROUTE = /^app\/(?:page\.tsx|\[year\]\/|articles\/|archive\/|settings\/)/;
 const routes = [];

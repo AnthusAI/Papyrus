@@ -343,7 +343,7 @@ byte-identical to before. `newsroom`, `api` and `_preview` are rejected as base 
   `rootRoute` (the publication owns `/`); without one, `rootRoute` behaves as before.
 - `papyrus://site/home|archive|settings` carry the prefix; `papyrus://site/path/...`
   stays unprefixed because it holds the literal public path (including `/newsroom`).
-- robots: `/robots.txt` is site-wide and unchanged; Papyrus ships no sitemap and
+- robots: `/robots.txt` is site-wide and unchanged (the package ships `app/robots.ts`, and `papyrus-app sync` writes its shim like any route; a site-owned `app/robots.ts` wins); Papyrus ships no sitemap and
   no canonical link tags, so there is nothing to prefix (date-route canonical
   redirects already carry the prefix).
 - OAuth return: the callback lands on `/newsroom` and is unaffected.
