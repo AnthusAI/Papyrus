@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -15,6 +15,12 @@ function mutated(name: string, change: (config: any) => void): unknown {
   return config;
 }
 
+function parseCmsSite(raw: unknown) {
+  const config = parseSiteConfig(raw);
+  assert.ok(hasCmsApp(config));
+  return config;
+}
+
 function assertRejects(raw: unknown, fieldFragment: string): void {
   assert.throws(() => parseSiteConfig(raw), (error: Error) => {
     assert.match(error.message, new RegExp(fieldFragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -22,7 +28,7 @@ function assertRejects(raw: unknown, fieldFragment: string): void {
   });
 }
 
-const staticConfig = parseSiteConfig(readExample("pilobol-us.site.json"));
+const staticConfig = parseCmsSite(readExample("pilobol-us.site.json"));
 assert.equal(staticConfig.siteId, "pilobol-us");
 assert.equal(staticConfig.reader?.domainName, "pilobol.us");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = true)), "includeWww");
@@ -34,7 +40,7 @@ const mutatedAnthUs = (change: (config: any) => void): unknown => {
   change(config);
   return config;
 };
-const anthUsConfig = parseSiteConfig(anthUsFixture());
+const anthUsConfig = parseCmsSite(anthUsFixture());
 assert.deepEqual(anthUsConfig.reader?.domainPrefixes, ["", "www"]);
 assert.equal(anthUsConfig.reader?.skipContentExport, true);
 assert.equal(anthUsConfig.reader?.redirects?.[0].status, "301");
@@ -59,7 +65,7 @@ assert.equal(readerOnlyConfig.reader?.skipContentExport, true);
 assertRejects(mutated("pretext.site.json", (c) => delete c.cms), "cms");
 assertRejects(mutatedAnthUs((c) => { delete c.cms; }), "github requires cms");
 
-const pretextConfig = parseSiteConfig(readExample("pretext.site.json"));
+const pretextConfig = parseCmsSite(readExample("pretext.site.json"));
 assert.equal(pretextConfig.frontend, "pretext");
 assert.equal(pretextConfig.reader, undefined);
 assert.equal(resolveStagingDomainName(pretextConfig), "staging.example.test");
@@ -91,11 +97,11 @@ const domainFree = (c: any) => {
   delete c.cms.domainName;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/";
 };
-const domainFreeConfig = parseSiteConfig(mutated("pretext.site.json", domainFree));
+const domainFreeConfig = parseCmsSite(mutated("pretext.site.json", domainFree));
 assert.equal(domainFreeConfig.cms.domainName, undefined);
 assert.equal(domainFreeConfig.hostedZoneId, undefined);
 assert.equal(resolveStagingDomainName(domainFreeConfig), undefined);
-const noStagingConfig = parseSiteConfig(mutated("pretext.site.json", (c) => {
+const noStagingConfig = parseCmsSite(mutated("pretext.site.json", (c) => {
   c.cms.staging = false;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.example.test/";
 }));
@@ -127,7 +133,7 @@ assert.equal(pretextConfig.cms.applyCognitoDomainPrefix, true);
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.applyCognitoDomainPrefix = "yes")), "cms.applyCognitoDomainPrefix");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX = "true")), "cms.environment.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX = "x-cms")), "cms.environment.PAPYRUS_COGNITO_DOMAIN_PREFIX");
-const sharedRootConfig = parseSiteConfig(readExample("threat-intelligence.site.json"));
+const sharedRootConfig = parseCmsSite(readExample("threat-intelligence.site.json"));
 assert.equal(sharedRootConfig.cms.domainName, "anth.us");
 assert.equal(resolveCmsHostName(sharedRootConfig), "threat-intelligence.anth.us");
 assert.equal(resolveStagingDomainName(sharedRootConfig), "threat-intelligence-staging.anth.us");
@@ -153,12 +159,12 @@ parseSiteConfig(mutated("threat-intelligence.site.json", (c) => {
   delete c.cms.stagingDomainPrefix;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://threat-intelligence.anth.us/";
 }));
-const apexRedirectConfig = parseSiteConfig(readExample("p-apyr-us.site.json"));
+const apexRedirectConfig = parseCmsSite(readExample("p-apyr-us.site.json"));
 assert.equal(resolveCmsHostName(apexRedirectConfig), "p.apyr.us");
 assert.equal(resolveStagingDomainName(apexRedirectConfig), "p-staging.apyr.us");
 assert.deepEqual(apexRedirectConfig.cms.redirects, [{ source: "apyr.us", status: 301 }]);
-assert.equal(parseSiteConfig(mutated("p-apyr-us.site.json", (c) => delete c.cms.redirects[0].status)).cms.redirects?.[0].status, 301);
-assert.equal(parseSiteConfig(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].status = 302))).cms.redirects?.[0].status, 302);
+assert.equal(parseCmsSite(mutated("p-apyr-us.site.json", (c) => delete c.cms.redirects[0].status)).cms.redirects?.[0].status, 301);
+assert.equal(parseCmsSite(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].status = 302))).cms.redirects?.[0].status, 302);
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].status = 307)), "cms.redirects[0].status");
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].to = "https://x.test")), "cms.redirects[0].to");
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects = [])), "cms.redirects");
