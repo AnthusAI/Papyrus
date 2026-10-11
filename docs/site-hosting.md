@@ -442,6 +442,16 @@ Lessons from the failed p.apyr.us cutover (the Route 53 zone stayed in the legac
 - Connecting a repository in the Amplify console overwrites the app `buildSpec` and branch environment variables. Restore the build spec with `aws amplify update-app --build-spec` and re-apply the branch variables from the stack.
 - Plan domain moves so the Route 53 zone lives in the same account as the app whenever possible; that avoids manual validation records and the cross-account refusal.
 
+## AppSync 429 on new accounts (resolver waves)
+
+In a brand-new AWS account the first backend deploy can fail with AppSync
+`CreateResolver` 429 (Too Many Requests) while CloudFormation creates every
+data model nested stack in parallel. `defineSiteBackend` therefore chains the
+model nested stacks in waves: each wave of `backend.resolverWaveSize` stacks
+(default 12) waits for the previous wave. It only adds `DependsOn` ordering
+between nested stacks; no resource, schema or API changes. Set
+`backend: { resolverWaveSize: 0 }` in `papyrus.config.ts` to turn it off.
+
 ## Backend features and account-global names
 
 `defineSiteBackend(site)` creates four optional features, each behind a flag

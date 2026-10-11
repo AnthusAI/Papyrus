@@ -32,6 +32,13 @@ export type PapyrusSiteBackendConfig = {
    */
   productionAppId?: string;
   auth?: PapyrusAuthConfig;
+  /**
+   * Maximum number of data model nested stacks CloudFormation creates at once.
+   * Stacks are chained in waves of this size so a new AWS account is not hit
+   * with every AppSync CreateResolver call in parallel (429). Only adds
+   * DependsOn ordering; no resource changes. Default 12; 0 turns it off.
+   */
+  resolverWaveSize?: number;
   /** Static reader app (Markus-static sites) that a publish rebuilds through IAM `amplify:StartJob`. */
   reader?: { amplifyAppId: string; branchName?: string };
   /** Lets the newsroom start the `staging` branch build of this CMS app. */
