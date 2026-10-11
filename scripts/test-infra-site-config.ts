@@ -27,6 +27,32 @@ assert.equal(staticConfig.siteId, "pilobol-us");
 assert.equal(staticConfig.reader?.domainName, "pilobol.us");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = true)), "includeWww");
 
+
+const anthUsFixture = () => JSON.parse(fs.readFileSync(path.resolve(here, "fixtures/anth-us.site.json"), "utf8"));
+const mutatedAnthUs = (change: (config: any) => void): unknown => {
+  const config = anthUsFixture();
+  change(config);
+  return config;
+};
+const anthUsConfig = parseSiteConfig(anthUsFixture());
+assert.deepEqual(anthUsConfig.reader?.domainPrefixes, ["", "www"]);
+assert.equal(anthUsConfig.reader?.skipContentExport, true);
+assert.equal(anthUsConfig.reader?.redirects?.[0].status, "301");
+assert.equal(staticConfig.reader?.domainPrefixes, undefined);
+assert.equal(staticConfig.reader?.redirects, undefined);
+assert.equal(staticConfig.reader?.customHeaders, undefined);
+assertRejects(mutatedAnthUs((c) => (c.reader.domainPrefixes = [])), "reader.domainPrefixes");
+assertRejects(mutatedAnthUs((c) => (c.reader.domainPrefixes = ["www", "www"])), "must not repeat");
+assertRejects(mutatedAnthUs((c) => (c.reader.domainPrefixes = ["a.b"])), "reader.domainPrefixes[0]");
+assertRejects(mutatedAnthUs((c) => { delete c.reader.domainName; delete c.hostedZoneId; }), "requires reader.domainName");
+assertRejects(mutatedAnthUs((c) => (c.reader.redirects[0].status = "307")), "reader.redirects[0].status");
+assertRejects(mutatedAnthUs((c) => delete c.reader.redirects[0].target), "reader.redirects[0].target");
+assertRejects(mutatedAnthUs((c) => (c.reader.redirects = [])), "reader.redirects");
+assertRejects(mutatedAnthUs((c) => (c.reader.customHeaders[0].headers = {})), "reader.customHeaders[0].headers");
+assertRejects(mutatedAnthUs((c) => (c.reader.customHeaders[0].headers = { A: 1 })), "reader.customHeaders[0].headers.A");
+assertRejects(mutatedAnthUs((c) => (c.reader.preBuildCommands = [])), "reader.preBuildCommands");
+assertRejects(mutatedAnthUs((c) => (c.reader.skipContentExport = "yes")), "reader.skipContentExport");
+
 const pretextConfig = parseSiteConfig(readExample("pretext.site.json"));
 assert.equal(pretextConfig.frontend, "pretext");
 assert.equal(pretextConfig.reader, undefined);

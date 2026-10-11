@@ -4,10 +4,22 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, ReaderCustomHeaderRule, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
+}
+
+function readerCustomHeaders(rules: ReaderCustomHeaderRule[] | undefined): string | undefined {
+  if (!rules) return undefined;
+  const lines = ["customHeaders:"];
+  for (const rule of rules) {
+    lines.push(`  - pattern: ${JSON.stringify(rule.pattern)}`, "    headers:");
+    for (const [key, value] of Object.entries(rule.headers)) {
+      lines.push(`      - key: ${JSON.stringify(key)}`, `        value: ${JSON.stringify(value)}`);
+    }
+  }
+  return lines.join("\n") + "\n";
 }
 
 /**
@@ -333,7 +345,11 @@ export class AmplifyAppShellStack extends Stack {
       platform: "WEB",
       iamServiceRole: readerServiceRole.roleArn,
       buildSpec: readerBuildSpec(config),
-      customRules: [{ source: "/<*>", target: "/404.html", status: "404-200" }],
+      customRules: [
+        ...(reader.redirects ?? []),
+        { source: "/<*>", target: "/404.html", status: "404-200" },
+      ],
+      customHeaders: readerCustomHeaders(reader.customHeaders),
     });
 
     const readerBranch = new amplify.CfnBranch(this, "ReaderBranch", {
@@ -352,7 +368,7 @@ export class AmplifyAppShellStack extends Stack {
       const readerDomain = new amplify.CfnDomain(this, "ReaderDomain", {
         appId: readerApp.attrAppId,
         domainName: reader.domainName,
-        subDomainSettings: [{ branchName: readerBranchName, prefix: "" }],
+        subDomainSettings: (reader.domainPrefixes ?? [""]).map((prefix) => ({ branchName: readerBranchName, prefix })),
       });
       readerDomain.addResourceDependency(readerBranch);
     }

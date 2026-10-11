@@ -126,7 +126,8 @@ export function readerBuildSpec(config: AmplifyAppShellSiteConfig): string {
     ...frontendSection(
       [
         ...pythonProvisioningCommands(config),
-        "papyrus ops content export-published --auth guest --out content-export --clean",
+        ...(readerConfig.preBuildCommands ?? []),
+        ...(readerConfig.skipContentExport ? [] : ["papyrus ops content export-published --auth guest --out content-export --clean"]),
       ],
       [readerConfig.buildCommand],
       readerConfig.baseDirectory,
