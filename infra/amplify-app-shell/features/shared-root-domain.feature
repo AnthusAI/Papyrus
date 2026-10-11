@@ -36,3 +36,14 @@ Feature: Hosts under a shared root domain
     Given a redirects entry with status 307, an unknown key, a source outside the root domain, or the primary host as source
     Then validation fails naming cms.redirects
     And cms.redirects without cms.domainPrefix is rejected
+
+  Scenario: a static-site config without a cms section deploys the reader app alone
+    Given the anth-us site config with the cms, github and domain settings removed
+    When the app shell stack is synthesized
+    Then there is one Amplify app, the WEB reader, with its branch, service role and no domain association
+    And there is no CMS app, no authoring role and no GitHub CI role
+    And the outputs name the reader app and its origin but not the CMS
+
+  Scenario: the cms section stays required where a CMS is needed
+    Given a pretext site config, or a markus-static config with a github section, without a cms section
+    Then validation fails naming cms or github

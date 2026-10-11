@@ -1,4 +1,4 @@
-import { AmplifyAppShellSiteConfig, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, hasCmsApp, resolveStoragePreviewPrefix } from "./site-config";
 
 export type BuildSpecAppName = "cms-production" | "cms-staging" | "reader";
 
@@ -137,6 +137,7 @@ export function readerBuildSpec(config: AmplifyAppShellSiteConfig): string {
 }
 
 export function buildSpecFor(config: AmplifyAppShellSiteConfig, app: BuildSpecAppName): string {
+  if (app !== "reader" && !hasCmsApp(config)) throw new Error(`site ${config.siteId} has no cms app`);
   if (app === "cms-production") return cmsProductionBuildSpec(config);
   if (app === "cms-staging") return cmsStagingBuildSpec(config);
   return readerBuildSpec(config);
