@@ -6,8 +6,10 @@ import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { CfnEventSourceMapping, Function as LambdaFunction, FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { CfnIndex, CfnVectorBucket, CfnVectorBucketPolicy } from "aws-cdk-lib/aws-s3vectors";
+import type { Construct } from "constructs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-waves";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
 import { data } from "./data/resource";
@@ -95,6 +97,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  orderModelStacksInWaves(
+    backend.data.resources.graphqlApi.node.scope as Construct,
+    Object.keys(backend.data.resources.tables),
+    site.resolverWaveSize ?? DEFAULT_RESOLVER_WAVE_SIZE,
+  );
 
   const requestedCognitoDomainPrefix = (authConfig.cognitoDomainPrefix ?? "").trim();
   if (
