@@ -3,6 +3,21 @@ export type CmsRedirect = {
   status: 301 | 302;
 };
 
+export type ReaderRedirectStatus = "301" | "302" | "200" | "404" | "404-200";
+
+export type ReaderRedirect = {
+  source: string;
+  target: string;
+  status: ReaderRedirectStatus;
+};
+
+export type ReaderCustomHeaderRule = {
+  pattern: string;
+  headers: Record<string, string>;
+};
+
+export const READER_REDIRECT_STATUSES: ReaderRedirectStatus[] = ["301", "302", "200", "404", "404-200"];
+
 export type AmplifyAppShellSiteConfig = {
   siteId: string;
   repository: string;
@@ -26,10 +41,15 @@ export type AmplifyAppShellSiteConfig = {
   reader?: {
     appName?: string;
     domainName?: string;
+    domainPrefixes?: string[];
     branchName?: string;
     buildCommand: string;
     baseDirectory: string;
     environment?: Record<string, string>;
+    redirects?: ReaderRedirect[];
+    customHeaders?: ReaderCustomHeaderRule[];
+    preBuildCommands?: string[];
+    skipContentExport?: boolean;
   };
   papyrusVersion: string;
   storagePreviewPrefix?: string;
@@ -124,6 +144,56 @@ function parseRedirects(value: unknown): CmsRedirect[] | undefined {
     if (status !== 301 && status !== 302) fail(`${field}.status`, `must be 301 or 302, got ${JSON.stringify(status)}`);
     return { source, status };
   });
+}
+
+function parseReaderDomainPrefixes(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) fail("reader.domainPrefixes", "must be a non-empty array");
+  const prefixes = (value as unknown[]).map((entry, index) => {
+    const field = `reader.domainPrefixes[${index}]`;
+    if (entry === "") return "";
+    return requireString(entry, field, DOMAIN_PREFIX_PATTERN, 'single DNS label, or "" for the apex');
+  });
+  if (new Set(prefixes).size !== prefixes.length) fail("reader.domainPrefixes", "must not repeat a prefix");
+  return prefixes;
+}
+
+function parseReaderRedirects(value: unknown): ReaderRedirect[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) fail("reader.redirects", "must be a non-empty array");
+  return (value as unknown[]).map((entry, index) => {
+    const field = `reader.redirects[${index}]`;
+    const record = requireObject(entry, field);
+    rejectUnknownKeys(record, ["source", "target", "status"], field);
+    const status = record.status ?? "301";
+    if (typeof status !== "string" || !READER_REDIRECT_STATUSES.includes(status as ReaderRedirectStatus)) {
+      fail(`${field}.status`, `must be one of ${READER_REDIRECT_STATUSES.join(", ")}, got ${JSON.stringify(status)}`);
+    }
+    return {
+      source: requireString(record.source, `${field}.source`),
+      target: requireString(record.target, `${field}.target`),
+      status: status as ReaderRedirectStatus,
+    };
+  });
+}
+
+function parseReaderCustomHeaders(value: unknown): ReaderCustomHeaderRule[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) fail("reader.customHeaders", "must be a non-empty array");
+  return (value as unknown[]).map((entry, index) => {
+    const field = `reader.customHeaders[${index}]`;
+    const record = requireObject(entry, field);
+    rejectUnknownKeys(record, ["pattern", "headers"], field);
+    const headers = requireStringRecord(record.headers, `${field}.headers`);
+    if (Object.keys(headers).length === 0) fail(`${field}.headers`, "must not be empty");
+    return { pattern: requireString(record.pattern, `${field}.pattern`), headers };
+  });
+}
+
+function parseReaderPreBuildCommands(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) fail("reader.preBuildCommands", "must be a non-empty array of commands");
+  return (value as unknown[]).map((command, index) => requireString(command, `reader.preBuildCommands[${index}]`));
 }
 
 export function resolveRedirectSubDomainPrefix(rootDomain: string, source: string): string {
@@ -264,7 +334,10 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (record.reader !== undefined) {
     if (frontend !== "markus-static") fail("reader", `is only allowed when frontend is "markus-static"`);
     const readerRecord = requireObject(record.reader, "reader");
-    rejectUnknownKeys(readerRecord, ["appName", "domainName", "branchName", "buildCommand", "baseDirectory", "environment"], "reader");
+    rejectUnknownKeys(readerRecord, ["appName", "domainName", "domainPrefixes", "branchName", "buildCommand", "baseDirectory", "environment", "redirects", "customHeaders", "preBuildCommands", "skipContentExport"], "reader");
+    if (readerRecord.skipContentExport !== undefined && typeof readerRecord.skipContentExport !== "boolean") {
+      fail("reader.skipContentExport", `must be a boolean, got ${JSON.stringify(readerRecord.skipContentExport)}`);
+    }
     reader = {
       appName: optionalString(readerRecord.appName, "reader.appName", APP_NAME_PATTERN),
       domainName: optionalString(readerRecord.domainName, "reader.domainName", HOST_NAME_PATTERN, "host name"),
@@ -272,7 +345,13 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
       buildCommand: requireString(readerRecord.buildCommand, "reader.buildCommand"),
       baseDirectory: requireString(readerRecord.baseDirectory, "reader.baseDirectory"),
       environment: readerRecord.environment === undefined ? undefined : requireStringRecord(readerRecord.environment, "reader.environment"),
+      domainPrefixes: parseReaderDomainPrefixes(readerRecord.domainPrefixes),
+      redirects: parseReaderRedirects(readerRecord.redirects),
+      customHeaders: parseReaderCustomHeaders(readerRecord.customHeaders),
+      preBuildCommands: parseReaderPreBuildCommands(readerRecord.preBuildCommands),
+      skipContentExport: readerRecord.skipContentExport as boolean | undefined,
     };
+    if (reader.domainPrefixes && !reader.domainName) fail("reader.domainPrefixes", "requires reader.domainName");
   } else if (frontend === "markus-static") {
     fail("reader", `is required when frontend is "markus-static"`);
   }

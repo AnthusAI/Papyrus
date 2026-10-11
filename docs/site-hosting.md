@@ -146,6 +146,20 @@ The `amplify-app-shell` template sets this catch-all (`/<*>` -> `/404.html`,
 `404-200`) on every generated reader app, so a `markus-static` reader must emit
 `404.html` at its artifact root.
 
+### Optional reader settings (`site.json` `reader`)
+
+All are optional; omitting them leaves the generated reader unchanged
+(a single apex domain setting, the single `/<*>` 404-200 rule, no custom
+headers, the fixed export-then-build spec).
+
+| Field | Effect |
+| --- | --- |
+| `domainPrefixes` | Domain sub-domain prefixes on the reader branch, for example `["", "www"]`. Default `[""]` (apex only). Requires `domainName`. |
+| `redirects` | `[{ source, target, status }]` app-level rules (`status` is `301` by default; also `302`, `200`, `404`, `404-200`). Emitted before the 404 catch-all, which stays last. Reset-proof, unlike rules applied after deploy. |
+| `customHeaders` | `[{ pattern, headers }]` written to the app's `customHeaders`, for example `**/*.html` with a `Cache-Control` value. |
+| `preBuildCommands` | Extra reader `preBuild` commands, run after Python provisioning and before the content export (for example a submodule checkout). |
+| `skipContentExport` | `true` omits `papyrus ops content export-published` for a reader that builds from its own repo content. |
+
 ## SSR Pretext path (amplify-ssr)
 
 Papyrus itself: Next.js + Amplify Gen 2 backend (`ampx pipeline-deploy`),

@@ -50,6 +50,31 @@ try {
   }
   const cli = path.join(installed, "bin/papyrus-infra.mjs");
 
+  const anthUsSite = JSON.parse(fs.readFileSync(path.join(repo, "scripts/fixtures/anth-us.site.json"), "utf8"));
+  anthUsSite.reader.redirects = [
+    ...Array.from({ length: 402 }, (_, index) => ({ source: `/blog/post-${index}`, target: `/articles/post-${index}/` })),
+  ];
+  const anthUsSitePath = path.join(work, "anth-us.site.json");
+  fs.writeFileSync(anthUsSitePath, JSON.stringify(anthUsSite));
+  const anthUsOut = path.join(infraApp, "cdk.out.anth-us");
+  run("node", [cli, "synth", "--site", anthUsSitePath, "--out", anthUsOut], { cwd: infraApp });
+  const anthUsTemplate = JSON.parse(fs.readFileSync(path.join(anthUsOut, fs.readdirSync(anthUsOut).find((name) => name.endsWith(".template.json"))), "utf8"));
+  assert.equal(resourcesOfType(anthUsTemplate, "AWS::Amplify::App").length, 2, "anth-us: two apps");
+  const anthUsReaderApp = resourcesOfType(anthUsTemplate, "AWS::Amplify::App").find((app) => app.Properties.Platform === "WEB");
+  const anthUsRules = anthUsReaderApp.Properties.CustomRules;
+  assert.equal(anthUsRules.length, 403, "anth-us: 402 redirects plus the 404 catch-all");
+  assert.deepEqual(anthUsRules[0], { Source: "/blog/post-0", Target: "/articles/post-0/", Status: "301" });
+  assert.deepEqual(anthUsRules[402], { Source: "/<*>", Target: "/404.html", Status: "404-200" }, "anth-us: 404-200 is last");
+  assert.match(anthUsReaderApp.Properties.CustomHeaders, /pattern: "\*\*\/\*\.html"/);
+  assert.match(anthUsReaderApp.Properties.CustomHeaders, /value: "public, max-age=0, s-maxage=60, must-revalidate"/);
+  const anthUsReaderSpec = buildSpecOf(anthUsReaderApp);
+  assert.match(anthUsReaderSpec, /git submodule update --init --recursive/);
+  assert.equal(/export-published/.test(anthUsReaderSpec), false, "anth-us: export skipped");
+  assert.ok(anthUsReaderSpec.indexOf("papyrus-newsroom[markus]") < anthUsReaderSpec.indexOf("git submodule"), "anth-us: pre-build commands run after Python provisioning");
+  const anthUsDomains = resourcesOfType(anthUsTemplate, "AWS::Amplify::Domain");
+  assert.equal(anthUsDomains.length, 1, "anth-us: one reader domain");
+  assert.deepEqual(anthUsDomains[0].Properties.SubDomainSettings.map((setting) => setting.Prefix), ["", "www"]);
+
   const specsSeen = [];
   for (const [example, expectedApps, expectedBranches, expectedDomains] of [
     ["pretext.site.json", 1, 2, 2],
