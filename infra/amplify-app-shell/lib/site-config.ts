@@ -18,6 +18,20 @@ export type ReaderCustomHeaderRule = {
 
 export const READER_REDIRECT_STATUSES: ReaderRedirectStatus[] = ["301", "302", "200", "404", "404-200"];
 
+export type CmsConfig = {
+  appName?: string;
+  domainName?: string;
+  domainPrefix?: string;
+  staging?: boolean;
+  cognitoDomainPrefix: string;
+  applyCognitoDomainPrefix?: boolean;
+  buildComputeType?: "STANDARD" | "STANDARD_8GB";
+  environment: Record<string, string>;
+  stagingDomainName?: string;
+  stagingDomainPrefix?: string;
+  redirects?: CmsRedirect[];
+};
+
 export type AmplifyAppShellSiteConfig = {
   siteId: string;
   repository: string;
@@ -25,19 +39,7 @@ export type AmplifyAppShellSiteConfig = {
   frontend: "pretext" | "markus-static";
   hostedZoneId?: string;
   stackName?: string;
-  cms: {
-    appName?: string;
-    domainName?: string;
-    domainPrefix?: string;
-    staging?: boolean;
-    cognitoDomainPrefix: string;
-    applyCognitoDomainPrefix?: boolean;
-    buildComputeType?: "STANDARD" | "STANDARD_8GB";
-    environment: Record<string, string>;
-    stagingDomainName?: string;
-    stagingDomainPrefix?: string;
-    redirects?: CmsRedirect[];
-  };
+  cms?: CmsConfig;
   reader?: {
     appName?: string;
     domainName?: string;
@@ -60,6 +62,12 @@ export type AmplifyAppShellSiteConfig = {
     ciCanDeployInfra: boolean;
   };
 };
+
+export type CmsSiteConfig = AmplifyAppShellSiteConfig & { cms: CmsConfig };
+
+export function hasCmsApp(config: AmplifyAppShellSiteConfig): config is CmsSiteConfig {
+  return config.cms !== undefined;
+}
 
 export const DEFAULT_CI_BRANCHES = ["main", "staging"];
 
@@ -200,16 +208,16 @@ export function resolveRedirectSubDomainPrefix(rootDomain: string, source: strin
   return source === rootDomain ? "" : source.slice(0, -rootDomain.length - 1);
 }
 
-export function isStagingEnabled(config: Pick<AmplifyAppShellSiteConfig, "cms">): boolean {
+export function isStagingEnabled(config: Pick<CmsSiteConfig, "cms">): boolean {
   return config.cms.staging !== false;
 }
 
-export function resolveCmsHostName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string | undefined {
+export function resolveCmsHostName(config: Pick<CmsSiteConfig, "cms">): string | undefined {
   if (!config.cms.domainName) return undefined;
   return config.cms.domainPrefix ? `${config.cms.domainPrefix}.${config.cms.domainName}` : config.cms.domainName;
 }
 
-export function resolveStagingDomainName(config: Pick<AmplifyAppShellSiteConfig, "cms">): string | undefined {
+export function resolveStagingDomainName(config: Pick<CmsSiteConfig, "cms">): string | undefined {
   if (!isStagingEnabled(config)) return undefined;
   if (config.cms.domainPrefix) {
     return config.cms.stagingDomainPrefix ? `${config.cms.stagingDomainPrefix}.${config.cms.domainName}` : undefined;
@@ -228,27 +236,8 @@ export function resolveStoragePreviewPrefix(config: Pick<AmplifyAppShellSiteConf
   return config.storagePreviewPrefix ?? "preview/";
 }
 
-export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
-  const record = requireObject(raw, "site");
-  rejectUnknownKeys(
-    record,
-    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
-    "site",
-  );
-
-  const siteId = requireString(record.siteId, "siteId", SITE_ID_PATTERN, "kebab-case");
-  const repository = requireString(record.repository, "repository", REPOSITORY_PATTERN, "https://github.com/<org>/<repo>");
-  const brand = requireString(record.brand, "brand");
-  const frontend = requireString(record.frontend, "frontend");
-  if (frontend !== "pretext" && frontend !== "markus-static") {
-    fail("frontend", `must be "pretext" or "markus-static", got ${JSON.stringify(frontend)}`);
-  }
-  const hostedZoneId = optionalString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
-  const stackName = optionalString(record.stackName, "stackName", STACK_NAME_PATTERN, "CloudFormation stack name");
-  const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
-  const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
-
-  const cmsRecord = requireObject(record.cms, "cms");
+function parseCms(value: unknown): CmsConfig {
+  const cmsRecord = requireObject(value, "cms");
   rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
@@ -260,7 +249,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (cmsRecord.applyCognitoDomainPrefix !== undefined && typeof cmsRecord.applyCognitoDomainPrefix !== "boolean") {
     fail("cms.applyCognitoDomainPrefix", `must be a boolean, got ${JSON.stringify(cmsRecord.applyCognitoDomainPrefix)}`);
   }
-  const cms: AmplifyAppShellSiteConfig["cms"] = {
+  const cms: CmsConfig = {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
     domainPrefix: optionalString(cmsRecord.domainPrefix, "cms.domainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
@@ -330,6 +319,49 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     }
   }
 
+  return cms;
+}
+
+function validateOauthRedirectUrls(config: CmsSiteConfig): void {
+  const redirectValue = config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS;
+  if (redirectValue === undefined) fail("config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", "is required");
+  const redirectUrls = redirectValue.split(",").map((url) => url.trim());
+  const stagingDomainName = resolveStagingDomainName(config);
+  const listedOrigins = new Set(redirectUrls.map(originOfRedirectUrl));
+  const requiredOrigins = [
+    ...(resolveCmsHostName(config) ? [`https://${resolveCmsHostName(config)}`] : []),
+    ...(stagingDomainName ? [`https://${stagingDomainName}`] : []),
+    originOfRedirectUrl(LOCAL_DEVELOPMENT_ORIGIN),
+  ];
+  for (const origin of requiredOrigins) {
+    if (!listedOrigins.has(origin)) {
+      fail("config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", `must include ${origin}/ (or just the origin: the backend also registers its newsroom path)`);
+    }
+  }
+}
+
+export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
+  const record = requireObject(raw, "site");
+  rejectUnknownKeys(
+    record,
+    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
+    "site",
+  );
+
+  const siteId = requireString(record.siteId, "siteId", SITE_ID_PATTERN, "kebab-case");
+  const repository = requireString(record.repository, "repository", REPOSITORY_PATTERN, "https://github.com/<org>/<repo>");
+  const brand = requireString(record.brand, "brand");
+  const frontend = requireString(record.frontend, "frontend");
+  if (frontend !== "pretext" && frontend !== "markus-static") {
+    fail("frontend", `must be "pretext" or "markus-static", got ${JSON.stringify(frontend)}`);
+  }
+  const hostedZoneId = optionalString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
+  const stackName = optionalString(record.stackName, "stackName", STACK_NAME_PATTERN, "CloudFormation stack name");
+  const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
+  const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
+
+  const cms = record.cms === undefined && frontend === "markus-static" ? undefined : parseCms(record.cms);
+
   let reader: AmplifyAppShellSiteConfig["reader"];
   if (record.reader !== undefined) {
     if (frontend !== "markus-static") fail("reader", `is only allowed when frontend is "markus-static"`);
@@ -358,6 +390,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
 
   let github: AmplifyAppShellSiteConfig["github"];
   if (record.github !== undefined) {
+    if (cms === undefined) fail("github", "requires cms (the CI role is scoped to the CMS app)");
     const githubRecord = requireObject(record.github, "github");
     rejectUnknownKeys(githubRecord, ["owner", "repo", "branches", "ciCanDeployInfra"], "github");
     const owner = requireString(githubRecord.owner, "github.owner", GITHUB_OWNER_PATTERN, "plain GitHub login");
@@ -365,7 +398,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     if (repository !== `https://github.com/${owner}/${repo}`) {
       fail("github", `owner/repo must match repository ${repository}`);
     }
-    let branches = cms.staging === false ? DEFAULT_CI_BRANCHES.filter((branch) => branch !== "staging") : DEFAULT_CI_BRANCHES;
+    let branches = cms?.staging === false ? DEFAULT_CI_BRANCHES.filter((branch) => branch !== "staging") : DEFAULT_CI_BRANCHES;
     if (githubRecord.branches !== undefined) {
       if (!Array.isArray(githubRecord.branches) || githubRecord.branches.length === 0) {
         fail("github.branches", "must be a non-empty array of branch names");
@@ -382,7 +415,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean };
   }
 
-  const hasDomain = cms.domainName !== undefined || reader?.domainName !== undefined;
+  const hasDomain = cms?.domainName !== undefined || reader?.domainName !== undefined;
   if (hasDomain && hostedZoneId === undefined) {
     fail("hostedZoneId", "is required when cms.domainName or reader.domainName is set");
   }
@@ -404,21 +437,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     github,
   };
 
-  const redirectValue = cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS;
-  if (redirectValue === undefined) fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", "is required");
-  const redirectUrls = redirectValue.split(",").map((url) => url.trim());
-  const stagingDomainName = resolveStagingDomainName(config);
-  const listedOrigins = new Set(redirectUrls.map(originOfRedirectUrl));
-  const requiredOrigins = [
-    ...(resolveCmsHostName(config) ? [`https://${resolveCmsHostName(config)}`] : []),
-    ...(stagingDomainName ? [`https://${stagingDomainName}`] : []),
-    originOfRedirectUrl(LOCAL_DEVELOPMENT_ORIGIN),
-  ];
-  for (const origin of requiredOrigins) {
-    if (!listedOrigins.has(origin)) {
-      fail("cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS", `must include ${origin}/ (or just the origin: the backend also registers its newsroom path)`);
-    }
-  }
+  if (hasCmsApp(config)) validateOauthRedirectUrls(config);
 
   return config;
 }

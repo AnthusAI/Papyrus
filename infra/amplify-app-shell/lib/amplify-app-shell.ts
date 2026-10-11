@@ -4,7 +4,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, ReaderCustomHeaderRule, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -28,7 +28,9 @@ function readerCustomHeaders(rules: ReaderCustomHeaderRule[] | undefined): strin
  *
  *   - CMS app (WEB_COMPUTE) with branches `main` (production, owns the backend)
  *     and `staging` (frontend only, reads the production backend)
- *   - for `markus-static` sites, a reader app (WEB) with branch `main`
+ *   - for `markus-static` sites, a reader app (WEB) with branch `main`; a
+ *     `markus-static` site may omit `cms` to get the reader app alone (no CMS
+ *     app, no CMS roles, no authoring role)
  *   - a domain association per branch/app when a domain is configured (without
  *     one, no AWS::Amplify::Domain is created and the default amplifyapp.com
  *     URL is used), IAM service and compute roles
@@ -49,11 +51,17 @@ The stack also creates the `<siteId>-papyrus-authoring` role. The CLI signs
  * app by `ampx pipeline-deploy` from the production build.
  */
 export class AmplifyAppShellStack extends Stack {
-  public readonly cmsAppId: string;
+  public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
 
   constructor(scope: Construct, id: string, config: AmplifyAppShellSiteConfig, props?: StackProps) {
     super(scope, id, props);
+
+    if (!hasCmsApp(config)) {
+      if (!config.reader) throw new Error(`site ${config.siteId} has neither a cms section nor a reader`);
+      this.readerAppId = this.addReaderApp(config, config.reader);
+      return;
+    }
 
     const cmsAppName = config.cms.appName ?? `${config.siteId}-cms`;
     const stagingEnabled = isStagingEnabled(config);
@@ -213,7 +221,7 @@ export class AmplifyAppShellStack extends Stack {
     this.addAuthoringRole(config, cmsApp.attrAppId, amplifyAppIds);
 
     if (config.github) {
-      this.addGithubCiRole(config, config.github, amplifyAppIds);
+      this.addGithubCiRole(config, config.github, cmsApp.attrAppId, amplifyAppIds);
     }
   }
 
@@ -267,6 +275,7 @@ export class AmplifyAppShellStack extends Stack {
   private addGithubCiRole(
     config: AmplifyAppShellSiteConfig,
     github: NonNullable<AmplifyAppShellSiteConfig["github"]>,
+    cmsAppId: string,
     amplifyAppIds: string[],
   ): void {
     const provider = iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(
@@ -295,7 +304,7 @@ export class AmplifyAppShellStack extends Stack {
       }),
     });
 
-    for (const statement of this.authoringStatements(config, this.cmsAppId, amplifyAppIds)) {
+    for (const statement of this.authoringStatements(config, cmsAppId, amplifyAppIds)) {
       ciRole.addToPolicy(statement);
     }
     ciRole.addToPolicy(
