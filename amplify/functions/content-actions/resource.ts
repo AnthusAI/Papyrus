@@ -5,7 +5,7 @@ import { Construct } from "constructs";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pythonLambdaCode } from "../shared/python-bundle";
+import { pythonLambdaCode, type SiteBundleFile } from "../shared/python-bundle";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(dirname, "../../..");
@@ -18,6 +18,12 @@ function installCheckoutRequirements(outputDir: string): void {
     `python3 -m pip install -r "${requirementsPath}" -t "${outputDir}" --no-cache-dir --platform manylinux2014_aarch64 --implementation cp --python-version 3.12 --only-binary=:all: --ignore-requires-python`,
     { cwd: projectRoot, stdio: "inherit" },
   );
+}
+
+let siteFilesForNextContentActionsBundle: SiteBundleFile[] | undefined;
+
+export function setSiteFilesForContentActionsBundle(siteFiles: SiteBundleFile[] | undefined): void {
+  siteFilesForNextContentActionsBundle = siteFiles;
 }
 
 export const contentActions = defineFunction(
@@ -35,6 +41,7 @@ export const contentActions = defineFunction(
           requirements: contentActionsRequirements,
           noDeps: true,
           checkoutExtras: installCheckoutRequirements,
+          ...(siteFilesForNextContentActionsBundle !== undefined ? { siteFiles: siteFilesForNextContentActionsBundle } : {}),
         },
         [
           "bash",

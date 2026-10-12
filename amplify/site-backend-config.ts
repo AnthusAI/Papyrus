@@ -22,6 +22,80 @@ export type PapyrusAuthConfig = {
   applyCognitoDomainPrefix?: boolean;
 };
 
+export type S3ProjectionDistributionConfig = {
+  create: boolean;
+  aliases?: string[];
+  certificateArn?: string;
+  acm?: { hostedZoneId: string; hostedZoneName: string };
+};
+
+export type PapyrusPublicationConfig = {
+  kind: "s3-projection";
+  /** Site repo path (relative, `.py`) of the SiteProjector bundled into content-actions as `site_projector`. */
+  projector?: string;
+  /** Site repo directory (relative) bundled into content-actions as `site_static/`. */
+  staticDir?: string;
+  /** Existing CloudFront distribution that reads the site bucket through OAC. */
+  edgeDistributionArn?: string;
+  /** Create the distribution (and optionally its certificate) in the site backend. Default: not created. */
+  distribution?: S3ProjectionDistributionConfig;
+  /** Default true: the site bucket is retained when the stack is deleted. `false` destroys it and its objects. */
+  retainBucketOnDelete?: boolean;
+};
+
+const CLOUDFRONT_DISTRIBUTION_ARN = /^arn:aws[a-z-]*:cloudfront::\d{12}:distribution\/[A-Z0-9]+$/;
+
+function isRelativePathWithoutParentSegments(value: string): boolean {
+  if (value === "" || value.startsWith("/") || value.includes("\\")) return false;
+  return !value.split("/").includes("..");
+}
+
+export function validatePublicationConfig(publication: unknown): string[] {
+  const problems: string[] = [];
+  if (typeof publication !== "object" || publication === null) {
+    return ["publication must be an object"];
+  }
+  const config = publication as Partial<PapyrusPublicationConfig> & { kind?: unknown };
+  if (config.kind !== "s3-projection") {
+    problems.push(`publication.kind must be "s3-projection" (got ${JSON.stringify(config.kind)})`);
+  }
+  if (config.projector !== undefined) {
+    if (typeof config.projector !== "string" || !isRelativePathWithoutParentSegments(config.projector) || !config.projector.endsWith(".py")) {
+      problems.push("publication.projector must be a relative .py path without '..'");
+    }
+  }
+  if (config.staticDir !== undefined) {
+    if (typeof config.staticDir !== "string" || !isRelativePathWithoutParentSegments(config.staticDir)) {
+      problems.push("publication.staticDir must be a relative path without '..'");
+    }
+  }
+  if (config.edgeDistributionArn !== undefined && !CLOUDFRONT_DISTRIBUTION_ARN.test(config.edgeDistributionArn)) {
+    problems.push("publication.edgeDistributionArn must be a CloudFront distribution ARN (arn:aws:cloudfront::<account>:distribution/<id>)");
+  }
+  const distribution = config.distribution;
+  if (distribution !== undefined) {
+    if (config.edgeDistributionArn !== undefined && distribution.create === true) {
+      problems.push("publication.edgeDistributionArn and publication.distribution.create are mutually exclusive");
+    }
+    const aliases = distribution.aliases ?? [];
+    if (aliases.length > 0 && distribution.create !== true) {
+      problems.push("publication.distribution.aliases require distribution.create to be true");
+    }
+    if (aliases.length > 0 && !distribution.certificateArn && !distribution.acm) {
+      problems.push("publication.distribution.aliases require certificateArn or acm");
+    }
+    if (distribution.acm !== undefined && (!distribution.acm.hostedZoneId || !distribution.acm.hostedZoneName)) {
+      problems.push("publication.distribution.acm requires hostedZoneId and hostedZoneName");
+    }
+  }
+  return problems;
+}
+
+export function assertValidPublicationConfig(publication: unknown): void {
+  const problems = validatePublicationConfig(publication);
+  if (problems.length > 0) throw new Error(`Invalid backend.publication: ${problems.join("; ")}`);
+}
+
 export type PapyrusSiteBackendConfig = {
   /** Brand id; namespaces account-global resources (S3 Vectors index name). */
   brandId?: string;
@@ -56,6 +130,8 @@ export type PapyrusSiteBackendConfig = {
     /** Let this stack verify the SES domain identity and write its TXT record. Default false: verify once by hand. */
     manageDomainIdentity?: boolean;
   };
+  /** Opt-in static projection of published pages into an S3 site bucket. Unset: nothing is created. */
+  publication?: PapyrusPublicationConfig;
   features?: {
     consoleResponder?: boolean;
     inboundEmail?: boolean;

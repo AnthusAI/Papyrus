@@ -3,21 +3,24 @@ import { Stack } from "aws-cdk-lib";
 import type * as backup from "aws-cdk-lib/aws-backup";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
-import { CfnEventSourceMapping, Function as LambdaFunction, FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
+import { CfnEventSourceMapping, CfnFunction, Function as LambdaFunction, FunctionUrlAuthType } from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { CfnIndex, CfnVectorBucket, CfnVectorBucketPolicy } from "aws-cdk-lib/aws-s3vectors";
 import type { Construct } from "constructs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-waves";
+import { addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
+import { assertValidPublicationConfig } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
 import { data } from "./data/resource";
 import { assignmentAction } from "./functions/assignment-action/resource";
 import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
-import { contentActions } from "./functions/content-actions/resource";
+import { contentActions, setSiteFilesForContentActionsBundle } from "./functions/content-actions/resource";
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
 import { manageUserRole } from "./functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
@@ -80,6 +83,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     ...baseAuthConfig,
     newsroomBasePath: baseAuthConfig.newsroomBasePath ?? activeBrand?.newsroomBasePath,
   };
+  if (site.publication !== undefined) assertValidPublicationConfig(site.publication);
+  const publicationPlan = planS3ProjectionBackend(site.publication);
+  setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
   const backend = defineBackend({
     assignmentAction,
     auth: defineSiteAuth(authConfig),
@@ -387,6 +393,18 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     contentActionsLambda.addToRolePolicy(
       new PolicyStatement({ actions: rebuildSettings.actions, resources: rebuildSettings.resources }),
     );
+  }
+  let s3ProjectionPublication: S3ProjectionPublication | undefined;
+  if (site.publication !== undefined) {
+    s3ProjectionPublication = addS3ProjectionPublication(backend.createStack("s3-projection"), site.publication);
+    (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
+  }
+  const publicationWiring = contentActionsPublicationWiring(s3ProjectionPublication);
+  for (const [name, value] of Object.entries(publicationWiring.environment)) {
+    contentActionsLambda.addEnvironment(name, value);
+  }
+  for (const statement of publicationWiring.policyStatements) {
+    contentActionsLambda.addToRolePolicy(statement);
   }
   if ((site.revalidateBaseUrl ?? "").trim() !== "") {
     backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_BASE_URL", (site.revalidateBaseUrl ?? "").trim());
