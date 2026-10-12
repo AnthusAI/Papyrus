@@ -30,7 +30,7 @@
     "model": "claude-opus-5-5",
     "name": "markus-publication-architect"
   },
-  "right_now_summary": "M1 is merged and released, while rollout checks and later migration work are still pending.",
-  "right_now_updated_at": "2026-10-12T20:41:23.481155Z",
+  "right_now_summary": "The projection core is released, while rollout checks and later migration work remain.",
+  "right_now_updated_at": "2026-10-12T21:58:27.003244Z",
   "custom": {}
 }
