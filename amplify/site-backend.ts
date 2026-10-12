@@ -11,6 +11,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-waves";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
+import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
 import { data } from "./data/resource";
 import { assignmentAction } from "./functions/assignment-action/resource";
@@ -398,10 +399,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     backend.contentActions.addEnvironment("PAPYRUS_REVALIDATE_SECRET_PARAMETER", revalidateSecretParameter);
     const revalidateStack = Stack.of(contentActionsLambda);
     contentActionsLambda.addToRolePolicy(
-      new PolicyStatement({
-        actions: ["ssm:GetParameter"],
-        resources: [`arn:${revalidateStack.partition}:ssm:${revalidateStack.region}:${revalidateStack.account}:parameter${revalidateSecretParameter}`],
-      }),
+      new PolicyStatement(
+        revalidateSecretReadStatement({
+          partition: revalidateStack.partition,
+          region: revalidateStack.region,
+          account: revalidateStack.account,
+          parameterName: revalidateSecretParameter,
+        }),
+      ),
     );
   }
   grantNewsroomReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);

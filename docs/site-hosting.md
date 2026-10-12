@@ -394,8 +394,9 @@ an Amplify variable (those are wiped by stack updates or are visible in
 sets its *name* (not the value) as branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`
 on `main`, and grants `ssm:GetParameter` on exactly that parameter to the app's
 SSR compute role. The backend (`amplify/site-backend.ts`, when `revalidateBaseUrl`
-is set) passes the same name to `content-actions` and grants it the same single
-read. Both sides read the parameter at runtime (the route caches it for five
+is set) passes the same name to `content-actions` and grants it the same read
+(`ssm:GetParameter` and `ssm:GetParameters`, because the Lambda reads through boto3
+`get_parameters`). Both sides read the parameter at runtime (the route caches it for five
 minutes, so rotation takes effect without a redeploy); a missing or unreadable
 parameter makes the route answer 401 and the trigger report an error, never
 a bypass.
