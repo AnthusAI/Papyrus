@@ -3,8 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { App, Stack } from "aws-cdk-lib";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import { Match, Template } from "aws-cdk-lib/assertions";
-import { addS3ProjectionPublication, type S3ProjectionPublicationProps } from "../amplify/publication/s3-projection";
+import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublicationProps } from "../amplify/publication/s3-projection";
 import {
   contentActionsPublicationWiring,
   planS3ProjectionBackend,
@@ -317,5 +318,31 @@ function oacStatements(template: Template) {
 }
 
 assert.throws(() => synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, distribution: { create: true } }), /mutually exclusive/);
+
+{
+  const app = new App();
+  const publicationStack = new Stack(app, "ProjectionQueueStack", { env: { account: "123456789012", region: "us-east-1" } });
+  const functionStack = new Stack(app, "ContentActionsStack", { env: { account: "123456789012", region: "us-east-1" } });
+  const publication = addS3ProjectionPublication(publicationStack, { kind: "s3-projection" });
+  const contentActions = new lambda.Function(functionStack, "ContentActions", {
+    runtime: lambda.Runtime.PYTHON_3_12,
+    handler: "handler.handler",
+    code: lambda.Code.fromInline("def handler(event, context):\n    return {}\n"),
+  });
+  addProjectionRetries(contentActions, publication.deadLetterQueue);
+  const template = Template.fromStack(functionStack);
+  template.hasResourceProperties("AWS::Lambda::EventInvokeConfig", {
+    MaximumRetryAttempts: 1,
+    MaximumEventAgeInSeconds: 3600,
+    DestinationConfig: { OnFailure: { Destination: Match.anyValue() } },
+  });
+  template.hasResourceProperties("AWS::IAM::Policy", {
+    PolicyDocument: {
+      Statement: [Match.objectLike({ Action: "lambda:InvokeFunction", Effect: "Allow" })],
+    },
+  });
+  const rendered = JSON.stringify(template.toJSON());
+  assert.ok(rendered.includes("sqs:SendMessage"), "the function may send failed events to the dead letter queue");
+}
 
 console.log("s3-projection publication ok");

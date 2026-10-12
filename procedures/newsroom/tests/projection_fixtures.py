@@ -12,7 +12,7 @@ from papyrus_content.markus_renderer import CitationRendering, build_markus_site
 from papyrus_content.projection.engine import ProjectionContext
 from papyrus_content.projection.projector import MarkusProjectorSettings, MarkusSiteProjector, read_static_files
 from papyrus_content.projection.source import PublishedContentSource
-from papyrus_content.projection.writers import LocalDirectoryWriter
+from papyrus_content.projection.writers import STATE_PREFIX, LocalDirectoryWriter
 from papyrus_content.publishing import ItemFields, publish_item, save_item
 
 FIXTURE_ROOT = PAPYRUS_ROOT / "features_backend" / "fixtures" / "projection-site"
@@ -98,21 +98,40 @@ def tree_digests(root: Path) -> dict[str, str]:
 
 
 class RecordingWriter:
-    """Writes to a local directory and remembers the order of operations."""
+    """Writes pages to a local directory, keeps state objects in memory, and remembers the order of operations."""
 
     def __init__(self, root: Path) -> None:
         self._inner = LocalDirectoryWriter(root)
+        self._state: dict[str, bytes] = {}
         self.operations: list[tuple[str, str]] = []
         self.versions: dict[str, int | None] = {}
 
-    def put(self, key: str, body: bytes, *, version: int | None = None) -> None:
-        self._inner.put(key, body, version=version)
+    def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
+        if key.startswith(STATE_PREFIX):
+            self._state[key] = body
+            return
+        self._inner.put(key, body, version=version, inputs=inputs)
         self.operations.append(("put", key))
         self.versions[key] = version
 
     def delete(self, key: str) -> None:
+        if key.startswith(STATE_PREFIX):
+            self._state.pop(key, None)
+            return
         self._inner.delete(key)
         self.operations.append(("delete", key))
+
+    def get(self, key: str) -> bytes | None:
+        return self._state.get(key) if key.startswith(STATE_PREFIX) else self._inner.get(key)
+
+    def head(self, key: str):
+        return None if key.startswith(STATE_PREFIX) else self._inner.head(key)
+
+    def list(self, prefix: str = ""):
+        from papyrus_content.projection.writers import StoredObject, body_etag
+
+        state = [StoredObject(key=key, etag=body_etag(body)) for key, body in sorted(self._state.items()) if key.startswith(prefix)]
+        return [*self._inner.list(prefix), *state]
 
 
 class WorkDirectory:

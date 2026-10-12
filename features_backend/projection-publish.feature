@@ -30,13 +30,32 @@ Feature: Publishing through the content actions projects the site
     When the editor unpublishes the article
     Then the site bucket no longer holds "articles/hello.html"
 
-  Scenario: A projection failure does not fail the publish
+  Scenario: A projection failure does not fail the publish and is retried once, asynchronously
     Given a content actions backend with an s3-projection publication whose bucket rejects writes
     When the editor publishes a new article
     Then the publish response succeeds
     And the publish response says the item is not live
-    And the failure was queued on the projection dead letter queue
+    And one asynchronous retry of the projection was scheduled for the item
+    And nothing was queued on the projection dead letter queue
     And a published item exists
+
+  Scenario: The scheduled retry repairs the page once the cause is gone
+    Given a content actions backend with an s3-projection publication whose bucket rejects writes
+    And the editor publishes a new article
+    When the scheduled projection task runs with a working bucket
+    Then the projection task succeeds
+    And the site bucket holds "articles/hello.html" with the published version
+
+  Scenario: A retry that fails again raises, so the event goes to the dead letter queue
+    Given a content actions backend with an s3-projection publication whose bucket rejects writes
+    And the editor publishes a new article
+    When the scheduled projection task runs while the bucket still rejects writes
+    Then the projection task raises so that Lambda retries it and then dead letters it
+
+  Scenario: A change to what every page links to schedules the follow-up for the other item pages
+    Given a content actions backend with an s3-projection publication
+    When the editor publishes a new article
+    Then the projection task for the other item pages was scheduled
 
   Scenario: A site without a publication behaves as before
     Given a content actions backend without a publication

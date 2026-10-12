@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 import uuid
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
+STATE_PREFIX = "_papyrus/"
+HEAD_WORKERS = 16
 HTML_CACHE_CONTROL = "public, max-age=0, s-maxage=86400"
 STATIC_CACHE_CONTROL = "public, max-age=31536000, immutable"
 VERSION_METADATA_KEY = "papyrus-version"
+INPUTS_METADATA_KEY = "papyrus-inputs"
 MAXIMUM_INVALIDATION_PATHS = 100
 KEY_VALUE_STORE_BATCH_SIZE = 50
 WHOLE_SITE_INVALIDATION_PATH = "/*"
@@ -36,25 +41,69 @@ def cache_control_for(key: str) -> str:
     return HTML_CACHE_CONTROL if key.endswith(".html") else STATIC_CACHE_CONTROL
 
 
+@dataclass(frozen=True)
+class StoredObject:
+    """What the site store knows about one page: the version or inputs digest it was rendered from."""
+
+    key: str
+    etag: str | None = None
+    version: int | None = None
+    inputs: str | None = None
+
+
+def body_etag(body: bytes) -> str:
+    return hashlib.md5(body).hexdigest()  # noqa: S324 - the store's own ETag algorithm, not a security use
+
+
 class PageWriter(Protocol):
-    def put(self, key: str, body: bytes, *, version: int | None = None) -> None: ...
+    def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None: ...
 
     def delete(self, key: str) -> None: ...
 
+    def get(self, key: str) -> bytes | None: ...
+
+    def head(self, key: str) -> StoredObject | None: ...
+
+    def list(self, prefix: str = "") -> list[StoredObject]: ...
+
 
 class LocalDirectoryWriter:
+    """A directory as a site store; version and inputs metadata live in memory, beside the files."""
+
     def __init__(self, root: Path) -> None:
         self._root = Path(root)
+        self._metadata: dict[str, tuple[int | None, str | None]] = {}
 
-    def put(self, key: str, body: bytes, *, version: int | None = None) -> None:
+    def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
         target = self._root / key
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
+        self._metadata[key] = (version, inputs)
 
     def delete(self, key: str) -> None:
         target = self._root / key
         if target.is_file():
             target.unlink()
+        self._metadata.pop(key, None)
+
+    def get(self, key: str) -> bytes | None:
+        target = self._root / key
+        return target.read_bytes() if target.is_file() else None
+
+    def head(self, key: str) -> StoredObject | None:
+        body = self.get(key)
+        if body is None:
+            return None
+        version, inputs = self._metadata.get(key, (None, None))
+        return StoredObject(key=key, etag=body_etag(body), version=version, inputs=inputs)
+
+    def list(self, prefix: str = "") -> list[StoredObject]:
+        found = [
+            path.relative_to(self._root).as_posix()
+            for path in sorted(self._root.rglob("*"))
+            if path.is_file()
+        ]
+        return [self.head(key) for key in found if key.startswith(prefix)]
 
 
 class S3PageWriter:
@@ -66,7 +115,59 @@ class S3PageWriter:
         self._bucket = bucket
         self._s3 = s3_client
 
-    def put(self, key: str, body: bytes, *, version: int | None = None) -> None:
+    @staticmethod
+    def _error_code(error: Exception) -> str:
+        return str(getattr(error, "response", {}).get("Error", {}).get("Code", ""))
+
+    def _stored_object(self, key: str, headers: dict) -> StoredObject:
+        metadata = headers.get("Metadata") or {}
+        version = metadata.get(VERSION_METADATA_KEY)
+        return StoredObject(
+            key=key,
+            etag=str(headers.get("ETag", "")).strip('"') or None,
+            version=int(version) if version not in (None, "") else None,
+            inputs=metadata.get(INPUTS_METADATA_KEY),
+        )
+
+    def head(self, key: str) -> StoredObject | None:
+        try:
+            return self._stored_object(key, self._s3.head_object(Bucket=self._bucket, Key=key))
+        except Exception as error:  # noqa: BLE001 - only "not found" is an expected absence
+            if self._error_code(error) in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise
+
+    def get(self, key: str) -> bytes | None:
+        try:
+            return self._s3.get_object(Bucket=self._bucket, Key=key)["Body"].read()
+        except Exception as error:  # noqa: BLE001 - only "not found" is an expected absence
+            if self._error_code(error) in ("NoSuchKey", "404", "NotFound"):
+                return None
+            raise
+
+    def list(self, prefix: str = "") -> list[StoredObject]:
+        objects: list[StoredObject] = []
+        token: str | None = None
+        while True:
+            arguments: dict[str, Any] = {"Bucket": self._bucket, "Prefix": prefix}
+            if token:
+                arguments["ContinuationToken"] = token
+            page = self._s3.list_objects_v2(**arguments)
+            objects.extend(
+                StoredObject(key=entry["Key"], etag=str(entry.get("ETag", "")).strip('"') or None)
+                for entry in page.get("Contents", [])
+            )
+            if not page.get("IsTruncated"):
+                return objects
+            token = page.get("NextContinuationToken")
+
+    def head_many(self, keys: list[str]) -> dict[str, StoredObject | None]:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=HEAD_WORKERS) as pool:
+            return dict(zip(keys, pool.map(self.head, keys)))
+
+    def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
         arguments: dict[str, Any] = {
             "Bucket": self._bucket,
             "Key": key,
@@ -74,12 +175,27 @@ class S3PageWriter:
             "ContentType": content_type_for(key),
             "CacheControl": cache_control_for(key),
         }
+        metadata: dict[str, str] = {}
         if version is not None:
-            arguments["Metadata"] = {VERSION_METADATA_KEY: str(version)}
+            metadata[VERSION_METADATA_KEY] = str(version)
+        if inputs is not None:
+            metadata[INPUTS_METADATA_KEY] = inputs
+        if metadata:
+            arguments["Metadata"] = metadata
         self._s3.put_object(**arguments)
 
     def delete(self, key: str) -> None:
         self._s3.delete_object(Bucket=self._bucket, Key=key)
+
+
+def request_paths_for_key(key: str) -> tuple[str, ...]:
+    """The request paths a page answers to; the first is the canonical one (a redirect's target)."""
+    if key == "index.html":
+        return ("/",)
+    if key.endswith("/index.html"):
+        directory = "/" + key[: -len("index.html")]
+        return (directory, directory.rstrip("/"))
+    return ("/" + key,)
 
 
 def invalidation_paths_for(keys: list[str]) -> list[str]:
@@ -123,6 +239,14 @@ class RedirectStore(Protocol):
 
     def delete_all(self, sources: list[str]) -> None: ...
 
+    def list_all(self) -> dict[str, str]: ...
+
+    def get(self, source: str) -> str | None: ...
+
+
+KEY_VALUE_STORE_CONFLICT_CODES = frozenset({"ConflictException", "PreconditionFailed", "PreconditionFailedException"})
+KEY_VALUE_STORE_CONFLICT_ATTEMPTS = 6
+
 
 class KeyValueStoreRedirects:
     """CloudFront KeyValueStore: request path to redirect target, read by the edge function."""
@@ -139,13 +263,19 @@ class KeyValueStoreRedirects:
         return self._kvs.describe_key_value_store(KvsARN=self._arn)["ETag"]
 
     def _update(self, *, puts: list[dict[str, str]], deletes: list[dict[str, str]]) -> None:
-        etag = self._etag()
-        arguments: dict[str, Any] = {"KvsARN": self._arn, "IfMatch": etag}
-        if puts:
-            arguments["Puts"] = puts
-        if deletes:
-            arguments["Deletes"] = deletes
-        self._kvs.update_keys(**arguments)
+        for attempt in range(KEY_VALUE_STORE_CONFLICT_ATTEMPTS):
+            arguments: dict[str, Any] = {"KvsARN": self._arn, "IfMatch": self._etag()}
+            if puts:
+                arguments["Puts"] = puts
+            if deletes:
+                arguments["Deletes"] = deletes
+            try:
+                self._kvs.update_keys(**arguments)
+                return
+            except Exception as error:  # noqa: BLE001 - a concurrent writer moved the ETag; retry with a fresh one
+                code = str(getattr(error, "response", {}).get("Error", {}).get("Code", ""))
+                if code not in KEY_VALUE_STORE_CONFLICT_CODES or attempt == KEY_VALUE_STORE_CONFLICT_ATTEMPTS - 1:
+                    raise
 
     def put_all(self, redirects: dict[str, str]) -> None:
         entries = [{"Key": source, "Value": target} for source, target in redirects.items()]
@@ -156,3 +286,24 @@ class KeyValueStoreRedirects:
         entries = [{"Key": source} for source in sources]
         for start in range(0, len(entries), KEY_VALUE_STORE_BATCH_SIZE):
             self._update(puts=[], deletes=entries[start : start + KEY_VALUE_STORE_BATCH_SIZE])
+
+    def get(self, source: str) -> str | None:
+        try:
+            return str(self._kvs.get_key(KvsARN=self._arn, Key=source)["Value"])
+        except Exception as error:  # noqa: BLE001 - only "no such key" is an expected absence
+            if str(getattr(error, "response", {}).get("Error", {}).get("Code", "")) == "ResourceNotFoundException":
+                return None
+            raise
+
+    def list_all(self) -> dict[str, str]:
+        found: dict[str, str] = {}
+        token: str | None = None
+        while True:
+            arguments: dict[str, Any] = {"KvsARN": self._arn}
+            if token:
+                arguments["NextToken"] = token
+            page = self._kvs.list_keys(**arguments)
+            found.update({entry["Key"]: entry["Value"] for entry in page.get("Items", [])})
+            token = page.get("NextToken")
+            if not token:
+                return found

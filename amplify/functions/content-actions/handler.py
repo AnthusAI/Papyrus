@@ -6,7 +6,7 @@ from typing import Any
 
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
-from papyrus_content.projection.engine import project
+from papyrus_content.projection.engine import project, project_item_pages
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
     context_from_environment,
@@ -63,7 +63,14 @@ def derive_markus_action(arguments: dict) -> dict:
     return response
 
 
-def send_to_projection_dead_letter_queue(item_id: str, unpublished: bool, error: str) -> None:
+PROJECTION_TASK_KEY = "projectionTask"
+
+
+class ProjectionTaskFailed(Exception):
+    """Raised by an asynchronous projection task so Lambda retries it and, finally, sends it to the dead letter queue."""
+
+
+def send_to_projection_dead_letter_queue(task: dict, error: str) -> None:
     queue_url = (os.environ.get(DEAD_LETTER_QUEUE_ENV) or "").strip()
     if not queue_url:
         return
@@ -71,23 +78,50 @@ def send_to_projection_dead_letter_queue(item_id: str, unpublished: bool, error:
         import boto3
 
         boto3.client("sqs").send_message(
-            QueueUrl=queue_url,
-            MessageBody=json.dumps({"itemId": item_id, "unpublished": unpublished, "error": error}),
+            QueueUrl=queue_url, MessageBody=json.dumps({PROJECTION_TASK_KEY: task, "error": error})
         )
     except Exception:  # noqa: BLE001 - the dead letter is best effort; the response already reports the failure
         pass
+
+
+def schedule_projection_task(task: dict, error: str) -> bool:
+    """Run a projection task later, in this same function, as an asynchronous invocation.
+
+    The function has an on-failure destination (the dead letter queue), so a task
+    that keeps failing ends up there for ``papyrus ops content project --reconcile``.
+    """
+    function_name = (os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or "").strip()
+    if not function_name:
+        send_to_projection_dead_letter_queue(task, error)
+        return False
+    try:
+        import boto3
+
+        boto3.client("lambda").invoke(
+            FunctionName=function_name, InvocationType="Event", Payload=json.dumps({PROJECTION_TASK_KEY: task}).encode("utf-8")
+        )
+        return True
+    except Exception as scheduling_error:  # noqa: BLE001 - fall back to the dead letter queue
+        send_to_projection_dead_letter_queue(task, f"{error}; scheduling failed: {scheduling_error}")
+        return False
+
+
+def projection_context(client):
+    context = context_from_environment(client)
+    context.defer_follow_up = True
+    return context
 
 
 def project_item_action(client, item_id: str, *, unpublished: bool) -> dict:
     if not projection_configured():
         return {}
     liveness = {} if unpublished else {"live": False}
+    task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
     try:
-        context = context_from_environment(client)
-        report = project(context, item_id, unpublished=unpublished)
+        report = project(projection_context(client), item_id, unpublished=unpublished)
     except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
         message = f"{type(error).__name__}: {error}"
-        send_to_projection_dead_letter_queue(item_id, unpublished, message)
+        schedule_projection_task(task, message)
         return {**liveness, "projected": False, "paths": [], "error": message}
     response = {"projected": report.ok, "paths": [*report.written, *report.deleted]}
     if not unpublished:
@@ -97,9 +131,27 @@ def project_item_action(client, item_id: str, *, unpublished: bool) -> dict:
             response["url"] = url
     if not report.ok:
         message = "; ".join(report.errors)
-        send_to_projection_dead_letter_queue(item_id, unpublished, message)
+        schedule_projection_task(task, message)
         response["error"] = message
+    if report.follow_up_item_pages:
+        schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
     return response
+
+
+def run_projection_task(task: dict) -> dict:
+    """An asynchronous projection task. Raising makes Lambda retry it, then send the event to the dead letter queue."""
+    client, _claims = create_authoring_client()
+    if task.get("task") == "item-pages":
+        report = project_item_pages(projection_context(client), except_item_id=task.get("exceptItemId"))
+    elif task.get("task") == "item":
+        report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
+        if report.follow_up_item_pages:
+            schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
+    else:
+        raise ProjectionTaskFailed(f"Unknown projection task {task.get('task')!r}")
+    if not report.ok:
+        raise ProjectionTaskFailed("; ".join(report.errors))
+    return {"ok": True, "paths": [*report.written, *report.deleted]}
 
 
 def save_item_draft_action(arguments: dict, actor: str) -> dict:
@@ -183,6 +235,8 @@ def request_staging_build_action() -> dict:
 
 
 def handler(event, context):
+    if PROJECTION_TASK_KEY in event:
+        return run_projection_task(event[PROJECTION_TASK_KEY])
     field = event["fieldName"]
     arguments = parse_input(event["arguments"]["input"])
     actor = actor_from_event(event)
