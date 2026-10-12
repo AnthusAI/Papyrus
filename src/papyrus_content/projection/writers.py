@@ -5,21 +5,25 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import random
+import re
 import time
-import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
+from ..edge_invalidation import invalidate_distribution
+
 STATE_PREFIX = "_papyrus/"
 HEAD_WORKERS = 16
-HTML_CACHE_CONTROL = "public, max-age=0, s-maxage=86400"
-STATIC_CACHE_CONTROL = "public, max-age=31536000, immutable"
+DEFAULT_HTML_S_MAXAGE_SECONDS = 300
+FALLBACK_HTML_S_MAXAGE_SECONDS = 60
+HTML_STALE_WHILE_REVALIDATE_SECONDS = 60
+IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+IMMUTABLE_KEY_PREFIXES = ("assets/responsive/", "_next/static/")
+HASHED_FILE_NAME = re.compile(r"[.-][0-9a-f]{8,}\.[A-Za-z0-9]+$")
 VERSION_METADATA_KEY = "papyrus-version"
 INPUTS_METADATA_KEY = "papyrus-inputs"
-MAXIMUM_INVALIDATION_PATHS = 100
 KEY_VALUE_STORE_BATCH_SIZE = 50
-WHOLE_SITE_INVALIDATION_PATH = "/*"
 CONTENT_TYPES_BY_SUFFIX = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -39,8 +43,24 @@ def content_type_for(key: str) -> str:
     return guessed or "application/octet-stream"
 
 
-def cache_control_for(key: str) -> str:
-    return HTML_CACHE_CONTROL if key.endswith(".html") else STATIC_CACHE_CONTROL
+def html_cache_control(s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS) -> str:
+    return (
+        f"public, max-age=0, s-maxage={s_maxage_seconds}, "
+        f"stale-while-revalidate={HTML_STALE_WHILE_REVALIDATE_SECONDS}"
+    )
+
+
+def is_immutable_key(key: str) -> bool:
+    """Renditions and content-hashed files never change under the same name; everything else can."""
+    if key.startswith(IMMUTABLE_KEY_PREFIXES) and not key.endswith(".meta.json"):
+        return True
+    return HASHED_FILE_NAME.search(PurePosixPath(key).name) is not None
+
+
+def cache_control_for(key: str, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS) -> str:
+    if is_immutable_key(key):
+        return IMMUTABLE_CACHE_CONTROL
+    return html_cache_control(html_s_maxage_seconds)
 
 
 @dataclass(frozen=True)
@@ -109,13 +129,16 @@ class LocalDirectoryWriter:
 
 
 class S3PageWriter:
-    def __init__(self, bucket: str, s3_client: Any = None) -> None:
+    def __init__(
+        self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS
+    ) -> None:
         if s3_client is None:
             import boto3
 
             s3_client = boto3.client("s3")
         self._bucket = bucket
         self._s3 = s3_client
+        self._html_s_maxage_seconds = html_s_maxage_seconds
 
     @staticmethod
     def _error_code(error: Exception) -> str:
@@ -175,7 +198,7 @@ class S3PageWriter:
             "Key": key,
             "Body": body,
             "ContentType": content_type_for(key),
-            "CacheControl": cache_control_for(key),
+            "CacheControl": cache_control_for(key, self._html_s_maxage_seconds),
         }
         metadata: dict[str, str] = {}
         if version is not None:
@@ -207,33 +230,16 @@ def invalidation_paths_for(keys: list[str]) -> list[str]:
         if PurePosixPath(key).name == "index.html":
             directory = str(PurePosixPath(key).parent)
             paths.append("/" if directory == "." else f"/{directory}/")
-    unique = list(dict.fromkeys(paths))
-    if len(unique) > MAXIMUM_INVALIDATION_PATHS:
-        return [WHOLE_SITE_INVALIDATION_PATH]
-    return unique
+    return list(dict.fromkeys(paths))
 
 
 class CloudFrontInvalidator:
     def __init__(self, distribution_id: str, cloudfront_client: Any = None) -> None:
-        if cloudfront_client is None:
-            import boto3
-
-            cloudfront_client = boto3.client("cloudfront")
         self._distribution_id = distribution_id
         self._cloudfront = cloudfront_client
 
     def invalidate(self, keys: list[str]) -> list[str]:
-        paths = invalidation_paths_for(keys)
-        if not paths:
-            return []
-        self._cloudfront.create_invalidation(
-            DistributionId=self._distribution_id,
-            InvalidationBatch={
-                "Paths": {"Quantity": len(paths), "Items": paths},
-                "CallerReference": uuid.uuid4().hex,
-            },
-        )
-        return paths
+        return invalidate_distribution(self._distribution_id, invalidation_paths_for(keys), self._cloudfront)
 
 
 class RedirectStore(Protocol):

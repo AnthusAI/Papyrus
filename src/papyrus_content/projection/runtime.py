@@ -12,13 +12,22 @@ from .engine import ProjectionContext
 from .projector import MarkusSiteProjector, SiteProjector
 from ..renditions import S3RenditionStore
 from .source import PublishedContentSource
-from .writers import CloudFrontInvalidator, KeyValueStoreRedirects, S3PageWriter
+from .writers import (
+    DEFAULT_HTML_S_MAXAGE_SECONDS,
+    FALLBACK_HTML_S_MAXAGE_SECONDS,
+    CloudFrontInvalidator,
+    KeyValueStoreRedirects,
+    S3PageWriter,
+)
 
 PUBLICATION_KIND_ENV = "PAPYRUS_PUBLICATION_KIND"
 SITE_BUCKET_ENV = "PAPYRUS_SITE_BUCKET"
 EDGE_DISTRIBUTION_ENV = "PAPYRUS_EDGE_DISTRIBUTION_ID"
 REDIRECTS_KVS_ENV = "PAPYRUS_REDIRECTS_KVS_ARN"
 DEAD_LETTER_QUEUE_ENV = "PAPYRUS_PROJECTION_DLQ_URL"
+HTML_S_MAXAGE_ENV = "PAPYRUS_HTML_S_MAXAGE_SECONDS"
+EDGE_INVALIDATION_ENV = "PAPYRUS_EDGE_INVALIDATION"
+EDGE_INVALIDATION_OFF = "off"
 PUBLIC_URL_ENV = "PAPYRUS_SITE_PUBLIC_URL"
 SITE_PROJECTOR_ENV = "PAPYRUS_SITE_PROJECTOR"
 SITE_STATIC_DIRECTORY_ENV = "PAPYRUS_SITE_STATIC_DIR"
@@ -53,6 +62,17 @@ def load_projector(environ: Mapping[str, str] | None = None) -> SiteProjector:
     return projector
 
 
+def invalidation_enabled(environment: Mapping[str, str]) -> bool:
+    return (environment.get(EDGE_INVALIDATION_ENV) or "").strip().lower() != EDGE_INVALIDATION_OFF
+
+
+def html_s_maxage_seconds(environment: Mapping[str, str]) -> int:
+    configured = (environment.get(HTML_S_MAXAGE_ENV) or "").strip()
+    if configured:
+        return int(configured)
+    return DEFAULT_HTML_S_MAXAGE_SECONDS if invalidation_enabled(environment) else FALLBACK_HTML_S_MAXAGE_SECONDS
+
+
 def context_from_environment(
     client: Any,
     environ: Mapping[str, str] | None = None,
@@ -67,11 +87,15 @@ def context_from_environment(
         raise ValueError(f"{SITE_BUCKET_ENV} is not set; this site has no s3-projection publication.")
     distribution_id = (environment.get(EDGE_DISTRIBUTION_ENV) or "").strip()
     kvs_arn = (environment.get(REDIRECTS_KVS_ENV) or "").strip()
-    invalidator = CloudFrontInvalidator(distribution_id, cloudfront_client) if distribution_id else None
+    invalidator = (
+        CloudFrontInvalidator(distribution_id, cloudfront_client)
+        if distribution_id and invalidation_enabled(environment)
+        else None
+    )
     return ProjectionContext(
         source=PublishedContentSource(client),
         projector=load_projector(environment),
-        writer=S3PageWriter(bucket, s3_client),
+        writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment)),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
     )

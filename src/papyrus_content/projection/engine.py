@@ -160,8 +160,9 @@ def _finish(context: ProjectionContext, report: ProjectionReport) -> ProjectionR
     if context.invalidate is not None and touched:
         try:
             report.invalidated = context.invalidate(touched)
-        except Exception as error:  # noqa: BLE001 - reported in the result, the pages are already written
-            report.errors.append(f"invalidation failed: {type(error).__name__}: {error}")
+        except Exception as error:  # noqa: BLE001 - the pages are written and live at the origin; the purge is retried
+            report.unpurged = touched
+            LOGGER.warning("edge invalidation failed for %s paths: %s: %s", len(touched), type(error).__name__, error)
     return report
 
 

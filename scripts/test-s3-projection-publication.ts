@@ -41,6 +41,12 @@ assert.deepEqual(
   validatePublicationConfig({ kind: "s3-projection", distribution: { create: true, aliases: ["a.example.org"], certificateArn } }),
   [],
 );
+assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { htmlSMaxAgeSeconds: 120, invalidation: "targeted" } }), []);
+assert.deepEqual(validatePublicationConfig({ kind: "s3-projection", cache: { invalidation: "off" } }), []);
+for (const htmlSMaxAgeSeconds of [-1, 1.5, 86401]) {
+  assert.match(problemsOf({ kind: "s3-projection", cache: { htmlSMaxAgeSeconds } }), /htmlSMaxAgeSeconds/, String(htmlSMaxAgeSeconds));
+}
+assert.match(problemsOf({ kind: "s3-projection", cache: { invalidation: "wildcard" } }), /invalidation must be/);
 for (const projector of ["../x.py", "/abs/x.py", "web/projector.js", "web/../../x.py", ""]) {
   assert.match(problemsOf({ kind: "s3-projection", projector }), /projector/, projector);
 }
@@ -61,6 +67,19 @@ assert.deepEqual(s3ProjectionEnvironment(settingsInput), {
   PAPYRUS_REDIRECTS_KVS_ARN: settingsInput.keyValueStoreArn,
   PAPYRUS_PROJECTION_DLQ_URL: settingsInput.deadLetterQueueUrl,
 });
+const cachedEnvironment = s3ProjectionEnvironment({
+  ...settingsInput,
+  distributionArn: edgeArn,
+  cache: { htmlSMaxAgeSeconds: 120, invalidation: "off" },
+});
+assert.equal(cachedEnvironment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "120");
+assert.equal(cachedEnvironment.PAPYRUS_EDGE_INVALIDATION, "off");
+assert.equal(
+  s3ProjectionPolicyStatements({ ...settingsInput, bucketName: "b", distributionArn: edgeArn, cache: { invalidation: "off" } }).some((statement) =>
+    statement.actions.includes("cloudfront:CreateInvalidation")),
+  false,
+);
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn }).PAPYRUS_EDGE_INVALIDATION, undefined);
 assert.deepEqual(
   s3ProjectionEnvironment({
     ...settingsInput,
@@ -226,6 +245,27 @@ function oacStatements(template: Template) {
   assert.ok(rendered.includes("cloudfront-keyvaluestore:UpdateKeys"));
   assert.ok(rendered.includes("sqs:SendMessage"));
   assert.equal(publication.policyStatements.length, 5);
+  template.resourceCountIs("AWS::CloudWatch::Alarm", 1);
+  template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    Namespace: "Papyrus/Edge",
+    MetricName: "InvalidatedPaths",
+    Dimensions: [{ Name: "DistributionId", Value: "E3UMOOJRMY7FK7" }],
+    Statistic: "Sum",
+    Period: 604800,
+    EvaluationPeriods: 1,
+    Threshold: 230,
+    TreatMissingData: "notBreaching",
+  });
+}
+
+{
+  const { template, publication } = synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, cache: { invalidation: "off", htmlSMaxAgeSeconds: 60 } });
+  template.resourceCountIs("AWS::CloudWatch::Alarm", 0);
+  assert.equal(publication.environment.PAPYRUS_EDGE_INVALIDATION, "off");
+  assert.equal(publication.environment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "60");
+  const stack = Stack.of(publication.bucket);
+  const rendered = JSON.stringify(publication.policyStatements.map((statement) => stack.resolve(statement.toStatementJson())));
+  assert.ok(!rendered.includes("cloudfront:CreateInvalidation"));
 }
 
 {

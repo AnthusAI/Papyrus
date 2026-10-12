@@ -29,6 +29,15 @@ export type S3ProjectionDistributionConfig = {
   acm?: { hostedZoneId: string; hostedZoneName: string };
 };
 
+export type PapyrusPublicationCacheConfig = {
+  /** Shared-cache lifetime (seconds) of projected HTML. Default 300 with targeted invalidation, 60 with `invalidation: "off"`. */
+  htmlSMaxAgeSeconds?: number;
+  /** `targeted` (default): purge exactly the written paths after each projection. `off`: rely on the short lifetime alone. */
+  invalidation?: "targeted" | "off";
+};
+
+export const MAXIMUM_HTML_S_MAXAGE_SECONDS = 86400;
+
 export type PapyrusPublicationConfig = {
   kind: "s3-projection";
   /** Site repo path (relative, `.py`) of the SiteProjector bundled into content-actions as `site_projector`. */
@@ -37,6 +46,8 @@ export type PapyrusPublicationConfig = {
   staticDir?: string;
   /** Existing CloudFront distribution that reads the site bucket through OAC. */
   edgeDistributionArn?: string;
+  /** Edge cache lifetime of projected HTML and whether each projection purges the edge. */
+  cache?: PapyrusPublicationCacheConfig;
   /** Create the distribution (and optionally its certificate) in the site backend. Default: not created. */
   distribution?: S3ProjectionDistributionConfig;
   /** Default true: the site bucket is retained when the stack is deleted. `false` destroys it and its objects. */
@@ -71,6 +82,16 @@ export function validatePublicationConfig(publication: unknown): string[] {
   }
   if (config.edgeDistributionArn !== undefined && !CLOUDFRONT_DISTRIBUTION_ARN.test(config.edgeDistributionArn)) {
     problems.push("publication.edgeDistributionArn must be a CloudFront distribution ARN (arn:aws:cloudfront::<account>:distribution/<id>)");
+  }
+  const cache = config.cache;
+  if (cache !== undefined) {
+    const lifetime = cache.htmlSMaxAgeSeconds;
+    if (lifetime !== undefined && (!Number.isInteger(lifetime) || lifetime < 0 || lifetime > MAXIMUM_HTML_S_MAXAGE_SECONDS)) {
+      problems.push(`publication.cache.htmlSMaxAgeSeconds must be an integer from 0 to ${MAXIMUM_HTML_S_MAXAGE_SECONDS}`);
+    }
+    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off") {
+      problems.push('publication.cache.invalidation must be "targeted" or "off"');
+    }
   }
   const distribution = config.distribution;
   if (distribution !== undefined) {

@@ -15,7 +15,8 @@ import { fileURLToPath } from "node:url";
 import { assertValidPublicationConfig, type PapyrusPublicationConfig } from "../site-backend-config";
 import { addRenditionsFunction, type RenditionsFunction } from "./renditions-function";
 import { RENDITIONS_FUNCTION_NAME_ENV, type RenditionsPlan } from "./renditions-settings";
-import { s3ProjectionEnvironment, s3ProjectionPolicyStatements } from "./s3-projection-settings";
+import { addInvalidationPathAlarm } from "./invalidation-alarm";
+import { distributionIdFromArn, s3ProjectionEnvironment, s3ProjectionPolicyStatements } from "./s3-projection-settings";
 
 const redirectFunctionSourcePath = resolve(dirname(fileURLToPath(import.meta.url)), "redirect-and-index.js");
 
@@ -154,9 +155,15 @@ export function addS3ProjectionPublication(
     publicHostName: distribution !== undefined
       ? (props.distribution?.aliases?.[0] ?? distribution.distributionDomainName)
       : undefined,
+    cache: props.cache,
     projector: props.projector,
     staticDir: props.staticDir,
   };
+  const invalidatedDistributionId = distribution?.distributionId
+    ?? (props.edgeDistributionArn !== undefined ? distributionIdFromArn(props.edgeDistributionArn) : undefined);
+  if (invalidatedDistributionId !== undefined && props.cache?.invalidation !== "off") {
+    addInvalidationPathAlarm(scope, "EdgeInvalidationPaths", invalidatedDistributionId);
+  }
   return {
     bucket,
     keyValueStore,
