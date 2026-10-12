@@ -11,6 +11,7 @@ from typing import Protocol
 
 from ..markus_renderer.build import DEFAULT_THEME, render_fragment_text
 from ..markus_renderer.citations import CitationRendering
+from ..markus_renderer.content_markup import prepare_page
 from ..markus_renderer.convert import convert_text_in_process
 from ..markus_renderer.pages import (
     ARTICLES_INDEX_SLUG,
@@ -25,6 +26,14 @@ from ..markus_renderer.pages import (
 )
 from ..markus_renderer.shell import DEFAULT_CHROME, SiteChrome
 from ..markus_renderer.vendor_css import vendor_markus_css_text
+from ..renditions import (
+    IMAGES_SETTINGS_KEY,
+    RenditionCatalog,
+    RenditionSettings,
+    RenditionStore,
+    StoredRenditionImageBuilder,
+    settings_from_mapping as image_settings_from_mapping,
+)
 from .model import ItemChange, ItemSummary, ProjectedItem, SiteIndex
 
 HOME_PAGE_PATH = "index.html"
@@ -56,10 +65,11 @@ class MarkusProjectorSettings:
     sections: tuple[str, ...] = ()
     citations: bool = False
     chrome: SiteChrome = DEFAULT_CHROME
+    images: RenditionSettings | None = None
 
 
 def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
-    unknown = set(raw) - {"theme", "sections", "citations", "chrome"}
+    unknown = set(raw) - {"theme", "sections", "citations", "chrome", IMAGES_SETTINGS_KEY}
     if unknown:
         raise ValueError(f"Unknown projection settings: {', '.join(sorted(unknown))}")
     chrome_raw = dict(raw.get("chrome") or {})
@@ -74,6 +84,7 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
         sections=tuple(raw.get("sections") or ()),
         citations=bool(raw.get("citations", False)),
         chrome=SiteChrome(**chrome_raw),
+        images=image_settings_from_mapping(raw[IMAGES_SETTINGS_KEY]) if IMAGES_SETTINGS_KEY in raw else None,
     )
 
 
@@ -120,19 +131,23 @@ class MarkusSiteProjector:
         static_files: dict[str, bytes],
         *,
         convert_text: Callable[[str], str] | None = None,
+        renditions: RenditionStore | None = None,
     ) -> None:
         self._settings = settings
         self._static_files = dict(static_files)
         self.version = static_version(self._static_files)
         self._convert_text = convert_text or (lambda text: convert_text_in_process(text, theme=settings.theme))
         self._citations = CitationRendering() if settings.citations else None
+        self._renditions = renditions
 
     @classmethod
-    def from_static_directory(cls, static_directory: Path | None) -> "MarkusSiteProjector":
+    def from_static_directory(
+        cls, static_directory: Path | None, *, renditions: RenditionStore | None = None
+    ) -> "MarkusSiteProjector":
         settings_path = static_directory / PROJECTION_SETTINGS_FILE if static_directory is not None else None
         raw = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path and settings_path.is_file() else {}
         settings = settings_from_mapping(raw)
-        return cls(settings, read_static_files(static_directory, settings.theme))
+        return cls(settings, read_static_files(static_directory, settings.theme), renditions=renditions)
 
     def _content_sections(self) -> tuple[str, ...]:
         return (ARTICLES_SECTION, *self._settings.sections)
@@ -156,9 +171,25 @@ class MarkusSiteProjector:
     def _nav_items(self, site: SiteIndex):
         return build_nav_items([(summary.slug, summary.page_title) for summary in self._articles(site)])
 
+    def _image_builder(self, text: str) -> StoredRenditionImageBuilder | None:
+        images = self._settings.images
+        if images is None:
+            return None
+        if self._renditions is None:
+            raise ValueError("This site configures images but the projector has no rendition store.")
+        catalog = RenditionCatalog(self._renditions, images.pipeline)
+        catalog.prefetch(request.src for request in prepare_page(text, images=images.pipeline, citations=None).images.values())
+        return StoredRenditionImageBuilder(images.pipeline, catalog)
+
     def _fragment(self, text: str, depth: int) -> str:
+        images = self._settings.images
         return render_fragment_text(
-            text, convert=self._convert_text, depth=depth, citations=self._citations
+            text,
+            convert=self._convert_text,
+            depth=depth,
+            images=images.pipeline if images is not None else None,
+            image_builder=self._image_builder(text),
+            citations=self._citations,
         )
 
     def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:

@@ -37,6 +37,7 @@ jobs:
       - run: npm run test:root-route-redirect
       - run: npm run test:infra-site-config
       - run: npm run test:s3-projection-publication
+      - run: npm run test:renditions-function
       - run: npm run test:redirect-and-index-function
       - run: npm ci
         working-directory: infra/amplify-app-shell
