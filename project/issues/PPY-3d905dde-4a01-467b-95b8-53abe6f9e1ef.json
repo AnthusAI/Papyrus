@@ -17,16 +17,29 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "57127587-9cc6-4219-8292-0e25eaed46fe",
+      "author": "home",
+      "text": "## M3 evidence (2026-10-12)\n\n**Status: code, tests and the AWS proof are done; epic left open for Ryan.** Not done: the Pilobol.us site projector itself (see \"Left for M4/M5\").\n\n### What landed\n- Papyrus PR #193 (526addb) and #194 (2cbbde9), both merged to `develop` on green. Release: `@anthusai/papyrus` 1.0.0-next.47 (next.46 = #193 alone).\n- Anth.us projector on `feature/PPY-3d905d-anthus-incremental` @ 8031fe4 in AnthusAI/Anth.us-Papyrus (pushed, **no PR**; production deploys from `main`).\n\n### Dependency rules (docs/site-hosting.md, \"Incremental projection, concurrency and repair\")\nA projector declares `listing_inputs` (a digest of what each non-item page renders from) and `shared_inputs` (what every item page depends on). The engine compares the digests for the site as last projected (per-item state in `_papyrus/items/<id>.json`) and as it is now, and renders only the pages whose digest moved. For Anth.us the digest is the generated page fragment with its internal links resolved against the URL map, so membership, order, pagination boundaries and every shown field are covered without a hand-kept table. Observed written sets (real export, logged):\n- retitle of a post: item page, `posts/page/2/`, `tags/posts/` (3 paths); of an article: item, `articles/page/N/`, `tags/<its tags>/` (+ `/` if among the newest four, + `reading/`, `research/`, `ai-solutions/`, `ryan/` when listed there); of a platform product: item, `platform/` (2 paths). Retitle p50 = 5 paths.\n- new article: item, every shifted collection page, tag pages and `tags/`, `sitemap-0.xml`; the follow-up re-renders other item pages whose rewritten links moved (writes only pages whose bytes differ).\n- unpublish: listings and `sitemap-0.xml` first, then the item page is deleted, then its redirects. A pagination page that disappears is deleted.\n- Pilobol-shaped site (from `pilobol_feed.py`: home = non-hidden articles newest first, archive = all, no pagination, static nav, sitemap): retitle -> item, `index.html`, `articles/index.html`; body only -> item; hidden from feed -> item, `index.html`; add -> item, home, archive, sitemap; unpublish -> home, archive, sitemap, then delete.\n\n### Acceptance\n- Anth.us byte parity: `project_all` of the export = 198 files (195 pages, `sitemap-0`, `sitemap-index`, `robots`), identical to the production-pin (c98435f) full build, locally and in the S3 bucket; the 478 exact-match redirect rules equal the exact 301 rules of the reference `customRules`. The full build is still byte-identical after the `stage_platform_page` extraction (2308 files).\n- Property tests: Papyrus `test_projection_incremental.py` (generic + Pilobol-shaped, 16 seeds x 40 random publish/retitle/date/hide/edit/unpublish/rename ops, incremental store == fresh `project_all` after every op, pages written = pages changed + the item's own); Anth.us `tests/test_projector_incremental.py` on the real corpus (8 seeds, 14-20 ops, same checks, reconcile finds no drift). Mutating a digest field or removing the re-read makes them fail.\n- Concurrency: 12 simultaneous and 12 staggered pairs of real Lambda invocations (S3 put jitter), 10 of the staggered pairs needed the second round, all live, an in-Lambda full projection found no difference after settling; thread and interleaving tests locally.\n- Failure and reconcile: save ok + render failed once -> `live:false`, async self-retry repaired it in <8 s; failing retry -> `RetriesExhausted` event on the DLQ after 71 s; `papyrus ops content project --reconcile [--dry-run]` found and repaired: a render that never ran, an unpublish that never ran, an orphan page, a stale trailing pagination page, lost state, lost redirects. Failure injected at every write of a projection is repaired by running it again.\n- Rename/redirects: unpublish, new slug, publish -> old page gone and out of the sitemap, KVS redirects `/articles/old` and `/articles/old/` -> new.\n- p50 save of a live Anth.us item in the Lambda (n=30 warm, DynamoDB record store, no invalidation): before 3022 ms (p95 3788, 68 paths) -> after 749 ms (p95 1376, 5 paths). Publish new 2901 -> 1104 ms, unpublish 2761 -> 921 ms.\n- Throwaway stack papyrus-m3-test (712236451410) deleted; buckets emptied incl. versions and markers; log groups removed.\n\n### Found by the proof (fixed in #194)\nKVS `UpdateKeys` ETag races answer `ValidationException: Pre-Condition failed`; reconcile of 115 removed items was O(n) projections (timed out at 300 s), now one pass.\n\n### Left for M4/M5\n- Pilobol.us site projector with its real chrome, decorations and feed pages (M5); the Pilobol dependency rules are proved on a Pilobol-shaped test projector only. The Anth.us pattern redirect rules (`/blog/<slug>/`, `/posts/page-<n>/`, catch-all) are not representable as KVS exact keys and need edge-function logic (M6).\n- `papyrus ops ... project --all` after each CMS backend deploy (build-spec wiring), Lambda timeout for long follow-ups (60 s today), per-item link maps to shrink the follow-up after a new article, cache tuning and the invalidation latency (not measured: no distribution in the proof).\n- Slug reuse after a rename keeps only the newest owner's redirect; theme/code changes are not drift (`--all`).\n",
+      "created_at": "2026-10-12T22:49:19.594394Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "m3-incremental-projection"
+      }
+    }
+  ],
   "created_at": "2026-10-12T18:27:47.273803Z",
-  "updated_at": "2026-10-12T18:29:08.385012Z",
+  "updated_at": "2026-10-12T22:49:27.879881Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",
     "name": "markus-publication-architect"
   },
-  "right_now_summary": "Work is planned but waits on M1 and M2 dependencies.",
-  "right_now_updated_at": "2026-10-12T18:29:10.176351Z",
+  "right_now_summary": "Anth.us incremental projection passes concurrency, failure recovery, redirect, and parity tests.",
+  "right_now_updated_at": "2026-10-12T22:49:29.600222Z",
   "custom": {}
 }
