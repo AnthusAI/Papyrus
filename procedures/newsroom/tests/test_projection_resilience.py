@@ -218,6 +218,23 @@ class ReconcileTests(unittest.TestCase):
                 self.assertFalse(reconcile(site.context, dry_run=True).drift)
                 self.assertEqual(len(site.store.list("_papyrus/items/")), 3)
 
+    def test_many_unpublished_items_are_removed_in_one_pass_with_their_redirects(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            site = seeded_site("generic", Path(temporary), count=6)
+            for number in (1, 2, 3):
+                site.drafts[f"item-{number}"].aliases = [f"old/{number}"]
+                site.publish(f"item-{number}")
+                site.project_item(f"item-{number}")
+            self.assertEqual(len(site.redirects.mapping), 3)
+            for number in (1, 2, 3):
+                unpublish_item(site.client, f"item-{number}", actor=ACTOR, now=NOW)
+                site.published.discard(f"item-{number}")
+            outcome = reconcile(site.context)
+            self.assertEqual(outcome.removed_items, ["item-1", "item-2", "item-3"])
+            self.assertEqual(site.redirects.mapping, {})
+            assert_equals_full(self, site)
+            self.assertFalse(reconcile(site.context, dry_run=True).drift)
+
     def test_lost_redirects_are_restored(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             site = seeded_site("generic", Path(temporary))
@@ -306,6 +323,9 @@ class S3SiteStoreTests(unittest.TestCase):
         class Conflict(Exception):
             response = {"Error": {"Code": "ConflictException"}}
 
+        class MovedEtag(Exception):
+            response = {"Error": {"Code": "ValidationException", "Message": "Pre-Condition failed during update of Key-Value-Store"}}
+
         class NotFound(Exception):
             response = {"Error": {"Code": "ResourceNotFoundException"}}
 
@@ -321,6 +341,8 @@ class S3SiteStoreTests(unittest.TestCase):
                 self.calls += 1
                 if self.calls == 1:
                     raise Conflict()
+                if self.calls == 2:
+                    raise MovedEtag()
                 for entry in arguments.get("Puts", []):
                     self.data[entry["Key"]] = entry["Value"]
                 for entry in arguments.get("Deletes", []):
@@ -337,7 +359,7 @@ class S3SiteStoreTests(unittest.TestCase):
         fake = FakeKeyValueStore()
         store = KeyValueStoreRedirects("arn:aws:cloudfront::1:key-value-store/x", fake)
         store.put_all({"/old": "/new"})
-        self.assertEqual(fake.calls, 2)
+        self.assertEqual(fake.calls, 3)
         self.assertEqual(store.get("/old"), "/new")
         self.assertIsNone(store.get("/other"))
         self.assertEqual(store.list_all(), {"/old": "/new"})
