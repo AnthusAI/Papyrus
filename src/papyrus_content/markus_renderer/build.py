@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 import shutil
 import tempfile
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,8 +15,17 @@ from .citations import CitationRendering
 from .content_markup import prepare_page, resolve_fragment
 from .convert import convert_fragment
 from .images import ImageBuilder, ImagePipeline
+from .pages import (
+    build_nav_items,
+    generated_home_fragment,
+    read_title,
+    render_content_page,
+    render_home_page,
+    title_from_slug,
+    version_token,
+)
 from .security import assert_markus_version
-from .shell import DEFAULT_CHROME, NavItem, SiteChrome, render_page
+from .shell import DEFAULT_CHROME, NavItem, SiteChrome
 from .transforms import FragmentTransform
 from .vendor_css import vendor_markus_css
 
@@ -71,17 +80,7 @@ class BuildResult:
 
 
 def _read_title(markdown_path: Path, fallback: str) -> str:
-    text = markdown_path.read_text(encoding="utf-8")
-    if text.startswith("---"):
-        end = text.find("\n---", 3)
-        if end != -1:
-            front_matter = text[3:end]
-            for line in front_matter.splitlines():
-                if line.startswith("title:"):
-                    value = line.split(":", 1)[1].strip().strip('"').strip("'")
-                    if value:
-                        return value
-    return fallback
+    return read_title(markdown_path.read_text(encoding="utf-8"), fallback)
 
 
 def _discover_articles(content_dir: Path) -> list[tuple[str, Path]]:
@@ -107,25 +106,59 @@ def _discover_section(content_dir: Path, section: str) -> list[tuple[str, Path]]
 
 
 def _build_nav_items(articles: list[tuple[str, Path]]) -> list[NavItem]:
-    """One nav link per article -- fine for a handful of articles (Papyrus's
-    own site has 2), but floods the header once a publication has a real
-    archive of stories. If the articles directory has its own ``index.md``
-    (a hand-authored archive/"Stories" page), treat THAT as the one nav entry
-    for articles instead of listing every single one -- the index page is
-    where individual stories get linked from. Publications with no such
-    index.md keep the original one-link-per-article behavior unchanged.
+    """One nav link per article, or one entry for a hand-authored ``index.md``.
+
+    One link per article is fine for a handful of articles (Papyrus's own site
+    has 2), but floods the header once a publication has a real archive. If
+    the articles directory has its own ``index.md`` (a hand-authored
+    archive/"Stories" page), that is the one nav entry for articles instead;
+    the index page is where individual stories get linked from.
     """
-    nav_items = [NavItem("Home", "index.html")]
-    index_entry = next((a for a in articles if a[0] == "index"), None)
-    if index_entry is not None:
-        slug, source = index_entry
-        title = _read_title(source, "Stories")
-        nav_items.append(NavItem(title, f"articles/{slug}.html"))
-        return nav_items
-    for slug, source in articles:
-        title = _read_title(source, slug.replace("-", " ").title())
-        nav_items.append(NavItem(title, f"articles/{slug}.html"))
-    return nav_items
+    return build_nav_items(
+        [(slug, read_title(source.read_text(encoding="utf-8"), None)) for slug, source in articles]
+    )
+
+
+def render_fragment_text(
+    text: str,
+    *,
+    convert: Callable[[str], str],
+    depth: int = 0,
+    images: ImagePipeline | None = None,
+    image_builder: ImageBuilder | None = None,
+    citations: CitationRendering | None = None,
+    transform: FragmentTransform | None = None,
+) -> str:
+    """Convert one Markdown text, resolving Papyrus content markup around it.
+
+    ``convert`` turns Markus source into a fragment: the pinned CLI for the
+    full build, Markus in this process for the projector. With neither
+    ``image_builder`` nor ``citations`` supplied the text goes to ``convert``
+    untouched.
+
+    When a capability *is* enabled, the Papyrus vocabulary is lowered to
+    sentinels before Markus runs, because Markus validates directive names and
+    attributes strictly and would reject anything it does not own. See
+    ``content_markup`` for the full rationale.
+    """
+    if image_builder is None and citations is None:
+        fragment = convert(text)
+        return fragment if transform is None else transform.apply(fragment)
+
+    page = prepare_page(text, images=images, citations=citations)
+    fragment = convert(page.markdown)
+    if image_builder is not None:
+        image_builder.start_page()
+    resolved = resolve_fragment(
+        fragment,
+        page,
+        depth=depth,
+        image_builder=image_builder,
+        citations=citations,
+    )
+    # Last, so a publication's transform sees the final markup, images and
+    # bibliography included.
+    return resolved if transform is None else transform.apply(resolved)
 
 
 def render_fragment(
@@ -139,48 +172,36 @@ def render_fragment(
     citations: CitationRendering | None = None,
     transform: FragmentTransform | None = None,
 ) -> str:
-    """Convert one Markdown file, resolving Papyrus content markup around it.
+    """Convert one Markdown file with the ``markus`` CLI, resolving Papyrus content markup.
 
     With neither ``image_builder`` nor ``citations`` supplied this is exactly
     ``convert_fragment(source, ...)`` -- same subprocess, same bytes. That is
     the contract publications relying on the pre-existing behaviour depend on
     (see ``build_markus_site``).
-
-    When a capability *is* enabled, the Papyrus vocabulary is lowered to
-    sentinels before Markus runs, because the pinned ``markus`` CLI validates
-    directive names and attributes strictly and would reject anything it does
-    not own. See ``content_markup`` for the full rationale.
     """
-    if image_builder is None and citations is None:
-        return convert_fragment(
-            source, theme=theme, markus_executable=markus_executable, transform=transform
-        )
-
     text = source.read_text(encoding="utf-8")
-    page = prepare_page(text, images=images, citations=citations)
-    if page.markdown == text:
-        fragment = convert_fragment(
-            source, theme=theme, markus_executable=markus_executable
-        )
-    else:
+
+    def convert_with_cli(markdown: str) -> str:
+        if markdown == text:
+            return convert_fragment(
+                source, theme=theme, markus_executable=markus_executable
+            )
         with tempfile.TemporaryDirectory(prefix="papyrus-markus-") as tmp:
             staged = Path(tmp) / source.name
-            staged.write_text(page.markdown, encoding="utf-8")
-            fragment = convert_fragment(
+            staged.write_text(markdown, encoding="utf-8")
+            return convert_fragment(
                 staged, theme=theme, markus_executable=markus_executable
             )
-    if image_builder is not None:
-        image_builder.start_page()
-    resolved = resolve_fragment(
-        fragment,
-        page,
+
+    return render_fragment_text(
+        text,
+        convert=convert_with_cli,
         depth=depth,
+        images=images,
         image_builder=image_builder,
         citations=citations,
+        transform=transform,
     )
-    # Last, so a publication's transform sees the final markup, images and
-    # bibliography included.
-    return resolved if transform is None else transform.apply(resolved)
 
 
 def _copy_tree(source: Path, dest: Path) -> None:
@@ -286,75 +307,50 @@ def build_markus_site(
     nav_items = _build_nav_items(articles)
     built_pages: list[Path] = []
 
-    for slug, source in articles:
-        fragment = _fragment(source, depth=1)
-        title = _read_title(source, slug.replace("-", " ").title())
-        href = f"articles/{slug}.html"
-        page_path = output_root / href
-        page_path.write_text(
-            render_page(
-                title=title,
+    def _write_content_pages(section: str, entries: list[tuple[str, Path]]) -> None:
+        for slug, source in entries:
+            fragment = _fragment(source, depth=1)
+            href, page_html = render_content_page(
+                section=section,
+                slug=slug,
+                text=source.read_text(encoding="utf-8"),
                 fragment=fragment,
-                active_href=href,
                 nav_items=nav_items,
-                depth=1,
                 chrome=chrome,
                 css_version=css_version,
-            ),
-            encoding="utf-8",
-        )
-        built_pages.append(page_path)
+            )
+            page_path = output_root / href
+            page_path.write_text(page_html, encoding="utf-8")
+            built_pages.append(page_path)
+
+    _write_content_pages("articles", articles)
 
     for section in sections:
         entries = _discover_section(content_root, section)
         if not entries:
             continue
         (output_root / section).mkdir(parents=True, exist_ok=True)
-        for slug, source in entries:
-            fragment = _fragment(source, depth=1)
-            title = _read_title(source, slug.replace("-", " ").title())
-            href = f"{section}/{slug}.html"
-            page_path = output_root / href
-            page_path.write_text(
-                render_page(
-                    title=title,
-                    fragment=fragment,
-                    active_href=href,
-                    nav_items=nav_items,
-                    depth=1,
-                    chrome=chrome,
-                    css_version=css_version,
-                ),
-                encoding="utf-8",
-            )
-            built_pages.append(page_path)
+        _write_content_pages(section, entries)
 
     index_md = content_root / "index.md"
     if index_md.is_file():
         index_fragment = _fragment(index_md, depth=0)
         index_title = _read_title(index_md, "Home")
     else:
-        link_lines = []
-        for slug, path in articles:
-            title = _read_title(path, slug.replace("-", " ").title())
-            link_lines.append(
-                f'<p><a href="articles/{slug}.html">{html_escape(title)}</a></p>'
-            )
-        index_fragment = (
-            '<div class="markus-document"><h1>Articles</h1>\n'
-            + "\n".join(link_lines)
-            + "\n</div>"
+        index_fragment = generated_home_fragment(
+            [
+                (slug, _read_title(path, title_from_slug(slug)))
+                for slug, path in articles
+            ]
         )
         index_title = "Home"
 
     index_path = output_root / "index.html"
     index_path.write_text(
-        render_page(
-            title=index_title,
+        render_home_page(
             fragment=index_fragment,
-            active_href="index.html",
+            title=index_title,
             nav_items=nav_items,
-            depth=0,
             chrome=chrome,
             css_version=css_version,
         ),
@@ -382,22 +378,12 @@ def _css_version(css_dir: Path, assets_dir: Path | None = None) -> str:
     the exact scripts that had just been fixed. assets_dir is walked
     recursively so it also covers scripts under subdirectories.
     """
-    digest = hashlib.sha256()
-    for path in sorted(css_dir.glob("*.css")):
-        digest.update(path.name.encode("utf-8"))
-        digest.update(path.read_bytes())
+    stylesheet_entries = [(path.name, path.read_bytes()) for path in css_dir.glob("*.css")]
+    asset_entries = []
     if assets_dir is not None and assets_dir.is_dir():
-        for path in sorted(assets_dir.rglob("*")):
-            if path.is_file():
-                digest.update(str(path.relative_to(assets_dir)).encode("utf-8"))
-                digest.update(path.read_bytes())
-    return digest.hexdigest()[:12]
-
-
-def html_escape(value: str) -> str:
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
+        asset_entries = [
+            (path.relative_to(assets_dir).as_posix(), path.read_bytes())
+            for path in assets_dir.rglob("*")
+            if path.is_file()
+        ]
+    return version_token(stylesheet_entries, asset_entries)

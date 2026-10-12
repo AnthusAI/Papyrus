@@ -126,6 +126,9 @@ PUBLISHED_ITEM_FIELDS = (
     "id sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
     "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
 )
+PUBLISHED_ITEM_SUMMARY_FIELDS = (
+    "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+)
 MEDIA_ASSET_FIELDS = (
     "id itemId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
     "minHeight preferredHeight maxHeight crop wrapsText metadata"
@@ -175,6 +178,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "PublishedEditionItem": {"field": "listPublishedEditionItems", "fields": PUBLISHED_EDITION_ITEM_FIELDS},
     "Item": {"field": "listItems", "fields": ITEM_FIELDS},
     "PublishedItem": {"field": "listPublishedItems", "fields": PUBLISHED_ITEM_FIELDS},
+    "PublishedItemSummary": {"field": "listPublishedItems", "fields": PUBLISHED_ITEM_SUMMARY_FIELDS},
     "MediaAsset": {"field": "listMediaAssets", "fields": MEDIA_ASSET_FIELDS},
     "PublishedMediaAsset": {"field": "listPublishedMediaAssets", "fields": PUBLISHED_MEDIA_ASSET_FIELDS},
     "ItemTag": {"field": "listItemTags", "fields": ITEM_TAG_FIELDS},
@@ -696,6 +700,9 @@ class PapyrusGraphQLAuthoringClient:
             if not next_token:
                 break
         return items
+
+    def list_published_item_summaries(self) -> list[dict[str, Any]]:
+        return self.list_records("PublishedItemSummary")
 
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]

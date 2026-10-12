@@ -6,6 +6,13 @@ from typing import Any
 
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
+from papyrus_content.projection.engine import project
+from papyrus_content.projection.runtime import (
+    DEAD_LETTER_QUEUE_ENV,
+    context_from_environment,
+    projection_configured,
+    public_item_url,
+)
 from papyrus_content.rebuild_trigger import (
     DEFAULT_STAGING_BRANCH,
     reader_target_from_environment,
@@ -56,6 +63,45 @@ def derive_markus_action(arguments: dict) -> dict:
     return response
 
 
+def send_to_projection_dead_letter_queue(item_id: str, unpublished: bool, error: str) -> None:
+    queue_url = (os.environ.get(DEAD_LETTER_QUEUE_ENV) or "").strip()
+    if not queue_url:
+        return
+    try:
+        import boto3
+
+        boto3.client("sqs").send_message(
+            QueueUrl=queue_url,
+            MessageBody=json.dumps({"itemId": item_id, "unpublished": unpublished, "error": error}),
+        )
+    except Exception:  # noqa: BLE001 - the dead letter is best effort; the response already reports the failure
+        pass
+
+
+def project_item_action(client, item_id: str, *, unpublished: bool) -> dict:
+    if not projection_configured():
+        return {}
+    liveness = {} if unpublished else {"live": False}
+    try:
+        context = context_from_environment(client)
+        report = project(context, item_id, unpublished=unpublished)
+    except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
+        message = f"{type(error).__name__}: {error}"
+        send_to_projection_dead_letter_queue(item_id, unpublished, message)
+        return {**liveness, "projected": False, "paths": [], "error": message}
+    response = {"projected": report.ok, "paths": [*report.written, *report.deleted]}
+    if not unpublished:
+        response["live"] = report.ok
+        url = public_item_url(os.environ, report.item_paths)
+        if url:
+            response["url"] = url
+    if not report.ok:
+        message = "; ".join(report.errors)
+        send_to_projection_dead_letter_queue(item_id, unpublished, message)
+        response["error"] = message
+    return response
+
+
 def save_item_draft_action(arguments: dict, actor: str) -> dict:
     client, _claims = create_authoring_client()
     fields = ItemFields(
@@ -68,7 +114,7 @@ def save_item_draft_action(arguments: dict, actor: str) -> dict:
         id=arguments.get("id"),
     )
     record = save_item(client, fields, actor=actor, expected_content_hash=arguments.get("expectedContentHash"))
-    return {
+    response = {
         "ok": True,
         "item": {
             "id": record["id"],
@@ -78,6 +124,11 @@ def save_item_draft_action(arguments: dict, actor: str) -> dict:
             "versionNumber": record.get("versionNumber"),
         },
     }
+    if record["status"] == "published" and projection_configured():
+        published = publish_item(client, record["id"], actor=actor)
+        response["item"]["versionNumber"] = published.version_number
+        response.update(project_item_action(client, record["id"], unpublished=False))
+    return response
 
 
 def site_triggers_for(client, item_id: str) -> dict:
@@ -108,6 +159,7 @@ def publish_item_action(arguments: dict, actor: str) -> dict:
     }
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
+    response.update(project_item_action(client, arguments["id"], unpublished=False))
     return response
 
 
@@ -117,6 +169,7 @@ def unpublish_item_action(arguments: dict, actor: str) -> dict:
     response = {"ok": True, "changed": result.changed}
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
+    response.update(project_item_action(client, arguments["id"], unpublished=True))
     return response
 
 
