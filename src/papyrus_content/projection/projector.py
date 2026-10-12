@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -34,7 +35,8 @@ from ..renditions import (
     StoredRenditionImageBuilder,
     settings_from_mapping as image_settings_from_mapping,
 )
-from .model import ItemChange, ItemSummary, ProjectedItem, SiteIndex
+from .model import ItemSummary, ProjectedItem, SiteIndex
+from .writers import request_paths_for_key
 
 HOME_PAGE_PATH = "index.html"
 PROJECTION_SETTINGS_FILE = "projection.json"
@@ -46,17 +48,37 @@ CHROME_FIELD_NAMES = {field.name for field in dataclasses.fields(SiteChrome)} - 
 
 
 class SiteProjector(Protocol):
+    """What a site supplies to the projection engine.
+
+    ``listing_inputs`` is the dependency rule of every page that is not an item
+    page: for each such page it names the page and a digest of everything the
+    page renders from (which items it lists, in which order, with which fields).
+    The engine re-renders a page exactly when its digest differs between the
+    site before a change and the site after it. ``shared_inputs`` is the same
+    for what every item page depends on (navigation, the URL map).
+    """
+
     def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]: ...
 
     def item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]: ...
 
-    def dependent_pages(self, change: ItemChange, site: SiteIndex) -> dict[str, bytes]: ...
+    def listing_inputs(self, site: SiteIndex) -> dict[str, str]: ...
 
-    def listing_pages(self, site: SiteIndex) -> dict[str, bytes]: ...
+    def listing_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]: ...
+
+    def shared_inputs(self, site: SiteIndex) -> str: ...
+
+    def owns_page_key(self, key: str) -> bool: ...
 
     def static_files(self) -> dict[str, bytes]: ...
 
     def redirects(self, site: SiteIndex) -> dict[str, str]: ...
+
+
+def digest_of(value) -> str:
+    """A short stable digest of JSON-able data; the unit of every ``listing_inputs`` value."""
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass(frozen=True)
@@ -225,16 +247,26 @@ class MarkusSiteProjector:
         )
         return {href: page_html.encode("utf-8")}
 
-    def listing_pages(self, site: SiteIndex) -> dict[str, bytes]:
-        if any(self._is_home_source(summary) for summary in site.items):
-            return {}
-        articles = [
+    def _generated_home(self, site: SiteIndex) -> bool:
+        return not any(self._is_home_source(summary) for summary in site.items)
+
+    def _listed_articles(self, site: SiteIndex) -> list[tuple[str, str]]:
+        return [
             (summary.slug, summary.page_title or title_from_slug(summary.slug))
             for summary in self._articles(site)
             if self._is_page_source(summary)
         ]
+
+    def listing_inputs(self, site: SiteIndex) -> dict[str, str]:
+        if not self._generated_home(site):
+            return {}
+        return {HOME_PAGE_PATH: digest_of([self._listed_articles(site), self.shared_inputs(site)])}
+
+    def listing_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]:
+        if not self._generated_home(site) or (keys is not None and HOME_PAGE_PATH not in keys):
+            return {}
         page_html = render_home_page(
-            fragment=generated_home_fragment(articles),
+            fragment=generated_home_fragment(self._listed_articles(site)),
             title="Home",
             nav_items=self._nav_items(site),
             chrome=self._settings.chrome,
@@ -242,24 +274,13 @@ class MarkusSiteProjector:
         )
         return {HOME_PAGE_PATH: page_html.encode("utf-8")}
 
-    def dependent_pages(self, change: ItemChange, site: SiteIndex) -> dict[str, bytes]:
-        pages = dict(self.listing_pages(site))
-        if not self._navigation_may_have_changed(change, site):
-            return pages
-        for summary in site.items:
-            if summary.item_id == change.summary.item_id or not self._is_page_source(summary):
-                continue
-            pages.update(self.item_pages(site.load_item(summary.item_id), site))
-        return pages
+    def shared_inputs(self, site: SiteIndex) -> str:
+        return digest_of([[item.label, item.href] for item in self._nav_items(site)])
 
-    def _navigation_may_have_changed(self, change: ItemChange, site: SiteIndex) -> bool:
-        if change.summary.section != ARTICLES_SECTION:
-            return False
-        if change.summary.slug == ARTICLES_INDEX_SLUG:
+    def owns_page_key(self, key: str) -> bool:
+        if key == HOME_PAGE_PATH:
             return True
-        return not any(
-            summary.slug == ARTICLES_INDEX_SLUG for summary in site.items if summary.section == ARTICLES_SECTION
-        )
+        return key.endswith(".html") and key.split("/", 1)[0] in self._content_sections()
 
     def static_files(self) -> dict[str, bytes]:
         return dict(self._static_files)
@@ -271,5 +292,5 @@ class MarkusSiteProjector:
             if not paths:
                 continue
             for alias in summary.aliases:
-                mapping[normalized_redirect_source(alias)] = "/" + paths[0]
+                mapping[normalized_redirect_source(alias)] = request_paths_for_key(paths[0])[0]
         return mapping

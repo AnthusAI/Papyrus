@@ -1,9 +1,11 @@
-import { Duration, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import type { Code } from "aws-cdk-lib/aws-lambda";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
-import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { Effect, Policy, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
+import { SqsDestination } from "aws-cdk-lib/aws-lambda-destinations";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
@@ -171,4 +173,22 @@ export function addS3ProjectionPublication(
       (statement) => new PolicyStatement({ effect: Effect.ALLOW, actions: statement.actions, resources: statement.resources }),
     ),
   };
+}
+
+/**
+ * The content-actions function runs a failed or follow-up projection again as an asynchronous
+ * invocation of itself: one retry, and an on-failure destination (the dead letter queue) for
+ * what still fails. The self-invoke permission is a separate policy on the role so that the
+ * function does not depend on a policy that refers to the function.
+ */
+export function addProjectionRetries(lambda: LambdaFunction, deadLetterQueue: sqs.IQueue): void {
+  lambda.configureAsyncInvoke({
+    retryAttempts: 1,
+    maxEventAge: Duration.hours(1),
+    onFailure: new SqsDestination(deadLetterQueue),
+  });
+  new Policy(Stack.of(lambda), "ContentActionsProjectionSelfInvoke", {
+    statements: [new PolicyStatement({ actions: ["lambda:InvokeFunction"], resources: [lambda.functionArn] })],
+    roles: [lambda.role!],
+  });
 }

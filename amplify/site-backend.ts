@@ -10,7 +10,7 @@ import type { Construct } from "constructs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-waves";
-import { addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
 import { planRenditions } from "./publication/renditions-settings";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
@@ -403,6 +403,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       renditions: renditionsPlan,
     });
     (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
+  }
+  if (s3ProjectionPublication !== undefined) {
+    addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
   }
   const publicationWiring = contentActionsPublicationWiring(s3ProjectionPublication);
   for (const [name, value] of Object.entries(publicationWiring.environment)) {

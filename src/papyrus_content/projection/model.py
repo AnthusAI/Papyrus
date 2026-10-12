@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -30,21 +29,17 @@ class ProjectedItem:
     source_text: str
 
 
+def site_signature(site: "SiteIndex") -> frozenset[tuple[str, int | None]]:
+    """Which published versions a site index was read at; used to notice a concurrent publish."""
+    return frozenset((summary.item_id, summary.version_number) for summary in site.items)
+
+
 @dataclass(frozen=True)
 class SiteIndex:
     """Every published, projectable item of the site, ordered by output path."""
 
     items: tuple[ItemSummary, ...]
     load_item: Callable[[str], ProjectedItem]
-
-
-ChangeKind = Literal["published", "unpublished"]
-
-
-@dataclass(frozen=True)
-class ItemChange:
-    kind: ChangeKind
-    summary: ItemSummary
 
 
 @dataclass
@@ -56,6 +51,9 @@ class ProjectionReport:
     redirects_deleted: int = 0
     invalidated: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    follow_up_item_pages: bool = False
+    rounds: int = 1
+    skipped: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -70,4 +68,6 @@ class ProjectionReport:
             "redirectsDeleted": self.redirects_deleted,
             "invalidated": len(self.invalidated),
             "errors": list(self.errors),
+            "followUpItemPages": self.follow_up_item_pages,
+            "rounds": self.rounds,
         }

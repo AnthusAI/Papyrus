@@ -10,7 +10,7 @@ from ..markus_export import EXPORTED_TYPES, item_output_path
 from ..markus_renderer.build import slugify
 from ..markus_renderer.derive import compose_source
 from ..publishing import published_item_id_for
-from .model import ItemChange, ItemSummary, ProjectedItem, SiteIndex
+from .model import ItemSummary, ProjectedItem, SiteIndex
 from .stored import PROJECTION_METADATA_KEY, projection_metadata
 
 
@@ -70,12 +70,13 @@ def is_projectable(row: dict) -> bool:
     return row.get("status") == "published" and row.get("type") in EXPORTED_TYPES
 
 
-def with_change(site: SiteIndex, change: ItemChange, load_item) -> SiteIndex:
-    remaining = [summary for summary in site.items if summary.item_id != change.summary.item_id]
-    if change.kind == "published":
-        remaining.append(change.summary)
-    ordered = tuple(sorted(remaining, key=lambda summary: summary.output_path))
-    return SiteIndex(items=ordered, load_item=load_item)
+def replace_item(site: SiteIndex, item_id: str, summary: ItemSummary | None) -> SiteIndex:
+    """The site with one item swapped for ``summary``, or without it when ``summary`` is None."""
+    remaining = [existing for existing in site.items if existing.item_id != item_id]
+    if summary is not None:
+        remaining.append(summary)
+    ordered = tuple(sorted(remaining, key=lambda existing: existing.output_path))
+    return SiteIndex(items=ordered, load_item=site.load_item)
 
 
 class PublishedContentSource:

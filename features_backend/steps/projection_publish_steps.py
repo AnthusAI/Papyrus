@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -22,7 +23,14 @@ PUBLICATION_ENVIRONMENT = {
     "PAPYRUS_EDGE_DISTRIBUTION_ID": "EDISTRIBUTION",
     "PAPYRUS_PROJECTION_DLQ_URL": "https://sqs.example/projection-dlq",
     "PAPYRUS_SITE_PUBLIC_URL": "https://site.example",
+    "AWS_LAMBDA_FUNCTION_NAME": "content-actions-function",
 }
+
+
+class FakeClientError(Exception):
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.response = {"Error": {"Code": code}}
 
 
 class FakeS3:
@@ -38,6 +46,30 @@ class FakeS3:
     def delete_object(self, **arguments) -> None:
         self.objects.pop(arguments["Key"], None)
 
+    def get_object(self, **arguments) -> dict:
+        stored = self.objects.get(arguments["Key"])
+        if stored is None:
+            raise FakeClientError("NoSuchKey")
+        body = stored["Body"]
+        return {"Body": type("Body", (), {"read": lambda _self, body=body: body})()}
+
+    def head_object(self, **arguments) -> dict:
+        stored = self.objects.get(arguments["Key"])
+        if stored is None:
+            raise FakeClientError("404")
+        return {"ETag": f'"{hashlib.md5(stored["Body"]).hexdigest()}"', "Metadata": stored.get("Metadata", {})}
+
+    def list_objects_v2(self, **arguments) -> dict:
+        prefix = arguments.get("Prefix", "")
+        return {
+            "Contents": [
+                {"Key": key, "ETag": f'"{hashlib.md5(stored["Body"]).hexdigest()}"'}
+                for key, stored in sorted(self.objects.items())
+                if key.startswith(prefix)
+            ],
+            "IsTruncated": False,
+        }
+
 
 class FakeCloudFront:
     def __init__(self) -> None:
@@ -45,6 +77,14 @@ class FakeCloudFront:
 
     def create_invalidation(self, **arguments) -> None:
         self.invalidations.append(arguments)
+
+
+class FakeLambda:
+    def __init__(self) -> None:
+        self.invocations: list[dict] = []
+
+    def invoke(self, **arguments) -> None:
+        self.invocations.append({**arguments, "Payload": json.loads(arguments["Payload"])})
 
 
 class FakeSqs:
@@ -63,13 +103,14 @@ def start_backend(context, *, publication: bool, rejects_writes: bool = False) -
     context.s3 = FakeS3(rejects_writes)
     context.cloudfront = FakeCloudFront()
     context.sqs = FakeSqs()
+    context.lambda_client = FakeLambda()
     context.environment = dict(PUBLICATION_ENVIRONMENT) if publication else {}
     context.responses = []
 
 
 def call_action(context, field: str, payload: dict) -> dict:
     event = {"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "behave-editor"}}
-    clients = {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs}
+    clients = {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client", side_effect=lambda name, **_kwargs: clients[name]
     ), mock.patch.dict("os.environ", context.environment, clear=False):
@@ -191,8 +232,60 @@ def bucket_lacks(context, key: str) -> None:
     assert key not in context.s3.objects, list(context.s3.objects)
 
 
-@then("the failure was queued on the projection dead letter queue")
-def failure_queued(context) -> None:
-    assert len(context.sqs.messages) == 1, context.sqs.messages
-    body = json.loads(context.sqs.messages[0]["MessageBody"])
-    assert body["itemId"] == "item-articles-hello" and body["unpublished"] is False and body["error"], body
+@then("one asynchronous retry of the projection was scheduled for the item")
+def retry_scheduled(context) -> None:
+    assert len(context.lambda_client.invocations) == 1, context.lambda_client.invocations
+    invocation = context.lambda_client.invocations[0]
+    assert invocation["FunctionName"] == "content-actions-function"
+    assert invocation["InvocationType"] == "Event"
+    task = invocation["Payload"]["projectionTask"]
+    assert task["task"] == "item" and task["itemId"] == "item-articles-hello" and task["unpublished"] is False, task
+
+
+@then("nothing was queued on the projection dead letter queue")
+def nothing_dead_lettered(context) -> None:
+    assert context.sqs.messages == [], context.sqs.messages
+
+
+@when("the scheduled projection task runs with a working bucket")
+def run_scheduled_task(context) -> None:
+    task = context.lambda_client.invocations[-1]["Payload"]
+    context.s3.rejects_writes = False
+    context.lambda_client.invocations.clear()
+    event = dict(task)
+    with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
+        "boto3.client",
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+    ), mock.patch.dict("os.environ", context.environment, clear=False):
+        context.task_result = context.handler_module.handler(event, None)
+
+
+@when("the scheduled projection task runs while the bucket still rejects writes")
+def run_failing_scheduled_task(context) -> None:
+    task = context.lambda_client.invocations[-1]["Payload"]
+    context.task_error = None
+    with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
+        "boto3.client",
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+    ), mock.patch.dict("os.environ", context.environment, clear=False):
+        try:
+            context.handler_module.handler(dict(task), None)
+        except Exception as error:  # noqa: BLE001 - the step records what Lambda would see
+            context.task_error = error
+
+
+@then("the projection task succeeds")
+def task_succeeds(context) -> None:
+    assert context.task_result["ok"] is True, context.task_result
+
+
+@then("the projection task raises so that Lambda retries it and then dead letters it")
+def task_raises(context) -> None:
+    assert context.task_error is not None
+    assert type(context.task_error).__name__ == "ProjectionTaskFailed" or "AccessDenied" in str(context.task_error), context.task_error
+
+
+@then("the projection task for the other item pages was scheduled")
+def follow_up_scheduled(context) -> None:
+    tasks = [invocation["Payload"]["projectionTask"] for invocation in context.lambda_client.invocations]
+    assert any(task["task"] == "item-pages" for task in tasks), tasks
