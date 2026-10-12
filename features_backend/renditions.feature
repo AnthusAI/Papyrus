@@ -67,3 +67,19 @@ Feature: Image renditions made once at media upload
     And I back-fill renditions
     When I request renditions for "images/wide.jpg"
     Then the report counts action "rendered" 1
+
+  Scenario: With media originals enabled an uploaded object is published as it is
+    Given the renditions function publishes media originals
+    And the media store holds the fixture images
+    When the object "media/notes/readme.txt" is created
+    Then the site store holds "notes/readme.txt" equal to the uploaded object
+
+  Scenario: Back-filling media originals covers every object and is idempotent
+    Given the renditions function publishes media originals
+    And the media store holds the fixture images
+    When I back-fill renditions with originals
+    And I back-fill renditions with originals again
+    Then the first report counts action "copied" 4
+    And the second report counts action "skipped-existing" 4
+    And the site store holds "images/wide.jpg" equal to the uploaded object
+

@@ -590,6 +590,8 @@ When `<staticDir>/projection.json` has an `images` section, the `s3-projection` 
 
 `images` takes the `ImagePipeline` data fields (`gatsby_parity`, `quality`, `formats`, `max_width`, `widths`, `placeholder`, `eager_first`, ...) plus `listing_max_width`. Existing media are back-filled with `papyrus ops content renditions --backfill` (add `--dry-run` first; it skips images that already have a `meta.json`), and one image is requested again with `papyrus ops content renditions --source <srcPath>`. Both read `PAPYRUS_MEDIA_BUCKET_NAME` and `PAPYRUS_RENDITIONS_FUNCTION_NAME` (also settable with `--media-bucket` and `--function-name`).
 
+A site that serves media as they were uploaded (no image pipeline, pages that reference `assets/...` directly) sets `"media": { "originals": true }` in `projection.json` instead of, or besides, `images`. The same function then writes every object created under `media/` to the site bucket at its key without the `media/` prefix (`media/assets/a/b.jpg` becomes `assets/a/b.jpg`), with its content type, whatever its type. Existing media are back-filled with `papyrus ops content renditions --backfill --originals`, which lists every object, not only images, and skips those already in the site bucket.
+
 ### Edge caching and invalidation
 
 - **Cache-Control per object.** HTML and every other file a projection can rewrite (`sitemap`, `robots.txt`, unhashed CSS and JS, JSON) get `public, max-age=0, s-maxage=300, stale-while-revalidate=60`: the browser always revalidates, the edge keeps a page for at most five minutes even if a purge is lost. Renditions under `assets/responsive/` (except `.meta.json`), `_next/static/` and file names that end in an eight-or-more-digit hex content hash get `public, max-age=31536000, immutable`.

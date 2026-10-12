@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import mimetypes
 import shutil
 import tempfile
 from collections.abc import Iterable
@@ -42,6 +43,9 @@ RECORD_VERSION = 1
 RENDITION_CACHE_CONTROL = "public, max-age=31536000, immutable"
 META_CACHE_CONTROL = "public, max-age=0, s-maxage=60"
 IMAGES_SETTINGS_KEY = "images"
+MEDIA_SETTINGS_KEY = "media"
+ORIGINALS_SETTING = "originals"
+ORIGINAL_CACHE_CONTROL = "public, max-age=0, s-maxage=60"
 LISTING_WIDTH_SETTING = "listing_max_width"
 NON_DATA_PIPELINE_FIELDS = frozenset({"source_dir", "cache_dir", "wrap"})
 CONTENT_TYPES_BY_SUFFIX = {
@@ -118,7 +122,29 @@ def listing_copy_key(source: str) -> str:
 
 
 def content_type_for_key(key: str) -> str:
-    return CONTENT_TYPES_BY_SUFFIX.get(PurePosixPath(key).suffix.lower(), "application/octet-stream")
+    known = CONTENT_TYPES_BY_SUFFIX.get(PurePosixPath(key).suffix.lower())
+    if known is not None:
+        return known
+    guessed, _encoding = mimetypes.guess_type(key)
+    return guessed or "application/octet-stream"
+
+
+def media_originals_enabled(static_directory: Path | None) -> bool:
+    settings_path = static_directory / "projection.json" if static_directory is not None else None
+    if settings_path is None or not settings_path.is_file():
+        return False
+    media = json.loads(settings_path.read_text(encoding="utf-8")).get(MEDIA_SETTINGS_KEY)
+    return isinstance(media, dict) and media.get(ORIGINALS_SETTING) is True
+
+
+def original_site_key(media_key: str) -> str | None:
+    """The site store key a media object is published at: its key without the ``media/`` prefix."""
+    if not media_key.startswith(MEDIA_KEY_PREFIX) or media_key.endswith("/"):
+        return None
+    try:
+        return assert_safe_asset_src(media_key[len(MEDIA_KEY_PREFIX) :])
+    except ImagePipelineError:
+        return None
 
 
 class RenditionStore(Protocol):

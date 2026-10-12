@@ -11,7 +11,10 @@ from papyrus_content.renditions import (
     RenditionSettings,
     S3RenditionStore,
     make_renditions,
+    media_originals_enabled,
     meta_key,
+    original_site_key,
+    ORIGINAL_CACHE_CONTROL,
     settings_from_static_directory,
     source_from_media_key,
 )
@@ -24,6 +27,13 @@ def configured_settings() -> RenditionSettings | None:
         static_directory = (os.environ.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
         _loaded["settings"] = settings_from_static_directory(Path(static_directory) if static_directory else None)
     return _loaded["settings"]
+
+
+def originals_enabled() -> bool:
+    if "originals" not in _loaded:
+        static_directory = (os.environ.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
+        _loaded["originals"] = media_originals_enabled(Path(static_directory) if static_directory else None)
+    return _loaded["originals"]
 
 
 def site_store() -> S3RenditionStore:
@@ -50,18 +60,32 @@ def media_objects(event: dict) -> list[tuple[str, str]]:
 
 
 def render_media_object(
-    settings: RenditionSettings, bucket: str, key: str, *, skip_existing: bool = False, dry_run: bool = False
+    settings: RenditionSettings | None,
+    bucket: str,
+    key: str,
+    *,
+    originals: bool = False,
+    skip_existing: bool = False,
+    dry_run: bool = False,
 ) -> dict:
-    source = source_from_media_key(key)
-    if source is None:
+    source = source_from_media_key(key) if settings is not None else None
+    original_key = original_site_key(key) if originals else None
+    if source is None and original_key is None:
         return {"key": key, "action": "ignored", "reason": "not an image under media/"}
-    if skip_existing and site_store().get(meta_key(settings.pipeline, source)) is not None:
-        return {"key": key, "source": source, "action": "skipped-existing"}
+    if skip_existing:
+        renditions_exist = source is None or site_store().get(meta_key(settings.pipeline, source)) is not None
+        original_exists = original_key is None or site_store().get(original_key) is not None
+        if renditions_exist and original_exists:
+            return {"key": key, "source": source or original_key, "action": "skipped-existing"}
     if dry_run:
-        return {"key": key, "source": source, "action": "would-render"}
+        return {"key": key, "source": source or original_key, "action": "would-render" if source else "would-copy"}
     started = time.perf_counter()
     data = s3_client().get_object(Bucket=bucket, Key=key)["Body"].read()
     downloaded = time.perf_counter()
+    if original_key is not None:
+        site_store().put(original_key, data, cache_control=ORIGINAL_CACHE_CONTROL)
+    if source is None:
+        return {"key": key, "source": original_key, "action": "copied", "written": 1, "sourceBytes": len(data)}
     result = make_renditions(settings, site_store(), source, data)
     finished = time.perf_counter()
     return {
@@ -69,7 +93,7 @@ def render_media_object(
         "source": source,
         "action": "rendered",
         "kind": result["kind"],
-        "written": result["written"],
+        "written": result["written"] + (1 if original_key is not None else 0),
         "sourceBytes": len(data),
         "downloadMilliseconds": round((downloaded - started) * 1000),
         "renditionMilliseconds": round((finished - downloaded) * 1000),
@@ -78,13 +102,15 @@ def render_media_object(
 
 def handler(event, context):
     settings = configured_settings()
-    if settings is None:
-        return {"ok": True, "results": [], "skipped": "this site has no images settings in projection.json"}
+    originals = originals_enabled()
+    if settings is None and not originals:
+        return {"ok": True, "results": [], "skipped": "this site has no images or media settings in projection.json"}
     results = [
         render_media_object(
             settings,
             bucket,
             key,
+            originals=originals,
             skip_existing=event.get("skipExisting") is True,
             dry_run=event.get("dryRun") is True,
         )

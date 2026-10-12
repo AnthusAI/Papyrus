@@ -3,8 +3,9 @@
  * site (no CDK imports, so it can be tested without synthesizing).
  *
  * The function exists only for a site whose `projection.json` carries an
- * `images` section: that section is the one place the image pipeline settings
- * live, shared by the renditions function and the projector.
+ * `images` section (the one place the image pipeline settings live, shared by
+ * the renditions function and the projector) or `media.originals: true`
+ * (every media object is also published as is, at its key without `media/`).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -27,10 +28,17 @@ export function projectionSettingsHaveImages(settingsPath: string): boolean {
   return typeof parsed.images === "object" && parsed.images !== null;
 }
 
+export function projectionSettingsPublishOriginals(settingsPath: string): boolean {
+  if (!fs.existsSync(settingsPath)) return false;
+  const parsed = JSON.parse(fs.readFileSync(settingsPath, "utf8")) as { media?: { originals?: unknown } };
+  return parsed.media?.originals === true;
+}
+
 export function planRenditions(publication: { staticDir?: string } | undefined, workingDirectory: string): RenditionsPlan {
   if (publication?.staticDir === undefined) return { enabled: false, siteFiles: [] };
   const settingsFile = path.join(publication.staticDir, "projection.json");
-  if (!projectionSettingsHaveImages(path.resolve(workingDirectory, settingsFile))) return { enabled: false, siteFiles: [] };
+  const resolved = path.resolve(workingDirectory, settingsFile);
+  if (!projectionSettingsHaveImages(resolved) && !projectionSettingsPublishOriginals(resolved)) return { enabled: false, siteFiles: [] };
   return { enabled: true, siteFiles: [{ from: settingsFile, to: "site_static/projection.json" }] };
 }
 
