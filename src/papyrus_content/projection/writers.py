@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import mimetypes
+import random
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -245,7 +247,15 @@ class RedirectStore(Protocol):
 
 
 KEY_VALUE_STORE_CONFLICT_CODES = frozenset({"ConflictException", "PreconditionFailed", "PreconditionFailedException"})
-KEY_VALUE_STORE_CONFLICT_ATTEMPTS = 6
+KEY_VALUE_STORE_CONFLICT_ATTEMPTS = 8
+
+
+def key_value_store_conflict(error: Exception) -> bool:
+    """A concurrent update moved the store's ETag: the service answers ValidationException "Pre-Condition failed"."""
+    details = getattr(error, "response", {}).get("Error", {})
+    if str(details.get("Code", "")) in KEY_VALUE_STORE_CONFLICT_CODES:
+        return True
+    return str(details.get("Code", "")) == "ValidationException" and "Pre-Condition" in str(details.get("Message", error))
 
 
 class KeyValueStoreRedirects:
@@ -273,9 +283,9 @@ class KeyValueStoreRedirects:
                 self._kvs.update_keys(**arguments)
                 return
             except Exception as error:  # noqa: BLE001 - a concurrent writer moved the ETag; retry with a fresh one
-                code = str(getattr(error, "response", {}).get("Error", {}).get("Code", ""))
-                if code not in KEY_VALUE_STORE_CONFLICT_CODES or attempt == KEY_VALUE_STORE_CONFLICT_ATTEMPTS - 1:
+                if not key_value_store_conflict(error) or attempt == KEY_VALUE_STORE_CONFLICT_ATTEMPTS - 1:
                     raise
+                time.sleep(random.random() * 0.05 * (attempt + 1))
 
     def put_all(self, redirects: dict[str, str]) -> None:
         entries = [{"Key": source, "Value": target} for source, target in redirects.items()]

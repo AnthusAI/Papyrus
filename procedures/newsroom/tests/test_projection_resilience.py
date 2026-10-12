@@ -306,6 +306,9 @@ class S3SiteStoreTests(unittest.TestCase):
         class Conflict(Exception):
             response = {"Error": {"Code": "ConflictException"}}
 
+        class MovedEtag(Exception):
+            response = {"Error": {"Code": "ValidationException", "Message": "Pre-Condition failed during update of Key-Value-Store"}}
+
         class NotFound(Exception):
             response = {"Error": {"Code": "ResourceNotFoundException"}}
 
@@ -321,6 +324,8 @@ class S3SiteStoreTests(unittest.TestCase):
                 self.calls += 1
                 if self.calls == 1:
                     raise Conflict()
+                if self.calls == 2:
+                    raise MovedEtag()
                 for entry in arguments.get("Puts", []):
                     self.data[entry["Key"]] = entry["Value"]
                 for entry in arguments.get("Deletes", []):
@@ -337,7 +342,7 @@ class S3SiteStoreTests(unittest.TestCase):
         fake = FakeKeyValueStore()
         store = KeyValueStoreRedirects("arn:aws:cloudfront::1:key-value-store/x", fake)
         store.put_all({"/old": "/new"})
-        self.assertEqual(fake.calls, 2)
+        self.assertEqual(fake.calls, 3)
         self.assertEqual(store.get("/old"), "/new")
         self.assertIsNone(store.get("/other"))
         self.assertEqual(store.list_all(), {"/old": "/new"})
