@@ -35,7 +35,7 @@ from .item_state import (
     write_item_state,
 )
 from .model import ItemSummary, ProjectionReport, SiteIndex, site_signature
-from .projector import SiteProjector
+from .projector import SiteProjector, normalized_redirect_source
 from .source import ProjectionSourceError, PublishedContentSource, replace_item
 from .writers import STATE_PREFIX, PageWriter, RedirectStore, StoredObject, body_etag, request_paths_for_key
 
@@ -504,7 +504,7 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
         project_all(context)
         report.projected_everything = True
     elif not dry_run:
-        for item_id in [*report.stale_items, *report.removed_items]:
+        for item_id in report.stale_items:
             project(context, item_id)
 
     if not dry_run:
@@ -516,6 +516,8 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
                 context, listing_report, projector.listing_pages(fresh, set(stale_now)), projector.listing_inputs(fresh)
             )
             _finish(context, listing_report)
+        if report.removed_items:
+            _remove_items(context, report.removed_items, fresh)
 
     expected = set(expected_item_keys) | set(projector.listing_inputs(site))
     report.orphan_pages = sorted(
@@ -528,6 +530,40 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
 
     _reconcile_redirects(context, report, site, dry_run)
     return report
+
+
+def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteIndex) -> None:
+    """Remove the pages, redirects and state of items that are no longer published, in one pass.
+
+    The listing pages were already repaired against ``site``, so nothing links to
+    these items by the time their pages are deleted.
+    """
+    cleanup = ProjectionReport()
+    keep = _item_keys(context, site) | set(context.projector.listing_inputs(site))
+    stale_redirects: set[str] = set()
+    for item_id in item_ids:
+        state = read_item_state(context.writer, item_id)
+        if state is None or not state.projected:
+            continue
+        _delete_pages(context, cleanup, set(state.page_keys) - keep)
+        stale_redirects.update(normalized_redirect_source(alias) for alias in state.summary.aliases)
+        stale_redirects.update(_moved_redirects(state, set()))
+        if context.keep_state:
+            write_item_state(
+                context.writer,
+                ItemState(
+                    summary=state.summary,
+                    page_keys=(),
+                    former_page_keys=tuple(dict.fromkeys([*state.former_page_keys, *state.page_keys])),
+                ),
+            )
+    if context.redirect_store is not None and stale_redirects:
+        present = set(context.redirect_store.list_all())
+        gone = sorted(stale_redirects & present)
+        if gone:
+            context.redirect_store.delete_all(gone)
+    cleanup.written.extend(project_item_pages(context, finish=False).written)
+    _finish(context, cleanup)
 
 
 def _reconcile_redirects(context: ProjectionContext, report: ReconcileReport, site: SiteIndex, dry_run: bool) -> None:
