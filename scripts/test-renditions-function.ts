@@ -21,11 +21,17 @@ try {
   fs.mkdirSync(path.join(siteRoot, "no-settings"));
   fs.writeFileSync(path.join(siteRoot, "with-images/projection.json"), JSON.stringify({ images: { gatsby_parity: true } }));
   fs.writeFileSync(path.join(siteRoot, "without-images/projection.json"), JSON.stringify({ theme: "hackerman" }));
+  fs.mkdirSync(path.join(siteRoot, "with-originals"));
+  fs.writeFileSync(path.join(siteRoot, "with-originals/projection.json"), JSON.stringify({ media: { originals: true } }));
 
   assert.deepEqual(planRenditions(undefined, siteRoot), { enabled: false, siteFiles: [] });
   assert.deepEqual(planRenditions({}, siteRoot), { enabled: false, siteFiles: [] });
   assert.deepEqual(planRenditions({ staticDir: "no-settings" }, siteRoot), { enabled: false, siteFiles: [] });
   assert.deepEqual(planRenditions({ staticDir: "without-images" }, siteRoot), { enabled: false, siteFiles: [] });
+  assert.deepEqual(planRenditions({ staticDir: "with-originals" }, siteRoot), {
+    enabled: true,
+    siteFiles: [{ from: "with-originals/projection.json", to: "site_static/projection.json" }],
+  });
   assert.deepEqual(planRenditions({ staticDir: "with-images" }, siteRoot), {
     enabled: true,
     siteFiles: [{ from: "with-images/projection.json", to: "site_static/projection.json" }],

@@ -223,7 +223,9 @@ def object_created(context, key: str) -> None:
     context.function_result = context.handler.handler(event, None)
 
 
-def run_backfill(context, *, dry_run: bool, keys: list[str] | None = None, skip_existing: bool = True) -> dict:
+def run_backfill(
+    context, *, dry_run: bool, keys: list[str] | None = None, skip_existing: bool = True, originals: bool = False
+) -> dict:
     return run_renditions(
         context.function_client,
         context.media_bucket,
@@ -233,6 +235,7 @@ def run_backfill(context, *, dry_run: bool, keys: list[str] | None = None, skip_
         skip_existing=skip_existing,
         dry_run=dry_run,
         workers=2,
+        originals=originals,
     )
 
 
@@ -287,3 +290,25 @@ def second_report_counts(context, action: str, count: int) -> None:
 def site_store_holds_description(context, source: str) -> None:
     key = meta_key(settings_from_mapping(GATSBY_IMAGE_SETTINGS).pipeline, source)
     assert (context.site_store_root / key).is_file(), key
+
+
+@given("the renditions function publishes media originals")
+def function_publishes_originals(context) -> None:
+    prepare_function(context)
+    context.handler._loaded["settings"] = None
+    context.handler._loaded["originals"] = True
+
+
+@when("I back-fill renditions with originals")
+def backfill_originals(context) -> None:
+    context.reports.append(run_backfill(context, dry_run=False, originals=True))
+
+
+@when("I back-fill renditions with originals again")
+def backfill_originals_again(context) -> None:
+    context.reports.append(run_backfill(context, dry_run=False, originals=True))
+
+
+@then('the site store holds "{key}" equal to the uploaded object')
+def site_store_holds_original(context, key: str) -> None:
+    assert (context.site_store_root / key).read_bytes() == context.media_bucket.objects[f"media/{key}"]

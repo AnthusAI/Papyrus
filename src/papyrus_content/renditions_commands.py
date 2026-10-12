@@ -17,11 +17,11 @@ DEFAULT_WORKERS = 8
 INVOCATION_READ_TIMEOUT_SECONDS = 330
 
 
-def media_image_keys(s3_client: Any, bucket: str) -> list[str]:
+def media_image_keys(s3_client: Any, bucket: str, *, originals: bool = False) -> list[str]:
     keys: list[str] = []
     for page in s3_client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=MEDIA_KEY_PREFIX):
         for entry in page.get("Contents", []):
-            if source_from_media_key(entry["Key"]) is not None:
+            if source_from_media_key(entry["Key"]) is not None or (originals and not entry["Key"].endswith("/")):
                 keys.append(entry["Key"])
     return sorted(keys)
 
@@ -48,8 +48,9 @@ def run_renditions(
     skip_existing: bool,
     dry_run: bool,
     workers: int = DEFAULT_WORKERS,
+    originals: bool = False,
 ) -> dict:
-    selected = keys if keys is not None else media_image_keys(s3_client, media_bucket)
+    selected = keys if keys is not None else media_image_keys(s3_client, media_bucket, originals=originals)
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(selected) or 1))) as executor:
         results = list(
             executor.map(
@@ -88,6 +89,7 @@ def content_renditions(flags: list[str]) -> None:
         skip_existing=bool(options.get("backfill")),
         dry_run=not apply,
         workers=int(options.get("workers") or DEFAULT_WORKERS),
+        originals=bool(options.get("originals")),
     )
     if options.get("json"):
         print(json.dumps(report, indent=2))
