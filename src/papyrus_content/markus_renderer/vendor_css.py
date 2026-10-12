@@ -23,12 +23,8 @@ def wrap_layer(css_text: str) -> str:
     return f"@layer markus {{\n{css_text}\n}}\n"
 
 
-def vendor_markus_css(
-    dest: Path,
-    *,
-    theme: str | None = None,
-) -> None:
-    """Write bundled vendor CSS (base + optional theme) wrapped in ``@layer markus``."""
+def vendor_markus_css_text(*, theme: str | None = None) -> str:
+    """Bundled vendor CSS (base + optional theme) wrapped in ``@layer markus``."""
     static_dir = resolve_markus_static_dir()
     base_css = (static_dir / "markus.css").read_text(encoding="utf-8")
     parts = [wrap_layer(base_css)]
@@ -41,6 +37,15 @@ def vendor_markus_css(
                 f"Markus theme {theme!r} not found. Available: {', '.join(available)}"
             )
         parts.append(wrap_layer(theme_path.read_text(encoding="utf-8")))
+    return "".join(parts)
 
+
+def vendor_markus_css(
+    dest: Path,
+    *,
+    theme: str | None = None,
+) -> None:
+    """Write bundled vendor CSS (base + optional theme) wrapped in ``@layer markus``."""
+    css_text = vendor_markus_css_text(theme=theme)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text("".join(parts), encoding="utf-8")
+    dest.write_text(css_text, encoding="utf-8")

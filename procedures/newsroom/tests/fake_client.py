@@ -49,6 +49,16 @@ class FakeAuthoringClient:
         self.calls.append(("list", model_name, None))
         return [copy.deepcopy(row) for row in self._table(model_name).values()]
 
+    def list_published_item_summaries(self) -> list[dict[str, Any]]:
+        self.calls.append(("list", "PublishedItemSummary", None))
+        summary_fields = (
+            "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+        ).split()
+        return [
+            {name: copy.deepcopy(row.get(name)) for name in summary_fields}
+            for row in self._table("PublishedItem").values()
+        ]
+
     def list_by_index(self, index_name: str, key_value: str, **_kwargs: Any) -> list[dict[str, Any]]:
         self.calls.append(("list_by_index", index_name, key_value))
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]

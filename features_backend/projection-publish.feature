@@ -1,0 +1,45 @@
+Feature: Publishing through the content actions projects the site
+  On a site with an s3-projection publication, publishing, saving a live item
+  and unpublishing write the site inside the mutation. A projection failure
+  never fails the save: the response says the item is not live and the failure
+  is queued for repair.
+
+  Scenario: Publishing writes the item page and reports where it is live
+    Given a content actions backend with an s3-projection publication
+    When the editor publishes a new article
+    Then the publish response succeeds
+    And the publish response says the item is live at "https://site.example/articles/hello.html"
+    And the site bucket holds "articles/hello.html" with the published version
+    And the edge distribution was invalidated for "/articles/hello.html"
+
+  Scenario: Saving a live item projects the new version
+    Given a content actions backend with an s3-projection publication
+    And the editor publishes a new article
+    When the editor saves the live article with a new body
+    Then the site bucket page "articles/hello.html" contains "A new body."
+    And the save response says the item is live
+
+  Scenario: Saving a draft does not project
+    Given a content actions backend with an s3-projection publication
+    When the editor saves a draft article
+    Then the site bucket holds no pages
+
+  Scenario: Unpublishing deletes the page
+    Given a content actions backend with an s3-projection publication
+    And the editor publishes a new article
+    When the editor unpublishes the article
+    Then the site bucket no longer holds "articles/hello.html"
+
+  Scenario: A projection failure does not fail the publish
+    Given a content actions backend with an s3-projection publication whose bucket rejects writes
+    When the editor publishes a new article
+    Then the publish response succeeds
+    And the publish response says the item is not live
+    And the failure was queued on the projection dead letter queue
+    And a published item exists
+
+  Scenario: A site without a publication behaves as before
+    Given a content actions backend without a publication
+    When the editor publishes a new article
+    Then the publish response succeeds
+    And the publish response has no projection fields

@@ -14,6 +14,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from .markus_renderer.derive import BodyError, derive_body
+from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
 
 PUBLISHED_ID_PREFIX = "published-"
@@ -271,6 +272,7 @@ def project_item_to_published(
     section = item.get("section")
     metadata = _parse_json_object(item.get("metadata"))
     metadata["sourceContentHash"] = item.get("contentHash")
+    metadata[PROJECTION_METADATA_KEY] = projection_metadata(metadata.get("frontMatterYaml"))
     published = {
         "id": published_id,
         "sourceItemId": item["id"],
