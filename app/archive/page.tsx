@@ -4,7 +4,7 @@ import { loadArchiveEditionPreviews } from "../../lib/archive-data";
 import { ARCHIVE_BATCH_SIZE } from "../../lib/archive-types";
 
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export default async function ArchivePage() {
   const initialBatch = await loadArchiveEditionPreviews({ limit: ARCHIVE_BATCH_SIZE });

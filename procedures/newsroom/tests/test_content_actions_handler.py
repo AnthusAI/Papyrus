@@ -205,6 +205,33 @@ class ContentActionsSiteTriggerTest(unittest.TestCase):
         revalidate.assert_called_once_with(["my-post"], None, base_url="https://reader.test")
         self.assertEqual(result["revalidated"], {"ok": True})
 
+    def test_revalidated_paths_are_purged_from_the_configured_distributions(self) -> None:
+        item_id = self.saved_item_id()
+        revalidated = {"ok": True, "revalidatedPaths": ["/articles/my-post", "/archive"]}
+        environment = {"PAPYRUS_REVALIDATE_BASE_URL": "https://reader.test", "PAPYRUS_REVALIDATE_DISTRIBUTION_IDS": "EONE, ETWO"}
+        invalidated: list[tuple[str, list[str]]] = []
+
+        def record(distribution_id, paths, _client=None, **_kwargs):
+            invalidated.append((distribution_id, list(paths)))
+            return list(paths)
+
+        with mock.patch.dict("os.environ", environment), mock.patch.object(
+            content_actions_handler, "trigger_pretext_revalidation", return_value=revalidated
+        ), mock.patch("papyrus_content.edge_invalidation.invalidate_distribution", side_effect=record), mock.patch.object(
+            content_actions_handler, "trigger_rebuild", return_value={"started": True}
+        ):
+            result = self.call("publishItem", {"id": item_id})
+        self.assertEqual(invalidated, [("EONE", ["/articles/my-post", "/archive"]), ("ETWO", ["/articles/my-post", "/archive"])])
+        self.assertTrue(result["edgeInvalidated"]["ok"])
+
+    def test_no_distribution_ids_means_no_edge_invalidation(self) -> None:
+        item_id = self.saved_item_id()
+        with mock.patch.dict("os.environ", {"PAPYRUS_REVALIDATE_BASE_URL": "https://reader.test"}), mock.patch.object(
+            content_actions_handler, "trigger_pretext_revalidation", return_value={"ok": True, "revalidatedPaths": ["/a"]}
+        ), mock.patch.object(content_actions_handler, "trigger_rebuild", return_value={"started": True}):
+            result = self.call("publishItem", {"id": item_id})
+        self.assertNotIn("edgeInvalidated", result)
+
     def test_unconfigured_site_adds_no_trigger_fields(self) -> None:
         item_id = self.saved_item_id()
         with mock.patch.dict("os.environ", {"PAPYRUS_READER_AMPLIFY_APP_ID": ""}):

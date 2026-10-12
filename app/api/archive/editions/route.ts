@@ -3,7 +3,7 @@ import { loadArchiveEditionPreviews, clampArchiveLimit } from "../../../../lib/a
 import { ARCHIVE_BATCH_SIZE } from "../../../../lib/archive-types";
 
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);

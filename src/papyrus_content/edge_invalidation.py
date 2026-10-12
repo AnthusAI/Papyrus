@@ -102,3 +102,35 @@ def _create_invalidation_with_retries(
             if _error_code(error) not in THROTTLED_ERROR_CODES or attempt == MAXIMUM_ATTEMPTS - 1:
                 raise
             sleep(FIRST_RETRY_DELAY_SECONDS * (2**attempt))
+
+
+REVALIDATE_DISTRIBUTION_IDS_ENV = "PAPYRUS_REVALIDATE_DISTRIBUTION_IDS"
+
+
+def distribution_ids_from_environment(environment: dict[str, str] | Any) -> list[str]:
+    configured = (environment.get(REVALIDATE_DISTRIBUTION_IDS_ENV) or "").split(",")
+    return [identifier.strip() for identifier in configured if identifier.strip()]
+
+
+def invalidate_revalidated_paths(
+    distribution_ids: Sequence[str],
+    revalidated: dict[str, Any] | None,
+    cloudfront_client: Any = None,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """After a Pretext reader refreshed its own cache, purge our CloudFront copies of exactly those paths.
+
+    The reader answers with the paths it revalidated; each distribution that fronts it is invalidated for
+    them. A failure on one distribution never stops the others and is reported, never raised.
+    """
+    paths = [path for path in (revalidated or {}).get("revalidatedPaths", []) if isinstance(path, str) and path.startswith("/")]
+    if not paths:
+        return {"ok": True, "paths": [], "distributions": {}}
+    outcomes: dict[str, Any] = {}
+    for distribution_id in distribution_ids:
+        try:
+            outcomes[distribution_id] = {"ok": True, "paths": len(invalidate_distribution(distribution_id, paths, cloudfront_client, sleep=sleep))}
+        except Exception as error:  # noqa: BLE001 - reported per distribution; the publish never fails because of an edge purge
+            outcomes[distribution_id] = {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return {"ok": all(outcome["ok"] for outcome in outcomes.values()), "paths": paths, "distributions": outcomes}

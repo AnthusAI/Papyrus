@@ -16,6 +16,12 @@ import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publ
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
 import { assertValidPublicationConfig } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
+import {
+  revalidateDistributionEnvironment,
+  revalidateInvalidationStatement,
+  validateRevalidateDistributionIds,
+} from "./revalidate-invalidation-settings";
+import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
 import { data } from "./data/resource";
 import { assignmentAction } from "./functions/assignment-action/resource";
@@ -434,6 +440,24 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         }),
       ),
     );
+    const distributionProblems = validateRevalidateDistributionIds(site.revalidateDistributionIds, site.revalidateBaseUrl);
+    if (distributionProblems.length > 0) throw new Error(`Invalid backend config: ${distributionProblems.join("; ")}`);
+    const distributionIds = site.revalidateDistributionIds ?? [];
+    if (distributionIds.length > 0) {
+      for (const [name, value] of Object.entries(revalidateDistributionEnvironment(distributionIds))) {
+        backend.contentActions.addEnvironment(name, value);
+      }
+      contentActionsLambda.addToRolePolicy(
+        new PolicyStatement(
+          revalidateInvalidationStatement({ partition: revalidateStack.partition, account: revalidateStack.account, distributionIds }),
+        ),
+      );
+      for (const id of distributionIds) {
+        addInvalidationPathAlarm(revalidateStack, `ReaderEdgeInvalidationPaths${id}`, id);
+      }
+    }
+  } else if (site.revalidateDistributionIds !== undefined) {
+    throw new Error("Invalid backend config: revalidateDistributionIds requires revalidateBaseUrl");
   }
   grantNewsroomReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);
   grantMediaReadWriteDelete(backend.modelAttachmentUpload.resources.lambda as LambdaFunction);

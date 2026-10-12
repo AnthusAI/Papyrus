@@ -5,7 +5,7 @@ import { generateArticleStaticParams, siteServesNextReaderRoutes } from "../../.
 import { SITE_BRAND } from "../../../lib/site-brand";
 
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   return generateArticleStaticParams();
