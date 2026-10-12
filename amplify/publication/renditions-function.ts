@@ -97,6 +97,13 @@ export function addRenditionsFunction(scope: Construct, props: RenditionsFunctio
       resources: [props.siteBucket.arnForObjects("*")],
     }),
   );
+  renditions.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["s3:ListBucket"],
+      resources: [props.siteBucket.bucketArn],
+    }),
+  );
   const rule = new events.Rule(scope, "MediaObjectCreatedRule", {
     eventPattern: renditionsEventPattern(props.mediaBucket.bucketName),
   });

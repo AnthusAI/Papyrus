@@ -96,4 +96,5 @@ const functionRoleStatements = Object.values(template.findResources("AWS::IAM::P
   .filter((statement) => statement.Effect === "Allow");
 const actions = functionRoleStatements.flatMap((statement) => (Array.isArray(statement.Action) ? statement.Action : [statement.Action]));
 assert.ok(actions.includes("s3:GetObject") && actions.includes("s3:PutObject"));
+assert.ok(actions.includes("s3:ListBucket"), "a missing description must read as absent (404), not as access denied");
 assert.equal(actions.includes("s3:DeleteObject"), false, "the renditions function never deletes");
