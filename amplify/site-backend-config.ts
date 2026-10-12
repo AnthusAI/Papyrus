@@ -141,6 +141,11 @@ export type PapyrusSiteBackendConfig = {
   /** Base URL of a Pretext reader whose `/api/revalidate` a publish calls (authenticated by the SSM secret named in branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`). */
   revalidateBaseUrl?: string;
   /**
+   * CloudFront distribution ids (same account) in front of that reader. After a publish refreshes the reader's
+   * cache, content-actions invalidates the revalidated paths on each of them. Needs `revalidateBaseUrl`.
+   */
+  revalidateDistributionIds?: string[];
+  /**
    * SES receipt options for a site that is not the legacy p.apyr.us backend.
    * By default the site gets its own brand-named rule set that is never
    * activated by CloudFormation (SES allows one active rule set per region).

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { withPapyrus, DEFAULT_TRANSPILE_PACKAGES } from "../packages/papyrus/src/with-papyrus.mjs";
+import { withPapyrus, DEFAULT_TRANSPILE_PACKAGES, READER_EXPIRE_TIME_SECONDS } from "../packages/papyrus/src/with-papyrus.mjs";
 import { packageShipsTypeScriptSourceEntries } from "../packages/typescript-source-entries.mjs";
 
 const defaults = withPapyrus({}).transpilePackages;
@@ -16,5 +16,8 @@ assert.equal(packageShipsTypeScriptSourceEntries({ exports: { "./x": "./src/x.ts
 assert.equal(packageShipsTypeScriptSourceEntries({ exports: { ".": { types: "./index.d.ts", default: "./index.js" } } }), false);
 assert.equal(packageShipsTypeScriptSourceEntries({ exports: { ".": { "@zod/source": "./src/index.ts", import: "./index.js" } } }), false, "custom source conditions are opt-in and ignored");
 assert.equal(packageShipsTypeScriptSourceEntries({ main: "./index.ts" }), true);
+
+assert.equal(withPapyrus({}).expireTime, READER_EXPIRE_TIME_SECONDS, "shared caches may serve a page stale for 60 s, not a year");
+assert.equal(withPapyrus({ expireTime: 300 }).expireTime, 300, "a publication's own expireTime wins");
 
 console.log("with-papyrus transpile tests passed");

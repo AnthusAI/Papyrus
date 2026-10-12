@@ -401,6 +401,21 @@ minutes, so rotation takes effect without a redeploy); a missing or unreadable
 parameter makes the route answer 401 and the trigger report an error, never
 a bypass.
 
+### Reader cache lifetime and edge purge (Pretext sites)
+
+Next sends `s-maxage` equal to a route's `export const revalidate`, and the Amplify CDN in front of the SSR compute honours it. The reader routes used to say 3600, so a page that was unpublished or edited stayed up for up to an hour at the Amplify CDN layer, which only the passage of time can clear (no API purges it). They now say 60 (`lib/reader-cache-lifetime.ts`; `npm run test:reader-cache-lifetime` keeps every route equal to it), and `withPapyrus` sets `expireTime: 120` (Next's `stale-while-revalidate` is `expireTime` minus `revalidate`, a year by default, which lets a shared cache serve a page long past `s-maxage` while it refreshes), so the headers are `s-maxage=60, stale-while-revalidate=60`. That bounds the Amplify CDN layer to about two minutes. Existing sites get this only when they bump their `@anthusai/papyrus` pin.
+
+A site that also puts its own CloudFront distribution in front of the reader names it in `papyrus.config.ts`:
+
+```ts
+backend: {
+  revalidateBaseUrl: "https://p.example.org",
+  revalidateDistributionIds: ["E2QW8WOFWQT0H4"],   // same account as the backend; ids, not ARNs
+}
+```
+
+After a publish refreshes the reader, `content-actions` invalidates exactly the paths the reader reported as revalidated on each listed distribution (`PAPYRUS_REVALIDATE_DISTRIBUTION_IDS`, `cloudfront:CreateInvalidation` on those distribution ARNs, the same batching, back-off, never-a-wildcard rule and weekly path-count alarm as the S3 projection). The response gains `edgeInvalidated`; a failure is reported there and never fails the publish.
+
 | Secret | Where it lives | Set by |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets | human, console |

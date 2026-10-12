@@ -2,7 +2,7 @@ import { EditionRoutePage } from "./edition-route-page";
 import { generateEditionDateStaticParams } from "../../../../lib/reader-static-params";
 
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
-export const revalidate = 3600;
+export const revalidate = 60;
 
 export async function generateStaticParams() {
   return generateEditionDateStaticParams();

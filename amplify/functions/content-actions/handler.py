@@ -4,6 +4,7 @@ import json
 import os
 from typing import Any
 
+from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.engine import project, project_item_pages
@@ -207,6 +208,9 @@ def site_triggers_for(client, item_id: str) -> dict:
             slugs = [item["slug"]] if item.get("slug") else []
             revalidated = trigger_pretext_revalidation(slugs, None, base_url=revalidate_base_url)
             triggers["revalidated"] = revalidated if revalidated is not None else {"ok": False, "reason": "not-configured"}
+            distribution_ids = distribution_ids_from_environment(os.environ)
+            if distribution_ids and revalidated is not None:
+                triggers["edgeInvalidated"] = invalidate_revalidated_paths(distribution_ids, revalidated)
         except Exception as error:  # noqa: BLE001 - a trigger failure never fails the publish
             triggers["revalidated"] = {"ok": False, "error": f"{type(error).__name__}: {error}"}
     if reader_app_id:
