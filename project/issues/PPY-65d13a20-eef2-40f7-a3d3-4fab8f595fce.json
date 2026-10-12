@@ -36,17 +36,28 @@
       "text": "M5 evidence (agent). Pilobol.us PRs: #64 (projector web/projector.py, s3-projection config, next.48, media originals; merged db86b4f), #65 (drop Amplify reader id; open for merge). Papyrus #197 (media originals in renditions Lambda, in next.48). Parity: full-tree diff of old-library reader build vs project --all is empty (94 files); live 65-path check after the switch: all statuses equal, 41 byte-identical, HTML differs only by the cache-bust token (media not in the token on the Lambda path); content-type differs by charset and sitemap application/xml vs text/xml; /articles now 200 not 301. Edge stack papyrus-edge-pilobol-us changed via change set (only ReaderDistribution origin/OAC/function/error responses + new OAC; template /Users/home/Projects/edge-cloudfront/pilobol-us.yaml, not in git). Publish test through the real content-actions Lambda: page live in 9.8 s (about 8 s of it Amplify reader rebuild retries, removed by #65), unpublish gone in 8.2 s; Item/PublishedItem counts 21/18 before and after. Media upload test: object under media/ visible at pilobol.us in about 2 s. Issues for M7/M10: cache-bust token excludes media; edge template outside git; cache policy changed to CachingOptimized for the reader; legacy CMS app dv0pdx67fk80m config loses its reader trigger; AGENTS.md/README in Pilobol.us still describe the Amplify reader.",
       "created_at": "2026-10-12T23:57:44.894473Z",
       "comment_type": "default"
+    },
+    {
+      "id": "59243ac2-ec11-4edb-a2de-9e4c96ede056",
+      "author": "home",
+      "text": "M5 evidence. Pilobol.us PRs: #64 (projector web/projector.py, s3-projection config, next.48, media originals; merged db86b4f), #65 (drop Amplify reader id; open, needs merge). Papyrus #197 (media originals in the renditions Lambda, in next.48). Parity: full-tree diff of the old-library reader build vs project --all is empty (94 files). Live 65-path check after the switch: all statuses equal, 41 byte-identical, HTML differs only by the cache-bust token (media not in the token on the Lambda path); content-type differs by charset, sitemap is application/xml not text/xml; /articles is 200 not 301. Edge stack papyrus-edge-pilobol-us changed by change set (only ReaderDistribution origin, OAC, function, error responses, plus a new OAC); template /Users/home/Projects/edge-cloudfront/pilobol-us.yaml is not in git. Publish test through the real content-actions Lambda: live in 9.8 s (about 8 s of it Amplify reader rebuild retries, removed by #65); unpublish gone in 8.2 s; Item/PublishedItem counts 21/18 before and after. Media: object under media/ visible at pilobol.us in about 2 s. Issues for M7/M10: token excludes media; edge template outside git; reader cache policy now CachingOptimized; legacy CMS app dv0pdx67fk80m loses its reader trigger; Pilobol.us AGENTS.md/README still describe the Amplify reader.\n",
+      "created_at": "2026-10-12T23:58:02.381293Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5"
+      }
     }
   ],
   "created_at": "2026-10-12T18:27:52.075260Z",
-  "updated_at": "2026-10-12T23:57:44.895231Z",
+  "updated_at": "2026-10-12T23:58:02.381325Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",
     "name": "markus-publication-architect"
   },
-  "right_now_summary": "Pilobol.us now serves from S3, with edits live in seconds; cleanup and documentation updates remain.",
-  "right_now_updated_at": "2026-10-12T23:57:47.250649Z",
+  "right_now_summary": "The S3 projection works, but PR #65 and documentation updates remain before the migration is complete.",
+  "right_now_updated_at": "2026-10-12T23:58:03.675027Z",
   "custom": {}
 }
