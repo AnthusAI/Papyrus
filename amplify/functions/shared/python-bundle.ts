@@ -1,5 +1,6 @@
 import { AssetHashType, DockerImage } from "aws-cdk-lib";
 import { Code, Runtime } from "aws-cdk-lib/aws-lambda";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -57,7 +58,45 @@ export type PythonBundleOptions = {
   noDeps?: boolean;
   /** Copy `<cwd>/corpora/*.yml` into the asset (publication-owned steering config). */
   corpora?: boolean;
+  /** Site repo files copied into the asset; `from` is relative to the current working directory, `to` to the asset root. A directory is copied recursively. */
+  siteFiles?: SiteBundleFile[];
 };
+
+export type SiteBundleFile = { from: string; to: string };
+
+function isBytecodeArtifact(sourcePath: string): boolean {
+  return sourcePath.split(path.sep).includes("__pycache__") || sourcePath.endsWith(".pyc");
+}
+
+export function copySiteFiles(outputDir: string, siteFiles: SiteBundleFile[] | undefined): void {
+  for (const siteFile of siteFiles ?? []) {
+    const sourcePath = path.resolve(process.cwd(), siteFile.from);
+    if (!fs.existsSync(sourcePath)) throw new Error(`Site file to bundle does not exist: ${siteFile.from}`);
+    const destinationPath = path.join(outputDir, siteFile.to);
+    fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+    fs.cpSync(sourcePath, destinationPath, { recursive: true, filter: (candidate) => !isBytecodeArtifact(candidate) });
+  }
+}
+
+function listFilesRecursively(root: string): string[] {
+  if (fs.statSync(root).isFile()) return [root];
+  return fs.readdirSync(root).sort().flatMap((entry) => listFilesRecursively(path.join(root, entry)))
+    .filter((candidate) => !isBytecodeArtifact(candidate));
+}
+
+export function siteFilesContentHash(siteFiles: SiteBundleFile[] | undefined): string {
+  const hash = createHash("sha256");
+  for (const siteFile of siteFiles ?? []) {
+    const sourcePath = path.resolve(process.cwd(), siteFile.from);
+    hash.update(`${siteFile.to}\0`);
+    if (!fs.existsSync(sourcePath)) continue;
+    for (const filePath of listFilesRecursively(sourcePath)) {
+      hash.update(`${path.relative(sourcePath, filePath)}\0`);
+      hash.update(fs.readFileSync(filePath));
+    }
+  }
+  return hash.digest("hex").slice(0, 16);
+}
 
 function pipSpec(): string {
   return (process.env.PAPYRUS_PIP_SPEC ?? "").trim() || `papyrus-newsroom==${toPep440(papyrusVersion())}`;
@@ -107,6 +146,7 @@ function bundleFromPip(outputDir: string, options: PythonBundleOptions): void {
     path.join(packageRoot, "amplify/functions", options.functionDir, "handler.py"),
     path.join(outputDir, "handler.py"),
   );
+  copySiteFiles(outputDir, options.siteFiles);
   if (options.corpora) {
     const corporaDir = path.join(outputDir, "corpora");
     fs.mkdirSync(corporaDir, { recursive: true });
@@ -129,6 +169,7 @@ export function bundleFromCheckout(outputDir: string, options: PythonBundleOptio
     fs.cpSync(path.join(packageRoot, "src", module), path.join(outputDir, module), { recursive: true });
   }
   options.checkoutExtras?.(outputDir);
+  copySiteFiles(outputDir, options.siteFiles);
 }
 
 /**
@@ -137,14 +178,18 @@ export function bundleFromCheckout(outputDir: string, options: PythonBundleOptio
  */
 export function pythonLambdaCode(options: PythonBundleOptions, dockerCommand: string[]): Code {
   const packageMode = isPackageMode();
+  const hasSiteFiles = (options.siteFiles ?? []).length > 0;
+  const siteFilesSuffix = hasSiteFiles ? `:site-${siteFilesContentHash(options.siteFiles)}` : "";
   return Code.fromAsset(packageRoot, {
     ...(packageMode
       ? {
           assetHashType: AssetHashType.CUSTOM,
-          assetHash: `${options.functionDir}:${pipSpec()}:${(options.requirements ?? []).join(",")}`
+          assetHash: `${options.functionDir}:${pipSpec()}:${(options.requirements ?? []).join(",")}${siteFilesSuffix}`
             .replace(/[^a-zA-Z0-9._:=,-]/g, "_"),
         }
-      : {}),
+      : hasSiteFiles
+        ? { assetHashType: AssetHashType.OUTPUT }
+        : {}),
     bundling: {
       image: Runtime.PYTHON_3_12.bundlingImage ?? DockerImage.fromRegistry("public.ecr.aws/sam/build-python3.12"),
       local: {

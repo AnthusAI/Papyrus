@@ -545,6 +545,42 @@ to the live set; the new site then adds only its own rule, named
 (`submissions@p.apyr.us` would be claimed twice), so this suits sites with
 different recipient domains.
 
+## S3 projection publication (opt-in)
+
+A Markus site can publish its pages as static files in an S3 bucket from inside the publish mutation. Set `backend.publication` in `papyrus.config.ts`; a site that does not set it synthesizes exactly as before.
+
+```ts
+backend: {
+  publication: {
+    kind: "s3-projection",
+    projector: "web/projector.py",                 // optional, relative .py path in the site repo
+    staticDir: "web/static",                       // optional, relative directory in the site repo
+    edgeDistributionArn: "arn:aws:cloudfront::123456789012:distribution/E3UMOOJRMY7FK7", // optional
+    distribution: { create: false },               // or { create: true, aliases, certificateArn | acm }
+    retainBucketOnDelete: true,                    // default; false destroys the bucket with the stack
+  },
+}
+```
+
+`edgeDistributionArn` (an existing distribution) and `distribution.create: true` are mutually exclusive. Aliases need `certificateArn` or `acm: { hostedZoneId, hostedZoneName }` (a DNS-validated certificate in us-east-1). `projector` and `staticDir` must be relative and contain no `..`; they are bundled into the content-actions zip as `site_projector.py` and `site_static/`, resolved from the directory the backend is synthesized in (the site repo root).
+
+When set, the backend creates a `s3-projection` stack with a versioned, private, SSL-only, SSE-S3 site bucket (noncurrent versions expire after 90 days), a CloudFront KeyValueStore, a CloudFront Function (cloudfront-js-2.0, viewer-request: KVS redirects, then `/x/` and `/x` to `index.html`), an SQS dead-letter queue, a bucket policy that lets only `cloudfront.amazonaws.com` read objects for the distribution ARN (OAC), and, with `distribution.create`, the distribution itself. The content-actions Lambda gets 2048 MB of memory and least-privilege IAM for the bucket, invalidations, the KVS and the queue.
+
+The environment contract with the Python side:
+
+| Variable | Set when |
+| --- | --- |
+| `PAPYRUS_PUBLICATION_KIND=s3-projection` | always |
+| `PAPYRUS_SITE_BUCKET` | always |
+| `PAPYRUS_REDIRECTS_KVS_ARN` | always |
+| `PAPYRUS_PROJECTION_DLQ_URL` | always |
+| `PAPYRUS_EDGE_DISTRIBUTION_ID` | a distribution is created or `edgeDistributionArn` is given |
+| `PAPYRUS_SITE_PUBLIC_URL` | a distribution is created (first alias, else its domain name) |
+| `PAPYRUS_SITE_PROJECTOR=site_projector` | `projector` is set |
+| `PAPYRUS_SITE_STATIC_DIR=/var/task/site_static` | `staticDir` is set |
+
+Existing sites are unaffected: with `publication` unset no stack, resource, environment variable, policy statement, memory change or bundled file is added.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it fails |
