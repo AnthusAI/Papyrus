@@ -1,2 +1,3 @@
 import type { NextConfig } from "next";
 export function withPapyrus(nextConfig?: NextConfig, options?: { root?: string }): NextConfig;
+export const READER_EXPIRE_TIME_SECONDS: number;

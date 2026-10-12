@@ -403,7 +403,7 @@ a bypass.
 
 ### Reader cache lifetime and edge purge (Pretext sites)
 
-Next sends `s-maxage` equal to a route's `export const revalidate`, and the Amplify CDN in front of the SSR compute honours it. The reader routes used to say 3600, so a page that was unpublished or edited stayed up for up to an hour at the Amplify CDN layer, which only the passage of time can clear (no API purges it). They now say 60 (`lib/reader-cache-lifetime.ts`; `npm run test:reader-cache-lifetime` keeps every route equal to it), which bounds that layer to a minute. Existing sites get this only when they bump their `@anthusai/papyrus` pin.
+Next sends `s-maxage` equal to a route's `export const revalidate`, and the Amplify CDN in front of the SSR compute honours it. The reader routes used to say 3600, so a page that was unpublished or edited stayed up for up to an hour at the Amplify CDN layer, which only the passage of time can clear (no API purges it). They now say 60 (`lib/reader-cache-lifetime.ts`; `npm run test:reader-cache-lifetime` keeps every route equal to it), and `withPapyrus` sets `expireTime: 120` (Next's `stale-while-revalidate` is `expireTime` minus `revalidate`, a year by default, which lets a shared cache serve a page long past `s-maxage` while it refreshes), so the headers are `s-maxage=60, stale-while-revalidate=60`. That bounds the Amplify CDN layer to about two minutes. Existing sites get this only when they bump their `@anthusai/papyrus` pin.
 
 A site that also puts its own CloudFront distribution in front of the reader names it in `papyrus.config.ts`:
 

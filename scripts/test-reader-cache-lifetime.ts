@@ -9,6 +9,7 @@ import {
   validateRevalidateDistributionIds,
 } from "../amplify/revalidate-invalidation-settings";
 import { addInvalidationPathAlarm, WEEKLY_INVALIDATION_PATH_THRESHOLD } from "../amplify/publication/invalidation-alarm";
+import { READER_EXPIRE_TIME_SECONDS } from "../packages/papyrus/src/with-papyrus.mjs";
 import { App, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 
@@ -28,6 +29,7 @@ for (const { file, value } of declared) {
   assert.equal(value, String(READER_PAGE_REVALIDATE_SECONDS), `${file} must revalidate every ${READER_PAGE_REVALIDATE_SECONDS} s`);
 }
 
+assert.equal(READER_EXPIRE_TIME_SECONDS, 2 * READER_PAGE_REVALIDATE_SECONDS, "stale-while-revalidate equals the page lifetime");
 assert.deepEqual(validateRevalidateDistributionIds(undefined, undefined), []);
 assert.deepEqual(validateRevalidateDistributionIds(["E2QW8WOFWQT0H4"], "https://reader.example"), []);
 assert.match(validateRevalidateDistributionIds(["E2QW8WOFWQT0H4"], undefined).join("|"), /requires revalidateBaseUrl/);

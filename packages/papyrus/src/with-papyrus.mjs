@@ -23,6 +23,13 @@ const SERVER_EXTERNAL = [
   "@aws-amplify/data-schema",
 ];
 
+/**
+ * Next sends `stale-while-revalidate` = `expireTime` - `revalidate` (one year by default), so a shared cache may serve a
+ * page for a year past its `s-maxage` while it refreshes in the background. Twice the reader's 60 s page lifetime
+ * (lib/reader-cache-lifetime.ts) bounds that to 60 s.
+ */
+export const READER_EXPIRE_TIME_SECONDS = 120;
+
 export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron"];
 
 export function mergeTranspilePackages(existing = []) {
@@ -54,6 +61,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
   };
   return {
     distDir: process.env.NEXT_DIST_DIR || ".next",
+    expireTime: READER_EXPIRE_TIME_SECONDS,
     ...nextConfig,
     transpilePackages: mergeTranspilePackages(nextConfig.transpilePackages),
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
