@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from papyrus_content import cli
+from papyrus_content.projection.writers import S3PageWriter, body_etag
 
 from papyrus_content.projection.engine import ProjectionContext, project, reconcile
 from papyrus_content.projection.source import PublishedContentSource
@@ -239,32 +240,65 @@ class ReconcileTests(unittest.TestCase):
             assert_equals_full(self, site)
 
 
+class FakeBucket:
+    """The calls S3PageWriter makes, against a dict."""
+
+    def __init__(self) -> None:
+        self.objects: dict[str, dict] = {}
+
+    @staticmethod
+    def _missing(code: str) -> Exception:
+        error = Exception(code)
+        error.response = {"Error": {"Code": code}}
+        return error
+
+    def put_object(self, **arguments) -> None:
+        self.objects[arguments["Key"]] = arguments
+
+    def delete_object(self, **arguments) -> None:
+        self.objects.pop(arguments["Key"], None)
+
+    def get_object(self, **arguments) -> dict:
+        if arguments["Key"] not in self.objects:
+            raise self._missing("NoSuchKey")
+        body = self.objects[arguments["Key"]]["Body"]
+        return {"Body": type("Body", (), {"read": lambda _self: body})()}
+
+    def head_object(self, **arguments) -> dict:
+        stored = self.objects.get(arguments["Key"])
+        if stored is None:
+            raise self._missing("404")
+        return {"ETag": f'"{body_etag(stored["Body"])}"', "Metadata": stored.get("Metadata", {})}
+
+    def list_objects_v2(self, **arguments) -> dict:
+        prefix = arguments.get("Prefix", "")
+        return {
+            "Contents": [
+                {"Key": key, "ETag": f'"{body_etag(stored["Body"])}"'}
+                for key, stored in sorted(self.objects.items())
+                if key.startswith(prefix)
+            ],
+            "IsTruncated": False,
+        }
+
+
 class S3SiteStoreTests(unittest.TestCase):
     def test_pages_carry_their_version_and_inputs_and_can_be_read_back_listed_and_deleted(self) -> None:
-        import boto3
-        from moto import mock_aws
-
-        from papyrus_content.projection.writers import S3PageWriter
-
-        with mock_aws():
-            client = boto3.client("s3", region_name="us-east-1")
-            client.create_bucket(Bucket="site")
-            store = S3PageWriter("site", client)
-            store.put("articles/a.html", b"<p>a</p>", version=3)
-            store.put("index.html", b"<p>home</p>", inputs="abc123")
-            self.assertEqual(store.head("articles/a.html").version, 3)
-            self.assertEqual(store.head("index.html").inputs, "abc123")
-            self.assertIsNone(store.head("missing.html"))
-            self.assertIsNone(store.get("missing.html"))
-            self.assertEqual(store.get("index.html"), b"<p>home</p>")
-            listed = {entry.key: entry.etag for entry in store.list()}
-            self.assertEqual(sorted(listed), ["articles/a.html", "index.html"])
-            from papyrus_content.projection.writers import body_etag
-
-            self.assertEqual(listed["index.html"], body_etag(b"<p>home</p>"))
-            self.assertEqual(sorted(store.head_many(["articles/a.html", "nope.html"])), ["articles/a.html", "nope.html"])
-            store.delete("articles/a.html")
-            self.assertIsNone(store.head("articles/a.html"))
+        store = S3PageWriter("site", FakeBucket())
+        store.put("articles/a.html", b"<p>a</p>", version=3)
+        store.put("index.html", b"<p>home</p>", inputs="abc123")
+        self.assertEqual(store.head("articles/a.html").version, 3)
+        self.assertEqual(store.head("index.html").inputs, "abc123")
+        self.assertIsNone(store.head("missing.html"))
+        self.assertIsNone(store.get("missing.html"))
+        self.assertEqual(store.get("index.html"), b"<p>home</p>")
+        listed = {entry.key: entry.etag for entry in store.list()}
+        self.assertEqual(sorted(listed), ["articles/a.html", "index.html"])
+        self.assertEqual(listed["index.html"], body_etag(b"<p>home</p>"))
+        self.assertEqual(sorted(store.head_many(["articles/a.html", "nope.html"])), ["articles/a.html", "nope.html"])
+        self.assertIsNone(store.head_many(["nope.html"])["nope.html"])
+        store.delete("articles/a.html")
+        self.assertIsNone(store.head("articles/a.html"))
 
     def test_the_redirect_store_retries_a_conflicting_update_and_reads_back(self) -> None:
         from papyrus_content.projection.writers import KeyValueStoreRedirects
