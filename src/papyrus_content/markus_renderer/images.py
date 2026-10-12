@@ -417,6 +417,15 @@ def _svg_dimensions(path: Path) -> tuple[int, int] | None:
     return None
 
 
+def _rendition_to_data(rendition: Rendition) -> dict:
+    return {
+        "width": rendition.width,
+        "height": rendition.height,
+        "href": rendition.href,
+        "format": rendition.fmt,
+    }
+
+
 @dataclass(frozen=True)
 class _GatsbyMeta:
     renditions: list[Rendition]
@@ -732,7 +741,7 @@ class ImageBuilder:
         suffix = path.suffix.lower()
         if suffix in PASSTHROUGH_SUFFIXES or suffix not in RASTER_SUFFIXES:
             href = self._passthrough_href(src, path)
-            dims = _svg_dimensions(path) if suffix == ".svg" else self._raster_size(path)
+            dims = self._passthrough_dimensions(path, suffix)
             img = self._img_tag(
                 src=prefix + href,
                 alt=request.alt,
@@ -799,6 +808,37 @@ class ImageBuilder:
         return self._figure(
             request, layout=layout, inner=inner, size=(intrinsic_w, intrinsic_h)
         )
+
+    def _passthrough_dimensions(self, path: Path, suffix: str) -> tuple[int, int] | None:
+        return _svg_dimensions(path) if suffix == ".svg" else self._raster_size(path)
+
+    def rendition_record(self, src: str, path: Path) -> dict:
+        """Build every derivative of one source and describe them as plain data.
+
+        This is the unit of work of upload-time renditions: the record is what a
+        page render later reads instead of opening the image.
+        """
+        suffix = path.suffix.lower()
+        if suffix in PASSTHROUGH_SUFFIXES or suffix not in RASTER_SUFFIXES:
+            href = self._passthrough_href(src, path)
+            dims = self._passthrough_dimensions(path, suffix)
+            return {"kind": "passthrough", "href": href, "size": list(dims) if dims else None}
+        if self.pipeline.gatsby_parity:
+            meta = self._gatsby_renditions(src, path)
+            return {
+                "kind": "gatsby",
+                "size": list(meta.intrinsic),
+                "displayWidth": meta.display_width,
+                "fallbackFormat": meta.fallback_fmt,
+                "placeholder": meta.placeholder,
+                "renditions": [_rendition_to_data(item) for item in meta.renditions],
+            }
+        renditions = self._renditions(src, path)
+        return {
+            "kind": "legacy",
+            "size": list(self._intrinsic[src]),
+            "renditions": [_rendition_to_data(item) for item in renditions],
+        }
 
     def _raster_size(self, path: Path) -> tuple[int, int] | None:
         try:

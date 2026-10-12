@@ -11,6 +11,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-waves";
 import { addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
+import { planRenditions } from "./publication/renditions-settings";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
 import { assertValidPublicationConfig } from "./site-backend-config";
@@ -85,6 +86,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   };
   if (site.publication !== undefined) assertValidPublicationConfig(site.publication);
   const publicationPlan = planS3ProjectionBackend(site.publication);
+  const renditionsPlan = planRenditions(site.publication, process.cwd());
   setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
   const backend = defineBackend({
     assignmentAction,
@@ -285,8 +287,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   let storageBackupVault: backup.BackupVault | undefined;
 
   const storageBucketCfn = storageBucket.node.defaultChild as s3.CfnBucket | undefined;
-  if ((enableStorageBackups || enableInboundEmail) && storageBucketCfn) {
-    // Backups and inbound-email intake both rely on S3 → EventBridge notifications.
+  if ((enableStorageBackups || enableInboundEmail || renditionsPlan.enabled) && storageBucketCfn) {
+    // Backups, inbound-email intake and upload-time renditions all rely on S3 → EventBridge notifications.
     storageBucketCfn.addPropertyOverride(
       "NotificationConfiguration.EventBridgeConfiguration.EventBridgeEnabled",
       true,
@@ -396,7 +398,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   }
   let s3ProjectionPublication: S3ProjectionPublication | undefined;
   if (site.publication !== undefined) {
-    s3ProjectionPublication = addS3ProjectionPublication(backend.createStack("s3-projection"), site.publication);
+    s3ProjectionPublication = addS3ProjectionPublication(backend.createStack("s3-projection"), site.publication, {
+      mediaBucket: storageBucket,
+      renditions: renditionsPlan,
+    });
     (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
   }
   const publicationWiring = contentActionsPublicationWiring(s3ProjectionPublication);

@@ -581,6 +581,12 @@ The environment contract with the Python side:
 
 Existing sites are unaffected: with `publication` unset no stack, resource, environment variable, policy statement, memory change or bundled file is added.
 
+### Upload-time image renditions
+
+When `<staticDir>/projection.json` has an `images` section, the `s3-projection` stack also creates a `renditions` Lambda (Python 3.12, arm64, 3008 MB, 5 minutes) with an EventBridge rule on `Object Created` under `media/` in the CMS media bucket (the template switches S3 to EventBridge notifications on for that bucket). Uploading `media/<srcPath>` writes, to the site bucket, the same files the full build writes: `assets/responsive/<dir>/<stem>-<width>.<avif|webp|jpg|png>`, `assets/responsive/<dir>/<stem>.meta.json` (written last) and, with `listing_max_width`, a downscaled listing copy at `assets/content/<srcPath>`. A page render reads the `meta.json`; it never opens or encodes an image, and a missing `meta.json` fails the projection with the command that fixes it.
+
+`images` takes the `ImagePipeline` data fields (`gatsby_parity`, `quality`, `formats`, `max_width`, `widths`, `placeholder`, `eager_first`, ...) plus `listing_max_width`. Existing media are back-filled with `papyrus ops content renditions --backfill` (add `--dry-run` first; it skips images that already have a `meta.json`), and one image is requested again with `papyrus ops content renditions --source <srcPath>`. Both read `PAPYRUS_MEDIA_BUCKET_NAME` and `PAPYRUS_RENDITIONS_FUNCTION_NAME` (also settable with `--media-bucket` and `--function-name`).
+
 ## Anti-patterns
 
 | Anti-pattern | Why it fails |

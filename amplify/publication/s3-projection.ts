@@ -1,6 +1,7 @@
 import { Duration, RemovalPolicy } from "aws-cdk-lib";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import type { Code } from "aws-cdk-lib/aws-lambda";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import * as route53 from "aws-cdk-lib/aws-route53";
@@ -10,11 +11,19 @@ import type { Construct } from "constructs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertValidPublicationConfig, type PapyrusPublicationConfig } from "../site-backend-config";
+import { addRenditionsFunction, type RenditionsFunction } from "./renditions-function";
+import { RENDITIONS_FUNCTION_NAME_ENV, type RenditionsPlan } from "./renditions-settings";
 import { s3ProjectionEnvironment, s3ProjectionPolicyStatements } from "./s3-projection-settings";
 
 const redirectFunctionSourcePath = resolve(dirname(fileURLToPath(import.meta.url)), "redirect-and-index.js");
 
 export type S3ProjectionPublicationProps = Omit<PapyrusPublicationConfig, "kind"> & { kind?: "s3-projection" };
+
+export type S3ProjectionMedia = {
+  mediaBucket: s3.IBucket;
+  renditions: RenditionsPlan;
+  renditionsCode?: Code;
+};
 
 export type S3ProjectionPublication = {
   bucket: s3.Bucket;
@@ -23,6 +32,7 @@ export type S3ProjectionPublication = {
   deadLetterQueue: sqs.Queue;
   distribution?: cloudfront.Distribution;
   distributionId?: string;
+  renditions?: RenditionsFunction;
   environment: Record<string, string>;
   policyStatements: PolicyStatement[];
 };
@@ -88,7 +98,11 @@ function createDistribution(
   });
 }
 
-export function addS3ProjectionPublication(scope: Construct, props: S3ProjectionPublicationProps): S3ProjectionPublication {
+export function addS3ProjectionPublication(
+  scope: Construct,
+  props: S3ProjectionPublicationProps,
+  media?: S3ProjectionMedia,
+): S3ProjectionPublication {
   assertValidPublicationConfig({ kind: "s3-projection", ...props });
   const bucket = createSiteBucket(scope, props.retainBucketOnDelete !== false);
 
@@ -123,6 +137,10 @@ export function addS3ProjectionPublication(scope: Construct, props: S3Projection
     );
   }
 
+  const renditions = media?.renditions.enabled === true
+    ? addRenditionsFunction(scope, { siteBucket: bucket, mediaBucket: media.mediaBucket, siteFiles: media.renditions.siteFiles, code: media.renditionsCode })
+    : undefined;
+
   const settingsInput = {
     bucketName: bucket.bucketName,
     bucketArn: bucket.bucketArn,
@@ -144,7 +162,11 @@ export function addS3ProjectionPublication(scope: Construct, props: S3Projection
     deadLetterQueue,
     distribution,
     distributionId: distribution?.distributionId,
-    environment: s3ProjectionEnvironment(settingsInput),
+    renditions,
+    environment: {
+      ...s3ProjectionEnvironment(settingsInput),
+      ...(renditions !== undefined ? { [RENDITIONS_FUNCTION_NAME_ENV]: renditions.function.functionName } : {}),
+    },
     policyStatements: s3ProjectionPolicyStatements(settingsInput).map(
       (statement) => new PolicyStatement({ effect: Effect.ALLOW, actions: statement.actions, resources: statement.resources }),
     ),

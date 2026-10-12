@@ -10,6 +10,7 @@ from typing import Any
 
 from .engine import ProjectionContext
 from .projector import MarkusSiteProjector, SiteProjector
+from ..renditions import S3RenditionStore
 from .source import PublishedContentSource
 from .writers import CloudFrontInvalidator, KeyValueStoreRedirects, S3PageWriter
 
@@ -43,7 +44,11 @@ def load_projector(environ: Mapping[str, str] | None = None) -> SiteProjector:
     if module_name:
         projector = getattr(importlib.import_module(module_name), SITE_PROJECTOR_FACTORY)()
     else:
-        projector = MarkusSiteProjector.from_static_directory(Path(static_directory) if static_directory else None)
+        bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
+        projector = MarkusSiteProjector.from_static_directory(
+            Path(static_directory) if static_directory else None,
+            renditions=S3RenditionStore(bucket) if bucket else None,
+        )
     _projector_by_configuration[cache_key] = projector
     return projector
 
