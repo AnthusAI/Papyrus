@@ -74,8 +74,11 @@ class FakeS3:
 class FakeCloudFront:
     def __init__(self) -> None:
         self.invalidations: list[dict] = []
+        self.rejects_invalidations = False
 
     def create_invalidation(self, **arguments) -> None:
+        if self.rejects_invalidations:
+            raise RuntimeError("AccessDenied")
         self.invalidations.append(arguments)
 
 
@@ -206,7 +209,7 @@ def bucket_holds_with_version(context, key: str) -> None:
     published = context.client.get_record("PublishedItem", "published-item-articles-hello")
     assert stored["Metadata"] == {"papyrus-version": str(published["versionNumber"])}, stored
     assert stored["ContentType"] == "text/html; charset=utf-8"
-    assert stored["CacheControl"] == "public, max-age=0, s-maxage=86400"
+    assert stored["CacheControl"] == "public, max-age=0, s-maxage=300, stale-while-revalidate=60"
 
 
 @then('the edge distribution was invalidated for "{path}"')
@@ -289,3 +292,51 @@ def task_raises(context) -> None:
 def follow_up_scheduled(context) -> None:
     tasks = [invocation["Payload"]["projectionTask"] for invocation in context.lambda_client.invocations]
     assert any(task["task"] == "item-pages" for task in tasks), tasks
+
+
+@given("the edge distribution rejects invalidations")
+def edge_rejects_invalidations(context) -> None:
+    context.cloudfront.rejects_invalidations = True
+
+
+@given("edge invalidation is switched off for the site")
+def edge_invalidation_off(context) -> None:
+    context.environment["PAPYRUS_EDGE_INVALIDATION"] = "off"
+
+
+@then('the page "{key}" is cached at the edge for {seconds:d} seconds with stale-while-revalidate')
+def page_edge_lifetime(context, key: str, seconds: int) -> None:
+    cache_control = context.s3.objects[key]["CacheControl"]
+    assert cache_control == f"public, max-age=0, s-maxage={seconds}, stale-while-revalidate=60", cache_control
+
+
+@then("the edge distribution was not invalidated")
+def edge_not_invalidated(context) -> None:
+    assert context.cloudfront.invalidations == [], context.cloudfront.invalidations
+
+
+@then("the publish response says the item is live but the edge was not purged")
+def live_but_not_purged(context) -> None:
+    assert context.response["live"] is True and context.response["edgePurged"] is False, context.response
+
+
+@then("an asynchronous invalidation of the written pages was scheduled")
+def invalidation_task_scheduled(context) -> None:
+    tasks = [invocation["Payload"]["projectionTask"] for invocation in context.lambda_client.invocations]
+    invalidations = [task for task in tasks if task["task"] == "invalidate"]
+    assert len(invalidations) == 1 and "articles/hello.html" in invalidations[0]["keys"], tasks
+
+
+@when("the scheduled invalidation task runs with a working edge")
+def run_invalidation_task(context) -> None:
+    task = next(
+        invocation["Payload"]
+        for invocation in context.lambda_client.invocations
+        if invocation["Payload"]["projectionTask"]["task"] == "invalidate"
+    )
+    context.cloudfront.rejects_invalidations = False
+    with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
+        "boto3.client",
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+    ), mock.patch.dict("os.environ", context.environment, clear=False):
+        context.task_result = context.handler_module.handler(dict(task), None)

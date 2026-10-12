@@ -133,9 +133,16 @@ def project_item_action(client, item_id: str, *, unpublished: bool) -> dict:
         message = "; ".join(report.errors)
         schedule_projection_task(task, message)
         response["error"] = message
+    if report.unpurged:
+        response["edgePurged"] = False
+        schedule_unpurged_invalidation(report.unpurged)
     if report.follow_up_item_pages:
         schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
     return response
+
+
+def schedule_unpurged_invalidation(keys: list[str]) -> None:
+    schedule_projection_task({"task": "invalidate", "keys": keys}, "edge invalidation failed")
 
 
 def run_projection_task(task: dict) -> dict:
@@ -147,8 +154,15 @@ def run_projection_task(task: dict) -> dict:
         report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
         if report.follow_up_item_pages:
             schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
+    elif task.get("task") == "invalidate":
+        invalidate = projection_context(client).invalidate
+        if invalidate is None:
+            return {"ok": True, "paths": []}
+        return {"ok": True, "paths": invalidate(list(task["keys"]))}
     else:
         raise ProjectionTaskFailed(f"Unknown projection task {task.get('task')!r}")
+    if report.unpurged:
+        schedule_unpurged_invalidation(report.unpurged)
     if not report.ok:
         raise ProjectionTaskFailed("; ".join(report.errors))
     return {"ok": True, "paths": [*report.written, *report.deleted]}

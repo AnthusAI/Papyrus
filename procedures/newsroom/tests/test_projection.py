@@ -72,16 +72,26 @@ class WriterTests(unittest.TestCase):
             ["/index.html", "/", "/articles/a/index.html", "/articles/a/", "/articles/b.html"],
         )
 
-    def test_many_paths_become_one_whole_site_invalidation(self) -> None:
-        self.assertEqual(invalidation_paths_for([f"p/{number}.html" for number in range(120)]), ["/*"])
+    def test_many_paths_stay_exact_paths_and_never_become_a_wildcard(self) -> None:
+        paths = invalidation_paths_for([f"p/{number}.html" for number in range(1200)])
+        self.assertEqual(len(paths), 1200)
+        self.assertFalse(any("*" in path for path in paths))
 
     def test_content_types_and_cache_control(self) -> None:
         self.assertEqual(content_type_for("a/b.html"), "text/html; charset=utf-8")
         self.assertEqual(content_type_for("css/site.css"), "text/css; charset=utf-8")
         self.assertEqual(content_type_for("assets/x.json"), "application/json")
         self.assertEqual(content_type_for("assets/x.svg"), "image/svg+xml")
-        self.assertEqual(cache_control_for("a.html"), "public, max-age=0, s-maxage=86400")
-        self.assertEqual(cache_control_for("css/site.css"), "public, max-age=31536000, immutable")
+        self.assertEqual(cache_control_for("a.html"), "public, max-age=0, s-maxage=300, stale-while-revalidate=60")
+        self.assertEqual(cache_control_for("a.html", 60), "public, max-age=0, s-maxage=60, stale-while-revalidate=60")
+
+    def test_only_renditions_and_content_hashed_files_are_immutable(self) -> None:
+        immutable = "public, max-age=31536000, immutable"
+        self.assertEqual(cache_control_for("assets/responsive/cover/photo-640.avif"), immutable)
+        self.assertEqual(cache_control_for("_next/static/chunks/app.js"), immutable)
+        self.assertEqual(cache_control_for("css/site.3fa9c01b.css"), immutable)
+        for mutable in ("css/site.css", "sitemap-0.xml", "robots.txt", "feed.json", "assets/responsive/cover/photo.meta.json"):
+            self.assertIn("s-maxage=300", cache_control_for(mutable), mutable)
 
     def test_redirect_sources_always_start_with_a_slash(self) -> None:
         self.assertEqual(normalized_redirect_source("old/page"), "/old/page")

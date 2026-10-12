@@ -57,6 +57,29 @@ Feature: Publishing through the content actions projects the site
     When the editor publishes a new article
     Then the projection task for the other item pages was scheduled
 
+  Scenario: Pages are cached briefly at the edge and the stale window is bounded
+    Given a content actions backend with an s3-projection publication
+    When the editor publishes a new article
+    Then the page "articles/hello.html" is cached at the edge for 300 seconds with stale-while-revalidate
+
+  Scenario: Switching invalidation off shortens the edge lifetime instead
+    Given a content actions backend with an s3-projection publication
+    And edge invalidation is switched off for the site
+    When the editor publishes a new article
+    Then the page "articles/hello.html" is cached at the edge for 60 seconds with stale-while-revalidate
+    And the edge distribution was not invalidated
+
+  Scenario: A failed purge leaves the page live and is retried on its own
+    Given a content actions backend with an s3-projection publication
+    And the edge distribution rejects invalidations
+    When the editor publishes a new article
+    Then the publish response succeeds
+    And the publish response says the item is live but the edge was not purged
+    And an asynchronous invalidation of the written pages was scheduled
+    When the scheduled invalidation task runs with a working edge
+    Then the projection task succeeds
+    And the edge distribution was invalidated for "/articles/hello.html"
+
   Scenario: A site without a publication behaves as before
     Given a content actions backend without a publication
     When the editor publishes a new article

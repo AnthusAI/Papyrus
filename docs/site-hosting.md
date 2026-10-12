@@ -557,6 +557,7 @@ backend: {
     staticDir: "web/static",                       // optional, relative directory in the site repo
     edgeDistributionArn: "arn:aws:cloudfront::123456789012:distribution/E3UMOOJRMY7FK7", // optional
     distribution: { create: false },               // or { create: true, aliases, certificateArn | acm }
+    cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted" }, // optional; these are the defaults ("off" and 60 s for the no-invalidation fallback)
     retainBucketOnDelete: true,                    // default; false destroys the bucket with the stack
   },
 }
@@ -575,6 +576,8 @@ The environment contract with the Python side:
 | `PAPYRUS_REDIRECTS_KVS_ARN` | always |
 | `PAPYRUS_PROJECTION_DLQ_URL` | always |
 | `PAPYRUS_EDGE_DISTRIBUTION_ID` | a distribution is created or `edgeDistributionArn` is given |
+| `PAPYRUS_HTML_S_MAXAGE_SECONDS` | `cache.htmlSMaxAgeSeconds` is set |
+| `PAPYRUS_EDGE_INVALIDATION=off` | `cache.invalidation` is `"off"` |
 | `PAPYRUS_SITE_PUBLIC_URL` | a distribution is created (first alias, else its domain name) |
 | `PAPYRUS_SITE_PROJECTOR=site_projector` | `projector` is set |
 | `PAPYRUS_SITE_STATIC_DIR=/var/task/site_static` | `staticDir` is set |
@@ -586,6 +589,14 @@ Existing sites are unaffected: with `publication` unset no stack, resource, envi
 When `<staticDir>/projection.json` has an `images` section, the `s3-projection` stack also creates a `renditions` Lambda (Python 3.12, arm64, 3008 MB, 5 minutes) with an EventBridge rule on `Object Created` under `media/` in the CMS media bucket (the template switches S3 to EventBridge notifications on for that bucket). Uploading `media/<srcPath>` writes, to the site bucket, the same files the full build writes: `assets/responsive/<dir>/<stem>-<width>.<avif|webp|jpg|png>`, `assets/responsive/<dir>/<stem>.meta.json` (written last) and, with `listing_max_width`, a downscaled listing copy at `assets/content/<srcPath>`. A page render reads the `meta.json`; it never opens or encodes an image, and a missing `meta.json` fails the projection with the command that fixes it.
 
 `images` takes the `ImagePipeline` data fields (`gatsby_parity`, `quality`, `formats`, `max_width`, `widths`, `placeholder`, `eager_first`, ...) plus `listing_max_width`. Existing media are back-filled with `papyrus ops content renditions --backfill` (add `--dry-run` first; it skips images that already have a `meta.json`), and one image is requested again with `papyrus ops content renditions --source <srcPath>`. Both read `PAPYRUS_MEDIA_BUCKET_NAME` and `PAPYRUS_RENDITIONS_FUNCTION_NAME` (also settable with `--media-bucket` and `--function-name`).
+
+### Edge caching and invalidation
+
+- **Cache-Control per object.** HTML and every other file a projection can rewrite (`sitemap`, `robots.txt`, unhashed CSS and JS, JSON) get `public, max-age=0, s-maxage=300, stale-while-revalidate=60`: the browser always revalidates, the edge keeps a page for at most five minutes even if a purge is lost. Renditions under `assets/responsive/` (except `.meta.json`), `_next/static/` and file names that end in an eight-or-more-digit hex content hash get `public, max-age=31536000, immutable`.
+- **Targeted invalidation.** After the writes, the projection invalidates exactly the changed and deleted paths (each `index.html` page in its `/x/index.html` and `/x/` forms), in batches of 500, with exponential back-off when CloudFront throttles. It never sends a wildcard: a wildcard is refused. The first 1,000 paths a month are free, then $0.005 per path.
+- **Failure.** A failed purge does not make the item not live; the response says `edgePurged: false` and the function schedules an asynchronous `invalidate` task for the unpurged keys. If that keeps failing, Lambda sends it to the dead letter queue.
+- **Fallback.** `cache: { invalidation: "off" }` removes the invalidation call and its IAM statement and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`).
+- **Alarm.** Each invalidation call writes a CloudWatch embedded metric (`Papyrus/Edge` `InvalidatedPaths`, dimension `DistributionId`). The stack alarms when a week sums to 230 paths or more, which is the pace of the 1,000 free paths a month (CloudWatch cannot alarm across more than seven days).
 
 ### Incremental projection, concurrency and repair
 

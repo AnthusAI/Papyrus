@@ -50,6 +50,7 @@ class ProjectionReport:
     redirects_written: int = 0
     redirects_deleted: int = 0
     invalidated: list[str] = field(default_factory=list)
+    unpurged: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     follow_up_item_pages: bool = False
     rounds: int = 1
@@ -67,6 +68,7 @@ class ProjectionReport:
             "redirectsWritten": self.redirects_written,
             "redirectsDeleted": self.redirects_deleted,
             "invalidated": len(self.invalidated),
+            "unpurged": len(self.unpurged),
             "errors": list(self.errors),
             "followUpItemPages": self.follow_up_item_pages,
             "rounds": self.rounds,
