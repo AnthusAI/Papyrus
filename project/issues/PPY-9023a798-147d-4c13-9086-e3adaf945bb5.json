@@ -45,7 +45,7 @@
   "created_at": "2026-10-04T01:58:50.249121Z",
   "updated_at": "2026-10-04T02:11:58.159559Z",
   "closed_at": "2026-10-04T02:11:58.159524Z",
-  "right_now_summary": null,
-  "right_now_updated_at": null,
+  "right_now_summary": "Markus now supports optional GA4 analytics with owner opt-out, and PR #86 is merged.",
+  "right_now_updated_at": "2026-10-12T16:42:51.923155Z",
   "custom": {}
 }

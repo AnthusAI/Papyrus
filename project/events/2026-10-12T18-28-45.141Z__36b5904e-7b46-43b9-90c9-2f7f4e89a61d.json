@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "36b5904e-7b46-43b9-90c9-2f7f4e89a61d",
+  "issue_id": "PPY-f293ea5b-a142-4cb9-94f6-22480660f224",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-12T18:28:45.141Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "## Outcome\nA simple deploy-time extension protocol, extracted from one real plugin (a signup form), lets a plugin contribute backend models/mutations, a newsroom panel, and a Markus directive with a self-contained web component on static pages.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 7 (Extension points, later).\n\n## Checklist\n- [ ] SignupEntry model (not guest-readable)\n- [ ] Guest submitSignup custom mutation: validation, honeypot, WAF rate rule\n- [ ] Newsroom list + CSV export panel (editor/admin)\n- [ ] :::signup directive via Markus Registry.register(DirectiveSpec) emitting <papyrus-signup> placeholder + versioned script; web component uploaded by project_all\n- [ ] Extract the protocol (backend contribution through site-backend.ts like features switches; resolver waves; pinned versions; no compatibility shims) into docs\n\n## Acceptance\n- A page with :::signup on a test site renders statically; submitting the form creates a SignupEntry visible in the newsroom panel; 21st request per minute from one IP is blocked.\n\n## Out of scope\nA plugin registry, runtime hot-plugging, a second plugin.\n\n## Dependencies\nBlocked by M8 (public surface, WAF pattern) and M1 (projection Lambda).\n\n## Risk\nAbuse of guest writes; mitigated by WAF, validation, non-public storage.\n\n## Estimate\n6-10 agent-hours.",
+        "to": "## Outcome\nStatic Markus sites gain dynamic features without losing static SEO: first, generated JSON files written by the projector (search index, latest items, tags, feed); later, a narrow, throttled guest write pattern.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 6 (Public GraphQL surface for static sites).\n\n## Verified today\nGuest (identity pool unauthenticated) can read only PublishedItem, PublishedMediaAsset, PublishedEdition, PublishedEditionItem, PublishedCategorySet, PublishedCategory and media/*; no guest write anywhere; API key mode enabled but unused by any rule.\n\n## Checklist\n- [ ] Projector writes /_data/latest.json, /_data/search-index.json, /_data/tags.json and an optional feed on every relevant projection\n- [ ] Review guest-readable PublishedItem fields (metadata, editorial, layout) for anything that must never be public\n- [ ] Later: WAF web ACL on AppSync with a rate-based rule; pattern for a guest custom mutation (validation, size limits, honeypot, non-public target model)\n\n## Acceptance\n- curl https://<site>/_data/search-index.json returns current titles after an edit (within the M4 freshness bound).\n- Schema test: no guest rule on any non-Published model.\n\n## Out of scope (YAGNI for now)\nSubscriptions, browser GraphQL reads, comments, a custom API domain.\n\n## Dependencies\nBlocked by M3.\n\n## Risk\nGuest writes are a new abuse surface; deferred until M9 needs them.\n\n## Estimate\n3-4 agent-hours (JSON) + 3-6 (WAF and guest mutation pattern)."
+      }
+    }
+  }
+}

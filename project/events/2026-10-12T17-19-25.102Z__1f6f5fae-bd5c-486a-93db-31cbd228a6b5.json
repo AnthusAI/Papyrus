@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "1f6f5fae-bd5c-486a-93db-31cbd228a6b5",
+  "issue_id": "PPY-a70cae07-c8b3-4692-a1e7-8643abf673e2",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-12T17:19:25.102Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "2138d054-afd7-4eec-ad11-47ee02b61920",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "anthus-cms-parity"
+    }
+  }
+}

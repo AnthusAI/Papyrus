@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "fc36d42f-fd88-4ca9-b75b-72c3226b24a0",
+  "issue_id": "PPY-e89d1ef5-8b6b-4136-a0df-dea7ee7cdee3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T17:19:06.758Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CMS staging branch spec for a static-reader site lacks the Papyrus-source fetch steps, and its cd web must run in a subshell",
+    "description": "Found 2026-10-12 on Anth.us (CMS app d7s858igkyct5, branch staging). The staging spec generated for a markus-static reader runs export-published and then the site's web/build_via_papyrus.py, but (1) it has no step that fetches the pinned Papyrus source (the PAPYRUS_PIN clone/checkout that reader.preBuildCommands provides in the reader spec), so PAPYRUS_ROOT for the site build points at nothing unless the site hand-adds the steps; (2) the build command does 'cd web && ...' in the shared shell, so the later 'papyrus ops content upload-preview --dir web/dist-papyrus' runs from web/ and fails: it must run in a subshell '(cd web && ...)'. Fix in infra/amplify-app-shell/lib/build-specs.ts: include reader.preBuildCommands in the staging spec for static readers and wrap the cd in a subshell. Also note the Anth.us web/build_via_papyrus.py read the content submodule, not content-export, so the staging build was not actually CMS-driven.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "anthus-cms-parity"
+    }
+  }
+}

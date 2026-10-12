@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "49a0d5da-3ca4-41a9-b592-6d073851cd19",
+  "issue_id": "PPY-8b047744-a91f-46e7-b7ec-bfda5efc7853",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:06:27.263Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "After Google sign-in the browser lands on the publication root instead of the newsroom when only the root redirect URL is registered for a host",
+    "description": "Ryan, 2026-10-09: signed in at https://threat-intelligence.anth.us (Pretext site; reader at `/`, newsroom at `/newsroom`) and landed on the publication (`/` -> /2026/july/04), not the newsroom. /newsroom worked when navigated to.\n\nCause: Amplify sign-in uses `redirect_sign_in_uri` chosen by `prioritizeCurrentOrigin` in components/amplify-client-provider.tsx. The TI scaffold lists only `https://threat-intelligence.anth.us/` and the staging equivalent (no `/newsroom` variant); only the default Amplify host got both variants.\n\nFix at template/package layer: in amplify/auth/resource.ts and infra/amplify-app-shell/lib/site-config.ts, expand every configured origin to `<origin>/newsroom` first and `<origin>/`, honoring newsroomBasePath, with tests and docs.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "PPY-72c01d37-9328-4e6b-9d1b-5e542c602c19",
+  "title": "Cognito hosted-UI domain ignores the configured cognitoDomainPrefix",
+  "description": "On the new Pilobol.us CMS the user pool domain is an auto-generated hex name (69a74c507e157f784c3c), not the configured papyrus-pilobol-us-cms; looking the prefix up finds nothing. defineSiteAuth (amplify/auth/resource.ts) passes domainPrefix inside externalProviders, and defineSite backend.auth.cognitoDomainPrefix is meant to feed it. Find why it is not honored (config path, Amplify Gen2 behavior, or defineAuth shape), fix it so a site gets a stable, predictable domain (required for Google redirect URIs to be known BEFORE the first deploy), or if Amplify cannot support it, remove the misleading cognitoDomainPrefix option and document how to read the real domain from stack outputs. Update docs/google-oauth-setup.md, docs/site-hosting.md, the template examples and tests. Note: changing the domain of a live pool changes the Google redirect URIs, so provide a safe migration note for existing sites.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6278f355-58f9-4c4b-a29d-190b7ebea8b2",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/146 (CI green, not merged). Root cause: @aws-amplify/backend-auth factory.js overwrites externalProviders.domainPrefix with getStableBackendHash() (20 hex chars), so the prefix passed to defineAuth is discarded; live pool us-east-1_vyTCcLVQK and its auth stack both have Domain 69a74c507e157f784c3c. Fix: after defineBackend, set CfnUserPoolDomain.domain to the prefix, opt-in via cms.applyCognitoDomainPrefix (env PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX=true), default off so existing pools are unchanged. Switching a live pool replaces the domain resource (Cognito cannot rename in place): new hosted-UI URL, so add the new Google origin and redirect URI first; documented in docs/google-oauth-setup.md. Pilobol.us stays on the hex domain until it opts in.",
+      "created_at": "2026-10-07T13:12:58.940145Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2af3e993-bf05-4785-8199-16c8c278f624",
+      "author": "home",
+      "text": "PR #146 merged into develop on top of #143: cms.applyCognitoDomainPrefix opt-in, cognitoDomainPrefix still required; Threat Intelligence example now sets applyCognitoDomainPrefix: true like the pretext example. Done.",
+      "created_at": "2026-10-07T14:57:22.155673Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:59:13.474653Z",
+  "updated_at": "2026-10-07T14:57:31.930108Z",
+  "closed_at": "2026-10-07T14:57:31.930073Z",
+  "right_now_summary": "The fix adds opt-in stable Cognito domains and documents safe migration for existing sites.",
+  "right_now_updated_at": "2026-10-07T14:57:34.003900Z",
+  "custom": {}
+}

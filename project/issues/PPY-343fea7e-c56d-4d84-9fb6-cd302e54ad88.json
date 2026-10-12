@@ -1,0 +1,22 @@
+{
+  "id": "PPY-343fea7e-c56d-4d84-9fb6-cd302e54ad88",
+  "title": "P5-12: Retire the old app, backends and Papyrus special cases; migration record and docs",
+  "description": "## Goal\nRetire the old p.apyr.us deployment and the Papyrus repo's production special cases, record the migration, and leave docs current. Human-run runbook; nothing is deleted without Ryan's explicit yes. Done 7 days after the cutover is quiet.\n\n## Context (FACT)\n- Old resources: Amplify app dbsyytcm9drqa (branches `main`, `codex-rehydration-api-split`), backend stacks `amplify-dbsyytcm9drqa-main-branch-cb38ada667` and `amplify-dbsyytcm9drqa-codexrehydrationapisplit-branch-21b76655cb` (98 stacks counting nested), buckets `amplify-dbsyytcm9drqa-*` (6: 2 media, 2 code, 2 introspection), 2 S3 Vectors buckets, Cognito pools us-east-1_40Uot7WSv and us-east-1_GxxvFqQTQ, SSM params under /amplify/dbsyytcm9drqa/, the old ECR responder image reference, SES rule set `papyrus-inbound-p-apyr-us` (if still owned by the old stack).\n- Papyrus repo special cases: `amplify/backend.ts` `productionAppId: \"dbsyytcm9drqa\"` (C5), root `amplify.yml` build, `amplify/auth/resource.ts` default redirect URLs, console responder IAM paths for dbsyytcm9drqa, scripts with hardcoded function names.\n- docs/site-hosting.md lists \"importing Pilobolus corpus data into the p.apyr.us app (dbsyytcm9drqa)\" as an anti-pattern; docs/standard-site.md 3.1 plans reconnecting the old app and must be rewritten to what was done.\n\n## Exact steps\n1. Ryan yes (list of resources shown with the commands). Disable old app builds; take a final export (S3 manifest, DynamoDB on-demand backups or `export-table-to-point-in-time` of the 22 non-empty tables) to a private bucket or local archive; record locations.\n2. Delete in order: codex branch, old main branch (backend stack deletion removes data), app, leftover stacks, vector buckets, pools, SSM params, orphan buckets (empty first; `corpora/pilobol-us` already decided in P5-09), GitHub token secret `amplify/github-app-token` only if no site uses it any more (Pilobol.us and TI done first).\n3. Papyrus PR: remove the `papyrus` brand duplicate and `productionAppId` special cases, root `amplify.yml` deploy role for p.apyr.us (Papyrus main stops deploying anything), update scripts that hardcode old function names.\n4. Docs PR: `docs/migrations/p-apyr-us.md` (the record, mirrors pilobol-us.md), rewrite standard-site.md 3.1, site-hosting.md, README link; close PPY-228e8d as superseded and the phase tickets.\n\n## Acceptance checks\n- `aws amplify list-apps` no longer shows dbsyytcm9drqa; `cloudformation list-stacks` has none with `dbsyytcm9drqa`; new site still passes the P5-11 smoke checks after deletion (SES and Slack unaffected).\n- Papyrus repo CI green; `git grep dbsyytcm9drqa` finds only the migration record.\n- Backup archive location recorded in this ticket.\n\n## Rollback\nAfter deletion: restore from the archive into a new stack (days of work); that is why deletion waits 7 days and the archive is taken first.\n\n## Risks\nDeleting the wrong shared resource (the SES rule set or MX now owned by the new stack: check ownership first); the shared GitHub token secret.\n\n## Needs Ryan\nYes to every deletion and the Papyrus/docs PR merges.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "labels": [
+    "phase-5"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-07T12:32:59.407658Z",
+  "updated_at": "2026-10-07T12:32:59.407719Z",
+  "closed_at": null,
+  "right_now_summary": "The old app awaits Ryan’s approval, backups, cleanup, and documentation updates.",
+  "right_now_updated_at": "2026-10-07T12:33:00.898017Z",
+  "custom": {}
+}

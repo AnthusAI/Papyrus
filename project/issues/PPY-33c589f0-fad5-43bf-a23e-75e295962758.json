@@ -1,0 +1,36 @@
+{
+  "id": "PPY-33c589f0-fad5-43bf-a23e-75e295962758",
+  "title": "M2 Media renditions at upload time",
+  "description": "## Outcome\nImage renditions are made once, when media is uploaded, by an S3-triggered Lambda using the same Papyrus ImageBuilder code; item renders never decode or encode images. Existing media are back-filled.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 3 (Images at upload time).\n\n## Checklist\n- [ ] renditions Lambda (Python, Pillow>=11.3 for AVIF, 3008 MB, 5 min) on S3 ObjectCreated media/* via EventBridge\n- [ ] Writes renditions at today's deterministic paths (/assets/responsive/<dir>/<stem>-<w>.<fmt>) plus <stem>.meta.json and the listing thumbnail (<=1600 px)\n- [ ] Renderer reads meta.json instead of opening images; inline fallback when renditions are missing\n- [ ] papyrus ops site renditions --all back-fill (one invoke per image)\n- [ ] Raise content-actions Pillow pin to >=11.3\n\n## Acceptance\n- Upload a test image in the newsroom; renditions and meta.json appear in the site bucket within 60 s.\n- Item render with images performs zero PIL.Image.open calls (instrumented test).\n- Back-fill on Anth.us media: rendition set (paths, dimensions) equals today's build; image bytes compared visually (AVIF bytes may differ on arm64).\n\n## Out of scope\nChanging rendition widths/formats; a CDN image service.\n\n## Dependencies\nBlocked by M1.\n\n## Risk\nAVIF determinism across x86/arm64; Lambda memory/time for 4096 px AVIF.\n\n## Estimate\n4-6 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-aebfcdf1-ccf7-41bb-933b-ded29a19f4ea",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4467786c-39b2-4e05-9233-5d0a3ea2851e",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-12T18:27:43.701393Z",
+  "updated_at": "2026-10-12T18:29:44.390150Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The team is designing upload-time image renditions and planning a backfill for existing media.",
+  "right_now_updated_at": "2026-10-12T18:29:46.765133Z",
+  "custom": {}
+}

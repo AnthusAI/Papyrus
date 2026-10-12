@@ -1,0 +1,37 @@
+{
+  "id": "PPY-67226eff-d85a-4f1a-a189-b52435334a42",
+  "title": "TI P4-05: template: host under a shared root domain and an explicit staging host",
+  "description": "## Goal\nMake the app-shell template able to put the site on https://threat-intelligence.anth.us (a host under the shared root domain anth.us) and give it a staging host that does not collide with Anth.us. Smallest change that works; none if the existing form already suffices.\n\n## Context (FACT)\n- Old app d3on1y5vlrxmam has ONE domain association: domainName anth.us, subdomain prefix threat-intelligence on branch main, status AVAILABLE; Route 53 zone Z02552332GG6AM25SFP73 (anth.us) has threat-intelligence.anth.us CNAME to a CloudFront domain. App d2hbn1ig6nqyhy (Anth.us live) ALSO holds a domain association on anth.us (prefixes include www): the same root domain is associated with two apps in this account today.\n- The template (infra/amplify-app-shell/lib/amplify-app-shell.ts) creates AWS::Amplify::Domain with domainName = cms.domainName and subDomainSettings [{ branchName: main, prefix: \"\" }], and requires hostedZoneId when a domain is set. It cannot express root domain anth.us with prefix threat-intelligence, and whether Amplify accepts domainName \"threat-intelligence.anth.us\" as its own domain while anth.us is associated with other apps is UNVERIFIED.\n- resolveStagingDomainName (lib/site-config.ts) derives the staging host by replacing the first label of cms.domainName with staging: threat-intelligence.anth.us would give staging.anth.us, the Anth.us staging name. cms.stagingDomainName overrides it.\n- Pretext: the public site and /newsroom are one app, so cms.domainName is the PUBLIC host here (the Pretext example uses newsroom.example.test; for TI it is the public name).\n\n## Exact steps\n1. Gherkin: scenario \"a site under a shared root domain gets a domain association for the root with its own prefix\" and \"staging host is explicit when the CMS host is under a shared root\".\n2. Decide by reading the CloudFormation AWS::Amplify::Domain docs and a cdk synth diff: if domainName \"threat-intelligence.anth.us\" with prefix \"\" is valid for a subdomain whose root is shared, no code change; otherwise add optional cms.domainPrefix (root domain stays in cms.domainName) with validation and docs. Do not add a collision validator (YAGNI); document that cms.stagingDomainName must be set explicitly when cms.domainName is under a shared root.\n3. Add examples/threat-intelligence.site.json (no secrets) and update the README section on domains.\n4. Unit/synth tests: the synthesized template contains the expected CfnDomain properties for TI's site.json.\n\n## Acceptance checks\n- Template tests green; cdk synth of examples/threat-intelligence.site.json shows the Domain and StagingDomain resources with the expected names and prefixes.\n- The ticket records which form was chosen and the evidence; the live proof happens in P4-11.\n\n## Rollback\nClose the PR.\n\n## Risks\nThe real behavior (can a second app claim a prefix on a root already associated with another app, and with the old TI app still holding its association) can only be proven with an AWS write; P4-11 does that with a rollback.\n\n## Needs Ryan\nPR review and merge only.\n\n## Common rules (Phase 4 Threat Intelligence)\n- Plan and facts: the assessment comment on the Phase 4 ticket (PPY-332889). Pattern: docs/migrations/pilobol-us.md and docs/standard-site.md 3.2 on origin/develop.\n- Ryan: Threat Intelligence is PRE-PRODUCTION; goal is to dogfood the new backend CMS UX before converting anth.us (production). Treat as a hard cutover with brief downtime accepted unless Ryan says otherwise (open question Q1). The OLD app d3on1y5vlrxmam and its backend stay untouched and serving until the retire ticket.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan or on his explicit yes. Read-only AWS calls are fine.\n- NEVER use /Users/home/Projects/Pilobol.us as a build dir. TI repo work: fresh clone under /Users/home/Projects/ (delete afterwards), feature branch + PR, never push to its main. Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, branch feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. In /Users/home/Projects/Papyrus (the board checkout) only run kbs; never git add or commit there.\n- Gherkin first for any Papyrus behavior change (AGENTS.md). Long clear names, no line-level comments.\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "51978d2a-5ad3-401d-bbd5-66c1b94879eb",
+      "author": "home",
+      "text": "DONE (PR only, not merged): https://github.com/AnthusAI/Papyrus/pull/143, branch feature/PPY-67226e-shared-root-domain, CI green (ts, python). Form chosen: the existing full-host form (domainName \"threat-intelligence.anth.us\", prefix \"\") cannot be proven; read-only inventory shows anth.us associated with both d3on1y5vlrxmam (prefix threat-intelligence) and d2hbn1ig6nqyhy, and Amplify keys associations by ROOT domain. So added cms.domainPrefix + cms.stagingDomainPrefix (cms.domainName = root). Synth for examples/threat-intelligence.site.json: ONE AWS::Amplify::Domain {DomainName anth.us, SubDomainSettings main->threat-intelligence, staging->threat-intelligence-staging}; CmsOrigin https://threat-intelligence.anth.us/, StagingOrigin https://threat-intelligence-staging.anth.us/. Deviation from the ticket text: no separate StagingDomain resource, since one app cannot hold two associations for the same root. Staging prefix is required (never derived); stagingDomainName rejected next to a prefix; existing single-host sites synth unchanged (tested). Reader domains unchanged (YAGNI). UNPROVEN until P4-11: whether a new app can claim a prefix on anth.us while the old TI app and Anth.us hold associations (old TI app may need to release the prefix first). Amplify creates the prefix CNAMEs and shares the root cert validation.",
+      "created_at": "2026-10-07T13:08:22.970839Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "ab198471-dcee-447e-a9e4-f4c2c49b8e2d",
+      "author": "home",
+      "text": "PR #143 merged into develop (rebased over #145/#144/#147). Shared-root domainPrefix/stagingDomainPrefix in site-config + stack + threat-intelligence example landed. Left open for any remaining acceptance (e.g. live deploy of the Threat Intelligence stack); not verified here.",
+      "created_at": "2026-10-07T14:57:16.754744Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:27:31.846514Z",
+  "updated_at": "2026-10-07T14:57:16.754782Z",
+  "closed_at": null,
+  "right_now_summary": "The shared-root domain support is merged, but live deployment still needs verification.",
+  "right_now_updated_at": "2026-10-07T14:57:18.212263Z",
+  "custom": {}
+}

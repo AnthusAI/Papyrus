@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8f13b12d-ef71-42fe-acbe-9abbc57ccb87",
+  "issue_id": "PPY-504020eb-94f0-4715-9abd-3a182077bb21",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:48.232Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-03: upstream blog layout components and add brand slots (header art, fonts)",
+        "to": "TI P4-04: Threat Intelligence publication repo scaffold on the packages (brand, theme, infra/site.json)"
+      },
+      "priority": {
+        "from": 2,
+        "to": 1
+      }
+    }
+  }
+}

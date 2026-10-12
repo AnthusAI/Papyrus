@@ -1,0 +1,36 @@
+{
+  "id": "PPY-3c7e1a45-9a93-452a-840e-c2b53740eb31",
+  "title": "AN-06: GitHub App authorization, connect both apps, repair pass, auto-build off",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 2 G5, section 4 AN-06. Precondition: AN-05 done and no other backend deploy or stack delete running. R authorizes the Amplify GitHub App for 712236451410 on Anth.us-Papyrus and confirms read of private submodule anthus-site-content; connect with existing service role; agent stops auto-started jobs and repairs platform, role, build specs, 403 redirect rules, headers, branch env, staging branch; auto-build OFF. ACCEPT: get-app/list-branches equal the AN-04 snapshot except repository/webhook.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ce4f909a-c145-4066-aa3c-79c99a41181b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "0576bfc7-60ac-4a12-8994-5def5359bfc4",
+      "author": "home",
+      "text": "2026-10-12 CMS app d7s858igkyct5 repair after console connect. Connect started job 1 on main; stopped (CANCELLED). Restored: buildSpec = stack template CMS spec, platform WEB_COMPUTE (unchanged), role kept, rules unchanged (404-200 /<*> to /index.html), main branch env vars from template (prefix papyrus-anth-us-cms, apply true, redirect URLs localhost + main + main/newsroom + staging + staging/newsroom; no custom hostnames since Q3 undecided), staging branch recreated BETA with template buildSpec and env. Auto-build left OFF on app and both branches. BLOCKER before any build: repo main root has amplify.yml (the static Markus reader spec); Amplify prefers a repo amplify.yml over the app buildSpec, and the connect copied that file into the app buildSpec, so a CMS build would run the reader pipeline. Options: (1) Pilobol pattern: delete amplify.yml from main in a PR; the reader app d15dpu9buefmq0 already has an app-level spec and legacy d2hbn1ig6nqyhy would lose its repo spec (needs its own app-level spec first or it stays on Gatsby/rollback only); (2) per-app amplify.yml is not supported without a monorepo appRoot, which this layout lacks. No build started.",
+      "created_at": "2026-10-12T13:05:59.512339Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-11T16:25:09.947934Z",
+  "updated_at": "2026-10-12T13:05:59.512714Z",
+  "closed_at": null,
+  "right_now_summary": "The CMS app is repaired, but builds await removal of the conflicting root amplify.yml.",
+  "right_now_updated_at": "2026-10-12T13:06:03.814867Z",
+  "custom": {}
+}

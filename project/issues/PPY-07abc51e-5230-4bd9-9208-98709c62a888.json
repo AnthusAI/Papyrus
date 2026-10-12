@@ -1,0 +1,30 @@
+{
+  "id": "PPY-07abc51e-5230-4bd9-9208-98709c62a888",
+  "title": "P4-13: secret-safe on-demand revalidation for Pretext sites",
+  "description": "Pretext pages use revalidate = 3600. Immediate refresh on publish needs a shared secret between the backend (content-actions calls /api/revalidate) and the Next app, and the template has no secret-safe way to set it: a public site.json cannot hold it, and console-set branch variables are wiped by the next stack update (TI today keeps PAPYRUS_REVALIDATE_SECRET as a plain branch env var). Design and implement a secret-safe path (e.g. Amplify backend secret read at runtime by both sides, or another mechanism that survives stack updates and never lands in site.json or Git), update app/api/revalidate/route.ts, the content-actions trigger, the template and docs, with tests. Rotate the existing TI secret at cutover; the new backend must not reuse it. Sequence after P5-01 (PPY-f1f695), which also touches app/api/revalidate/route.ts.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "97179ee0-c9ad-4698-8e78-6fe3b5035493",
+      "author": "home",
+      "text": "Merged PR #153 (squash 9d69d89). Design: shared secret is an SSM SecureString /papyrus/<siteId>/revalidate-secret, created once by a human; the template sets only the parameter name (PAPYRUS_REVALIDATE_SECRET_PARAMETER) on main and grants the SSR compute role ssm:GetParameter on that one parameter; site-backend.ts grants content-actions the same read. Route and trigger read it at runtime (route caches 5 min, fails closed, constant-time compare). Removed: PAPYRUS_REVALIDATE_SECRET env var, readerCache.revalidateSecret, backend secret(). One-time step in docs/site-hosting.md. Tests: test:revalidate-secret, test:infra-synth, Python reader revalidation. CI green. Left open: the TI cutover must create the new parameter with a fresh value (not the old env var value) and delete the old branch variable.",
+      "created_at": "2026-10-07T15:59:02.531333Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:59:08.147076Z",
+  "updated_at": "2026-10-07T15:59:02.531353Z",
+  "closed_at": null,
+  "right_now_summary": "The TI cutover still needs a fresh SSM secret and removal of the old branch variable.",
+  "right_now_updated_at": "2026-10-07T15:59:04.387551Z",
+  "custom": {}
+}

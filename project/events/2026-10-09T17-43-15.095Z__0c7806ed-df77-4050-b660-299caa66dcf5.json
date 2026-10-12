@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0c7806ed-df77-4050-b660-299caa66dcf5",
+  "issue_id": "PPY-43aaa01a-6919-4e6e-8313-b4743560ec4f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:43:15.095Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "withPapyrus should include corpora/ and publication files in the Next output file tracing so SSR reads work on Amplify compute",
+    "description": "next.31 `withPapyrus` sets no `outputFileTracingIncludes`. On Amplify compute, p.apyr.us `/information` 500s with ENOENT /tmp/app/corpora/papyrus-newsroom-sections.yml because the repo `corpora/*.yml` files read at runtime via fs are not traced into the compute bundle. Fix in the Papyrus next.config helper (packages/papyrus/src/next*) so every publication gets the tracing include by default (corpora/** and other runtime-read publication files), with tests. QUEUED behind the red develop (Cyclotron PR #167-#170 broke Release: see PPY discussion); do NOT implement now. Interim fix lives in the AnthusAI/p.apyr.us scaffold (see PPY-aa93b3).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "PPY-f1df008e-d937-4800-a46d-841a87f6d0c5",
+  "title": "M6 Anth.us onto S3 projection (production, parity gate)",
+  "description": "## Outcome\nanth.us and www.anth.us are served from the Anth.us projection bucket through papyrus-edge-anth-us (E3UMOOJRMY7FK7) with parity to today's site, including all 402 redirects; the Amplify reader d15dpu9buefmq0 is no longer used.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 9 (Migration, Anth.us).\n\n## Interim state\nCMS-driven Amplify reader on branch cms-parity (PR AnthusAI/Anth.us-Papyrus#25) until this epic's cutover.\n\n## Checklist\n- [ ] Anth.us SiteProjector refactor; gate: project_all equals today's build from the same export (byte-identical; in-process Markus already proven byte-identical on 2,352 files)\n- [ ] 401 generated redirect rules + pattern rules in KVS/function; 404 behaviour; robots and sitemap; headers\n- [ ] Test distribution parity: /Users/home/Projects/.baselines/anthus-live-20261011 compare (93 paths, normalized HTML) plus all 402 redirects (status and Location); renditions by dimensions and visual diff\n- [ ] Ryan's yes; origin swap in a chosen window; rollback = swap back\n- [ ] Quiet week, then hand d15dpu9buefmq0 to Ryan for deletion\n\n## Acceptance\n- python3 capture.py compare https://anth.us --manifest manifest.json: no status/redirect/header differences; every HTML difference listed and explained.\n- All 402 legacy redirects return 301 with the expected Location.\n- A test edit is live within 60 s.\n\n## Out of scope\nContent model changes; DNS changes (none needed).\n\n## Dependencies\nBlocked by M5 (pattern proven on Pilobol.us).\n\n## Risk\nProduction: downtime care, every production step needs Ryan's explicit yes.\n\n## Estimate\n5-8 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-65d13a20-eef2-40f7-a3d3-4fab8f595fce",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-12T18:27:55.260333Z",
+  "updated_at": "2026-10-12T18:29:25.038776Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The production migration awaits M5, parity testing, Ryan’s approval, and a scheduled origin swap.",
+  "right_now_updated_at": "2026-10-12T18:29:26.388970Z",
+  "custom": {}
+}

@@ -64,7 +64,7 @@
   "created_at": "2026-10-05T13:08:22.888848Z",
   "updated_at": "2026-10-06T17:59:39.049175Z",
   "closed_at": null,
-  "right_now_summary": "Research is underway to align all four sites on one cloud CMS and app-style UI.",
-  "right_now_updated_at": "2026-10-07T10:37:37.386734Z",
+  "right_now_summary": "The four sites are being aligned on one CMS, but cutovers, sign-in, testing, and production checks remain.",
+  "right_now_updated_at": "2026-10-12T18:10:31.440119Z",
   "custom": {}
 }

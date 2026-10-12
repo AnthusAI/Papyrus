@@ -1,0 +1,32 @@
+{
+  "id": "PPY-2156fa55-2b1b-4f49-a780-f874694e3e9d",
+  "title": "M10 Documentation and README architecture diagram",
+  "description": "## Outcome\nPapyrus docs and the README architecture diagram describe the new picture: one CMS app (newsroom, AppSync, DynamoDB, the projection Lambda) and the projected static site (S3 behind our CloudFront), with labelled shapes, never colour alone.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md sections 2 (diagram) and 5.\n\n## Checklist\n- [ ] README two-app diagram updated: CMS app + projected site (S3/CloudFront), replacing the reader app\n- [ ] docs/site-hosting.md and docs/standard-site.md updated (s3-projection default for Markus; Pretext unchanged)\n- [ ] Ops runbook: project-all, reconcile, renditions --all, rollback of content and of site code\n\n## Acceptance\n- Docs reviewed by Ryan; diagram uses labelled shapes and text only.\n\n## Out of scope\nMarketing site copy.\n\n## Dependencies\nBlocked by M5 (pattern real on one site).\n\n## Risk\nLow.\n\n## Estimate\n1-2 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-65d13a20-eef2-40f7-a3d3-4fab8f595fce",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-12T18:28:52.615852Z",
+  "updated_at": "2026-10-12T18:29:40.662570Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The README diagram and Papyrus docs await M5 before they can be updated.",
+  "right_now_updated_at": "2026-10-12T18:29:42.478266Z",
+  "custom": {}
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "6eaca495-8cde-4351-a59e-f5600cd9de7c",
+  "issue_id": "PPY-eb31318e-8f4b-46a5-88ad-bd51fa369f1d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T17:19:11.274Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "App-shell stack update wipes reader branch environment variables unless they are listed in site.json reader.environment",
+    "description": "Found 2026-10-12 (Anth.us reader d15dpu9buefmq0 / Pilobol.us reader). Branch environment variables set by hand on the reader Amplify branch (PAPYRUS_GRAPHQL_ENDPOINT, PAPYRUS_IDENTITY_POOL_ID, PAPYRUS_MEDIA_BUCKET, SITE_ENV, PAPYRUS_SITE_BRAND) are replaced by the CfnBranch environmentVariables on the next stack update (amplify-app-shell.ts builds them from reader.environment only). Anything not in site.json reader.environment disappears and the reader build then fails or builds the wrong backend. Fix: document it in infra/README, and have the template either merge the existing branch variables or fail loudly in the diff when an update would remove variables; at minimum generate the three backend variables from the CMS stack outputs so they cannot be forgotten.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "anthus-cms-parity"
+    }
+  }
+}

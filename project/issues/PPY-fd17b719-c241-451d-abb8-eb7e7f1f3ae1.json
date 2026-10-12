@@ -1,0 +1,31 @@
+{
+  "id": "PPY-fd17b719-c241-451d-abb8-eb7e7f1f3ae1",
+  "title": "P6-06: Pilobol.us: DNS cutover of pilobol.us, newsroom.pilobol.us and staging.pilobol.us (records in the legacy zone) with rollback",
+  "description": "## Goal\nA human runbook for Ryan retires everything Pilobol.us in legacy after a clean 7-day soak. Ryan deletes; the agent writes the runbook and the pre-checks.\n\n## Context (FACT)\n- Legacy items: CMS app dv0pdx67fk80m, reader dssc97s4q5kgk, stack amplify-app-shell-pilobol-us-cms, backend stack amplify-dv0pdx67fk80m-main-branch-0f2f45caa3 (pool us-east-1_vyTCcLVQK, tables with the content above), roles pilobol-us-github-ci and pilobol-us-papyrus-authoring (legacy account), SSM parameters under /amplify/dv0pdx67fk80m/, plus the earlier-planned leftovers in /Users/home/Projects/pilobol-retirement-runbook.md (old apps d11eu9hbs2mipk, d1od6t7lzbwanr, stack amplify-app-shell-pilobol-us, backend amplify-d11eu9hbs2mipk-main-branch-3c5f57c311, pool us-east-1_Lrtt2RHak). Keep: zone Z09961547QX1VHIXOBD7 and the secret amplify/github-app-token until every site is migrated.\n- DANGER (from PPY-52d455 D2): deleting a legacy association or app can make Amplify delete its host records by name, which are now the NEW alias records. The runbook must either (a) delete the legacy associations while Ryan holds the saved UPSERT batches and re-applies them in the same minute, or (b) use the behaviour observed in PPY-343fea (p.apyr.us retire) if it shows the delete is value-matched. Do not write this ticket's runbook until PPY-343fea reports.\n\n## Exact steps\n1. After the soak: re-run the P6-01 parity and the zone diff; confirm hosts serve from the new apps for 7 days (job history, no rollbacks).\n2. Write the runbook (merge with the existing pilobol-retirement runbook, one document): pre-checks with account assertions, an export of the legacy rows (Item, PublishedItem, MediaAsset) as JSON under .baselines for the record, order: stop legacy auto-build; delete legacy associations with the restore batches ready; delete apps; delete the app-shell stack; delete the backend stack (nested, RETAIN resources noted); remove the old Google client entries (Ryan, Google console); remove the legacy validation CNAMEs only after the associations are gone; verification after each step; irreversible steps marked.\n3. Ryan runs it; the agent verifies zone and probes after each step if asked.\n\n## Acceptance checks\n- The three hosts still answer from the new apps; the zone has only the intended records; no legacy Pilobol.us app, stack or pool remains except what is listed as kept.\n\n## Rollback\nBefore deletion: switch the alias records back. After deletion there is no rollback (the data lives in production, with the P6-04 fidelity proof and the JSON export).\n\n## Needs Ryan\nEvery deletion, the Google console cleanup, the decision on amplify/github-app-token.\n\n## Common rules (Phase 6, PPY-7d8cd0)\n- Read /Users/home/Projects/Papyrus/AGENTS.local.md first. Assert the account with `aws sts get-caller-identity --query Account --output text` before EVERY call: profile legacy = 335163751677, profile papyrus-production = 712236451410. Never use papyrus-development; papyrus-staging (494166748521) is not used by this phase.\n- Every write needs Ryan's explicit yes in chat for that step. Legacy is READ-ONLY except the steps this ticket names (each with a yes). No SCPs on legacy; never risk legacy access; no `cdk deploy` and no `ampx` against the legacy stacks of these sites.\n- Never print secret values (names only; SSM values move by pipe, never to the terminal or a ticket). Ryan deletes retired resources. Do not touch Anth.us production d2hbn1ig6nqyhy or the other anth.us apps (apricity d2n7w4kwqyfwn4, babulus d3epcqvzbxdaq, tactus dfkbdffs2viq8, primus divicqm3nhcwt).\n- Baselines and scratch live under /Users/home/Projects/.baselines/phase6-<date>/ (outside any repo); clones go under /Users/home/Projects/ and are deleted afterwards (disk is tight). Only kbs writes in the Papyrus checkout (never git add/commit there); never `git stash`.\n- The committed infra/site.json in each site repo still describes the LEGACY stack until the cutover ticket; production deploys use an out-of-repo, domain-free copy (as PPY-aa93b3 did for p.apyr.us).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-aeac36a5-041f-410f-ba96-742da1160c13",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-52d4554c-d10e-41c1-8aae-097a022f76db",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-10T17:17:25.006281Z",
+  "updated_at": "2026-10-10T17:18:58.498583Z",
+  "closed_at": null,
+  "right_now_summary": "The team is waiting for PPY-343fea before writing the retirement runbook.",
+  "right_now_updated_at": "2026-10-10T17:18:59.704606Z",
+  "custom": {}
+}

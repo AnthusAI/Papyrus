@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "05d6ac3a-52b8-4257-a7af-4508981652c0",
+  "issue_id": "PPY-2b8771e4-6bdf-4aaa-8d41-a9b08750dd25",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-10T00:06:19.506Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-09b: copy-backend: Message rows with null composite-index sort-key fields fail on the new schema; exact-key S3 selection",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

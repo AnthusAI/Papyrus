@@ -1,0 +1,30 @@
+{
+  "id": "PPY-6bf4abf9-fdb0-4a72-b960-ab726ff1a7be",
+  "title": "Backup vault name uses unresolved CDK tokens (papyrus-token-token-NNNNN-media-vault): builds fail with AlreadyExists",
+  "description": "Bug in Papyrus#166 (P5-04, amplify/site-backend-names.ts line ~86: papyrus-${sanitizeAwsName(identity.brandId,20)}-${stackHash}-media-vault). On the new p.apyr.us backend (papyrus-production 712236451410) the vault names came out as papyrus-token-token-17565/17569/17571/17573-media-vault: brandId and the stack name hash are CDK tokens (unresolved at synth time), so the name changes on every synth; AWS Backup vault names are immutable, so the update fails with AlreadyExists (build job 5, nested stack storage-backups). Four empty leftover vaults exist from the failed and retried builds (delete is Ryan task). FIX: derive the vault name from literal inputs available at synth (the site config brandId/siteId from papyrus.config.ts, not the Amplify backend identifier token) plus a stable value (e.g. a hash of the literal siteId), never from Token values; assert in a test that no name contains the string token and that two synths of the same site give the SAME names; check the other names (rule set papyrus-site-inbound-<brand>, knowledge index papyrus-knowledge-<brand>) for the same token problem. Blocked on release by the red develop (Cyclotron #167-#170). Workaround for p.apyr.us: storageBackups false in the scaffold config.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c3254e09-2238-4c34-8da4-046b993b48d1",
+      "author": "home",
+      "text": "Fixed in Papyrus#179 (squash 135b566), released in @anthusai/papyrus 1.0.0-next.35. Vault name now hashes literal brandId|appId|branch (never Stack.stackName, a NestedStack token); all names (vault, rule set, rule, vector index) pass assertLiteralResourceName, which throws on unresolved tokens or \"token\" text. Legacy names unchanged and tested. New synth test (NestedStack) failed on develop: two synths gave different vault names. Re-enable storageBackups in p.apyr.us to get papyrus-p-apyr-us-<8hex>-media-vault. The four empty papyrus-token-token-* vaults are still Ryan to delete.",
+      "created_at": "2026-10-09T19:35:41.469810Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-09T17:53:50.330755Z",
+  "updated_at": "2026-10-09T19:35:52.169203Z",
+  "closed_at": "2026-10-09T19:35:52.169164Z",
+  "right_now_summary": "The fix was released, but storage backups remain disabled until the new stable names are verified.",
+  "right_now_updated_at": "2026-10-09T19:35:53.662964Z",
+  "custom": {}
+}

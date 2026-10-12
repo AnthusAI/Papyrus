@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "69dd2810-f115-4e19-9c59-5f024df0b51a",
+  "issue_id": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:31:50.178Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Phase 4: p.apyr.us product site with the four-tier pricing ladder; blog to /information; papyrus.anth.us redirects to p.apyr.us",
+        "to": "Phase 5: p.apyr.us: marketing at / and the newspaper at /information"
+      },
+      "description": {
+        "from": "",
+        "to": "## Goal\np.apyr.us (hostname unchanged) becomes the Papyrus product marketing site at `/`, with today's newspaper (\"Information about information systems\") moved to `/information`, on the standard pattern proven on Pilobol.us, dogfooded after Threat Intelligence (Phase 4, PPY-332889) and before Anth.us. Pre-production: hard cutover, Git history and the untouched old app are the rollback.\n\n## Decisions (Ryan, 2026-10-07)\n1 hostname stays p.apyr.us; 2 marketing at `/`; 3 newspaper at `/information`; 4 `apyr.us` redirects to p.apyr.us and keeps doing so; 5 hard cutover; 6 after Threat Intelligence; 7 follow the Pilobol.us pattern.\n\n## Sub-tasks, in dependency order (label phase-5; estimates in agent-days)\nP5-01 readerBasePath in Papyrus (1.5) > P5-02 sync mount and release (1.5) > P5-05 repo scaffold + redirects (1.5) > P5-06 marketing pages (2.5); P5-03 template domain + apex redirect (1) and P5-04 features from packages (3, or 1.5) in parallel; P5-07 new app + fresh backend (1.5) > P5-08 Google sign-in (0.5) > P5-09 data copy and fidelity (2) > P5-10 staging (1.5) > P5-11 cutover (1) > P5-12 retire and docs (1.5). Total about 19.5, critical path about 12.\nThe assessment and open questions are in the first comment on this ticket."
+      },
+      "labels": {
+        "from": [],
+        "to": [
+          "phase-5"
+        ]
+      }
+    }
+  }
+}

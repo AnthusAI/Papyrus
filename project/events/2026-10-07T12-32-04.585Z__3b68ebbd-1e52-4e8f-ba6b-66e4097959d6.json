@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3b68ebbd-1e52-4e8f-ba6b-66e4097959d6",
+  "issue_id": "PPY-aa4daf85-65ee-4f5e-a7d0-e8e19d121d71",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:32:04.585Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-02: Papyrus: papyrus-app sync mounts the reader under the base path; release the package",
+    "description": "## Goal\nA publication repo can mount the Pretext reader under `/information` with `papyrus-app sync`, leave `/` to a site-owned page, and keep `/newsroom`, the staging gate and robots working. A new `@anthusai/papyrus` next version is published containing P5-01 and this change.\n\n## Context (FACT)\n- `packages/papyrus/src/sync.mjs` writes a one-line shim for every route in `routes.manifest.json` plus `middleware.ts`; it skips a path only when a site-owned file exists (no GENERATED marker). There is no way to relocate or omit routes, so `app/[year]`, `app/articles`, `app/archive` would stay at the root.\n- `app/page.tsx` (reader home) is overridable by a site-owned `app/page.tsx` (that is how marketing owns `/`), but the dated routes would still answer at `/2026/october/07` (a duplicate of the prefixed ones).\n- `middleware.ts`: `isStagingGatedPath` gates everything except `/newsroom`, `/api`, static files and `/robots.txt`; anonymous staging visitors redirect to `/newsroom` (hardcoded). `usesNewsroomRootPaths` only applies to a `newsroomBasePath === \"\"` brand. Both are prefix-agnostic.\n- `app/robots.ts` is site-wide; `/sitemap.xml` does not exist on develop (production main also 404s; `/robots.txt` 404s on the deployed main build, which is 97 commits behind develop).\n- The staging static preview excludes `/newsroom`, `/api` (lib/staging-preview-object.ts); not used for Pretext.\n\n## Exact steps\n1. Gherkin: \"sync with readerBasePath /information writes reader shims under app/information and none at the root\", \"a site-owned app/page.tsx is kept\", \"GET / is the site page, GET /information is the newspaper home, GET /2026/october/07 is 404, GET /newsroom is 200\".\n2. Mark reader routes in the manifest generator (`packages/papyrus/scripts/stage.mjs`) with `reader: true` (home, `[year]/...`, `articles/[slug]`, `archive`, `settings`).\n3. `sync` reads the brand's `readerBasePath` (via papyrus.config.ts) and writes reader shims at `app/<base>/...`; the reader home becomes `app/<base>/page.tsx`. Root `app/page.tsx` is then generated only when the base path is empty.\n4. `/newsroom`, `/api/*`, `/_preview` stay at root. Add the scenarios to the scratch publication-repo test (the Pilobol.us spike harness).\n5. Release: PR to develop, Ryan merges, semantic-release publishes the next prerelease; record the version.\n\n## Acceptance checks\n- In a scratch publication repo (not committed): `papyrus-app sync` then `next build` succeeds; with a stub `app/page.tsx`: `/` 200 (stub), `/information` 200, `/information/archive` 200, `/2026/october/07` 404, `/articles/x` 404, `/newsroom` 200, `/robots.txt` 200.\n- With SITE_ENV=staging and no session: `/` and `/information` redirect to `/newsroom` once (no loop); `/newsroom` 200.\n- Generated shims are gitignored; running sync twice is a no-op.\n- `npm view @anthusai/papyrus@next version` shows the release.\n\n## Rollback\nRevert the PR; sites with no `readerBasePath` get today's shims.\n\n## Risks\nStatic route params collide between a site-owned root `app/page.tsx` and generated ones (covered by the skip rule); prerelease pins move (use exact pin in the repo).\n\n## Needs Ryan\nPR merge and the package release.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

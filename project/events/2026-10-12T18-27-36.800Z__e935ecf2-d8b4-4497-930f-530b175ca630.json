@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "e935ecf2-d8b4-4497-930f-530b175ca630",
+  "issue_id": "PPY-6cb16a18-a892-4733-b1d2-f4d9b0e5de9e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T18:27:36.800Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M0 Spike: render one Anth.us article page in a Lambda, byte-identical and timed",
+    "description": "## Outcome\nPapyrus has a projection library and a default \"s3-projection\" publication option for Markus sites: a versioned site bucket, the projector inside the content-actions Lambda, a CloudFront Function + KeyValueStore (directory index and redirects), IAM, and a config field. Publishing or saving a live item writes its page to the bucket inside the mutation.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md sections 2 (Target architecture), 4 (Code layout, API hook, concurrency), 5 (Default publication option).\n\n## Checklist\n- [ ] papyrus_content.projection: project(item_id), project_listings(), project_all(); idempotent; Markus in-process (byte-identical, plus trailing newline as the CLI)\n- [ ] SiteProjector interface (item_pages, dependent_pages, static_files, redirects)\n- [ ] Ordered S3 writes with x-amz-meta-papyrus-version; targeted CreateInvalidation of written paths\n- [ ] publishItem / saveItem (live item) / unpublishItem call project(); response gains live, paths, url; failure returns live:false without failing the save\n- [ ] Config: backend.publication { kind: \"s3-projection\", projector, edgeDistributionArn }; default for renderer markus\n- [ ] site-backend.ts: versioned bucket (OAC-only policy), KVS + CloudFront Function, IAM (s3 put/delete on the bucket, cloudfront:CreateInvalidation), DLQ\n- [ ] papyrus ops site project-all / project --items CLI (IAM)\n\n## Acceptance\n- Synth snapshot: a markus fixture site gets bucket (versioning on), function, KVS, IAM; pretext/example sites unchanged.\n- In a sandbox: publish of a test item writes its page; HEAD shows papyrus-version = PublishedItem.versionNumber; mutation p50 latency recorded.\n- project_all to a local directory equals today's build output for a fixture site (diff -r empty).\n\n## Out of scope\nRenditions (M2), full dependency rules for real sites (M3), cache tuning (M4), site migrations (M5, M6).\n\n## Dependencies\nBlocked by M0 spike.\n\n## Risk\nMedium: the Lambda becomes part of the publish path; keep save and projection failure separate.\n\n## Estimate\n8-12 agent-hours.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+    "labels": [
+      "static-projection"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "markus-publication-architect"
+    }
+  }
+}

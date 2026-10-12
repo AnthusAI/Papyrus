@@ -1,0 +1,37 @@
+{
+  "id": "PPY-f08e5974-568d-4833-9a16-70c0085a23f0",
+  "title": "CMS-only hosts should serve the newsroom at / (newsroom.pilobol.us/newsroom is redundant)",
+  "description": "Ryan: why would we duplicate \"newsroom\" in newsroom.pilobol.us/newsroom? On a CMS-only host (Pilobol.us CMS app: Markus site, the host is only the editing UI) the newsroom should live at / . Papyrus supports brand.rootRoute {kind:\"newsroom\"} + newsroomBasePath \"\" (middleware.ts line ~17, lib/newsroom-base-path.ts, app/page.tsx; /newsroom redirects to /), but docs/standard-site.md says no browser sign-in flow was tested in that mode. Verify and fix every place that assumes /newsroom: staging gate redirect target (middleware.ts redirects anonymous staging requests to /newsroom), Cognito/Amplify OAuth return path (redirectUrls with /newsroom and /), sign-in/sign-out redirects, links, newsroomHref/getNewsroomNavHref, the Preview/staging flow, robots/noindex, bookmarks (/newsroom/* -> /*). Then switch the Pilobol.us scaffold brand to newsroomBasePath \"\" + rootRoute newsroom (PR into Pilobol.us main). Pretext sites that own / (Threat Intelligence, p.apyr.us) keep /newsroom: no change for them.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "159d0c95-40c3-47f1-95e9-bb04f5861738",
+      "author": "home",
+      "text": "Papyrus PRs #157 and #158 merged (released 1.0.0-next.24): staging never gates a root-mounted newsroom, public-path helpers used for hrefs/history/redirects, /newsroom -> / keeps OAuth code/state, tests test:newsroom-root-paths and test:newsroom-root-middleware. Pilobol.us switch PR open (not merged). Needs Ryan browser sign-in at newsroom.pilobol.us/ after merge.",
+      "created_at": "2026-10-07T20:32:35.930822Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0c9b2a18-c2b8-441b-9e18-f3650376a9a0",
+      "author": "home",
+      "text": "Bug: signed-out / hung on the access gate. Cause: app/page.tsx rendered the newsroom at / outside app/newsroom/layout.tsx, so NewsDeskClientProvider was absent and the gate stayed on checkingAccess with no Cognito or AppSync requests. Fix: NewsroomClientShell shared by the /newsroom layout and the root page (Papyrus#162, released 1.0.0-next.28); regression test test:newsroom-root-provider (structural, no jsdom or browser infra in repo). Verified in headless Chrome vs next dev (pilobol-us brand, dev seed sign-in off): /, /articles, /references, /newsroom, /newsroom/articles, /?code=a&state=b all reach signedOut; sign-in click goes to the Cognito hosted UI authorize URL. Not verified: real Google login, OAuth code exchange, production build, deployed site. Pilobol.us pin PR open, not merged.",
+      "created_at": "2026-10-07T21:51:11.694899Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T19:48:07.169554Z",
+  "updated_at": "2026-10-07T21:51:11.694923Z",
+  "closed_at": null,
+  "right_now_summary": "Papyrus fixes are released; the Pilobol.us switch awaits merge and browser sign-in verification.",
+  "right_now_updated_at": "2026-10-07T21:51:14.382649Z",
+  "custom": {}
+}

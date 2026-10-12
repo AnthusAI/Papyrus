@@ -103,6 +103,8 @@
   "created_at": "2026-09-06T12:43:02.729828Z",
   "updated_at": "2026-09-06T15:03:54.010648Z",
   "closed_at": "2026-09-06T15:03:54.010648Z",
+  "right_now_summary": "RendererConfig is implemented, verified, documented, and merged into the renderer-architecture branch.",
+  "right_now_updated_at": "2026-10-12T16:43:23.909778Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

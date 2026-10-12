@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "e112463c-486c-44f1-a4f1-aafd21987841",
+  "issue_id": "PPY-3d905dde-4a01-467b-95b8-53abe6f9e1ef",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T18:27:47.273Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M3 Incremental projection: item page plus dependent listings, concurrency and reconcile",
+    "description": "## Outcome\nReaders see an edit within about a minute of Save, without blanket invalidations, and today's staleness sources are removed.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 2 (Atomicity, versioning, caching).\n\n## Checklist\n- [ ] HTML Cache-Control public, max-age=0, s-maxage=86400 set as S3 object metadata; renditions/versioned CSS-JS max-age=31536000, immutable\n- [ ] Targeted CreateInvalidation of written paths (both /x/ and /x/index.html forms); measure completion time\n- [ ] Fallback switch: s-maxage=60 without invalidation if invalidations prove slow\n- [ ] Record and fix today's staleness findings: Pretext s-maxage=3600 plus the Amplify CDN layer; Pilobol.us reader distribution on CachingOptimized (1-day default TTL) with nothing invalidating it\n- [ ] Monthly invalidation path count alarm (first 1000 free)\n\n## Acceptance\n- After a test edit, curl of the item URL and home through the site hostname shows the new content within 60 s (measured, 5 runs).\n- No /* invalidations issued by the projector (CloudTrail check).\n\n## Out of scope\nPretext revalidation redesign beyond documenting/fixing the TTL.\n\n## Dependencies\nBlocked by M1.\n\n## Risk\nInvalidation latency/cost if edit volume grows.\n\n## Estimate\n2-3 agent-hours.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+    "labels": [
+      "static-projection"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "markus-publication-architect"
+    }
+  }
+}

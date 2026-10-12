@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "70bb2ee1-f5f4-49be-a6a8-3f3139edfbeb",
+  "issue_id": "PPY-07abc51e-5230-4bd9-9208-98709c62a888",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:59:08.147Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P4-13: secret-safe on-demand revalidation for Pretext sites",
+    "description": "Pretext pages use revalidate = 3600. Immediate refresh on publish needs a shared secret between the backend (content-actions calls /api/revalidate) and the Next app, and the template has no secret-safe way to set it: a public site.json cannot hold it, and console-set branch variables are wiped by the next stack update (TI today keeps PAPYRUS_REVALIDATE_SECRET as a plain branch env var). Design and implement a secret-safe path (e.g. Amplify backend secret read at runtime by both sides, or another mechanism that survives stack updates and never lands in site.json or Git), update app/api/revalidate/route.ts, the content-actions trigger, the template and docs, with tests. Rotate the existing TI secret at cutover; the new backend must not reuse it. Sequence after P5-01 (PPY-f1f695), which also touches app/api/revalidate/route.ts.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+    "labels": [
+      "phase-4"
+    ]
+  }
+}

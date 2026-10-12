@@ -1,0 +1,27 @@
+{
+  "id": "PPY-6cb16a18-a892-4733-b1d2-f4d9b0e5de9e",
+  "title": "M0 Spike: render one Anth.us article page in a Lambda, byte-identical and timed",
+  "description": "## Outcome\nProve, before any build-out, that one Anth.us article page renders inside a Lambda in milliseconds and produces exactly the bytes the full build produces.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md sections 1 (Measurements) and 10 (Spike).\n\n## Checklist\n- [ ] Test Lambda (Python 3.12, arm64, 2048 MB) packaged like content-actions (Markus 0.5.1, Pillow>=11.3, citeproc) plus Papyrus pin c98435f renderer and the Anth.us web/ modules\n- [ ] Image metadata supplied as meta.json (or a copied rendition cache) so no image is decoded\n- [ ] Render articles/agent-skills/index.html with Markus called in-process; PUT to a scratch bucket\n- [ ] Record split: import/init, render, image metadata, PUT\n\n## Acceptance (pass/fail)\n- PASS: object bytes equal the local full build's file (sha256 equal) AND warm invoke (render + PUT) < 200 ms AND cold start < 2 s.\n- FAIL: report the measured split and update v2 section 1.\n\n## Out of scope\nAny production resource, any template change, listings, renditions generation.\n\n## Dependencies\nNone.\n\n## Risk\nLow. Scratch bucket and test function only (create in papyrus-staging or a sandbox with Ryan's yes).\n\n## Estimate\n1 agent-hour.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-12T18:27:36.800187Z",
+  "updated_at": "2026-10-12T18:28:18.539270Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The Lambda spike will test byte-identical rendering and measure cold-start, render, and upload times.",
+  "right_now_updated_at": "2026-10-12T18:28:19.598050Z",
+  "custom": {}
+}

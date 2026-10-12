@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "a35c5406-5575-4366-a482-d41c356754ff",
+  "issue_id": "PPY-4243f76b-101e-494d-a435-83c7bfd80871",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T19:58:57.571Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Pretext main branch SSR bundle lacks amplify_outputs.json (front page 500)",
+    "description": "Root cause: the cms-production build spec wrote amplify_outputs.json only at the checkout root; the SSR compute bundle lacks it, so getLatestPublishedEdition threw. Fixed in Papyrus#156 (merge f0c0ee3, release 1.0.0-next.22): Pretext production spec copies it to .next/ and sets PAPYRUS_AMPLIFY_OUTPUTS. TI PR AnthusAI/Threat-Intelligence#12 picks it up.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+    "labels": [
+      "phase-4"
+    ]
+  }
+}

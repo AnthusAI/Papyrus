@@ -1,0 +1,32 @@
+{
+  "id": "PPY-73602178-461f-416c-b43e-ee679c70d01b",
+  "title": "AN-16: Archive and retire the legacy Anth.us resources (human runbook, Ryan runs) (IRREVERSIBLE)",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-16 and section 6. After sign-off: delete d2hbn1ig6nqyhy (0 associations first); decide d1ffh6ny5rvtl, d23d9f23lg9obr; close Anth.us PR 70 unmerged; archive then delete S3 anthus-site (4382 objects, 306860333 bytes); remove legacy anth.us ACM cert; keep the zone and the _61eb record. ACCEPT: public hosts and baseline hashes verified after each step.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-a0d5e404-2cfc-488d-935e-d04eead67606",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f102002a-aee6-49d4-a49e-ad70330d3b4b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T16:26:11.204166Z",
+  "updated_at": "2026-10-11T16:28:35.688563Z",
+  "closed_at": null,
+  "right_now_summary": "The cleanup plan is ready, but no irreversible changes have begun.",
+  "right_now_updated_at": "2026-10-11T16:28:38.026137Z",
+  "custom": {}
+}

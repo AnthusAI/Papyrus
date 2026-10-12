@@ -29,7 +29,7 @@
   "created_at": "2026-10-05T13:18:55.602938Z",
   "updated_at": "2026-10-06T12:56:09.458084Z",
   "closed_at": null,
-  "right_now_summary": "The new apps are in production, but old resources and final cleanup still await Ryan’s approval.",
-  "right_now_updated_at": "2026-10-07T10:37:35.615728Z",
+  "right_now_summary": "New CMS and reader apps build successfully, while staging checks and final merges remain.",
+  "right_now_updated_at": "2026-10-10T17:04:16.089770Z",
   "custom": {}
 }

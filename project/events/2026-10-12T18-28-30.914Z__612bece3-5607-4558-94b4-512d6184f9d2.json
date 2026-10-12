@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "612bece3-5607-4558-94b4-512d6184f9d2",
+  "issue_id": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-12T18:28:30.914Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "## Outcome\npilobol.us is served from its S3 projection bucket through the existing papyrus-edge-pilobol-us distribution; publishing an edit updates the live site in seconds; the Amplify reader dpdg1mg84dlwb is no longer used.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 9 (Migration, Pilobol.us).\n\n## Checklist\n- [ ] Pilobol.us site config: backend.publication.kind = \"s3-projection\"; deploy CMS backend (create-only for the new resources)\n- [ ] renditions --all; project-all into the bucket\n- [ ] Parity: projected bucket vs today's reader output from the same export (byte-identical) and vs live (capture.py compare)\n- [ ] Swap the reader origin on papyrus-edge-pilobol-us to the bucket (OAC) and attach the function; rollback = swap back\n- [ ] Remove PAPYRUS_READER_AMPLIFY_APP_ID; time Save -> Live for a test edit\n- [ ] Hand the reader app to Ryan for deletion\n\n## Acceptance\n- curl https://pilobol.us/ and every sitemap URL: 200, same content-type, HTML sha256 equal to the projected bucket objects.\n- A test edit in newsroom.pilobol.us is visible on pilobol.us within 60 s; mutation response has live:true.\n\n## Out of scope\nAnth.us; deleting the reader app (Ryan).\n\n## Dependencies\nBlocked by M1, M2, M3, M4.\n\n## Risk\nLow (pre-production; move fast, brief downtime acceptable).\n\n## Estimate\n3-5 agent-hours.",
+        "to": "## Outcome\nReaders see an edit within about a minute of Save, without blanket invalidations, and today's staleness sources are removed.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 2 (Atomicity, versioning, caching).\n\n## Checklist\n- [ ] HTML Cache-Control public, max-age=0, s-maxage=86400 set as S3 object metadata; renditions/versioned CSS-JS max-age=31536000, immutable\n- [ ] Targeted CreateInvalidation of written paths (both /x/ and /x/index.html forms); measure completion time\n- [ ] Fallback switch: s-maxage=60 without invalidation if invalidations prove slow\n- [ ] Record and fix today's staleness findings: Pretext s-maxage=3600 plus the Amplify CDN layer; Pilobol.us reader distribution on CachingOptimized (1-day default TTL) with nothing invalidating it\n- [ ] Monthly invalidation path count alarm (first 1000 free)\n\n## Acceptance\n- After a test edit, curl of the item URL and home through the site hostname shows the new content within 60 s (measured, 5 runs).\n- No /* invalidations issued by the projector (CloudTrail check).\n\n## Out of scope\nPretext revalidation redesign beyond documenting/fixing the TTL.\n\n## Dependencies\nBlocked by M1.\n\n## Risk\nInvalidation latency/cost if edit volume grows.\n\n## Estimate\n2-3 agent-hours."
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9338de20-6b78-4855-ad62-5a0be6260920",
+  "title": "Edge CloudFront option for custom domains (Amplify domain API throttled)",
+  "description": "Turn /Users/home/Projects/edge-cloudfront/p-apyr-us.yaml (ACM + CloudFront in front of Amplify default domains, x-forwarded-host function, apex 301) into a Papyrus feature, as an option when create-domain-association is throttled. Note: CloudFront refuses aliases whose DNS still points at another distribution; remove stale records first. Run 2026-10-11 for p.apyr.us.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-11T17:01:15.915383Z",
+  "updated_at": "2026-10-11T17:01:15.915424Z",
+  "closed_at": null,
+  "right_now_summary": "Papyrus is adding a CloudFront fallback for custom domains when Amplify throttles domain creation.",
+  "right_now_updated_at": "2026-10-11T17:01:18.397107Z",
+  "custom": {}
+}

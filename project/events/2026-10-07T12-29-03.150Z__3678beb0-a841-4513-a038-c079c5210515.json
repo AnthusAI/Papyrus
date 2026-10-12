@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3678beb0-a841-4513-a038-c079c5210515",
+  "issue_id": "PPY-3861232d-caa1-4dff-8673-6310b2d21cb5",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:03.150Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-10: staging site (Cognito-gated drafts) and dogfood the publish flow",
+        "to": "TI P4-11: move threat-intelligence.anth.us (and staging host) to the new app, with rollback"
+      },
+      "priority": {
+        "from": 2,
+        "to": 1
+      }
+    }
+  }
+}

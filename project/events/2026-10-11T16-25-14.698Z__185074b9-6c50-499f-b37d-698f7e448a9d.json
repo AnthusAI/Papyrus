@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "185074b9-6c50-499f-b37d-698f7e448a9d",
+  "issue_id": "PPY-4f8146b4-c025-47b4-a05d-f9d0b33a007c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-11T16:25:14.698Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "AN-07: First CMS backend build, Cognito/Google sign-in, first admin",
+    "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-07. One backend deploy at a time in the account (resolver waves from next.40). ACCEPT: build SUCCEED with zero failed resources; describe-user-pool-client callbacks include default origin, /newsroom and localhost, IdP Google; user pool domain is papyrus-anth-us-cms; Ryan signs in and is in admin group.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+    "labels": [
+      "phase-6",
+      "anthus-move-plan"
+    ]
+  }
+}

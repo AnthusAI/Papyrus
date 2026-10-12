@@ -1,0 +1,51 @@
+{
+  "id": "PPY-bfa37253-c9fa-4fd1-a92a-4a207d74d944",
+  "title": "next.34+ builds fail in consumers: Module parse failed on TypeScript source of node_modules/cyclotron (add to transpilePackages in withPapyrus)",
+  "description": "Evidence: Threat-Intelligence PR #16 (pin bump to @anthusai/papyrus 1.0.0-next.35, merged e41feb5) -> Amplify app dzefa11i80jyq main job 11 FAILED at BUILD: Module parse failed on TypeScript sources under node_modules/cyclotron/trace-ui/src/ (cyclotron-status.tsx, review-control.tsx, cyclotronStatus.ts), imported by components/newsroom-references-view.tsx and topic-steering-workspace.tsx (Papyrus#168-#170). next.31 had no cyclotron dependency. Planned fix: add cyclotron to default transpilePackages in withPapyrus (src/with-papyrus.mjs), regression test, verify-packages check, prove with real consumer build. Live TI deployment remains job 10 (next.31).",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "07ada70c-5161-42dc-ac17-6215683db321",
+      "author": "home",
+      "text": "BLOCKED (2026-10-09 ~19:51Z): github.com does not resolve from this machine (curl and git fail: Could not resolve host; api.github.com and registry.npmjs.org work). Cannot git fetch/clone/push, so no worktree refresh, PR branch push, or Threat-Intelligence clone is possible. No code changed. Tracking fix in PPY-bfa372.",
+      "created_at": "2026-10-09T19:51:28.642460Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6fd8f068-6ec4-4529-9d5d-953b3cbba1c0",
+      "author": "home",
+      "text": "2026-10-09 ~20:08Z: FIXED in PR #182 (squash 61ae4a7). withPapyrus now adds cyclotron to transpilePackages by default (merged with the publication list, deduplicated); new test:with-papyrus-transpile in test:ci:ts; verify-packages fails when a dependency ships TypeScript source entries but is not in the default list. Proof: Threat-Intelligence scaffold + locally packed tarball: next build FAILED before (Module parse failed on node_modules/cyclotron review-control.tsx and cyclotronStatus.ts), PASSES after; next start served / (307 to /2026/july/04, 200) and /newsroom (200). Released as @anthusai/papyrus 1.0.0-next.36 (npm next tag).",
+      "created_at": "2026-10-09T20:13:23.705114Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "5044abe7-9db3-4602-91fb-6215de1ef1f5",
+      "author": "home",
+      "text": "2026-10-09 ~20:30Z: CORRECTION: the release containing the fix is @anthusai/papyrus 1.0.0-next.37 (npm lagged ~15 min after the 202 publish; next.36 is the pre-fix commit 2e3ac25). PyPI papyrus-newsroom released in the same run.",
+      "created_at": "2026-10-09T20:21:01.772619Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "52c19df7-b874-46cd-93bb-5d889d35cdfd",
+      "author": "home",
+      "text": "2026-10-09 ~21:00Z results. Release with the fix: @anthusai/papyrus 1.0.0-next.37 (PR #182, 61ae4a7). Threat-Intelligence: PR #17 pinned next.36 by mistake (job 12 FAILED, live job 10 untouched), PR #18 pinned next.37 (03bc631), main job 13 SUCCEED, staging fast-forwarded, staging job 3 SUCCEED; gates green (/ 307 to /2026/july/04 200, /newsroom 200, video 307 to 206, staging anon 307 to /newsroom noindex). p.apyr.us (ds6yswxui41yi): PR #5 pin next.37 (c455dfa, job 7 SUCCEED, all paths 200, legacy redirects 308); PR #6 backups on (d624ec5, job 8 SUCCEED, stack UPDATE_COMPLETE), vault papyrus-p-apyr-us-5cd1c908-media-vault, second build job 9 SUCCEED, vault name unchanged.",
+      "created_at": "2026-10-09T21:02:01.191103Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-09T19:51:22.858822Z",
+  "updated_at": "2026-10-09T21:02:01.191140Z",
+  "closed_at": null,
+  "right_now_summary": "The fix shipped in Papyrus next.37, and consumer builds now pass.",
+  "right_now_updated_at": "2026-10-09T21:02:02.201502Z",
+  "custom": {}
+}

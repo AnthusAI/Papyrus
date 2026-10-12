@@ -1,0 +1,30 @@
+{
+  "id": "PPY-8b047744-a91f-46e7-b7ec-bfda5efc7853",
+  "title": "After Google sign-in the browser lands on the publication root instead of the newsroom when only the root redirect URL is registered for a host",
+  "description": "Ryan, 2026-10-09: signed in at https://threat-intelligence.anth.us (Pretext site; reader at `/`, newsroom at `/newsroom`) and landed on the publication (`/` -> /2026/july/04), not the newsroom. /newsroom worked when navigated to.\n\nCause: Amplify sign-in uses `redirect_sign_in_uri` chosen by `prioritizeCurrentOrigin` in components/amplify-client-provider.tsx. The TI scaffold lists only `https://threat-intelligence.anth.us/` and the staging equivalent (no `/newsroom` variant); only the default Amplify host got both variants.\n\nFix at template/package layer: in amplify/auth/resource.ts and infra/amplify-app-shell/lib/site-config.ts, expand every configured origin to `<origin>/newsroom` first and `<origin>/`, honoring newsroomBasePath, with tests and docs.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "aa673c59-7863-4774-8a7f-ae55f3f9d7a2",
+      "author": "home",
+      "text": "2026-10-09T17:17Z: Fix in PR https://github.com/AnthusAI/Papyrus/pull/171 (branch feature/PPY-8b0477-newsroom-redirect-urls). Root cause confirmed: Amplify signs in with the first redirect_sign_in_uri entry for the current origin (prioritizeCurrentOrigin in components/amplify-client-provider.tsx); the TI scaffold lists only root URLs for real hosts. defineSiteAuth now expands every origin to /newsroom then / (root only when the brand newsroomBasePath is empty); template validation accepts bare origins. ts job green; python and smoke jobs red for a reason unrelated to this change (develop itself is red since #168: ModuleNotFoundError decision_flywheel and the non-registry Cyclotron git requirement in the wheel, and the Release run fails), so NOT merged and no release published yet. Blocked on develop being fixed.",
+      "created_at": "2026-10-09T17:17:57.595602Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-09T17:06:27.263158Z",
+  "updated_at": "2026-10-09T17:17:57.595625Z",
+  "closed_at": null,
+  "right_now_summary": "A fix is in PR 171, but unrelated develop failures are delaying its merge and release.",
+  "right_now_updated_at": "2026-10-09T17:18:00.269158Z",
+  "custom": {}
+}

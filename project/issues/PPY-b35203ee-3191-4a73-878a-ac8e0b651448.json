@@ -1,0 +1,30 @@
+{
+  "id": "PPY-b35203ee-3191-4a73-878a-ac8e0b651448",
+  "title": "P5-06: Marketing pages at / with the four-tier pricing ladder (site-owned routes)",
+  "description": "## Goal\nThe marketing site is the root page of the p.apyr.us publication repo: site-owned Next routes with the four-tier pricing ladder shared with chattic.us and aurit.us, passing a Gherkin spec, rendering correctly next to the Papyrus root layout.\n\n## Context (FACT)\n- Existing work: story PPY-228e8d (in_progress), branch `feature/PPY-228e8d-papyrus-marketing-site` in worktree PPY-228e8d-marketing, PR #74 CLOSED unmerged, branch is 54 commits ahead and 244 behind develop, last commit 2026-09-08. Standalone Next 15 static export (`output: \"export\"`), Tailwind 3 + Radix + shadcn components (Hero, Newsroom, Ownership, Pricing, Faq, Waitlist, Header, Footer, Wordmark), `features/marketing-site.feature`, `infra/cloudformation.yml` + `scripts/deploy.sh` for `papyrus.anth.us` (S3 + CloudFront), design-only waitlist form.\n- Its pricing has four older plans (Independent $0, Turn-key $100, Managed $20/mo, Turn-key+managed $100+$20) and differs from the approved ladder (epic decision 4: Fork it / Self-setup managed $20/mo / Assisted setup managed $20/mo + $100 once / Professional services quoted; professional services = building and operating automated newsrooms for clients). Copy the exact tier text from chattic.us and aurit.us (read both live sites at port time).\n- Papyrus root layout (`app/layout.tsx`) is shared by every route and loads Tailwind 4 (`@tailwindcss/postcss`), `globals.css` (about 9,000 lines with `body` rules), fonts Playfair Display + Plus Jakarta Sans, Amplify provider and console shell. A site-owned `app/page.tsx` wins over the package page (sync rule) but renders inside that layout.\n- docs/standard-site.md 1.7: marketing is \"site-owned Next routes (like chattic.us)\" in the publication repo; Papyrus repo does not host marketing.\n\n## Exact steps\n1. Gherkin first (port `marketing-site.feature`, update scenarios for pricing, links to `/information` and GitHub, no waitlist submission claims).\n2. Port components into `components/marketing/` of AnthusAI/p.apyr.us, convert the Tailwind 3 theme (sand, papyrus, oxide, reed, ink) to Tailwind 4 `@theme` tokens scoped under a `.papyrus-marketing` wrapper CSS file imported by `app/page.tsx`, so Papyrus `globals.css` does not leak in or out.\n3. Replace pricing with the four tiers; keep canonical `/`, OG tags for `https://p.apyr.us`; drop `infra/`, `scripts/deploy.sh`, `output: \"export\"` and `papyrus.anth.us` text.\n4. Waitlist: keep design-only unless Q5 says otherwise.\n5. If wrapper scoping cannot isolate the CSS (visual diff at 375, 768, 1440 px), fallback: build the marketing app as a static export copied to `public/marketing/` with a site-owned middleware rewrite of `/` (record the decision in the ticket).\n6. Close PPY-228e8d as superseded by this ticket after the PR lands (Ryan).\n\n## Acceptance checks\n- Feature green; `npm run build` green; local `/` shows the hero, four pricing tiers with the exact amounts, FAQ; `/information` link works.\n- Screenshots at 375, 768 and 1440 px, light and dark, show no Papyrus global style bleed (no `body` background or font override); Lighthouse accessibility >= 95 on `/`.\n- `/newsroom` and `/information` unchanged visually (screenshot diff against P5-05 build).\n\n## Rollback\nRevert the PR; the placeholder page returns.\n\n## Risks\nCSS isolation (fallback above); copy and tier wording are Ryan-approved text, not invented.\n\n## Needs Ryan\nVisual and copy approval; PR merge.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "labels": [
+    "phase-5"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "86995c6e-a5dd-4e54-8d44-9f86fb19fa2c",
+      "author": "home",
+      "text": "Marketing root in PR https://github.com/AnthusAI/p.apyr.us/pull/1. Pricing copied verbatim from aurit.us/chattic.us (Fork it No cost; Self-setup managed $20 a month; Assisted setup managed $20 a month and $100 once; Professional services Quoted). Professional services body text is adapted (build and operate automated newsrooms) and needs Ryan approval. Scoped CSS under .papyrus-marketing (plain CSS, no Tailwind utilities), no fallback needed. Not done: Lighthouse, 375/768/1440 light/dark screenshot review, OG image.",
+      "created_at": "2026-10-08T01:03:53.286063Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:32:23.649444Z",
+  "updated_at": "2026-10-08T01:03:53.286082Z",
+  "closed_at": null,
+  "right_now_summary": "The marketing root and pricing ladder are built, but Lighthouse, visual reviews, OG image, and copy approval remain.",
+  "right_now_updated_at": "2026-10-08T01:03:54.916670Z",
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2d5d0945-6a18-442a-92cd-bb7940d813f5",
+  "issue_id": "PPY-6bf4abf9-fdb0-4a72-b960-ab726ff1a7be",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:53:50.330Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Backup vault name uses unresolved CDK tokens (papyrus-token-token-NNNNN-media-vault): builds fail with AlreadyExists",
+    "description": "Bug in Papyrus#166 (P5-04, amplify/site-backend-names.ts line ~86: papyrus-${sanitizeAwsName(identity.brandId,20)}-${stackHash}-media-vault). On the new p.apyr.us backend (papyrus-production 712236451410) the vault names came out as papyrus-token-token-17565/17569/17571/17573-media-vault: brandId and the stack name hash are CDK tokens (unresolved at synth time), so the name changes on every synth; AWS Backup vault names are immutable, so the update fails with AlreadyExists (build job 5, nested stack storage-backups). Four empty leftover vaults exist from the failed and retried builds (delete is Ryan task). FIX: derive the vault name from literal inputs available at synth (the site config brandId/siteId from papyrus.config.ts, not the Amplify backend identifier token) plus a stable value (e.g. a hash of the literal siteId), never from Token values; assert in a test that no name contains the string token and that two synths of the same site give the SAME names; check the other names (rule set papyrus-site-inbound-<brand>, knowledge index papyrus-knowledge-<brand>) for the same token problem. Blocked on release by the red develop (Cyclotron #167-#170). Workaround for p.apyr.us: storageBackups false in the scaffold config.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ]
+  }
+}

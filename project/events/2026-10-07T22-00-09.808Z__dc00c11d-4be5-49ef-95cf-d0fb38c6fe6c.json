@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "dc00c11d-4be5-49ef-95cf-d0fb38c6fe6c",
+  "issue_id": "PPY-376b3b0d-e183-45f8-9b57-bcdb916eb48b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T22:00:09.808Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "New Pretext site /api/media/*.mp4 returns 413 (videos do not play): media route must redirect to a presigned S3 URL like the old fork",
+    "description": "On the new Threat Intelligence site (app dzefa11i80jyq) every /api/media/**.mp4 returns HTTP 413 with an empty body (14 distinct URLs, Range requests too). The old live site answers 307 to a presigned S3 URL. Fix: media route redirects (307) to a short-lived presigned GET URL so S3 serves bytes and Range; IAM grant if missing; unit tests with a fake presigner in test:ci:ts; docs. Then roll out to the new TI app. See comment on PPY-4f2519 for evidence.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+    "labels": [
+      "phase-4"
+    ]
+  }
+}

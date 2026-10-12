@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "2e3bccdf-6dae-40c4-a4fe-c7b2d29be427",
+  "issue_id": "PPY-4eb02e08-9a94-44be-af35-edda7f85e5dc",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:54.054Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-02: upstream the Pretext blog layout engine (rhythm and feature solver) into Papyrus",
+        "to": "TI P4-03: upstream blog layout components and add brand slots (header art, fonts)"
+      }
+    }
+  }
+}

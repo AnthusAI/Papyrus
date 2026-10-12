@@ -1,0 +1,28 @@
+{
+  "id": "PPY-ce4f909a-c145-4066-aa3c-79c99a41181b",
+  "title": "AN-05: Anth.us Google project, OAuth client and SSM secrets (Ryan console)",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 2 G4, section 4 AN-05. R creates the project/client and adds origin https://papyrus-anth-us-cms.auth.us-east-1.amazoncognito.com and redirect URI .../oauth2/idpresponse; R puts GOOGLE_CLIENT_ID/SECRET into SSM /amplify/<cmsAppId>/main-branch-<hash10>/ as SecureString. ACCEPT: agent verifies names and types only via describe-parameters; no value printed.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d752007f-1761-4176-8b7d-0f25cecaacd2",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T16:25:04.103289Z",
+  "updated_at": "2026-10-11T16:26:47.224542Z",
+  "closed_at": null,
+  "right_now_summary": "Ryan needs to create the Google project and OAuth client, then store the credentials in SSM.",
+  "right_now_updated_at": "2026-10-11T16:26:49.244488Z",
+  "custom": {}
+}

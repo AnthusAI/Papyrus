@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "947178ed-7dd0-4b6c-be77-c5055ddd6b30",
+  "issue_id": "PPY-9e09e00f-c3f2-4d4c-a6ae-9f17ae00a6ce",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-11T14:40:38.014Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "TI-07: copy-backend dry run + apply with fidelity gate (162 rows, 65 media objects)",
+    "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-07. Command uses --source-outputs stack:amplify-dzefa11i80jyq-main-branch-a099beb80d --target-outputs stack:amplify-<newAppId>-main-branch-<hash10> --source-profile legacy --target-profile papyrus-production --expect-source-account 335163751677 --expect-target-account 712236451410 --s3-transfer stream. ACCEPT: dry run 162 creates/0 invalid/65 objects missing; after apply re-run 0 changes; manifests equal; S3 key/size/ETag equal for 65; sha256 of the two 26 MB videos + 10 random objects equal; bodyMarkus/bodyIr on 18 PublishedItem; source unchanged.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+    "labels": [
+      "phase-6",
+      "ti-move-plan"
+    ]
+  }
+}

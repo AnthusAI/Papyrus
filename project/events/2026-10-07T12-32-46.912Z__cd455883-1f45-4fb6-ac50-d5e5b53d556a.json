@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "cd455883-1f45-4fb6-ac50-d5e5b53d556a",
+  "issue_id": "PPY-794ecbb5-23e7-4b95-99d3-9f317f6bc327",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:32:46.912Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-10: Staging site (Cognito-gated drafts) under /information",
+    "description": "## Goal\nA staging site on `staging.p.apyr.us` shows draft articles as published under `/information`, behind Cognito (editors and admins only), reading the production backend, with the marketing page also gated.\n\n## Context (FACT)\n- Template staging: branch `staging` of the same app (`SITE_ENV=staging`, `PAPYRUS_CONTENT_SOURCE=drafts`, `NEXT_PUBLIC_PAPYRUS_STAGING_URL`), frontend-only, no second backend (epic decision). Middleware gate (`lib/staging-gate.ts`): anonymous -> redirect to `/newsroom` (hardcoded), non-editor -> 403, `X-Robots-Tag: noindex, nofollow`, `/robots.txt` disallow all.\n- The gate exempts only `/newsroom`, `/api`, static and robots, so `/` (marketing) and `/information` are both gated on staging: wanted.\n- Session cookies come from the Amplify server adapter; cookie path and domain across `/` and `/information` are UNVERIFIED (read of staging-gate.ts shows no explicit path); probed here.\n- Staging host from the template (TI PPY-4f2519 explicit staging host).\n- The old app has no staging.\n\n## Exact steps\n1. Ryan connects the `staging` branch (console, same sitting as P5-07 if possible).\n2. Create a draft Item in /newsroom; confirm it appears under `/information` on staging only.\n3. Probes (below), with a real editor and a non-editor Google account.\n4. Confirm `PAPYRUS_STAGING_PREVIEW` / `SITE_ENV` absent from `main`.\n\n## Acceptance checks\n- Anonymous `GET https://staging.p.apyr.us/` and `/information`: exactly one redirect to `/newsroom`, no loop; `/newsroom` 200.\n- Editor session: `/` renders marketing, `/information` lists the draft, the article URL under `/information/YYYY/<month>/DD/<slug>` renders; non-editor: 403 text.\n- Response headers contain `X-Robots-Tag: noindex, nofollow`; staging `/robots.txt` disallows all; production `main` `/robots.txt` allows.\n- The draft does not appear on production.\n\n## Rollback\nDelete the `staging` branch; production unaffected.\n\n## Risks\nCookie scope bug between `/` and `/information` (fix in Papyrus if found, new ticket); 6 MB response limit for large assets on WEB_COMPUTE.\n\n## Needs Ryan\nConsole branch connect; sign-in as editor and non-editor for the probes.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

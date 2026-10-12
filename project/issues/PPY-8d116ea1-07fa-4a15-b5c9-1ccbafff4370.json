@@ -1,0 +1,28 @@
+{
+  "id": "PPY-8d116ea1-07fa-4a15-b5c9-1ccbafff4370",
+  "title": "AN-12: DNS cutover of anth.us and www.anth.us, www first then apex, 20-minute stuck rule, rollback (IRREVERSIBLE in part)",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 3 and section 4 AN-12. R go/no-go at each star. ACCEPT: AN-01 baseline compare against public anth.us and www.anth.us equal (194 pages, 402 redirects, robots, sitemaps, headers); MX/TXT sets byte-identical; zone diff only the two target changes (+ any validation CNAME); five other apps' associations identical; downtime measured. Rollback: recreate d2hbn1ig6nqyhy association from saved JSON, UPSERT records to the new legacy CloudFront targets, verify old hashes.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3350c6e6-8459-48da-9f35-c70fbb3235de",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T16:25:52.291310Z",
+  "updated_at": "2026-10-11T16:28:03.976088Z",
+  "closed_at": null,
+  "right_now_summary": "The DNS cutover plan is documented, but no execution activity is recorded yet.",
+  "right_now_updated_at": "2026-10-11T16:28:05.401951Z",
+  "custom": {}
+}

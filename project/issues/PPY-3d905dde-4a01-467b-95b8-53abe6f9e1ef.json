@@ -1,0 +1,32 @@
+{
+  "id": "PPY-3d905dde-4a01-467b-95b8-53abe6f9e1ef",
+  "title": "M3 Incremental projection: item page plus dependent listings, concurrency and reconcile",
+  "description": "## Outcome\nA single-item edit re-renders exactly the item page and the pages that depend on it (home, archive/pagination, tags, topic pages, sitemap, redirects) for Pilobol.us and Anth.us; concurrent edits converge; failures are retried and reconciled; full re-projection is an ops command.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 2 (\"Which pages depend on an item\", atomicity) and section 4 (concurrency and failure).\n\n## Checklist\n- [ ] Pilobol.us projector: item, home (all non-hidden, cover = newest), archive (no pagination), sitemap, redirects from aliases\n- [ ] Anth.us projector: item, home, /articles/page/N and /posts/page/N (12 per page; all pages of the collection on add/date change; delete trailing page on shrink), /tags/<tag>/ for old and new tags, topic pages, sitemap-index + sitemap-0, 401 generated redirect rules into KVS\n- [ ] Slug change / unpublish: listings and sitemap first, then old page -> redirect; async re-projection of all item pages (link map)\n- [ ] Re-read loop: after writes, re-read (id, versionNumber) set; re-render listings if it moved\n- [ ] Async self-retry with on-failure SQS DLQ; papyrus ops site reconcile (PublishedItem.versionNumber vs page papyrus-version)\n- [ ] papyrus ops site project-all run after each CMS backend deploy (theme/code changes)\n\n## Acceptance\n- For each site: project_all output equals today's build from the same export (diff -r empty, Anth.us 199 pages).\n- Edit one item's title: written paths are exactly the documented set (logged), and a fresh project_all produces no diff afterwards.\n- Two concurrent publishes of different items: both appear on home and archive (test).\n- Kill the render after save: reconcile repairs it (test).\n\n## Out of scope\nRelease prefixes / pointer flips; theme-deploy atomicity.\n\n## Dependencies\nBlocked by M1 (and M2 for image-bearing pages at full speed).\n\n## Risk\nRefactoring the two monolithic site build scripts (module globals) behind SiteProjector; the parity gate keeps it honest.\n\n## Estimate\n5-8 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-aebfcdf1-ccf7-41bb-933b-ded29a19f4ea",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-12T18:27:47.273803Z",
+  "updated_at": "2026-10-12T18:29:08.385012Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "Work is planned but waits on M1 and M2 dependencies.",
+  "right_now_updated_at": "2026-10-12T18:29:10.176351Z",
+  "custom": {}
+}

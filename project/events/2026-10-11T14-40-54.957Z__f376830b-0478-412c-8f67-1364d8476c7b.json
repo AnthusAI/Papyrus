@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "f376830b-0478-412c-8f67-1364d8476c7b",
+  "issue_id": "PPY-134457d2-5177-47f6-9e77-ad593a362d0e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-11T14:40:54.957Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "TI-10: throwaway-prefix rehearsal (p6-rehearsal on anth.us) - GATE for DNS",
+    "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 4, 6 TI-10. Needs PPY-52d455 diagnostic result. ACCEPT: create-domain-association for anth.us prefix p6-rehearsal from the new app is accepted (if refused as 'already associated', STOP and report); reaches AVAILABLE with timeline recorded (PENDING_VERIFICATION must not stick); other five apps' associations, get-domain-association d2hbn1ig6nqyhy, Anth.us hashes+cert serial and zone unchanged (zone diff empty or one validation CNAME); association deleted afterwards and diffs re-checked.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+    "labels": [
+      "phase-6",
+      "ti-move-plan"
+    ]
+  }
+}

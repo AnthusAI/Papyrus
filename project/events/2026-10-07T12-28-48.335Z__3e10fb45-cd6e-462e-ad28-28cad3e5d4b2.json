@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "event_id": "3e10fb45-cd6e-462e-ad28-28cad3e5d4b2",
+  "issue_id": "PPY-27ca7a37-4f25-425b-ab70-74f264b96dc7",
+  "event_type": "issue_deleted",
+  "occurred_at": "2026-10-07T12:28:48.335Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "TI P4-12: retire the old app, backend and secrets; remove fork-only code; docs and procedures",
+    "issue_type": "sub-task",
+    "status": "open"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "PPY-a70cae07-c8b3-4692-a1e7-8643abf673e2",
+  "title": "Staging build bakes in stale sign-in redirect URLs (amplify_outputs from the backend at build time): staging rebuild required after any backend callback change",
+  "description": "On p.apyr.us (papyrus-production) the staging build embedded redirect_sign_in_uri without the staging default URL because it was generated before the main backend deploy that registered it, so sign-in on staging failed with \"redirect is coming from a different origin\". A staging rebuild fixed it. Template/package follow-up: either trigger the staging rebuild whenever the main backend deploys (a post-build hook or the content-actions/stack), or have the staging build regenerate outputs from the live backend after the main deploy completes; document in docs/site-hosting.md. Seen 2026-10-10.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ad7aed25-afb0-4e91-8463-11e3abf8cf88",
+      "author": "home",
+      "text": "2026-10-12: seen again on the Anth.us staging build (CMS app d7s858igkyct5): amplify_outputs generated at build time carried stale sign-in URLs. Same fix as described above applies.",
+      "created_at": "2026-10-12T17:18:47.403288Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2138d054-afd7-4eec-ad11-47ee02b61920",
+      "author": "home",
+      "text": "2026-10-12: seen again on the Anth.us staging build (CMS app d7s858igkyct5): amplify_outputs generated at build time carried stale sign-in URLs. Same fix applies.",
+      "created_at": "2026-10-12T17:19:25.102865Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "anthus-cms-parity"
+      }
+    }
+  ],
+  "created_at": "2026-10-10T19:39:36.189728Z",
+  "updated_at": "2026-10-12T17:19:25.102903Z",
+  "closed_at": null,
+  "right_now_summary": "Staging builds still use stale sign-in URLs and need rebuilding after backend callback changes.",
+  "right_now_updated_at": "2026-10-12T17:19:26.773548Z",
+  "custom": {}
+}

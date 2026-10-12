@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "6093f360-2b28-4d75-bc99-204ab4bc7fd3",
+  "issue_id": "PPY-f1df008e-d937-4800-a46d-841a87f6d0c5",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-12T18:28:38.424Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "## Outcome\nNo Markus site uses an Amplify reader app; the template no longer creates reader apps for markus-static, which relieves apps-per-account pressure (6 of 30 apps today -> 4; one app per future Markus site instead of two).\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 5 (Default publication option: what gets removed).\n\n## Checklist\n- [ ] Template: remove markus-static reader app resources, reader build specs, custom rules, amplify:StartJob/ListJobs grants, PAPYRUS_READER_AMPLIFY_APP_ID wiring\n- [ ] Retire the CMS staging full build for Markus sites if previewItem replaces it (decision)\n- [ ] Update docs/site-hosting.md hosting axis (\"s3-projection\" replaces amplify-static for Markus)\n- [ ] List retired resources for Ryan (he deletes them)\n\n## Acceptance\n- Synth snapshot of a markus fixture site: zero AWS::Amplify::App for the reader; pretext sites unchanged.\n- aws amplify list-apps in papyrus-production shows no *-reader apps after Ryan's deletions.\n\n## Out of scope\nDeleting resources (Ryan does it).\n\n## Dependencies\nBlocked by M6.\n\n## Risk\nLow.\n\n## Estimate\n2-3 agent-hours.",
+        "to": "## Outcome\nanth.us and www.anth.us are served from the Anth.us projection bucket through papyrus-edge-anth-us (E3UMOOJRMY7FK7) with parity to today's site, including all 402 redirects; the Amplify reader d15dpu9buefmq0 is no longer used.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 9 (Migration, Anth.us).\n\n## Interim state\nCMS-driven Amplify reader on branch cms-parity (PR AnthusAI/Anth.us-Papyrus#25) until this epic's cutover.\n\n## Checklist\n- [ ] Anth.us SiteProjector refactor; gate: project_all equals today's build from the same export (byte-identical; in-process Markus already proven byte-identical on 2,352 files)\n- [ ] 401 generated redirect rules + pattern rules in KVS/function; 404 behaviour; robots and sitemap; headers\n- [ ] Test distribution parity: /Users/home/Projects/.baselines/anthus-live-20261011 compare (93 paths, normalized HTML) plus all 402 redirects (status and Location); renditions by dimensions and visual diff\n- [ ] Ryan's yes; origin swap in a chosen window; rollback = swap back\n- [ ] Quiet week, then hand d15dpu9buefmq0 to Ryan for deletion\n\n## Acceptance\n- python3 capture.py compare https://anth.us --manifest manifest.json: no status/redirect/header differences; every HTML difference listed and explained.\n- All 402 legacy redirects return 301 with the expected Location.\n- A test edit is live within 60 s.\n\n## Out of scope\nContent model changes; DNS changes (none needed).\n\n## Dependencies\nBlocked by M5 (pattern proven on Pilobol.us).\n\n## Risk\nProduction: downtime care, every production step needs Ryan's explicit yes.\n\n## Estimate\n5-8 agent-hours."
+      }
+    }
+  }
+}

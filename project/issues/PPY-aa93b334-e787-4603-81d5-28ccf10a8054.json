@@ -1,0 +1,79 @@
+{
+  "id": "PPY-aa93b334-e787-4603-81d5-28ccf10a8054",
+  "title": "P5-07: Create the new CMS app and fresh backend from the template, GitHub App connect, first build, release gates",
+  "description": "## Goal\nA NEW CMS app (WEB_COMPUTE, newspaper at `/information` and `/newsroom` in one app) created from the template with a fresh backend, connected to `AnthusAI/p.apyr.us` with the Amplify GitHub App, first build green on its default `amplifyapp.com` URL, release gates passed. No custom domain yet. The old app dbsyytcm9drqa keeps serving p.apyr.us untouched.\n\n## Context (FACT)\n- Why a new app, not reconnecting dbsyytcm9drqa (this reverses the old plan in docs/standard-site.md 3.1): the old app has real backend data, and the console connect flow was observed on 2026-10-06 (Pilobol.us CMS) to delete the app's branches and their environment variables; for a Gen2 app, deleting the `main` branch can delete its backend stack and with it the data. A fresh app leaves the old one intact as the rollback. Same reasoning as docs/migrations/pilobol-us.md section 2.\n- Old app: WEB_COMPUTE, repo https://github.com/AnthusAI/Papyrus (token-based connection), branches `main` (PRODUCTION, last job 336 SUCCEED 2026-10-05) and `codex-rehydration-api-split` (DEVELOPMENT, last job FAILED 2026-05-23), no backend environments listed, service role AmplifySSRLoggingRole-... (no compute role).\n- Template needs (docs/site-hosting.md \"Verify and repair after connecting\"): check platform stays WEB_COMPUTE, service role not replaced, branches and env vars not lost; Python 3.12 provisioning.\n- New Cognito domain prefix: `papyrus-p-apyr-us` (must differ from the old pool us-east-1_40Uot7WSv, whose domain is the auto-generated `48215fcaaf4ddb708e9f`).\n- Stack name must not collide with an existing `amplify-app-shell-*` stack (use `stackName` in site.json).\n- Depends on the TI sub-tasks that fix template gaps shared with this site: PPY-4f2519 (domain/staging host) and PPY-153434 (first-build lessons). Do not repeat them.\n\n## Exact steps\n1. Ryan: `aws sso login --profile legacy`; yes to deploying the stack (synth, review `cdk diff`, `cdk deploy`, profile legacy). Record AppId. Flags `inboundEmail`, `slack`, `storageBackups`, `consoleResponder` all false until P5-11 (P5-04).\n2. Ryan, one console sitting: install the AWS Amplify GitHub App on `AnthusAI/p.apyr.us`, connect the new app to branch `main` with the template's service role, add the `staging` branch if missing. Compare `get-app` and `list-branches` before and after and apply the documented repairs.\n3. Start the first build; wait for backend `pipeline-deploy` and the frontend build.\n4. Gate checks: schema gate (`bodyMarkus`, `bodyIr`, `aliases` on Item and PublishedItem), brand gate (`PAPYRUS_SITE_BRAND` and `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` equal the brand id), probes on the default URL: `/` (marketing), `/information`, `/newsroom`, `/robots.txt`, a missing path returns the 404 page.\n5. Record names of env vars only.\n\n## Acceptance checks\n- `aws amplify get-app` shows platform WEB_COMPUTE, repository AnthusAI/p.apyr.us, the template role; `list-branches` shows `main` with the NAMES from site.json plus SITE_ENV, PAPYRUS_SITE_BRAND, PAPYRUS_CONTENT_SOURCE.\n- Job SUCCEED; new AppSync API and Cognito pool exist; the three gates pass; probes return the expected codes.\n\n## Rollback\nDelete the new stack (human-run) and redeploy; nothing public depends on it.\n\n## Risks\nConsole connect side effects (repairs documented); Python 3.12 on the Amplify image unproven; account-global names (S3 Vectors index, SES rule set, backup vault) must not collide with the old backend (P5-04).\n\n## Needs Ryan\nSSO login, deploy yes, GitHub App console sitting, repo access.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "labels": [
+    "phase-5"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e5fa0c15-b637-4391-a812-4889b0f85aae",
+      "author": "home",
+      "text": "P5-07 PART 1 DONE (2026-10-09 UTC, Ryan authorized, account 712236451410 papyrus-production ONLY; nothing in legacy, no DNS, no jobs, no console). Account was empty (0 stacks, 6 AWS-service/SSO roles, 0 OIDC providers, 0 Amplify apps, 0 hosted zones, 0 SSM params; IAM roles quota 1000). 15:07:43-15:08:40Z cdk bootstrap aws://712236451410/us-east-1 OK (CDKToolkit). 15:08:48-15:09:35Z GithubOidcProviderStack deployed (stack github-oidc-provider; arn:aws:iam::712236451410:oidc-provider/token.actions.githubusercontent.com). 15:09:45-15:10:37Z site stack amplify-app-shell-p-apyr-us-cms CREATE ok from scaffold main 186fe47 (next.31), domain-free copy of infra/site.json kept outside the repo (removed hostedZoneId, domainName, domainPrefix, stagingDomainPrefix, redirects; cms.staging false; PAPYRUS_ENABLE_INBOUND_EMAIL set false because the scaffold had it true; backups true; slack and console responder false). Synth assertions: 1 App WEB_COMPUTE, 1 Branch main PRODUCTION, 4 roles + 3 policies, 0 Domain, no Repository/AccessToken/OauthToken, no SES actions. Outputs: CmsAppId ds6yswxui41yi; CmsOrigin https://main.ds6yswxui41yi.amplifyapp.com/; PapyrusAuthoringRoleArn arn:aws:iam::712236451410:role/p-apyr-us-papyrus-authoring; GithubCiRoleArn arn:aws:iam::712236451410:role/p-apyr-us-github-ci. Service role amplify-app-shell-p-apyr--AmplifyServiceRole1EB3E93-Bkqcm98MjyjF; compute role amplify-app-shell-p-apyr--AmplifyComputeRoleD988057-tLvmjRYBBw3W. get-app: WEB_COMPUTE, repository null; main PRODUCTION autoBuild true with 12 env names: PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX, PAPYRUS_COGNITO_DOMAIN_PREFIX, PAPYRUS_CONTENT_SOURCE, PAPYRUS_EDITION_SLUG, PAPYRUS_ENABLE_CONSOLE_RESPONDER, PAPYRUS_ENABLE_INBOUND_EMAIL, PAPYRUS_ENABLE_SLACK, PAPYRUS_ENABLE_STORAGE_BACKUPS, PAPYRUS_OAUTH_REDIRECT_URLS, PAPYRUS_REVALIDATE_SECRET_PARAMETER, PAPYRUS_SITE_BRAND, SITE_ENV. 0 jobs. SSM hash for ds6yswxui41yi+main = 23e5d23a59. Clone deleted. NOTE: PAPYRUS_OAUTH_REDIRECT_URLS lacks the default-URL entries (https://main.ds6yswxui41yi.amplifyapp.com/ and /newsroom): add by stack update after connect, as on TI. HUMAN STEPS: (1) sign in via https://d-9066614c63.awsapps.com/start, account 712236451410 papyrus-production, AdministratorAccess; Amplify, All apps, p-apyr-us-cms, Hosting, Connect repository, GitHub, Continue, in the pop-up authorize the AWS Amplify GitHub App for AnthusAI (it must be installed for this AWS account; Only select repositories: AnthusAI/p.apyr.us), pick repository AnthusAI/p.apyr.us, branch main, Next; at the service role choose the EXISTING amplify-app-shell-p-apyr--AmplifyServiceRole1EB3E93-Bkqcm98MjyjF, not Create new; change nothing else; Save and deploy. (2) New Google project + OAuth client: origin https://papyrus-p-apyr-us.auth.us-east-1.amazoncognito.com, redirect https://papyrus-p-apyr-us.auth.us-east-1.amazoncognito.com/oauth2/idpresponse. (3) Secrets: export AWS_PROFILE=papyrus-production; read -rs GID; aws ssm put-parameter --region us-east-1 --name /amplify/ds6yswxui41yi/main-branch-23e5d23a59/GOOGLE_CLIENT_ID --type SecureString --value \"$GID\" --overwrite; unset GID; same for GOOGLE_CLIENT_SECRET with read -rs GSECRET; revalidate: aws ssm put-parameter --region us-east-1 --name /papyrus/p-apyr-us/revalidate-secret --type SecureString --value \"$(openssl rand -hex 32)\". Ticket NOT closed.",
+      "created_at": "2026-10-09T15:12:42.924677Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "a0b0b367-5b6b-41e2-9854-8eeebfcaf5a9",
+      "author": "home",
+      "text": "P5-07 build fix (2026-10-09, account 712236451410 only). ROOT CAUSE of the old-form app buildSpec: not a template/version problem. The live CFN template of amplify-app-shell-p-apyr-us-cms already contains the correct spec (env passthrough before build, cp amplify_outputs.json after; identical to papyrus-infra print-buildspec for next.31, frontend pretext). CloudTrail: the console Connect-repository flow (user ryan, UpdateApp 11:21:25 EDT, buildSpec param plus repository, DeleteBranch main 11:18:42, CreateBranch main 11:21:25) overwrote the App buildSpec with the console-detected default; CFN does not revert out-of-band drift because the template value never changed. Add to the console-connect side effects list in docs. FIX: aws amplify update-app --build-spec with the exact template spec (2026-10-09 17:33:23Z); no stack update was needed or possible (cdk template diff vs live: only OAUTH redirect list, live is a superset of the domain-free copy, so do NOT redeploy from the copy). Verified: WEB_COMPUTE, repository https://github.com/anthusai/p.apyr.us, roles intact, branch main PRODUCTION autoBuild with 12 env names (PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX, PAPYRUS_COGNITO_DOMAIN_PREFIX, PAPYRUS_CONTENT_SOURCE, PAPYRUS_EDITION_SLUG, PAPYRUS_ENABLE_CONSOLE_RESPONDER, PAPYRUS_ENABLE_INBOUND_EMAIL, PAPYRUS_ENABLE_SLACK, PAPYRUS_ENABLE_STORAGE_BACKUPS, PAPYRUS_OAUTH_REDIRECT_URLS, PAPYRUS_REVALIDATE_SECRET_PARAMETER, PAPYRUS_SITE_BRAND, SITE_ENV). Job 4 SUCCEED (BUILD, DEPLOY, VERIFY), no AppSync throttling. HTTP on default URL: / 200, /newsroom 200, /2026/october/07 308 -> /information/2026/october/07, /robots.txt 404, missing path 404, old p.apyr.us 200. /information STILL 500 but with a new cause: the amplify_outputs error is gone; now ENOENT open /tmp/app/corpora/papyrus-newsroom-sections.yml (from .next/server/app/information/page.js): repo corpora/*.yml are not in the compute bundle (no outputFileTracingIncludes in the scaffold next.config.mjs or withPapyrus next.31). Needs a template or scaffold fix; not done. Cognito domain/callbacks unchanged. Ticket not closed.",
+      "created_at": "2026-10-09T17:42:15.958479Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c26b7dc4-4b8b-4a85-9fb2-45a0cc77bc13",
+      "author": "home",
+      "text": "home: P5-07 backups-off fix (2026-10-09 ~17:56-18:05Z, account 712236451410). Papyrus#166 vault-name bug blocked job 5. Scaffold PR #4 (AnthusAI/p.apyr.us) merged as d3f34b5: features.storageBackups false in papyrus.config.ts (verified site-backend.ts: site.features.storageBackups ?? env flag, so config wins) and infra/site.json env value false. Domain-free synth OK. Job 6 SUCCEED; backend stack amplify-ds6yswxui41yi-main-branch-23e5d23a59 UPDATE_COMPLETE, storage-backups nested stack gone, no rollback. Default URL: /information 200 (title Papyrus), /information/archive 200, /information/settings 200, / 200, /newsroom 200, /2026/october/07 308 -> /information/2026/october/07, /articles/x 308 -> /information/articles/x, legacy p.apyr.us 200. Cognito domain papyrus-p-apyr-us unchanged. Leftover empty vaults (Ryan to delete): papyrus-token-token-17565-media-vault, -17569-, -17571-, -17573-. Ticket not closed.",
+      "created_at": "2026-10-09T18:06:23.585514Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e775fd90-c2bd-4ece-8abd-efbf935a5f17",
+      "author": "home",
+      "text": "PPY-6bf4ab fixed and released (next.35, PR #179): backup vault name is now stable. storageBackups can be turned back on for p.apyr.us once the scaffold bumps to next.35. Leftover empty vaults papyrus-token-token-{17565,17569,17571,17573}-media-vault still need deleting by Ryan.",
+      "created_at": "2026-10-09T19:35:45.672767Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b1e62293-7571-4b46-9156-82c4f2279591",
+      "author": "home",
+      "text": "BLOCKED (2026-10-09 ~19:51Z): github.com does not resolve from this machine (curl and git fail: Could not resolve host; api.github.com and registry.npmjs.org work). Cannot git fetch/clone/push, so no worktree refresh, PR branch push, or Threat-Intelligence clone is possible. No code changed. Tracking fix in PPY-bfa372.",
+      "created_at": "2026-10-09T19:51:38.693967Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "433eb369-4833-427c-8fcb-93d5c3fc90e0",
+      "author": "home",
+      "text": "2026-10-09 ~20:08Z: FIXED in PR #182 (squash 61ae4a7). withPapyrus now adds cyclotron to transpilePackages by default (merged with the publication list, deduplicated); new test:with-papyrus-transpile in test:ci:ts; verify-packages fails when a dependency ships TypeScript source entries but is not in the default list. Proof: Threat-Intelligence scaffold + locally packed tarball: next build FAILED before (Module parse failed on node_modules/cyclotron review-control.tsx and cyclotronStatus.ts), PASSES after; next start served / (307 to /2026/july/04, 200) and /newsroom (200). Released as @anthusai/papyrus 1.0.0-next.36 (npm next tag).",
+      "created_at": "2026-10-09T20:13:34.132215Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0e9439a3-6935-41ed-afa1-7aa55eae0984",
+      "author": "home",
+      "text": "2026-10-09 ~20:30Z: CORRECTION: the release containing the fix is @anthusai/papyrus 1.0.0-next.37 (npm lagged ~15 min after the 202 publish; next.36 is the pre-fix commit 2e3ac25). PyPI papyrus-newsroom released in the same run.",
+      "created_at": "2026-10-09T20:21:11.324772Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9919718c-b874-455c-bc1f-29beaa4d2425",
+      "author": "home",
+      "text": "2026-10-09 ~21:00Z results. Release with the fix: @anthusai/papyrus 1.0.0-next.37 (PR #182, 61ae4a7). Threat-Intelligence: PR #17 pinned next.36 by mistake (job 12 FAILED, live job 10 untouched), PR #18 pinned next.37 (03bc631), main job 13 SUCCEED, staging fast-forwarded, staging job 3 SUCCEED; gates green (/ 307 to /2026/july/04 200, /newsroom 200, video 307 to 206, staging anon 307 to /newsroom noindex). p.apyr.us (ds6yswxui41yi): PR #5 pin next.37 (c455dfa, job 7 SUCCEED, all paths 200, legacy redirects 308); PR #6 backups on (d624ec5, job 8 SUCCEED, stack UPDATE_COMPLETE), vault papyrus-p-apyr-us-5cd1c908-media-vault, second build job 9 SUCCEED, vault name unchanged.",
+      "created_at": "2026-10-09T21:02:08.265424Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:32:29.622646Z",
+  "updated_at": "2026-10-09T21:02:08.265462Z",
+  "closed_at": null,
+  "right_now_summary": "The new CMS app is connected, built successfully, and passes all release gates on its default URL.",
+  "right_now_updated_at": "2026-10-09T21:02:10.558810Z",
+  "custom": {}
+}

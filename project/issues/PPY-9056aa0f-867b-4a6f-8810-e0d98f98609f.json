@@ -1,0 +1,32 @@
+{
+  "id": "PPY-9056aa0f-867b-4a6f-8810-e0d98f98609f",
+  "title": "AN-10: CMS hosts newsroom.anth.us (+staging): first real hostnames in production (optional, Ryan Q3)",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-10. New unheld names, no delete involved. cdk diff ADD Domain only; validation CNAME only if absent (R yes); host CNAMEs UPSERT with saved batch; host origins added to PAPYRUS_OAUTH_REDIRECT_URLS and redeployed. ACCEPT: AVAILABLE; sign-in from the host; CMS host serves noindex; zone diff = only named records; other apps unchanged.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4f8146b4-c025-47b4-a05d-f9d0b33a007c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9c7751a9-9eb2-47b0-91fd-4b635b730f12",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T16:25:42.317552Z",
+  "updated_at": "2026-10-11T16:27:34.796135Z",
+  "closed_at": null,
+  "right_now_summary": "Planning first production hostnames for newsroom.anth.us and its staging environment.",
+  "right_now_updated_at": "2026-10-11T16:27:35.940068Z",
+  "custom": {}
+}

@@ -1,0 +1,37 @@
+{
+  "id": "PPY-cb27a631-5bce-4866-9526-cd6d1b2d409e",
+  "title": "Staging build cannot find amplify_outputs.json: papyrus resolves PAPYRUS_ROOT inside the venv, not the checkout",
+  "description": "CMS staging job 1 (app dv0pdx67fk80m, branch staging) failed at `papyrus ops content export-published --drafts` with \"Missing amplify_outputs.json\". The cutover note blamed a missing backend association; the build log shows that message (\"No backend environment association found, continuing\") is benign, and that `npx ampx generate outputs --branch main --app-id $AWS_APP_ID` DID write amplify_outputs.json into the checkout. Root cause: a pip-installed papyrus resolves PAPYRUS_ROOT (src/papyrus_content/env.py) to a directory inside the venv, so it never looks at the checkout. Fix: run the two staging papyrus commands with PAPYRUS_ROOT=\"$PWD\" in the template cms-staging build spec (infra/amplify-app-shell/lib/build-specs.ts), plus synth test. Staging keeps sharing main backend.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "000a1bbb-e3a0-476c-bc64-5ca73d8dc17d",
+      "author": "home",
+      "text": "Root cause (from CMS staging job 1 log): the missing backend association is benign; `ampx generate outputs --branch main` DID write amplify_outputs.json. `papyrus ops content export-published --drafts` failed because pip-installed papyrus resolves PAPYRUS_ROOT inside the venv. Fix: Papyrus PR #148 (merged 18ce3c4) runs the two staging papyrus commands with PAPYRUS_ROOT=\"$PWD\". Next: release, Pilobol.us pin bump, stack update, staging job.",
+      "created_at": "2026-10-07T15:12:15.374041Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "145aa41e-66ae-4bbc-9336-6a782ca4eb53",
+      "author": "home",
+      "text": "Fixed in two Papyrus PRs: #148 (PAPYRUS_ROOT=\"$PWD\" for staging papyrus commands) and #152 (staging build copies amplify_outputs.json into .next and sets PAPYRUS_AMPLIFY_OUTPUTS; no backend association means Amplify omits it from the SSR bundle, gate returned 500). Released 1.0.0-next.20. Pilobol.us pin bump PR #56 open. Live stack updated; staging job 4 SUCCEED; anonymous staging.pilobol.us/ and an article path redirect 307 to /newsroom; newsroom and apex unchanged.",
+      "created_at": "2026-10-07T16:22:12.013036Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T14:59:53.410070Z",
+  "updated_at": "2026-10-07T16:22:12.013066Z",
+  "closed_at": null,
+  "right_now_summary": "The fix is released and deployed, and staging job 4 now succeeds.",
+  "right_now_updated_at": "2026-10-07T16:22:14.533963Z",
+  "custom": {}
+}

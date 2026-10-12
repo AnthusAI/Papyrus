@@ -1,0 +1,46 @@
+{
+  "id": "PPY-26f1580b-913d-447b-8917-8c7c3763a14c",
+  "title": "TI P4-08: one-off content copy tool (old backend to new) and dry run",
+  "description": "## Goal\nA one-off, idempotent tool that copies Threat Intelligence's published content and media from the OLD backend to the NEW backend, with a dry run. No generic backend-to-backend copy command exists in Papyrus; this ticket builds the smallest one for this migration.\n\n## Context (FACT)\n- `papyrus ops content` on develop has: inspect, schema-check, list, import-markus (Git Markus files to CMS), export-published (CMS to a Markus build directory; article and page types only), convert-bodies (legacy body[] to bodyMarkus and bodyIr, Item and PublishedItem only), markus-derive, publish, unpublish, rebuild, upload-preview, backfill-item-body-attachments, scrub-item-inline-body. None copies between two backends, and import-markus/export-published are the Markus path: a round trip through them would drop Pretext-only fields (section, deck, dateline, byline, pullQuotes, editorial.customExcerpt, layout, editionDate).\n- Old PublishedItem rows hold the legacy inline body as a string list (18 rows) and pullQuotes; Papyrus develop's schema keeps body and adds bodyMarkus, bodyIr, aliases, metadata, so legacy rows are valid there and convert-bodies upgrades them (P4-09).\n- The old AppSync API accepts IAM (SigV4) calls, so the admin SSO session can read it; the new backend is written through the authoring client (SigV4 as the site's authoring role <siteId>-papyrus-authoring or the admin role).\n- Models to copy (counts): Edition 1, PublishedEdition 1, EditionItem 18, PublishedEditionItem 18, Item 20 (18 published + 2 private editorial-doctrine items), PublishedItem 18, MediaAsset 24, PublishedMediaAsset 24, NewsroomSection 6, Tag 8, ItemTag 24. S3: media/ prefix 65 objects, 160 MB (storage keys are referenced by the media rows, keep keys identical in the new bucket).\n- Not copied by default: assignments, messages, procedure rows, references and the knowledge graph (research data), corpora/ and newsroom/ prefixes in S3 (open question Q4). The old backend is retained until the retire ticket, so nothing is lost by leaving them.\n- DB is authoritative: 6 articles differ from the Git seed (see P4-01); the copy reads the live DB.\n- The tool is TI-specific and one-off: keep it in the TI repo under procedures/ or scripts/ with a header stating it is deleted after the migration (YAGNI: no Papyrus API surface); decide at implementation whether it needs a Papyrus helper (then PR to develop).\n\n## Exact steps\n1. Gherkin: \"a dry run reports per-model created/updated/unchanged counts and writes nothing\"; \"applying twice is a no-op the second time\"; \"ids, slugs, versionNumber, publishedAt and S3 keys are preserved\".\n2. Implement read (old API via SigV4, paginated) and write (new API via the authoring client), in dependency order: NewsroomSection, Tag, Edition, Item, MediaAsset, EditionItem, ItemTag, then Published* models, then S3 media objects (same key, same content type, copy by aws s3 cp between buckets; verify ETag/size).\n3. --dry-run prints a table; --apply writes; both emit JSON with counts and skipped reasons.\n4. Run the dry run against the new backend (from P4-06) and review the output with Ryan.\n\n## Acceptance checks\n- Dry run: exact counts per model equal the FACT list; zero errors; zero writes (new API row counts unchanged, S3 object count unchanged).\n- Tool tests green (fixture-based, no AWS).\n\n## Rollback\nNothing written in this ticket (dry run only).\n\n## Risks\nThe new schema's required fields or enum values may reject old rows (typeStatus, sectionStatus, layout JSON): the dry run must validate each row against the new schema and list failures. Large mp4 copy time (two 26 MB videos).\n\n## Needs Ryan\nReview of the dry-run table. No AWS writes in this ticket.\n\n## Common rules (Phase 4 Threat Intelligence)\n- Plan and facts: the assessment comment on the Phase 4 ticket (PPY-332889). Pattern: docs/migrations/pilobol-us.md and docs/standard-site.md 3.2 on origin/develop.\n- Ryan: Threat Intelligence is PRE-PRODUCTION; goal is to dogfood the new backend CMS UX before converting anth.us (production). Treat as a hard cutover with brief downtime accepted unless Ryan says otherwise (open question Q1). The OLD app d3on1y5vlrxmam and its backend stay untouched and serving until the retire ticket.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan or on his explicit yes. Read-only AWS calls are fine.\n- NEVER use /Users/home/Projects/Pilobol.us as a build dir. TI repo work: fresh clone under /Users/home/Projects/ (delete afterwards), feature branch + PR, never push to its main. Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, branch feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. In /Users/home/Projects/Papyrus (the board checkout) only run kbs; never git add or commit there.\n- Gherkin first for any Papyrus behavior change (AGENTS.md). Long clear names, no line-level comments.\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4f251954-fddf-4909-9158-b6b9b6b71539",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a0109564-700f-4791-8fde-30be48c49001",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "50639df3-da4c-4622-9ad0-1038a026eef6",
+      "author": "home",
+      "text": "From PPY-7fd288: video scripts are Item/PublishedItem rows with type `videoml`, slug `<target>--videoml`, editorial.videoScript JSON. The old TI backend has none, but the copy tool should copy by model/type generically (do not filter to type article) and preserve editorial JSON, so any videoml rows carry over.",
+      "created_at": "2026-10-07T16:21:11.720952Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "313b0e02-d088-484a-9d2f-c31cffbe6040",
+      "author": "home",
+      "text": "DONE (dry run part). PR #160 merged into develop as 59f278a (CI python/ts/smoke green). Tool: `papyrus ops content copy-backend --source-outputs <json|stack:NAME> --target-outputs <json|stack:NAME> [--models a,b|all] [--s3-prefixes media/,...|none] [--manifest-dir D] [--json] [--apply]`; dry run is the default (reads only). Generic via AppSync introspection; Gherkin features_backend/copy-backend.feature (10 scenarios) passes; docs/migrations/copy-backend.md. Real read-only dry run old TI to new dzefa11i80jyq: 11 content models create 6/8/1/20/24/18/24/1/18/24/18 (NewsroomSection, Tag, Edition, Item, MediaAsset, EditionItem, ItemTag, PublishedEdition, PublishedItem, PublishedMediaAsset, PublishedEditionItem), 0 update, 0 invalid, target all 0 rows; all 26 model counts and ids equal the P4-01 baseline; S3 media/ 65 objects 160.6 MB all missing in target (to copy), newsroom/ 530 and corpora/ 409 skipped, 1004 keys/sizes/etags equal the baseline. Known: createdAt not writable via AppSync on most models (updatedAt kept only for Item/PublishedItem). Apply is P4-09.",
+      "created_at": "2026-10-07T20:50:51.279269Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:27:47.941772Z",
+  "updated_at": "2026-10-07T20:50:56.285168Z",
+  "closed_at": "2026-10-07T20:50:56.284809Z",
+  "right_now_summary": "The dry-run tool is merged and matches the baseline; applying the copy remains for P4-09.",
+  "right_now_updated_at": "2026-10-07T20:50:57.621283Z",
+  "custom": {}
+}

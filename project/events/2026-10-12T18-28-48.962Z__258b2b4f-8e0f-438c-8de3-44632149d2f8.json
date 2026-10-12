@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "258b2b4f-8e0f-438c-8de3-44632149d2f8",
+  "issue_id": "PPY-8c229718-5c44-49aa-a6aa-d9df788ca403",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-12T18:28:48.962Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "## Outcome\nPapyrus docs and the README architecture diagram describe the new picture: one CMS app (newsroom, AppSync, DynamoDB, the projection Lambda) and the projected static site (S3 behind our CloudFront), with labelled shapes, never colour alone.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md sections 2 (diagram) and 5.\n\n## Checklist\n- [ ] README two-app diagram updated: CMS app + projected site (S3/CloudFront), replacing the reader app\n- [ ] docs/site-hosting.md and docs/standard-site.md updated (s3-projection default for Markus; Pretext unchanged)\n- [ ] Ops runbook: project-all, reconcile, renditions --all, rollback of content and of site code\n\n## Acceptance\n- Docs reviewed by Ryan; diagram uses labelled shapes and text only.\n\n## Out of scope\nMarketing site copy.\n\n## Dependencies\nBlocked by M5 (pattern real on one site).\n\n## Risk\nLow.\n\n## Estimate\n1-2 agent-hours.",
+        "to": "## Outcome\nA simple deploy-time extension protocol, extracted from one real plugin (a signup form), lets a plugin contribute backend models/mutations, a newsroom panel, and a Markus directive with a self-contained web component on static pages.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 7 (Extension points, later).\n\n## Checklist\n- [ ] SignupEntry model (not guest-readable)\n- [ ] Guest submitSignup custom mutation: validation, honeypot, WAF rate rule\n- [ ] Newsroom list + CSV export panel (editor/admin)\n- [ ] :::signup directive via Markus Registry.register(DirectiveSpec) emitting <papyrus-signup> placeholder + versioned script; web component uploaded by project_all\n- [ ] Extract the protocol (backend contribution through site-backend.ts like features switches; resolver waves; pinned versions; no compatibility shims) into docs\n\n## Acceptance\n- A page with :::signup on a test site renders statically; submitting the form creates a SignupEntry visible in the newsroom panel; 21st request per minute from one IP is blocked.\n\n## Out of scope\nA plugin registry, runtime hot-plugging, a second plugin.\n\n## Dependencies\nBlocked by M8 (public surface, WAF pattern) and M1 (projection Lambda).\n\n## Risk\nAbuse of guest writes; mitigated by WAF, validation, non-public storage.\n\n## Estimate\n6-10 agent-hours."
+      }
+    }
+  }
+}

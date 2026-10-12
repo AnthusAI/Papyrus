@@ -1,0 +1,40 @@
+{
+  "id": "PPY-f102002a-aee6-49d4-a49e-ad70330d3b4b",
+  "title": "AN-15: Part B: full import, reader from content-export with byte parity, rebuild-on-publish proof",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-15. ACCEPT: copy fidelity gates (row counts, manifest hashes, S3 key/size/ETag); build from CMS equals build from git byte for byte; publishing a throwaway draft starts exactly one reader job through IAM (amplify:StartJob/ListJobs on the reader branch only; git-connected reader required); reader staging replaced by CMS staging preview.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-c4bfe4ae-2a23-4c6f-b287-4a1e4cf3b840",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8d116ea1-07fa-4a15-b5c9-1ccbafff4370",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "9e8a7fee-2e28-4a64-ac48-50cc26364c0b",
+      "author": "home",
+      "text": "Estimate (2026-10-12): about 2 to 3 days agent time plus Ryan freeze/apply. Order: AN-14 memo, then full import with fidelity gates, then switch web/build_via_papyrus.py from submodule to content-export with byte-parity gate, then wire PAPYRUS_READER_AMPLIFY_APP_ID/PAPYRUS_READER_BRANCH plus IAM StartJob/ListJobs on the reader branch only and prove one job per publish. The reader CAN be rebuilt from CMS content (export-published already feeds the staging spec) but only after byte parity holds. Prerequisites: git-connected reader (done), the amplify.yml question settled, CMS main build green. Recommend doing it after AN-12 cutover soak, not before, so the content source does not change during DNS work.",
+      "created_at": "2026-10-12T13:06:17.621719Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-11T16:26:06.392461Z",
+  "updated_at": "2026-10-12T13:06:17.621748Z",
+  "closed_at": null,
+  "right_now_summary": "Planning is complete; the team will import content, prove byte parity, then verify one reader job per publish.",
+  "right_now_updated_at": "2026-10-12T13:06:19.387329Z",
+  "custom": {}
+}

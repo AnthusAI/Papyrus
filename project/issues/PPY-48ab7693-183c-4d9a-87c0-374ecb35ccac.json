@@ -1,0 +1,28 @@
+{
+  "id": "PPY-48ab7693-183c-4d9a-87c0-374ecb35ccac",
+  "title": "TI-05: AppSync 429 mitigation, console GitHub connect, repair pass",
+  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 5, 6 TI-05. Needs the chosen 429 mitigation in place and no other backend deploy/stack delete running. ACCEPT: GitHub App authorized for 712236451410 on AnthusAI/Threat-Intelligence; after connect get-app equals TI-03 snapshot (WEB_COMPUTE, template service role, buildSpec from print-buildspec, repository set) and both branches have env + staging exists, auto-build OFF; auto-started job stopped if mitigation not in.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "ti-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1f961606-dd75-49be-90c2-4d1798bf245d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T14:40:27.285266Z",
+  "updated_at": "2026-10-11T14:41:59.153220Z",
+  "closed_at": null,
+  "right_now_summary": "The team is preparing the 429 fix and GitHub connection before verifying both branches.",
+  "right_now_updated_at": "2026-10-11T14:42:00.909252Z",
+  "custom": {}
+}
