@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ddbaeb6e-f39c-426c-ba8b-fc60f0ef49b9",
+  "title": "Edge stack owned by the CMS backend",
+  "description": "papyrus-edge-anth-us (and the other sites' papyrus-edge-* stacks) were hand-run CloudFormation at cutover. The site template already supports distribution create/accept (distribution: { create, aliases, acm } or edgeDistributionArn). Bring each site's edge under its CMS backend so one app owns everything, without downtime or a domain re-association (Amplify domain throttle, see the papyrus-production notes). Change sets need Ryan's approval.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:09:14.167390Z",
+  "updated_at": "2026-10-13T23:09:14.167430Z",
+  "closed_at": null,
+  "right_now_summary": "The team is planning to bring each site’s edge stack under its CMS backend without downtime.",
+  "right_now_updated_at": "2026-10-13T23:09:15.950393Z",
+  "custom": {}
+}

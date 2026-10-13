@@ -1,0 +1,20 @@
+{
+  "id": "PPY-bd4b84bf-2b74-4f20-b2c7-38d0c3f5cb73",
+  "title": "Rename 'content project' to 'content render'",
+  "description": "'project' reads as a noun or a verb; the command renders the site. Rename to 'papyrus ops content render' (--all, --listings, --item-pages, --reconcile, --item), keep 'project' as a deprecated alias for one release, and update docs/site-hosting.md, the runbooks and each site's AGENTS.md.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:09:24.890761Z",
+  "updated_at": "2026-10-13T23:09:24.890795Z",
+  "closed_at": null,
+  "right_now_summary": "The team is renaming “content project” to “content render” and updating its alias and documentation.",
+  "right_now_updated_at": "2026-10-13T23:09:26.592939Z",
+  "custom": {}
+}

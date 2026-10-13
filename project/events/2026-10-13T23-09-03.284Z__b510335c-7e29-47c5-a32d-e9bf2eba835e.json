@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b510335c-7e29-47c5-a32d-e9bf2eba835e",
+  "issue_id": "PPY-65689be2-6345-4e58-84f5-8372155144e9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-13T23:09:03.284Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Render the whole site after a backend deploy",
+    "description": "When the backend deploy finishes (new renderer or theme in the content-actions Lambda), run a full render (today: project --all) inside AWS, then the drift check (--reconcile --dry-run, and --reconcile for orphans). Options: a post-deploy step in the build spec, or the content Lambda rendering everything when its bundled site code hash changes. Done: a theme-only PR goes live on anth.us with no manual step, the drift check is clean, and the run's result is visible in the build log.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+    "labels": []
+  }
+}

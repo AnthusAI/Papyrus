@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "17096eaa-4d04-4dd5-872f-adac0ac5b401",
+  "issue_id": "PPY-bd4b84bf-2b74-4f20-b2c7-38d0c3f5cb73",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-13T23:09:24.890Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rename 'content project' to 'content render'",
+    "description": "'project' reads as a noun or a verb; the command renders the site. Rename to 'papyrus ops content render' (--all, --listings, --item-pages, --reconcile, --item), keep 'project' as a deprecated alias for one release, and update docs/site-hosting.md, the runbooks and each site's AGENTS.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+    "labels": []
+  }
+}
