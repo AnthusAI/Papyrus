@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "c0d5932b-0b62-4163-b81e-2236ee49bcc6",
+  "issue_id": "PPY-ea4e340b-5675-4981-a801-228ca5d8e3bc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-13T23:36:04.720Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Enabled plugins build their API and matching components",
+    "description": "As a publication operator I want enabled plugins to supply multiple API resources and components sharing one typed client.\n\nFeature: Build-time plugin composition\n  Scenario: Compose enabled plugins\n    Given a site enables a plugin with multiple GraphQL resources and components\n    When its normal build runs\n    Then the API and components are registered deterministically with shared types\n  Scenario: No plugin parity\n    Given no plugins are enabled\n    When the build runs\n    Then the existing backend and frontend are unchanged\n  Scenario: Invalid composition\n    Given duplicate names or missing dependencies or invalid settings\n    When the build runs\n    Then it fails with actionable errors\n  Scenario: Private plugin data\n    Given a private model and an explicit guest operation\n    When guest authorization is evaluated\n    Then only that explicit guest operation is accessible",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-plugin-build"
+    }
+  }
+}

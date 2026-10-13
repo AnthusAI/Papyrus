@@ -1,0 +1,25 @@
+{
+  "id": "PPY-fabbf75a-2b8b-4dc4-8bb0-b9644c84beff",
+  "title": "Composable Papyrus plugins for GraphQL APIs and their frontend components",
+  "description": "Goal: As a publication operator, I want Papyrus to compose enabled plugins during the normal build so one configured Amplify application and deployment includes new GraphQL API resources and the components that use their shared client/types. Ryan explicitly requested this initiative in the Papyrus product project. Present state: Amplify Gen 2, existing signup deploy-time plugin (PR #201 / a85ddb2), static Markus HTML published to S3, restricted editorial CMS. Foundation scope: validate enabled configuration/dependencies/collisions, deterministic native TypeScript schema/resource composition and frontend registrations, multiple resources/components per plugin, no-plugin parity, proof plugin and authorization/build tests. Prospectus later literally reuses Kanbus for CRM; private prospects remain separate from public lead submission. Excluded: full CRM, index invalidation, production migration, deletion, merge/deployment, persistent permission provisioning. Plan: inspect current mechanisms and Right Now, specify behaviors, implement in isolated worktree, independent review, checks, commit/push and draft PR; retain open status until landing.",
+  "type": "initiative",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:32:55.353911Z",
+  "updated_at": "2026-10-13T23:32:55.353955Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-plugin-build"
+  },
+  "right_now_summary": "The build is adding automatic plugin composition, typed APIs, validation, and tests.",
+  "right_now_updated_at": "2026-10-13T23:36:21.766776Z",
+  "custom": {}
+}

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-ab3bd4a1-d6a0-42ef-8803-219bd3b2c599",
+  "title": "Prove plugin composition, authorization, and delivery",
+  "description": "Minimal test plugin with private resource and component using shared types/client; test multiple contributions, invalid config, auth separation, deterministic output and no-plugin parity. Review, lint/type/build/tests, commit/push, draft PR and evidence. Keep open until landing.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:36:17.146144Z",
+  "updated_at": "2026-10-13T23:36:17.146186Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-plugin-build"
+  },
+  "right_now_summary": "Tests are being built to verify plugin composition, authorization, delivery, and no-plugin parity.",
+  "right_now_updated_at": "2026-10-13T23:36:18.878754Z",
+  "custom": {}
+}

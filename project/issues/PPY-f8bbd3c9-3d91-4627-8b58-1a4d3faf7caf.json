@@ -1,0 +1,25 @@
+{
+  "id": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+  "title": "Automatic build-time plugin composition foundation",
+  "description": "Extend the existing signup plugin protocol: validated enabled configuration and dependencies, collision-safe native TypeScript schema/resources, matching frontend components sharing API types, deterministic normal-build preparation, no-plugin parity, minimal proof and authorization tests. Record decisions, review, checks and draft PR; no deployment or CRM implementation.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-fabbf75a-2b8b-4dc4-8bb0-b9644c84beff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:35:19.002704Z",
+  "updated_at": "2026-10-13T23:35:19.002740Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-plugin-build"
+  },
+  "right_now_summary": "The build is adding automatic plugin composition, typed APIs, validation, and tests.",
+  "right_now_updated_at": "2026-10-13T23:36:20.509484Z",
+  "custom": {}
+}
