@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "98465020-52b4-4178-9295-497630e59a1f",
+  "issue_id": "PPY-f642a475-18de-4a58-aa94-84ea595fcc91",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-13T23:42:55.116Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "a53743b5-fc50-47ba-a64f-85e31b53e858",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-plugin-cancellation"
+    }
+  }
+}

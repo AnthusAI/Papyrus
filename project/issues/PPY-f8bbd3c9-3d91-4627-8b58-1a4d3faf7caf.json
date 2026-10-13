@@ -3,23 +3,50 @@
   "title": "Automatic build-time plugin composition foundation",
   "description": "Extend the existing signup plugin protocol: validated enabled configuration and dependencies, collision-safe native TypeScript schema/resources, matching frontend components sharing API types, deterministic normal-build preparation, no-plugin parity, minimal proof and authorization tests. Record decisions, review, checks and draft PR; no deployment or CRM implementation.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-fabbf75a-2b8b-4dc4-8bb0-b9644c84beff",
-  "labels": [],
+  "labels": [
+    "canceled"
+  ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "56492428-e5cb-4fde-8ba8-db5e6f02aeca",
+      "author": "home",
+      "text": "Present state inspected: origin/develop 1138a61 includes M9 signup plugin PR #201 (a85ddb2). Native Gen 2 plugin schema/functions/wiring already exist, but blind merges permit collisions, Schema type drops plugin definitions, frontend panel/script wiring is manual, and Python static asset catalog duplicates TS manifests. Implement by extending this protocol: deterministic config/dependency/collision checks, exact native types, generated metadata plus lazy newsroom panel registration, automatic static scripts/public runtime context, opt-in private two-model/two-component proof. Markus 0.5.1 CLI and in-process paths do not share custom directives; no directive change needed. Tracking commit b070aea pushed to feature/PPY-f8bbd3-plugin-build-foundation. Auto-review denied direct develop tracking push; safer isolated-branch delivery succeeded. No resources deployed; existing main checkout untouched.",
+      "created_at": "2026-10-13T23:39:10.716389Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-plugin-build"
+      }
+    },
+    {
+      "id": "e7d07bb8-04ac-4dc1-be65-1d8c8cecc6e3",
+      "author": "home",
+      "text": "CANCELED by Ryan on 2026-10-13: \"take back that initiative about creating plugins into Papyrus, cuz I think we just eliminated that entire problem\". Prospectus can use existing Kanbus/Virtuus issue storage as a separate application/subdomain with simple configured links/intake; the proposed plugin foundation is therefore no longer needed. All implementation agents stopped immediately. This is cancellation, not completed delivery. Partial work is preserved in the isolated feature/PPY-f8bbd3-plugin-build-foundation worktree and a local archive; no implementation was merged or deployed. No alternative CRM or baseline tables are being implemented. Supersedes this issue and its initiative plan.",
+      "created_at": "2026-10-13T23:44:36.714654Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-plugin-cancellation"
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:35:19.002704Z",
-  "updated_at": "2026-10-13T23:35:19.002740Z",
-  "closed_at": null,
+  "updated_at": "2026-10-13T23:44:39.920435Z",
+  "closed_at": "2026-10-13T23:44:39.920394Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
     "name": "papyrus-plugin-build"
   },
-  "right_now_summary": "The build is adding automatic plugin composition, typed APIs, validation, and tests.",
-  "right_now_updated_at": "2026-10-13T23:36:20.509484Z",
+  "right_now_summary": "The plugin foundation was canceled, and no implementation was merged or deployed.",
+  "right_now_updated_at": "2026-10-13T23:44:41.559451Z",
   "custom": {}
 }

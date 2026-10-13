@@ -3,23 +3,38 @@
   "title": "Register enabled plugin frontend components automatically",
   "description": "Generate deterministic public component metadata during normal builds and compose matching frontend/static registrations using existing Markus/SiteChrome architecture. Preserve no-plugin behavior and avoid raw HTML directives.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
-  "labels": [],
+  "labels": [
+    "canceled"
+  ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "cf988e36-a18b-41af-8df9-643e387c776d",
+      "author": "home",
+      "text": "CANCELED by Ryan on 2026-10-13: \"take back that initiative about creating plugins into Papyrus, cuz I think we just eliminated that entire problem\". Prospectus can use existing Kanbus/Virtuus issue storage as a separate application/subdomain with simple configured links/intake; the proposed plugin foundation is therefore no longer needed. All implementation agents stopped immediately. This is cancellation, not completed delivery. Partial work is preserved in the isolated feature/PPY-f8bbd3-plugin-build-foundation worktree and a local archive; no implementation was merged or deployed. No alternative CRM or baseline tables are being implemented. Supersedes this issue and its initiative plan.",
+      "created_at": "2026-10-13T23:44:27.232245Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-plugin-cancellation"
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:36:12.952443Z",
-  "updated_at": "2026-10-13T23:36:12.952487Z",
-  "closed_at": null,
+  "updated_at": "2026-10-13T23:44:32.305390Z",
+  "closed_at": "2026-10-13T23:44:32.305343Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
     "name": "papyrus-plugin-build"
   },
-  "right_now_summary": "The build is being updated to register enabled plugin components automatically.",
-  "right_now_updated_at": "2026-10-13T23:36:15.075017Z",
+  "right_now_summary": "The plugin registration initiative was canceled, and no implementation was merged or deployed.",
+  "right_now_updated_at": "2026-10-13T23:44:33.822129Z",
   "custom": {}
 }
