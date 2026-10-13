@@ -55,6 +55,14 @@ Ryan, 2026-10-05 (epic PPY-1f1489 comments):
     backend per site. Backend changes are tried in `ampx sandbox` and the `next`
     prerelease.
 
+> **Update (2026-10, static projection initiative PPY-23a743).** Markus sites no
+> longer have a separate Amplify reader app that rebuilds on publish. Their pages
+> are projected into an S3 site bucket by the publish mutation and served by the
+> site's own CloudFront. Where this document says "reader app", "rebuild on
+> publish" or "Markus static `WEB` reader", read the S3 projection in
+> [site-hosting.md](site-hosting.md#s3-projection-publication-markus-sites). Pretext
+> is unchanged. The sections on staging, packaging and the per-site backend still apply.
+
 ## 1. The standard site
 
 ### 1.1 Parts
@@ -307,12 +315,13 @@ against `papyrus.config.ts`), `PAPYRUS_CONTENT_SOURCE` (`published` or `drafts`)
 The CMS app is always its own Amplify app; the public site is co-hosted in it
 only when Pretext (SSR needs the same Next app and AppSync). Static frontends
 get their own `WEB` reader app. This is the Pilobol.us split
-([site-hosting.md](site-hosting.md#split-reader--cms-pilobolus)).
+([site-hosting.md](site-hosting.md#split-reader--cms-pilobolus-legacy)).
 
 | Frontend | Apps | Why |
 | --- | --- | --- |
 | Pretext | 1 `WEB_COMPUTE` (public routes + `/newsroom`) | Reads the backend at request time |
-| Markus static | CMS `WEB_COMPUTE` + reader `WEB` | A static host cannot run `/newsroom`; a CMS outage never takes the public site down |
+| Markus, S3 projection | 1 CMS `WEB_COMPUTE`; the public site is an S3 bucket behind the site's own CloudFront (`papyrus-edge-<site>`) | A static host cannot run `/newsroom`; a CMS outage never takes the public site down, and a save is live in seconds with no build |
+| Markus, Amplify reader (legacy, being retired) | CMS `WEB_COMPUTE` + reader `WEB` | The earlier shape; Pilobol.us and Anth.us have moved off it |
 
 p.apyr.us is its own publication repo with one `WEB_COMPUTE` app: marketing and
 pricing as site-owned Next routes (like chattic.us), `/information` in the
@@ -469,8 +478,8 @@ pictogram art) are supplied by the publication through `brand.video`.
    -> Published* (guest-readable)                        EXISTS
    -> production frontend:
         Pretext: SSR + /api/revalidate                   EXISTS
-        Markus : export snapshot -> build -> deploy      MISSING (exporter); Markus renderer EXISTS
-   -> rebuild-on-publish (Amplify webhook, static)       MISSING
+        Markus : publish mutation projects the affected pages into S3 (CloudFront serves)   EXISTS (s3-projection)
+   -> rebuild-on-publish (Amplify webhook, static)       REPLACED by projection; legacy reader only
 ```
 
 | Piece | State | Phase |

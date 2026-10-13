@@ -188,12 +188,19 @@ pages, blocks, lines, images, and CSS variables from the layout engine.
 
 ## How a Papyrus Publication Fits Together
 
-![How a Papyrus publication fits together: a CMS app and a separate reader app on Amplify, with Publish starting the reader build](docs/images/publication-architecture.svg)
+![How a Papyrus publication fits together: editors use the newsroom UI in the CMS app; Save calls the AppSync GraphQL API, and the content-actions Lambda renders only the affected pages into a versioned S3 site bucket served by CloudFront; a renditions Lambda makes images at upload; the Pretext kind is a Next.js server on Amplify that reads published models as a guest](docs/images/publication-architecture.svg)
 
-- **Two Amplify apps.** The CMS app holds the newsroom UI and the data backend; a separate reader app builds and hosts the static publication site.
-- **Publish starts a build.** The `content-actions` Lambda behind Publish calls Amplify `StartJob` on the reader app's `main` branch. The build exports published items, renders static HTML, and deploys.
-- **Who reads the API as whom.** Editors use Cognito, `content-actions` uses IAM, and the reader build reads published items as a read-only guest.
-- **Where Git fits.** Git/GitHub holds code, theme, and the build script, not articles. A push to `main` rebuilds both apps.
+Text version of the picture:
+
+- **One CMS app per site.** Editors sign in with Google to the newsroom UI. Every change goes through the GraphQL API (AppSync), which stores items and published items in DynamoDB. Uploaded images go to the media bucket.
+- **Save is live.** For a Markus site (publication kind `s3-projection`, the default for new sites), the `content-actions` Lambda behind the Save, Publish and Unpublish mutations saves the item and then renders only the pages that depend on it (the item page, the listings, tags, home, sitemap) into a versioned S3 site bucket. There is no build job and no Republish button; a change is visible within seconds. Writes happen in an order that never leaves a link to a missing page.
+- **Images are made at upload.** An S3 event on the media bucket starts the `renditions` Lambda, which writes the responsive image files and a small size file into the site bucket. Page renders read the size file and never decode an image.
+- **CloudFront serves the bucket.** The site's own CloudFront stack (with its own certificate) reads the private bucket and runs small edge functions for redirects and for `/x/` to `/x/index.html`. After each projection the Lambda invalidates exactly the changed paths, never a wildcard.
+- **Pretext is the alternative kind.** A Pretext site is a Next.js server on Amplify that renders pages on request from the published models. A publish tells it to revalidate, and a page lives about a minute at most.
+- **Guests are read-only.** The public (guest) GraphQL surface can read the published models and `media/*`, nothing else, and no model or mutation allows a guest to write.
+- **Where Git fits.** Git holds code, theme and the site's projector, not articles. Content lives in DynamoDB; the site can always be re-projected from it with `papyrus ops content project --all`.
+
+Details: [How a publish flows](docs/how-a-publish-flows.md) (for editors) and [Site hosting](docs/site-hosting.md) (for operators).
 
 ## Cloud Content
 
