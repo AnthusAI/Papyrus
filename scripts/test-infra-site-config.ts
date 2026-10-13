@@ -70,7 +70,16 @@ assert.equal(pretextConfig.frontend, "pretext");
 assert.equal(pretextConfig.reader, undefined);
 assert.equal(resolveStagingDomainName(pretextConfig), "staging.example.test");
 
-assertRejects(mutated("pilobol-us.site.json", (c) => delete c.reader), "reader");
+assertRejects(mutated("pilobol-us.site.json", (c) => { delete c.reader; delete c.cms; delete c.github; delete c.hostedZoneId; }), "reader");
+const markusWithoutReader = parseCmsSite(mutated("pilobol-us.site.json", (c) => { delete c.reader; delete c.hostedZoneId; delete c.cms.domainName; delete c.cms.stagingDomainName; }));
+assert.equal(markusWithoutReader.reader, undefined, "a markus-static site with a cms section needs no reader");
+const stagingPreview = { buildCommand: "python3 build.py", baseDirectory: "web/dist" };
+const markusWithPreview = parseCmsSite(mutated("pilobol-us.site.json", (c) => { c.cms.stagingPreview = stagingPreview; }));
+assert.deepEqual(markusWithPreview.cms.stagingPreview, stagingPreview);
+assertRejects(mutated("pilobol-us.site.json", (c) => { c.cms.stagingPreview = { buildCommand: "x" }; }), "cms.stagingPreview.baseDirectory");
+assertRejects(mutated("pilobol-us.site.json", (c) => { c.cms.stagingPreview = { ...stagingPreview, extra: 1 }; }), "cms.stagingPreview.extra");
+assertRejects(mutated("pilobol-us.site.json", (c) => { c.cms.staging = false; delete c.cms.stagingDomainName; c.cms.stagingPreview = stagingPreview; }), "cms.stagingPreview");
+assertRejects(mutated("pretext.site.json", (c) => { c.cms.stagingPreview = stagingPreview; }), "cms.stagingPreview");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.siteId = "Pilobol_US")), "siteId");
 assertRejects(
   mutated("pilobol-us.site.json", (c) => (c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.pilobol.us/")),

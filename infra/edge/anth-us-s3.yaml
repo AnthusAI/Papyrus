@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: papyrus-edge-anth-us CloudFront distribution in front of the Anth.us S3 projection bucket
+Parameters:
+  CertificateArn:
+    Type: String
+  Aliases:
+    Type: CommaDelimitedList
+    Default: ''
+  SiteBucketDomainName:
+    Type: String
+  RedirectsKeyValueStoreArn:
+    Type: String
+Conditions:
+  HasAliases: !Not [!Equals [!Join ['', !Ref Aliases], '']]
+Resources:
+  ViewerRequestFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-viewer-request'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: redirects (key-value store and patterns), index documents, static-hosting behaviour
+        Runtime: cloudfront-js-2.0
+        KeyValueStoreAssociations:
+          - KeyValueStoreARN: !Ref RedirectsKeyValueStoreArn
+      FunctionCode: |
+        import cf from "cloudfront";
+
+        const redirectStore = cf.kvs();
+
+        const PATTERN_REDIRECT_RULES = [
+          { pattern: /^\/blog\/page\/([^/]+)\/$/, target: "/articles/page/$1/" },
+          { pattern: /^\/blog\/page\/([^/]+)\/index\.html$/, target: "/articles/page/$1/" },
+          { pattern: /^\/blog\/([^/]+)\/$/, target: "/articles/$1/" },
+          { pattern: /^\/blog\/([^/]+)\/index\.html$/, target: "/articles/$1/" },
+          { pattern: /^\/biased-decisions(?:\/(.*))?$/, target: "https://biased-decisions.anth.us/$1" },
+        ];
+
+        const SERVED_HTML_FILES = ["/404.html"];
+
+        function permanentRedirect(location) {
+          return {
+            statusCode: 301,
+            statusDescription: "Moved Permanently",
+            headers: { location: { value: location } },
+          };
+        }
+
+        async function exactRedirectTarget(uri) {
+          try {
+            const target = await redirectStore.get(uri);
+            return target ? String(target) : null;
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function patternRedirectTarget(uri) {
+          for (let index = 0; index < PATTERN_REDIRECT_RULES.length; index++) {
+            const rule = PATTERN_REDIRECT_RULES[index];
+            const match = rule.pattern.exec(uri);
+            if (match !== null) {
+              const captured = match[1] === undefined ? "" : match[1];
+              return rule.target.replace("$1", function () {
+                return captured;
+              });
+            }
+          }
+          return null;
+        }
+
+        function lastSegmentHasExtension(uri) {
+          return uri.substring(uri.lastIndexOf("/") + 1).indexOf(".") !== -1;
+        }
+
+        function isDirectoryIndexFile(uri) {
+          return uri === "/index.html" || uri.endsWith("/index.html");
+        }
+
+        function staticHostingResult(request) {
+          const uri = request.uri;
+          if (uri.endsWith("/")) {
+            request.uri = uri + "index.html";
+            return request;
+          }
+          if (uri === "/404") {
+            request.uri = "/404.html";
+            return request;
+          }
+          if (lastSegmentHasExtension(uri)) {
+            if (uri.endsWith(".html") && !isDirectoryIndexFile(uri) && SERVED_HTML_FILES.indexOf(uri) === -1) {
+              return permanentRedirect(uri.substring(0, uri.length - ".html".length) + "/");
+            }
+            return request;
+          }
+          return permanentRedirect(uri + "/");
+        }
+
+        async function handler(event) {
+          const request = event.request;
+          const exactTarget = await exactRedirectTarget(request.uri);
+          if (exactTarget !== null) {
+            return permanentRedirect(exactTarget);
+          }
+          const patternTarget = patternRedirectTarget(request.uri);
+          if (patternTarget !== null) {
+            return permanentRedirect(patternTarget);
+          }
+          return staticHostingResult(request);
+        }
+  ViewerResponseFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-viewer-response'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: cache-control and content-type values of the previous host
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        const HTML_CACHE_CONTROL = "public, max-age=0, s-maxage=60, must-revalidate";
+        const ASSET_CACHE_CONTROL = "public, max-age=0, s-maxage=31536000";
+        const UTF8_SUFFIX = "; charset=utf-8";
+
+        function previousContentType(stored) {
+          const withoutCharset = stored.endsWith(UTF8_SUFFIX) ? stored.substring(0, stored.length - UTF8_SUFFIX.length) : stored;
+          return withoutCharset === "application/xml" ? "text/xml" : withoutCharset;
+        }
+
+        function handler(event) {
+          const response = event.response;
+          const headers = response.headers;
+          if (headers["content-type"] !== undefined) {
+            headers["content-type"] = { value: previousContentType(headers["content-type"].value) };
+          }
+          if (response.statusCode !== 200) {
+            delete headers["cache-control"];
+            return response;
+          }
+          const isHtml = headers["content-type"] !== undefined && headers["content-type"].value === "text/html";
+          headers["cache-control"] = { value: isHtml ? HTML_CACHE_CONTROL : ASSET_CACHE_CONTROL };
+          return response;
+        }
+  SiteBucketOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-site-bucket'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  ReaderDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: anth.us reader (main)
+        Aliases: !If [HasAliases, !Ref Aliases, !Ref 'AWS::NoValue']
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate: !If
+          - HasAliases
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: site-bucket
+            DomainName: !Ref SiteBucketDomainName
+            OriginAccessControlId: !GetAtt SiteBucketOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: site-bucket
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ViewerRequestFunction.FunctionARN
+            - EventType: viewer-response
+              FunctionARN: !GetAtt ViewerResponseFunction.FunctionARN
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+Outputs:
+  ReaderDistributionId: {Value: !Ref ReaderDistribution}
+  ReaderDomain: {Value: !GetAtt ReaderDistribution.DomainName}

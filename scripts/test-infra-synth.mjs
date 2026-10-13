@@ -90,6 +90,31 @@ try {
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Domain").length, 0, "reader-only: no domain");
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::IAM::Role").length, 1, "reader-only: only the reader service role");
   assert.deepEqual(Object.keys(readerOnlyTemplate.Outputs).sort(), ["ReaderAppId", "ReaderOrigin"], "reader-only: reader outputs only");
+  const pilobolExample = JSON.parse(fs.readFileSync(path.join(shell, "examples/pilobol-us.site.json"), "utf8"));
+  function synthesizeSite(name, site) {
+    const sitePath = path.join(work, `${name}.site.json`);
+    fs.writeFileSync(sitePath, JSON.stringify(site));
+    const outDirectory = path.join(infraApp, `cdk.out.${name}`);
+    run("node", [cli, "synth", "--site", sitePath, "--out", outDirectory], { cwd: infraApp });
+    return JSON.parse(fs.readFileSync(path.join(outDirectory, fs.readdirSync(outDirectory).find((file) => file.endsWith(".template.json"))), "utf8"));
+  }
+  const stagingBranchOf = (template) => resourcesOfType(template, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "staging");
+  const withReader = synthesizeSite("pilobol-with-reader", pilobolExample);
+  const noReaderSite = structuredClone(pilobolExample);
+  noReaderSite.cms.stagingPreview = { buildCommand: pilobolExample.reader.buildCommand, baseDirectory: pilobolExample.reader.baseDirectory };
+  delete noReaderSite.reader;
+  const noReader = synthesizeSite("pilobol-no-reader", noReaderSite);
+  assert.equal(resourcesOfType(noReader, "AWS::Amplify::App").length, 1, "no reader: only the CMS app");
+  assert.equal(resourcesOfType(noReader, "AWS::Amplify::App").some((app) => app.Properties.Platform === "WEB"), false, "no reader: no WEB reader app");
+  assert.equal(resourcesOfType(noReader, "AWS::Amplify::Branch").length, 2, "no reader: production and staging branches");
+  assert.equal(Object.keys(noReader.Outputs).some((name) => name.startsWith("Reader")), false, "no reader: no reader outputs");
+  assert.equal(JSON.stringify(noReader).includes("ReaderServiceRole"), false, "no reader: no reader service role");
+  assert.equal(buildSpecOf(stagingBranchOf(noReader)), buildSpecOf(stagingBranchOf(withReader)), "stagingPreview keeps the staging build spec byte-identical");
+  const noPreviewSite = structuredClone(noReaderSite);
+  delete noPreviewSite.cms.stagingPreview;
+  const noPreview = synthesizeSite("pilobol-no-preview", noPreviewSite);
+  assert.equal(/upload-preview/.test(buildSpecOf(stagingBranchOf(noPreview))), false, "no reader and no stagingPreview: the staging branch builds the newsroom only");
+
   const anthUsDomains = resourcesOfType(anthUsTemplate, "AWS::Amplify::Domain");
   assert.equal(anthUsDomains.length, 1, "anth-us: one reader domain");
   assert.deepEqual(anthUsDomains[0].Properties.SubDomainSettings.map((setting) => setting.Prefix), ["", "www"]);

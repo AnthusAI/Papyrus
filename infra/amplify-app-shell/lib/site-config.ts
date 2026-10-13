@@ -18,11 +18,22 @@ export type ReaderCustomHeaderRule = {
 
 export const READER_REDIRECT_STATUSES: ReaderRedirectStatus[] = ["301", "302", "200", "404", "404-200"];
 
+/**
+ * What the CMS `staging` branch builds to preview drafts of a markus-static site: the site build
+ * command and the directory it writes. Without it, and without a `reader` to borrow them from,
+ * the staging branch builds the newsroom only.
+ */
+export type StagingPreviewConfig = {
+  buildCommand: string;
+  baseDirectory: string;
+};
+
 export type CmsConfig = {
   appName?: string;
   domainName?: string;
   domainPrefix?: string;
   staging?: boolean;
+  stagingPreview?: StagingPreviewConfig;
   cognitoDomainPrefix: string;
   applyCognitoDomainPrefix?: boolean;
   buildComputeType?: "STANDARD" | "STANDARD_8GB";
@@ -236,9 +247,19 @@ export function resolveStoragePreviewPrefix(config: Pick<AmplifyAppShellSiteConf
   return config.storagePreviewPrefix ?? "preview/";
 }
 
+function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
+  if (value === undefined) return undefined;
+  const record = requireObject(value, "cms.stagingPreview");
+  rejectUnknownKeys(record, ["buildCommand", "baseDirectory"], "cms.stagingPreview");
+  return {
+    buildCommand: requireString(record.buildCommand, "cms.stagingPreview.buildCommand"),
+    baseDirectory: requireString(record.baseDirectory, "cms.stagingPreview.baseDirectory"),
+  };
+}
+
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects", "stagingPreview"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -266,6 +287,7 @@ function parseCms(value: unknown): CmsConfig {
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     redirects: parseRedirects(cmsRecord.redirects),
+    stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
   };
 
   const reservedWord = COGNITO_RESERVED_WORDS.find((word) => cms.cognitoDomainPrefix.includes(word));
@@ -384,8 +406,14 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
       skipContentExport: readerRecord.skipContentExport as boolean | undefined,
     };
     if (reader.domainPrefixes && !reader.domainName) fail("reader.domainPrefixes", "requires reader.domainName");
-  } else if (frontend === "markus-static") {
-    fail("reader", `is required when frontend is "markus-static"`);
+  } else if (frontend === "markus-static" && cms === undefined) {
+    fail("reader", `is required when frontend is "markus-static" and there is no cms section`);
+  }
+  if (cms?.stagingPreview !== undefined && frontend !== "markus-static") {
+    fail("cms.stagingPreview", `is only allowed when frontend is "markus-static"`);
+  }
+  if (cms?.stagingPreview !== undefined && cms.staging === false) {
+    fail("cms.stagingPreview", "must not be set when cms.staging is false");
   }
 
   let github: AmplifyAppShellSiteConfig["github"];

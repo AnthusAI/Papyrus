@@ -52,6 +52,12 @@ export type PapyrusPublicationConfig = {
   distribution?: S3ProjectionDistributionConfig;
   /** Default true: the site bucket is retained when the stack is deleted. `false` destroys it and its objects. */
   retainBucketOnDelete?: boolean;
+  /**
+   * Re-project every published page after each backend deploy, so a theme or code change reaches the
+   * site without a manual `papyrus ops content project --all`. Default: true for the publication a
+   * Markus site gets when it sets none, false when `publication` is written out in the site config.
+   */
+  reprojectOnDeploy?: boolean;
 };
 
 const CLOUDFRONT_DISTRIBUTION_ARN = /^arn:aws[a-z-]*:cloudfront::\d{12}:distribution\/[A-Z0-9]+$/;
@@ -82,6 +88,9 @@ export function validatePublicationConfig(publication: unknown): string[] {
   }
   if (config.edgeDistributionArn !== undefined && !CLOUDFRONT_DISTRIBUTION_ARN.test(config.edgeDistributionArn)) {
     problems.push("publication.edgeDistributionArn must be a CloudFront distribution ARN (arn:aws:cloudfront::<account>:distribution/<id>)");
+  }
+  if (config.reprojectOnDeploy !== undefined && typeof config.reprojectOnDeploy !== "boolean") {
+    problems.push("publication.reprojectOnDeploy must be a boolean");
   }
   const cache = config.cache;
   if (cache !== undefined) {
@@ -156,8 +165,12 @@ export type PapyrusSiteBackendConfig = {
     /** Let this stack verify the SES domain identity and write its TXT record. Default false: verify once by hand. */
     manageDomainIdentity?: boolean;
   };
-  /** Opt-in static projection of published pages into an S3 site bucket. Unset: nothing is created. */
-  publication?: PapyrusPublicationConfig;
+  /**
+   * Static projection of published pages into an S3 site bucket. Unset: a Markus site without a
+   * `reader` gets `{ kind: "s3-projection" }`; any other site gets nothing. `false` opts a Markus
+   * site out. See `resolveSitePublication`.
+   */
+  publication?: PapyrusPublicationConfig | false;
   features?: {
     consoleResponder?: boolean;
     inboundEmail?: boolean;

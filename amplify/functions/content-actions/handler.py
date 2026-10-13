@@ -7,7 +7,7 @@ from typing import Any
 from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
-from papyrus_content.projection.engine import project, project_item_pages
+from papyrus_content.projection.engine import project, project_all, project_item_pages
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
     context_from_environment,
@@ -155,6 +155,10 @@ def run_projection_task(task: dict) -> dict:
         report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
         if report.follow_up_item_pages:
             schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
+    elif task.get("task") == "all":
+        report = project_all(projection_context(client))
+    elif task.get("task") == "all":
+        report = project_all(projection_context(client))
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:

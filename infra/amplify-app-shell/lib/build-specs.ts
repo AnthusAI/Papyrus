@@ -43,6 +43,10 @@ function reader(config: AmplifyAppShellSiteConfig): NonNullable<AmplifyAppShellS
   return config.reader;
 }
 
+function stagingPreviewFor(config: AmplifyAppShellSiteConfig): { buildCommand: string; baseDirectory: string } | undefined {
+  return config.cms?.stagingPreview ?? config.reader;
+}
+
 function frontendSection(preBuildCommands: string[], buildCommands: string[], artifactsDirectory: string, cachePaths: string[]): string[] {
   const lines = ["frontend:", "  phases:"];
   if (preBuildCommands.length > 0) {
@@ -94,13 +98,13 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
 export function cmsStagingBuildSpec(config: AmplifyAppShellSiteConfig): string {
   const preBuild = [NPM_CLEAN_INSTALL, "npx ampx generate outputs --branch main --app-id $AWS_APP_ID"];
   const cachePaths = [".next/cache/**/*", ".npm/**/*"];
-  if (config.frontend === "markus-static") {
-    const readerConfig = reader(config);
+  const preview = config.frontend === "markus-static" ? stagingPreviewFor(config) : undefined;
+  if (preview !== undefined) {
     preBuild.push(
       ...pythonProvisioningCommands(config),
       `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content export-published --drafts --out content-export --clean`,
-      readerConfig.buildCommand,
-      `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content upload-preview --dir ${readerConfig.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
+      preview.buildCommand,
+      `${CHECKOUT_AS_PAPYRUS_ROOT} papyrus ops content upload-preview --dir ${preview.baseDirectory} --prefix ${resolveStoragePreviewPrefix(config)}`,
     );
     cachePaths.push(".uv-cache/**/*");
   }
