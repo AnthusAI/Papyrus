@@ -94,7 +94,7 @@ submission is the same entry and changes nothing.
 `throttled`. Its Lambda (`function/handler.py`, Python, no dependencies beyond the
 runtime) does these things in order:
 
-1. Counts the request against the caller's address and identity (DynamoDB counters
+1. Counts the request against the caller's address (the last of AppSync's `identity.sourceIp`; a sender-supplied `x-forwarded-for` is not trusted: the first deploy of this plugin read that header and a forged one defeated the limit) and identity (DynamoDB counters
    with a TTL) and returns `throttled` past 20 a minute per address or 5 a minute
    per identity.
 2. Rejects non-text arguments, arguments over 1000 characters, forms not in the

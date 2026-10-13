@@ -171,17 +171,16 @@ class AbuseTests(unittest.TestCase):
 
 
 class CallerAddressTests(unittest.TestCase):
-    def test_the_last_forwarded_entry_is_the_caller(self) -> None:
-        self.assertEqual(signup_handler.caller_address({"X-Forwarded-For": "6.6.6.6, 198.51.100.7"}), "198.51.100.7")
+    def test_the_last_source_address_is_the_caller(self) -> None:
+        self.assertEqual(signup_handler.caller_address({"sourceIp": ["6.6.6.6", "198.51.100.7"]}), "198.51.100.7")
 
     def test_a_sender_cannot_choose_its_own_address_by_prepending(self) -> None:
-        forged = signup_handler.caller_address({"x-forwarded-for": "1.1.1.1, 2.2.2.2, 198.51.100.7"})
-        honest = signup_handler.caller_address({"x-forwarded-for": "198.51.100.7"})
-        self.assertEqual(forged, honest)
+        forged = signup_handler.caller_address({"sourceIp": ["1.1.1.1", "2.2.2.2", "198.51.100.7"]})
+        self.assertEqual(forged, signup_handler.caller_address({"sourceIp": ["198.51.100.7"]}))
 
-    def test_missing_headers_share_one_bucket(self) -> None:
-        self.assertEqual(signup_handler.caller_address(None), "unknown")
-        self.assertEqual(signup_handler.caller_address({}), "unknown")
+    def test_missing_addresses_share_one_bucket(self) -> None:
+        for identity in (None, {}, {"sourceIp": []}, {"sourceIp": None}):
+            self.assertEqual(signup_handler.caller_address(identity), "unknown")
 
 
 class SettingsTests(unittest.TestCase):
@@ -248,8 +247,7 @@ class AwsAdapterTests(unittest.TestCase):
             outcome = signup_handler.handler(
                 {
                     "arguments": valid_arguments(),
-                    "identity": {"cognitoIdentityId": "us-east-1:identity"},
-                    "request": {"headers": {"x-forwarded-for": PLACEHOLDER_ADDRESS}},
+                    "identity": {"cognitoIdentityId": "us-east-1:identity", "sourceIp": [PLACEHOLDER_ADDRESS]},
                 }
             )
         self.assertEqual(outcome["status"], ACCEPTED)

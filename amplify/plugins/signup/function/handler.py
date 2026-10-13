@@ -82,11 +82,10 @@ def valid_value(value: str) -> bool:
     )
 
 
-def caller_address(headers: dict[str, str] | None) -> str:
-    """The address AppSync appended last: a sender can add earlier entries, never the last."""
-    forwarded = {name.lower(): text for name, text in (headers or {}).items()}.get("x-forwarded-for", "")
-    entries = [part.strip() for part in forwarded.split(",") if part.strip()]
-    return entries[-1] if entries else "unknown"
+def caller_address(identity: dict[str, Any] | None) -> str:
+    """The last of AppSync's sourceIp list: the connection's address. A sender-supplied x-forwarded-for only adds earlier entries."""
+    addresses = [str(address).strip() for address in (identity or {}).get("sourceIp") or [] if str(address).strip()]
+    return addresses[-1] if addresses else "unknown"
 
 
 def rate_key(kind: str, subject: str, now_seconds: float) -> str:
@@ -190,10 +189,9 @@ def storing_entries(endpoint: str, region: str) -> Callable[[dict[str, str]], bo
 
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, str]:
     identity = event.get("identity") or {}
-    headers = (event.get("request") or {}).get("headers")
     return submit_signup(
         event.get("arguments") or {},
-        address=caller_address(headers),
+        address=caller_address(identity),
         identity_id=identity.get("cognitoIdentityId"),
         now_seconds=time.time(),
         settings=settings_from_environment(),
