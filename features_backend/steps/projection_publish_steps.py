@@ -327,6 +327,20 @@ def invalidation_task_scheduled(context) -> None:
     assert len(invalidations) == 1 and "articles/hello.html" in invalidations[0]["keys"], tasks
 
 
+@given('the site bucket page "{key}" was removed')
+def remove_bucket_page(context, key: str) -> None:
+    del context.s3.objects[key]
+
+
+@when('the deploy starts the "{task_name}" projection task')
+def run_named_projection_task(context, task_name: str) -> None:
+    with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
+        "boto3.client",
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+    ), mock.patch.dict("os.environ", context.environment, clear=False):
+        context.task_result = context.handler_module.handler({"projectionTask": {"task": task_name}}, None)
+
+
 @when("the scheduled invalidation task runs with a working edge")
 def run_invalidation_task(context) -> None:
     task = next(

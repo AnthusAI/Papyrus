@@ -80,6 +80,14 @@ Feature: Publishing through the content actions projects the site
     Then the projection task succeeds
     And the edge distribution was invalidated for "/articles/hello.html"
 
+  Scenario: A backend deploy re-projects every published page
+    Given a content actions backend with an s3-projection publication
+    And the editor publishes a new article
+    And the site bucket page "articles/hello.html" was removed
+    When the deploy starts the "all" projection task
+    Then the projection task succeeds
+    And the site bucket holds "articles/hello.html" with the published version
+
   Scenario: A site without a publication behaves as before
     Given a content actions backend without a publication
     When the editor publishes a new article

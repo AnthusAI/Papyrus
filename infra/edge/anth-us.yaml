@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: papyrus-edge-anth-us CloudFront distribution in front of the Anth.us reader Amplify app
+Parameters:
+  CertificateArn:
+    Type: String
+  Aliases:
+    Type: CommaDelimitedList
+    Default: ''
+Conditions:
+  HasAliases: !Not [!Equals [!Join ['', !Ref Aliases], '']]
+Resources:
+  ReaderDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: anth.us reader (main)
+        Aliases: !If [HasAliases, !Ref Aliases, !Ref 'AWS::NoValue']
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate: !If
+          - HasAliases
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: amplify
+            DomainName: main.d15dpu9buefmq0.amplifyapp.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+Outputs:
+  ReaderDistributionId: {Value: !Ref ReaderDistribution}
+  ReaderDomain: {Value: !GetAtt ReaderDistribution.DomainName}

@@ -13,6 +13,8 @@ import {
   s3ProjectionPolicyStatements,
 } from "../amplify/publication/s3-projection-settings";
 import { validatePublicationConfig } from "../amplify/site-backend-config";
+import { DEFAULT_MARKUS_PUBLICATION, resolveSitePublication } from "../amplify/publication/default-publication";
+import { addReprojectOnDeploy, reprojectDeployToken } from "../amplify/publication/reproject-on-deploy";
 import { copySiteFiles, siteFilesContentHash } from "../amplify/functions/shared/python-bundle";
 
 const edgeArn = "arn:aws:cloudfront::123456789012:distribution/E3UMOOJRMY7FK7";
@@ -383,6 +385,37 @@ assert.throws(() => synthesize({ kind: "s3-projection", edgeDistributionArn: edg
   });
   const rendered = JSON.stringify(template.toJSON());
   assert.ok(rendered.includes("sqs:SendMessage"), "the function may send failed events to the dead letter queue");
+}
+
+assert.deepEqual(resolveSitePublication({}, "markus"), DEFAULT_MARKUS_PUBLICATION, "a Markus site gets s3-projection by default");
+assert.deepEqual(validatePublicationConfig(DEFAULT_MARKUS_PUBLICATION), []);
+assert.equal(resolveSitePublication({}, "pretext"), undefined, "a Pretext site gets no publication");
+assert.equal(resolveSitePublication({}, undefined), undefined, "a site without a known renderer gets no publication");
+assert.equal(resolveSitePublication({ publication: false }, "markus"), undefined, "publication: false opts a Markus site out");
+assert.equal(resolveSitePublication({ reader: { amplifyAppId: "d123" } }, "markus"), undefined, "a Markus site with an Amplify reader keeps it");
+const explicitPublication = { kind: "s3-projection" as const, projector: "web/projector.py" };
+assert.equal(resolveSitePublication({ publication: explicitPublication }, "markus"), explicitPublication, "an explicit publication is used as written");
+assert.equal(resolveSitePublication({ publication: explicitPublication }, "pretext"), explicitPublication);
+assert.equal(explicitPublication.projector, "web/projector.py");
+assert.match(problemsOf({ kind: "s3-projection", reprojectOnDeploy: "yes" }), /reprojectOnDeploy must be a boolean/);
+assert.equal(reprojectDeployToken({ AWS_JOB_ID: "17" }), "job-17");
+assert.equal(reprojectDeployToken({}, () => 5), "time-5");
+
+{
+  const app = new App();
+  const functionStack = new Stack(app, "ContentActionsOwner", { env: { account: "123456789012", region: "us-east-1" } });
+  const reprojectStack = new Stack(app, "ReprojectStack", { env: { account: "123456789012", region: "us-east-1" } });
+  const contentActions = new lambda.Function(functionStack, "ContentActions", {
+    runtime: lambda.Runtime.PYTHON_3_12,
+    handler: "handler.handler",
+    code: lambda.Code.fromInline("def handler(event, context):\n    return {}\n"),
+  });
+  addReprojectOnDeploy(reprojectStack, contentActions, "job-17");
+  const rendered = JSON.stringify(Template.fromStack(reprojectStack).toJSON());
+  assert.ok(rendered.includes("Custom::AWS"), "the deploy hook is a custom resource");
+  assert.ok(rendered.includes("projectionTask"), "it starts a projection task");
+  assert.ok(rendered.includes("job-17"), "the deploy token is part of the request, so every deploy runs it");
+  assert.match(rendered, /task\\+"\:\\+"all/, "the task is the full re-projection");
 }
 
 console.log("s3-projection publication ok");

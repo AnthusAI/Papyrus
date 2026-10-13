@@ -10,6 +10,8 @@ import type { Construct } from "constructs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RESOLVER_WAVE_SIZE, orderModelStacksInWaves } from "./resolver-waves";
+import { resolveSitePublication } from "./publication/default-publication";
+import { REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS, addReprojectOnDeploy, reprojectDeployToken } from "./publication/reproject-on-deploy";
 import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
 import { planRenditions } from "./publication/renditions-settings";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
@@ -90,9 +92,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     ...baseAuthConfig,
     newsroomBasePath: baseAuthConfig.newsroomBasePath ?? activeBrand?.newsroomBasePath,
   };
-  if (site.publication !== undefined) assertValidPublicationConfig(site.publication);
-  const publicationPlan = planS3ProjectionBackend(site.publication);
-  const renditionsPlan = planRenditions(site.publication, process.cwd());
+  const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
+  if (publication !== undefined) assertValidPublicationConfig(publication);
+  const publicationPlan = planS3ProjectionBackend(publication);
+  const renditionsPlan = planRenditions(publication, process.cwd());
   setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
   const backend = defineBackend({
     assignmentAction,
@@ -403,12 +406,16 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     );
   }
   let s3ProjectionPublication: S3ProjectionPublication | undefined;
-  if (site.publication !== undefined) {
-    s3ProjectionPublication = addS3ProjectionPublication(backend.createStack("s3-projection"), site.publication, {
+  if (publication !== undefined) {
+    s3ProjectionPublication = addS3ProjectionPublication(backend.createStack("s3-projection"), publication, {
       mediaBucket: storageBucket,
       renditions: renditionsPlan,
     });
     (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
+    if (publication.reprojectOnDeploy === true) {
+      (contentActionsLambda.node.defaultChild as CfnFunction).timeout = REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS;
+      addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+    }
   }
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
