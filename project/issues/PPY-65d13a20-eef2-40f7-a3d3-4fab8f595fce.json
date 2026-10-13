@@ -47,10 +47,17 @@
         "platform": "claude_code",
         "model": "claude-sonnet-5-5"
       }
+    },
+    {
+      "id": "bee5dc66-dea2-4780-a5b3-dd5fd9139f2b",
+      "author": "home",
+      "text": "CMS deploy + real publish test (2026-10-13). Builds on d1eiwl0gedkmnj main: job 11 (f11f6bc, PR65) SUCCEED 06:43-06:51, job 12 (09dc395, PR66) SUCCEED 06:51-06:59; backend stacks UPDATE/CREATE_COMPLETE, no rollback. newsroom.pilobol.us/newsroom 200 (via 307->/), Cognito domain papyrus-pilobol-us-cms ACTIVE on pool us-east-1_Fw8LBiG39 (unchanged). content-actions Lambda env: no PAPYRUS_READER_AMPLIFY_APP_ID/branch; role amplify:StartJob/ListJobs only on CMS app staging branch. Old reader dpdg1mg84dlwb untouched: latest job 16 (SUCCEED) before and after. Publish test, slug zz-publish-test-c90300: publishItem returned live:true, page 200 8.7s after call (projection ~8.3s in Lambda); unpublishItem -> 404 in 3.5s; no Amplify reader build. Deleted the Item; counts before=after: Item 21, PublishedItem 18, MediaAsset 13, PublishedMediaAsset 12; page 404. Image-via-media-bucket test skipped (not cheap). 65-path capture vs phase6 baseline: 65/65 paths, sizes equal, only diffs are ?v= token (56e0dc88fcb6 -> a675b4372af2; HTML hashes equal after normalizing), content-type charset, sitemap application/xml vs text/xml; /articles 200 (was 301). robots Allow, newsroom + staging.pilobol.us 200. Status left for Ryan.",
+      "created_at": "2026-10-13T11:19:45.643874Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-12T18:27:52.075260Z",
-  "updated_at": "2026-10-12T23:58:02.381325Z",
+  "updated_at": "2026-10-13T11:19:45.643901Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

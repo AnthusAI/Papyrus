@@ -21,9 +21,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "10bba4b7-a1f4-4e00-b48b-02115e63fcce",
+      "author": "home",
+      "text": "M9 built and proven. Papyrus PR #201 merged (signup plugin + plugin protocol, docs/plugins.md). Throwaway sandbox papyrus-m9-test in 712236451410 (deleted afterwards, incl. WAF, CloudFront, bucket). Evidence: unauth identity-pool guest submitted via real <papyrus-signup> on a CloudFront-served page (accepted, stored); repeat/honeypot/too-fast stored nothing; guest list/get/create/delete on SignupEntry and listItems all 401; IAM admin listed entries; CSV exported; 20 accepted then 'throttled' from the 21st per address even with forged x-forwarded-for; WAF returned 429 on a sustained burst. Finding: first deploy read x-forwarded-for, which AppSync passes through unmodified, so a forged header bypassed the limit; fixed to identity.sourceIp last entry. Existing sites: backend templates synthesized before/after for two configs differ in 0 of 48 templates (after normalizing asset hashes, API-key expiry, secret timestamp); app-shell templates for 5 site.json files byte-identical. Cost: WAF ~6 USD/month (+0.60/M requests); waf:false leaves function counters (DynamoDB on-demand, pennies). Status left for Ryan.",
+      "created_at": "2026-10-13T15:16:10.506558Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "15f41a1c-862a-490a-a807-b52f2e02d8b2",
+      "author": "home",
+      "text": "M9 built and proven. Papyrus PR #201 merged (a85ddb2): signup plugin + plugin protocol, docs/plugins.md. Throwaway sandbox papyrus-m9-test in 712236451410, fully deleted (stack, WAF, CloudFront, bucket). Evidence: guest via real <papyrus-signup> on a CloudFront page accepted and stored; repeat/honeypot/too-fast stored nothing; guest list/get/create/delete on SignupEntry and listItems all 401; IAM admin listed entries; CSV exported; 20 accepted then throttled from the 21st per address even with forged x-forwarded-for; WAF returned 429 on a sustained burst. Finding: AppSync passes x-forwarded-for through, so a forged header bypassed the first version; fixed to last identity.sourceIp. Existing sites: backend templates before/after differ in 0 of 48 (two configs, after normalizing asset hashes, API key expiry, secret timestamp); app-shell templates for 5 site.json files byte-identical. Cost: WAF about 6 USD/month plus 0.60/M requests; waf:false leaves function counters. Status left for Ryan.",
+      "created_at": "2026-10-13T15:16:22.215900Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-12T18:28:05.983321Z",
-  "updated_at": "2026-10-12T18:29:38.066988Z",
+  "updated_at": "2026-10-13T15:16:22.215928Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

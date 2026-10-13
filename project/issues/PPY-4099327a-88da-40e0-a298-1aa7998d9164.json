@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b3a87ad3-fa3f-4513-85c1-d5b1348210e7",
+      "author": "home",
+      "text": "M4 evidence. PRs #195 (48c512a: s3-projection cache policy, batched exact-path invalidation with throttle retry, unpurged retry task, weekly-pace alarm, publication.cache) and #196 (4015baa: Pretext reader revalidate 3600->60 plus expireTime 120, backend.revalidateDistributionIds edge purge). CI green on both. Throwaway CloudFront+S3 (papyrus-production, since deleted): edit-to-visible with targeted invalidation, 5 runs, item and home both new: 1.9-3.1 s from edit start (invalidate call 0.13-0.23 s). 12 edits at 1 s gap: no errors, final content visible within ~9 s. 40 back-to-back invalidations: no throttling. Without invalidation: s-maxage=60 shows the edit after 60.0-61.0 s (4 runs); default s-maxage=300 after 300.3 s. CloudTrail: 63 CreateInvalidation events on the test distribution, 0 with a wildcard. Cost: 2-40 paths/edit; 1000 free paths/month = 250 edits at 4 paths or 50 at 20; beyond that 0.005 USD/path (10 paths x 1000 edits = 45 USD/month). Pretext: local Next 15.5 build shows s-maxage equals revalidate and stale-while-revalidate defaults to about one year (31535940 s) which lets a shared cache serve a page long past s-maxage; expireTime 120 gives s-maxage=60, stale-while-revalidate=60. Amplify CDN layer cannot be purged and a manual-deploy Amplify app does not run SSR compute (served the zip as static), so the layer was not measured live; the bound is s-maxage+swr = about 2 min once a site bumps its pin. App-shell templates byte-identical (sha256) before/after for Pilobol.us x2, p.apyr.us x2, Threat-Intelligence, Pretext example, Anth.us fixture. Pilobol Amplify 301 without cache-control (24 h) is an Amplify default for static apps, not fixed here (M5 moves Pilobol to S3).",
+      "created_at": "2026-10-12T23:16:36.209430Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-12T18:27:50.036076Z",
-  "updated_at": "2026-10-12T18:29:11.711832Z",
+  "updated_at": "2026-10-12T23:16:36.209861Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
