@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .engine import ProjectionContext
+from .plugins import plugin_names_from_environment
 from .projector import MarkusSiteProjector, SiteProjector
 from ..renditions import S3RenditionStore
 from .source import PublishedContentSource
@@ -34,7 +35,7 @@ SITE_STATIC_DIRECTORY_ENV = "PAPYRUS_SITE_STATIC_DIR"
 S3_PROJECTION_KIND = "s3-projection"
 SITE_PROJECTOR_FACTORY = "create_projector"
 
-_projector_by_configuration: dict[tuple[str, str], SiteProjector] = {}
+_projector_by_configuration: dict[tuple[str, str, tuple[str, ...]], SiteProjector] = {}
 
 
 def projection_configured(environ: Mapping[str, str] | None = None) -> bool:
@@ -46,7 +47,8 @@ def load_projector(environ: Mapping[str, str] | None = None) -> SiteProjector:
     environment = os.environ if environ is None else environ
     module_name = (environment.get(SITE_PROJECTOR_ENV) or "").strip()
     static_directory = (environment.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
-    cache_key = (module_name, static_directory)
+    plugins = plugin_names_from_environment(environment)
+    cache_key = (module_name, static_directory, plugins)
     cached = _projector_by_configuration.get(cache_key)
     if cached is not None:
         return cached
@@ -57,6 +59,7 @@ def load_projector(environ: Mapping[str, str] | None = None) -> SiteProjector:
         projector = MarkusSiteProjector.from_static_directory(
             Path(static_directory) if static_directory else None,
             renditions=S3RenditionStore(bucket) if bucket else None,
+            plugins=plugins,
         )
     _projector_by_configuration[cache_key] = projector
     return projector

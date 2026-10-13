@@ -10,6 +10,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import amplifyOutputs from "papyrus-amplify-outputs";
+import { SignupEntriesPanel } from "./signup-entries-panel";
+import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import {
@@ -235,7 +238,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "signups";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "insights" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4452,8 +4455,20 @@ function AdministrationDeskView({
                 <strong>Procedures</strong>
                 <span>Procedure registry and versioned Tactus code</span>
               </Link>
+              {signupPluginEnabled() ? (
+                <Link
+                  href={administrationPanelHref("signups", isDemo)}
+                  data-news-desk-admin-nav="signups"
+                  data-active={administrationPanel === "signups" || undefined}
+                  onClick={() => onPanelChange("signups")}
+                >
+                  <strong>Signups</strong>
+                  <span>Addresses from the site&apos;s signup forms</span>
+                </Link>
+              ) : null}
             </nav>
             <div className="news-desk-settings-panel">
+              {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
               {administrationPanel === "users" ? (
                 <AdministrationUsersPanel
                   canManageUsers={canManageUsers}
@@ -13646,8 +13661,13 @@ function semanticVersionKey(kind: string, id: string): string {
   return `${kind}#${id}`;
 }
 
+function signupPluginEnabled(): boolean {
+  return pluginSettings(amplifyOutputs as PluginOutputs, "signup") !== null;
+}
+
 function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
   if (value === "policies" || value === "sections" || value === "procedures") return value;
+  if (value === "signups" && signupPluginEnabled()) return value;
   return "users";
 }
 

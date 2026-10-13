@@ -36,6 +36,7 @@ from ..renditions import (
     settings_from_mapping as image_settings_from_mapping,
 )
 from .model import ItemSummary, ProjectedItem, SiteIndex
+from .plugins import plugin_static_files
 from .public_data import (
     PUBLIC_DATA_SETTINGS_KEY,
     PublicDataSettings,
@@ -100,6 +101,7 @@ class MarkusProjectorSettings:
     chrome: SiteChrome = DEFAULT_CHROME
     images: RenditionSettings | None = None
     public_data: PublicDataSettings | None = None
+    plugins: tuple[str, ...] = ()
 
 
 def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
@@ -177,11 +179,15 @@ class MarkusSiteProjector:
 
     @classmethod
     def from_static_directory(
-        cls, static_directory: Path | None, *, renditions: RenditionStore | None = None
+        cls,
+        static_directory: Path | None,
+        *,
+        renditions: RenditionStore | None = None,
+        plugins: tuple[str, ...] = (),
     ) -> "MarkusSiteProjector":
         settings_path = static_directory / PROJECTION_SETTINGS_FILE if static_directory is not None else None
         raw = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path and settings_path.is_file() else {}
-        settings = settings_from_mapping(raw)
+        settings = dataclasses.replace(settings_from_mapping(raw), plugins=plugins)
         return cls(settings, read_static_files(static_directory, settings.theme), renditions=renditions)
 
     def _content_sections(self) -> tuple[str, ...]:
@@ -320,7 +326,7 @@ class MarkusSiteProjector:
         return key.endswith(".html") and key.split("/", 1)[0] in self._content_sections()
 
     def static_files(self) -> dict[str, bytes]:
-        return {**self._static_files, **public_static_files(self._settings.public_data)}
+        return {**self._static_files, **public_static_files(self._settings.public_data), **plugin_static_files(self._settings.plugins)}
 
     def redirects(self, site: SiteIndex) -> dict[str, str]:
         mapping: dict[str, str] = {}

@@ -12,7 +12,7 @@ import { emailSubmissionProcessor } from "../functions/email-submission-processo
 import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
-import { schema as leanSchema } from "./schema";
+import { schema as leanSchema, schemaWithPlugins } from "./schema";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -2125,13 +2125,19 @@ const schema = a.schema({
 
 export type Schema = ClientSchema<typeof schema>;
 
-export const data = defineData({
+const dataOptions = {
   name: "PapyrusCmsApi",
-  schema: leanSchema,
   authorizationModes: {
-    defaultAuthorizationMode: "userPool",
+    defaultAuthorizationMode: "userPool" as const,
     apiKeyAuthorizationMode: {
       expiresInDays: 365,
     },
   },
-});
+};
+
+export const data = defineData({ ...dataOptions, schema: leanSchema });
+
+/** The same API with the schema contributions of the site's plugins (docs/plugins.md). Sites without plugins use `data`. */
+export function defineDataWithPlugins(pluginDefinitions: Record<string, unknown>) {
+  return defineData({ ...dataOptions, schema: schemaWithPlugins(pluginDefinitions) });
+}
