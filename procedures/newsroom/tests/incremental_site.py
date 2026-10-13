@@ -15,6 +15,7 @@ from papyrus_content.projection.projector import (
     MarkusSiteProjector,
     read_static_files,
 )
+from papyrus_content.projection.public_data import PublicDataSettings
 from papyrus_content.projection.item_state import ITEM_STATE_PREFIX
 from papyrus_content.projection.source import PublishedContentSource
 from papyrus_content.publishing import ItemFields, publish_item, save_item, unpublish_item
@@ -62,7 +63,7 @@ class Draft:
             type="article",
             slug=self.slug,
             section=self.section,
-            front_matter_yaml=f"title: {self.title}\ndate: '{self.date}'\ndescription: {self.description}\n{feed}",
+            front_matter_yaml=f"title: {self.title}\ndate: '{self.date}'\ndescription: {self.description}\ntags: [month-{self.date[5:7]}, {self.slug}]\n{feed}",
             body_markus=self.body,
             aliases=list(self.aliases),
             id=item_id,
@@ -70,7 +71,8 @@ class Draft:
 
 
 def make_projector(kind: str):
-    settings = MarkusProjectorSettings(theme=DEFAULT_THEME, sections=("notes",))
+    public_data = PublicDataSettings(latest_count=4, summary_characters=40) if kind == "public" else None
+    settings = MarkusProjectorSettings(theme=DEFAULT_THEME, sections=("notes",), public_data=public_data)
     files = read_static_files(None, DEFAULT_THEME)
     return FeedSiteProjector(settings, files) if kind == "feed" else MarkusSiteProjector(settings, files)
 

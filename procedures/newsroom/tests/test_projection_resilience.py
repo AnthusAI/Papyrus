@@ -38,7 +38,7 @@ def assert_equals_full(test: unittest.TestCase, site: Site, label: str = "") -> 
 
 class ConcurrentPublishTests(unittest.TestCase):
     def test_a_publish_that_read_a_stale_listing_set_is_corrected_by_its_own_reread(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 site = seeded_site(kind, Path(temporary))
                 add_item(site, "item-a", "alpha-new", date="2026-02-01")
@@ -68,7 +68,7 @@ class ConcurrentPublishTests(unittest.TestCase):
                 self.assertIn("articles/bravo-new.html", pages)
 
     def test_two_publishes_racing_on_the_same_store_converge_on_both_listings(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             for seed in range(12):
                 with self.subTest(kind=kind, seed=seed), tempfile.TemporaryDirectory() as temporary:
                     site = seeded_site(kind, Path(temporary))
@@ -120,7 +120,7 @@ class ConcurrentPublishTests(unittest.TestCase):
 
 class FailureAndRetryTests(unittest.TestCase):
     def test_a_failure_at_any_write_is_repaired_by_running_the_projection_again(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with tempfile.TemporaryDirectory() as probe_directory:
                 probe = seeded_site(kind, Path(probe_directory))
                 probe.drafts["item-1"].title = "Retitled"
@@ -172,7 +172,7 @@ class FailureAndRetryTests(unittest.TestCase):
 
 class ReconcileTests(unittest.TestCase):
     def test_a_publish_whose_projection_never_ran_is_found_and_repaired(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 site = seeded_site(kind, Path(temporary))
                 add_item(site, "item-lost", "never-rendered", date="2026-04-04")
@@ -189,7 +189,7 @@ class ReconcileTests(unittest.TestCase):
                 self.assertFalse(reconcile(site.context, dry_run=True).drift)
 
     def test_an_unpublish_whose_projection_never_ran_is_found_and_repaired(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 site = seeded_site(kind, Path(temporary))
                 unpublish_item(site.client, "item-2", actor=ACTOR, now=NOW)
@@ -202,7 +202,7 @@ class ReconcileTests(unittest.TestCase):
                 self.assertNotIn("articles/seed-2.html", pages)
 
     def test_orphan_pages_stale_listings_and_lost_state_are_repaired(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 site = seeded_site(kind, Path(temporary))
                 site.store.put("articles/ghost.html", b"<p>a deleted article</p>", version=3)
@@ -399,7 +399,7 @@ class ReconcileCommandTests(unittest.TestCase):
 
 class RenamedSlugTests(unittest.TestCase):
     def test_a_renamed_item_leaves_a_redirect_from_its_old_address_and_nothing_stale(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 site = seeded_site(kind, Path(temporary))
                 unpublish_item(site.client, "item-1", actor=ACTOR, now=NOW)

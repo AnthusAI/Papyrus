@@ -53,13 +53,18 @@ class IncrementalEqualsFullTests(unittest.TestCase):
             with self.subTest(seed=seed):
                 self.run_sequence("generic", seed, 40)
 
+    def test_site_with_public_json_matches_a_full_projection_after_random_edits(self) -> None:
+        for seed in range(8):
+            with self.subTest(seed=seed):
+                self.run_sequence("public", seed, 40)
+
     def test_feed_shaped_site_matches_a_full_projection_after_random_edits(self) -> None:
         for seed in range(10):
             with self.subTest(seed=seed):
                 self.run_sequence("feed", seed, 40)
 
     def test_reconcile_finds_no_drift_after_random_edits(self) -> None:
-        for kind in ("generic", "feed"):
+        for kind in ("generic", "feed", "public"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
                 rng = random.Random(7)
                 site = Site(kind, Path(temporary))

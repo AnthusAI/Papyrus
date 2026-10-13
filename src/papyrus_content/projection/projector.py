@@ -36,6 +36,17 @@ from ..renditions import (
     settings_from_mapping as image_settings_from_mapping,
 )
 from .model import ItemSummary, ProjectedItem, SiteIndex
+from .public_data import (
+    PUBLIC_DATA_SETTINGS_KEY,
+    PublicDataSettings,
+    entry_for,
+    hidden_from_public_data,
+    owns_public_data_key,
+    public_data_files,
+    public_data_inputs,
+    public_data_settings_from_mapping,
+    public_static_files,
+)
 from .writers import request_paths_for_key
 
 HOME_PAGE_PATH = "index.html"
@@ -88,10 +99,11 @@ class MarkusProjectorSettings:
     citations: bool = False
     chrome: SiteChrome = DEFAULT_CHROME
     images: RenditionSettings | None = None
+    public_data: PublicDataSettings | None = None
 
 
 def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
-    unknown = set(raw) - {"theme", "sections", "citations", "chrome", IMAGES_SETTINGS_KEY}
+    unknown = set(raw) - {"theme", "sections", "citations", "chrome", IMAGES_SETTINGS_KEY, PUBLIC_DATA_SETTINGS_KEY}
     if unknown:
         raise ValueError(f"Unknown projection settings: {', '.join(sorted(unknown))}")
     chrome_raw = dict(raw.get("chrome") or {})
@@ -107,6 +119,7 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
         citations=bool(raw.get("citations", False)),
         chrome=SiteChrome(**chrome_raw),
         images=image_settings_from_mapping(raw[IMAGES_SETTINGS_KEY]) if IMAGES_SETTINGS_KEY in raw else None,
+        public_data=public_data_settings_from_mapping(raw[PUBLIC_DATA_SETTINGS_KEY]) if PUBLIC_DATA_SETTINGS_KEY in raw else None,
     )
 
 
@@ -257,14 +270,37 @@ class MarkusSiteProjector:
             if self._is_page_source(summary)
         ]
 
-    def listing_inputs(self, site: SiteIndex) -> dict[str, str]:
-        if not self._generated_home(site):
+    def public_data_entries(self, site: SiteIndex):
+        settings = self._settings.public_data
+        if settings is None:
+            return []
+        return [
+            entry_for(summary, paths[0], settings)
+            for summary in site.items
+            if (paths := self.item_page_paths(summary)) and not self._is_home_source(summary) and not hidden_from_public_data(summary)
+        ]
+
+    def public_data_inputs(self, site: SiteIndex) -> dict[str, str]:
+        settings = self._settings.public_data
+        return {} if settings is None else public_data_inputs(self.public_data_entries(site), settings)
+
+    def public_data_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]:
+        settings = self._settings.public_data
+        if settings is None:
             return {}
-        return {HOME_PAGE_PATH: digest_of([self._listed_articles(site), self.shared_inputs(site)])}
+        files = public_data_files(self.public_data_entries(site), settings)
+        return files if keys is None else {key: body for key, body in files.items() if key in keys}
+
+    def listing_inputs(self, site: SiteIndex) -> dict[str, str]:
+        inputs = self.public_data_inputs(site)
+        if self._generated_home(site):
+            inputs[HOME_PAGE_PATH] = digest_of([self._listed_articles(site), self.shared_inputs(site)])
+        return inputs
 
     def listing_pages(self, site: SiteIndex, keys: Collection[str] | None = None) -> dict[str, bytes]:
+        pages = self.public_data_pages(site, keys)
         if not self._generated_home(site) or (keys is not None and HOME_PAGE_PATH not in keys):
-            return {}
+            return pages
         page_html = render_home_page(
             fragment=generated_home_fragment(self._listed_articles(site)),
             title="Home",
@@ -272,18 +308,19 @@ class MarkusSiteProjector:
             chrome=self._settings.chrome,
             css_version=self.version,
         )
-        return {HOME_PAGE_PATH: page_html.encode("utf-8")}
+        pages[HOME_PAGE_PATH] = page_html.encode("utf-8")
+        return pages
 
     def shared_inputs(self, site: SiteIndex) -> str:
         return digest_of([[item.label, item.href] for item in self._nav_items(site)])
 
     def owns_page_key(self, key: str) -> bool:
-        if key == HOME_PAGE_PATH:
+        if key == HOME_PAGE_PATH or owns_public_data_key(key):
             return True
         return key.endswith(".html") and key.split("/", 1)[0] in self._content_sections()
 
     def static_files(self) -> dict[str, bytes]:
-        return dict(self._static_files)
+        return {**self._static_files, **public_static_files(self._settings.public_data)}
 
     def redirects(self, site: SiteIndex) -> dict[str, str]:
         mapping: dict[str, str] = {}
