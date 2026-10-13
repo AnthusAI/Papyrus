@@ -17,16 +17,24 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fa60f69d-ef0a-49b5-a44f-5a762fed8642",
+      "author": "home",
+      "text": "home (M7 agent, facts for M10): Papyrus 1.0.0-next.49 (PR #199). Default: a Markus brand with no backend.reader gets publication s3-projection with reprojectOnDeploy true; opt out with backend.publication=false; a site naming backend.reader or an explicit publication object is used as written (reprojectOnDeploy is then off unless set). App-shell site.json: reader is optional for markus-static with a cms section; cms.stagingPreview {buildCommand, baseDirectory} replaces reader.* for the staging draft preview when there is no reader. Edge templates now in infra/edge/ (README has the ACM validation notes; docs/site-hosting.md prose is yours). The viewer-response function drops cache-control on non-200 responses. Retired-resource list and order: /Users/home/Projects/m7-retirement-runbook.md.",
+      "created_at": "2026-10-13T10:45:12.082932Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-12T18:28:52.615852Z",
-  "updated_at": "2026-10-12T18:29:40.662570Z",
+  "updated_at": "2026-10-13T10:45:12.082958Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",
     "name": "markus-publication-architect"
   },
-  "right_now_summary": "The README diagram and Papyrus docs await M5 before they can be updated.",
-  "right_now_updated_at": "2026-10-12T18:29:42.478266Z",
+  "right_now_summary": "The README and Papyrus docs still need updates for the CMS and projected static site.",
+  "right_now_updated_at": "2026-10-13T10:45:13.986805Z",
   "custom": {}
 }
