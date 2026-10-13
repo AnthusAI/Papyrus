@@ -1,8 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { signupSubmit } from "./function/resource";
 
-const SIGNUP_READ_GROUPS = ["editor", "admin"];
-
 /**
  * SignupEntry is never guest-readable and has no create rule for anyone: only the
  * submitSignup function (IAM) writes it. Editors and admins list it; admins delete.
@@ -21,7 +19,7 @@ export function signupSchemaDefinitions() {
         index("form").sortKeys(["submittedAt"]).queryField("listSignupEntriesByFormAndSubmittedAt"),
       ])
       .authorization((allow) => [
-        allow.groups(SIGNUP_READ_GROUPS).to(["read"]),
+        allow.group("editor").to(["read"]),
         allow.group("admin").to(["read", "delete"]),
       ]),
     SignupReceipt: a.customType({

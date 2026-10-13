@@ -25,7 +25,7 @@ import {
 } from "./revalidate-invalidation-settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
-import { data, defineDataWithPlugins } from "./data/resource";
+import { defineSiteData } from "./data/resource";
 import { resolvePlugins } from "./plugins/registry";
 import { wirePlugins } from "./plugins/wire";
 import { assignmentAction } from "./functions/assignment-action/resource";
@@ -108,7 +108,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     auth: defineSiteAuth(authConfig),
     categoryAction,
     contentActions,
-    data: plugins.length > 0 ? defineDataWithPlugins(pluginDefinitions) : data,
+    data: defineSiteData(pluginDefinitions),
     knowledgeQuery,
     manageUserRole,
     modelAttachmentUpload,

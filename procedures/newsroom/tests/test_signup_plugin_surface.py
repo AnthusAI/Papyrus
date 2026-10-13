@@ -37,11 +37,11 @@ class SignupSchemaSurfaceTests(unittest.TestCase):
         block = definition_blocks(PLUGIN_SCHEMA)["SignupEntry"]
         for forbidden in ["allow.guest", "publicApiKey", "allow.custom", "allow.public", "allow.authenticated", "allow.owner"]:
             self.assertNotIn(forbidden, block)
-        self.assertEqual(sorted(re.findall(r'allow\.groups?\(([^)]*)\)\.to\(\[([^\]]*)\]\)', block)), [
+        self.assertEqual(sorted(re.findall(r'allow\.group\(([^)]*)\)\.to\(\[([^\]]*)\]\)', block)), [
             ('"admin"', '"read", "delete"'),
-            ("SIGNUP_READ_GROUPS", '"read"'),
+            ('"editor"', '"read"'),
         ])
-        self.assertIn('SIGNUP_READ_GROUPS = ["editor", "admin"]', PLUGIN_SCHEMA)
+        self.assertEqual(block.count("allow."), 2)
 
     def test_nobody_can_create_an_entry_through_the_model(self) -> None:
         self.assertNotIn('"create"', definition_blocks(PLUGIN_SCHEMA)["SignupEntry"])

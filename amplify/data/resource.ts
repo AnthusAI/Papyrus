@@ -2125,19 +2125,19 @@ const schema = a.schema({
 
 export type Schema = ClientSchema<typeof schema>;
 
-const dataOptions = {
-  name: "PapyrusCmsApi",
-  authorizationModes: {
-    defaultAuthorizationMode: "userPool" as const,
-    apiKeyAuthorizationMode: {
-      expiresInDays: 365,
+/**
+ * The site's data API. Amplify allows one `defineData` per backend and registers it when called, so this is
+ * a function: a site without plugins passes none and gets exactly the base schema.
+ */
+export function defineSiteData(pluginDefinitions: Record<string, unknown> = {}) {
+  return defineData({
+    name: "PapyrusCmsApi",
+    schema: Object.keys(pluginDefinitions).length === 0 ? leanSchema : schemaWithPlugins(pluginDefinitions),
+    authorizationModes: {
+      defaultAuthorizationMode: "userPool",
+      apiKeyAuthorizationMode: {
+        expiresInDays: 365,
+      },
     },
-  },
-};
-
-export const data = defineData({ ...dataOptions, schema: leanSchema });
-
-/** The same API with the schema contributions of the site's plugins (docs/plugins.md). Sites without plugins use `data`. */
-export function defineDataWithPlugins(pluginDefinitions: Record<string, unknown>) {
-  return defineData({ ...dataOptions, schema: schemaWithPlugins(pluginDefinitions) });
+  });
 }

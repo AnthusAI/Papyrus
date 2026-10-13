@@ -63,7 +63,7 @@ plugins existed (see "Existing sites" below).
   plugin removes its model's table; take an export first.
 - **Resolvers.** Each model adds a nested stack with its AppSync resolvers (get, list,
   one per secondary index, delete where allowed), and each custom operation adds
-  one. `SignupEntry` adds about 6. The model stacks are chained in waves
+  one. `SignupEntry` adds 6 (get, list, create, update, delete, the index query) and `submitSignup` one. The model stacks are chained in waves
   (`amplify/resolver-waves.ts`, `resolverWaveSize`, default 12) so a deploy does not hit
   AppSync's CreateResolver rate limit; a plugin's model is placed in the waves like any
   other model. The first deploy that adds a plugin is a normal backend deploy.
