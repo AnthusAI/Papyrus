@@ -6,6 +6,8 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | --- | --- | --- |
 | `pilobol-us.yaml` | `papyrus-edge-pilobol-us` | Pilobol.us S3 projection bucket (OAC), with the directory-index and redirect function |
 | `anth-us-s3.yaml` | `papyrus-edge-anth-us` | Anth.us S3 projection bucket (OAC), redirect and header functions |
+| `threat-intelligence.yaml` | `papyrus-edge-threat-intelligence` | The Threat Intelligence Amplify app (main and staging distributions). The deployed version, kept as a rollback reference |
+| `threat-intelligence-media.yaml` | `papyrus-edge-threat-intelligence` (proposed) | Same stack plus a `/api/media/media/*` behavior that serves the media bucket through an origin access control. Not deployed. See `docs/video-loading.md` |
 | `anth-us.yaml` | `papyrus-edge-anth-us` (rollback) | The retired Anth.us Amplify reader. Updating the stack with this template moves the origin back, and only works while the Amplify reader app exists |
 
 Update a stack with a change set, never in place, and read the change set before executing it.

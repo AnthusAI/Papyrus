@@ -7,6 +7,8 @@ import { resolveThemedVideoSrc } from "@/lib/themed-image";
 import { useResolvedPapyrusTheme } from "@/components/use-resolved-papyrus-theme";
 import { getSiteBrand } from "@/lib/site-brand";
 import { normalizeDevPreviewDsl, type VideoScriptRef } from "@/lib/video-script";
+import { useNearViewport } from "@/components/use-near-viewport";
+import { planVideoLoading, videoElementKey } from "@/lib/video-loading";
 import { resolveVideoMode, resolveVideoModeFromEnv, type VideoMode } from "@/lib/video-mode";
 
 type ArticleVideoFigureProps = {
@@ -18,6 +20,7 @@ type ArticleVideoFigureProps = {
 };
 
 const PREVIEW_STORAGE_PREFIX = "papyrus-video-preview:";
+const VIDEO_LOAD_ROOT_MARGIN = "200px 0px";
 
 export function ArticleVideoFigure({
   video,
@@ -34,6 +37,8 @@ export function ArticleVideoFigure({
   const [previewReady, setPreviewReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const figureRef = useRef<HTMLElement>(null);
+  const isNearViewport = useNearViewport(figureRef, VIDEO_LOAD_ROOT_MARGIN);
   const isFramed = getSiteBrand().videoPlayer === "framed";
 
   useEffect(() => {
@@ -44,6 +49,12 @@ export function ArticleVideoFigure({
   // Match SSR to the default dark MP4 in `video.src` until after hydration.
   const resolvedTheme = hasHydrated ? theme : "dark";
   const src = resolveThemedVideoSrc(video.src, video.themeVariants, resolvedTheme);
+  const loadingPlan = planVideoLoading({
+    hasHydrated,
+    isNearViewport,
+    hasPoster: Boolean(video.posterSrc),
+  });
+  const videoKey = videoElementKey(loadingPlan.attachSource, src);
   const usePreview = videoMode === "preview" && Boolean(videoScript?.dsl);
   const previewDsl = videoScript?.dsl
     ? normalizeDevPreviewDsl(videoScript.dsl, getSiteBrand().video?.sceneComponents)
@@ -191,6 +202,7 @@ export function ArticleVideoFigure({
   if (isFramed) {
     return (
       <figure
+        ref={figureRef}
         className={`${figureClassName} article-video--framed`}
         data-media-type="video"
         data-video-theme={resolvedTheme}
@@ -200,11 +212,11 @@ export function ArticleVideoFigure({
           <video
             ref={videoRef}
             playsInline
-            preload="metadata"
+            preload={loadingPlan.preload}
             poster={video.posterSrc}
             aria-label={video.alt}
             className="article-video__player"
-            key={hasHydrated ? src : "ssr"}
+            key={videoKey}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             onEnded={() => setIsPlaying(false)}
@@ -214,7 +226,7 @@ export function ArticleVideoFigure({
               if (Number.isFinite(nextDuration) && nextDuration > 0) setDuration(nextDuration);
             }}
           >
-            <source src={src} type="video/mp4" />
+            {loadingPlan.attachSource ? <source src={src} type="video/mp4" /> : null}
           </video>
         </div>
         {framedControls}
@@ -226,17 +238,17 @@ export function ArticleVideoFigure({
   }
 
   return (
-    <figure className={figureClassName} data-media-type="video" data-video-theme={resolvedTheme} data-video-mode={videoMode}>
+    <figure ref={figureRef} className={figureClassName} data-media-type="video" data-video-theme={resolvedTheme} data-video-mode={videoMode}>
       <video
         controls
         playsInline
-        preload="metadata"
+        preload={loadingPlan.preload}
         poster={video.posterSrc}
         aria-label={video.alt}
         className="article-video__player"
-        key={hasHydrated ? src : "ssr"}
+        key={videoKey}
       >
-        <source src={src} type="video/mp4" />
+        {loadingPlan.attachSource ? <source src={src} type="video/mp4" /> : null}
       </video>
       {video.caption ? <figcaption>{video.caption}</figcaption> : null}
       {video.credit ? <p className="article-video__credit">{video.credit}</p> : null}
