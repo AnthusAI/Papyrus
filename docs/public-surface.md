@@ -123,15 +123,16 @@ section 1 are same-origin and need none of this.
 ## 5. Must never be public
 
 Drafts (`Item`), assignments, messages and threads, references, corpora,
-`preview/*`, user profiles and roles, signup or comment entries, and any field
+`preview/*`, user profiles and roles, signup or comment entries (the `SignupEntry` model of the signup plugin has no guest rule), and any field
 that carries editorial notes. No model other than the six above gets
 `allow.guest`, `allow.publicApiKey` or `allow.custom`.
 
-## 6. Guest writes are deferred
+## 6. Guest writes: one narrow operation per plugin
 
-This surface has no guest write mutation, and none is added until the first
-plugin needs one (M9): a narrow custom mutation with a Lambda handler that
-validates and length-limits its input, writes to a non-public model, carries a
-honeypot field, and sits behind AWS WAF on AppSync with a rate-based rule per
-IP. Subscriptions, browser GraphQL reads for pages, comments and a custom API
-domain are out of scope.
+The base surface has no guest write. A plugin may add one narrow custom mutation
+(`submitSignup` is the first and only one): a Lambda handler validates and
+length-limits its input, drops honeypot and too-fast submissions, throttles the
+caller by address and identity, writes to a model nobody can read as a guest, and
+sits behind an AWS WAF rate-based rule. A site gets it only by listing the plugin;
+see [`docs/plugins.md`](plugins.md). Subscriptions, browser GraphQL reads for pages,
+comments and a custom API domain are still out of scope.

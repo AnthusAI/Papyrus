@@ -12,7 +12,7 @@ import { emailSubmissionProcessor } from "../functions/email-submission-processo
 import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
-import { schema as leanSchema } from "./schema";
+import { schema as leanSchema, schemaWithPlugins } from "./schema";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -2125,13 +2125,19 @@ const schema = a.schema({
 
 export type Schema = ClientSchema<typeof schema>;
 
-export const data = defineData({
-  name: "PapyrusCmsApi",
-  schema: leanSchema,
-  authorizationModes: {
-    defaultAuthorizationMode: "userPool",
-    apiKeyAuthorizationMode: {
-      expiresInDays: 365,
+/**
+ * The site's data API. Amplify allows one `defineData` per backend and registers it when called, so this is
+ * a function: a site without plugins passes none and gets exactly the base schema.
+ */
+export function defineSiteData(pluginDefinitions: Record<string, unknown> = {}) {
+  return defineData({
+    name: "PapyrusCmsApi",
+    schema: Object.keys(pluginDefinitions).length === 0 ? leanSchema : schemaWithPlugins(pluginDefinitions),
+    authorizationModes: {
+      defaultAuthorizationMode: "userPool",
+      apiKeyAuthorizationMode: {
+        expiresInDays: 365,
+      },
     },
-  },
-});
+  });
+}

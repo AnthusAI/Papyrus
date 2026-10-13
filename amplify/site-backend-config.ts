@@ -1,3 +1,5 @@
+import type { PluginRequest } from "./plugins/types";
+
 /**
  * Per-site backend configuration: the argument of `defineSiteBackend(site)`.
  * Config is passed in; the environment is only a fallback so Papyrus's own
@@ -171,6 +173,11 @@ export type PapyrusSiteBackendConfig = {
    * site out. See `resolveSitePublication`.
    */
   publication?: PapyrusPublicationConfig | false;
+  /**
+   * Deploy-time plugins (docs/plugins.md): `["signup"]`, or `[{ name: "signup", forms: ["news"] }]`.
+   * Unset: no plugin, and the synthesized backend is exactly what it was before plugins existed.
+   */
+  plugins?: PluginRequest[];
   features?: {
     consoleResponder?: boolean;
     inboundEmail?: boolean;

@@ -23,7 +23,7 @@ const modelWithoutSubscriptions = <Fields extends Parameters<typeof a.model>[0]>
   a.model(fields).disableOperations(["subscriptions"]);
 const realtimeModel = <Fields extends Parameters<typeof a.model>[0]>(fields: Fields) => a.model(fields);
 
-export const schema = a.schema({
+const baseDefinitions = {
   UserProfile: modelWithoutSubscriptions({
       id: a.id().required(),
       email: a.email(),
@@ -1947,7 +1947,9 @@ export const schema = a.schema({
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
     ]),
-}).authorization((allow) => [
+};
+
+export const schema = a.schema(baseDefinitions).authorization((allow) => [
   allow.resource(categoryAction),
   allow.resource(contentActions),
   allow.resource(manageUserRole),
@@ -1955,5 +1957,17 @@ export const schema = a.schema({
   allow.resource(newsroomSummary),
   allow.resource(procedureAction),
 ]);
+
+/** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */
+export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
+  return a.schema({ ...baseDefinitions, ...pluginDefinitions } as typeof baseDefinitions).authorization((allow) => [
+    allow.resource(categoryAction),
+    allow.resource(contentActions),
+    allow.resource(manageUserRole),
+    allow.resource(modelAttachmentUpload),
+    allow.resource(newsroomSummary),
+    allow.resource(procedureAction),
+  ]);
+}
 
 export type Schema = ClientSchema<typeof schema>;

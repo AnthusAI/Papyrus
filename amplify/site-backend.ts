@@ -25,7 +25,9 @@ import {
 } from "./revalidate-invalidation-settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth } from "./auth/resource";
-import { data } from "./data/resource";
+import { defineSiteData } from "./data/resource";
+import { resolvePlugins } from "./plugins/registry";
+import { wirePlugins } from "./plugins/wire";
 import { assignmentAction } from "./functions/assignment-action/resource";
 import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
@@ -97,12 +99,16 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
   setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
+  const plugins = resolvePlugins(site.plugins);
+  const pluginDefinitions = Object.assign({}, ...plugins.map(({ plugin }) => plugin.schemaDefinitions()));
+  const pluginFunctions: Record<never, never> = Object.assign({}, ...plugins.map(({ plugin }) => plugin.functions()));
   const backend = defineBackend({
+    ...pluginFunctions,
     assignmentAction,
     auth: defineSiteAuth(authConfig),
     categoryAction,
     contentActions,
-    data,
+    data: defineSiteData(pluginDefinitions),
     knowledgeQuery,
     manageUserRole,
     modelAttachmentUpload,
@@ -707,5 +713,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         : null,
     },
   });
+  wirePlugins(backend, plugins, contentActionsLambda);
+
   return backend;
 }
