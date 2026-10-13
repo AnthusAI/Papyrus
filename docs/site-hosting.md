@@ -1,11 +1,27 @@
 # Site hosting options
 
 Status: **Config types live on `SiteBrand`** (`renderer`, `hosting`, `themePack`,
-`opsChrome` in `lib/site-brand.ts`). This file remains the hosting runbook.
-Markus/static build wiring is still a later child — config is not a renderer.
+`opsChrome` in `lib/site-brand.ts`). This file is the hosting runbook for both
+publication kinds: Markus sites projected into S3 behind CloudFront
+(`s3-projection`) and Pretext sites on Amplify SSR.
 
-Kanbus: PPY-17fcfc. First proof: [Pilobol.us](https://github.com/AnthusAI/Pilobol.us)
-on **pilobol.us** (Amplify platform `WEB`).
+Kanbus: PPY-17fcfc (original hosting design), PPY-23a743 (static projection).
+Live examples: [Pilobol.us](https://github.com/AnthusAI/Pilobol.us) on
+**pilobol.us** and [Anth.us-Papyrus](https://github.com/AnthusAI/Anth.us-Papyrus) on
+**anth.us**, both served from an S3 projection. The picture of how the parts
+fit is in the [README](../README.md#how-a-papyrus-publication-fits-together);
+editors read [How a publish flows](how-a-publish-flows.md).
+
+## Publication kinds at a glance
+
+| | Markus, `s3-projection` | Markus, Amplify reader (legacy) | Pretext, Amplify SSR |
+| --- | --- | --- | --- |
+| Where pages live | Static files in a versioned S3 site bucket | Static build output on an Amplify `WEB` app | Rendered on request by a Next.js server (`WEB_COMPUTE`) |
+| What serves them | Our own CloudFront stack (`papyrus-edge-<site>`) with edge functions | Amplify's CDN | Amplify's CDN in front of the compute |
+| What a Save does | The `content-actions` Lambda renders only the affected pages and invalidates their paths | Starts an Amplify build of the whole site | Calls the reader's `/api/revalidate` |
+| Save to visible | Seconds (see [Publish to visible](#publish-to-visible)) | Minutes (a full build) | Up to about two minutes |
+| Apps per site | One (the CMS) | Two (CMS and reader) | One |
+| Status | Kind for new Markus sites | Being retired (see [Migrating](#migrating-from-the-amplify-reader)) | Unchanged |
 
 ## Configuration axes (do not collapse them)
 
@@ -63,7 +79,13 @@ separately — a Markus reader may still use Shadcn `/newsroom`. Full mix table:
 Invalid combos can exist in theory (`pretext` + static is a poor fit today).
 Document pairings; do not ship a fake static Pretext pipeline.
 
-## Split reader + CMS (Pilobolus)
+## Split reader + CMS (Pilobolus, legacy)
+
+This section describes the **Amplify reader** shape that Pilobol.us and Anth.us
+ran before they moved to the S3 projection (see
+[Migrating from the Amplify reader](#migrating-from-the-amplify-reader)). A site
+that still has a reader app, or a new site that opts out of `s3-projection`,
+uses it.
 
 Some publications ship **two** Amplify apps:
 
@@ -103,7 +125,11 @@ Example domain: **pilobol.us** (publication **Pilobolus**, git repo
 `AnthusAI/Pilobol.us`). The old spelling `pilobil.us` was a typo — do not create
 that zone.
 
-## Static Markus path (amplify-static)
+## Static Markus path (amplify-static, legacy reader)
+
+Used by sites that still have an Amplify reader app. A site on the S3
+projection has no build: pages are written by the projection Lambda and the
+rest of this section does not apply to it.
 
 Typical publication repo layout:
 
@@ -125,6 +151,9 @@ pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
 See the static template for the full `amplify.yml`.
 
 ### Real 404s for missing pages
+
+(Amplify reader only. On the S3 projection the same result comes from
+CloudFront error responses; see [The 404 page and its headers](#the-404-page-and-its-headers).)
 
 Redirects and the not-found page are **Amplify app config** (`customRules`),
 not part of `amplify.yml`. Measured on Amplify `WEB` apps (PPY-fdb5e9):
@@ -384,6 +413,19 @@ predictable; without it Amplify generates the domain (see
 
 - [ ] Google secrets set on the CMS app (date: ____)
 
+### Per-site Google projects
+
+Give each site its own Google Cloud project and OAuth client rather than sharing one. A shared client works (add every site's Cognito origin and `idpresponse` URI to it), but one consent screen, one set of secrets and one blast radius then cover every newsroom. Per site:
+
+1. Create the project and the OAuth client ([`google-oauth-setup.md`](google-oauth-setup.md) Part A).
+2. Choose the **consent screen user type** by who will sign in: **Internal** only when every editor's Google account belongs to the Google Cloud project's own organization. When the editor's Google account is **not** in that organization (a personal Gmail, or another company's Workspace), the consent screen must be **External**; with Internal, Google refuses the sign-in with an `org_internal` error. An External app in Testing needs each editor listed as a test user until the app is published.
+3. Pick a distinct `cms.cognitoDomainPrefix` per site; the Cognito hosted-UI domain, `https://<prefix>.auth.us-east-1.amazoncognito.com`, is region-global and the prefix is what you register in Google.
+4. Put the client id and secret in the Amplify backend secrets of that site's CMS app only (never in `site.json`, Git, or a branch variable).
+
+### Roles are Cognito groups
+
+The newsroom roles are the Cognito groups `admin`, `editor` and `curator`. Signing in with Google creates the user with no group, and a user with no group cannot use the newsroom or read drafts. After the person's first Google sign-in, add them to a group (the `manage-user-role` flow, or the Cognito console, **User pools**, **Groups**). The person then reloads the page, which refreshes the session so the new role is picked up; no sign-out is needed. Guests and signed-in users with no group can read only the published models.
+
 ## Revalidation secret (Pretext sites)
 
 A Pretext publish refreshes the live pages immediately: `content-actions` calls
@@ -560,9 +602,9 @@ to the live set; the new site then adds only its own rule, named
 (`submissions@p.apyr.us` would be claimed twice), so this suits sites with
 different recipient domains.
 
-## S3 projection publication (opt-in)
+## S3 projection publication (Markus sites)
 
-A Markus site can publish its pages as static files in an S3 bucket from inside the publish mutation. Set `backend.publication` in `papyrus.config.ts`; a site that does not set it synthesizes exactly as before.
+A Markus site publishes its pages as static files in an S3 bucket from inside the publish mutation: no build job, no reader app. Set `backend.publication` in `papyrus.config.ts` (the fields are below); a site that does not set it has no projection resources and synthesizes exactly as before.
 
 ```ts
 backend: {
@@ -624,6 +666,93 @@ Publishing, saving a live item and unpublishing rewrite only the pages that depe
 - **Concurrency.** Pages are always rendered from the stored data, never from the request. After writing, the projection reads the published `(id, versionNumber)` set again; if another publish moved it, the pages that depend on the difference (and the item itself, if it was edited again) are rendered again, up to three rounds. The item state is written before that re-read, so the last state written belongs to the last pages written. Two editors saving the same item are still rejected by `expectedContentHash`.
 - **Failure.** A failed projection never fails the save: the response has `live: false`, and the function invokes itself once more asynchronously (`retryAttempts: 1`, on-failure destination: the dead letter queue). Every step is idempotent: the item state is written last, so a half-finished projection is redone from the old state.
 - **Reconcile.** `papyrus ops content project --reconcile [--dry-run] [--json]` compares the published data with the bucket: an item page whose `papyrus-version` is not the published `versionNumber` (or that is missing), the page and state of an item that is no longer published, a listing page whose `papyrus-inputs` is not what the data now yields, a page the projector owns that nothing expects (stale cleanup), and missing or different redirects. It repairs them (or, with `--dry-run`, only reports and exits 1 on drift); a large drift is repaired by `--all`. Theme and code changes are not drift; run `papyrus ops content project --all` after a backend deploy. `--item-pages` re-renders the item pages only.
+
+### Publish to visible
+
+What an editor can expect from a Save of a live item, as measured on the production sites (PPY-409932, PPY-65d13a, PPY-f1df00):
+
+| Step | Typical time |
+| --- | --- |
+| The mutation returns `live: true` | about 2 s warm; 8 to 14 s on a cold Lambda start (production Anth.us and Pilobol.us publishes) |
+| Targeted invalidation call | 0.1 to 0.25 s |
+| Edit start to new page visible at the edge (throwaway test, targeted invalidation) | 1.9 to 3.1 s; twelve edits one second apart converged within about 9 s |
+| A new image, upload to visible | about 2 to 4 s (the renditions Lambda) |
+| If the purge is lost or `invalidation` is `"off"` | the page lifetime: 300 s by default, 60 s with `cache.invalidation: "off"` |
+| Pretext site, publish to visible | up to about two minutes (see [Hosting Pretext, for contrast](#hosting-pretext-for-contrast)) |
+
+Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
+
+### Operations runbook
+
+Run these with the site's credentials (the authoring role or an SSO profile) and `PAPYRUS_GRAPHQL_ENDPOINT` set, as in [Running the CLI locally](#running-the-cli-locally). Every projection command is idempotent and safe to repeat.
+
+| Task | Command | When |
+| --- | --- | --- |
+| Re-render every page from the data | `papyrus ops content project --all` | After a backend or theme deploy, after the projector code changes, after a back-fill, to repair large drift |
+| Re-render one item | `papyrus ops content project --item <item-id>` (add `--unpublished` for an item that is not live) | After `import-markus`, or to fix one page |
+| Re-render all item pages only | `papyrus ops content project --item-pages` | After a change to shared page inputs |
+| Re-render listings only | `papyrus ops content project --listings` | Listing code changed |
+| Check the bucket against the data | `papyrus ops content project --reconcile --dry-run` | Routine check; exits 1 on drift |
+| Repair drift | `papyrus ops content project --reconcile` | After a failed projection, or after the dry run reports drift |
+| Render to a local directory instead of S3 | `papyrus ops content project --all --out DIR --static-dir DIR` | Parity checks against another build, local diff before a deploy |
+| Make image renditions for existing media | `papyrus ops content renditions --backfill --dry-run`, then `--backfill` | After enabling `images` in `projection.json` |
+| Copy media originals to the site bucket | `papyrus ops content renditions --backfill --originals` | Sites with `"media": { "originals": true }` |
+| Redo one image | `papyrus ops content renditions --source <srcPath>` | After the pipeline settings change for it |
+
+`project --all` also uploads the site's static files (CSS, scripts, robots, 404 page) and the redirect entries. After a backend deploy that changes the projector or the theme, run `project --all` once; until then pages keep the previous chrome. A full run of the Anth.us site (230 files and 520 redirects) took 77 seconds.
+
+#### The dead-letter queue and reconcile
+
+A projection that fails never fails the save. The response says `live: false`, the function invokes itself once more asynchronously, and if that also fails Lambda puts the event on the SQS dead-letter queue (its URL is `PAPYRUS_PROJECTION_DLQ_URL` on `content-actions`). A message in the queue means a page may be behind its data. Repair, in this order:
+
+1. Run `papyrus ops content project --reconcile --dry-run` to see what is behind.
+2. Run `papyrus ops content project --reconcile` to fix it. Stale pages, missing redirects and pages of unpublished items are all handled.
+3. Purge the queue only after reconcile reports no drift. The queue is a signal, not a work list: reconcile reads the data, not the queue.
+
+Routine habit: run the dry run after any deploy that touched `content-actions`. Nothing runs it on a schedule yet.
+
+#### The 404 page and its headers
+
+Missing pages must return HTTP 404 with the site's own `404.html` body. On the S3 projection:
+
+- S3 answers a request for a missing key with 403, not 404, when the caller has no list permission (the OAC grant is read only), so the distribution maps **both** 403 and 404 to `/404.html` with response code 404 (`CustomErrorResponses`). The projector must emit `404.html` as a static file.
+- **Header caveat.** The error page is served through the distribution's error-response path, so headers set by a response-headers policy or a viewer-response function can differ from those of a normal page, and the error response is cached for the error-caching minimum TTL. Do not assume the 404 carries the same `Cache-Control` or security headers as the pages. After any edge change, request a random missing path and one missing `.html` path and compare status, `content-type` and `cache-control` with the previous host. The Anth.us cutover checked exactly this and the 404 headers were unchanged.
+- The viewer-request function redirects `/x.html` to `/x/` for pages (except the listed served files such as `/404.html`), and rewrites `/x/` to `/x/index.html`.
+
+#### Own CloudFront in front of the bucket (`papyrus-edge-*`)
+
+Public hosts do not use Amplify custom domains for the static site. Each site has an edge stack `papyrus-edge-<site>` in the production account: a CloudFront distribution with its own ACM certificate and aliases, an S3 origin on the site bucket through an origin access control (OAC) that admits only that distribution, a CloudFront Function with a KeyValueStore for redirects and directory indexes, and the 403/404 error responses above. The site backend can create a distribution itself (`distribution: { create: true, aliases, acm }`) or accept an existing one (`edgeDistributionArn`). Existing sites keep their hand-run edge stacks and only swap the origin.
+
+Why: Amplify domain management ties a hostname to one app in one account, deletes and recreates the CloudFront distribution and certificate when an association is deleted, and can sit in `PENDING_VERIFICATION` with a validation record that already matches (see [Cross-account domains](#cross-account-domains)). Owning the distribution removes the reader app from DNS and certificates; a change is a CloudFormation change set with a one-command rollback. Pretext sites stay on Amplify domains.
+
+### Migrating from the Amplify reader
+
+Order of operations that worked for Pilobol.us and Anth.us (each step reversible until the last):
+
+1. **Project into the bucket without touching live.** Deploy the backend with `backend.publication`, run `papyrus ops content renditions --backfill`, then `project --all`.
+2. **Prove parity.** Compare the bucket tree with the reader build from the same data (a full-tree diff, modulo cache-bust tokens). On a test distribution, compare status, redirect chain, `cache-control`, `content-type` and body for a list of live paths, every redirect rule, and the 404 behaviour, against the live site.
+3. **Flip the origin** on the existing edge stack with a change set (aliases, certificate and DNS do not move). Poll the hostname every few seconds through the change; the Anth.us flip had zero non-200 in 152 samples.
+4. **Stop triggering the reader.** Remove the reader app id from the site config so a publish no longer starts an Amplify build (the build retries were most of the 9.8 s Pilobol.us publish).
+5. **Keep the reader app for a quiet week** as the rollback origin, then retire it (the retirement runbook is in the operator's notes; deleting the app is a human step).
+
+Known differences to expect after a flip: the cache-bust token does not cover media, sitemaps are `application/xml`, and content-type may carry a charset.
+
+### Rollback
+
+- **A bad edit.** Restore the previous version of the item in the newsroom and save: that is a normal save and re-projects. S3 versioning keeps earlier copies of each page for 90 days for single-page undelete, but it does not roll back a whole site, and it does not record who changed what.
+- **A bad site-code or theme deploy.** Redeploy the previous code, then run `papyrus ops content project --all`. Pages mix old and new chrome for about the length of that run.
+- **A bad edge change.** Update the edge stack with the previous template (or the previous change set's template). Aliases and DNS never moved, so this is the whole rollback.
+- **Back to the Amplify reader.** While the reader app still exists and has not been deleted, swap the origin back with the edge stack's previous template and re-enable the reader id in the site config. After the reader app is deleted, this path is gone.
+
+### Hosting Pretext, for contrast
+
+A Pretext site is one Amplify `WEB_COMPUTE` app (Next.js), with no S3 site bucket and no projection. The server reads published models over the guest identity pool at request time and Next caches each page for its `revalidate` lifetime. Publishing calls the reader's `/api/revalidate` ([Revalidation secret](#revalidation-secret-pretext-sites)). Pages are therefore never "behind" in the projection sense, there is nothing to reconcile, and the bound on staleness is the Amplify CDN layer, about two minutes after a publish. The Amplify CDN cannot be purged, so a site that needs faster freshness puts its own CloudFront in front and lists it in `backend.revalidateDistributionIds`. The Amplify console traps below apply to Pretext sites and to every CMS app.
+
+### Amplify console traps
+
+- **Connecting GitHub in the console overwrites app state.** It can replace the `buildSpec` and the branch environment variables, replace the service role, flip `platform` from `WEB_COMPUTE` to `WEB`, and delete and recreate the stack's branches, which removes the `staging` branch and all branch variables. Record `get-app` and `list-branches` before and diff after; the repair steps are in [Verify and repair after connecting](#verify-and-repair-after-connecting) (Papyrus#184 documented the cross-account part).
+- **Amplify domain APIs.** One hostname belongs to one Amplify app across accounts. Deleting an association deletes its distribution and certificate, and a new association gets new ones, so a delete-first cutover has real downtime and no undo. Associations can stick in `PENDING_VERIFICATION` for 30 minutes or more even with a correct validation record. Prefer not to use them for static sites at all (the `papyrus-edge-*` pattern above).
+- **Redirect and 404 rules are app config.** They reset if the app is recreated; keep them in the template (`reader.redirects`) for Amplify readers, and in the edge stack for the projection.
 
 ## Anti-patterns
 
