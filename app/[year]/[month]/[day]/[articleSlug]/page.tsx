@@ -4,8 +4,13 @@ import { getCachedEditionItem, loadCachedEditionContent } from "../../../../../l
 import { getEditionDatePath, parseEditionArticleRoute } from "../../../../../lib/edition-routes";
 import { buildPresentationFooterEntries } from "../../../../../lib/presentation-footer";
 import { SITE_BRAND } from "../../../../../lib/site-brand";
+import { generateEditionItemStaticParams } from "../../../../../lib/reader-static-params";
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
 export const revalidate = 60;
+
+export async function generateStaticParams() {
+  return generateEditionItemStaticParams();
+}
 
 type DateScopedArticlePageProps = {
   params: Promise<{

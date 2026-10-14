@@ -10,6 +10,7 @@ import {
   editionItemCacheTag,
 } from "../../../lib/cached-content-repository";
 import { isAuthorizedRevalidateRequest } from "../../../lib/revalidate-secret";
+import { prewarmPaths, resolvePrewarmOrigin } from "../../../lib/revalidate-prewarm";
 import { getEditionArticlePath, getEditionDatePath } from "../../../lib/edition-routes";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ type RevalidateRequestBody = {
   itemSlugs?: string[];
   paths?: string[];
   tags?: string[];
+  prewarm?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -87,9 +89,14 @@ export async function POST(request: Request) {
     revalidatedPaths.add(normalized);
   }
 
+  const prewarmed = body.prewarm === false
+    ? []
+    : await prewarmPaths(resolvePrewarmOrigin(request.url), [...revalidatedPaths]);
+
   return NextResponse.json({
     ok: true,
     revalidatedTags: [...revalidatedTags],
     revalidatedPaths: [...revalidatedPaths],
+    prewarmed,
   });
 }
