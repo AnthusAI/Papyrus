@@ -412,10 +412,11 @@ assert.equal(reprojectDeployToken({}, () => 5), "time-5");
   });
   addReprojectOnDeploy(reprojectStack, contentActions, "job-17");
   const rendered = JSON.stringify(Template.fromStack(reprojectStack).toJSON());
-  assert.ok(rendered.includes("Custom::AWS"), "the deploy hook is a custom resource");
-  assert.ok(rendered.includes("projectionTask"), "it starts a projection task");
-  assert.ok(rendered.includes("job-17"), "the deploy token is part of the request, so every deploy runs it");
-  assert.match(rendered, /task\\+"\:\\+"all/, "the task is the full re-projection");
+  Template.fromStack(reprojectStack).resourceCountIs("AWS::CloudFormation::CustomResource", 1);
+  assert.ok(rendered.includes("job-17"), "the deploy token is a property, so every deploy runs it");
+  assert.ok(rendered.includes("deploy-render"), "the task is the full render with the drift check");
+  assert.ok(rendered.includes("RequestResponse"), "the deploy waits for the render, so a failed render fails the deploy");
+  assert.ok(rendered.includes("DeployRenderDrift"), "a drift alarm is created");
 }
 
 console.log("s3-projection publication ok");

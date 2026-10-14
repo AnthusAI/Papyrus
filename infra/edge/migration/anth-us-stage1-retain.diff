@@ -1,0 +1,38 @@
+--- /dev/fd/11	2026-10-14 16:13:43
++++ anth-us-stage1-retain.yaml	2026-10-14 16:13:43
+@@ -15,6 +15,8 @@
+ Resources:
+   ViewerRequestFunction:
+     Type: AWS::CloudFront::Function
++    DeletionPolicy: Retain
++    UpdateReplacePolicy: Retain
+     Properties:
+       Name: !Sub '${AWS::StackName}-viewer-request'
+       AutoPublish: true
+@@ -110,6 +112,8 @@
+         }
+   ViewerResponseFunction:
+     Type: AWS::CloudFront::Function
++    DeletionPolicy: Retain
++    UpdateReplacePolicy: Retain
+     Properties:
+       Name: !Sub '${AWS::StackName}-viewer-response'
+       AutoPublish: true
+@@ -142,6 +146,8 @@
+         }
+   SiteBucketOriginAccessControl:
+     Type: AWS::CloudFront::OriginAccessControl
++    DeletionPolicy: Retain
++    UpdateReplacePolicy: Retain
+     Properties:
+       OriginAccessControlConfig:
+         Name: !Sub '${AWS::StackName}-site-bucket'
+@@ -150,6 +156,8 @@
+         SigningProtocol: sigv4
+   ReaderDistribution:
+     Type: AWS::CloudFront::Distribution
++    DeletionPolicy: Retain
++    UpdateReplacePolicy: Retain
+     Properties:
+       DistributionConfig:
+         Enabled: true

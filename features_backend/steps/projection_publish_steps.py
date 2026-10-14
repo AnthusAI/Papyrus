@@ -354,3 +354,60 @@ def run_invalidation_task(context) -> None:
         side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
     ), mock.patch.dict("os.environ", context.environment, clear=False):
         context.task_result = context.handler_module.handler(dict(task), None)
+
+
+@when('the deploy starts the "{task_name}" projection task expecting failure')
+def run_named_projection_task_expecting_failure(context, task_name: str) -> None:
+    context.task_error = None
+    with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
+        "boto3.client",
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+    ), mock.patch.dict("os.environ", context.environment, clear=False):
+        try:
+            context.handler_module.handler({"projectionTask": {"task": task_name}}, None)
+        except Exception as error:  # noqa: BLE001 - the step records what Lambda would see
+            context.task_error = error
+
+
+@given('a stray page "{key}" in the site bucket')
+def stray_bucket_page(context, key: str) -> None:
+    context.s3.put_object(Bucket="site-bucket", Key=key, Body=b"<p>stale</p>", Metadata={"papyrus-version": "1"})
+
+
+@when('the projection writes the pages "{first}" and "{second}"')
+def projection_writes_pages(context, first: str, second: str) -> None:
+    from papyrus_content.projection.writers import S3PageWriter
+
+    writer = S3PageWriter("site-bucket", context.s3)
+    for key in (first, second):
+        writer.put(key, b"<p>page</p>")
+
+
+@then('the stored page "{key}" has content type "{content_type}" and no cache header')
+def stored_without_cache_header(context, key: str, content_type: str) -> None:
+    stored = context.s3.objects[key]
+    assert stored["ContentType"] == content_type, stored
+    assert "CacheControl" not in stored, stored
+
+
+@then('the stored page "{key}" has content type "{content_type}" and a cache header')
+def stored_with_cache_header(context, key: str, content_type: str) -> None:
+    stored = context.s3.objects[key]
+    assert stored["ContentType"] == content_type, stored
+    assert stored.get("CacheControl"), stored
+
+
+@then("the deploy render report says nothing drifted")
+def deploy_render_clean(context) -> None:
+    assert context.task_result["drift"]["found"] is False, context.task_result
+
+
+@then('the deploy render report says the page "{key}" drifted')
+def deploy_render_orphan(context, key: str) -> None:
+    drift = context.task_result["drift"]
+    assert drift["found"] is True and key in drift["orphanPages"], context.task_result
+
+
+@then('the site bucket still holds "{key}"')
+def bucket_still_holds(context, key: str) -> None:
+    assert key in context.s3.objects, list(context.s3.objects)
