@@ -21,6 +21,7 @@ import { SITE_BRAND } from "./site-brand";
 import { shouldFetchVideoScripts } from "./video-mode";
 import { collectVideoScriptTargets, parseVideoScriptRef, videomlItemSlug, type VideoScriptRef } from "./video-script";
 import { currentContentSource, currentRequestClient, runWithContentSource } from "./content-source-context";
+import { withRateLimitRetry } from "./rate-limit-retry";
 import { getContentSource } from "./site-env";
 
 const DEFAULT_EDITION_SLUG = "current";
@@ -157,17 +158,19 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
     return runWithContentSource(source, operation, client);
   }
   return runWithContentSource(source, () =>
-    runWithAmplifyServerContext({
-      nextServerContext: null,
-      operation: async () => {
-        readerContextClient = generateClient<Schema>({ authMode: authMode() });
-        try {
-          return await operation();
-        } finally {
-          readerContextClient = null;
-        }
-      },
-    }),
+    withRateLimitRetry(() =>
+      runWithAmplifyServerContext({
+        nextServerContext: null,
+        operation: async () => {
+          readerContextClient = generateClient<Schema>({ authMode: authMode() });
+          try {
+            return await operation();
+          } finally {
+            readerContextClient = null;
+          }
+        },
+      }),
+    ),
   );
 }
 
