@@ -7,6 +7,7 @@ from typing import Any
 from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
+from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.engine import project, project_all, project_item_pages
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
@@ -146,6 +147,18 @@ def schedule_unpurged_invalidation(keys: list[str]) -> None:
     schedule_projection_task({"task": "invalidate", "keys": keys}, "edge invalidation failed")
 
 
+def run_deploy_render_task(client) -> dict:
+    """Render every published page after a backend deploy, then report drift (a dry run: nothing is deleted)."""
+    context = projection_context(client)
+    report = deploy_render(context)
+    print(drift_metric_line(report))
+    if report.render.unpurged:
+        schedule_unpurged_invalidation(report.render.unpurged)
+    if not report.ok:
+        raise ProjectionTaskFailed("; ".join([*report.render.errors, *report.drift.errors]))
+    return report.to_dict()
+
+
 def run_projection_task(task: dict) -> dict:
     """An asynchronous projection task. Raising makes Lambda retry it, then send the event to the dead letter queue."""
     client, _claims = create_authoring_client()
@@ -157,8 +170,8 @@ def run_projection_task(task: dict) -> dict:
             schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
     elif task.get("task") == "all":
         report = project_all(projection_context(client))
-    elif task.get("task") == "all":
-        report = project_all(projection_context(client))
+    elif task.get("task") == "deploy-render":
+        return run_deploy_render_task(client)
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:

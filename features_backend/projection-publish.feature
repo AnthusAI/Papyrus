@@ -88,6 +88,35 @@ Feature: Publishing through the content actions projects the site
     Then the projection task succeeds
     And the site bucket holds "articles/hello.html" with the published version
 
+  Scenario: The 404 page is stored with the headers CloudFront's error path needs
+    Given a content actions backend with an s3-projection publication
+    When the projection writes the pages "404.html" and "index.html"
+    Then the stored page "404.html" has content type "text/html" and no cache header
+    And the stored page "index.html" has content type "text/html; charset=utf-8" and a cache header
+
+  Scenario: A backend deploy renders everything and reports that nothing drifted
+    Given a content actions backend with an s3-projection publication
+    And the editor publishes a new article
+    And the site bucket page "articles/hello.html" was removed
+    When the deploy starts the "deploy-render" projection task
+    Then the projection task succeeds
+    And the site bucket holds "articles/hello.html" with the published version
+    And the deploy render report says nothing drifted
+
+  Scenario: A backend deploy reports a page nothing publishes any more and deletes nothing
+    Given a content actions backend with an s3-projection publication
+    And the editor publishes a new article
+    And a stray page "articles/ghost.html" in the site bucket
+    When the deploy starts the "deploy-render" projection task
+    Then the projection task succeeds
+    And the deploy render report says the page "articles/ghost.html" drifted
+    And the site bucket still holds "articles/ghost.html"
+
+  Scenario: A backend deploy render that cannot write raises so the deploy fails
+    Given a content actions backend with an s3-projection publication whose bucket rejects writes
+    When the deploy starts the "deploy-render" projection task expecting failure
+    Then the projection task raises so that Lambda retries it and then dead letters it
+
   Scenario: A site without a publication behaves as before
     Given a content actions backend without a publication
     When the editor publishes a new article

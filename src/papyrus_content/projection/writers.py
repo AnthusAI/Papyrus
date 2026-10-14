@@ -19,6 +19,8 @@ DEFAULT_HTML_S_MAXAGE_SECONDS = 300
 FALLBACK_HTML_S_MAXAGE_SECONDS = 60
 HTML_STALE_WHILE_REVALIDATE_SECONDS = 60
 IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
+ERROR_PAGE_KEY = "404.html"
+ERROR_PAGE_CONTENT_TYPE = "text/html"
 IMMUTABLE_KEY_PREFIXES = ("assets/responsive/", "_next/static/")
 HASHED_FILE_NAME = re.compile(r"[.-][0-9a-f]{8,}\.[A-Za-z0-9]+$")
 VERSION_METADATA_KEY = "papyrus-version"
@@ -192,14 +194,19 @@ class S3PageWriter:
         with ThreadPoolExecutor(max_workers=HEAD_WORKERS) as pool:
             return dict(zip(keys, pool.map(self.head, keys)))
 
-    def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
-        arguments: dict[str, Any] = {
-            "Bucket": self._bucket,
-            "Key": key,
-            "Body": body,
+    def _headers_for(self, key: str) -> dict[str, str]:
+        """CloudFront serves the stored 404 page through its error-response path, where no viewer-response
+        function runs, so the page carries the headers it must have on its own: plain ``text/html`` and no
+        ``Cache-Control``."""
+        if key == ERROR_PAGE_KEY:
+            return {"ContentType": ERROR_PAGE_CONTENT_TYPE}
+        return {
             "ContentType": content_type_for(key),
             "CacheControl": cache_control_for(key, self._html_s_maxage_seconds),
         }
+
+    def put(self, key: str, body: bytes, *, version: int | None = None, inputs: str | None = None) -> None:
+        arguments: dict[str, Any] = {"Bucket": self._bucket, "Key": key, "Body": body, **self._headers_for(key)}
         metadata: dict[str, str] = {}
         if version is not None:
             metadata[VERSION_METADATA_KEY] = str(version)

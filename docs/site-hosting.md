@@ -699,7 +699,7 @@ Run these with the site's credentials (the authoring role or an SSO profile) and
 | Copy media originals to the site bucket | `papyrus ops content renditions --backfill --originals` | Sites with `"media": { "originals": true }` |
 | Redo one image | `papyrus ops content renditions --source <srcPath>` | After the pipeline settings change for it |
 
-`project --all` also uploads the site's static files (CSS, scripts, robots, 404 page) and the redirect entries. After a backend deploy that changes the projector or the theme, run `project --all` once; until then pages keep the previous chrome. A full run of the Anth.us site (230 files and 520 redirects) took 77 seconds.
+`project --all` also uploads the site's static files (CSS, scripts, robots, 404 page) and the redirect entries. After a backend deploy that changes the projector or the theme, run `project --all` once; until then pages keep the previous chrome. With `reprojectOnDeploy: true` the deploy does this itself, with no personal credentials (below). A full run of the Anth.us site (230 files and 520 redirects) took 77 seconds.
 
 #### The dead-letter queue and reconcile
 
@@ -710,6 +710,16 @@ A projection that fails never fails the save. The response says `live: false`, t
 3. Purge the queue only after reconcile reports no drift. The queue is a signal, not a work list: reconcile reads the data, not the queue.
 
 Routine habit: run the dry run after any deploy that touched `content-actions`. Nothing runs it on a schedule yet.
+
+#### Merge is deploy: the post-deploy render
+
+With `publication.reprojectOnDeploy: true` (the default for the publication a Markus site gets when it sets none; a site that spells `publication` out must set it), the backend deploy renders the whole site itself, so merging to `main` is the only step once the CMS Amplify app builds `main` automatically (branch `enableAutoBuild`, which the app-shell template sets and which the CMS app's `main` branch must keep). Nothing in the path needs a person's AWS access.
+
+1. The deploy runs a custom resource in the site backend. It invokes the content-actions Lambda **synchronously** with the `deploy-render` projection task and waits (the function timeout is 15 minutes; a full Anth.us render took 77 seconds).
+2. `deploy-render` runs the same render as `project --all`, then runs `reconcile` as a **dry run**. Orphan pages, stale pages and missing redirects are reported and nothing is deleted: `--all` and the dry run never delete. Repair stays a deliberate `papyrus ops content project --reconcile`.
+3. A render that fails raises, the custom resource fails, the stack update fails and the Amplify build goes red with the failure in the build log. A render that succeeds returns its summary (pages written, redirect count and the drift lists, at most 25 keys each) to the Lambda log and the CloudFormation resource data. The run also writes a CloudWatch embedded-metric line, `Papyrus/Projection` `DeployRenderDrift` (dimension `FunctionName`), and the backend creates an alarm that is in ALARM for a day after any run that found drift.
+
+The 404 page is stored by the writer itself with `Content-Type: text/html` and no `Cache-Control`, because CloudFront serves it through the error-response path where no viewer-response function runs. No follow-up script is needed after a render.
 
 #### The 404 page and its headers
 
