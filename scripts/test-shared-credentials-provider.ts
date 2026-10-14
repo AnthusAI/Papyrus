@@ -31,6 +31,10 @@ function fakeProvider(failuresBeforeSuccess: number, lifetimeMilliseconds: numbe
   };
 }
 
+function upstreamCalls(state: { calls: number }): number {
+  return state.calls;
+}
+
 async function main() {
   const clock = { now: 1_000_000 };
   const sleeps: number[] = [];
@@ -39,26 +43,26 @@ async function main() {
   const healthy = fakeProvider(0, 60 * 60 * 1000, clock);
   const shared = createSharedCredentialsProvider(healthy.provider, { now: () => clock.now, retry });
   const burst = await Promise.all(Array.from({ length: 50 }, () => shared.getCredentialsAndIdentityId({})));
-  assert(healthy.state.calls === 1, `50 concurrent callers share one upstream request, got ${healthy.state.calls}`);
+  assert(upstreamCalls(healthy.state) === 1, `50 concurrent callers share one upstream request, got ${upstreamCalls(healthy.state)}`);
   assert(burst.every((entry) => entry === burst[0]), "every caller receives the same result");
   await shared.getCredentialsAndIdentityId({});
-  assert(healthy.state.calls === 1, "later callers hit the cache");
+  assert(upstreamCalls(healthy.state) === 1, "later callers hit the cache");
 
   clock.now += 56 * 60 * 1000;
   await shared.getCredentialsAndIdentityId({});
-  assert(healthy.state.calls === 2, "credentials within five minutes of expiry are refreshed");
+  assert(upstreamCalls(healthy.state) === 2, "credentials within five minutes of expiry are refreshed");
   await shared.getCredentialsAndIdentityId({ forceRefresh: true });
-  assert(healthy.state.calls === 3, "forceRefresh bypasses the cache");
+  assert(upstreamCalls(healthy.state) === 3, "forceRefresh bypasses the cache");
   shared.clearCredentialsAndIdentityId();
   assert(healthy.state.clears === 1, "clear reaches the inner provider");
   await shared.getCredentialsAndIdentityId({});
-  assert(healthy.state.calls === 4, "cache is empty after clear");
+  assert(upstreamCalls(healthy.state) === 4, "cache is empty after clear");
 
   const flaky = fakeProvider(4, 60 * 60 * 1000, clock);
   const flakyShared = createSharedCredentialsProvider(flaky.provider, { now: () => clock.now, retry });
   sleeps.length = 0;
   await Promise.all(Array.from({ length: 20 }, () => flakyShared.getCredentialsAndIdentityId({})));
-  assert(flaky.state.calls === 5, `4 throttles then success is 5 upstream calls for 20 callers, got ${flaky.state.calls}`);
+  assert(upstreamCalls(flaky.state) === 5, `4 throttles then success is 5 upstream calls for 20 callers, got ${upstreamCalls(flaky.state)}`);
   assert(sleeps.length === 4, "one backoff sleep per throttle");
 
   const alwaysThrottled = fakeProvider(Number.MAX_SAFE_INTEGER, 1000, clock);
@@ -66,9 +70,9 @@ async function main() {
   let thrown: unknown;
   try { await hopeless.getCredentialsAndIdentityId({}); } catch (error) { thrown = error; }
   assert(thrown instanceof Error && thrown.name === "TooManyRequestsException", "original error surfaces after the attempts");
-  assert(alwaysThrottled.state.calls === 5, "attempts are bounded");
+  assert(upstreamCalls(alwaysThrottled.state) === 5, "attempts are bounded");
   try { await hopeless.getCredentialsAndIdentityId({}); } catch { /* expected */ }
-  assert(alwaysThrottled.state.calls === 10, "a failed flight does not stay cached");
+  assert(upstreamCalls(alwaysThrottled.state) === 10, "a failed flight does not stay cached");
 
   for (let attempt = 1; attempt <= 12; attempt += 1) {
     const ceiling = Math.min(20_000, 500 * 2 ** (attempt - 1));
