@@ -21,11 +21,11 @@ export function getAmplifyServerRuntime(): AmplifyServerRuntime {
   if (cachedRuntime) return cachedRuntime;
 
   const config = loadAmplifyOutputs();
-  Amplify.configure(config, { ssr: true });
   cachedRuntime = {
     ...createServerRunner({ config }),
     config,
   };
+  Amplify.configure(config, config.Auth ? { ssr: true, Auth: getGuestProviders(config) } : { ssr: true });
   return cachedRuntime;
 }
 
