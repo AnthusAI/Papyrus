@@ -137,7 +137,7 @@ const IMAGE_ROLES: NonNullable<ArticleImageAsset["roles"]> = [
 let readerContextClient: DataClient | null = null;
 let buildTimeClient: DataClient | null = null;
 
-function authMode(): "userPool" | "identityPool" {
+export function authMode(): "userPool" | "identityPool" {
   return currentContentSource() === "drafts" ? "userPool" : "identityPool";
 }
 
