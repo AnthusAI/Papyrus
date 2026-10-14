@@ -34,18 +34,21 @@ type GuestProviders = {
   tokenProvider: ReturnType<typeof createUserPoolsTokenProvider>;
 };
 
-let cachedGuestProviders: GuestProviders | null = null;
+const GUEST_PROVIDERS_KEY = Symbol.for("papyrus.guestAmplifyProviders");
 
 function getGuestProviders(config: ResourcesConfig): GuestProviders {
-  if (cachedGuestProviders) return cachedGuestProviders;
+  const holder = globalThis as unknown as Record<symbol, GuestProviders | undefined>;
+  const existing = holder[GUEST_PROVIDERS_KEY];
+  if (existing) return existing;
   const auth = config.Auth as NonNullable<ResourcesConfig["Auth"]>;
-  cachedGuestProviders = {
+  const created: GuestProviders = {
     credentialsProvider: createSharedCredentialsProvider(
       createAWSCredentialsAndIdentityIdProvider(auth, sharedInMemoryStorage),
     ),
     tokenProvider: createUserPoolsTokenProvider(auth, sharedInMemoryStorage),
   };
-  return cachedGuestProviders;
+  holder[GUEST_PROVIDERS_KEY] = created;
+  return created;
 }
 
 export function runWithGuestAmplifyContext<T>(operation: (contextSpec: Parameters<Parameters<typeof runWithAmplifyContext>[2]>[0]) => Promise<T>): Promise<T> {
