@@ -134,7 +134,6 @@ const IMAGE_ROLES: NonNullable<ArticleImageAsset["roles"]> = [
   "thumbnail",
 ];
 
-let readerContextClient: DataClient | null = null;
 let buildTimeClient: DataClient | null = null;
 
 export function authMode(): "userPool" | "identityPool" {
@@ -157,16 +156,9 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
     const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
     return runWithContentSource(source, operation, client);
   }
-  return runWithContentSource(source, () =>
-    withRateLimitRetry(() =>
-      runWithGuestAmplifyContext(async () => {
-        readerContextClient = generateClient<Schema>({ authMode: authMode() });
-        try {
-          return await operation();
-        } finally {
-          readerContextClient = null;
-        }
-      }),
+  return withRateLimitRetry(() =>
+    runWithGuestAmplifyContext(() =>
+      runWithContentSource(source, operation, generateClient<Schema>({ authMode: authMode() })),
     ),
   );
 }
@@ -257,7 +249,6 @@ export const graphqlContentRepository: ContentRepository = {
 function getClient(): DataClient {
   const requestClient = currentRequestClient<DataClient>();
   if (requestClient) return requestClient;
-  if (readerContextClient) return readerContextClient;
 
   if (!buildTimeClient) {
     getAmplifyServerRuntime();
