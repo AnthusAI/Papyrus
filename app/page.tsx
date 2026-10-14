@@ -2,6 +2,7 @@ import { getSiteRenderer } from "../lib/site-renderer";
 import { contentRepository, getScenarioIdParam } from "../lib/content-repository";
 import type { EditionContent } from "../lib/content-types";
 import { createEditionSectionPlan } from "../lib/edition-sections";
+import { getCachedLatestPublishedEdition, loadCachedEditionContent } from "../lib/cached-content-repository";
 import { getEditionDatePath } from "../lib/edition-routes";
 import {
   EMPTY_EDITION_PLACEHOLDER_SLUG,
@@ -77,7 +78,7 @@ export default async function Home({ searchParams }: HomePageProps) {
       );
     }
 
-    const latestEdition = await contentRepository.getLatestPublishedEdition();
+    const latestEdition = await getCachedLatestPublishedEdition();
     if (latestEdition) redirect(getEditionDatePath(latestEdition.editionDate));
     return <siteRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
   }
@@ -88,9 +89,9 @@ export default async function Home({ searchParams }: HomePageProps) {
 }
 
 async function loadLatestGraphQLEdition(): Promise<EditionContent | null> {
-  const latestEdition = await contentRepository.getLatestPublishedEdition();
+  const latestEdition = await getCachedLatestPublishedEdition();
   if (!latestEdition) return null;
-  return contentRepository.loadEditionContent({ editionDate: latestEdition.editionDate });
+  return loadCachedEditionContent({ editionDate: latestEdition.editionDate });
 }
 
 async function loadFirstPublishedEditionPath(): Promise<string | undefined> {
