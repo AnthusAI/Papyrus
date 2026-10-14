@@ -14,7 +14,7 @@ const throttled = () => Object.assign(new Error("Rate exceeded"), { name: "TooMa
 type Result = { credentials: { expiration?: Date }; identityId: string };
 
 function fakeProvider(failuresBeforeSuccess: number, lifetimeMilliseconds: number, clock: { now: number }) {
-  const state = { calls: 0, clears: 0 };
+  const state: { calls: number; clears: number } = { calls: 0, clears: 0 };
   return {
     state,
     provider: {
