@@ -3,7 +3,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import type { Article, ArticleImage, ArticleImageAsset, ArticleImageLayout, ArticleImageThemeVariants, ArticleVideoAsset, ArticleVideoThemeVariants } from "./articles";
 import { withContentLoadTiming } from "./content-load-timing";
-import { getAmplifyServerRuntime } from "./amplify-server-runtime";
+import { getAmplifyServerRuntime, runWithGuestAmplifyContext } from "./amplify-server-runtime";
 import { resolveReaderStorageUrl, signStorageUrl } from "./reader-storage-url";
 import type { ContentRepository, EditionContent, EditionRouteSummary, ListPublishedEditionsOptions, LoadEditionContentOptions } from "./content-types";
 import { isDemoAmplifyOutputs } from "./demo-amplify-outputs";
@@ -134,10 +134,9 @@ const IMAGE_ROLES: NonNullable<ArticleImageAsset["roles"]> = [
   "thumbnail",
 ];
 
-let readerContextClient: DataClient | null = null;
 let buildTimeClient: DataClient | null = null;
 
-function authMode(): "userPool" | "identityPool" {
+export function authMode(): "userPool" | "identityPool" {
   return currentContentSource() === "drafts" ? "userPool" : "identityPool";
 }
 
@@ -147,7 +146,7 @@ function isVisibleItemStatus(status: string): boolean {
 }
 
 async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise<T> {
-  const { runWithAmplifyServerContext, config } = getAmplifyServerRuntime();
+  const { config } = getAmplifyServerRuntime();
   const source = getContentSource();
   if (source === "drafts") {
     // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
@@ -157,19 +156,9 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
     const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
     return runWithContentSource(source, operation, client);
   }
-  return runWithContentSource(source, () =>
-    withRateLimitRetry(() =>
-      runWithAmplifyServerContext({
-        nextServerContext: null,
-        operation: async () => {
-          readerContextClient = generateClient<Schema>({ authMode: authMode() });
-          try {
-            return await operation();
-          } finally {
-            readerContextClient = null;
-          }
-        },
-      }),
+  return withRateLimitRetry(() =>
+    runWithGuestAmplifyContext(() =>
+      runWithContentSource(source, operation, generateClient<Schema>({ authMode: authMode() })),
     ),
   );
 }
@@ -260,7 +249,6 @@ export const graphqlContentRepository: ContentRepository = {
 function getClient(): DataClient {
   const requestClient = currentRequestClient<DataClient>();
   if (requestClient) return requestClient;
-  if (readerContextClient) return readerContextClient;
 
   if (!buildTimeClient) {
     getAmplifyServerRuntime();

@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import { createServerRunner } from "@aws-amplify/adapter-nextjs";
 import { Amplify, type ResourcesConfig } from "aws-amplify";
+import {
+  createAWSCredentialsAndIdentityIdProvider,
+  createUserPoolsTokenProvider,
+  runWithAmplifyServerContext as runWithAmplifyContext,
+} from "aws-amplify/adapter-core";
+import { sharedInMemoryStorage } from "aws-amplify/utils";
+import { createSharedCredentialsProvider } from "./shared-credentials-provider";
 import { assertSandboxAmplifyOutputsForDev } from "./amplify-outputs-guard";
 import { getAmplifyOutputsPath } from "./amplify-outputs-path";
 
@@ -14,12 +21,40 @@ export function getAmplifyServerRuntime(): AmplifyServerRuntime {
   if (cachedRuntime) return cachedRuntime;
 
   const config = loadAmplifyOutputs();
-  Amplify.configure(config, { ssr: true });
   cachedRuntime = {
     ...createServerRunner({ config }),
     config,
   };
+  Amplify.configure(config, config.Auth ? { ssr: true, Auth: getGuestProviders(config) } : { ssr: true });
   return cachedRuntime;
+}
+
+type GuestProviders = {
+  credentialsProvider: ReturnType<typeof createAWSCredentialsAndIdentityIdProvider>;
+  tokenProvider: ReturnType<typeof createUserPoolsTokenProvider>;
+};
+
+const GUEST_PROVIDERS_KEY = Symbol.for("papyrus.guestAmplifyProviders");
+
+function getGuestProviders(config: ResourcesConfig): GuestProviders {
+  const holder = globalThis as unknown as Record<symbol, GuestProviders | undefined>;
+  const existing = holder[GUEST_PROVIDERS_KEY];
+  if (existing) return existing;
+  const auth = config.Auth as NonNullable<ResourcesConfig["Auth"]>;
+  const created: GuestProviders = {
+    credentialsProvider: createSharedCredentialsProvider(
+      createAWSCredentialsAndIdentityIdProvider(auth, sharedInMemoryStorage),
+    ),
+    tokenProvider: createUserPoolsTokenProvider(auth, sharedInMemoryStorage),
+  };
+  holder[GUEST_PROVIDERS_KEY] = created;
+  return created;
+}
+
+export function runWithGuestAmplifyContext<T>(operation: (contextSpec: Parameters<Parameters<typeof runWithAmplifyContext>[2]>[0]) => Promise<T>): Promise<T> {
+  const { config } = getAmplifyServerRuntime();
+  if (!config.Auth) return runWithAmplifyContext(config, {}, operation) as Promise<T>;
+  return runWithAmplifyContext(config, { Auth: getGuestProviders(config) }, operation) as Promise<T>;
 }
 
 export function hasAmplifyOutputs(): boolean {

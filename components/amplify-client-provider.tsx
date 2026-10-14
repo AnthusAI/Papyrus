@@ -15,6 +15,7 @@ let configured = false;
 
 export function configureAmplifyClient() {
   if (configured) return;
+  if (typeof window === "undefined") return;
   assertSandboxAmplifyOutputsForDev(amplifyOutputs as Record<string, unknown>);
   Amplify.configure(prioritizeCurrentOrigin(amplifyOutputs as ResourcesConfig), { ssr: true });
   applyClientTokenStorageForCurrentProtocol();

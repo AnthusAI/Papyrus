@@ -1,5 +1,5 @@
 import { getUrl } from "aws-amplify/storage/server";
-import { getAmplifyServerRuntime } from "./amplify-server-runtime";
+import { runWithGuestAmplifyContext } from "./amplify-server-runtime";
 
 const STORAGE_URL_EXPIRES_IN_SECONDS = 60 * 60;
 const STORAGE_URL_CACHE_TTL_MS = 55 * 60 * 1000;
@@ -43,17 +43,14 @@ export async function signStorageUrl(storagePath: string): Promise<string> {
     return cached.url;
   }
 
-  const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
-  const result = await runWithAmplifyServerContext({
-    nextServerContext: null,
-    operation: (contextSpec) =>
-      getUrl(contextSpec, {
-        path: normalized,
-        options: {
-          expiresIn: STORAGE_URL_EXPIRES_IN_SECONDS,
-        },
-      }),
-  });
+  const result = await runWithGuestAmplifyContext((contextSpec) =>
+    getUrl(contextSpec, {
+      path: normalized,
+      options: {
+        expiresIn: STORAGE_URL_EXPIRES_IN_SECONDS,
+      },
+    }),
+  );
   const url = result.url.toString();
   signedUrlCache.set(normalized, {
     expiresAt: Date.now() + STORAGE_URL_CACHE_TTL_MS,
