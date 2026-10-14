@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import { createServerRunner } from "@aws-amplify/adapter-nextjs";
 import { Amplify, type ResourcesConfig } from "aws-amplify";
+import {
+  createAWSCredentialsAndIdentityIdProvider,
+  createUserPoolsTokenProvider,
+  runWithAmplifyServerContext as runWithAmplifyContext,
+} from "aws-amplify/adapter-core";
+import { sharedInMemoryStorage } from "aws-amplify/utils";
+import { createSharedCredentialsProvider } from "./shared-credentials-provider";
 import { assertSandboxAmplifyOutputsForDev } from "./amplify-outputs-guard";
 import { getAmplifyOutputsPath } from "./amplify-outputs-path";
 
@@ -20,6 +27,31 @@ export function getAmplifyServerRuntime(): AmplifyServerRuntime {
     config,
   };
   return cachedRuntime;
+}
+
+type GuestProviders = {
+  credentialsProvider: ReturnType<typeof createAWSCredentialsAndIdentityIdProvider>;
+  tokenProvider: ReturnType<typeof createUserPoolsTokenProvider>;
+};
+
+let cachedGuestProviders: GuestProviders | null = null;
+
+function getGuestProviders(config: ResourcesConfig): GuestProviders {
+  if (cachedGuestProviders) return cachedGuestProviders;
+  const auth = config.Auth as NonNullable<ResourcesConfig["Auth"]>;
+  cachedGuestProviders = {
+    credentialsProvider: createSharedCredentialsProvider(
+      createAWSCredentialsAndIdentityIdProvider(auth, sharedInMemoryStorage),
+    ),
+    tokenProvider: createUserPoolsTokenProvider(auth, sharedInMemoryStorage),
+  };
+  return cachedGuestProviders;
+}
+
+export function runWithGuestAmplifyContext<T>(operation: (contextSpec: Parameters<Parameters<typeof runWithAmplifyContext>[2]>[0]) => Promise<T>): Promise<T> {
+  const { config } = getAmplifyServerRuntime();
+  if (!config.Auth) return runWithAmplifyContext(config, {}, operation) as Promise<T>;
+  return runWithAmplifyContext(config, { Auth: getGuestProviders(config) }, operation) as Promise<T>;
 }
 
 export function hasAmplifyOutputs(): boolean {

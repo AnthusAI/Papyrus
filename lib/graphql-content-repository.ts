@@ -3,7 +3,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import type { Article, ArticleImage, ArticleImageAsset, ArticleImageLayout, ArticleImageThemeVariants, ArticleVideoAsset, ArticleVideoThemeVariants } from "./articles";
 import { withContentLoadTiming } from "./content-load-timing";
-import { getAmplifyServerRuntime } from "./amplify-server-runtime";
+import { getAmplifyServerRuntime, runWithGuestAmplifyContext } from "./amplify-server-runtime";
 import { resolveReaderStorageUrl, signStorageUrl } from "./reader-storage-url";
 import type { ContentRepository, EditionContent, EditionRouteSummary, ListPublishedEditionsOptions, LoadEditionContentOptions } from "./content-types";
 import { isDemoAmplifyOutputs } from "./demo-amplify-outputs";
@@ -147,7 +147,7 @@ function isVisibleItemStatus(status: string): boolean {
 }
 
 async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise<T> {
-  const { runWithAmplifyServerContext, config } = getAmplifyServerRuntime();
+  const { config } = getAmplifyServerRuntime();
   const source = getContentSource();
   if (source === "drafts") {
     // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
@@ -159,16 +159,13 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
   }
   return runWithContentSource(source, () =>
     withRateLimitRetry(() =>
-      runWithAmplifyServerContext({
-        nextServerContext: null,
-        operation: async () => {
-          readerContextClient = generateClient<Schema>({ authMode: authMode() });
-          try {
-            return await operation();
-          } finally {
-            readerContextClient = null;
-          }
-        },
+      runWithGuestAmplifyContext(async () => {
+        readerContextClient = generateClient<Schema>({ authMode: authMode() });
+        try {
+          return await operation();
+        } finally {
+          readerContextClient = null;
+        }
       }),
     ),
   );

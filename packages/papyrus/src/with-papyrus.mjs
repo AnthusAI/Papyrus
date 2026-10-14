@@ -10,6 +10,8 @@ import { fileURLToPath } from "node:url";
  *   `papyrus-site-theme` -> ./publication/theme.css when it exists, else the shipped
  *   empty lib/empty-theme.css (both webpack and turbopack),
  * - trace the corpora/ YAML and amplify_outputs.json that the reader reads via fs at runtime,
+ * - cap static generation at 2 workers x 3 pages (override with PAPYRUS_STATIC_GENERATION_WORKERS / _CONCURRENCY) and retry
+ *   failed pages 3 times, so pre-building the reader pages stays under Cognito guest-credential throttles,
  * - carry Papyrus's own server-external packages and image settings.
  */
 const SERVER_EXTERNAL = [
@@ -29,6 +31,24 @@ const SERVER_EXTERNAL = [
  * (lib/reader-cache-lifetime.ts) bounds that to 60 s.
  */
 export const READER_EXPIRE_TIME_SECONDS = 120;
+
+export const DEFAULT_STATIC_GENERATION_WORKERS = 2;
+export const DEFAULT_STATIC_GENERATION_CONCURRENCY = 3;
+export const DEFAULT_STATIC_GENERATION_RETRY_COUNT = 3;
+
+function positiveIntegerFromEnvironment(name) {
+  const parsed = Number.parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export function staticGenerationSettings() {
+  return {
+    cpus: positiveIntegerFromEnvironment("PAPYRUS_STATIC_GENERATION_WORKERS") ?? DEFAULT_STATIC_GENERATION_WORKERS,
+    staticGenerationMaxConcurrency:
+      positiveIntegerFromEnvironment("PAPYRUS_STATIC_GENERATION_CONCURRENCY") ?? DEFAULT_STATIC_GENERATION_CONCURRENCY,
+    staticGenerationRetryCount: DEFAULT_STATIC_GENERATION_RETRY_COUNT,
+  };
+}
 
 export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron"];
 
@@ -67,7 +87,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
     outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),
     images: nextConfig.images ?? { remotePatterns: [{ protocol: "https", hostname: "**" }] },
-    experimental: { devtoolSegmentExplorer: false, ...nextConfig.experimental },
+    experimental: { devtoolSegmentExplorer: false, ...staticGenerationSettings(), ...nextConfig.experimental },
     turbopack: {
       ...nextConfig.turbopack,
       resolveAlias: {
