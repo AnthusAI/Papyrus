@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFront edge for p.apyr.us in front of Amplify default domains (bypasses Amplify custom-domain API), production distribution caches public reader pages per the origin Cache-Control (PPY-79e668)
+Parameters:
+  CertificateArn:
+    Type: String
+  AmplifyAppId:
+    Type: String
+  ProductionHost:
+    Type: String
+    Default: p.apyr.us
+  StagingHost:
+    Type: String
+    Default: p-staging.apyr.us
+  ApexHost:
+    Type: String
+    Default: apyr.us
+Resources:
+  ForwardHostFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-forward-host'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Redirect apex to production host; copy Host to x-forwarded-host
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var host = request.headers.host.value;
+          if (host === '${ApexHost}') {
+            var query = '';
+            var keys = Object.keys(request.querystring);
+            if (keys.length > 0) {
+              query = '?' + keys.map(function (k) {
+                var q = request.querystring[k];
+                return q.value === '' ? k : k + '=' + q.value;
+              }).join('&');
+            }
+            return {
+              statusCode: 301,
+              statusDescription: 'Moved Permanently',
+              headers: { location: { value: 'https://${ProductionHost}' + request.uri + query } }
+            };
+          }
+          request.headers['x-forwarded-host'] = { value: host };
+          return request;
+        }
+  ReaderPagesCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AWS::StackName}-reader-pages'
+        Comment: Honour the origin Cache-Control (s-maxage, stale-while-revalidate) for public reader pages; key on the Next.js RSC request headers
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 86400
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          CookiesConfig:
+            CookieBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers: [RSC, Next-Router-Prefetch, Next-Router-State-Tree, Next-Router-Segment-Prefetch, Next-Url]
+  ProductionDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: p.apyr.us production
+        Aliases: [!Ref ProductionHost, !Ref ApexHost]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: !Sub 'main.${AmplifyAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        CacheBehaviors:
+          - PathPattern: '/newsroom*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/api/*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/_next/image*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: !Ref ReaderPagesCachePolicy
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+  StagingDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: p-staging.apyr.us staging
+        Aliases: [!Ref StagingHost]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: !Sub 'staging.${AmplifyAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+Outputs:
+  ProductionDistributionId:
+    Value: !Ref ProductionDistribution
+  ProductionDomainName:
+    Value: !GetAtt ProductionDistribution.DomainName
+  StagingDistributionId:
+    Value: !Ref StagingDistribution
+  StagingDomainName:
+    Value: !GetAtt StagingDistribution.DomainName
+
