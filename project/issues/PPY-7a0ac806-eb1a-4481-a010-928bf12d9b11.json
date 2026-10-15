@@ -1,0 +1,25 @@
+{
+  "id": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "title": "Unified newsroom review: Kanbus work and Cyclotron priming",
+  "description": "Deliver a coherent local/LAN Papyrus review preview using actual reusable Kanbus and Cyclotron components. Preserve production and existing previews. Synthetic records must be labeled; no secrets or arbitrary external fetch exposed. Review with Ryan before any rollout.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-15T00:49:28.909448Z",
+  "updated_at": "2026-10-15T00:49:28.910098Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "papyrus-unified-review"
+  },
+  "right_now_summary": "The local newsroom review works with persisted synthetic data; iPad and artifact checks remain before publication.",
+  "right_now_updated_at": "2026-10-15T01:02:48.759387Z",
+  "custom": {}
+}

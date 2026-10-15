@@ -1,0 +1,45 @@
+{
+  "id": "PPY-a8471b14-5926-4223-83b9-b8a1769790ab",
+  "title": "Review editorial work and reference priming in one newsroom",
+  "description": "Feature: Unified Papyrus review\nScenario: Advance editorial work\nGiven an explicitly synthetic newsroom backed by Kanbus\nWhen I open the board, select a story, and advance its stage\nThen the actual Kanbus service persists the change across reload\nScenario: Curate representative examples\nGiven the References view shares the same newsroom navigation\nWhen I preview, revise, label, and accept a synthetic reference\nThen the actual Cyclotron priming service stores the example and human labels\nScenario: Safe LAN review\nGiven the preview is reachable on the private LAN\nWhen a cross-origin write or real source URL is submitted\nThen it is refused and no production system is contacted",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "eef9d4d6-7246-4ea4-acaa-cd6b98e04701",
+      "author": "home",
+      "text": "Implemented isolated feature/PPY-a8471b-unified-newsroom-review. Real IssueCollection/IssueDetailPanel and actual file-backed Kanbus API; actual Papyrus ReferencePriming/Cyclotron PrimingPanel and existing synthetic priming service. Browser verifies story create/move/note/reload and actual accepted catalog plus two human labels. 390/1440 light/dark reduced-motion checks; four gateway tests, TypeScript, lint, Vite build pass. Dedicated launch service owns 8899 and loopback8900; original priming8898 untouched. Synthetic-only; iPad acceptance pending. No production merge/deploy. Public publication remains held for inherited source/artifacts. See docs/unified-newsroom-review.md.",
+      "created_at": "2026-10-15T01:01:26.177522Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "papyrus-unified-review"
+      }
+    },
+    {
+      "id": "a98e8226-f5f6-40ef-b299-dc4af7bed0f6",
+      "author": "home",
+      "text": "Local product commit d02d526 implements the unified preview. Browser/API persistence verification passes, including actual priming catalog and human-label reads. Review URLs http://192.168.0.199:8899/newsroom/work and /newsroom/references. Launch service com.anthus.papyrus.unified-review keeps the server alive. Public implementation push is intentionally held because inherited priming/shared artifacts are not cleared for publication. No merge/deployment. Branch feature/PPY-a8471b-unified-newsroom-review; synthetic data only; physical iPad acceptance pending.",
+      "created_at": "2026-10-15T01:02:43.565383Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-15T00:50:25.185137Z",
+  "updated_at": "2026-10-15T01:02:43.565419Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "papyrus-unified-review"
+  },
+  "right_now_summary": "The unified newsroom review works locally with persisted synthetic data; publication awaits iPad and artifact checks.",
+  "right_now_updated_at": "2026-10-15T01:02:46.210540Z",
+  "custom": {}
+}
