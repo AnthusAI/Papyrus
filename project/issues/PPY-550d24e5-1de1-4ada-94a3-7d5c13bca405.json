@@ -130,10 +130,34 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroomReview"
       }
+    },
+    {
+      "id": "59f43a41-1acc-48f6-aa00-c0a6bbbc9ada",
+      "author": "home",
+      "text": "Ryan layout correction: inspect actual Kanbus console viewport flex/min-height pattern; make board a dedicated full-height tab, remove above-board statistics strip and page masthead, route main page to a compact overview. Preserve shared components and every CMS route. Verify desktop/iPad resizing, internal column scrolling, filters/view/detail state and browser Back/Forward. No public push/deploy.",
+      "created_at": "2026-10-15T10:24:16.127124Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "deb37b9b-c35b-4500-8e07-2939a3e961ef",
+      "author": "home",
+      "text": "Ryan viewport correction complete: dedicated Board tab /newsroom/work fills remaining dynamic viewport; summary strip, large heading, footnote/footer removed from board. Main / and /newsroom now compact overview with actual editorial pipeline and CMS entry points; original operations overview preserved. Reused inspected Kanbus console flex/min-height/full-height frame pattern; shared package unmodified, 430px/min-height board floors removed. URL-backed filter/view/issue state survives history/reload/tab switching. 119 Python tests, isolated tsc, scoped lint, Vite build and browser proof pass: 1440 desktop, 1024x768/768x1024/1180x820 tablet, 390x844/844x390 mobile, taller desktop; column scrolling, empty filter, normal/reduced motion, detail panels, Back/Forward, CMS home navigation. Existing mobile, actual Kanbus/Cyclotron create/move/note/reload/priming and 11 CMS render suites pass. Overview and board HTTP200; anonymous backend401. Server remains on8899; no push/deploy; existing procedure/ontology/staging gaps unchanged.",
+      "created_at": "2026-10-15T10:36:23.079743Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T05:08:34.967205Z",
+  "updated_at": "2026-10-15T10:36:23.079789Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
