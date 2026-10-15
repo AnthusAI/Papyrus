@@ -202,10 +202,34 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroom"
       }
+    },
+    {
+      "id": "727d5ba8-99fc-4131-aed6-b1d2497d2b51",
+      "author": "home",
+      "text": "Ryan domain correction: newsroom schema/filter only Story Article Reference Assignment; preserve Story-to-Article hierarchy, independent story-linked assignments with actual open/claimed/completed/canceled/reopen semantics. New References request: existing CMS list/card curation, predictive recommendation+human feedback, canonical same records as Board Reference filter, preserve discovery provenance; no paid providers/cloud mutation. Investigating API parent-write refusal and native CMS model mappings before implementation.",
+      "created_at": "2026-10-15T11:38:05.220329Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "2f646670-9c15-4de7-b56c-0d7f162d2ef8",
+      "author": "home",
+      "text": "Completed product 8df0904: newsroom types Story/Article/Reference/Assignment only, hierarchy [story,article], native Assignment lifecycle open/claimed/completed/canceled/release/reopen with timestamps and story links. Canonical CMS References project into shared Board, primary References reuses original list/source curator + actual Cyclotron review controls, durable accept/reject/archive reasons and immutable prediction/human override provenance. Manual and research-source fixtures additive; old synthetic PM/reference issue fixtures preserved but retired from active view. Mobile More groups all21 destinations with subtitles; Overview Board Articles order preserved.127 Python tests,8 browser suites,original relevance UI contract,tsc/lint/build pass. API source a16ee24211d4f915d50bd7b3d7a57e95a8d3d8f3 adopts prior hierarchy fix; owned binary55f8ce455618b8b6c2cba6cedf482bd11aea72a0ad512979aff4edd40360c607. Preview8899 stays KeepAlive; backend8900 loopback. Unload was denied by automatic review as potentially leaving preview stopped; not executed, approved graceful SIGTERM reload used. No push/deploy/paid models/cloud writes. Fresh classification/training dispatch and production Story/Item/Assignment identity/phase decisions documented in docs/unified-newsroom-domain-and-curation.md; physical iPad unverified.",
+      "created_at": "2026-10-15T12:13:09.136372Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T11:31:12.332969Z",
+  "updated_at": "2026-10-15T12:13:09.136979Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
