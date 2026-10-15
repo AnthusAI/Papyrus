@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "1cb97541-93a9-40b6-8d19-0959335813ba",
+  "issue_id": "PPY-accca488-2eef-4745-bd47-5147ae681545",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-15T02:14:03.421Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Combine newsprint identity with mobile app navigation",
+    "description": "Keep newsprint styling. Add viewport app shell, persistent mobile navigation, accessible sheets and independent workspace scrolling. Verify existing local synthetic workflows.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "Unified Newsroom Review"
+    }
+  }
+}
