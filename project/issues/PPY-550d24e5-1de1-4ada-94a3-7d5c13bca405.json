@@ -286,10 +286,22 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroom"
       }
+    },
+    {
+      "id": "dbfd18a5-8497-4e22-a923-889d00cae85c",
+      "author": "home",
+      "text": "Adopted shared Kanbus release candidate0.2.0 unmodified from clean UI-only branch producteb781a16/head454f165b; PRhttps://github.com/AnthusAI/Kanbus/pull/402. Local artifact /tmp/kanbus-ui-0.2.0.tgz SHA3730cc6c968853d21c688f31896a58b398dca20b01654d42b06cf9ed253a9206. Only consumer props added: columnStateKey + detailOpen. Shared Board owns all collapse behavior; no Papyrus toggle implementation. Actual8899 1440light/390dark/844landscape: reclaims197px, keyboard, list/type/reload persistence and selection/detail/Escape pass. Type/history and fullheight/sidebar/account/tab regressions pass. Fresh UI+console installs,32scenarios/183steps and actualconsole1440/390 pass. Detailed ownership/parity/API in docs/shared-board-parity.md. Shared dependency publication and production CMS integration remain release gates; deployment subsequently authorized but no production site changed by this adoption.",
+      "created_at": "2026-10-15T15:53:53.703768Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T13:42:52.144788Z",
+  "updated_at": "2026-10-15T15:53:53.703815Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

@@ -1,0 +1,50 @@
+{
+  "id": "PPY-133e1729-ab24-4585-bc8f-a2a1441a3d47",
+  "title": "Audit unified CMS production release readiness for three consumers",
+  "description": "Read-only release audit of approved 63f1c87 preview versus production package and p.apyr.us, pilobol.us and threat-intelligence.anth.us consumers. Inventory all fixture/auth/storage/identity/command gaps; propose gated release, staging acceptance and rollback. Anth.us excluded. No push, merge, deploy, secrets, production data writes, IAM or OAuth changes.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f4d65016-2412-4566-8281-359d014b2e71",
+      "author": "home",
+      "text": "Read-only audit complete: approved63f1c87 UI absent from production package/routes; dev gateway/demo adapters not deployable. Three current consumer pins .43/.50/.55 verified from GitHub main+locks. Active apps/account712236451410 verified; p/TI CloudFront hosts respond; Pilobolus CMS last build14 failed, domain associations FAILED and newsroom/staging DNS unresolved. All three staging frontends generate MAIN backend outputs, so destructive acceptance must not assume staging isolation. Assignment TS metadata field absent from Amplify schema; canonical identity/audit/storage/command gaps enumerated. Detailed evidence, smallest chrome-only gated slice, shared dependency publication blocker, staged release/rollback and acceptance: docs/unified-production-readiness-audit.md. No production data/secrets retrieved or changes performed; no merge/push/deploy.",
+      "created_at": "2026-10-15T15:31:31.577387Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "2eb2aedb-0d49-4a6d-8e7a-846c38fcd49d",
+      "author": "home",
+      "text": "Distinct read-only audit delivered in local product commit f23dbaf. Subsequent deployment authorization acknowledged; audit blockers are not waived. Shared board implementation now isolated in Kanbus PR402/0.2.0 candidate, own parity CI green, broader CI pending. Required production targets remain account712236451410 apps ds6yswxui41yi/d1eiwl0gedkmnj/d12wnrx15qbcc2. No approved production shell mount/auth/real board identity storage adapter exists yet; existing staging reads production backend. Do not roll out local synthetic gateway. Next safe slice is real shell/auth port around existing CMS routes, gated new board/priming, then isolated real-auth acceptance. Deployment has not been attempted/denied; release waits for CI and production integration. Anth.us excluded.",
+      "created_at": "2026-10-15T15:55:36.901131Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    }
+  ],
+  "created_at": "2026-10-15T15:22:23.925854Z",
+  "updated_at": "2026-10-15T15:55:36.901157Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "UnifiedNewsroom"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
