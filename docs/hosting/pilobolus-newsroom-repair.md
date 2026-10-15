@@ -58,3 +58,29 @@ profile and `aws route53 change-resource-record-sets` with zone
 `Z0293089287KCGYF9WP1A` and the rollback JSON. Wait for INSYNC and verify routing
 before disabling or deleting the CMS stack. Do not alter the reader stack.
 The failed Amplify association was preserved for separate AWS Support cleanup.
+
+## Follow-up: reproduced LAN resolver failure at 16:43–16:44 UTC
+
+The user subsequently reported plain curl error 6. This was reproduced on the
+same M1 without overrides: `curl -I https://newsroom.pilobol.us/` cannot resolve.
+The active system DNS server is the home router, `192.168.0.1`. Both UDP and TCP
+A lookups through that resolver return NOERROR with zero answers. Python system
+getaddrinfo also fails. The router successfully resolves the new CloudFront
+target and the apex reader, so this is specific to the newsroom hostname.
+
+All four delegated Route53 authoritative nameservers and independent recursive
+resolvers 1.1.1.1 and 8.8.8.8 return four valid A addresses for the newsroom.
+The delegation matches the production zone. The DNS change was submitted at
+16:35:52 UTC and is INSYNC. The zone SOA negative-cache TTL is 900 seconds.
+A stale negative response on the router/upstream path is a plausible diagnosis,
+but expiry has not yet been observed and router internals were not inspected.
+No router restart, DNS settings change, hosts-file entry or cache flush occurred.
+
+The earlier successful curl and fresh-browser checks used the literal custom
+hostname with no forced Host, DNS override, --resolve, proxy or ignored TLS
+errors. They prove those particular requests succeeded, not universal DNS
+convergence or authenticated CMS completion. The fresh browser stopped at
+Google sign-in. User-browser inspection was attempted but unavailable: browser
+request-header policy failed and native screen capture returned error -10005.
+Keep the hostname repair task open until plain system-resolver curl succeeds
+and distinguish that routing proof from a completed authenticated CMS session.
