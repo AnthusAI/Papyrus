@@ -34,10 +34,34 @@
         "model": "GPT-6.1-Sol",
         "name": "Unified Newsroom Review"
       }
+    },
+    {
+      "id": "4b4b80a9-8309-49f3-af6b-33f384bde967",
+      "author": "home",
+      "text": "Continuing authorized taxonomy and knowledge-base carry-forward. Inspect original versioned category and reference-curation commands, retain source provenance, add isolated persistence and conflict/reload proof. Existing blocked destructive merge apply semantics stay blocked; production atomic operations remain explicit gaps.",
+      "created_at": "2026-10-15T03:14:52.733234Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "3de2433a-e6e0-463c-a4a4-c4a03ef5b36e",
+      "author": "home",
+      "text": "Local product checkpoint ba4d560ab8e46e85b3ccfd5526e6e86c4503d3b9: original taxonomy copy editor now versions the actual source category, validates original stable hash including UTF-16, and retains predecessor history; original reference accept/reject/archive persists commentary plus source lineage/version links. Source fields immutable, 503 failures and 409 stale edits visible, reload and forced event-write rollback proved. 18 Python tests, generated Amplify-client contract/receipt validation, tsc, scoped lint, build, taxonomy/curation browser flows, 11 original CMS routes, mobile navigation, and retained Kanbus/Cyclotron flows pass. Combined Tailwind import graph fixes hidden desktop reference detail. Preview 192.168.0.199:8899 responding after graceful restart; transient OS no-buffer listener startup recovered. No public push/cloud data. Still open: taxonomy set/tree lifecycle/proposal decisions, concepts/ontology merge and curation command mapping, original forum adapter, durable articles and procedures/services. Existing destructive merge/split guard retained. Production atomic category-version and section-order operations remain explicit gaps; local SQLite proof does not cover them.",
+      "created_at": "2026-10-15T03:32:35.579953Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T03:09:53.200631Z",
+  "updated_at": "2026-10-15T03:32:35.579989Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
@@ -46,5 +70,8 @@
   },
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }
