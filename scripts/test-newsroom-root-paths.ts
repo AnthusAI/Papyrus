@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 async function run() {
   const base = await import("../lib/newsroom-base-path");
   const nav = await import("../lib/newsroom-nav");
+  const { ORGANIZER_SETTINGS_DESTINATION } = await import("../lib/newsroom-organizer-nav");
   const filters = await import("../lib/newsroom-index-filters");
   const forum = await import("../lib/newsroom-forum-routes");
   const drilldown = await import("../lib/newsroom-category-drilldown");
@@ -21,6 +22,8 @@ async function run() {
 
   assert.equal(base.newsroomHref(), home);
   assert.equal(base.newsroomHref("articles"), `${prefix}/articles`);
+  assert.equal(nav.getNewsroomNavHref(ORGANIZER_SETTINGS_DESTINATION.path), `${prefix}/settings`);
+  assert.equal(ORGANIZER_SETTINGS_DESTINATION.path, "/newsroom/settings", "CMS must bypass publication reader redirects");
   assert.equal(nav.getNewsroomNavHref("/newsroom/assignments", true), `${prefix}/assignments?demo=1`);
   assert.equal(nav.getNewsroomNavHref("/newsroom?item=a"), atRoot ? "/?item=a" : "/newsroom?item=a");
   assert.equal(base.toPublicNewsroomPath("/newsroom?object=x#y"), atRoot ? "/?object=x#y" : "/newsroom?object=x#y");

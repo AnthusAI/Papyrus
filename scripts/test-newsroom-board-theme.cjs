@@ -55,6 +55,11 @@ async function main() {
       });
       assert.equal(styles.radius,'0px');assert.equal(styles.shadow,'none');assert.equal(styles.clip,'none');assert(styles.font.includes('Newsroom Display'));assert.equal(styles.size,'19px');assert.equal(styles.weight,'700');assert.equal(styles.overflow,false);
       assert.equal(styles.paper,colorScheme==='light'?'#f9f9fb':'#17191b');assert.equal(styles.background,colorScheme==='light'?'rgb(249, 249, 251)':'rgb(23, 25, 27)');
+      const overlays=await page.evaluate(()=>['organizer-menu','organizer-account-popup'].map(className=>{
+        const probe=document.createElement('div');probe.className=className;probe.style.cssText='position:fixed;visibility:hidden;animation:motion-probe 1s linear infinite;transition:transform 1s';document.body.append(probe);
+        const style=getComputedStyle(probe),result={className,animation:style.animationName,transition:style.transitionProperty};probe.remove();return result;
+      }));
+      for(const overlay of overlays){assert.equal(overlay.animation,'none',overlay.className);assert.equal(overlay.transition,'none',overlay.className);}
       if(shots) await page.screenshot({path:path.join(shots,`shared-board-${width}-${colorScheme}.png`)});
       await page.locator('.issue-card').first().click();await page.locator('.kb-issue-detail').waitFor();await page.keyboard.press('Escape');await page.locator('.kb-issue-detail').waitFor({state:'detached'});
       const toggle=page.locator('button.kb-column-header').first();await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'true');

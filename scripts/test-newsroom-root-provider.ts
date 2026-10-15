@@ -15,7 +15,7 @@ type ModuleWithLoad = { _load: (request: string, ...rest: unknown[]) => unknown 
 const moduleInternals = Module as unknown as ModuleWithLoad;
 const loadModule = moduleInternals._load;
 moduleInternals._load = function loadWithServerOnlyStub(this: unknown, request: string, ...rest: unknown[]) {
-  if (request === "server-only" || request === "papyrus-amplify-outputs") return {};
+  if (request === "server-only" || request === "papyrus-amplify-outputs" || request.endsWith(".css")) return {};
   return loadModule.call(this, request, ...rest);
 };
 

@@ -52,7 +52,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
     <DropdownMenuContent className="organizer-account-popup" side={placement === "sidebar" ? "top" : "bottom"} align="end">
       <DropdownMenuGroup>
         <DropdownMenuLabel>{auth.label}</DropdownMenuLabel><DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href={ORGANIZER_SETTINGS_DESTINATION.path} />}><Settings aria-hidden="true" />{ORGANIZER_SETTINGS_DESTINATION.label}</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href={getNewsroomNavHref(ORGANIZER_SETTINGS_DESTINATION.path)} />}><Settings aria-hidden="true" />{ORGANIZER_SETTINGS_DESTINATION.label}</DropdownMenuItem>
         <ReaderAuthControl authState={auth} renderAction={({ disabled, onClick, signedIn }) => <DropdownMenuItem disabled={disabled} closeOnClick={false} onClick={onClick}>
           {signedIn ? <LogOut aria-hidden="true" /> : <LogIn aria-hidden="true" />}{signedIn ? "Sign out" : "Sign in"}
         </DropdownMenuItem>} />
