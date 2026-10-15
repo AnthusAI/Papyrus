@@ -2,6 +2,7 @@
 
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferencePriming } from "./reference-priming";
+import { ReferenceCurationControls } from "./reference-curation-controls";
 
 import {
   ArchiveIcon,
@@ -513,6 +514,7 @@ export function NewsroomReferencesView({
             Review source intake before it becomes accepted evidence.
           </p>
         </div>
+        <ReferenceCurationControls disabled={disabled} />
         {priming && !disabled ? <ReferencePriming {...priming} /> : null}
         {cyclotronStatus ? (
           <div className="shrink-0">
