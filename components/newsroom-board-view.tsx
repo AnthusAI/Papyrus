@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
-import "@kanbus/ui/styles/organizer.css";
+import "./newsroom-newsprint-board.css";
 import { canReadNewsroomBoard, newsroomBoardConfig, projectNewsroomBoard, type NativeBoardIssue } from "../lib/newsroom-board";
 import { resolveArticlesBackend } from "../lib/newsroom-articles";
 import { SITE_BRAND } from "../lib/site-brand";
@@ -76,7 +76,7 @@ export function NewsroomBoardView() {
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab="work" appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle="Board">
-    <div className="organizer-native-board kb-theme-organizer" data-color-mode={theme}>
+    <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
       <div className="organizer-board-toolbar">
         <IssueTypeFilter config={config} value={filter} onChange={value => { setFilter(value); setSelected(null); }} name="Record type" />
         <div role="group" aria-label="Record presentation"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button><button type="button" disabled={loading} onClick={() => setRevision(current => current + 1)}>Refresh records</button></div>

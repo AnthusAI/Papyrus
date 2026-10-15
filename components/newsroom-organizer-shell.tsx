@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, ClipboardList, LayoutDashboard, Menu, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
-import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV } from "../lib/newsroom-organizer-nav";
+import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
@@ -52,7 +52,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
     <DropdownMenuContent className="organizer-account-popup" side={placement === "sidebar" ? "top" : "bottom"} align="end">
       <DropdownMenuGroup>
         <DropdownMenuLabel>{auth.label}</DropdownMenuLabel><DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/settings" />}><Settings aria-hidden="true" />Settings</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href={ORGANIZER_SETTINGS_DESTINATION.path} />}><Settings aria-hidden="true" />{ORGANIZER_SETTINGS_DESTINATION.label}</DropdownMenuItem>
         <ReaderAuthControl authState={auth} renderAction={({ disabled, onClick, signedIn }) => <DropdownMenuItem disabled={disabled} closeOnClick={false} onClick={onClick}>
           {signedIn ? <LogOut aria-hidden="true" /> : <LogIn aria-hidden="true" />}{signedIn ? "Sign out" : "Sign in"}
         </DropdownMenuItem>} />

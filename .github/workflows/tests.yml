@@ -24,6 +24,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:newsroom
       - run: npm run test:newsroom-organizer
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/test-newsroom-board-theme.cjs
       - run: npm run test:newsroom-nav
       - run: npm run test:theme-packs
       - run: npm run test:anth-us-brand

@@ -28,3 +28,7 @@ export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly Org
 ];
 const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
 export const ORGANIZER_PRIMARY_NAV = ["overview", "board", "references", "messages"].map(key => all.find(item => item.key === key)!);
+
+export const ORGANIZER_SETTINGS_DESTINATION = {
+  label: "Settings", path: "/settings", description: "Theme, motion and interface preferences.",
+} as const;

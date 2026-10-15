@@ -27,8 +27,9 @@ shell until their own configuration explicitly opts in.
   records, pending responses cannot repopulate a discarded session. Shared
   columns own collapse/persistence, keyboard behavior and motion. Existing
   theme/motion settings apply; fonts are licensed self-hosted assets. The host
-  retains its publication tokens: only shared kanban geometry and the scoped
-  organizer theme are imported, avoiding Kanbus global font/palette overrides.
+  retains its publication tokens: shared kanban geometry is combined with a
+  Papyrus-scoped newsprint theme. The optional CRM retro preset and global
+  Kanbus font/palette tokens are not imported.
 - Test editor override is refused in production even when the public test flag
   is set. No local gateway, fixture store, credential or synthetic classifier is
   a production dependency.

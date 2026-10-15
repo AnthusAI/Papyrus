@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { getNewsroomNavHref, NEWSROOM_OPS_NAV } from "../lib/newsroom-nav";
-import { ORGANIZER_NAV_GROUPS } from "../lib/newsroom-organizer-nav";
+import { ORGANIZER_NAV_GROUPS, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 
 const NEWSROOM_APP_DIRECTORY = path.join(__dirname, "..", "app", "newsroom");
 const OVERVIEW_SOURCE = readFileSync(path.join(__dirname, "..", "components", "newsroom-ops-overview.tsx"), "utf8");
@@ -42,7 +42,7 @@ function run() {
 
   for (const routeDirectory of staticRouteDirectories()) {
     assert.ok(
-      navigationIds().includes(routeDirectory) || ORGANIZER_NAV_GROUPS.some(group => group.items.some(item => item.path === `/newsroom/${routeDirectory}`)),
+      navigationIds().includes(routeDirectory) || ORGANIZER_SETTINGS_DESTINATION.path === `/${routeDirectory}` || ORGANIZER_NAV_GROUPS.some(group => group.items.some(item => item.path === `/newsroom/${routeDirectory}`)),
       `app/newsroom/${routeDirectory} has no newsroom navigation entry`,
     );
   }
