@@ -65,3 +65,16 @@ Python source, with a regenerated lock and reproducible pack check. The proposed
 `ui-v0.2.2` tag must be new; `ui-v0.2.1` cannot be relabeled. Until a reviewed
 remote commit exists, Papyrus's public dependency and lock remain unchanged and
 this PR stays draft. No synthetic authority route is enabled in production.
+
+The concrete local candidate is Cyclotron
+`258a7a7ee3064cb5463ecc3a185c19ea1772ed03`, one commit on public main
+`c09f70b33b2b96a4e4cc2acca360af47d26620a8`. The consumer independently passes
+26 BFF/native/bootstrap checks against that coherent tree. Its UI pack SHA-256
+is `46228c0dfbc6ac52b882fe3136d5c90c03e456d5df92bb8792fd7dcfe97d5193`;
+all installed reviewed UI source bytes match (README differs). Storage-owner
+review found no source regression or excluded deployment/project/credential
+paths. Any owner documentation-only successor must be recorded before the final
+consumer pin. The candidate remains local and is not a reachable consumer
+dependency yet. Exact next action is owner publication of the reviewed
+`AnthusAI/Cyclotron:codex/priming-shared-release` branch and a draft PR into main,
+subject to explicit authorization. No merge, tag or hosted activation is implied.
