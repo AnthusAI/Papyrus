@@ -19,7 +19,7 @@
     "model": "gpt-6.1-sol",
     "name": "papyrus-unified-review"
   },
-  "right_now_summary": "The local newsroom review works with persisted synthetic data; iPad and artifact checks remain before publication.",
-  "right_now_updated_at": "2026-10-15T01:02:48.759387Z",
+  "right_now_summary": "The local newsroom review works with synthetic data and awaits iPad and artifact checks before rollout.",
+  "right_now_updated_at": "2026-10-15T01:57:06.084055Z",
   "custom": {}
 }
