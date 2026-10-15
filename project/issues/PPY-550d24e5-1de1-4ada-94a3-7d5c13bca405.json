@@ -1,0 +1,38 @@
+{
+  "id": "PPY-550d24e5-1de1-4ada-94a3-7d5c13bca405",
+  "title": "Persist restored CMS workflows through an injectable backend",
+  "description": "Verify the actual restored CMS component paths. Add typed injectable persistence boundaries with an isolated local fixture backend, optimistic concurrency and failure handling. Keep live Amplify/auth and production data disconnected. Inventory every module integration and report exact remaining cloud requirements.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "fe1aa947-df1f-4948-9c44-f493f185bcd1",
+      "author": "home",
+      "text": "Tested increment f2ca29ef74585815c74deac003485845973e8139: actual shared publication-policy/section editors persist through isolated SQLite with transactional revision/event; failure and concurrent stale-write UI proofs pass. Typed production factory accepts actual generated Amplify client without casts, retains userPool authorization and validates required Item versions/section status. Article/editor/media injection seams added. 12 Python checks; content-action/article/media/backend TypeScript tests; isolated tsc/ESLint/build; CMS ready-render checks, mobile shell, real Kanbus create/move/note/reload, real synthetic Cyclotron labels/accept, typed records/forum regression all pass. Per-module missing integration in docs/unified-cms-integration.md. Full backend carry-forward remains open: category doctrine, reorder, articles/media, taxonomy/ontology, original forums, procedures and actual semantic services. No live privileged CMS data/credentials connected.",
+      "created_at": "2026-10-15T02:56:21.332508Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "Unified Newsroom Review"
+      }
+    }
+  ],
+  "created_at": "2026-10-15T02:35:53.309208Z",
+  "updated_at": "2026-10-15T02:56:21.332609Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "Unified Newsroom Review"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
