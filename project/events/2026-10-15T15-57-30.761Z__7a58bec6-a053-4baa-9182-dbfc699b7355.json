@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "7a58bec6-a053-4baa-9182-dbfc699b7355",
+  "issue_id": "PPY-ca252a35-53db-4584-b53e-fdbbd549ce3e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-15T15:57:30.761Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Productionize approved newsroom shell without replacing live CMS contracts",
+    "description": "Ryan authorizes tested release/deploy to p.apyr.us, Pilobol.us CMS, threat-intelligence.anth.us; Anth.us excluded. Port approved viewport/newsprint app navigation, grouped subtitles, sidebar collapse, honest authenticated account/settings/signout and concise bottom tabs into shipped Next package. Retain all original routes, role/session gates, native CMS commands and data. Reuse exported Kanbus board dependency with production-native records only where stable; no synthetic gateway, fixture predictions, fake services or new unapproved security access. Unbuilt optional integrations remain honestly unavailable. Given an editor opens an existing CMS destination, when the new shell is enabled, then existing data/actions/auth remain and approved responsive navigation works. Given signed-out/non-editor access, then private records/actions remain gated.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "ProductionCMS"
+    }
+  }
+}

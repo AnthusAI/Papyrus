@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "829fb2fd-9ce6-4a34-b953-dcc002fa0017",
+  "issue_id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-15T18:18:59.481Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Wire account-scoped Cyclotron publication BFF after CMS rollout",
+    "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "ProductionCMS"
+    }
+  }
+}

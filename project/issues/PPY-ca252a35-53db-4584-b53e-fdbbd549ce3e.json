@@ -1,0 +1,120 @@
+{
+  "id": "PPY-ca252a35-53db-4584-b53e-fdbbd549ce3e",
+  "title": "Productionize approved newsroom shell without replacing live CMS contracts",
+  "description": "Ryan authorizes tested release/deploy to p.apyr.us, Pilobol.us CMS, threat-intelligence.anth.us; Anth.us excluded. Port approved viewport/newsprint app navigation, grouped subtitles, sidebar collapse, honest authenticated account/settings/signout and concise bottom tabs into shipped Next package. Retain all original routes, role/session gates, native CMS commands and data. Reuse exported Kanbus board dependency with production-native records only where stable; no synthetic gateway, fixture predictions, fake services or new unapproved security access. Unbuilt optional integrations remain honestly unavailable. Given an editor opens an existing CMS destination, when the new shell is enabled, then existing data/actions/auth remain and approved responsive navigation works. Given signed-out/non-editor access, then private records/actions remain gated.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "dcc836c1-8054-46f9-b3ba-34e6d102ad37",
+      "author": "home",
+      "text": "Ryan explicitly reiterated carrying taxonomy, concepts, knowledge base, merging, curation, policies and UI preferences forward. Audit found /desks redirects to proposal-only Topics despite existing DesksDeskView. Restoring original taxonomy destination for opted-in organizer, retaining legacy routing for other publications; adding route regression checks. Full authenticated action/data parity remains a release gate.",
+      "created_at": "2026-10-15T16:27:33.680465Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "06cbd460-a307-4b49-88ce-7137af98d608",
+      "author": "home",
+      "text": "Production port committed a2afa02 on feature/PPY-ca252a-production-shell; PR https://github.com/AnthusAI/Papyrus/pull/209 into develop. Real provider/auth controls, original full CMS commands/routes/role gates retained, per-site organizer opt-in default unchanged. Native Board uses released @kanbus/ui0.2.0; no Story mapping/write shortcut. Taxonomy editor restored, canonical source-lineage links, pagination, unknown statuses, stale-response/session guards, theme+motion carry-forward. Focused ESLint and lightweight nav/routing/native identity/access/production-override tests PASS; required remote type/package smoke pending. No full local build; slot remains Accounts-owned. Pilobolus isolated consumer branch prepared with frontend-only existing DevOps spec (generate main outputs) to avoid unresolved Cognito backend update, guarded to active appd1eiwl0gedkmnj. No consumer deploy yet. Optional Cyclotron activation excluded from release gate; original curator retained.",
+      "created_at": "2026-10-15T17:02:59.895111Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "6cf52021-0de5-481c-a6c7-14301980a3b3",
+      "author": "home",
+      "text": "Progress: PR209 merged6d2efef; TypeScript/Python/package smoke and release pipeline38774970880 PASSED, npm1.0.0-next.57 publicly retrievable after transient registry propagation delay. Pilo PR70 verified manifest/lock/infra exact57 and mergedstaging ee070b8b005df479f02792306ae9cf8311fedd0d; hosted appd1eiwl0gedkmnj stagingjob3 RUNNING, frontend-only checked-in spec preserves main backend/auth and guards active app. PR210 scoped-style correction fullygreen, merged1846757, publication pipeline38776561883 running; production will use corrected package. Read-only AppSync schema compatibility: all34 explicit frontend GraphQL documents validate against each existing Pilo/p.apyr.us/TI schema, including Board reference/assignment queries. No content reads/writes or permission changes. Existing authenticated-user session acceptance remains unverified; no new backend/schema migration needed for this release. No Anth.us consumer changes or heavy local builds.",
+      "created_at": "2026-10-15T17:23:41.356211Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "d6cd741b-7740-4c19-9931-04c666ac2a4d",
+      "author": "home",
+      "text": "Release-blocking review: staged Board incorrectly selects the CRM organizer preset. Replacing only Papyrus host theme with approved newsprint styling, preserving shared Board. Full CMS carry-forward includes original Taxonomy, Concepts, knowledge search, references/curation, Policies, Sections, Procedures, user identity merging, Administration and interface Settings; no replacement backend or permission shortcuts.",
+      "created_at": "2026-10-15T18:00:41.902603Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "f294a8e8-6023-4553-b54c-a81ca7b79a93",
+      "author": "home",
+      "text": "PR211 merged ddd8568981af843594c5bcdd6ed2f5f636a04909 after TS/Python38782532916 and package smoke38782532930 pass. Fix7d8dc705 removes explicitly selected CRM retro stylesheet/class, adds scoped Papyrus newsprint theme over unchanged shared Board; actual shared-component browser regression passes1440/375 light/dark, selection/Escape and collapse, host palette unchanged. Root Settings alias and natural flex sizing below staging banner included. Release38783198840 running. Pilobolus stage58 job4 succeeded but still old theme until new pin; no corrected production deploy yet. Existing full CMS handlers/nav retained, taxonomy editor restored separately from proposals. Cyclotron not a release dependency.",
+      "created_at": "2026-10-15T18:13:04.278019Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "14a23e96-d3be-41b8-b0ea-8c8feaceef02",
+      "author": "home",
+      "text": "next.59 release38783198840 SUCCEEDED; official npm tarball950112bytes SHA512verified. Pilo PR72 merged497c6d0d64854dc3963fcffa4d63dcda72a51d2c. Stagejob5 failed npm tar404 during propagation; normal RETRYjob6 SUCCEEDED BUILD/DEPLOY/VERIFY. Exact staging https://staging.d1eiwl0gedkmnj.amplifyapp.com/work serves papyrus-newsprint-board CSS/class, no kb-theme-organizer. Hosted browser: viewport fits banner,16 desktop/mobile destinations, taxonomy editor, Settings route plus manualtheme/lowmotion persistence,0privateGraphQLrequests,0pageerrors/failedassets, Google entry passes. Actual authenticated Board visual check pending: no authenticated controlled tabs; existing Chrome Google account reached consent, but auto-review DENIED Continue because trusted text did not explicitly authorize name/email transmission to existing papyrus-pilobol-us-cms Cognito. No consent executed; handoff tab287507018 preserved. Production promotion pending this review gate. p.apyr.us PR14 head2950a6df45895cbc88adfb4e40605708b164cba6 and TI PR26 headbfe3c5ac3f0ea8e4c99fb88a13a41b058d24a8ec are mergeable, exact59, staging-history reconciled; not deployed yet.",
+      "created_at": "2026-10-15T18:34:48.948672Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "012e0097-400e-43c0-9356-01fd17cc7998",
+      "author": "home",
+      "text": "Ryan personally confirmed exact Pilobolus staging styling correct (trusted parent transcript Sentinel_bee76c3dc4cc8191981d76ff45212262); visual gate satisfied, not Google consent authorization. PR73 staging-to-main merged684aff994a0058dfe0f4d2945872f4e1304db39c; normal source production job awaited. p.apyr.us staging PR14 merged064ef514ab35be584624a5b6db714afd5f1d72d2 job6 RUNNING; TI staging PR26 mergedd54384d6778a9b3bed4d4b3e28498964e8e18e0d job4 RUNNING. Google Continue remains denied/unsubmitted; no new auth/data settings. Authenticated mutation acceptance still unverified. Proceeding authorized three-site source-pipeline rollout; Anth.us excluded.",
+      "created_at": "2026-10-15T18:38:14.536664Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "c565d119-c6e8-4c78-abef-d292d7734fe8",
+      "author": "home",
+      "text": "Pilo production PR73 merged684aff994a0058dfe0f4d2945872f4e1304db39c, Amplifymainjob15 SUCCEEDED. Actual https://newsroom.pilobol.us/work assets prove newsprint and no CRMpreset; hosted production browser passes16nav/taxonomy/Settings theme-motion persistence/viewport/Googleentry,0privateanonymousreads/pageerrors/failedassets. Ppstagejob6 and TIstagejob4 SUCCEEDED tests/build/deploy. Hosted checks caught root /settings redirects back to newsroom on both non-root CMS hosts; direct /newsroom/settings already200 with actualSettings. Holding their production promotion, shared fix PR212 head9d58fccd9a2f809e3871f476afcb74fa61e205c7 uses canonical route through existing path helper (Pilo remains /settings), adds overlay-root reducedmotion cascade coverage. Unit nav/rootpath/middleware/provider and sharedbrowser4cases+lint pass; full hostedchecks38788790083/38788790101 running. No Googleconsent submitted or authenticatedmutations claimed.",
+      "created_at": "2026-10-15T18:51:59.043411Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    }
+  ],
+  "created_at": "2026-10-15T15:57:30.760232Z",
+  "updated_at": "2026-10-15T18:51:59.043443Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "ProductionCMS"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

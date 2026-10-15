@@ -1,0 +1,69 @@
+{
+  "id": "PPY-229754f2-4d7d-47f4-95e0-d37ce9776925",
+  "title": "Restore newsroom.pilobol.us access to existing CMS",
+  "description": "Ryan explicitly requests fixing newsroom.pilobol.us. Existing production CMS at main.d1eiwl0gedkmnj.amplifyapp.com verified HTTP200 and Google sign-in. Amplify cross-account domain history blocks association; production account owns authoritative Route53 zone and issued certificate covering newsroom/staging. Verify callback allowlist; use existing supported CMS CloudFront front-door pattern with no auth/IAM expansion or data changes. Verify custom-host HTTPS page and Google redirect, preserve reader and record rollback.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8ce2a05c-acb4-4a3f-887f-dcabeae733e9",
+      "author": "home",
+      "text": "Recovery verified AWS account 712236451410, existing Cognito client 6haipiqgobpt1cfpd3bs62mo9c already allows newsroom login/logout with Google; no OAuth/IAM changes needed. DNS A currently points at absent d1zetef1pubg1n.cloudfront.net. Existing Amplify association FAILED cross-account approval. Prepared CREATE change set papyrus-edge-pilobol-us-cms / restore-newsroom-20261015 with only CloudFront function+no-cache distribution, existing cert+main.d1eiwl0gedkmnj origin; reader untouched. Execution pending change-set review.",
+      "created_at": "2026-10-15T16:33:02.889837Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "608539e4-1c8a-4be7-a364-8ecf6c759cbd",
+      "author": "home",
+      "text": "APPLIED and VERIFIED: CloudFormation papyrus-edge-pilobol-us-cms CREATE_COMPLETE, E205M49121L1RG Deployed, domain d2m5ad13uolvrt.cloudfront.net; Route53 C07782022BNTVVEN40CNW INSYNC. https://newsroom.pilobol.us HTTP200; actual browser signedOut, zero page errors, LOGIN reaches Google via existing callback https://newsroom.pilobol.us/newsroom. No credentials entered; authenticated editing not claimed. Public reader HTTP200 unchanged. Exact template/DNS/rollback and report committed c3c093d on fix/PPY-229754-newsroom-host, PR https://github.com/AnthusAI/Papyrus/pull/208 into develop. No IAM/OAuth/data/reader changes or local builds. Task remains in progress pending source integration.",
+      "created_at": "2026-10-15T16:38:17.690934Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "0feb3b2f-919d-43d9-9f50-7f9ccc41c69f",
+      "author": "home",
+      "text": "PR208 merged into develop at 3902b81f600362a3aa7b5d784e6f111851686e1e after green TS/Python checks. Same-M1 ordinary system-resolver curl failure reproduced 16:43-16:45 UTC. All four authoritative NS plus 1.1.1.1/8.8.8.8 had valid A answers; router192.168.0.1 returned empty NOERROR over UDP/TCP. No override/flush/settings/router change. At16:48:21 and16:49:19 UTC plain curl returned HTTP200; router now returns four A answers. Final post16:50:52 check pending. No completed authenticated CMS login claimed.",
+      "created_at": "2026-10-15T16:50:29.172570Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "4cd6ddfa-5965-4455-b1cc-d55d50a06fcb",
+      "author": "home",
+      "text": "POST-EXPIRY VERIFIED at2026-10-15 16:50:55-56 UTC: router192.168.0.1 returns four A records; Python system getaddrinfo returns13.224.30.111/.23/.43/.63; plain curl -I https://newsroom.pilobol.us/ returnsHTTP/2 200; plain curl -I -L https://newsroom.pilobol.us/newsroom returns307 Location:/ then200. No overrides, forced Host, cache flush, resolver/network/router changes. Earlier failure cleared on existing resolver path; exact upstream cache internals unknown. PR208 merged3902b81. Routing/DNS verified; completed authenticated login/editing remains unclaimed.",
+      "created_at": "2026-10-15T16:51:17.106523Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    }
+  ],
+  "created_at": "2026-10-15T16:23:58.683539Z",
+  "updated_at": "2026-10-15T16:51:17.106562Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "ProductionCMS"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
