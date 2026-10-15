@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "4b05e793-247a-4a47-be3d-5eef73e016ea",
+  "issue_id": "PPY-2ab62612-fd7b-4ce9-a0d2-453b2db50390",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-15T01:38:36.857Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Browse Papyrus record types without collapsing them into stories",
+    "description": "Feature: Type-aware Papyrus record browsing\nScenario: See all actual base record models\nGiven the current Papyrus schema\nWhen I browse records by domain, type, or text\nThen every persistent base model is discoverable with meaningful labels and actual schema fields\nAnd synthetic examples disclose that no live backend mapping is connected\nScenario: Reference curation lifecycle\nGiven a synthetic reference with an actual curation status\nWhen I change its curation status and reload\nThen the local preview store preserves the status and reason\nScenario: Non-workflow records\nGiven an attachment, relationship, identity, or publication copy\nWhen I open its list and detail\nThen no story stage controls or invented workflow is presented\nAnd the original story board and priming remain functional",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "papyrus-unified-review"
+    }
+  }
+}
