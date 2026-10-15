@@ -66,3 +66,9 @@ Feature: Production newsroom organizer shell
     When I open Settings from the account menu
     Then the existing Settings page opens through the newsroom route alias
     And its cloud authorization and preference handlers are unchanged
+
+  Scenario: The staging banner does not cover application controls
+    Given the staging banner is visible above the organizer
+    When I navigate or move keyboard focus
+    Then the organizer fits the remaining viewport
+    And the header and bottom navigation remain visible without document scrolling
