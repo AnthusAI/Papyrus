@@ -1,6 +1,14 @@
 Feature: Production newsroom organizer shell
   The approved newsroom appearance preserves the existing authenticated CMS.
 
+  Scenario: The shared Board keeps Papyrus newsprint styling
+    Given the native CMS Board uses the released shared Kanbus components
+    When I view it at narrow and wide widths in light and dark mode
+    Then headlines use the newsroom serif font and columns use newspaper rules
+    And cards have square corners without retro shadows or clipped headers
+    And column collapse, record selection and keyboard detail closing still work
+    And the host publication palette outside the Board is unchanged
+
   Scenario: The complete CMS survives a navigation change
     Given an editor has an authorized session and existing newsroom records
     When the publication enables the organizer newsroom layout
