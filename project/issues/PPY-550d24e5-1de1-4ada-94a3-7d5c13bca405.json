@@ -154,10 +154,46 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroomReview"
       }
+    },
+    {
+      "id": "2eb60fb1-093d-475e-8883-0ee2db03685b",
+      "author": "home",
+      "text": "Ryan review: Board becomes second tab before Articles. Root cause of missing type filter confirmed: host omits console AnimatedSelector controls, IssueCollection exports no filter UI, and gateway/client both force story. Extract configured type filter/control and semantics into Kanbus shared UI, adopt in console and Papyrus, lift synthetic gateway type restriction without changing real CMS Item semantics or hierarchy. Verify configured Story/Article/other types, All/repeat clear, responsive controls, URL/history/detail state and regressions. No public push/deploy.",
+      "created_at": "2026-10-15T11:07:08.683473Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "c67955dd-c185-4438-b995-a28afe487f88",
+      "author": "home",
+      "text": "Ryan reiterated full CMS carry-forward: taxonomy, concepts, knowledge, merging/curation, policies and interface settings. Existing original modules remain mounted. Make hidden administration capabilities explicit in desktop/mobile navigation; preserve documented ontology edit/merge and authenticated persistence gaps. No public push or deployment.",
+      "created_at": "2026-10-15T11:10:42.317137Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "ff8b3cb1-50d4-4320-9199-e4c38841ea30",
+      "author": "home",
+      "text": "Local product checkpoint 7335a0a: Board second after Overview; explicit Policies, Sections, Procedures, Users & identity merging and Knowledge search in desktop navigation/mobile More. Original modules retained. tsc, scoped ESLint, Vite build, 11 CMS rendering checks and mobile navigation/light-dark/reduced-motion checks pass. LAN8899 HTTP200; no push/deploy. Existing authenticated staging and ontology editing/merging gaps remain. Shared configured-type filter task remains pending in separate owned Kanbus worktree.",
+      "created_at": "2026-10-15T11:12:37.837249Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T10:36:23.079789Z",
+  "updated_at": "2026-10-15T11:12:37.837294Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
