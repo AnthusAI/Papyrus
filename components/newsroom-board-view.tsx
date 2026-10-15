@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter } from "@kanbus/ui";
-import "@kanbus/ui/styles/tokens.css";
 import "@kanbus/ui/styles/kanban.css";
 import "@kanbus/ui/styles/organizer.css";
 import { canReadNewsroomBoard, newsroomBoardConfig, projectNewsroomBoard, type NativeBoardIssue } from "../lib/newsroom-board";
