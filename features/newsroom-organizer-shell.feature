@@ -75,6 +75,17 @@ Feature: Production newsroom organizer shell
     Then the existing Settings page opens through the newsroom route alias
     And its cloud authorization and preference handlers are unchanged
 
+  Scenario: CMS Settings avoids a publication's legacy reader redirect
+    Given the publication redirects reader Settings under its reader base path
+    When I open Settings from the newsroom account menu
+    Then I open the canonical newsroom Settings route
+    And the publication's legacy reader redirect remains unchanged
+
+  Scenario: Reduced motion applies to the mobile menu itself
+    Given the operating system requests reduced motion
+    When I open the mobile More menu or account menu
+    Then the overlay itself and its contents have no entry animation or transition
+
   Scenario: The staging banner does not cover application controls
     Given the staging banner is visible above the organizer
     When I navigate or move keyboard focus

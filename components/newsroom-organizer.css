@@ -60,4 +60,4 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
  .organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr)}
  .organizer-board-body>.kb-issue-detail{position:absolute;inset:0;z-index:2;overflow:auto}
 }
-@media(prefers-reduced-motion:reduce){.newsroom-organizer *, .organizer-menu *{scroll-behavior:auto;animation-duration:0s!important;transition-duration:0s!important}}
+@media(prefers-reduced-motion:reduce){.newsroom-organizer,.newsroom-organizer *,.organizer-menu,.organizer-menu *,.organizer-account-popup,.organizer-account-popup *{scroll-behavior:auto;animation:none!important;transition:none!important}}

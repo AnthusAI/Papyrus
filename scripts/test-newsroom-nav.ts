@@ -42,7 +42,7 @@ function run() {
 
   for (const routeDirectory of staticRouteDirectories()) {
     assert.ok(
-      navigationIds().includes(routeDirectory) || ORGANIZER_SETTINGS_DESTINATION.path === `/${routeDirectory}` || ORGANIZER_NAV_GROUPS.some(group => group.items.some(item => item.path === `/newsroom/${routeDirectory}`)),
+      navigationIds().includes(routeDirectory) || ORGANIZER_SETTINGS_DESTINATION.path === `/newsroom/${routeDirectory}` || ORGANIZER_NAV_GROUPS.some(group => group.items.some(item => item.path === `/newsroom/${routeDirectory}`)),
       `app/newsroom/${routeDirectory} has no newsroom navigation entry`,
     );
   }

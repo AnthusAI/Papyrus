@@ -30,5 +30,5 @@ const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
 export const ORGANIZER_PRIMARY_NAV = ["overview", "board", "references", "messages"].map(key => all.find(item => item.key === key)!);
 
 export const ORGANIZER_SETTINGS_DESTINATION = {
-  label: "Settings", path: "/settings", description: "Theme, motion and interface preferences.",
+  label: "Settings", path: "/newsroom/settings", description: "Theme, motion and interface preferences.",
 } as const;
