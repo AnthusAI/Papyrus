@@ -1,0 +1,67 @@
+import assert from 'node:assert/strict';
+import * as React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import {DEMO_CYCLOTRON_STATUS} from '../lib/relevance-status';
+import {assertPublicationScope,publicationReviewPayload,publicationSteeringPayload,createPublicationClient,publicationScopeKey,type PublicationStatus,type PublicationHistory} from '../lib/publication-cyclotron';
+
+async function main(){
+ (globalThis as {React?:typeof React}).React=React;
+ const {PublicationCyclotronPanel}=await import('../components/publication-cyclotron-panel');
+ const base={accountId:'account-a',contractVersion:'cyclotron-publication/v1' as const,publicationId:'threat-intelligence',bindingRevision:'binding-1',outputs:[{id:'intel',question:'Publish for Threat Intelligence?',classes:['accept','reject'],positiveLabel:'accept'}]};
+ const status:PublicationStatus={...base,classifiers:{intel:{...DEMO_CYCLOTRON_STATUS,cyclotron:{...DEMO_CYCLOTRON_STATUS.cyclotron,classifier:'intel'}}}};
+ const history:PublicationHistory={...base,history:[{state:'active',item:{title:'Synthetic paper',abstract:'Synthetic scholarly abstract',source_uri:'https://example.invalid/paper'},reviews:{},decision:{decisionId:'decision-1',itemId:'paper-v1',createdAt:'2026-10-15T00:00:00Z',classifiers:{intel:{label:'accept',confidence:.8,probabilities:{accept:.8,reject:.2},version:1,fingerprint:'prediction-1'}},review:{selected:true,reason:'program',propensity:1,detail:'Every decision is reviewed.'}}}]};
+ for(const mode of ['embedded','remote'] as const){
+  const html=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode,status,history}));
+  for(const text of ['80% sure','Publish for Threat Intelligence?','Your label','Explanation (required)','Decision provenance and version','Synthetic scholarly abstract','Calibration not measured yet'])assert.ok(html.includes(text),`${mode} uses actual shared control: ${text}`);
+  assert.ok(html.includes(mode==='embedded'?'owned by this deployment':'shared remote lab'));
+ }
+ const otherScopeHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'embedded',status:{...status,accountId:'account-b'},history:{...history,accountId:'account-b'}}));
+ assert.ok(otherScopeHtml.includes('account-b'));assert.ok(!otherScopeHtml.includes('account-a'));
+ const steeringHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'remote',status,history,onSteer:()=>undefined}));
+ assert.ok(steeringHtml.includes('Evaluate classifier proposal'));
+ assert.ok(!steeringHtml.includes('Change review rate'));
+ const row=history.history[0];const review={itemId:'paper-v1',decisionId:'decision-1',label:'reject',explanation:'Outside this publication scope.',reasonCode:'out_of_scope'};
+ const payload=publicationReviewPayload(base,row,'intel',review,'stable-request-1');
+ assert.equal(payload.predictionFingerprint,'prediction-1');assert.equal(payload.explanation,review.explanation);
+ assert.throws(()=>publicationReviewPayload(base,row,'intel',{...review,explanation:' '},'stable-request-1'),/Explain/);
+ assert.throws(()=>publicationReviewPayload(base,row,'pilobolus',review,'stable-request-1'),/displayed publication/);
+ assert.throws(()=>assertPublicationScope(status,{...history,publicationId:'pilobolus'}),/binding mismatch/);
+ const ref={listId:'sources',itemId:'paper-v1',revision:1,contentHash:'0'.repeat(64)};
+ const context={contextId:'context-1',decisionId:'decision-1',publicationId:base.publicationId,sourceRef:ref,bindingRef:{...ref,listId:'bindings'},source:{id:'paper-v1',values:row.item},binding:{values:{accountId:'account-a',publicationId:base.publicationId,revision:'binding-1',outputs:['intel']}}};
+ const frozen={...row,context,historicalContext:false};
+ assert.equal(publicationReviewPayload(base,frozen,'intel',review,'frozen-request').contextId,'context-1');
+ assert.throws(()=>publicationReviewPayload(base,{...frozen,historicalContext:true},'intel',review,'frozen-request'),/Historical/);
+ const historicalHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'remote',status,history:{...history,history:[{...frozen,historicalContext:true}]},onReview:async()=>undefined}));
+ assert.ok(historicalHtml.includes('Historical source or binding revision'));
+ assert.ok(!historicalHtml.includes('Correct human label'));
+ const steer=publicationSteeringPayload(status,'intel',{...ref,listId:'bindings'},{action:'evaluate',proposal:{rubric:'Human-supplied editorial rubric'},requestId:'evaluate-1',explanation:'  Evaluate this scoped rubric.  '});
+ assert.equal(steer.classifier,'intel');assert.equal(steer.expectedFingerprint,status.classifiers.intel.cyclotron.fingerprint);
+ assert.equal(steer.explanation,'Evaluate this scoped rubric.');
+ assert.throws(()=>publicationSteeringPayload(status,'pilobolus',ref,{action:'evaluate',proposal:{rubric:'Draft'},requestId:'evaluate-1',explanation:'Scope test.'}),/outside this publication/);
+ assertPublicationScope(status,{...history,history:[{...frozen,item:Object.fromEntries(Object.entries(row.item).reverse())}]});
+ assert.throws(()=>assertPublicationScope(status,{...history,accountId:'account-b'}),/binding mismatch/);
+ assert.throws(()=>assertPublicationScope(status,{...history,history:[{...frozen,context:{...context,binding:{values:{...context.binding.values,accountId:'account-b'}}}}]}),/context mismatch/);
+ assert.notEqual(publicationScopeKey(base),publicationScopeKey({...base,accountId:'account-b'}));
+ assert.notEqual(publicationScopeKey({...base,accountId:'a:b',publicationId:'c'}),publicationScopeKey({...base,accountId:'a',publicationId:'b:c'}));
+ const calls:unknown[]=[];let fail=true;
+ const client=createPublicationClient(base,async(operation,input)=>{calls.push({operation,input});if(fail)throw new Error('Synthetic uncertain acknowledgement');return {...base,review:{}};},()=>base);
+ await assert.rejects(client.review(payload),/uncertain acknowledgement/);assert.equal(calls.length,1);
+ fail=false;await client.review(payload);assert.deepEqual(calls[0],calls[1]);
+ const wrong=createPublicationClient(base,async()=>({...base,publicationId:'pilobolus'}),()=>base);
+ await assert.rejects(wrong.status(),/contract mismatch/);
+ const otherAccount=createPublicationClient(base,async()=>({...base,accountId:'account-b'}),()=>base);
+ await assert.rejects(otherAccount.status(),/contract mismatch/);
+ let selected={...base};let resolve!:(value:typeof status)=>void;let dispatches=0;
+ const pending=createPublicationClient(base,async()=>{dispatches++;return new Promise<typeof status>(done=>{resolve=done;});},()=>selected);
+ const oldRead=pending.status();
+ selected={...base,accountId:'account-b'};resolve(status);
+ await assert.rejects(oldRead,/selection changed/);
+ await assert.rejects(pending.review(payload),/selection changed/);assert.equal(dispatches,1);
+ const staleBinding=createPublicationClient(base,async()=>{throw new Error('must not dispatch');},()=>base);
+ await assert.rejects(staleBinding.review({...payload,bindingRevision:'old'}),/binding changed/);
+ const immutableScope={...base};let captured='';
+ const pinned=createPublicationClient(immutableScope,async(_operation,_payload,scope)=>{captured=scope.accountId;return status;},()=>base);
+ immutableScope.accountId='account-b';await pinned.status();assert.equal(captured,'account-a');
+ console.log('publication Cyclotron UI: shared controls for both modes, explicit explanations, scope checks and caller-controlled retry: ok');
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});
