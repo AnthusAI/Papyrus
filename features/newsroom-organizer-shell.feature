@@ -60,3 +60,9 @@ Feature: Production newsroom organizer shell
     Given a publication has not enabled the organizer newsroom layout
     When I open the newsroom
     Then its existing CMS shell and commands remain unchanged
+
+  Scenario: Settings works on a CMS hosted at the root
+    Given the publication hosts its newsroom at the root path
+    When I open Settings from the account menu
+    Then the existing Settings page opens through the newsroom route alias
+    And its cloud authorization and preference handlers are unchanged
