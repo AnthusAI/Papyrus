@@ -1345,15 +1345,23 @@ def _arxiv_abstract_from_html(html: str) -> str:
     for payload in _extract_json_ld_payloads(html):
         abstract = _json_ld_lookup(payload, keys=("description", "abstract"))
         if abstract:
-            return _clean_text(abstract)
+            return _clean_text(unescape(abstract))
 
     meta_match = re.search(
-        r'<meta[^>]+name=["\'](?:description|citation_abstract)["\'][^>]+content=["\']([^"\']+)["\']',
+        r'<meta[^>]+name=["\']citation_abstract["\'][^>]+content=["\']([^"\']+)["\']',
         html,
         flags=re.IGNORECASE,
     )
     if meta_match:
-        return _clean_text(meta_match.group(1))
+        return _clean_text(unescape(meta_match.group(1)))
+    abstract_match = re.search(
+        r'<blockquote[^>]+class=["\'][^"\']*\babstract\b[^"\']*["\'][^>]*>(.*?)</blockquote>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if abstract_match:
+        text = _clean_text(unescape(re.sub(r"<[^>]+>", " ", abstract_match.group(1))))
+        return re.sub(r"^Abstract:\s*", "", text, flags=re.IGNORECASE).strip()
     return ""
 
 

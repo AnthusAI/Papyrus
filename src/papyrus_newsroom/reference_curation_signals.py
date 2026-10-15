@@ -37,10 +37,10 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
+from papyrus_content.env import BIBLICUS_ROOT
 
 
 PAPYRUS_ROOT = Path(__file__).resolve().parents[2]
-BIBLICUS_ROOT = PAPYRUS_ROOT.parent / "Biblicus"
 SUMMARY_TOKEN_BUDGETS = (100, 200, 500, 1000, 1800)
 SUMMARY_MESSAGE_KIND = "reference_summary"
 SUMMARY_MESSAGE_DOMAIN = "summarization"
@@ -3373,6 +3373,7 @@ def reference_generate_metadata_from_extracted_text(
     apply: bool = False,
     refresh: bool = True,
     reference: dict[str, Any] | None = None,
+    metadata_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if isinstance(reference, dict) and str(reference.get("id") or "").strip():
         resolved_reference = reference
@@ -3420,7 +3421,7 @@ def reference_generate_metadata_from_extracted_text(
         model=model,
     )
 
-    metadata_payload = _load_reference_metadata_payload(reference)
+    metadata_payload = _load_reference_metadata_payload(reference) if metadata_payload is None else metadata_payload
     next_metadata = dict(metadata_payload) if isinstance(metadata_payload, dict) else {}
     next_metadata["title"] = title_result["title"]
     next_metadata["subtitle"] = subtitle_result["subtitle"]
@@ -3561,7 +3562,8 @@ def _run_biblicus_summarize_map_reduce(
         "reference_title": reference.get("title") or "",
         "source_uri": reference.get("sourceUri") or "",
     }
-    env = dict(os.environ)
+    from papyrus_content.reference_url_text import _biblicus_env
+    env = _biblicus_env()
     biblicus_src = str(BIBLICUS_ROOT / "src")
     env["PYTHONPATH"] = (
         f"{biblicus_src}{os.pathsep}{env['PYTHONPATH']}"
