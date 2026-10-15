@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "4370976c-012c-45ec-b50d-ff0f6a277fb6",
+  "issue_id": "PPY-a8471b14-5926-4223-83b9-b8a1769790ab",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-15T01:01:26.181Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "eef9d4d6-7246-4ea4-acaa-cd6b98e04701",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "papyrus-unified-review"
+    }
+  }
+}

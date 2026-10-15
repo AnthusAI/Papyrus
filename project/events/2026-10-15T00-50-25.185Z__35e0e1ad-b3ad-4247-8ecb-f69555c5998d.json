@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "35e0e1ad-b3ad-4247-8ecb-f69555c5998d",
+  "issue_id": "PPY-a8471b14-5926-4223-83b9-b8a1769790ab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-15T00:50:25.185Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review editorial work and reference priming in one newsroom",
+    "description": "Feature: Unified Papyrus review\nScenario: Advance editorial work\nGiven an explicitly synthetic newsroom backed by Kanbus\nWhen I open the board, select a story, and advance its stage\nThen the actual Kanbus service persists the change across reload\nScenario: Curate representative examples\nGiven the References view shares the same newsroom navigation\nWhen I preview, revise, label, and accept a synthetic reference\nThen the actual Cyclotron priming service stores the example and human labels\nScenario: Safe LAN review\nGiven the preview is reachable on the private LAN\nWhen a cross-origin write or real source URL is submitted\nThen it is refused and no production system is contacted",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "papyrus-unified-review"
+    }
+  }
+}
