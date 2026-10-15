@@ -82,10 +82,34 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroomReview"
       }
+    },
+    {
+      "id": "bd9b484b-9c69-406b-85d7-2625c76e0d88",
+      "author": "home",
+      "text": "Continuing carry-forward inventory: preserve durable taxonomy/policies/curation/forums, implement isolated article/media persistence and original procedure registry contracts, inspect actual knowledge engine before search integration. Ontology edit/merge remains explicit design gap; no public push or deployment.",
+      "created_at": "2026-10-15T04:31:34.150639Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "9f073aca-71ea-4a08-bf27-71c4a7a3c945",
+      "author": "home",
+      "text": "Local carry-forward checkpoint 4c77694 on feature/PPY-a8471b-unified-newsroom-review: original Python Markus/publishing engine plus durable article/media port; save/conflict/reload and upload interruption/repeat proofs. Original procedure registry handlers now durable with version selection/publication/archive, published+archived immutability and rollback proofs; Run Now explicitly disconnected. Original knowledge engine provides synthetic anchored/ontology context; semantic-only queries clearly unavailable. 52 Python tests, isolated tsc, scoped lint, local build, original client/article/media/workspace/kernel tests, article+registry+search browser flows, mobile shell and 11 CMS render proofs pass. Fixed publication witness/slug lock without blocking dated drafts and legacy CMS spacing/contrast. Inventory docs record authenticated staging/vector/worker/category-apply/ontology edit-merge gaps. Preview 192.168.0.199:8899 stays synthetic-only; no public push/deploy. Issue remains in_progress until landing.",
+      "created_at": "2026-10-15T04:49:05.183749Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T04:26:51.637221Z",
+  "updated_at": "2026-10-15T04:49:05.183784Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
