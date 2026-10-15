@@ -23,6 +23,8 @@ jobs:
       - run: echo '{}' > amplify_outputs.json
       - run: npm run typecheck
       - run: npm run test:newsroom
+      - run: npm run test:newsroom-organizer
+      - run: npm run test:newsroom-nav
       - run: npm run test:theme-packs
       - run: npm run test:anth-us-brand
       - run: npm run test:newsroom-card-layout

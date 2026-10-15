@@ -1,3 +1,4 @@
+import { resolveNewsDeskTab } from "../lib/newsroom-section-routing";
 import { NewsDeskWorkspace, type NewsDeskTab } from "./topic-steering-workspace";
 import {
   createDemoCategorySteeringDashboard,
@@ -41,7 +42,8 @@ export type NewsDeskPageProps = {
 
 export async function NewsDeskPage({ section: routeSection, sectionPageId, selectionPath, searchParams }: NewsDeskPageProps) {
   const resolvedSearchParams = await searchParams;
-  const initialTab = parseNewsDeskTab(routeSection ?? getSearchParam(resolvedSearchParams, "section"), getSearchParam(resolvedSearchParams, "tab"));
+  const brand = resolveActiveSiteBrand();
+  const initialTab = resolveNewsDeskTab(routeSection ?? getSearchParam(resolvedSearchParams, "section"), getSearchParam(resolvedSearchParams, "tab"), brand.newsroomLayout === "organizer");
   const routeSelection = parseRouteSelection(initialTab, selectionPath);
   const initialSelection = {
     assignment: routeSelection.assignment ?? getFirstSearchParam(resolvedSearchParams, "assignment"),
@@ -63,7 +65,6 @@ export async function NewsDeskPage({ section: routeSection, sectionPageId, selec
     proposal: getFirstSearchParam(resolvedSearchParams, "proposal"),
   };
   const useDemoDashboard = getFirstSearchParam(resolvedSearchParams, "demo") === "1";
-  const brand = resolveActiveSiteBrand();
   const analysisProfiles = await loadAnalysisProfileSummaries(getBrandAnalysisProfilesPath(brand));
   const configuredCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(brand));
   const dashboard = useDemoDashboard
@@ -77,6 +78,7 @@ function parseRouteSelection(tab: NewsDeskTab, selectionPath: string[] | null | 
   if (!segments.length) return {};
   if (segments[0] === "forum" && segments[1]) return { forumThread: segments[1] };
   if (tab === "administration") return { panel: segments[0] ?? null };
+  if (tab === "desks") return { category: segments[0] ?? null };
   if (tab === "topics") return { category: segments[1] ?? segments[0] ?? null };
   if (tab === "references") return { reference: segments[0] ?? null };
   if (tab === "concepts") return { category: segments[0] ?? null };
@@ -100,17 +102,4 @@ function getFirstSearchParam(searchParams: unknown, key: string): string | null 
   const value = getSearchParam(searchParams, key);
   const first = Array.isArray(value) ? value[0] : value;
   return typeof first === "string" && first.trim() ? first.trim() : null;
-}
-
-function parseNewsDeskTab(sectionValue: string | string[] | null | undefined, legacyTabValue: string | string[] | null | undefined): NewsDeskTab {
-  const section = Array.isArray(sectionValue) ? sectionValue[0] : sectionValue;
-  const legacyTab = Array.isArray(legacyTabValue) ? legacyTabValue[0] : legacyTabValue;
-  const rawValue = section ?? (legacyTab === "categories" ? "topics" : legacyTab);
-  const value = rawValue === "users" || rawValue === "doctrine"
-    ? "administration"
-    : rawValue === "desks"
-      ? "topics"
-      : rawValue;
-  if (value === "administration" || value === "topics" || value === "concepts" || value === "references" || value === "insights" || value === "messages" || value === "assignments" || value === "search") return value;
-  return "overview";
 }

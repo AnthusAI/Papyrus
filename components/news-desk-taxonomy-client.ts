@@ -1,6 +1,7 @@
 "use client";
 
 import { generateClient } from "aws-amplify/data";
+import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
 import type { Schema } from "../amplify/data/resource";
 import type { NewsDeskAppendix, NewsDeskCategoryTreeNode } from "../lib/content-types";
@@ -2569,8 +2570,7 @@ export async function runNewsroomKnowledgeQuery(input: Record<string, unknown>):
 
 export function hasTestEditorOverride(): boolean {
   if (typeof window === "undefined") return false;
-  const allowOverride = process.env.NODE_ENV === "test"
-    || process.env.NEXT_PUBLIC_ENABLE_TEST_EDITOR_OVERRIDE === "true";
+  const allowOverride = testEditorOverrideAllowed(process.env.NODE_ENV, process.env.NEXT_PUBLIC_ENABLE_TEST_EDITOR_OVERRIDE);
   if (!allowOverride) return false;
   return window.localStorage.getItem(TEST_EDITOR_STORAGE_KEY) === "true";
 }

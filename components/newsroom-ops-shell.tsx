@@ -34,6 +34,8 @@ import {
   NEWSROOM_SIDEBAR_NAV_INACTIVE,
 } from "../lib/newsroom-list-selection";
 import { cn } from "../lib/utils";
+import { SITE_BRAND } from "../lib/site-brand";
+import { NewsroomOrganizerShell } from "./newsroom-organizer-shell";
 
 export type NewsroomNavCount = {
   count: number | null;
@@ -41,7 +43,7 @@ export type NewsroomNavCount = {
   visible?: boolean;
 };
 
-type NewsroomOpsShellProps = {
+export type NewsroomOpsShellProps = {
   activeTab: NewsroomNavTabId | string;
   appTitle: string;
   backHref?: string;
@@ -135,6 +137,10 @@ export function NewsroomOpsShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const resolvedActiveTab = activeTab === "desks" ? "topics" : activeTab;
   const mobilePrimary = useMemo(() => NEWSROOM_MOBILE_PRIMARY_NAV, []);
+
+  if (SITE_BRAND.newsroomLayout === "organizer") return <NewsroomOrganizerShell activeTab={activeTab} appTitle={appTitle}
+    backHref={backHref} backLabel={backLabel} demo={demo} headerActions={headerActions} pageTitle={pageTitle}
+    showNavigation={showNavigation} tabCounts={tabCounts}>{children}</NewsroomOrganizerShell>;
 
   return (
     <div

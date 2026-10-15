@@ -105,6 +105,8 @@ export type SiteBrand = {
   /** Public URL prefix for the Pretext reader (home, editions, articles, archive, settings). Default `""`; e.g. `/information`. */
   readerBasePath?: string;
   opsChrome: OpsChrome;
+  /** Opt-in CMS viewport layout; independent of the public reader renderer/theme. */
+  newsroomLayout?: "organizer";
   corpusKey: string;
   steeringConfigPath: string;
   newsroomSectionsConfigPath: string;
