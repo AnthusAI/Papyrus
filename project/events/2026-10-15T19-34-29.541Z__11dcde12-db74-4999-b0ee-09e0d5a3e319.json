@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "11dcde12-db74-4999-b0ee-09e0d5a3e319",
+  "issue_id": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-15T19:34:29.541Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "78c57630-a868-44b6-bb73-32bbddba4732",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "ProductionCMS"
+    }
+  }
+}

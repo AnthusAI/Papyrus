@@ -3,7 +3,7 @@
   "title": "Restore newsroom.pilobol.us access to existing CMS",
   "description": "Ryan explicitly requests fixing newsroom.pilobol.us. Existing production CMS at main.d1eiwl0gedkmnj.amplifyapp.com verified HTTP200 and Google sign-in. Amplify cross-account domain history blocks association; production account owns authoritative Route53 zone and issued certificate covering newsroom/staging. Verify callback allowlist; use existing supported CMS CloudFront front-door pattern with no auth/IAM expansion or data changes. Verify custom-host HTTPS page and Google redirect, preserve reader and record rollback.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -53,17 +53,27 @@
         "model": "GPT-6.1-Sol",
         "name": "ProductionCMS"
       }
+    },
+    {
+      "id": "b5435820-3caa-4b1c-9466-5a2937db5953",
+      "author": "home",
+      "text": "Completed: repair PR208 merged3902b81, CloudFormation papyrus-edge-pilobol-us-cms and distributionE205M49121L1RG Deployed; authoritative/router/system DNS and ordinary HTTPS recovered after negative cache expiry, user confirmed hostloads. newsroom.pilobol.us now serves production organizer (mainjob15SUCCEEDED), custom-domain assets and browser nav/Settings/Google-entry pass without DNS/Host/TLS overrides. Existing main backend/auth/callbacks unchanged; no completed Googleconsent or authenticatedmutations claimed.",
+      "created_at": "2026-10-15T19:15:07.924206Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-15T16:23:58.683539Z",
-  "updated_at": "2026-10-15T16:51:17.106562Z",
-  "closed_at": null,
+  "updated_at": "2026-10-15T19:15:15.103583Z",
+  "closed_at": "2026-10-15T19:15:15.103181Z",
   "agent": {
     "platform": "codex",
     "model": "GPT-6.1-Sol",
     "name": "ProductionCMS"
   },
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {}
+  "right_now_summary": "The newsroom site works, and Google sign-in entry is verified, but authenticated editing is not confirmed.",
+  "right_now_updated_at": "2026-10-15T19:15:17.094515Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

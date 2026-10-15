@@ -10,9 +10,22 @@
   "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "30714f4e-c7d2-4c86-93e7-e073b85c96bc",
+      "author": "home",
+      "text": "Integration inputs received, still queued behind terminal three-site CMS release. Latest human priming source is Papyrus 746aed6539f33288408c48e5d3f1f1fd988b5755: paper URL alone uses actual Biblicus/GROBID extraction; temporary Mac-only 127.0.0.1:8901 remains separate. No anonymous LAN or cloud activation authorized by this handoff. Web extraction must fail visibly until the published Biblicus contract and enforced provider budget are approved. Account-aware BFF source a23d6f4 / core 1e2a7a7 still requires isolated integration, trusted production session grants and explicit storage-authority decision before activation. Do not merge whole preview branches or infer publication grants from console roles.",
+      "created_at": "2026-10-15T19:28:34.697941Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    }
+  ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-15T18:18:59.481709Z",
+  "updated_at": "2026-10-15T19:28:34.697971Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
@@ -21,5 +34,8 @@
   },
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

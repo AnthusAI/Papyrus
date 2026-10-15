@@ -10,16 +10,32 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "78c57630-a868-44b6-bb73-32bbddba4732",
+      "author": "home",
+      "text": "Approved base CMS is now deployed and personally browser-verified in production on https://newsroom.pilobol.us/, https://p.apyr.us/newsroom and https://threat-intelligence.anth.us/newsroom with next.60. Release task PPY-ca252a is closed. This epic remains open for account-scoped publication BFF task PPY-58f107, explicit storage authority, and separately reviewed human priming integration; no optional cloud activation implied. Latest priming paper extraction pin is 746aed6, local loopback only; web provider contract/budget not approved. Existing CMS workflows and auth boundaries carried forward; authenticated mutation acceptance remains unverified. Anth.us excluded.",
+      "created_at": "2026-10-15T19:34:29.541422Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    }
+  ],
   "created_at": "2026-10-15T00:49:28.909448Z",
-  "updated_at": "2026-10-15T00:49:28.910098Z",
+  "updated_at": "2026-10-15T19:34:29.541447Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
     "model": "gpt-6.1-sol",
     "name": "papyrus-unified-review"
   },
-  "right_now_summary": "The local newsroom review works with synthetic data and awaits iPad and artifact checks before rollout.",
-  "right_now_updated_at": "2026-10-15T01:57:06.084055Z",
-  "custom": {}
+  "right_now_summary": "The unified newsroom review works locally, while production integration and device checks await Ryan’s review.",
+  "right_now_updated_at": "2026-10-15T19:15:20.427578Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

@@ -3,7 +3,7 @@
   "title": "Productionize approved newsroom shell without replacing live CMS contracts",
   "description": "Ryan authorizes tested release/deploy to p.apyr.us, Pilobol.us CMS, threat-intelligence.anth.us; Anth.us excluded. Port approved viewport/newsprint app navigation, grouped subtitles, sidebar collapse, honest authenticated account/settings/signout and concise bottom tabs into shipped Next package. Retain all original routes, role/session gates, native CMS commands and data. Reuse exported Kanbus board dependency with production-native records only where stable; no synthetic gateway, fixture predictions, fake services or new unapproved security access. Unbuilt optional integrations remain honestly unavailable. Given an editor opens an existing CMS destination, when the new shell is enabled, then existing data/actions/auth remain and approved responsive navigation works. Given signed-out/non-editor access, then private records/actions remain gated.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -101,18 +101,49 @@
         "model": "GPT-6.1-Sol",
         "name": "ProductionCMS"
       }
+    },
+    {
+      "id": "df2e6ba3-6d55-4c3e-9b87-ca7ab4cf3725",
+      "author": "home",
+      "text": "PR212 mergeda50c4ba4334e314e6c9fc54f5d8848b8e24c3c40; fullchecks38788790083/38788790101 and release38789573406 allSUCCEEDED. next.60 official archive950118bytes downloaded and SHA512verified before consumers: sha512-aSisSE6GDRmuf843dgJpRLSomRrUbCq5YC4Yuo8eMNBJiVvMdhVJ8EbTaKV+iKIVVcrksDH0bp6vDFqJse338A==. Final staging PR74Pilo merged9a07f2a75a4993826c34c2f266b8e9a769194f05; PpPR15 merged20ee6229a22221b65de1e38d31904a47a3ea2764; TIPR27 mergedffde661a0cb27e3461aa85302e9eeabde7e66261. Exactly3pinfiles6linechanges each. New builds monitored toterminal, then canonicalSettings browser acceptance before main. Additional readonly API audit: all17 modeltypes referenced by frontend exist on all3backends, alongside34validated static GraphQLdocuments. No authenticated mutations or Googleconsent submission. Board-only journal reconciles71CLI-authored files without previewimplementation; kbsvalidate diagnostics identical to develop baseline15legacy short-ID dependencies, no newerrors, unrelatedissues preserved.",
+      "created_at": "2026-10-15T19:13:40.561938Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "53ed857e-a05e-43aa-858e-7b5f79a0dc06",
+      "author": "home",
+      "text": "All final next.60 staging checks passed. Production PRs Pilobolus #75, p.apyr.us #16 and Threat Intelligence #28 merged verified staging heads. All production BUILD / DEPLOY / VERIFY steps SUCCEEDED: Pilobolus main job 16 at 9aa93a01913c3c784dc3d55d125c55410849d766; p.apyr.us main job 16 at 45f742e06e3f477f7280baad1e9319f9092e49cc; Threat Intelligence main job 9 at 048a8104ed01ce30b8aaeda0090a3877a8d196a1. Custom-domain browser QA running before final closure. Anth.us excluded. Google consent unsubmitted; authenticated mutation acceptance unverified.",
+      "created_at": "2026-10-15T19:33:40.716225Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
+    },
+    {
+      "id": "f0d21349-60a4-4828-9b06-99e7287fa26e",
+      "author": "home",
+      "text": "Production release complete: Papyrus 1.0.0-next.60. Pilobolus PR75/main job16 SUCCEEDED at 9aa93a01913c3c784dc3d55d125c55410849d766; p.apyr.us PR16/main job16 SUCCEEDED at 45f742e06e3f477f7280baad1e9319f9092e49cc; Threat Intelligence PR28/main job9 SUCCEEDED at 048a8104ed01ce30b8aaeda0090a3877a8d196a1. All BUILD/DEPLOY/VERIFY steps passed. Personally verified each exact production custom host: newsprint assets without CRM preset, 16 desktop/mobile destinations, original taxonomy editor, canonical Settings, theme/motion persistence, reduced-motion menu roots, no horizontal overflow, zero page errors/failed assets/private anonymous reads; login reaches existing Google entry without consent. Public readers HTTP200 with expected titles; Pilobolus reader SHA256 unchanged. Evidence and 12 production screenshots: papyrus-production/.papyrus-runs/production-checks/production60-{jobs,qa,readers}.json and site-specific *-production60 directories. Source handler carry-forward and 34 static GraphQL documents / 17 model types verified against all existing backends. Authenticated mutations remain unverified; Google consent was denied and never submitted. Anth.us excluded, no backend migration or access expansion. Optional priming/account BFF and Prospectus CMS activation remain separate.",
+      "created_at": "2026-10-15T19:34:29.518041Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-15T15:57:30.760232Z",
-  "updated_at": "2026-10-15T18:51:59.043443Z",
-  "closed_at": null,
+  "updated_at": "2026-10-15T19:34:29.525736Z",
+  "closed_at": "2026-10-15T19:34:29.525457Z",
   "agent": {
     "platform": "codex",
     "model": "GPT-6.1-Sol",
     "name": "ProductionCMS"
   },
-  "right_now_summary": null,
-  "right_now_updated_at": null,
+  "right_now_summary": "The approved shell is being validated on all three CMS sites before production promotion.",
+  "right_now_updated_at": "2026-10-15T19:13:47.801927Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
