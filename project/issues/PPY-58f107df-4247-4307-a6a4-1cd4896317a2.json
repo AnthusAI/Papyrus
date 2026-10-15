@@ -22,10 +22,22 @@
         "model": "GPT-6.1-Sol",
         "name": "ProductionCMS"
       }
+    },
+    {
+      "id": "23ea0ef4-ae69-4f9d-a9b3-02183a8544e4",
+      "author": "home",
+      "text": "Later-release priming handoff supersedes earlier priming pins: Papyrus 95bd70a4d18c546d62b81fe0653a51c8599d83c8 (local source; commit existence verified), assigned Biblicus e4001ea1c2378a66d2b58bae4ee793c7e5a2fe38 consumed read-only, core reported short pin 100284b. Integration owner reports eight actual Papyrus planner/wrapper -> Biblicus CLI -> loopback gateway -> fake-provider cases passing and 60 combined focused checks passing. Priming-only inherited raw fallback after failed article filtering is fixed; no competing worker edits. These results are owner-reported, not rerun by this release lane. Paid live approval remains pending in the main chat: no paid calls or live grants, no product-source push/deploy authorized by this record. Owner reports original human preview PID19198 HTTP200 at loopback 127.0.0.1:8901 with source/server/catalog unchanged for this release task. Exact contracts/readiness live in owner docs/priming-acceptance.md. Retain owner control; later isolated integration and explicit activation review remain required.",
+      "created_at": "2026-10-15T20:06:11.278067Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "ProductionCMS"
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-15T19:28:34.697971Z",
+  "updated_at": "2026-10-15T20:06:11.278091Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
