@@ -22,10 +22,22 @@
         "model": "GPT-6.1-Sol",
         "name": "Unified Newsroom Review"
       }
+    },
+    {
+      "id": "f28f39be-d36e-4e7d-8512-6a6a28c22ba5",
+      "author": "home",
+      "text": "Next verified increment be203f245dafa55b584280920b0f63c3158c2b1c: scoped category-policy creation/update uses actual doctrine helper identities and persists/reloads. Section create is durable; failed creation retains draft inputs. Injected section ordering now requires explicit atomic capability; isolated exact-permutation update and event commit together, survives reload, rejects malformed/duplicate/incomplete ids. Shared-component browser structure proof and existing policy failure/conflict/merge proof pass. 14 Python checks, generated-client TypeScript compatibility, adapter contracts, lint/build pass. Public-cloud factory deliberately has no fake atomic reorder capability; production needs an actual atomic host operation. Remaining inventory updated. No live credentials/data, deployment or push.",
+      "created_at": "2026-10-15T03:09:53.200596Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "Unified Newsroom Review"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T02:56:21.332609Z",
+  "updated_at": "2026-10-15T03:09:53.200631Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
