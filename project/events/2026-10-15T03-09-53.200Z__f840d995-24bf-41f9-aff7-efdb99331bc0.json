@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "f840d995-24bf-41f9-aff7-efdb99331bc0",
+  "issue_id": "PPY-550d24e5-1de1-4ada-94a3-7d5c13bca405",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-15T03:09:53.200Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "f28f39be-d36e-4e7d-8512-6a6a28c22ba5",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "Unified Newsroom Review"
+    }
+  }
+}
