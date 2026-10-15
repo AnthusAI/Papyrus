@@ -12,7 +12,7 @@ existing Papyrus research and web curation paths:
 2. Review the complete candidate item and exact values supplied to the model.
    Reject/revise extraction using transformation feedback. This feedback is not
    a classification rationale. No item is imported yet.
-3. Choose every configured label and supply its own human explanation. Accept
+3. Choose every configured label; its human explanation is optional. Accept
    explicitly. The existing local transaction saves the item and labels together.
    Cancellation and invalid/stale drafts cannot be accepted. Acceptance retry is
    idempotent. The panel's `onAccepted(draft)` supplies the acknowledged list and
@@ -38,7 +38,7 @@ existing Papyrus research and web curation paths:
    occurs. Existing stores refuse changed/retrofitted priming; use a deliberate
    new store/version. Later catalog acceptance never changes a captured snapshot.
 6. The first operational decision sees the captured examples and human rationales
-   as training context. Priming identities must be disjoint from pending reference
+   as training context when supplied; blank explanations add no context. Priming identities must be disjoint from pending reference
    identities; the sweep checks overlap before claims or writes. Priming creates
    no operational predictions/review counts, development set or held-out score.
 

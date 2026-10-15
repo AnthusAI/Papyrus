@@ -66,19 +66,3 @@ def test_readiness_failure_is_actionable_retryable_and_cancellable(tmp_path):
     client.post('/jobs/paper/feedback',json={'request_id':'retry','reason':'Parser is ready; retry source extraction','inputs':{}})
     assert client.get('/jobs/paper').json()['status']=='complete'
     assert client.delete('/jobs/paper').json()['status']=='cancelled'
-
-
-def test_delivered_server_contract_requires_url_only_and_blocks_unapproved_web(tmp_path):
-    from pathlib import Path
-    import runpy
-    from papyrus_content.priming_curation import CurationNotReady
-    module=runpy.run_path(str(Path(__file__).resolve().parents[3]/'scripts/priming-preview/serve-human.py'))
-    assets=tmp_path/'assets';assets.mkdir()
-    app,transformer,service=module['build_apps'](tmp_path/'workspace',8902,assets)
-    try:
-        contract=service.contract('human-priming',[{'id':'editorial','revision':1}])
-        assert contract['transformers'][0]['fields']==[{'name':'url','label':'Source URL','required':True}]
-        module['authorize_local_source']('https://arxiv.org/abs/2503.15739')
-        with pytest.raises(CurationNotReady,match='No paid call'):
-            module['authorize_local_source']('https://example.invalid/web')
-    finally:service.close()

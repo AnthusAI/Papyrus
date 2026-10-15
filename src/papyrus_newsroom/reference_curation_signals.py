@@ -3302,6 +3302,7 @@ def generate_subtitle_from_reference_text(
     extracted_text: str,
     original_title: str = "",
     original_subtitle: str = "",
+    generated_title: str = "",
     model: str = REFERENCE_METADATA_MODEL_DEFAULT,
 ) -> dict[str, Any]:
     context = resolve_reference_text_generation_context(
@@ -3311,6 +3312,7 @@ def generate_subtitle_from_reference_text(
     )
     if not context["ok"]:
         raise RuntimeError("Cannot generate subtitle without extracted text.")
+    context["generatedTitle"] = generated_title
     result = _run_metadata_map_reduce(
         output_kind="subtitle",
         reference=reference,
@@ -3411,6 +3413,7 @@ def reference_generate_metadata_from_extracted_text(
         extracted_text=context["extractedText"],
         original_title=context["originalTitle"],
         original_subtitle=context["originalSubtitle"],
+        generated_title=title_result["title"],
         model=model,
     )
     summary_result = generate_summary_from_reference_text(
@@ -3561,6 +3564,9 @@ def _run_biblicus_summarize_map_reduce(
         "original_subtitle": context.get("originalSubtitle") or "",
         "reference_title": reference.get("title") or "",
         "source_uri": reference.get("sourceUri") or "",
+        "source_publication_date": str(reference["sourcePublishedAt"])[:10] if reference.get("sourcePublishedAt") else None,
+        "source_is_archived": reference.get("sourceIsArchived") if isinstance(reference.get("sourceIsArchived"), bool) else None,
+        "generated_title": context.get("generatedTitle") or "",
     }
     from papyrus_content.reference_url_text import _biblicus_env
     env = _biblicus_env()

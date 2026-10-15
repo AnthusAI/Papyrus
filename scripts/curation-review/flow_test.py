@@ -28,6 +28,11 @@ def test_real_curation_paths(tmp_path, mode, vote):
                     response = await client.post('/api/newsroom/curation/priming', headers=headers, json={'query': 'mutation($action:String!,$payload:JSON!){primingCommand(action:$action,payload:$payload)}', 'variables': {'action': action, 'payload': payload}})
                     assert response.status_code == 200, response.text
                     return response.json()
+                contract_response = await client.post('/api/newsroom/curation/priming', headers=headers, json={
+                    'query': 'query($list:ID!,$refs:JSON!){primingContract(listId:$list,classifiers:$refs)}',
+                    'variables': {'list': bootstrap['priming']['listId'], 'refs': bootstrap['priming']['classifiers']}})
+                contract = contract_response.json()['data']['primingContract']
+                assert contract['transformers'][0]['fields'] == [{'name': 'url', 'label': 'Source URL', 'required': True}]
                 identity = str(uuid.uuid4())
                 result = await command('transform', {'identifier': identity, 'list_id': bootstrap['priming']['listId'], 'refs': bootstrap['priming']['classifiers'], 'transformer_id': 'papyrus', 'inputs': {'url': 'https://example.invalid/paper'}})
                 assert 'errors' not in result, result

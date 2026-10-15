@@ -2239,8 +2239,13 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             "versionNumber": 1,
             "title": "Original title",
             "sourceUri": "https://example.test/ref",
+            "sourcePublishedAt": "2021-01-07T00:00:00Z",
+            "sourceIsArchived": True,
         }
         with mock.patch(
+            "papyrus_newsroom.reference_curation_signals.BIBLICUS_ROOT",
+            pathlib.Path(__file__).resolve().parent,
+        ), mock.patch(
             "papyrus_newsroom.reference_curation_signals._semantic_client",
             return_value=mock.Mock(),
         ), mock.patch(
@@ -2263,6 +2268,9 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
                 self.assertEqual(payload["original_subtitle"], "Catalog original subtitle")
                 self.assertEqual(payload["reference_title"], "Original title")
                 self.assertEqual(payload["source_uri"], "https://example.test/ref")
+                self.assertEqual(payload["source_publication_date"], "2021-01-07")
+                self.assertIs(payload["source_is_archived"], True)
+                self.assertEqual(payload["generated_title"], "Generated title" if task == "subtitle" else "")
                 values = {
                     "title": "Generated title",
                     "subtitle": "Generated subtitle",

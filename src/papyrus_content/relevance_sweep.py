@@ -153,14 +153,20 @@ def reference_item(reference: Mapping[str, Any], *, source_content: Mapping[str,
         lines.append(f"Source: {domain}")
     if reference.get("sourcePublishedAt"):
         lines.append(f"Published: {str(reference['sourcePublishedAt'])[:10]}")
-    if reference.get("curationStatusReason"):
+    elif source_content:
+        lines.append("Source publication date: unknown")
+        if reference.get("importedAt"):
+            lines.append(f"Reference intake date: {str(reference['importedAt'])[:10]}")
+    # The intake reason describes the staged catalog row, before extraction.
+    # Keep it in raw provenance, not in the completed priming model projection.
+    if not source_content and reference.get("curationStatusReason"):
         lines.append(f"Why it was proposed: {reference['curationStatusReason']}")
     if source_content:
         lines.append(source_content["abstract"])
     values = {"text": "\n".join(str(line) for line in lines), "title": reference.get("title"),
               "source_uri": source or None, "domain": domain or None,
               "published_at": reference.get("sourcePublishedAt"),
-              "ingestion_rationale": reference.get("curationStatusReason")}
+              "ingestion_rationale": reference.get("curationStatusReason") if not source_content else None}
     if source_content:
         values["abstract"] = source_content["abstract"]
     return Item(reference.get("lineageId") or reference["id"], {key: value for key, value in values.items() if value})

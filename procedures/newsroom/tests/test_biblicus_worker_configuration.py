@@ -68,3 +68,21 @@ def test_missing_configured_checkout_fails_before_metadata_worker(tmp_path, monk
     with pytest.raises(RuntimeError, match="Biblicus checkout not found"):
         metadata._run_biblicus_summarize_map_reduce(
             output_kind="title", reference={}, context={}, model="offline-model")
+
+
+def test_metadata_source_context_is_unknown_without_explicit_source_evidence(monkeypatch, tmp_path):
+    import json
+    from types import SimpleNamespace
+    from papyrus_newsroom import reference_curation_signals as metadata
+    monkeypatch.setattr(metadata,'BIBLICUS_ROOT',tmp_path)
+    captured=[]
+    def worker(command,**kwargs):
+        captured.append(json.loads(kwargs['input']))
+        return SimpleNamespace(returncode=0,stdout='{"task":"title","value":"Title"}',stderr='')
+    monkeypatch.setattr(metadata.subprocess,'run',worker)
+    metadata._run_biblicus_summarize_map_reduce(output_kind='title',reference={
+        'sourceUri':'https://example.invalid/2021/01/07/incident','importedAt':'2026-10-15T00:00:00Z',
+        'curationStatus':'archived'},context={'extractedText':'Source text'},model='offline-model')
+    assert captured[0]['source_publication_date'] is None
+    assert captured[0]['source_is_archived'] is None
+    assert captured[0]['generated_title']==''

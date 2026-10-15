@@ -166,3 +166,39 @@ def test_reported_filter_fallback_stops_priming_before_metadata(monkeypatch):
     monkeypatch.setattr(reference_curation_signals,'reference_generate_metadata_from_extracted_text',lambda **kwargs:pytest.fail('Failed article filtering must not trigger metadata'))
     with pytest.raises(ValueError,match='extraction did not complete'):
         service().prepare({'url':'https://example.invalid/source'},None,'')
+
+
+@pytest.mark.parametrize('published', [None, '2021-01-07T00:00:00Z'])
+def test_completed_preview_drops_stale_intake_reason_and_distinguishes_source_date(monkeypatch, published):
+    """Saved CISA run regression: generated summary must not claim unavailable."""
+    pipeline_fixture(monkeypatch)
+    processor=service()
+    reference,registration=processor._reference('https://example.invalid/2021/01/07/incident')
+    stale=reference['curationStatusReason']
+    assert 'Summary is not yet available' in stale
+    if published:reference['sourcePublishedAt']=published
+    monkeypatch.setattr(processor,'_reference',lambda _: (reference,registration))
+    result=processor.prepare({'url':reference['sourceUri'],'path':'research'},None,'')
+    item=result['candidate']
+    assert 'Summary is not yet available' not in item['values']['text']
+    assert 'ingestion_rationale' not in item['values']
+    assert reference['curationStatusReason']==stale  # raw intake provenance unchanged
+    assert 'Synthetic research abstract' in item['values']['text']
+    if published:
+        assert 'Published: 2021-01-07' in item['values']['text']
+        assert item['occurred_at']==published
+    else:
+        assert 'Source publication date: unknown' in item['values']['text']
+        assert 'Reference intake date:' in item['values']['text']
+        assert item['occurred_at']==reference['importedAt']
+        assert '2021-01-07' not in item['values']['text']  # URL is not date evidence
+    revised=processor.prepare({'title':'Corrected title','abstract':'Corrected summary'},result,'Remove extraction noise')
+    assert 'Summary is not yet available' not in revised['candidate']['values']['text']
+    assert revised['candidate']['provenance']['papyrus']['transformation_feedback']=='Remove extraction noise'
+
+
+def test_operational_projection_keeps_existing_intake_reason():
+    from papyrus_content.relevance_sweep import reference_item
+    reference,_=service()._reference('https://example.invalid/paper')
+    item=reference_item(reference)
+    assert item.values['ingestion_rationale']==reference['curationStatusReason']

@@ -45,7 +45,7 @@ def service(tmp_path,processor=None):
             response=remote.request(req.method,req.url.path,content=req.content,headers={'Content-Type':'application/json'})
             return httpx.Response(response.status_code,content=response.content,headers={'Content-Type':'application/json'})
         transport=httpx.Client(transport=httpx.MockTransport(request))
-    priming=PrimingService(store,transformers=[HTTPTransformer('papyrus','Existing Papyrus curation','https://transformer.invalid',({'name':'url','label':'Source URL','required':True},{'name':'path','label':'Processing path','required':True}))] if processor else (),client=transport)
+    priming=PrimingService(store,transformers=[HTTPTransformer('papyrus','Existing Papyrus curation','https://transformer.invalid',({'name':'url','label':'Source URL','required':True},))] if processor else (),client=transport)
     web=TestClient(create_app(store,priming=priming))
     def command(action,payload):
         result=web.post('/graphql',json={'query':'mutation($action:String!,$payload:JSON!){primingCommand(action:$action,payload:$payload)}','variables':{'action':action,'payload':payload}}).json()
@@ -60,14 +60,14 @@ def snapshot(priming):return AcceptedPrimingSnapshot.capture(priming,list_id='ex
 def test_research_and_web_accepted_over_shared_panel_api_prime_only_new_store(tmp_path,monkeypatch):
     from papyrus_newsroom import reference_curation_signals as signals
     monkeypatch.setattr(signals,'estimate_tokens',lambda *args,**kwargs:16)
-    spec=importlib.util.spec_from_file_location('acceptance_fixture',Path(__file__).resolve().parents[2]/'scripts/priming-preview/fixtures.py')
+    spec=importlib.util.spec_from_file_location('acceptance_fixture',Path(__file__).resolve().parents[2]/'scripts/curation-review/fixtures.py')
     fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
-    store,priming,command=service(tmp_path,fixture.SyntheticCuration())
+    store,priming,command=service(tmp_path,fixture.OfflineCuration())
     # All external source/provider boundaries are synthetic; no arbitrary network.
     monkeypatch.setattr('socket.create_connection',lambda *args,**kwargs:(_ for _ in ()).throw(AssertionError('unexpected network')))
     try:
         for path,label in [('research','publish'),('web','not publish')]:
-            draft=command('transform',{'identifier':path,'list_id':'examples','refs':REFS,'transformer_id':'papyrus','inputs':{'url':f'https://example.invalid/{path}','path':path}})
+            draft=command('transform',{'identifier':path,'list_id':'examples','refs':REFS,'transformer_id':'papyrus','inputs':{'url':f'https://example.invalid/{"paper" if path=="research" else "web"}'}})
             draft=command('poll',{'identifier':path});assert draft['status']=='preview',draft['errors']
             assert len(store.list_items('examples'))==(0 if path=='research' else 1)
             with pytest.raises(ValueError):command('accept',{'identifier':path,'version':draft['version'],'labels':[{}]})
@@ -79,7 +79,7 @@ def test_research_and_web_accepted_over_shared_panel_api_prime_only_new_store(tm
             acceptance={'identifier':path,'version':draft['version'],'labels':[{'editorial':{'label':label,'rationale':f'Synthetic explicit human {path} judgment.'}}]}
             saved=command('accept',acceptance);assert saved['status']=='accepted'
             assert command('accept',acceptance)==saved
-        command('transform',{'identifier':'cancel','list_id':'examples','refs':REFS,'transformer_id':'papyrus','inputs':{'url':'https://example.invalid/cancel','path':'research'}})
+        command('transform',{'identifier':'cancel','list_id':'examples','refs':REFS,'transformer_id':'papyrus','inputs':{'url':'https://example.invalid/paper-cancel'}})
         command('cancel',{'identifier':'cancel'})
         with pytest.raises(ValueError):command('accept',{'identifier':'cancel','version':1,'labels':None})
         assert len(store.list_items('examples'))==2
