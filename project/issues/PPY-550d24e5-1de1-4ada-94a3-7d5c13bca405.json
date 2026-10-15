@@ -226,10 +226,70 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroom"
       }
+    },
+    {
+      "id": "0db63b92-afe9-4882-bb74-34f7bdc29a65",
+      "author": "home",
+      "text": "Ryan navigation correction: same grouped destinations and explanatory subtitles must appear in wide sidebar as mobile More and compact navigation. Refactor into one destination definition/shared renderer, preserve destination-owned access controls, all21destinations and Overview Board Articles order. Verify wide/medium/narrow wrapping, scrolling, active links, keyboard/focus, full-height Board and References. Local only; no push/deploy.",
+      "created_at": "2026-10-15T13:14:58.186107Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "a54a3f5a-23db-405b-ae83-bbf985ee425e",
+      "author": "home",
+      "text": "Scope addition: standard desktop Collapse sidebar / Expand sidebar panel-icon button, always-reachable expand control, reclaim content width, persist desktop preference, preserve narrow hamburger. Include keyboard/focus, reload/navigation and breakpoint resize acceptance with shared grouped navigation.",
+      "created_at": "2026-10-15T13:17:13.118224Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "32e1ea52-41f4-4c42-9290-f46003153372",
+      "author": "home",
+      "text": "Scope addition implemented for verification: remove sidebar slogans; standard account dropdown with neutral avatar and honest Demo visitor/signedOut ReaderSessionSnapshot contract. Reuse actual SettingsPage via injected local reader-settings adapter; no OAuth/configure/signout calls fabricated. Working browser-local preferences and Leave demo/Return to demo, explicit no-auth-session notice. Header account trigger remains separate from More and visible narrow/collapsed; cloud sign-out requires a real authenticated host later.",
+      "created_at": "2026-10-15T13:25:29.708805Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "913d72a3-2333-4f55-bc5a-f3e37046410b",
+      "author": "home",
+      "text": "Carry-forward scope explicitly retains taxonomy, topic proposals, concepts, knowledge search, reference curation, publication/category policies, sections, procedures, users/identity merging and reader UI settings. Shared navigation exposes original modules in desktop and mobile. Existing identity merge differs from blocked semantic graph/destructive taxonomy merge; no simulated success. Detailed original-module integration inventory retained; adding navigation/account checkpoint with verification.",
+      "created_at": "2026-10-15T13:41:17.990031Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "f8eb28ae-9008-493f-be39-930675be9413",
+      "author": "home",
+      "text": "Local product checkpoint 63f1c87 on feature/PPY-a8471b-unified-newsroom-review. One shared 21-destination metadata source and full navigation renderer preserves complete CMS carry-forward; desktop sidebar and More show matching group headings/descriptions, bottom tabs remain concise icons/labels. Conventional collapse/expand reclaims 264px and persists; breakpoint focus, nested active routes and inner scrolling pass. Existing dropdown primitives + signed-out demo snapshot + actual SettingsPage/local adapter provide honest account controls; Leave demo closes UI, no cloud sign-out claimed. Fresh isolated tsc, scoped ESLint, Vite build, responsive navigation/account suite, canonical domain/curation suite, all 11 original CMS rendering checks and 12 gateway tests PASS. Existing board type/full-height/mobile regressions passed this checkpoint work. Screenshots and detailed boundary inventory: docs/unified-navigation-and-account.md. Local 8899 review remains alive. No push, PR, deployment, DNS or real authentication/data changes; issue remains in progress until integration lands.",
+      "created_at": "2026-10-15T13:42:52.144742Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T12:13:09.136979Z",
+  "updated_at": "2026-10-15T13:42:52.144788Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
