@@ -58,10 +58,34 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroomReview"
       }
+    },
+    {
+      "id": "96dfd38e-674b-41c3-97b0-595f75a01c3c",
+      "author": "home",
+      "text": "Continuing authorized taxonomy draft lifecycle, concept/ontology command mapping, then original forum adapters. Found existing draft handlers and modal retained but disconnected from current Desks/Topics routing; restore actual modal and command callbacks with isolated durable adapter, keep production merge guards and source identities unchanged.",
+      "created_at": "2026-10-15T03:35:54.352951Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "9164d73c-c6d3-4208-9fb7-c5496fe544c7",
+      "author": "home",
+      "text": "Tested local carry-forward checkpoint 208ea0a6d9cc65cbfc18d9d06c0000f64b32d1ac. Actual original taxonomy draft/create/edit/deprecate/promote/discard handlers and original edition/section/insight forum functions run in credential-free per-command kernels against the isolated store. Actual shared modals, insight composer and forums persist; 503 failure, 409 conflict, reload, parent/sequence, soft deletion, source/audit provenance, mobile dark/reduced-motion and Dialog Escape/focus proofs pass. Coupled promotion-to-policy UI proof caught and fixed same-slug/different-lineage policy selection; historical owner records remain unchanged. 25 Python tests, generated Amplify-client contracts, command phase-failure tests, scoped tsc/ESLint, Vite build, 11 CMS routes, mobile shell and real Kanbus/Cyclotron regression pass. Base UI menu callback and mounted deep-link bugs fixed. Preview 192.168.0.199:8899 remains live; no push, deployment or cloud credentials. Inventory docs/unified-cms-integration.md distinguishes local functionality from staging. Remaining: category-proposal apply, canonical IDs across older generic fixture, durable articles/media, workers/search/procedures and authenticated staging. Genuine semantic gap: no authoritative implemented node/edge edit or merge command in inspected source; original destructive apply guards stay intact. Production atomic category-version, ordering and multi-command forum guarantees are not provided by local proofs.",
+      "created_at": "2026-10-15T04:26:51.637192Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T03:32:35.579989Z",
+  "updated_at": "2026-10-15T04:26:51.637221Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
