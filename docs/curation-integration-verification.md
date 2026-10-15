@@ -78,3 +78,10 @@ consumer pin. The candidate remains local and is not a reachable consumer
 dependency yet. Exact next action is owner publication of the reviewed
 `AnthusAI/Cyclotron:codex/priming-shared-release` branch and a draft PR into main,
 subject to explicit authorization. No merge, tag or hosted activation is implied.
+
+Final documentation-corrected candidate:
+`a12ba42cf4009d95cb6430479f76deadba83bced` on the same shared-release branch.
+Only three documentation files changed from `258a7a7`; source, UI and pack are
+unchanged, so the consumer proof above applies. The exact pending authorization
+is a push of that branch to public `AnthusAI/Cyclotron` and a draft PR into
+`main`; it does not include merge, tag, registry publication or activation.
