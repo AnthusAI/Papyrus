@@ -13,8 +13,13 @@ const output=path.resolve('.papyrus-runs/curation-review-proof');fs.mkdirSync(ou
  await page.getByRole('button',{name:'Curate reference examples (optional)'}).click();await page.getByRole('button',{name:'From reference / URL'}).click();
  await page.getByLabel('Source URL',{exact:true}).fill('https://example.invalid/web');await page.getByRole('button',{name:'Start curation'}).click();
  await page.getByRole('button',{name:'Accept examples and labels'}).waitFor();assert(await page.getByRole('button',{name:'Accept examples and labels'}).isDisabled());
- await page.getByRole('button',{name:/Explicit publication judgment: publish/}).click();await page.getByLabel('Explanation for Explicit publication judgment').fill('Synthetic human decision: representative scoped example.');
- await page.getByRole('button',{name:'Accept examples and labels'}).click();await page.getByText('Examples and human labels saved.').waitFor();
+ await page.getByRole('button',{name:/Explicit publication judgment: publish/}).click();assert(await page.getByRole('button',{name:'Accept examples and labels'}).isEnabled());
+ let refuseOnce=true;
+ await page.route('**/api/newsroom/curation/priming',async route=>{const body=route.request().postDataJSON();if(refuseOnce&&body.variables?.action==='accept'){refuseOnce=false;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic acknowledgement failure; retry explicitly.'})});}return route.continue();});
+ await page.getByRole('button',{name:'Accept examples and labels'}).click();await page.getByRole('alert').filter({hasText:'Synthetic acknowledgement failure'}).waitFor();
+ assert.equal(await page.getByRole('button',{name:/Explicit publication judgment: publish/}).getAttribute('aria-pressed'),'true');
+ assert.equal(await page.getByLabel('Explanation for Explicit publication judgment').inputValue(),'');
+ await page.getByRole('button',{name:'Retry last request'}).click();await page.getByText('Examples and human labels saved.').waitFor();
  await page.getByLabel('Fixture account',{exact:true}).selectOption('22222222-2222-4222-8222-222222222222');await page.getByText('Decision provenance and version').first().waitFor();assert(!(await page.locator('body').innerText()).includes('Examples and human labels saved.'));
  await page.getByRole('button',{name:'Evaluate classifier proposal',exact:true}).click();await page.getByLabel('Proposed instructions').fill('Synthetic scoped evaluation rubric.');await page.getByLabel('Why make this change?').fill('Verify explicit evaluation before promotion.');await page.getByRole('button',{name:'Evaluate proposal',exact:true}).click();await page.getByText('Evaluation complete: no improvement was reported.').waitFor();assert(await page.getByRole('button',{name:'Promote evaluated proposal'}).isDisabled());
  await page.getByRole('button',{name:'Close proposal'}).click();
@@ -23,5 +28,5 @@ const output=path.resolve('.papyrus-runs/curation-review-proof');fs.mkdirSync(ou
  }
  await page.keyboard.press('Tab');assert(await page.evaluate(()=>document.activeElement!==document.body));
  const proof=await(await page.request.get(base+'/review/proof')).json();const values=Object.values(proof.accounts);assert.equal(values[0].operationalLabels,1);assert.equal(values[0].acceptedExamples,1);assert.equal(values[1].operationalLabels,0);assert.equal(values[1].acceptedExamples,0);assert.equal(values[1].steeringFixtureCalls,1);
- assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);fs.writeFileSync(path.join(output,'browser-proof.json'),JSON.stringify({base,errors,failed,proof,reducedMotion:true,physicalIPadVerified:false},null,2));console.log('Shared UI to native store review, acceptance, account isolation, steering and four responsive screenshots passed.');
+ assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);fs.writeFileSync(path.join(output,'browser-proof.json'),JSON.stringify({base,errors,failed,proof,reducedMotion:true,publishOnlyAcceptance:true,explicitRetryPreservesSelection:true,physicalIPadVerified:false},null,2));console.log('Shared UI to native store review, acceptance, account isolation, steering and four responsive screenshots passed.');
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});

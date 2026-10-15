@@ -4,7 +4,8 @@ Feature: Account-scoped reference curation in Papyrus
     When the editor opens References
     Then shared monitoring, human review and authorized proposal controls are available
     And optional example priming accepts a source URL without manual source fields
-    And a label and explanation must be chosen before accepting the example
+    And a label must be chosen before accepting the example
+    And a classification explanation is optional
     Examples:
       | mode     |
       | embedded |

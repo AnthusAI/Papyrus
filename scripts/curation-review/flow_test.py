@@ -7,7 +7,8 @@ from fixtures import ReviewAuthority, ACCOUNTS
 from papyrus_content.curation_host import create_curation_host
 
 @pytest.mark.parametrize('mode', ['embedded', 'remote'])
-def test_real_curation_paths(tmp_path, mode):
+@pytest.mark.parametrize('vote', [{'label': 'publish'}, {'label': 'publish', 'rationale': ''}, {'label': 'publish', 'rationale': None}, {'label': 'publish', 'rationale': '  '}, {'label': 'publish', 'rationale': '  Exact operator explanation.  '}])
+def test_real_curation_paths(tmp_path, mode, vote):
     async def run():
         authority = ReviewAuthority(tmp_path)
         authority.mode = mode
@@ -38,11 +39,16 @@ def test_real_curation_paths(tmp_path, mode):
                     draft = (await command('poll', {'identifier': identity}))['data']['primingCommand']
                 assert draft['status'] == 'preview', draft
                 assert draft['rows'][0]['item']['values']['title']
-                refused = await command('accept', {'identifier': identity, 'version': draft['version'], 'labels': [{'editorial': {'label': 'publish', 'rationale': ''}}]})
+                refused = await command('accept', {'identifier': identity, 'version': draft['version'], 'labels': [{'editorial': {'rationale': 'A note without a label must not imply a label.'}}]})
                 assert refused.get('errors')
                 assert authority.proof()[ACCOUNTS[0]]['acceptedExamples'] == 0
-                accepted = await command('accept', {'identifier': identity, 'version': draft['version'], 'labels': [{'editorial': {'label': 'publish', 'rationale': 'Explicit synthetic operator judgment for this publication.'}}]})
+                accepted = await command('accept', {'identifier': identity, 'version': draft['version'], 'labels': [{'editorial': vote}]})
                 assert accepted['data']['primingCommand']['status'] == 'accepted', accepted
+                examples = authority.workspaces[ACCOUNTS[0]].priming.examples(bootstrap['priming']['listId'], bootstrap['priming']['classifiers'])
+                expected = vote.get('rationale') or ''
+                assert examples['editorial'][0].context == ({'human_feedback': expected} if expected.strip() else {})
+                replay = await command('accept', {'identifier': identity, 'version': draft['version'], 'labels': [{'editorial': vote}]})
+                assert replay == accepted
                 proof = authority.proof()
                 assert proof[ACCOUNTS[0]]['acceptedExamples'] == 1
                 assert proof[ACCOUNTS[1]]['acceptedExamples'] == 0

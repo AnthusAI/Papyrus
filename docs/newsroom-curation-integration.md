@@ -36,13 +36,13 @@ central grant, credential, enrollment, S3 resource or hosted worker.
 
 Both browser modes use the same shared monitoring, review and priming components.
 Account/binding changes invalidate pending results and remount local form state.
-Reviews and example acceptance need explicit labels and explanations. Steering
+Operational reviews need explicit labels and explanations. Priming example acceptance needs an explicit label; its classification explanation is optional. Steering
 needs an explicit evaluation before a separate promotion; retries retain request
 identity when content is unchanged. There is no automatic mutation retry.
 
 Corrections to extracted content are operator-supplied title and abstract/summary.
 The note is saved separately; it does not automatically rerun extraction or a
-model. Publication classification rationale is separate. Revised previews need
+model. Priming classification rationale is separate and optional. Revised previews need
 labels again. Accepted examples cannot use the draft correction route.
 
 ## Reproducible local review and dependency boundary
@@ -61,7 +61,14 @@ Pinned local composition:
 - Papyrus imported runtime: `95bd70a4d18c546d62b81fe0653a51c8599d83c8`.
 - Core execution/storage: `c677adc6a9d4db3747ae1a26338e45553ff2ae19`.
 - Publication modules/shared UI overlay: `9911b4e8640e20b86ceab82bd830d98b403786bc`.
-- UI archive SHA-256: `0506c9fddbc446f537226519a537e2a903e7a0458cd4e505378fe8e685afc0cb`.
+- Optional-explanation shared UI: `0123708a3ccb52e89bac5821a383b2643e530dcb`.
+- UI archive SHA-256: `403e8d24d2e69f666159518c567f49c1484001eacf181d7f3c939a732cfcb3b7`.
+- Matching storage-owner optional-explanation delta: `8f24975d77544f4db1179d8c45398ed7f0ad66cf` (only three priming files over the existing core pin).
+
+The optional-explanation delta preserves configured labels and supplied text,
+normalizes missing/null rationale to an empty string and omits invented human
+feedback from frozen context. It does not change operational ReviewControl. The
+full newer hosted worker checkpoint is not adopted by this local composition.
 
 The core pin alone does not contain the publication modules/shared PrimingPanel.
 `.papyrus-runs/dependencies/manifest.json` records the exact local composition.
