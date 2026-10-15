@@ -3,7 +3,7 @@
   "title": "Wire account-scoped Cyclotron publication BFF after CMS rollout",
   "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -34,10 +34,25 @@
         "model": "GPT-6.1-Sol",
         "name": "ProductionCMS"
       }
+    },
+    {
+      "id": "3c44f3b5-bcc1-4da4-8ebd-fab891df702e",
+      "author": "home",
+      "text": "Integration source is preserved remotely on feature/PPY-58f107-curation-integration at 8c38d9c, draft PR https://github.com/AnthusAI/Papyrus/pull/213 into develop. Shared References controls, original-session guarded BFF, URL-only priming, optional classification explanations and narrow quality follow-up are integrated. Consumed UI0123708 + matching storage-owner8f24975 three-file delta over c677/9911 composition; quality from8317a95/7c8dbe6 and pushed Biblicus1b170876.16 integrated backend checks and actual Chrome Publish-only save/retry pass; latest30 focused bootstrap/HTTP/BFF checks and14 actual worker/metadata checks pass. Full newsroom baseline d86c89b:846 passed/48 failed/7 skipped; integration895 passed/47 failed/19 skipped, both214 subtests. All46 distinct current failures also fail on baseline; no introduced failing IDs remain. Full suite is not green; details docs/curation-integration-verification.md. Source commit and proof preserved; no source loss risk. Concrete shared gate: reviewed coherent Cyclotron codex/priming-shared-release remote FULL_SHA and lock, owner public branch/PR/tag authorization pending; no registry version invented. Hosted S3/principal/session composition stays gated; synthetic review authority is never activated in production. No merge/deploy. Keep task in_progress until integration lands.",
+      "created_at": "2026-10-15T21:51:41.677216Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "CurationIntegration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-15T20:06:11.278091Z",
+  "updated_at": "2026-10-15T21:51:41.677265Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
