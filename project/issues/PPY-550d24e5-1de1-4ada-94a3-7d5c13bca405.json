@@ -190,10 +190,22 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroom"
       }
+    },
+    {
+      "id": "a0d9eacb-2215-4544-b59f-80c82e42cf4a",
+      "author": "home",
+      "text": "Completed active Board/type-filter correction. Board order Overview, Board, Articles verified (ordering checkpoint 7335a0a). Papyrus product 9720724 restores shared IssueTypeFilter extracted from actual console AnimatedSelector, adopted in console toolbar/sidebar as well. Root cause: embedded host omitted toolbar and host+gateway forced type=story. All configured synthetic types now reach IssueCollection; Story/Article/Reference/Task exact filters, empty hierarchy filters, All/repeat clearing, search/detail/list/history/reload verified. Final Kanbus source c50b3d3f9ac2a3f8c822e8d23a4447832098a17a, artifact SHA256 15a1e82b91880f446af0940b3fbc77abac5cbf17a7b8eaef63c3c0cd73219fa7. 24 component scenarios/120 steps; actual console desktop/phone; 121 Python tests; tsc/lint/build; LAN type/layout/mobile/real-flow/all eleven CMS rendering checks pass. Full viewport height preserved through short landscape/tall desktop. Preview8899 remains alive HTTP200, backend8900 loopback. No public push/deployment; physical iPad/Safari unverified. Shared task kbs-c197fb96-19b0-444c-8d09-5c25fa67c54c.",
+      "created_at": "2026-10-15T11:31:12.332921Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T11:12:37.837294Z",
+  "updated_at": "2026-10-15T11:31:12.332969Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
