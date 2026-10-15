@@ -106,10 +106,34 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroomReview"
       }
+    },
+    {
+      "id": "95084cf6-c9af-4a4c-bc01-f1d897c6b983",
+      "author": "home",
+      "text": "Continuing locally testable execution/search: inspect existing immediate seeded executor versus external CLI Tactus runtime before choosing a faithful carry-forward; add deterministic embedding/vector-service boundary fixtures to the original semantic provider and knowledge engine. No paid providers, real data/service effects, public push or deploy. Stop any execution path requiring new product semantics and record the exact decision.",
+      "created_at": "2026-10-15T04:53:18.970010Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "966980d4-82e9-471b-982a-00c2a39126d4",
+      "author": "home",
+      "text": "Final local acceptance: product 9d7b7a6 adds original S3VectorsProvider/knowledge engine through deterministic embedding and vector-service IO fixtures; UI/provenance label fixture cases, pending semantic references excluded, repeated and stale queries tested. 118 Python tests and all 13 browser suites pass; types/lint/local build/shared contracts pass. Full existing Kanbus/Cyclotron, typed records, policies/sections, taxonomy/curation, forums/ontology/insights, content/media and registry flows retained; affected UI suites rerun after viewport clip/hit-test fix. Generic CMS procedure execution STOPPED at explicit product decision: existing immediate runner emits seeded placeholder/hold packets; alias-driven full Tactus CLI is a different path. Actual two safe original seeded executors regression-tested; no arbitrary source, registration, real data/service effects, paid provider, push or deploy. Exact decision docs/unified-procedure-execution-decision.md; concise full acceptance docs/unified-final-acceptance.md includes remaining canonical-ID/category-apply/worker/auth/vector/ontology-edit gaps and staging checks. Preview 192.168.0.199:8899/newsroom/work and /newsroom/cms/search HTTP200; anonymous loopback backend401. Service stays alive. Publication hold intact; issue remains in_progress until landing.",
+      "created_at": "2026-10-15T05:08:34.967163Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T04:49:05.183784Z",
+  "updated_at": "2026-10-15T05:08:34.967205Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
