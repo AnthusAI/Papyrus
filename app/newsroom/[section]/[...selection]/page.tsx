@@ -1,3 +1,4 @@
+import { resolveActiveSiteBrand } from "../../../../lib/site-brand-tenant";
 import { notFound, redirect } from "next/navigation";
 import { toPublicNewsroomPath } from "../../../../lib/newsroom-base-path";
 import { NewsDeskPage } from "../../../../components/news-desk-page";
@@ -27,6 +28,7 @@ type NewsDeskNestedSectionPageProps = {
 };
 
 const NEWS_DESK_ROUTE_SECTIONS = new Set<NewsDeskTab>([
+  "desks",
   "administration",
   "topics",
   "concepts",
@@ -41,7 +43,7 @@ export default async function NewsDeskNestedSectionPage({ params, searchParams }
   if (section === "users") redirect(toPublicNewsroomPath("/newsroom/administration/users"));
   if (section === "doctrine") redirect(toPublicNewsroomPath("/newsroom/administration/policies"));
   if (section === "administration" && selection[0] === "analysis") redirect(toPublicNewsroomPath("/newsroom/assignments"));
-  if (section === "desks") {
+  if (section === "desks" && resolveActiveSiteBrand().newsroomLayout !== "organizer") {
     const category = selection[0] ? decodeURIComponent(selection[0]) : null;
     if (category) redirect(toPublicNewsroomPath(`/newsroom/topics?category=${encodeURIComponent(category)}`));
     redirect(toPublicNewsroomPath("/newsroom/topics"));

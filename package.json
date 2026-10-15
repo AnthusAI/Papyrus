@@ -126,7 +126,8 @@
     "test:bdd:agent-local:update": "npm run -s check:reference-action-contract && PAPYRUS_LIVE_AGENT_BDD=1 PAPYRUS_LIVE_AGENT_LOCAL_RESPONDER=1 poetry run behave features_backend --tags=@agent-assignments --name \"The console agent can update Assignment status\"",
     "test:bdd:agent-local:error-shape": "npm run -s check:reference-action-contract && PAPYRUS_LIVE_AGENT_BDD=1 PAPYRUS_LIVE_AGENT_LOCAL_RESPONDER=1 poetry run behave features_backend --tags=@agent-assignments --name \"The console agent returns structured error shape for invalid Assignment input\"",
     "release:dry-run": "semantic-release --dry-run --no-ci",
-    "test:verify-packages": "node scripts/test-verify-packages.mjs"
+    "test:verify-packages": "node scripts/test-verify-packages.mjs",
+    "test:newsroom-organizer": "node --import tsx scripts/test-newsroom-organizer-nav.ts && node --import tsx scripts/test-newsroom-section-routing.ts && node --import tsx scripts/test-newsroom-board.ts && node --import tsx scripts/test-editor-override.ts"
   },
   "keywords": [
     "nextjs",
@@ -146,6 +147,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "@base-ui/react": "^1.5.0",
     "@chenglou/pretext": "^0.0.7",
+    "@kanbus/ui": "https://github.com/AnthusAI/Kanbus/releases/download/ui-v0.2.0/kanbus-ui-0.2.0.tgz",
     "@radix-ui/colors": "3.0.0",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
