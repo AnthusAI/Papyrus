@@ -51,9 +51,8 @@ export function publicationReviewPayload(binding:PublicationEnvelope,row:Publica
  const output=binding.outputs.find(output=>output.id===classifier);const prediction=row.decision.classifiers[classifier];
  if(!output||!prediction||review.decisionId!==row.decision.decisionId||review.itemId!==row.decision.itemId)throw new Error('Review does not match the displayed publication decision');
  if(!review.label||!output.classes.includes(review.label))throw new Error('Choose an explicit classification label');
- if(!review.explanation?.trim())throw new Error('Explain this classification before submitting');
  if(!requestId.trim())throw new Error('A stable review request identity is required');
- return {bindingRevision:binding.bindingRevision,decisionId:row.decision.decisionId,classifier,predictionVersion:prediction.version,predictionFingerprint:prediction.fingerprint,requestId,label:review.label,explanation:review.explanation.trim(),reasonCode:review.reasonCode,...(row.context?{contextId:row.context.contextId}:{})};
+ return {bindingRevision:binding.bindingRevision,decisionId:row.decision.decisionId,classifier,predictionVersion:prediction.version,predictionFingerprint:prediction.fingerprint,requestId,label:review.label,explanation:review.explanation?.trim()??'',reasonCode:review.reasonCode,...(row.context?{contextId:row.context.contextId}:{})};
 }
 
 /** Host chooses an authenticated same-origin BFF; storage mode never changes UI semantics. */

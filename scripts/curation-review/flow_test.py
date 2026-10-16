@@ -115,3 +115,42 @@ def test_explicit_steering_receipt_uses_native_revision(tmp_path, mode):
         finally:
             authority.close()
     asyncio.run(run())
+
+@pytest.mark.parametrize('mode', ['embedded', 'remote'])
+@pytest.mark.parametrize('rationale', [{}, {'explanation': None}, {'explanation': ''}, {'explanation': '  '}, {'explanation': '  Supplied rationale.  '}])
+def test_operational_review_optional_rationale(tmp_path, mode, rationale):
+    async def run():
+        authority = ReviewAuthority(tmp_path)
+        authority.mode = mode
+        try:
+            await authority.workspaces[ACCOUNTS[0]].seed()
+            app = create_curation_host(authority.context)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://review.test') as client:
+                scope = (await client.get('/api/newsroom/curation/context')).json()['scope']
+                headers = {'X-Cyclotron-Account': scope['accountId'], 'X-Papyrus-Publication': scope['publicationId'], 'X-Papyrus-Binding': scope['bindingRevision']}
+                async def command(operation, payload):
+                    return await client.post('/api/newsroom/curation/publication', headers=headers, json={'operation': operation, 'payload': payload})
+                row = (await command('history', {})).json()['history'][0]
+                prediction = row['decision']['classifiers']['editorial']
+                payload = {'bindingRevision': scope['bindingRevision'], 'contextId': row['context']['contextId'],
+                    'decisionId': row['decision']['decisionId'], 'classifier': 'editorial',
+                    'predictionVersion': prediction['version'], 'predictionFingerprint': prediction['fingerprint'],
+                    'requestId': 'optional-rationale', 'label': 'publish', 'reasonCode': None, **rationale}
+                invalid = await command('review', {**payload, 'label': ''})
+                assert invalid.status_code >= 400
+                assert authority.proof()[ACCOUNTS[0]]['operationalLabels'] == 0
+                for invalid_reason in (123, 'x' * 4001):
+                    refused = await command('review', {**payload, 'explanation': invalid_reason})
+                    assert refused.status_code >= 400
+                response = await command('review', payload)
+                assert response.status_code == 200, response.text
+                assert response.json()['review']['label'] == 'publish'
+                expected = (rationale.get('explanation') or '').strip() or None
+                assert response.json()['review'].get('explanation') == expected
+                retry = await command('review', payload)
+                assert retry.status_code == 200 and retry.json() == response.json()
+                assert authority.proof()[ACCOUNTS[0]]['operationalLabels'] == 1
+                assert authority.proof()[ACCOUNTS[1]]['operationalLabels'] == 0
+        finally:
+            authority.close()
+    asyncio.run(run())

@@ -7,7 +7,7 @@ const output=path.resolve('.papyrus-runs/curation-review-proof');fs.mkdirSync(ou
  await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
  await page.goto(base+'/newsroom/references');await page.getByText('Decision provenance and version').first().waitFor();
  assert(await page.getByRole('button',{name:'Submit review',exact:true}).isDisabled());
- await page.getByRole('button',{name:'not publish',exact:true}).click();await page.getByLabel('Explanation (required)',{exact:true}).fill('Synthetic operator: outside this publication scope.');await page.getByRole('button',{name:'Submit review',exact:true}).click();
+ await page.getByRole('button',{name:'not publish',exact:true}).click();assert(await page.getByRole('button',{name:'Submit review',exact:true}).isEnabled());assert.equal(await page.getByLabel('Explanation (optional)',{exact:true}).inputValue(),'');await page.getByRole('button',{name:'Submit review',exact:true}).click();
  await page.waitForFunction(async()=>Object.values((await(await fetch('/review/proof')).json()).accounts)[0].operationalLabels===1);
  await page.getByLabel('Execution',{exact:true}).selectOption('remote');await page.getByText('Canonical classifier data owned by the shared remote lab.').waitFor();
  await page.getByRole('button',{name:'Curate reference examples (optional)'}).click();await page.getByRole('button',{name:'From reference / URL'}).click();

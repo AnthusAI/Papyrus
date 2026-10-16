@@ -12,7 +12,7 @@ async function main(){
  const history:PublicationHistory={...base,history:[{state:'active',item:{title:'Synthetic paper',abstract:'Synthetic scholarly abstract',source_uri:'https://example.invalid/paper'},reviews:{},decision:{decisionId:'decision-1',itemId:'paper-v1',createdAt:'2026-10-15T00:00:00Z',classifiers:{intel:{label:'accept',confidence:.8,probabilities:{accept:.8,reject:.2},version:1,fingerprint:'prediction-1'}},review:{selected:true,reason:'program',propensity:1,detail:'Every decision is reviewed.'}}}]};
  for(const mode of ['embedded','remote'] as const){
   const html=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode,status,history}));
-  for(const text of ['80% sure','Publish for Threat Intelligence?','Your label','Explanation (required)','Decision provenance and version','Synthetic scholarly abstract','Calibration not measured yet'])assert.ok(html.includes(text),`${mode} uses actual shared control: ${text}`);
+  for(const text of ['80% sure','Publish for Threat Intelligence?','Your label','Explanation (optional)','Decision provenance and version','Synthetic scholarly abstract','Calibration not measured yet'])assert.ok(html.includes(text),`${mode} uses actual shared control: ${text}`);
   assert.ok(html.includes(mode==='embedded'?'owned by this deployment':'shared remote lab'));
  }
  const otherScopeHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'embedded',status:{...status,accountId:'account-b'},history:{...history,accountId:'account-b'}}));
@@ -23,7 +23,8 @@ async function main(){
  const row=history.history[0];const review={itemId:'paper-v1',decisionId:'decision-1',label:'reject',explanation:'Outside this publication scope.',reasonCode:'out_of_scope'};
  const payload=publicationReviewPayload(base,row,'intel',review,'stable-request-1');
  assert.equal(payload.predictionFingerprint,'prediction-1');assert.equal(payload.explanation,review.explanation);
- assert.throws(()=>publicationReviewPayload(base,row,'intel',{...review,explanation:' '},'stable-request-1'),/Explain/);
+ for(const explanation of [null,'','  '])assert.equal(publicationReviewPayload(base,row,'intel',{...review,explanation},'stable-request-1').explanation,'');
+ assert.throws(()=>publicationReviewPayload(base,row,'intel',{...review,label:null},'stable-request-1'),/explicit classification label/);
  assert.throws(()=>publicationReviewPayload(base,row,'pilobolus',review,'stable-request-1'),/displayed publication/);
  assert.throws(()=>assertPublicationScope(status,{...history,publicationId:'pilobolus'}),/binding mismatch/);
  const ref={listId:'sources',itemId:'paper-v1',revision:1,contentHash:'0'.repeat(64)};
@@ -34,7 +35,7 @@ async function main(){
  const historicalHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'remote',status,history:{...history,history:[{...frozen,historicalContext:true}]},onReview:async()=>undefined}));
  assert.ok(historicalHtml.includes('Historical source or binding revision'));
  const editableHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'embedded',status,history,onReview:async()=>undefined}));
- assert.ok(editableHtml.includes('Choose a label and enter an explanation to enable Submit review.'));
+ assert.ok(editableHtml.includes('Choose a label to enable Submit review. Explanation is optional.'));
  assert.ok(historicalHtml.includes('This source revision is read-only.'));
  assert.ok(!historicalHtml.includes('Correct human label'));
  const steer=publicationSteeringPayload(status,'intel',{...ref,listId:'bindings'},{action:'evaluate',proposal:{rubric:'Human-supplied editorial rubric'},requestId:'evaluate-1',explanation:'  Evaluate this scoped rubric.  '});
@@ -65,6 +66,6 @@ async function main(){
  const immutableScope={...base};let captured='';
  const pinned=createPublicationClient(immutableScope,async(_operation,_payload,scope)=>{captured=scope.accountId;return status;},()=>base);
  immutableScope.accountId='account-b';await pinned.status();assert.equal(captured,'account-a');
- console.log('publication Cyclotron UI: shared controls for both modes, explicit explanations, scope checks and caller-controlled retry: ok');
+ console.log('publication Cyclotron UI: shared controls for both modes, optional explanations, required labels, scope checks and caller-controlled retry: ok');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

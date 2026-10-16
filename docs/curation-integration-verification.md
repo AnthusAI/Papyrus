@@ -90,8 +90,8 @@ is a push of that branch to public `AnthusAI/Cyclotron` and a draft PR into
 
 The temporary 8930 listener was absent at diagnosis and was restored using the
 existing state, without submitting the operator's review or reloading their tab.
-The operational review still requires a label and explanation (priming rationale
-remains optional). The panel now explains prerequisites and read-only/session
+The later optional-rationale correction below supersedes the initial operational
+explanation requirement; both operational and priming rationale are optional. The panel now explains prerequisites and read-only/session
 restrictions, reports pending submission, and places failures beside the affected
 review. Requests have a 15-second bound and actionable network, timeout, 401, 403,
 non-JSON and backend-error messages; failed drafts and stable retry IDs remain.
@@ -105,3 +105,31 @@ accounts. Live 8930 page/assets/context/status/history returned200 and the updat
 validation guidance rendered with no browser console errors. No paid calls,
 dependency installs, full Next build, cache cleanup or deployment were performed.
 The existing single-entry asset build completed in1.2seconds (~1.8MB output).
+
+### Optional operational rationale correction (2026-10-16)
+
+Ryan's clarified policy requires a configured label, with optional explanation,
+for operational review as well as priming. The panel and browser payload now
+allow blank rationale, and the isolated publication adapter allows omitted/null
+explanation, rejects non-text values, and leaves native text normalization intact.
+The narrow consumer overlay is recorded in
+`scripts/curation-review/optional-review-rationale.patch`; it changes no schema,
+SDK mode, replay behavior, grants or deployed service. It exactly matches the source-owner delta at local shared checkpoint
+`cdc70ffca76f4621cd58c8abfdb05c5920734acd`, including the existing4000-character
+text bound. The shared checkpoint is not a published dependency pin.
+
+Ten actual guarded embedded/remote HTTP cases pass for omitted/null/empty/blank/
+supplied rationale, missing-label rejection, non-text rejection, idempotent retry
+and account isolation. Shared-panel SSR and client checks plus targeted ESLint
+pass. A separate disposable8931 CUA browser fixture confirmed Publish alone
+enables Submit, a forced503 retains that label and empty rationale, and explicit
+retry saves one acknowledged label. No console errors were observed.
+
+The tiny existing asset build took824ms; output stays1760KiB, and the new disposable
+catalog used1728KiB. Free space remained about15GiB. No installs/fullbuild/cleanup.
+The live8930 catalog now contains one operator review (not submitted by the agent).
+Its tab and saved record are preserved. Loading the new backend adapter into the
+running process requires a brief restart; automatic approval review rejected
+stopping the actively tested server without explicit stop authorization. Therefore
+no restart or bypass was performed, and live blank-rationale backend acceptance
+is pending that authorization. New page assets alone do not update Python modules.

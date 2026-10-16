@@ -41,7 +41,8 @@ item identity to the backend. Recorded reviews remain visible with their actual
 explanation and an explicit correction action. Source URI and prediction/binding
 versions are inspectable; source text is escaped React content.
 
-The new `ReviewControl.requireExplanation` prop is required by this panel. Consume
+Human review requires a configured label; its explanation is optional.
+The panel uses the shared `ReviewControl` default optional-explanation behavior. Consume
 its matching Cyclotron source/package checkpoint; the old public `ui-v0.2.1` pin
 must not be assumed to provide the new contract. This worktree tests against the
 local core source pack only. Package/source-pin updates and live route activation
@@ -50,7 +51,7 @@ are coordinated with the release owner, not performed by editing another tree.
 ## Evidence and dependencies
 
 `node --import tsx scripts/test-publication-cyclotron-ui.ts` renders the actual
-shared components for both mode labels and verifies explicit explanations,
+shared components for both mode labels and verifies optional explanations and required labels,
 publication scope, prediction pins, and unchanged payload identity on manual
 retry. These are SSR/payload contract checks, not a browser interaction or live
 classification claim. The core's ReviewControl test verifies required explanation
