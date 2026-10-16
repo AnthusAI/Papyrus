@@ -1,0 +1,44 @@
+{
+  "id": "PPY-caf6e5e0-f987-4c06-82ee-ac6e302638b0",
+  "title": "Persist native board status transitions",
+  "description": "As an editor, I want the remaining production board behavior to use canonical CMS contracts.\n\nFeature: Persist native board status transitions\n  Scenario: Observable acceptance\n    Given an authorized editor viewing a real publication board\n    When the editor changes an issue to a permitted native status\n    Then the canonical issue and audit history survive reload and unauthorized or stale writes are rejected\n\nPlanning only. No new implementation, deployment, paid call or permission is authorized by this record.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c7249090-d896-42d9-80ee-2ab75ab16397",
+      "author": "home",
+      "text": "2026-10-16 reconciliation: Status describes remaining acceptance, not implementation authorization.",
+      "created_at": "2026-10-16T20:46:42.928546Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "unfinished-work-reconciliation",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
+  "created_at": "2026-10-16T20:46:42.864234Z",
+  "updated_at": "2026-10-16T20:46:42.928575Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "unfinished-work-reconciliation",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -3,7 +3,7 @@
   "title": "Unified newsroom review: Kanbus work and Cyclotron priming",
   "description": "Deliver a coherent local/LAN Papyrus review preview using actual reusable Kanbus and Cyclotron components. Preserve production and existing previews. Synthetic records must be labeled; no secrets or arbitrary external fetch exposed. Review with Ryan before any rollout.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,25 @@
         "model": "GPT-6.1-Sol",
         "name": "ProductionCMS"
       }
+    },
+    {
+      "id": "3a3891f4-9a2a-46f6-8770-83b97ad4935d",
+      "author": "home",
+      "text": "2026-10-16 reconciliation: Shared @kanbus/ui 0.2.0 shipped in Papyrus 1.0.0-next.60 (a50c4ba). Pilobolus job16/9aa93a0, Threat Intelligence job9/048a810 and p.apyr.us job16/45f742e are supplied production receipts. PR209 merged develop (6d2efef), not main. The live board remains read-only. Native status transitions, drag-to-publish and Story linking remain unfinished. Distinguish deployed shell/package from unfinished authenticated mutation acceptance and prototype priming. Dependencies: Cyclotron decision-flywheel-a73f05cc, Prospectus central service; production authority/storage and release pinning remain explicit gates.",
+      "created_at": "2026-10-16T20:46:42.655014Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "unfinished-work-reconciliation",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-15T00:49:28.909448Z",
-  "updated_at": "2026-10-15T19:34:29.541447Z",
+  "updated_at": "2026-10-16T20:46:42.655042Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

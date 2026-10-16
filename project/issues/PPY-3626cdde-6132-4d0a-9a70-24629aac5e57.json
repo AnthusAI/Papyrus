@@ -10,9 +10,25 @@
   "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "48e8a65b-423c-4533-b1c5-b15b4a5e84f5",
+      "author": "home",
+      "text": "2026-10-16 reconciliation: References curation is source-complete on draft PR213 https://github.com/AnthusAI/Papyrus/pull/213 at a7c4d1d; optional rationale fix5eb5ca6 consumes shared adaptercdc70ff. Local8930 review is preserved, not deployed. Labels are required; explanations are optional. Omitted/null/blank explanations are covered by existing adapter/UI evidence. Review/integration/release and authenticated cloud acceptance remain; do not describe prototype as production.",
+      "created_at": "2026-10-16T20:46:42.811536Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "unfinished-work-reconciliation",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
   "created_at": "2026-09-07T20:49:09.753930Z",
-  "updated_at": "2026-09-07T20:49:18.102167Z",
+  "updated_at": "2026-10-16T20:46:42.811557Z",
   "closed_at": null,
   "right_now_summary": "The team is building a references inbox with detail views and accept, reject, and archive actions.",
   "right_now_updated_at": "2026-10-12T16:43:08.820805Z",
