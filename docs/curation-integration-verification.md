@@ -128,8 +128,11 @@ retry saves one acknowledged label. No console errors were observed.
 The tiny existing asset build took824ms; output stays1760KiB, and the new disposable
 catalog used1728KiB. Free space remained about15GiB. No installs/fullbuild/cleanup.
 The live8930 catalog now contains one operator review (not submitted by the agent).
-Its tab and saved record are preserved. Loading the new backend adapter into the
-running process requires a brief restart; automatic approval review rejected
-stopping the actively tested server without explicit stop authorization. Therefore
-no restart or bypass was performed, and live blank-rationale backend acceptance
-is pending that authorization. New page assets alone do not update Python modules.
+Its tab and saved record are preserved. Automatic approval review initially rejected
+Ctrl-C of the actively tested8930 process for missing stop authorization. The parent
+then supplied the original bug-fix transcript and clarified bounded-restart scope.
+One retry of the same action succeeded. The temporary server was reopened with
+the same state at PID33566/session8945, loading the canonical matching adapter.
+Page HTTP200, the saved review and unchanged one-label count were verified;
+no operator review was submitted or edited, and their original tab was not reloaded.
+Only the separate agent verification tab was reloaded. No restart blocker remains.
