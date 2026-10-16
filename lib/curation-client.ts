@@ -13,12 +13,23 @@ export type CurationRequest=<T>(path:string,body:Record<string,unknown>,scope:Re
 /** Same-origin only. The server verifies these expected pins against its session. */
 export const requestCuration:CurationRequest=async<T,>(path:string,body:Record<string,unknown>,scope:Readonly<PublicationScope>)=>{
   if(!path.startsWith('/api/newsroom/curation/'))throw new Error('Same-origin curation route required');
-  const response=await fetch(path,{method:'POST',credentials:'same-origin',headers:{
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),15000);
+  let response:Response;
+  let result;
+  try{
+  response=await fetch(path,{method:'POST',credentials:'same-origin',signal:controller.signal,headers:{
     'Content-Type':'application/json','X-Cyclotron-Account':scope.accountId,
     'X-Papyrus-Publication':scope.publicationId,'X-Papyrus-Binding':scope.bindingRevision,
   },body:JSON.stringify(body)});
-  const result=await response.json();
-  if(!response.ok||result.errors)throw new Error(result.error??result.errors?.[0]?.message??'Curation request failed; check its outcome before retrying');
+  result=await response.json().catch(()=>null);
+  }catch(error){
+    const timeout=controller.signal.aborted||(error instanceof Error&&error.name==='AbortError');
+    throw new Error(timeout?'Curation request timed out. Your selection is preserved. Check the server and saved history before retrying; do not resubmit automatically.':'Cannot reach the curation server. Your selection is preserved. Check the preview is running and saved history before retrying; do not resubmit automatically.');
+  }finally{clearTimeout(timer);}
+  if(response.status===401)throw new Error('Sign in again: the curation session expired. Your selection is preserved.');
+  if(response.status===403)throw new Error('Your session does not have permission for this curation action. Your selection is preserved.');
+  if(!response.ok||!result||result.errors)throw new Error(`Curation request failed (HTTP ${response.status}): ${result?.error??result?.errors?.[0]?.message??'invalid server response'}. Check saved history before retrying; your selection is preserved.`);
   return result as T;
 };
 

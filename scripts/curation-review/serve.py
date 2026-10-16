@@ -17,6 +17,7 @@ import uvicorn
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=8930)
 parser.add_argument('--state', type=Path, required=True)
+parser.add_argument('--fail-first-review', action='store_true', help='Disposable browser regression only: refuse one review before dispatch')
 args = parser.parse_args()
 authority = ReviewAuthority(args.state)
 
@@ -28,6 +29,16 @@ async def lifespan(app):
     authority.close()
 
 app = FastAPI(lifespan=lifespan)
+
+if args.fail_first_review:
+    @app.middleware('http')
+    async def fail_review_once(request: Request, call_next):
+        if request.url.path == '/api/newsroom/curation/publication' and request.method == 'POST':
+            body = await request.json()
+            if body.get('operation') == 'review' and not getattr(app.state, 'refused_review', False):
+                app.state.refused_review = True
+                return JSONResponse({'error': 'Disposable fixture refused review before dispatch'}, status_code=503)
+        return await call_next(request)
 
 @app.get('/')
 @app.get('/newsroom/references')

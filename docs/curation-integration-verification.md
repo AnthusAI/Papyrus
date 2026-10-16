@@ -85,3 +85,23 @@ Only three documentation files changed from `258a7a7`; source, UI and pack are
 unchanged, so the consumer proof above applies. The exact pending authorization
 is a push of that branch to public `AnthusAI/Cyclotron` and a draft PR into
 `main`; it does not include merge, tag, registry publication or activation.
+
+### Submit-review recovery (2026-10-16)
+
+The temporary 8930 listener was absent at diagnosis and was restored using the
+existing state, without submitting the operator's review or reloading their tab.
+The operational review still requires a label and explanation (priming rationale
+remains optional). The panel now explains prerequisites and read-only/session
+restrictions, reports pending submission, and places failures beside the affected
+review. Requests have a 15-second bound and actionable network, timeout, 401, 403,
+non-JSON and backend-error messages; failed drafts and stable retry IDs remain.
+
+Targeted client and shared-panel SSR checks plus changed-file ESLint passed.
+An isolated 8931 browser fixture refused the first review with HTTP503 before
+engine dispatch: the alert appeared and retained label/text, then explicit retry
+acknowledged the saved correction. Only that disposable catalog gained one label.
+Read-only proof on 8930 still showed zero labels and accepted examples for both
+accounts. Live 8930 page/assets/context/status/history returned200 and the updated
+validation guidance rendered with no browser console errors. No paid calls,
+dependency installs, full Next build, cache cleanup or deployment were performed.
+The existing single-entry asset build completed in1.2seconds (~1.8MB output).

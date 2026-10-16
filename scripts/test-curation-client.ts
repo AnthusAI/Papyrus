@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type {PublicationScope} from '../lib/publication-cyclotron';
-import {createCurationSession,type CurationBootstrap,type CurationRequest} from '../lib/curation-client';
+import {createCurationSession,requestCuration,type CurationBootstrap,type CurationRequest} from '../lib/curation-client';
 const scope={accountId:'account-a',publicationId:'publication-a',bindingRevision:'binding-1'};
 const bootstrap:CurationBootstrap={scope,mode:'embedded',priming:{listId:'examples-a',classifiers:[{id:'editorial',revision:1}]},capabilities:['read','review'],bindingRef:null};
 async function main(){
@@ -20,6 +20,19 @@ async function main(){
  const read=stale.priming.contract('examples-a',[{id:'editorial',revision:1}]);
  selected={...scope,accountId:'account-b'};complete({data:{primingContract:{list_id:'examples-a'}}});
  await assert.rejects(read,/selection changed/);
+ const originalFetch=globalThis.fetch;
+ try {
+  for(const [status,body,expected] of [[401,{error:'Session expired'},/Sign in again/],[403,{error:'Denied'},/permission/],[503,{error:'Unavailable'},/503/]] as const){
+   globalThis.fetch=async()=>new Response(JSON.stringify(body),{status});
+   await assert.rejects(requestCuration('/api/newsroom/curation/publication',{},scope),expected);
+  }
+  globalThis.fetch=async()=>{throw new TypeError('Failed to fetch');};
+  await assert.rejects(requestCuration('/api/newsroom/curation/publication',{},scope),/Cannot reach.*not resubmit automatically/);
+  globalThis.fetch=async()=>{throw new DOMException('Aborted','AbortError');};
+  await assert.rejects(requestCuration('/api/newsroom/curation/publication',{},scope),/timed out.*not resubmit automatically/);
+  globalThis.fetch=async()=>new Response('not JSON',{status:502});
+  await assert.rejects(requestCuration('/api/newsroom/curation/publication',{},scope),/502/);
+ } finally {globalThis.fetch=originalFetch;}
  console.log('curation session: mode identity, logout, pre-dispatch and stale-response isolation: ok');
 }
 void main();

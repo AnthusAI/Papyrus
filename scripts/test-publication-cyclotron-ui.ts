@@ -33,6 +33,9 @@ async function main(){
  assert.throws(()=>publicationReviewPayload(base,{...frozen,historicalContext:true},'intel',review,'frozen-request'),/Historical/);
  const historicalHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'remote',status,history:{...history,history:[{...frozen,historicalContext:true}]},onReview:async()=>undefined}));
  assert.ok(historicalHtml.includes('Historical source or binding revision'));
+ const editableHtml=renderToStaticMarkup(React.createElement(PublicationCyclotronPanel,{mode:'embedded',status,history,onReview:async()=>undefined}));
+ assert.ok(editableHtml.includes('Choose a label and enter an explanation to enable Submit review.'));
+ assert.ok(historicalHtml.includes('This source revision is read-only.'));
  assert.ok(!historicalHtml.includes('Correct human label'));
  const steer=publicationSteeringPayload(status,'intel',{...ref,listId:'bindings'},{action:'evaluate',proposal:{rubric:'Human-supplied editorial rubric'},requestId:'evaluate-1',explanation:'  Evaluate this scoped rubric.  '});
  assert.equal(steer.classifier,'intel');assert.equal(steer.expectedFingerprint,status.classifiers.intel.cyclotron.fingerprint);
