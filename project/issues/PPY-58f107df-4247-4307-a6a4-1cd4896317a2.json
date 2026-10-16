@@ -79,10 +79,25 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "b4ea8001-e950-4343-91b7-7a7b75c71ec2",
+      "author": "home",
+      "text": "RestartblockRESOLVED: parent suppliedoriginaluserbugfixtranscript andclarified boundedstop/restartauthorized. Oneretry SAME Ctrl-Csession55843 succeeded; reopenedonlyowned8930samepreservedstatePID33566/session8945, canonicalcdc70ffmatchingadapterloaded. HTTP200andactualCUAseparateagenttabread verify savedoperatorreviewrenders/count1unchanged. NoRyanreviewsubmitted/edited, nooriginaltabreload. PR213optionalrationalefix5eb5ca6+restartdocsa7c4d1d, labelsrequired/explanationoptional,10HTTP+UI/client/lint+isolatedblankretrybrowserPASS. Output1760KiB,newfixture1728KiB,~15GiBfree. Noremainingrestartblocker; nopaidcalls/install/fullbuild/clouddeployment/sharedpublicpush.",
+      "created_at": "2026-10-16T16:38:09.674897Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "CurationIntegration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-16T16:36:34.078116Z",
+  "updated_at": "2026-10-16T16:38:09.674944Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
