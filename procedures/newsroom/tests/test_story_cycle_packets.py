@@ -296,14 +296,14 @@ class ReferenceListingPaginationTests(unittest.TestCase):
 
     def test_listing_without_limit_paginates_to_exhaustion(self) -> None:
         pages = self._pages(page_count=13, page_size=100)
-        with mock.patch.object(reference_curation_signals, "_graphql", side_effect=pages):
+        with mock.patch.object(reference_curation_signals, "execute_graphql", side_effect=pages):
             references = reference_curation_signals.list_references_by_corpus("corpus-1")
 
         self.assertEqual(len(references), 1300)
 
     def test_explicit_limit_still_bounds_the_listing(self) -> None:
         pages = self._pages(page_count=13, page_size=100)
-        with mock.patch.object(reference_curation_signals, "_graphql", side_effect=pages):
+        with mock.patch.object(reference_curation_signals, "execute_graphql", side_effect=pages):
             references = reference_curation_signals.list_references_by_corpus("corpus-1", limit=250)
 
         self.assertEqual(len(references), 300)

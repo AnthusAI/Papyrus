@@ -16,6 +16,9 @@ import urllib.request
 from typing import Any
 
 from .env import graphql_endpoint, graphql_timeout_seconds, load_dotenv
+from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+
+CREDENTIAL_REJECTION_STATUS_CODES = frozenset({401, 403})
 
 _credential_session: Any = None
 
@@ -68,10 +71,15 @@ def execute_graphql(
             parsed = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"GraphQL request failed: {error.code} {detail[:500]}") from error
+        message = f"GraphQL request failed: {error.code} {detail[:500]}"
+        if error.code in CREDENTIAL_REJECTION_STATUS_CODES:
+            message = f"{message}\n{credential_recovery_guidance()}"
+        raise GraphQLRequestError(message, status_code=error.code) from error
+    except urllib.error.URLError as error:
+        raise GraphQLRequestError(f"GraphQL request failed: cannot reach {endpoint}: {error.reason}") from error
     if parsed.get("errors"):
         messages = "; ".join(str(entry.get("message") or entry) for entry in parsed["errors"])
-        raise RuntimeError(f"GraphQL request failed: {messages}")
+        raise GraphQLRequestError(f"GraphQL request failed: {messages}")
     return parsed.get("data") or {}
 
 

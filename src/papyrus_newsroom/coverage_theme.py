@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.content_item_lifecycle import (
     build_new_content_item_version,
     content_item_lineage_id_for_first_work,
@@ -6366,7 +6367,7 @@ query List{model_name}s($limit: Int, $nextToken: String) {{
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
-        payload = _graphql(query, {"limit": 1000, "nextToken": next_token})
+        payload = execute_graphql(query, {"limit": 1000, "nextToken": next_token})
         connection = payload.get(field_name) or {}
         records.extend(_decode_record(item) for item in connection.get("items") or [] if item)
         next_token = connection.get("nextToken")
@@ -6426,7 +6427,7 @@ def _list_connection(query: str, variables: dict[str, Any], field_name: str) -> 
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
-        payload = _graphql(query, {**variables, "limit": 1000, "nextToken": next_token})
+        payload = execute_graphql(query, {**variables, "limit": 1000, "nextToken": next_token})
         connection = payload.get(field_name) or {}
         records.extend(_decode_record(item) for item in connection.get("items") or [] if item)
         next_token = connection.get("nextToken")
@@ -6443,7 +6444,7 @@ query Get{model_name}($id: ID!) {{
   {field_name}(id: $id) {{ {fields} }}
 }}
 """
-    record = _graphql(query, {"id": record_id}).get(field_name)
+    record = execute_graphql(query, {"id": record_id}).get(field_name)
     return _decode_record(record) if record else None
 
 
@@ -6459,7 +6460,7 @@ mutation Create{model_name}($input: Create{model_name}Input!) {{
   create{model_name}(input: $input) {{ id }}
 }}
 """
-    return _graphql(query, {"input": _prepare_input(model_name, input_payload)})
+    return execute_graphql(query, {"input": _prepare_input(model_name, input_payload)})
 
 
 def _update_record(model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
@@ -6468,7 +6469,7 @@ mutation Update{model_name}($input: Update{model_name}Input!) {{
   update{model_name}(input: $input) {{ id }}
 }}
 """
-    return _graphql(query, {"input": _prepare_input(model_name, input_payload)})
+    return execute_graphql(query, {"input": _prepare_input(model_name, input_payload)})
 
 
 def _upload_model_attachment(attachment: dict[str, Any], body: str) -> None:
@@ -6488,7 +6489,7 @@ def _upload_model_attachment(attachment: dict[str, Any], body: str) -> None:
         "importRunId": attachment.get("importRunId"),
         "status": attachment.get("status") or "active",
     }
-    slot = (_graphql(CREATE_MODEL_ATTACHMENT_UPLOAD_MUTATION, upload_args).get("createModelAttachmentUpload") or {})
+    slot = (execute_graphql(CREATE_MODEL_ATTACHMENT_UPLOAD_MUTATION, upload_args).get("createModelAttachmentUpload") or {})
     upload_url = slot.get("uploadUrl")
     if not upload_url:
         raise RuntimeError("createModelAttachmentUpload did not return uploadUrl")
@@ -6497,11 +6498,11 @@ def _upload_model_attachment(attachment: dict[str, Any], body: str) -> None:
     with urllib.request.urlopen(request, timeout=120) as response:  # nosec B310 - configured signed URL
         if response.status >= 400:
             raise RuntimeError(f"ModelAttachment upload failed with HTTP {response.status}")
-    _graphql(COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION, {"uploadId": slot["uploadId"], **upload_args})
+    execute_graphql(COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION, {"uploadId": slot["uploadId"], **upload_args})
 
 
 def _download_attachment_json(attachment_id: str) -> dict[str, Any]:
-    slot = (_graphql(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, {"attachmentId": attachment_id}).get("createModelAttachmentDownload") or {})
+    slot = (execute_graphql(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, {"attachmentId": attachment_id}).get("createModelAttachmentDownload") or {})
     download_url = slot.get("downloadUrl")
     if not download_url:
         return {}
@@ -6509,12 +6510,6 @@ def _download_attachment_json(attachment_id: str) -> dict[str, Any]:
     with urllib.request.urlopen(request, timeout=60) as response:  # nosec B310 - configured signed URL
         payload = json.loads(response.read().decode("utf-8"))
     return payload if isinstance(payload, dict) else {}
-
-
-def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
-    from papyrus_content.graphql_http import execute_graphql
-
-    return execute_graphql(query, variables, timeout=90)
 
 
 def section_research_lens(section: dict[str, Any]) -> str:

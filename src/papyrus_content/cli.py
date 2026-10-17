@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .operator_errors import run_with_operator_error_handling
 from .accession import (
     build_reference_accession_assignment_records,
     execute_reference_accession_assignment,
@@ -390,12 +391,11 @@ def main(argv: list[str] | None = None) -> int:
         print_usage()
         return 1
     group, command, *rest = args
-    try:
+    def run_dispatch() -> int:
         dispatch(group, command, rest)
         return 0
-    except Exception as error:
-        print(str(error), file=sys.stderr)
-        return 1
+
+    return run_with_operator_error_handling(run_dispatch)
 
 
 def dispatch(group: str, command: str, flags: list[str]) -> None:

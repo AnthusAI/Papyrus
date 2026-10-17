@@ -37,6 +37,7 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
+from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.env import BIBLICUS_ROOT
 from papyrus_content.model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
@@ -2711,7 +2712,7 @@ def list_references_by_corpus(corpus_id: str, limit: int | None = None) -> list[
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
-        data = _graphql(LIST_REFERENCES_BY_CORPUS_QUERY, {"corpusId": corpus_id, "limit": _page_size(limit, len(records)), "nextToken": next_token})
+        data = execute_graphql(LIST_REFERENCES_BY_CORPUS_QUERY, {"corpusId": corpus_id, "limit": _page_size(limit, len(records)), "nextToken": next_token})
         connection = data.get("listReferencesByCorpusAndExternalItem") or {}
         records.extend(connection.get("items") or [])
         next_token = connection.get("nextToken")
@@ -2741,7 +2742,7 @@ def list_references_by_newsroom_feed_imported(
         filter_input["corpusId"] = {"eq": corpus_id}
     try:
         while True:
-            data = _graphql(
+            data = execute_graphql(
                 LIST_REFERENCES_BY_NEWSROOM_FEED_IMPORTED_QUERY,
                 {
                     "newsroomFeedKey": "references",
@@ -2768,7 +2769,7 @@ def list_references_by_newsroom_feed_imported(
 
 
 def load_publication_doctrine_context(*, graphql_func: Any | None = None) -> dict[str, Any]:
-    graphql = graphql_func or _graphql
+    graphql = graphql_func or execute_graphql
     records = []
     warnings = []
     for slug in PUBLICATION_DOCTRINE_SLUGS:
@@ -3632,7 +3633,7 @@ def estimate_tokens(text: str, *, model: str = "") -> int:
 
 
 def _semantic_client() -> PapyrusSemanticClient:
-    return PapyrusSemanticClient(_graphql)
+    return PapyrusSemanticClient(execute_graphql)
 
 
 def _resolve_reference(semantic: PapyrusSemanticClient, reference_id: str) -> dict[str, Any]:
@@ -4001,7 +4002,7 @@ mutation Create{model_name}($input: Create{model_name}Input!) {{
   create{model_name}(input: $input) {{ id }}
 }}
 """
-    return _graphql(query, {"input": _prepare_graphql_input(input_payload)})
+    return execute_graphql(query, {"input": _prepare_graphql_input(input_payload)})
 
 
 def _update_record(model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
@@ -4010,7 +4011,7 @@ mutation Update{model_name}($input: Update{model_name}Input!) {{
   update{model_name}(input: $input) {{ id }}
 }}
 """
-    return _graphql(query, {"input": _prepare_graphql_input(input_payload)})
+    return execute_graphql(query, {"input": _prepare_graphql_input(input_payload)})
 
 
 def _delete_record(model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
@@ -4019,7 +4020,7 @@ mutation Delete{model_name}($input: Delete{model_name}Input!) {{
   delete{model_name}(input: $input) {{ id }}
 }}
 """
-    return _graphql(query, {"input": _prepare_graphql_input(input_payload)})
+    return execute_graphql(query, {"input": _prepare_graphql_input(input_payload)})
 
 
 def _upload_model_attachment(attachment: dict[str, Any], body: str) -> None:
@@ -4039,7 +4040,7 @@ def _upload_model_attachment(attachment: dict[str, Any], body: str) -> None:
         "importRunId": attachment.get("importRunId"),
         "status": attachment.get("status") or "active",
     }
-    slot = _graphql(CREATE_MODEL_ATTACHMENT_UPLOAD_MUTATION, upload_args).get("createModelAttachmentUpload") or {}
+    slot = execute_graphql(CREATE_MODEL_ATTACHMENT_UPLOAD_MUTATION, upload_args).get("createModelAttachmentUpload") or {}
     upload_url = slot.get("uploadUrl")
     if not upload_url:
         raise RuntimeError("createModelAttachmentUpload did not return uploadUrl")
@@ -4048,11 +4049,11 @@ def _upload_model_attachment(attachment: dict[str, Any], body: str) -> None:
     with urllib.request.urlopen(request, timeout=120) as response:
         if response.status >= 400:
             raise RuntimeError(f"ModelAttachment upload failed with HTTP {response.status}")
-    _graphql(COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION, {"uploadId": slot["uploadId"], **upload_args})
+    execute_graphql(COMPLETE_MODEL_ATTACHMENT_UPLOAD_MUTATION, {"uploadId": slot["uploadId"], **upload_args})
 
 
 def _update_newsroom_summary(delta: dict[str, Any], *, actor_label: str, reason: str) -> None:
-    _graphql(UPDATE_NEWSROOM_SUMMARY_MUTATION, {
+    execute_graphql(UPDATE_NEWSROOM_SUMMARY_MUTATION, {
         "delta": json.dumps(delta, sort_keys=True),
         "actorLabel": actor_label,
         "reason": reason,
@@ -4299,12 +4300,6 @@ def _prepare_graphql_input(input_payload: dict[str, Any]) -> dict[str, Any]:
     if "metadata" in prepared and not isinstance(prepared["metadata"], str):
         prepared["metadata"] = json.dumps(prepared["metadata"], sort_keys=True)
     return prepared
-
-
-def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
-    from papyrus_content.graphql_http import execute_graphql
-
-    return execute_graphql(query, variables, timeout=60)
 
 
 def _extract_response_text(payload: dict[str, Any]) -> str:

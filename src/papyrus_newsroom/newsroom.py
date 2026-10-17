@@ -24,6 +24,7 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
+from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
 
@@ -819,7 +820,7 @@ def papyrus_get_edition(edition_id: str) -> dict[str, Any]:
     """
     Read one Papyrus Edition by id through the authoring GraphQL endpoint.
     """
-    data = _graphql(GET_EDITION_QUERY, {"id": _required(edition_id, "edition_id")})
+    data = execute_graphql(GET_EDITION_QUERY, {"id": _required(edition_id, "edition_id")})
     edition = data.get("getEdition")
     if not edition:
         raise ValueError(f"Edition not found: {edition_id}")
@@ -833,7 +834,7 @@ def papyrus_list_edition_items(edition_id: str, limit: int = 100) -> dict[str, A
     items: list[dict[str, Any]] = []
     next_token = None
     while True:
-        data = _graphql(
+        data = execute_graphql(
             LIST_EDITION_ITEMS_QUERY,
             {"editionId": _required(edition_id, "edition_id"), "limit": limit, "nextToken": next_token},
         )
@@ -849,7 +850,7 @@ def papyrus_get_edition_slot(slot_id: str) -> dict[str, Any]:
     """
     Read one EditionSlot by id.
     """
-    data = _graphql(GET_EDITION_SLOT_QUERY, {"id": _required(slot_id, "slot_id")})
+    data = execute_graphql(GET_EDITION_SLOT_QUERY, {"id": _required(slot_id, "slot_id")})
     slot = data.get("getEditionSlot")
     if not slot:
         raise ValueError(f"EditionSlot not found: {slot_id}")
@@ -863,7 +864,7 @@ def papyrus_list_edition_slots(edition_id: str, *, section_key: str = "", limit:
     rows: list[dict[str, Any]] = []
     next_token = None
     while True:
-        data = _graphql(
+        data = execute_graphql(
             LIST_EDITION_SLOTS_BY_EDITION_QUERY,
             {"editionId": _required(edition_id, "edition_id"), "limit": limit, "nextToken": next_token},
         )
@@ -896,7 +897,7 @@ def papyrus_update_edition_slot_status(
         "selectedAssignmentId": selected_assignment_id or None,
         "updatedAt": now,
     }
-    data = _graphql(UPDATE_EDITION_SLOT_MUTATION, {"input": patch})
+    data = execute_graphql(UPDATE_EDITION_SLOT_MUTATION, {"input": patch})
     updated = _decode_record_json(data.get("updateEditionSlot") or patch)
     return {
         "slot": updated,
@@ -984,7 +985,7 @@ def papyrus_ensure_edition_forum_thread(
         "updatedAt": now,
         "newsroomFeedKey": "messages",
     }
-    created = _graphql(CREATE_MESSAGE_THREAD_MUTATION, {"input": thread}).get("createMessageThread") or thread
+    created = execute_graphql(CREATE_MESSAGE_THREAD_MUTATION, {"input": thread}).get("createMessageThread") or thread
     return {"created": True, "thread": _decode_record_json(created)}
 
 
@@ -1035,7 +1036,7 @@ def papyrus_create_section_forum_thread(
         "updatedAt": now,
         "newsroomFeedKey": "messages",
     }
-    created = _graphql(CREATE_MESSAGE_THREAD_MUTATION, {"input": thread}).get("createMessageThread") or thread
+    created = execute_graphql(CREATE_MESSAGE_THREAD_MUTATION, {"input": thread}).get("createMessageThread") or thread
     return {"created": True, "thread": _decode_record_json(created)}
 
 
@@ -1078,7 +1079,7 @@ def papyrus_append_forum_message(
         "updatedAt": now,
         "newsroomFeedKey": "messages",
     }
-    created = _graphql(CREATE_MESSAGE_MUTATION, {"input": message}).get("createMessage") or message
+    created = execute_graphql(CREATE_MESSAGE_MUTATION, {"input": message}).get("createMessage") or message
     update_input = {
         "id": resolved_thread_id,
         "messageCount": int(thread.get("messageCount") or 0) + 1,
@@ -1086,7 +1087,7 @@ def papyrus_append_forum_message(
         "lastMessageAt": created.get("createdAt") or now,
         "updatedAt": now,
     }
-    updated_thread = _graphql(UPDATE_MESSAGE_THREAD_MUTATION, {"input": update_input}).get("updateMessageThread") or {**thread, **update_input}
+    updated_thread = execute_graphql(UPDATE_MESSAGE_THREAD_MUTATION, {"input": update_input}).get("updateMessageThread") or {**thread, **update_input}
     return {"thread": _decode_record_json(updated_thread), "message": _decode_record_json(created)}
 
 
@@ -1094,7 +1095,7 @@ def papyrus_get_message_thread(thread_id: str) -> dict[str, Any]:
     """
     Read one MessageThread by id.
     """
-    data = _graphql(GET_MESSAGE_THREAD_QUERY, {"id": _required(thread_id, "thread_id")})
+    data = execute_graphql(GET_MESSAGE_THREAD_QUERY, {"id": _required(thread_id, "thread_id")})
     thread = data.get("getMessageThread")
     if not thread:
         raise ValueError(f"MessageThread not found: {thread_id}")
@@ -1105,7 +1106,7 @@ def papyrus_get_item(item_id: str) -> dict[str, Any]:
     """
     Read one Papyrus Item by id through the authoring GraphQL endpoint.
     """
-    data = _graphql(GET_ITEM_QUERY, {"id": _required(item_id, "item_id")})
+    data = execute_graphql(GET_ITEM_QUERY, {"id": _required(item_id, "item_id")})
     item = data.get("getItem")
     if not item:
         raise ValueError(f"Item not found: {item_id}")
@@ -1116,7 +1117,7 @@ def papyrus_get_assignment(assignment_id: str) -> dict[str, Any]:
     """
     Read one live Papyrus Assignment by id through the authoring GraphQL endpoint.
     """
-    data = _graphql(GET_ASSIGNMENT_QUERY, {"id": _required(assignment_id, "assignment_id")})
+    data = execute_graphql(GET_ASSIGNMENT_QUERY, {"id": _required(assignment_id, "assignment_id")})
     assignment = data.get("getAssignment")
     if not assignment:
         raise ValueError(f"Assignment not found: {assignment_id}")
@@ -1191,8 +1192,8 @@ def papyrus_assignment_create(args: dict[str, Any]) -> dict[str, Any]:
     if not bool(payload.get("apply") or False):
         return result
 
-    assignment_data = _graphql(CREATE_ASSIGNMENT_MUTATION, {"input": plan["assignment"]})
-    event_data = _graphql(CREATE_ASSIGNMENT_EVENT_MUTATION, {"input": plan["event"]})
+    assignment_data = execute_graphql(CREATE_ASSIGNMENT_MUTATION, {"input": plan["assignment"]})
+    event_data = execute_graphql(CREATE_ASSIGNMENT_EVENT_MUTATION, {"input": plan["event"]})
     result["applied"] = True
     result["assignment"] = _decode_record_json(assignment_data.get("createAssignment") or plan["assignment"])
     result["event"] = _decode_record_json(event_data.get("createAssignmentEvent") or plan["event"])
@@ -1491,8 +1492,8 @@ def papyrus_assignment_update(args: dict[str, Any]) -> dict[str, Any]:
     if not apply:
         return result
 
-    assignment_data = _graphql(UPDATE_ASSIGNMENT_MUTATION, {"input": assignment_patch})
-    event_data = _graphql(CREATE_ASSIGNMENT_EVENT_MUTATION, {"input": event})
+    assignment_data = execute_graphql(UPDATE_ASSIGNMENT_MUTATION, {"input": assignment_patch})
+    event_data = execute_graphql(CREATE_ASSIGNMENT_EVENT_MUTATION, {"input": event})
     result["applied"] = True
     result["assignment"] = _decode_record_json(assignment_data.get("updateAssignment") or result["assignment"])
     result["event"] = _decode_record_json(event_data.get("createAssignmentEvent") or event)
@@ -1572,7 +1573,7 @@ def papyrus_get_assignment_context(assignment_id: str) -> dict[str, Any]:
     Read live Assignment context, including doctrine, targets, and events.
     """
     assignment_id = _required(assignment_id, "assignment_id")
-    assignment_data = _graphql(GET_ASSIGNMENT_QUERY, {"id": assignment_id})
+    assignment_data = execute_graphql(GET_ASSIGNMENT_QUERY, {"id": assignment_id})
     assignment = _decode_record_json(assignment_data.get("getAssignment") or {})
     if not assignment:
         raise ValueError(f"Assignment context not found: {assignment_id}")
@@ -1692,7 +1693,7 @@ def _newsroom_section_by_id(section_id: Any) -> dict[str, Any] | None:
     if not key:
         return None
     try:
-        data = _graphql(GET_NEWSROOM_SECTION_QUERY, {"id": key})
+        data = execute_graphql(GET_NEWSROOM_SECTION_QUERY, {"id": key})
     except Exception:
         return None
     section = data.get("getNewsroomSection")
@@ -1703,7 +1704,7 @@ def _newsroom_section_by_id(section_id: Any) -> dict[str, Any] | None:
 
 def _doctrine_item_by_slug(slug: str) -> dict[str, Any] | None:
     try:
-        data = _graphql(GET_DOCTRINE_BY_SLUG_QUERY, {"slug": slug, "limit": 10})
+        data = execute_graphql(GET_DOCTRINE_BY_SLUG_QUERY, {"slug": slug, "limit": 10})
     except Exception:
         return None
     connection = data.get("itemBySlug") or {}
@@ -1925,7 +1926,7 @@ def papyrus_list_recent_published_articles(recent_days: int = 30, limit: int = 2
     items: list[dict[str, Any]] = []
     next_token = None
     while len(items) < limit:
-        data = _graphql(
+        data = execute_graphql(
             LIST_ARTICLES_QUERY,
             {
                 "typeStatus": "article#published",
@@ -2051,7 +2052,7 @@ def papyrus_reference_curation_review(
     Canonical Reference editorial disposition action.
     """
     return reference_actions.review_reference_curation(
-        _graphql,
+        execute_graphql,
         reference_id=reference_id,
         action=action,
         actor_label=actor_label,
@@ -2071,7 +2072,7 @@ def papyrus_reference_quality_rate(
     Canonical human quality rating action.
     """
     return reference_actions.set_reference_quality_rating(
-        _graphql,
+        execute_graphql,
         reference_id=reference_id,
         rating=rating,
         actor_label=actor_label,
@@ -2090,7 +2091,7 @@ def papyrus_reference_insight_create(
     Canonical insight creation action for a reference.
     """
     return reference_actions.create_reference_insight(
-        _graphql,
+        execute_graphql,
         reference_id=reference_id,
         summary=summary,
         body=body,
@@ -2123,7 +2124,7 @@ def papyrus_reference_move_corpus(
     Canonical explicit corpus-move action for a reference lineage.
     """
     return reference_actions.move_reference_corpus(
-        _graphql,
+        execute_graphql,
         reference_id=reference_id,
         corpus_id=corpus_id,
         actor_label=actor_label,
@@ -2141,7 +2142,7 @@ def papyrus_reference_curation_start(
     Canonical async curation start action (Assignment-backed).
     """
     return reference_actions.start_reference_curation(
-        _graphql,
+        execute_graphql,
         reference_id=reference_id,
         actor_label=actor_label,
         curation_policy=curation_policy,
@@ -2153,7 +2154,7 @@ def papyrus_reference_curation_status(*, assignment_id: str) -> dict[str, Any]:
     Canonical curation run status lookup.
     """
     return reference_actions.get_reference_curation_status(
-        _graphql,
+        execute_graphql,
         assignment_id=assignment_id,
     )
 
@@ -4021,12 +4022,6 @@ def _content_hash(record: dict[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
-def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
-    from papyrus_content.graphql_http import execute_graphql
-
-    return execute_graphql(query, variables)
-
-
 def _iam_signed_graphql_headers(endpoint: str, body: bytes) -> dict[str, str]:
     from papyrus_content.graphql_http import iam_signed_graphql_headers
 
@@ -4069,7 +4064,7 @@ def _read_text_model_payload(owner_kind: str, owner_id: Any, role: str, sort_key
     if not owner_id:
         return None
     attachment_id = f"model-attachment-{_safe_id(owner_kind)}-{_safe_id(str(owner_id))}-{_safe_id(role)}-{_safe_id(sort_key)}"
-    data = _graphql(
+    data = execute_graphql(
         """
 query GetModelAttachment($id: ID!) {
   getModelAttachment(id: $id) {
@@ -4232,7 +4227,7 @@ def _list_connection(query: str, variables: dict[str, Any], field_name: str, lim
     while True:
         payload = dict(variables)
         payload.update({"limit": limit, "nextToken": next_token})
-        data = _graphql(query, payload)
+        data = execute_graphql(query, payload)
         connection = data.get(field_name) or {}
         items.extend(_decode_record_json(item) for item in connection.get("items") or [])
         next_token = connection.get("nextToken")
@@ -4306,7 +4301,7 @@ def _list_message_threads_by_kind(thread_kind: str, *, limit: int = 200) -> list
     rows: list[dict[str, Any]] = []
     next_token = None
     while True:
-        data = _graphql(
+        data = execute_graphql(
             LIST_MESSAGE_THREADS_BY_KIND_QUERY,
             {"threadKind": thread_kind, "limit": limit, "nextToken": next_token},
         )
@@ -4325,7 +4320,7 @@ def _list_messages_by_thread_id(thread_id: Any, *, limit: int = 400) -> list[dic
     rows: list[dict[str, Any]] = []
     next_token = None
     while True:
-        data = _graphql(
+        data = execute_graphql(
             LIST_MESSAGES_BY_THREAD_QUERY,
             {"threadId": resolved_thread_id, "limit": limit, "nextToken": next_token},
         )
@@ -4414,7 +4409,7 @@ def _assignment_events_for_assignments(assignment_ids: list[str]) -> list[dict[s
         return []
     events: list[dict[str, Any]] = []
     for assignment_id in assignment_ids:
-        data = _graphql(
+        data = execute_graphql(
             """
 query ListAssignmentEventsByAssignment($assignmentId: ID!, $limit: Int, $nextToken: String) {
   listAssignmentEventsByAssignmentAndCreatedAt(assignmentId: $assignmentId, limit: $limit, nextToken: $nextToken) {
@@ -5519,4 +5514,4 @@ def _parse_datetime(value: Any) -> _dt.datetime | None:
 
 
 def _semantic_client():
-    return PapyrusSemanticClient(_graphql, decode_record=_decode_record_json)
+    return PapyrusSemanticClient(execute_graphql, decode_record=_decode_record_json)
