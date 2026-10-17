@@ -11,6 +11,8 @@ from email import policy
 from email.parser import BytesParser
 from typing import Any
 
+from papyrus_content.env import required_environment_value
+
 _SUBMISSION_MESSAGE_ID_PATTERN = re.compile(
     r"^(message-email-submission-[a-f0-9]{20})(?:@|$)",
     re.IGNORECASE,
@@ -48,7 +50,7 @@ class InboundMimeEnvelope:
 
 
 def feedback_rfc_message_id(submission_message_id: str) -> str:
-    domain = str(os.environ.get("PAPYRUS_INBOUND_EMAIL_DOMAIN") or "p.apyr.us").strip().lower()
+    domain = required_environment_value("PAPYRUS_INBOUND_EMAIL_DOMAIN").lower()
     message_id = str(submission_message_id or "").strip()
     if not message_id:
         raise ValueError("submission_message_id is required for feedback RFC Message-ID.")

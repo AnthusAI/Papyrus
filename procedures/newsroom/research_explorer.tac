@@ -79,7 +79,7 @@ Procedure {
     input = {
         assignment_item_id = field.string{default = "", description = "Papyrus Assignment.id or legacy assignment Item.id"},
         assignment_json = field.string{default = "", description = "Inline Assignment or assignment Item JSON for deterministic tests"},
-        corpus_key = field.string{default = "AI-ML-research", description = "Papyrus steering corpus key"},
+        corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "researcher", description = "Optional live context profile override"},
         research_mode = field.string{default = "source_discovery", description = "internal_brief, source_discovery, or full_research"},
         research_questions = field.string{default = "", description = "Optional editor/reporter research questions"},
@@ -103,7 +103,7 @@ Procedure {
 
         local assignment_id = input.assignment_item_id or ""
         local assignment_json = ""
-        local corpus_key = input.corpus_key or "AI-ML-research"
+        local corpus_key = input.corpus_key
         local research_mode = input.research_mode or "source_discovery"
         local max_evidence_items = input.max_evidence_items or 20
         local max_attempts = 3
@@ -223,7 +223,7 @@ Procedure {
             local research_packet_table = as_table(research_packet) or {}
             local normalized = {
                 assignment_item_id = payload.assignment_item_id or payload.assignmentItemId or assignment_id or "assignment-unknown",
-                corpus_key = payload.corpus_key or payload.corpusKey or corpus_key or "AI-ML-research",
+                corpus_key = payload.corpus_key or payload.corpusKey or corpus_key,
                 dry_run = payload.dry_run,
                 item_status = payload.item_status or payload.itemStatus,
                 research_packet = research_packet,

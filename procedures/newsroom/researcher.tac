@@ -69,7 +69,7 @@ Procedure {
     input = {
         assignment_item_id = field.string{default = "", description = "Papyrus Assignment.id or legacy assignment Item.id"},
         assignment_json = field.string{default = "", description = "Inline Assignment or assignment Item JSON for deterministic tests or offline runs"},
-        corpus_key = field.string{default = "AI-ML-research", description = "Papyrus steering corpus key"},
+        corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "", description = "Optional live context profile override"},
         research_questions = field.string{default = "", description = "Optional editor/reporter research questions"},
         max_evidence_items = field.integer{default = 20, description = "Maximum Biblicus evidence items to use"}
@@ -268,7 +268,7 @@ metadata, ingestion rationales, or record plans.
             end
             return {
                 assignment_item_id = payload.assignment_item_id or payload.assignmentItemId or input.assignment_item_id or inline_assignment_id or "assignment-unknown",
-                corpus_key = payload.corpus_key or payload.corpusKey or input.corpus_key or "AI-ML-research",
+                corpus_key = payload.corpus_key or payload.corpusKey or input.corpus_key,
                 dry_run = payload.dry_run,
                 item_status = payload.item_status or payload.itemStatus or "researched",
                 research_packet = payload.research_packet or payload.researchPacket or {},

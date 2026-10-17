@@ -18,6 +18,7 @@ from papyrus_newsroom.email_submissions import (
     REJECTION_KIND_UNREGISTERED_SENDER,
     UNREGISTERED_SENDER_RESPONSE_ERROR,
 )
+from papyrus_content.env import required_environment_value
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.source_readiness import (
     select_extracted_text_attachment,
@@ -86,7 +87,7 @@ def default_feedback_from_address() -> str:
     explicit = str(os.environ.get("PAPYRUS_INBOUND_FEEDBACK_FROM_EMAIL") or "").strip()
     if explicit:
         return explicit
-    domain = str(os.environ.get("PAPYRUS_INBOUND_EMAIL_DOMAIN") or "p.apyr.us").strip().lower()
+    domain = required_environment_value("PAPYRUS_INBOUND_EMAIL_DOMAIN").lower()
     local_part = str(os.environ.get("PAPYRUS_INBOUND_FEEDBACK_FROM_LOCAL_PART") or "submissions").strip()
     return f"Papyrus Submissions <{local_part}@{domain}>"
 
@@ -95,7 +96,7 @@ def default_feedback_reply_to_address() -> str:
     explicit = str(os.environ.get("PAPYRUS_INBOUND_FEEDBACK_REPLY_TO_EMAIL") or "").strip()
     if explicit:
         return explicit
-    domain = str(os.environ.get("PAPYRUS_INBOUND_EMAIL_DOMAIN") or "p.apyr.us").strip().lower()
+    domain = required_environment_value("PAPYRUS_INBOUND_EMAIL_DOMAIN").lower()
     local_part = str(os.environ.get("PAPYRUS_INBOUND_EMAIL_LOCAL_PARTS") or "submissions").split(",")[0].strip()
     return f"{local_part or 'submissions'}@{domain}"
 
@@ -491,10 +492,7 @@ def build_submission_feedback_report(
 
 
 def _public_site_base_url() -> str:
-    explicit = str(os.environ.get("PAPYRUS_PUBLIC_SITE_BASE_URL") or "").strip().rstrip("/")
-    if explicit:
-        return explicit
-    return "https://p.apyr.us"
+    return required_environment_value("PAPYRUS_PUBLIC_SITE_BASE_URL").rstrip("/")
 
 
 def is_unregistered_sender_rejection(report: dict[str, Any]) -> bool:
