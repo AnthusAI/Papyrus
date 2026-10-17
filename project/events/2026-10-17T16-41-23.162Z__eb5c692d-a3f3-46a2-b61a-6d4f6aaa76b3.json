@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "eb5c692d-a3f3-46a2-b61a-6d4f6aaa76b3",
+  "issue_id": "PPY-a4eaafee-d4da-4cf1-90f4-c3ca70eaa1ee",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:41:23.162Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Solver performance and file split: break the exhaustive height loop, cache prepared text, split newspaper-layout.ts",
+    "description": "Performance: in mustExhaust mode lib/newspaper-layout.ts:1593-1602 with :2065-2073 tries about 75 heights in 4-row steps and never breaks once a height fits, so every taller height is laid out again for an identical block; the front mosaic solves every block twice (:655-666) to learn row heights; PreparedTextCache is created per buildNewspaperLayout call (:589) so every resize tick re-prepares every article, and measureWrappedTextBlock (:2929-2949) has no cache. Structure: lib/newspaper-layout.ts:528-577,2854 duplicates lib/blog-rhythm.ts:28-115 verbatim (createVerticalRhythm, snapUp/Down/ToNearest, reserveRhythmRows, clampRhythmHeight, getLineStackHeight); three SolvedBlock assemblers build 30-field literals with item and article set to the same object (:940, :1062, :1632); scoring weights are inline literals across three functions (:1602, :1623-1631); lib/blog-feature-solver.ts:83 ignores viewportWidth and never returns 'obstacle', so solveObstacleFeaturedItem (:146-236) is unreachable; verticalAnchor 'top' means y=0 for images (:3316) and 12% for pull quotes; renderers/pretext/presentation-shell.tsx:290 omits whiteSpace pre-wrap unlike the other two presentations; three renderers re-implement useMeasuredWidth.\n\nFix, after the headless solver test exists: break the textHeights loop after the first exhausted fit per pull-quote variant (or binary-search); cache the provisional front block when the final rowHeight matches; hoist a module-level prepared-text cache keyed by text and font, invalidated by clearPretextMeasurementCache; import rhythm helpers from one module; SolvedBlock carries item only; SCORE_WEIGHTS constant; delete or wire the obstacle path; one meaning for 'top'; align pre-wrap. Then split the file with no behaviour change: layout-types (41-495), layout-rhythm, layout-config (2176-2360), chrome-text (2602-2950), front-mosaic (635-1384), article-frame-solver (1485-1700, 1845-2075, 3166-3270), text-columns (1781-1845, 3092-3160), furniture (1911-2032, 3272-3430), labels (3431-3456).\n\nDone when: the solver test passes unchanged, and a resize re-solve prepares no article text that was prepared before.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

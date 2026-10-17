@@ -1,0 +1,29 @@
+{
+  "id": "PPY-9bcfec09-e2e8-4301-a824-a7f7ec6efeb7",
+  "title": "Headless solver test: cursor continuity and continuation labels over every layout scenario",
+  "description": "lib/newspaper-layout.ts (3460 lines) is referenced by zero tests. Its only coverage is Playwright BDD that needs a dev server on port 3001 and never runs in CI. features/step_definitions/layout.steps.js never reads textRanges, startCursor or endCursor, so duplicated or skipped article text between a teaser and its continuation would pass today.\n\nFix: add a headless test (pattern: scripts/test-blog-feature-solver.ts:11-19 stubs OffscreenCanvas.measureText) that runs buildNewspaperLayout over every fixture in lib/layout-scenarios.ts at 1280, 640 and 390 widths and asserts, per articleId in page order, that range[i].endCursor === range[i+1].startCursor, that the last range is exhausted or carries a jumpLabel, and that pages.length matches the plan. Add continuation-label assertions: SEE <SLUG> ON A<n> / <SLUG> FROM A<n>, the MORE / FROM A<n> no-shortSlug variant, and a two-hop continuation (A1 to A2 to A3) whose second heading must read FROM A2, which will fail until the label bug is fixed (see the sibling issue). Add a small unit test for lib/pretext-layout.ts covering line-capacity off-by-one, a full-width obstacle row, and hasMore probing after the last fully visible line.\n\nDone when: the test runs in CI and fails if a cursor is duplicated or skipped in any scenario.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T16:39:15.071113Z",
+  "updated_at": "2026-10-17T16:39:15.071412Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

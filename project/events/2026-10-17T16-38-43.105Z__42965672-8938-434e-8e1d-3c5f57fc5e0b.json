@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "42965672-8938-434e-8e1d-3c5f57fc5e0b",
+  "issue_id": "PPY-c4e950a7-734f-4f7b-9bcf-2890d0e806ab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:38:43.105Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "CI: run lint and build, call one test entry point, use pytest, cache browsers and Poetry",
+    "description": ".github/workflows/tests.yml runs npm run typecheck but never npm run lint or npm run build (the first next build after merge happens in Amplify Hosting). It also runs a hand-picked list of 24 test targets while package.json test:ci:ts chains 59, so 31 targets never run on PR. The python job runs python -m unittest over a module list, which collects zero tests from the five pytest-style modules (test_priming_curation, test_priming_http, test_priming_provider_budget, test_priming_biblicus_contract, test_biblicus_worker_configuration), and installs without --with cyclotron so all @requires-cyclotron behave features skip. Playwright is installed uncached on every run for one script, and there is no Poetry cache.\n\nFix: add npm run lint and npm run build to the ts job (the amplify_outputs.json stub at line 23 already exists); replace the step list with a single npm run test:ci:ts (or the node:test runner once PPY issue 'Convert scripts/test-* to node:test' lands); switch the python job to poetry run pytest with src added to testpaths and python_files including *_test.py, keeping the current exclusions as -k deselects with their PPY tickets; add --with cyclotron to poetry install; cache ~/.cache/ms-playwright and ~/.cache/pypoetry; add permissions: contents: read and npm ci to inbound-email-tests.yml; drop the duplicate test:theme-packs step.\n\nDone when: the workflow is green on develop and the step list in CI is one entry point, not a hand-maintained copy of package.json.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

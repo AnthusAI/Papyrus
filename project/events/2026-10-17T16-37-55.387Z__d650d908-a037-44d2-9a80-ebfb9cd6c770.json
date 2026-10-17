@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "d650d908-a037-44d2-9a80-ebfb9cd6c770",
+  "issue_id": "PPY-ee67c6aa-81c5-4198-b267-e85f0cc89d08",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:37:55.387Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Inbound email: require SPF or DKIM pass before trusting the From address",
+    "description": "amplify/functions/ses-inbound-receive/handler.ts:125 authorises inbound email purely by looking up inbound.senderEmail against registered profiles. resolveFromSesMail (:367-398) reads only receipt.action.bucketName and objectKey and never reads receipt.spfVerdict, dkimVerdict, spamVerdict or virusVerdict. A spoofed From of any registered editor submits citations into the corpus and triggers the five-minute processor Lambda.\n\nFix: before the registered-sender lookup, reject (or mark unauthorized) when spfVerdict.status and dkimVerdict.status are both not PASS, and drop messages whose spamVerdict or virusVerdict is FAIL. Add unit cases to amplify/functions/shared/email-submission.test.mjs for a spoofed sender and for a passing sender.\n\nDone when: the handler refuses a message with SPF and DKIM FAIL from a registered address, and the existing happy path still passes.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}
