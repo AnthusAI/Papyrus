@@ -1,3 +1,15 @@
+import {
+  clampRhythmHeight,
+  createVerticalRhythm,
+  getLineStackHeight,
+  reserveRhythmRows,
+  snapDownToRhythm,
+  snapPreferredHeightToRhythm,
+  snapPreservedImageHeightToRhythm,
+  snapToNearestRhythm,
+  snapUpToRhythm,
+  type VerticalRhythm,
+} from "./blog-rhythm";
 import { toPublicReaderPath } from "./reader-base-path";
 import type { ArticleImageAsset, ArticleImageThemeVariants } from "./articles";
 import {
@@ -276,12 +288,6 @@ export type NewspaperLayout = {
   textRanges: PlacedTextRange[];
 };
 
-export type VerticalRhythm = {
-  rowHeight: number;
-  paintHeight: number;
-  paintBuffer: number;
-};
-
 export type PageChromeMetrics = {
   pagePaddingTop: number;
   pagePaddingX: number;
@@ -517,61 +523,21 @@ const CONTINUED_TITLE_BORDER_BOTTOM = 0;
 const CONTINUED_TITLE_MARGIN_BOTTOM = 0;
 const FURNITURE_COLLISION_GUTTER = 14;
 const PULL_QUOTE_VERTICAL_PADDING = 24;
+const NEWSPAPER_PAINT_BUFFER_PX = 4;
+const ARTICLE_FRAME_SCORE_WEIGHTS = {
+  baseScore: 50_000,
+  whitespacePerPixel: 1.1,
+  deadColumnPenalty: 8_000,
+  imageHeightDeviationPerPixel: 0.35,
+  missingImagePenalty: 50_000,
+  missingPullQuotePenalty: 2_800,
+  narrowedColumnPenaltyPerColumn: 240,
+} as const;
 const KICKER_BASE_FONT_SIZE = 11.5;
 const KICKER_BASE_ROW_HEIGHT = 19;
 
 function getKickerFontSize(rhythmRowHeight: number): number {
   return Math.round((KICKER_BASE_FONT_SIZE * rhythmRowHeight / KICKER_BASE_ROW_HEIGHT) * 10) / 10;
-}
-
-function createVerticalRhythm(rowHeight: number): VerticalRhythm {
-  const paintHeight = rowHeight + 4;
-  return {
-    rowHeight,
-    paintHeight,
-    paintBuffer: paintHeight - rowHeight,
-  };
-}
-
-function snapUpToRhythm(value: number, rhythm: VerticalRhythm): number {
-  if (value <= 0) return 0;
-  return Math.ceil(value / rhythm.rowHeight) * rhythm.rowHeight;
-}
-
-function snapDownToRhythm(value: number, rhythm: VerticalRhythm): number {
-  if (value <= 0) return 0;
-  return Math.floor(value / rhythm.rowHeight) * rhythm.rowHeight;
-}
-
-function snapToNearestRhythm(value: number, rhythm: VerticalRhythm): number {
-  if (value <= 0) return 0;
-  return Math.round(value / rhythm.rowHeight) * rhythm.rowHeight;
-}
-
-function reserveRhythmRows(value: number, rhythm: VerticalRhythm): number {
-  return snapUpToRhythm(value, rhythm);
-}
-
-function clampRhythmHeight(value: number, minimum: number, maximum: number, rhythm: VerticalRhythm): number {
-  const snappedMinimum = reserveRhythmRows(minimum, rhythm);
-  const snappedMaximum = Math.max(snappedMinimum, snapDownToRhythm(maximum, rhythm));
-  return clamp(reserveRhythmRows(value, rhythm), snappedMinimum, snappedMaximum);
-}
-
-function snapPreferredHeightToRhythm(value: number, rhythm: VerticalRhythm, minimum = rhythm.rowHeight, maximum = Number.POSITIVE_INFINITY): number {
-  const snappedMinimum = reserveRhythmRows(minimum, rhythm);
-  const snappedMaximum = Number.isFinite(maximum) ? Math.max(snappedMinimum, snapDownToRhythm(maximum, rhythm)) : Number.POSITIVE_INFINITY;
-  const down = snapDownToRhythm(value, rhythm);
-  const up = reserveRhythmRows(value, rhythm);
-  const candidates = [down, up].filter((candidate) => candidate >= snappedMinimum && candidate <= snappedMaximum);
-  if (candidates.length === 0) return snappedMinimum;
-  return candidates.sort((left, right) => Math.abs(left - value) - Math.abs(right - value) || left - right)[0];
-}
-
-function snapPreservedImageHeightToRhythm(value: number, rhythm: VerticalRhythm, minimum = rhythm.rowHeight, maximum = Number.POSITIVE_INFINITY): number {
-  const snappedMinimum = reserveRhythmRows(minimum, rhythm);
-  const snappedMaximum = Number.isFinite(maximum) ? Math.max(snappedMinimum, snapDownToRhythm(maximum, rhythm)) : Number.POSITIVE_INFINITY;
-  return clamp(reserveRhythmRows(value, rhythm), snappedMinimum, snappedMaximum);
 }
 
 function getMinimumTextFrameHeight(config: LayoutConfig): number {
@@ -1656,14 +1622,16 @@ function solveArticleFrameCandidates({
           const whitespace = getColumnWhitespace(textResult.columns, bodyHeight, furniture);
           const deadColumns = getDeadColumnCount(textResult.columns, bodyHeight, furniture);
           const score =
-            50_000 -
-            whitespace * 1.1 -
-            deadColumns * 8_000 -
-            (image ? Math.abs(image.height - image.preferredHeight) * 0.35 : 50_000) -
-            (pullQuote ? 0 : 2_800) -
+            ARTICLE_FRAME_SCORE_WEIGHTS.baseScore -
+            whitespace * ARTICLE_FRAME_SCORE_WEIGHTS.whitespacePerPixel -
+            deadColumns * ARTICLE_FRAME_SCORE_WEIGHTS.deadColumnPenalty -
+            (image
+              ? Math.abs(image.height - image.preferredHeight) * ARTICLE_FRAME_SCORE_WEIGHTS.imageHeightDeviationPerPixel
+              : ARTICLE_FRAME_SCORE_WEIGHTS.missingImagePenalty) -
+            (pullQuote ? 0 : ARTICLE_FRAME_SCORE_WEIGHTS.missingPullQuotePenalty) -
             mediaVariant.fallbackPenalty -
             pullQuoteVariant.fallbackPenalty -
-            Math.max(0, config.columnCount - columnCount) * 240;
+            Math.max(0, config.columnCount - columnCount) * ARTICLE_FRAME_SCORE_WEIGHTS.narrowedColumnPenaltyPerColumn;
 
           candidates.push({
             block: {
@@ -2192,7 +2160,7 @@ function getLayoutConfig(pageWidth: number, viewportHeight: number): LayoutConfi
   const medium = pageWidth >= 560 && pageWidth < 1040;
   const bodyFontSize = narrow ? 14 : 15;
   const bodyLineHeight = Math.ceil(bodyFontSize * 1.4);
-  const rhythm = createVerticalRhythm(bodyLineHeight);
+  const rhythm = createVerticalRhythm(bodyLineHeight, NEWSPAPER_PAINT_BUFFER_PX);
   const gap = narrow ? 14 : 18;
   const rowGap = rhythm.rowHeight;
   const sideMargin = narrow ? 18 : 30;
@@ -2858,11 +2826,6 @@ function parseEmValue(value: string): number {
 
 function emToPx(value: number, fontSize: number): number {
   return value * fontSize;
-}
-
-function getLineStackHeight(lineCount: number, lineHeight: number, paintHeight: number): number {
-  if (lineCount <= 0) return 0;
-  return Math.ceil((lineCount - 1) * lineHeight + paintHeight);
 }
 
 function getStoryChromeHeight(chrome: StoryChromeMetrics): number {
