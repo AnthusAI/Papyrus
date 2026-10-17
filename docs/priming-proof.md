@@ -88,7 +88,8 @@ root rewrite `/cyclotron` into the newsroom; for those, link the API route.
 | Papyrus curates it | `PapyrusPrimingCuration` (arXiv/GROBID paper path; web path via Biblicus worker pin) | Paper path live locally; web path needs its spend approval |
 | Publish or reject, optional explanation | Shared `PrimingPanel` acceptance | Built (PR 213) |
 | Save it | `PrimingService` catalog | Local SQLite; hosted S3 authority adapter not built (fails closed) |
-| The classifier uses it | `AcceptedPrimingSnapshot` seeds a new store; the proof measures it | Built; an existing production store refuses new priming (engine rule) |
+| The classifier uses it | `AcceptedPrimingSnapshot` seeds a new store; the proof measures it | Built |
+| Prime the hosted cyclotron from a pasted URL | "Prime with a URL" in References writes a request; the relevance sweep extracts the page and applies it with the engine's `add_priming_examples` to the running store | Built (see `docs/relevance-cyclotron.md`); uses the sweep worker's Biblicus and OpenAI, not the hosted `PrimingService` catalog |
 | A number visitors see | This page | Built; needs a first real run |
 
 The hosted newsroom waits on PPY-58f107 (Prospectus accounts): the curation

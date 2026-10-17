@@ -5,8 +5,10 @@ One sweep, run by a worker after research intake and on a schedule:
 1. Claims the publication's ``cyclotron.relevance`` Assignment (one writer).
 2. Restores the cyclotron store from the private media bucket when this worker
    has no local copy.
-3. Sends editors' reviews of decided references back to the cyclotron, using
-   the existing ``reference_curation`` Messages and scope-training rule.
+3. Primes the running cyclotron with the URLs editors pasted in the Newsroom
+   (priming requests), then sends editors' reviews of decided references
+   back to it, using the existing ``reference_curation`` Messages and
+   scope-training rule.
 4. Decides every current pending ``Reference`` of the canonical corpus and
    records each new decision as a ``relevance_decision_is`` relation.
 5. Records the ``cyclotron-status/v1`` snapshot, saves the store to the
@@ -32,6 +34,9 @@ from .records import apply_record_changes, build_record_change_from_current
 from .reference_policy import normalize_reference_curation_status
 from .relevance_cyclotron import (RelevanceCyclotronPlan, build_relevance_cyclotron, decision_model_from_environment,
                                   optimizer_from_environment)
+from .relevance_priming import (PRIMING_OUTCOME_ROLE, PRIMING_REQUEST_KIND, ExtractUrl, default_url_extractor,
+                                normalize_priming_url, priming_item_id, priming_label, priming_outcome_record,
+                                readable_engine_refusal)
 from .relevance_decisions import (RELEVANCE_RELATION, current_relevance_decision, relevance_decision_records,
                                   relevance_label_for_review, review_rate_request_id, status_snapshot_record)
 from .steering import require_corpus_config
@@ -50,13 +55,15 @@ class SweepResult:
     applied: bool
     pending: list[str] = field(default_factory=list)
     decided: int = 0
+    primed: int = 0
+    priming_failed: int = 0
     reviews: int = 0
     status: dict[str, Any] | None = None
     warnings: list[str] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
-                "reviewsSent": self.reviews, "status": self.status, "warnings": self.warnings}
+                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "status": self.status, "warnings": self.warnings}
 
 
 class S3SnapshotStore:
@@ -174,8 +181,13 @@ def reference_item(reference: Mapping[str, Any], *, source_content: Mapping[str,
 
 def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *, apply: bool, worker: str,
                          max_count: int | None = None, model=None, optimizer=None, snapshots=None,
-                         now: Callable[[], str] | None = None, priming_snapshot=None) -> SweepResult:
+                         now: Callable[[], str] | None = None, priming_snapshot=None,
+                         extract_url: ExtractUrl | None = None) -> SweepResult:
     """Run one sweep; an explicit accepted priming snapshot seeds a new store only.
+
+    Editors' priming requests are applied to the running store whatever the
+    snapshot; ``extract_url`` turns a pasted URL into item values and defaults
+    to the existing Papyrus priming curation.
 
     Omitting priming_snapshot preserves normal operation. Models/optimizers and
     snapshot transport still default to the configured providers.
@@ -220,8 +232,9 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                                    **({'priming_examples':priming_examples} if priming_examples is not None else {}))
         try:
             _apply_review_rate_request(client, cyclotron, plan, result.warnings)
+            records = _apply_priming_requests(
+                client, cyclotron, plan, extract_url or default_url_extractor(steering_config, corpus), now, result)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
-            records = []
             for reference in pending:
                 decision = asyncio.run(cyclotron.decide(reference_item(reference)))
                 current = _decision_relations(client, reference["lineageId"])
@@ -276,15 +289,61 @@ def _apply_review_rate_request(client, cyclotron, plan: RelevanceCyclotronPlan, 
         warnings.append(f"review-rate request not applied: {error}")
 
 
+def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, extract_url: ExtractUrl,
+                            now: Callable[[], str], result: SweepResult) -> list[dict[str, Any]]:
+    """Prime the running cyclotron with each editor request that has no outcome yet.
+
+    A request is a KnowledgeRawPayload the Newsroom writes. Its outcome is a
+    ``priming_outcome`` attachment on the same payload: applied (with the
+    version the examples created) or failed (with a reason an editor can read).
+    A failed request never stops the sweep. Returns the outcome records, which
+    the sweep writes with its other records.
+    """
+    from decision_flywheel import Item, LabeledItem
+
+    classifier = plan.definition.classifiers[0]
+    requests = []
+    for record in client.list_by_index("knowledgeRawPayloadsByOwner", safe_id(plan.definition.id)):
+        if record.get("payloadKind") != PRIMING_REQUEST_KIND:
+            continue
+        request = _latest_payload(client, record)
+        if request and _latest_payload(client, record, PRIMING_OUTCOME_ROLE) is None:
+            requests.append((str(request.get("requestedAt") or ""), record["id"], record, request))
+    outcomes = []
+    for _, _, record, request in sorted(requests, key=lambda entry: entry[:2]):
+        outcome = {"requestId": request.get("requestId"), "url": request.get("url"), "label": request.get("label"),
+                   "at": now()}
+        try:
+            url = normalize_priming_url(request.get("url"))
+            label = priming_label(request, classifier.labels)
+            try:
+                values = dict(extract_url(url))
+            except Exception as error:
+                raise ValueError(f"The page at {url} could not be read: {error}") from error
+            explanation = str(request.get("explanation") or "").strip()
+            example = LabeledItem(Item(priming_item_id(url), values), label, "trusted",
+                                  {"human_feedback": explanation} if explanation else {})
+            added = asyncio.run(cyclotron.add_priming_examples(
+                {classifier.id: [example]}, added_by=str(request.get("requestedBy") or "newsroom editor")))
+            outcome.update(state="applied", version=added["versions"][classifier.id], itemId=example.item.id)
+            result.primed += 1
+        except ValueError as error:
+            outcome.update(state="failed", message=readable_engine_refusal(error))
+            result.priming_failed += 1
+            result.warnings.append(f"priming request {request.get('requestId')} failed: {outcome['message']}")
+        outcomes.append(priming_outcome_record(record["id"], outcome, now=outcome["at"]))
+    return outcomes
+
+
 def _instant(value) -> datetime:
     if not value:
         return datetime.min.replace(tzinfo=timezone.utc)
     return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
-def _latest_payload(client, record: Mapping[str, Any]) -> dict[str, Any] | None:
+def _latest_payload(client, record: Mapping[str, Any], role: str = "raw_payload") -> dict[str, Any] | None:
     attachments = [attachment for attachment in client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", record["id"])
-                   if attachment.get("role") == "raw_payload" and attachment.get("status") != "deleted"]
+                   if attachment.get("role") == role and attachment.get("status") != "deleted"]
     attachments.sort(key=lambda attachment: str(attachment.get("updatedAt") or attachment.get("createdAt") or ""))
     for attachment in reversed(attachments):
         payload = parse_jsonish((download_attachment_buffer(client, attachment) or b"").decode("utf-8", "replace"))
@@ -406,6 +465,7 @@ def references_decide_relevance(flags: list[str]) -> None:
     if result.applied:
         print(f"references\tdecide-relevance\tdecided\t{result.decided}")
         print(f"references\tdecide-relevance\treviews-sent\t{result.reviews}")
+        print(f"references\tdecide-relevance\tprimed\t{result.primed}\tfailed\t{result.priming_failed}")
         rate = (result.status or {}).get("reviewRate") or {}
         print(f"references\tdecide-relevance\treview-rate\t{rate.get('state')}\t{rate.get('rate')}")
     for warning in result.warnings:

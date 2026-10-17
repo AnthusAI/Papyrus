@@ -30,6 +30,7 @@ INDEX_MODELS = {
     "semanticRelationsByObjectState": "SemanticRelation",
     "assignmentsByQueueStatusAndPriority": "Assignment",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
+    "knowledgeRawPayloadsByOwner": "KnowledgeRawPayload",
 }
 
 
@@ -110,6 +111,17 @@ def configure(context, worker_dir: Path):
     context.steering = load_steering_config(str(path))
 
 
+def extract_url_for(context):
+    """The page extractor the sweep is given: readable pages become item values, no network or model."""
+    def extract(url):
+        context.extractions.append(url)
+        if url in context.unreadable_urls:
+            raise ValueError("The page is behind a paywall.")
+        slug = url.rsplit("/", 1)[-1]
+        return {"text": f"{slug}\nSource: example.org", "title": slug, "source_uri": url, "domain": "example.org"}
+    return extract
+
+
 def run(context, *, apply=True, fresh_worker=False):
     if fresh_worker:
         configure(context, Path(tempfile.mkdtemp()))
@@ -125,7 +137,8 @@ def run(context, *, apply=True, fresh_worker=False):
                        side_effect=lambda client, attachment: client.bodies.get(attachment["id"])):
         try:
             context.result = run_decide_relevance(context.client, context.steering, DOCTRINE, apply=apply,
-                                                  worker="worker-a", model=context.model, snapshots=context.bucket)
+                                                  worker="worker-a", model=context.model, snapshots=context.bucket,
+                                                  extract_url=extract_url_for(context))
         except CyclotronClaimed as error:
             context.error = error
 
@@ -134,6 +147,9 @@ def run(context, *, apply=True, fresh_worker=False):
 def step_publication(context):
     context.tmp = tempfile.mkdtemp()
     context.model = Model()
+    context.extractions = []
+    context.unreadable_urls = set()
+    context.priming_requests = 0
     context.bucket = LocalBucket(Path(context.tmp) / "bucket")
     configure(context, Path(context.tmp) / "worker-1")
 
@@ -343,3 +359,74 @@ def step_applied_once(context):
 def step_no_manual(context):
     rate = status(context)["reviewRate"]
     assert rate["override"] is None and rate["state"] != "manual", rate
+
+
+def priming_outcomes(context, url):
+    payloads = [row for row in context.client.list_records("KnowledgeRawPayload")
+                if row.get("payloadKind") == "cyclotron-priming-request"]
+    outcomes = []
+    for payload in payloads:
+        attachments = {row["role"]: row for row in context.client.list_records("ModelAttachment")
+                       if row.get("ownerId") == payload["id"]}
+        request = json.loads(context.client.bodies[attachments["raw_payload"]["id"]])
+        if request["url"] == url and "priming_outcome" in attachments:
+            outcomes.append(json.loads(context.client.bodies[attachments["priming_outcome"]["id"]]))
+    return outcomes
+
+
+@given('the page text of "{url}" cannot be extracted')
+def step_unreadable(context, url):
+    context.unreadable_urls.add(url)
+
+
+@given('an editor "{editor}" asked to prime the cyclotron with "{url}" as "{label}" saying "{note}"')
+def step_request_priming(context, editor, url, label, note):
+    from papyrus_content.relevance_priming import priming_request_payload_id
+    context.priming_requests += 1
+    request_id = f"request-{context.priming_requests}"
+    at = f"2026-10-17T12:00:0{context.priming_requests}Z"
+    record_id = priming_request_payload_id("papyrus-relevance", request_id)
+    context.client.upsert("KnowledgeRawPayload", {"id": record_id, "ownerType": "cyclotron", "ownerId": "papyrus-relevance",
+                                                   "payloadKind": "cyclotron-priming-request", "createdAt": at})
+    attachment_id = f"model-attachment-{request_id}"
+    context.client.upsert("ModelAttachment", {"id": attachment_id, "ownerKind": "knowledgeRawPayload", "ownerId": record_id,
+                                              "role": "raw_payload", "status": "active", "createdAt": at, "updatedAt": at,
+                                              "storagePath": f"newsroom/payloads/{attachment_id}.json"})
+    context.client.bodies[attachment_id] = json.dumps({
+        "requestId": request_id, "url": url, "label": label, "explanation": note, "requestedBy": editor,
+        "requestedAt": at}).encode()
+
+
+@then("the cyclotron status snapshot reports {count:d} primed example")
+@then("the cyclotron status snapshot reports {count:d} primed examples")
+def step_primed_count(context, count):
+    assert status(context)["cyclotron"].get("primedExamples", 0) == count, status(context)["cyclotron"]
+
+
+@then('the cyclotron status snapshot reports the change "{summary}"')
+def step_last_change(context, summary):
+    assert status(context)["lastChange"]["summary"] == summary, status(context)["lastChange"]
+
+
+@then('the priming request for "{url}" is applied as version {version:d}')
+def step_applied(context, url, version):
+    applied = [outcome for outcome in priming_outcomes(context, url) if outcome["state"] == "applied"]
+    assert applied and applied[0]["version"] == version, priming_outcomes(context, url)
+
+
+@then('the priming request for "{url}" failed saying "{words}"')
+def step_failed(context, url, words):
+    failed = [outcome for outcome in priming_outcomes(context, url) if outcome["state"] == "failed"]
+    assert failed and words in failed[0]["message"], priming_outcomes(context, url)
+
+
+@then("each pending reference was decided by version {version:d}")
+def step_decided_by_version(context, version):
+    for item in context.pending:
+        current = current_relevance_decision(decisions(context, item["lineageId"]), item["lineageId"])
+        assert current["modelVersion"] == str(version), current["modelVersion"]
+
+
+@then('the page text of "{url}" was extracted once')
+def step_extracted_once(context, url):
+    assert context.extractions.count(url) == 1, context.extractions

@@ -57,6 +57,8 @@ import {
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
   loadCyclotronStatus,
+  requestCyclotronPriming,
+  loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
 import { listConsoleThreads } from "../lib/console-chat-client";
@@ -161,7 +163,13 @@ import {
   referenceCurationStatusForAction,
 } from "../lib/reference-policy";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
-import { buildReviewRateRequest, DEMO_CYCLOTRON_STATUS } from "../lib/relevance-status";
+import {
+  buildPrimingRequest,
+  buildReviewRateRequest,
+  DEFAULT_RELEVANCE_CYCLOTRON,
+  DEMO_CYCLOTRON_STATUS,
+  type PrimingRequestView,
+} from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import {
   referenceDisplaySummary,
@@ -790,6 +798,21 @@ function NewsDeskDashboard({
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
     [relevanceDecisions],
   );
+  const primingCyclotronId = relevanceCyclotronId ?? DEFAULT_RELEVANCE_CYCLOTRON.id;
+  const primingLabels = useMemo(
+    () => [...relevanceDecisions.values()].find((decision) => decision.classes.length)?.classes
+      ?? DEFAULT_RELEVANCE_CYCLOTRON.labels,
+    [relevanceDecisions],
+  );
+  const [primingRequests, setPrimingRequests] = useState<PrimingRequestView[]>([]);
+  useEffect(() => {
+    if (dashboard.isDemo) return;
+    let cancelled = false;
+    loadCyclotronPrimingRequests(primingCyclotronId)
+      .then((views) => { if (!cancelled) setPrimingRequests(views); })
+      .catch(() => { if (!cancelled) setPrimingRequests([]); });
+    return () => { cancelled = true; };
+  }, [dashboard.isDemo, primingCyclotronId]);
   const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
   useEffect(() => {
     if (!relevanceCyclotronId) return;
@@ -3190,6 +3213,15 @@ function NewsDeskDashboard({
             disabled={controlsDisabled}
             initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
             cyclotronStatus={cyclotronStatus}
+            cyclotronPriming={{
+              labels: primingLabels,
+              requests: primingRequests,
+              onRequest: async (input) => {
+                const request = buildPrimingRequest(input, authState.label, primingLabels);
+                if (!dashboard.isDemo) await requestCyclotronPriming(primingCyclotronId, request);
+                setPrimingRequests((current) => [{ request, outcome: null }, ...current]);
+              },
+            }}
             decisions={relevanceDecisions}
             onRequestReviewRate={relevanceCyclotronId ? async (choice) => {
               const request = buildReviewRateRequest(choice, authState.label);

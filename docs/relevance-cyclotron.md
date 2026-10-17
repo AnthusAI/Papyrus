@@ -65,7 +65,7 @@ Rules the loader enforces:
 
 ## Install the engine
 
-The engine is the optional `cyclotron` Poetry dependency group, pinned to one Cyclotron main commit (9874b71). It is a group and not an extra so the git requirement stays out of the published wheel. The default install and CI do not include it; the Cyclotron scenarios are tagged `@requires-cyclotron` and are skipped when `decision_flywheel` is not importable.
+The engine is the optional `cyclotron` Poetry dependency group, pinned to Cyclotron v0.22.0 (505bbf0). It is a group and not an extra so the git requirement stays out of the published wheel. The default install and CI do not include it; the Cyclotron scenarios are tagged `@requires-cyclotron` and are skipped when `decision_flywheel` is not importable.
 
 ```bash
 poetry install --extras "newsroom" --with cyclotron
@@ -86,7 +86,7 @@ on a schedule. Each run:
    worker stops before any model call while the claim is held.
 2. Restores the cyclotron store from `store.s3Prefix` when this worker has no
    local copy.
-3. Sends editors' reviews of decided references to the cyclotron. The label
+3. Applies editors' priming requests (see "Prime it with a URL"), then sends editors' reviews of decided references to the cyclotron. The label
    follows the existing scope-training rule: accepted is `include`; rejected
    as `out_of_scope` or `policy_exclusion` is `exclude`; other outcomes close
    the decision without a label. The editor's note is the explanation and the
@@ -117,6 +117,39 @@ the request as a `KnowledgeRawPayload`
 sweep applies it once, and the status then shows who set it and when it
 expires. Low-confidence decisions and the random audit share are always
 reviewed.
+
+## Prime it with a URL
+
+Above the status strip, editors who may change curation see "Prime with a
+URL": an https URL, a label (the cyclotron's own labels, `include` and
+`exclude` by default) and an optional explanation. Saving writes one
+`KnowledgeRawPayload` per request
+(`knowledge-raw-payload-cyclotron-priming-request-<cyclotronId>-<requestId>`,
+kind `cyclotron-priming-request`, JSON in a `raw_payload` attachment), the same
+channel as the manual review rate. There is no new store, Lambda or schema.
+
+On the next sweep, after opening the store and before deciding anything, the
+worker reads each request that has no outcome yet, extracts the page with the
+existing `PapyrusPrimingCuration` (Biblicus, network and OpenAI, on the worker)
+and calls the running cyclotron's `add_priming_examples`. The example is a
+trusted, human-labeled item with id `priming:<sha256 of the URL, 16 hex>`, so it
+cannot collide with a reference. The cyclotron appends it to the classifier's
+example list as a new version; the sweep's own decisions then run on that
+version, and the status shows `primedExamples` and the change "Added 1 primed
+example to the example list."
+
+The worker records the outcome as a `priming_outcome` attachment on the request:
+`applied` with the version, or `failed` with a readable reason (an https-only
+URL, a label the cyclotron does not have, a page that could not be read, or the
+engine refusing a URL already primed with different content or already decided).
+A request with an outcome is never processed again, and a failed request never
+stops the sweep. The References tab lists the saved requests as waiting for the
+next sweep, applied as version N, or failed with the reason.
+
+The Newsroom does not read the steering config. Until a decision names the
+cyclotron it assumes the defaults (`papyrus-relevance`, `include`/`exclude`), so
+a publication that renames them must have decided at least once for the form to
+use its names.
 
 ## Record a run for the Cyclotron site
 

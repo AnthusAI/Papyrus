@@ -502,6 +502,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": MODEL_ATTACHMENT_FIELDS,
         "partitionType": "ID",
     },
+    "knowledgeRawPayloadsByOwner": {
+        "field": "listKnowledgeRawPayloadsByOwnerAndKind",
+        "partitionKey": "ownerId",
+        "fields": KNOWLEDGE_RAW_PAYLOAD_FIELDS,
+        "partitionType": "ID",
+    },
     "referenceAttachmentsByReferenceLineageAndSortKey": {
         "field": "listReferenceAttachmentsByReferenceLineageAndSortKey",
         "partitionKey": "referenceLineageId",
