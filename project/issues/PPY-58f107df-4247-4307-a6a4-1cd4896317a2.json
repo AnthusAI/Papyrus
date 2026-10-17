@@ -1,7 +1,7 @@
 {
   "id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
   "title": "Wire account-scoped Cyclotron publication BFF after CMS rollout",
-  "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.\n\n## Current next-step plan — 2026-10-17\n\nPriority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
+  "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.\n\n## Current next-step plan \u2014 2026-10-17\n\nPriority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
   "type": "task",
   "status": "in_progress",
   "priority": 1,
@@ -17,10 +17,12 @@
       "text": "Integration inputs received, still queued behind terminal three-site CMS release. Latest human priming source is Papyrus 746aed6539f33288408c48e5d3f1f1fd988b5755: paper URL alone uses actual Biblicus/GROBID extraction; temporary Mac-only 127.0.0.1:8901 remains separate. No anonymous LAN or cloud activation authorized by this handoff. Web extraction must fail visibly until the published Biblicus contract and enforced provider budget are approved. Account-aware BFF source a23d6f4 / core 1e2a7a7 still requires isolated integration, trusted production session grants and explicit storage-authority decision before activation. Do not merge whole preview branches or infer publication grants from console roles.",
       "created_at": "2026-10-15T19:28:34.697941Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
-        "name": "ProductionCMS"
+        "name": "ProductionCMS",
+        "settings": {}
       }
     },
     {
@@ -29,10 +31,12 @@
       "text": "Later-release priming handoff supersedes earlier priming pins: Papyrus 95bd70a4d18c546d62b81fe0653a51c8599d83c8 (local source; commit existence verified), assigned Biblicus e4001ea1c2378a66d2b58bae4ee793c7e5a2fe38 consumed read-only, core reported short pin 100284b. Integration owner reports eight actual Papyrus planner/wrapper -> Biblicus CLI -> loopback gateway -> fake-provider cases passing and 60 combined focused checks passing. Priming-only inherited raw fallback after failed article filtering is fixed; no competing worker edits. These results are owner-reported, not rerun by this release lane. Paid live approval remains pending in the main chat: no paid calls or live grants, no product-source push/deploy authorized by this record. Owner reports original human preview PID19198 HTTP200 at loopback 127.0.0.1:8901 with source/server/catalog unchanged for this release task. Exact contracts/readiness live in owner docs/priming-acceptance.md. Retain owner control; later isolated integration and explicit activation review remain required.",
       "created_at": "2026-10-15T20:06:11.278067Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
-        "name": "ProductionCMS"
+        "name": "ProductionCMS",
+        "settings": {}
       }
     },
     {
@@ -41,6 +45,7 @@
       "text": "Integration source is preserved remotely on feature/PPY-58f107-curation-integration at 8c38d9c, draft PR https://github.com/AnthusAI/Papyrus/pull/213 into develop. Shared References controls, original-session guarded BFF, URL-only priming, optional classification explanations and narrow quality follow-up are integrated. Consumed UI0123708 + matching storage-owner8f24975 three-file delta over c677/9911 composition; quality from8317a95/7c8dbe6 and pushed Biblicus1b170876.16 integrated backend checks and actual Chrome Publish-only save/retry pass; latest30 focused bootstrap/HTTP/BFF checks and14 actual worker/metadata checks pass. Full newsroom baseline d86c89b:846 passed/48 failed/7 skipped; integration895 passed/47 failed/19 skipped, both214 subtests. All46 distinct current failures also fail on baseline; no introduced failing IDs remain. Full suite is not green; details docs/curation-integration-verification.md. Source commit and proof preserved; no source loss risk. Concrete shared gate: reviewed coherent Cyclotron codex/priming-shared-release remote FULL_SHA and lock, owner public branch/PR/tag authorization pending; no registry version invented. Hosted S3/principal/session composition stays gated; synthetic review authority is never activated in production. No merge/deploy. Keep task in_progress until integration lands.",
       "created_at": "2026-10-15T21:51:41.677216Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -56,6 +61,7 @@
       "text": "2026-10-16 urgent Submit review repair a4a2968: original8930 listener absent; restored temporaryloopbackPID24315/session55843 with existing state. Livepage/assets/context/status/history200, currentbothaccounts0labels/0accepted. NoRyanreviewsubmission/originaltabreload. Sharedoperationalreview requireslabel+explanation; now visibleprerequisite/read-only/pending messages plusper-rowfailures; request15sectimeout andactionable401/403/network/nonJSON/backenderrors preservedraft/stablerequestIDs. Client/SSR/changedfileESLintPASS. ActualCUA separate8931disposablefixture forced503 beforedispatch; alertretainedlabel/text, explicitretrysaved1label. Fixturestopped. SingleentryVitebuild1.2sec~1.8MB; noinstalls/fullbuild/cachecleanup/paidcalls/AWS/deployment. Cleanupownercoordinated;lowdiskcontinues. FixonexistingPR213,nopromotion.",
       "created_at": "2026-10-16T16:16:13.544796Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -71,6 +77,7 @@
       "text": "Optionaloperationalrationale repair5eb5ca6: UIlabelrequired/explanationoptional; TSnull/blankallowed, existingtrimnormalization. Canonicalowneradapterpatchcdc70ff consumedexact (source-only), omitted/nulltextoptional/nontext+oversize4000refused, noSDK/schema/replaychanges.10actualguardedembedded/remoteHTTPcasesPASS +client/SSR/targetedESLint. ActualCUA isolated8931Publishblankenabled, forced503preservedlabel+blank, explicitretrysaved1label; fixtureclosed/stopped. Tinybuild824ms output1760KiB unchanged, newfixture1728KiB, free~15GiB. Live8930catalognow1operatorreview(notagent), preserved. Auto-review DENIED stoppinglive8930PID24315/session55843 toloadadapter becauseactiveuserpreview/noexplicitstopauthorization; no workaround/restart. Thus sourcefix/testcomplete,newassetsserved,butliveblankrationalebackendacceptancePENDING explicitbriefrestartpermission. No usertabreload/submission, paidcall/deployment/install/cleanup. ExistingPR213updated,nopromotion.",
       "created_at": "2026-10-16T16:36:34.078077Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -86,6 +93,7 @@
       "text": "RestartblockRESOLVED: parent suppliedoriginaluserbugfixtranscript andclarified boundedstop/restartauthorized. Oneretry SAME Ctrl-Csession55843 succeeded; reopenedonlyowned8930samepreservedstatePID33566/session8945, canonicalcdc70ffmatchingadapterloaded. HTTP200andactualCUAseparateagenttabread verify savedoperatorreviewrenders/count1unchanged. NoRyanreviewsubmitted/edited, nooriginaltabreload. PR213optionalrationalefix5eb5ca6+restartdocsa7c4d1d, labelsrequired/explanationoptional,10HTTP+UI/client/lint+isolatedblankretrybrowserPASS. Output1760KiB,newfixture1728KiB,~15GiBfree. Noremainingrestartblocker; nopaidcalls/install/fullbuild/clouddeployment/sharedpublicpush.",
       "created_at": "2026-10-16T16:38:09.674897Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -101,6 +109,7 @@
       "text": "2026-10-16 reconciliation: CMS shell is shipped; account-scoped integration remains unfinished. Support both remote central lab with multiple publication classifier outputs and embedded deployment-local storage, with identical monitoring/steering/labeling UI. Shared Anthus publications versus embedded DataParade are examples, not hardcoded tenants. Central prospectus.anth.us belongs to papyrus-production; lab.cyclotron.anth.us calls it using roles, never long-lived keys. Shared adaptercdc70ff; Biblicus1b170876 and verification79861bb are local/source evidence. Hosted authorization, storage authority, release/pinning and real route acceptance remain gates.",
       "created_at": "2026-10-16T20:46:43.209514Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6.1-sol",
@@ -116,6 +125,7 @@
       "text": "2026-10-17 next-step plan recorded in the description. Priority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.",
       "created_at": "2026-10-17T06:22:39.843548Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6.1-sol",
@@ -124,20 +134,31 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "b00aa6e1-9b68-4762-a48a-eaaa89e1fc7c",
+      "author": "unknown",
+      "text": "2026-10-17 decision (Ryan): Prospectus is the single account service for the hosted Papyrus newsroom, Cyclotron Lab and the site cutovers. Each Papyrus site keeps its own Google project and OAuth client for sign-in; after sign-in, every site asks Prospectus which SaaS accounts the user belongs to, their membership and role, and whether they have Cyclotron Lab access. No site keeps its own account or membership tables. This task is now 'integrate with Prospectus'; do not design a separate account/membership store. The Prospectus API gap audit is owned by the newsprint redesign thread.",
+      "created_at": "2026-10-17T06:31:20.904795Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-17T06:22:39.843588Z",
+  "updated_at": "2026-10-17T06:31:20.904923Z",
   "closed_at": null,
-  "agent": {
-    "platform": "codex",
-    "model": "GPT-6.1-Sol",
-    "name": "ProductionCMS"
-  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
     "project_label": "PPY",
     "source": "shared"
-  }
+  },
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "ProductionCMS",
+    "settings": {}
+  },
+  "agent_assignment": null
 }
