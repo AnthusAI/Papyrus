@@ -12,9 +12,19 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "92259fa5-692c-43f6-934d-23151f5f4feb",
+      "author": "unknown",
+      "text": "Part 1: branch chore/PPY-8a7e7a-purge-pilot-identifiers, PR https://github.com/AnthusAI/Papyrus/pull/227, CI green. default_corpus_key() in papyrus_content.steering, Python model constants, CI guard procedures/guards/check_pilot_identifiers.py with a shrinking baseline. Remaining: .tac defaults, coverage_theme section lenses from NewsroomSection, required brand/backend fields, inbound-email domain and base URL.",
+      "created_at": "2026-10-17T17:27:40.063395Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:40:19.352880Z",
-  "updated_at": "2026-10-17T16:40:19.353158Z",
+  "updated_at": "2026-10-17T17:27:40.063600Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

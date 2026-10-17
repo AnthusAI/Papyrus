@@ -12,9 +12,19 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b987d1de-42e9-4ec3-8cc4-f31132a78920",
+      "author": "unknown",
+      "text": "Branch fix/PPY-92dc64-home-path, PR https://github.com/AnthusAI/Papyrus/pull/226 (open against develop). CI green. grep -rn '/Users/' components lib app skills src returns nothing. UI emits only executable and args; assignment_executors defaults cwd to BIBLICUS_ROOT (BIBLICUS_WORKDIR).",
+      "created_at": "2026-10-17T17:27:39.442635Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:38:25.946691Z",
-  "updated_at": "2026-10-17T16:38:25.947010Z",
+  "updated_at": "2026-10-17T17:27:39.442806Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

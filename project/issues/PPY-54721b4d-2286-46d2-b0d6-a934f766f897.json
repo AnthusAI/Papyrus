@@ -12,9 +12,19 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6577c9e5-d95a-4bb7-a0af-a13f121c08f7",
+      "author": "unknown",
+      "text": "Branch chore/PPY-54721b-repo-hygiene, PR https://github.com/AnthusAI/Papyrus/pull/225 (open against develop). CI green (python, ts, smoke). Kept the ai dependency: conversation.tsx and prompt-input.tsx import its types. npm run build not run locally (no amplify_outputs.json); typecheck shows only the pre-existing papyrus-amplify-outputs errors.",
+      "created_at": "2026-10-17T17:27:38.743238Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:38:10.474083Z",
-  "updated_at": "2026-10-17T16:38:10.474413Z",
+  "updated_at": "2026-10-17T17:27:38.743466Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
