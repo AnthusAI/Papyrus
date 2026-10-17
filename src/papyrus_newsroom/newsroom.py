@@ -24,6 +24,7 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
+from papyrus_content.biblicus_runtime import biblicus_python_executable
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
@@ -5147,10 +5148,7 @@ def _build_biblicus_block_context_pack(
 
 
 def _run_biblicus(args: list[str], corpus: dict[str, Any], stdin_text: str | None = None) -> dict[str, Any]:
-    python = BIBLICUS_ROOT / ".venv" / "bin" / "python"
-    if not python.exists():
-        raise ValueError(f"Biblicus virtualenv python not found: {python}")
-    command = [str(python), "-m", "biblicus", *args]
+    command = [biblicus_python_executable(), "-m", "biblicus", *args]
     result = subprocess.run(
         command,
         cwd=BIBLICUS_ROOT,

@@ -10,7 +10,8 @@ import subprocess
 from typing import Any, Callable
 
 from .env import BIBLICUS_ROOT
-from .reference_url_text import _biblicus_env, _biblicus_python_executable, _json_object_or_none
+from .biblicus_runtime import biblicus_python_executable
+from .reference_url_text import _biblicus_env, _json_object_or_none
 
 _HTTP_URI_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
 _LOCAL_HTML_SOURCE_URI = "https://papyrus.local/imported-html"
@@ -178,7 +179,7 @@ def _run_biblicus_web_metadata(payload: dict[str, Any]) -> dict[str, Any]:
             }
         )
     command = [
-        str(_biblicus_python_executable()),
+        biblicus_python_executable(),
         "-m",
         "biblicus",
         "extract",
