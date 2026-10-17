@@ -13,6 +13,14 @@
     {
       "target": "PPY-70d9fdd4-9393-45c3-bd56-73bacb5a44af",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3626cdde-6132-4d0a-9a70-24629aac5e57",
+      "type": "blocked-by"
     }
   ],
   "comments": [
@@ -52,7 +60,7 @@
     }
   ],
   "created_at": "2026-10-15T00:50:25.185137Z",
-  "updated_at": "2026-10-17T06:23:04.826367Z",
+  "updated_at": "2026-10-17T06:24:14.141849Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
