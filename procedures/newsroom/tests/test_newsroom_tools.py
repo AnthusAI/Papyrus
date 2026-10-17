@@ -3723,7 +3723,18 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(plan["summary"]["researchAssignmentCount"], 2)
         self.assertEqual(plan["summary"]["slotCount"], 3)
         self.assertEqual(plan["summary"]["reportingAssignmentCount"], 5)
-        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in plan["records"]))
+        self.assertFalse(any(record["modelName"] == "EditionItem" for record in plan["records"]))
+        candidate_content_items = [record["input"] for record in plan["records"] if record["modelName"] == "Item"]
+        reporting_assignments = [
+            record["input"] for record in plan["records"]
+            if record["modelName"] == "Assignment" and record["input"]["assignmentTypeKey"] == "reporting.edition-candidate"
+        ]
+        self.assertEqual(len(candidate_content_items), 5)
+        self.assertTrue(all(item["stage"] == "report" and item["status"] == "draft" for item in candidate_content_items))
+        self.assertEqual(
+            sorted(item["lineageId"] for item in candidate_content_items),
+            sorted(assignment["itemLineageId"] for assignment in reporting_assignments),
+        )
         forum_messages = [
             record for record in plan["records"]
             if record["modelName"] == "Message" and record["input"].get("messageKind") == "forum_post"
@@ -3793,7 +3804,10 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertTrue(result["degraded"])
         self.assertEqual(result["summary"]["researchPacketCount"], 2)
         self.assertEqual(result["summary"]["reportingPacketCount"], 5)
-        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in result["records"]))
+        self.assertFalse(any(record["modelName"] == "EditionItem" for record in result["records"]))
+        self.assertTrue(
+            all(record["input"]["stage"] == "report" for record in result["records"] if record["modelName"] == "Item")
+        )
         message_kinds = [
             record["input"]["messageKind"]
             for record in result["records"]

@@ -10,6 +10,10 @@ from urllib.parse import urlparse, urlunparse
 from .accession import execute_reference_accession_assignment
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
+from .content_item_lifecycle import (
+    content_item_lineage_for_new_assignment,
+    require_assignment_content_item_lineage_id,
+)
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
@@ -141,6 +145,16 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-research-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
+    content_item_lineage_id, new_content_item_version = content_item_lineage_for_new_assignment(
+        requested_lineage_id=normalize_string(options.get("content-item")),
+        assignment_id=assignment_id,
+        title=title,
+        summary=summary,
+        section_key=section_key,
+        stage="research",
+        actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
+        now=now,
+    )
     assignment = {
         "id": assignment_id,
         "assignmentTypeKey": assignment_type_key,
@@ -187,6 +201,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         "createdAt": now,
         "updatedAt": now,
         "newsroomFeedKey": f"assignment#{status}",
+        "itemLineageId": content_item_lineage_id,
     }
     event = {
         "id": f"assignment-event-{assignment_id}-created",
@@ -205,10 +220,13 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         {"modelName": "Assignment", "expected": assignment},
         {"modelName": "AssignmentEvent", "expected": event},
     ]
+    if new_content_item_version:
+        records.append({"modelName": "Item", "expected": new_content_item_version})
     changes = build_record_changes(client, records)
     result = {
         "assignmentId": assignment_id,
         "assignmentTypeKey": assignment_type_key,
+        "contentItemLineageId": content_item_lineage_id,
         "status": status,
         "sectionKey": section_key,
         "queueKey": queue_key,
@@ -276,6 +294,16 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-reporting-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
+    content_item_lineage_id, new_content_item_version = content_item_lineage_for_new_assignment(
+        requested_lineage_id=normalize_string(options.get("content-item")),
+        assignment_id=assignment_id,
+        title=title,
+        summary=summary,
+        section_key=section_key,
+        stage="report",
+        actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
+        now=now,
+    )
     assignment = {
         "id": assignment_id,
         "assignmentTypeKey": assignment_type_key,
@@ -313,6 +341,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         "createdAt": now,
         "updatedAt": now,
         "newsroomFeedKey": f"assignment#{status}",
+        "itemLineageId": content_item_lineage_id,
     }
     event = {
         "id": f"assignment-event-{assignment_id}-created",
@@ -331,10 +360,13 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         {"modelName": "Assignment", "expected": assignment},
         {"modelName": "AssignmentEvent", "expected": event},
     ]
+    if new_content_item_version:
+        records.append({"modelName": "Item", "expected": new_content_item_version})
     changes = build_record_changes(client, records)
     result = {
         "assignmentId": assignment_id,
         "assignmentTypeKey": assignment_type_key,
+        "contentItemLineageId": content_item_lineage_id,
         "status": status,
         "sectionKey": section_key,
         "queueKey": queue_key,
@@ -2360,8 +2392,9 @@ def run_copywriting_assignment(
         raise ValueError(f"Assignment {assignment_id} was not found.")
     meta = assignment_metadata(client, assignment)
     relations = client.list_semantic_relations_by_subject_state(semantic_state_key("assignment", assignment_id))
-    item_ids = _produced_item_ids_from_relations(relations)
-    items = list(client.get_records_by_id("Item", item_ids).values())
+    content_item_versions = client.list_by_index(
+        "itemsByLineageAndVersion", require_assignment_content_item_lineage_id(assignment)
+    )
     packet_message_id = (
         normalize_string(options.get("message"))
         or normalize_string(meta.get("sourceReportingPacketMessageId"))
@@ -2383,8 +2416,7 @@ def run_copywriting_assignment(
         assignment_metadata=meta,
         reporting_packet_message=reporting_message,
         reporting_packet_payload=load_message_metadata_payload(client, reporting_message),
-        semantic_relations=relations,
-        existing_items=items,
+        existing_items=content_item_versions,
         actor_label=actor_label,
         actor_sub=auth_claims.get("sub"),
     )

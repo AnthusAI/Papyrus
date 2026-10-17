@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "079fbc34-bb5e-43f8-a77b-cf3e36ffde55",
+  "issue_id": "PPY-8de80b55-b790-460c-9f38-90516bb49fe4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T13:22:29.498Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Content item lineage from dispatch through copywriting",
+    "description": "Add Item.stage and Assignment.itemLineageId with indexes. Research and reporting creation and Coverage Theme dispatch create or reuse the content item; editor select/brief and copywriting continue the same lineage; publish and unpublish set the stage.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+    "labels": []
+  }
+}

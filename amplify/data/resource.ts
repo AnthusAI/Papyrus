@@ -970,9 +970,11 @@ const schema = a.schema({
       createdAt: a.datetime().required(),
       updatedAt: a.datetime().required(),
       newsroomFeedKey: a.string(),
+      itemLineageId: a.id(),
     })
     .secondaryIndexes((index) => [
       index("newsroomFeedKey").sortKeys(["createdAt"]).queryField("listAssignmentsByNewsroomFeedAndCreatedAt"),
+      index("itemLineageId").sortKeys(["createdAt"]).queryField("listAssignmentsByItemLineageAndCreatedAt"),
       index("queueStatusKey").sortKeys(["priority", "createdAt"]).queryField("listAssignmentsByQueueStatusAndPriority"),
       index("assignmentTypeKey").sortKeys(["status", "createdAt"]).queryField("listAssignmentsByTypeStatusAndCreatedAt"),
       index("status").sortKeys(["updatedAt"]).queryField("listAssignmentsByStatusAndUpdatedAt"),
@@ -1733,6 +1735,7 @@ const schema = a.schema({
       type: a.string().required(),
       status: a.string().required(),
       typeStatus: a.string().required(),
+      stage: a.string(),
       slug: a.string().required(),
       shortSlug: a.string(),
       section: a.string(),
@@ -1764,6 +1767,7 @@ const schema = a.schema({
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
+      index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),

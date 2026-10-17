@@ -15042,6 +15042,9 @@ function buildUiCopywritingAssignment({ actorLabel, assignment, decision, messag
   message: MessageRecord;
   now: string;
 }): AssignmentRecord {
+  if (!assignment.itemLineageId) {
+    throw new Error(`Assignment ${assignment.id} has no content item lineage; copywriting must continue the same content item.`);
+  }
   const type = decision === "brief" ? "brief" : "article";
   const assignmentTypeKey = type === "brief" ? "copywriting.brief-draft" : "copywriting.article-draft";
   const section = assignment.sectionKey ?? assignment.sectionId ?? "unsectioned";
@@ -15094,6 +15097,7 @@ function buildUiCopywritingAssignment({ actorLabel, assignment, decision, messag
     createdAt: now,
     updatedAt: now,
     newsroomFeedKey: "assignment#open",
+    itemLineageId: assignment.itemLineageId,
     metadata,
   };
 }

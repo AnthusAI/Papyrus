@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .catalog import semantic_relation_record
+from .content_item_lifecycle import require_assignment_content_item_lineage_id
 from .ids import hash_short, hash_stable, safe_id
 from .model_attachments import attachment_record, build_json_model_payload_attachment
 from .reporting_packet_review import REPORTING_PACKET_KIND
@@ -23,7 +24,6 @@ def build_copywriting_run_plan(
     assignment_metadata: dict[str, Any] | None = None,
     reporting_packet_message: dict[str, Any],
     reporting_packet_payload: dict[str, Any] | None = None,
-    semantic_relations: list[dict[str, Any]] | None = None,
     existing_items: list[dict[str, Any]] | None = None,
     actor_label: str = "papyrus-cli",
     actor_sub: str | None = None,
@@ -50,7 +50,6 @@ def build_copywriting_run_plan(
         metadata=metadata,
         packet=packet,
         target_item_type=target_item_type,
-        semantic_relations=semantic_relations or [],
         existing_items=existing_items or [],
         actor_label=actor_label,
         now=now,
@@ -165,28 +164,17 @@ def _draft_item_for_copywriting(
     metadata: dict[str, Any],
     packet: dict[str, Any],
     target_item_type: str,
-    semantic_relations: list[dict[str, Any]],
     existing_items: list[dict[str, Any]],
     actor_label: str,
     now: str,
 ) -> dict[str, Any]:
-    existing = _latest_produced_draft_item(
-        assignment=assignment,
-        semantic_relations=semantic_relations,
-        existing_items=existing_items,
-    )
-    lineage_id = (
-        existing.get("lineageId")
-        if existing
-        else metadata.get("draftItemLineageId")
-        or f"item-copywriting-{safe_id(target_item_type)}-{hash_short([assignment['id'], metadata.get('sourceReportingPacketMessageId') or packet.get('messageId') or 'packet'])}"
-    )
+    lineage_id = require_assignment_content_item_lineage_id(assignment)
     versions = sorted(
-        [item for item in existing_items if (item.get("lineageId") or item.get("id")) == lineage_id],
+        [item for item in existing_items if item.get("lineageId") == lineage_id],
         key=lambda item: int(item.get("versionNumber") or 0),
         reverse=True,
     )
-    previous = versions[0] if versions else existing
+    previous = versions[0] if versions else None
     version_number = int(previous.get("versionNumber") or 0) + 1 if previous else 1
     record_id = f"{lineage_id}-v{version_number}"
     section = (
@@ -228,6 +216,7 @@ def _draft_item_for_copywriting(
         "type": target_item_type,
         "status": "draft",
         "typeStatus": f"{target_item_type}#draft",
+        "stage": "copywriting",
         "slug": f"draft-{safe_id(section)}-{hash_short([lineage_id, version_number, title])}",
         "shortSlug": None,
         "section": section,
@@ -313,30 +302,6 @@ def _reader_facing_body(*, packet: dict[str, Any], assignment: dict[str, Any], t
             or "This draft is based on a selected private reporting packet and needs editor review before publication."
         )
     return "\n\n".join(paragraphs)
-
-
-def _latest_produced_draft_item(
-    *,
-    assignment: dict[str, Any],
-    semantic_relations: list[dict[str, Any]],
-    existing_items: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    item_by_id = {item["id"]: item for item in existing_items if item.get("id")}
-    produced = sorted(
-        [
-            item_by_id[relation["objectId"]]
-            for relation in semantic_relations
-            if relation.get("relationState") != "superseded"
-            and relation.get("subjectKind") == "assignment"
-            and relation.get("subjectId") == assignment["id"]
-            and relation.get("objectKind") == "item"
-            and (relation.get("relationTypeKey") or relation.get("predicate")) == "produces"
-            and relation.get("objectId") in item_by_id
-        ],
-        key=lambda item: int(item.get("versionNumber") or 0),
-        reverse=True,
-    )
-    return produced[0] if produced else None
 
 
 def _assignment_event_for_copywriting(

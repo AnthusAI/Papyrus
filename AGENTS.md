@@ -290,12 +290,22 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   and append `AssignmentEvent` audit rows. The Newsroom `Assignments` tab
   should show claim/release/complete/cancel/reopen workflow actions, not
   edition-candidate culling.
+- **One content item, one lifecycle** (`docs/content-item-lifecycle.md`). A
+  piece of content is one `Item` lineage from the moment work on it starts
+  until publication. `Item.stage` carries the lifecycle (`idea`,
+  `assignment`, `research`, `report`, `editor_select`, `copywriting`,
+  `published`); `Item.versionState` still versions the copy. Research,
+  reporting and copywriting Assignments are work on that content item and
+  carry its `itemLineageId`; they never create a second piece of content. The
+  name editors see is `SiteBrand.contentItemName` (default Story). Do not
+  build Story-to-Article hierarchies.
 - Editorial selection is separate from assignment lifecycle. Reporting packet
   decisions use `AssignmentEvent.eventType` values
   `reporting_select`, `reporting_merge`, `reporting_brief`, `reporting_hold`,
   and `reporting_kill`, with structured metadata in a `ModelAttachment` owned by
-  the event. `select` and `brief` create child private copywriting Assignments
-  (`copywriting.article-draft` or `copywriting.brief-draft`), not `Item` rows.
+  the event. `select` and `brief` create private copywriting Assignments
+  (`copywriting.article-draft` or `copywriting.brief-draft`) on the same
+  content item, not new `Item` lineages.
   `hold` and `kill` create no Items; no reporting packet review creates
   `EditionItem` placement.
 - For dated edition setup, section slot planning, and surplus research
@@ -308,9 +318,10 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   by default). Link assignments to that edition, section, lane, topic, coverage
   node, lineage source, and evidence with `SemanticRelation` rows. Reporting
   agents produce private context packets first; explicit editor `select`/`brief`
-  decisions queue copywriting Assignments; copywriting is the first stage allowed
-  to create draft reader-facing `Item` records. Edition placement remains a
-  later copyediting/layout step.
+  decisions queue copywriting Assignments; copywriting is the first stage that
+  writes reader-facing copy, as the next version of the content item that
+  dispatch created at the `report` stage. Edition placement remains a later
+  copyediting/layout step.
 - EditionSlot orchestration guardrails:
   - planning/dispatch agents should start with
     `skills/edition-planning/SKILL.md`;
@@ -493,8 +504,9 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
 - Assignments are not `PublicationItem`s and should not appear in reader
   layout. Keep research and reporting output as private `Assignment` work
   products. Explicit editor selection queues private copywriting Assignments;
-  copywriting creates draft `article` or `brief` `Item` records for review.
-  Draft creation is not edition placement.
+  copywriting writes the draft copy as the next version of the same content
+  item, in `article` or `brief` format. Draft creation is not edition
+  placement.
 - `articleToPublicationItem` adapts legacy/fixture `Article` objects into
   generic items.
 - `publicationItemToArticle` adapts article items back to `Article` for direct
