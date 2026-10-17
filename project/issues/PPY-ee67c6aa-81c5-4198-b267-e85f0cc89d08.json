@@ -12,9 +12,19 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a1fb18d7-dd3c-4f60-ac44-f9c5f4438524",
+      "author": "unknown",
+      "text": "Branch claude/project-thread-q0omxw, PR https://github.com/AnthusAI/Papyrus/pull/224. Handler now requires SPF or DKIM pass aligned with the From domain, rejects spam/virus FAIL, sends no feedback email on rejection. Unit cases in email-submission.test.mjs cover spoofed sender, aligned pass, lookalike domain, forged headers. Verified locally: email-submission.test.mjs, typecheck. Not verified live against SES.",
+      "created_at": "2026-10-17T16:57:35.170393Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:37:55.387444Z",
-  "updated_at": "2026-10-17T16:37:55.387701Z",
+  "updated_at": "2026-10-17T16:57:35.170536Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
