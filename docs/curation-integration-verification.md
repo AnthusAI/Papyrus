@@ -86,6 +86,17 @@ unchanged, so the consumer proof above applies. The exact pending authorization
 is a push of that branch to public `AnthusAI/Cyclotron` and a draft PR into
 `main`; it does not include merge, tag, registry publication or activation.
 
+### Dependency published (2026-10-17)
+
+The shared release is now public: `codex/priming-shared-release` is merged into
+Cyclotron `main` and released as Python `0.21.0` with the `ui-v0.2.2` tag at
+`a565dafb1f6953e1eb4d2efb1069396303afe0c6`. Papyrus pins the UI package to the
+`ui-v0.2.2` release asset and the optional `cyclotron` Poetry group to that
+commit, with the `web` extra the curation host needs. CI installs the `priming`
+extra so the priming test modules import. The curation feature carries
+`@requires-cyclotron` and runs its step definitions whenever the `cyclotron`
+group is installed.
+
 ### Submit-review recovery (2026-10-16)
 
 The temporary 8930 listener was absent at diagnosis and was restored using the

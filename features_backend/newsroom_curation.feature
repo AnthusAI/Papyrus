@@ -1,3 +1,4 @@
+@requires-cyclotron
 Feature: Account-scoped reference curation in Papyrus
   Scenario Outline: Curate from either supported transport
     Given an authorized publication workspace using <mode> execution
