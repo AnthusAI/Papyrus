@@ -1,9 +1,5 @@
 from __future__ import annotations
 
+from papyrus_content.operator_errors import OperatorError
 
-class OperatorError(Exception):
-  """Operator-facing failure with a stable exit code."""
-
-  def __init__(self, message: str, *, exit_code: int = 2) -> None:
-    super().__init__(message)
-    self.exit_code = exit_code
+__all__ = ["OperatorError"]

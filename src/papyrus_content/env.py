@@ -27,11 +27,6 @@ def required_environment_value(name: str) -> str:
     return value
 
 
-_DOTENV_OVERRIDE_KEYS = frozenset({
-    "PAPYRUS_GRAPHQL_ENDPOINT",
-})
-
-
 def load_dotenv() -> None:
     for filename in (".env", ".env.local"):
         path = PAPYRUS_ROOT / filename
@@ -45,7 +40,7 @@ def load_dotenv() -> None:
             key = key.strip()
             if not key:
                 continue
-            if key in os.environ and key not in _DOTENV_OVERRIDE_KEYS:
+            if key in os.environ:
                 continue
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:

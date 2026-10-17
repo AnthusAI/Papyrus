@@ -5,7 +5,7 @@ import Link from "next/link";
 import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
-import { canReadNewsroomBoard, newsroomBoardConfig, projectNewsroomBoard, type NativeBoardIssue } from "../lib/newsroom-board";
+import { canReadNewsroomBoard, contentItemBoardType, newsroomBoardConfig, projectNewsroomBoard, type NativeBoardIssue } from "../lib/newsroom-board";
 import { getContentItemName, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { loadNewsroomAssignmentPage, loadNewsroomContentItemVersions, loadNewsroomReferencePage } from "./news-desk-taxonomy-client";
@@ -24,7 +24,7 @@ export function NewsroomBoardView() {
   const theme = useResolvedPapyrusTheme();
   const [lowMotion, setLowMotion] = useState(false);
   const [issues, setIssues] = useState<NativeBoardIssue[]>([]);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(contentItemBoardType());
   const [view, setView] = useState<"board" | "list">("board");
   const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);

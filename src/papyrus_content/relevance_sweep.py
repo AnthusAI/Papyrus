@@ -391,7 +391,7 @@ def references_decide_relevance(flags: list[str]) -> None:
     options = parse_options(flags)
     steering_config = require_steering_config(options.get("config"))
     if not steering_config.get("relevanceCyclotron"):
-        raise ValueError("This publication's steering config has no relevanceCyclotron block; see docs/relevance-cyclotron.md.")
+        raise ValueError("This publication's steering config has no relevanceCyclotron block; see docs/cyclotron-priming.md.")
     doctrine = load_publication_doctrine_seed(options.get("doctrine"))["doctrine"]
     max_count = int(options["max-count"]) if options.get("max-count") not in (None, True) else None
     worker = options.get("worker") if isinstance(options.get("worker"), str) else f"{socket.gethostname()}:{os.getpid()}"

@@ -1,54 +1,6 @@
-# Optional example priming: acceptance to first operation
+# Priming acceptance evidence (2026-10-15)
 
-Product story: `PPY-7227acea-e3f5-4bc2-b3c5-17f62568d49d`.
-Core initiative: `decision-flywheel-da886c09-7acb-45d3-acf8-c81585f26d8a`.
-
-The reviewable local flow uses actual shared `PrimingPanel` controls and the
-existing Papyrus research and web curation paths:
-
-1. Deliberately choose a representative source. Select research-paper extraction
-   or web extraction plus the existing metadata/summary generator. The configured
-   transformer owns source access and provider budgets.
-2. Review the complete candidate item and exact values supplied to the model.
-   Reject/revise extraction using transformation feedback. This feedback is not
-   a classification rationale. No item is imported yet.
-3. Choose every configured label; its human explanation is optional. Accept
-   explicitly. The existing local transaction saves the item and labels together.
-   Cancellation and invalid/stale drafts cannot be accepted. Acceptance retry is
-   idempotent. The panel's `onAccepted(draft)` supplies the acknowledged list and
-   classifier revision pins to the host; it does not start a Cyclotron.
-4. When deliberately creating a new Cyclotron, capture its accepted example list:
-
-   ```python
-   from papyrus_content.priming_bootstrap import AcceptedPrimingSnapshot
-
-   selected = AcceptedPrimingSnapshot.capture(
-       priming_service,
-       list_id=accepted_draft["contract"]["list_id"],
-       classifiers=[{"id":row["id"],"revision":row["revision"]}
-                    for row in accepted_draft["contract"]["classifiers"]],
-       definition=relevance_plan.definition,
-   )
-   ```
-
-5. Supply `priming_snapshot=selected` to `run_decide_relevance(...)`, or pass
-   `selected.for_definition(definition)` to the existing native
-   `Cyclotron.open(..., priming_examples=...)`. Labels, question and input fields
-   must match the destination definition. No implicit label/question translation
-   occurs. Existing stores refuse changed/retrofitted priming; use a deliberate
-   new store/version. Later catalog acceptance never changes a captured snapshot.
-6. The first operational decision sees the captured examples and human rationales
-   as training context when supplied; blank explanations add no context. Priming identities must be disjoint from pending reference
-   identities; the sweep checks overlap before claims or writes. Priming creates
-   no operational predictions/review counts, development set or held-out score.
-
-Omit `priming_snapshot` for normal operation. An empty/unaccepted selected list
-fails visibly, but selecting priming is never required to start operation.
-
-Structured CSV, JSON, JSONL and XLSX imports follow the same preview/acceptance
-transaction and bootstrap. CSV/XLSX templates are empty and derive fields and
-label choices from the configured schema and classifier revisions. They contain
-no invented example content or judgments.
+Archived verification log split out of the priming acceptance page. The live guide is [cyclotron-priming.md](../cyclotron-priming.md); this file records what was verified on 2026-10-15 and is not maintained.
 
 ## Evidence and limitations
 
@@ -151,16 +103,16 @@ path, including worker cwd/interpreter/PYTHONPATH.
 
 Existing setup references:
 
-- [README Python setup](../README.md#python-newsroom-package) recommends Poetry
+- [README Python setup](../python-cli-and-testing.md) recommends Poetry
   and `scripts/install-biblicus-local.sh`.
-- [The installer](../scripts/install-biblicus-local.sh) accepts
+- [The installer](../../scripts/install-biblicus-local.sh) accepts
   `BIBLICUS_WORKDIR` and defaults to extras `web,ner,markitdown`. It has not been
   run; PDF extraction works using the existing Python environment plus worker
   source. No global environment was changed.
-- [pyproject.toml](../pyproject.toml) declares `markitdown[all]` in the newsroom
+- [pyproject.toml](../../pyproject.toml) declares `markitdown[all]` in the newsroom
   extra; MarkItDown is unnecessary for the verified GROBID PDF path, but is
   required by the worker's generic web conversion.
-- [Worker bootstrap](newsroom-worker-bootstrap.md) covers cloud corpus workers.
+- [Worker bootstrap](../newsroom-worker-bootstrap.md) covers cloud corpus workers.
   Its S3 sync/GraphQL registration steps are unnecessary for this local,
   non-applying priming preview and were not run.
 - Existing `references_commands.py` and Biblicus `grobid_runtime.py` define
