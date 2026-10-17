@@ -26,6 +26,7 @@ export const anthUsBrand: SiteBrand = {
   mastheadSubtitle: "AI Solutions",
   backToHomeLabel: "Back to Anthus",
   articleTitleSuffix: "Anthus",
+  contentItemName: { singular: "Story", plural: "Stories" },
   placeholderByline: "Ryan Porter",
   // The source site is a blog with a long single-column measure, not a
   // newsprint grid.

@@ -44,6 +44,7 @@ assert.equal(anthus.appTitle, "Anthus");
 assert.equal(anthus.publicationName, "Anthus");
 assert.equal(anthus.mastheadTitle, "Anthus");
 assert.equal(anthus.articleTitleSuffix, "Anthus");
+assert.deepEqual(anthus.contentItemName, { singular: "Story", plural: "Stories" });
 assert.equal(anthus.placeholderByline, "Ryan Porter");
 assert.match(anthus.appDescription, /self-aligning AI systems/);
 assert.match(anthus.textFont, /Montserrat/);

@@ -64,6 +64,17 @@ export type SiteBrandVideo = {
   rhythm?: Record<string, unknown>;
 };
 
+/**
+ * The publication's name for its one content item. A content item keeps one
+ * identity and one lifecycle from idea through research, reporting,
+ * copywriting and publication; only the word editors see changes per
+ * publication (for example Story, Article or Post).
+ */
+export type ContentItemName = {
+  singular: string;
+  plural: string;
+};
+
 export type SiteBrand = {
   id: SiteBrandId;
   appTitle: string;
@@ -77,6 +88,7 @@ export type SiteBrand = {
   mastheadTaglineLines?: SiteBrandTaglineLine[];
   backToHomeLabel: string;
   articleTitleSuffix: string;
+  contentItemName: ContentItemName;
   placeholderByline: string;
   defaultPresentation: EditionPresentationFormat;
   forcedPresentation?: EditionPresentationFormat;
@@ -142,6 +154,7 @@ const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     mastheadSubtitle: "Inside Papyrus",
     backToHomeLabel: "Back to Papyrus",
     articleTitleSuffix: "Papyrus",
+    contentItemName: { singular: "Article", plural: "Articles" },
     placeholderByline: "Papyrus",
     defaultPresentation: "newsprint",
     textFont: SERIF_TEXT_FONT,
