@@ -1,0 +1,24 @@
+{
+  "id": "PPY-dfaabb20-a460-4fe5-a9dc-15d0e1b51bf4",
+  "title": "Front teasers without a continuation end mid-article in every layout scenario",
+  "description": "Found by the PPY-9bcfec cursor-continuity test. In every scenario in lib/layout-scenarios.ts at 1280, 640 and 390, the front-page blocks for river-court, night-trains and climate-ledger have no cutPolicy and no jumpTargetPage, yet their placed range ends with exhausted false, so article text after the endCursor is silently dropped. Decide per case whether the plan needs a continuation page and jumpTargetPage or the solver must grow the block until the text is exhausted, then remove KNOWN_UNTERMINATED_ARTICLE_IDS from scripts/test-newspaper-layout-cursor-continuity.ts.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T17:05:13.509795Z",
+  "updated_at": "2026-10-17T17:05:13.510217Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

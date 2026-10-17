@@ -19,6 +19,8 @@
     "test:newsroom": "node scripts/test-newsroom-session.cjs && node scripts/test-newsroom-forum-routes.cjs && node scripts/test-theme-packs.cjs",
     "test:revalidate-secret-policy": "tsx scripts/test-revalidate-secret-policy.ts",
     "test:rebuild-trigger-settings": "tsx scripts/test-rebuild-trigger-settings.ts",
+    "test:newspaper-layout-cursor-continuity": "tsx scripts/test-newspaper-layout-cursor-continuity.ts",
+    "test:pretext-layout": "tsx scripts/test-pretext-layout.ts",
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",
     "test:theme-packs": "node scripts/test-theme-packs.cjs",
     "test:anth-us-brand": "node scripts/test-anth-us-brand.cjs",
