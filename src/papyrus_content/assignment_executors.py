@@ -14,7 +14,7 @@ from typing import Any
 from .accession import execute_reference_accession_assignment
 from .assignments import assignment_metadata
 from .corpora import maybe_sync_corpus_from_cloud_before_analysis
-from .env import PAPYRUS_ROOT
+from .env import BIBLICUS_ROOT, PAPYRUS_ROOT
 from .options import normalize_string
 from .steering import require_steering_config
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
@@ -87,7 +87,7 @@ def execute_analysis_reindex_assignment(
         if not argv:
             continue
         cwd_value = command.get("cwd")
-        cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else PAPYRUS_ROOT
+        cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else BIBLICUS_ROOT
         if not cwd.is_absolute():
             cwd = (PAPYRUS_ROOT / cwd).resolve()
         label = str(command.get("label") or f"command-{index:02d}")

@@ -18,8 +18,8 @@ publication slots.
 | Need | Start here |
 | --- | --- |
 | Planning run | This skill |
-| Run/review cycle | [`skills/newsroom-story-cycle/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/newsroom-story-cycle/SKILL.md) |
-| Data contract truth | [`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md) |
+| Run/review cycle | [`skills/newsroom-story-cycle/SKILL.md`](../newsroom-story-cycle/SKILL.md) |
+| Data contract truth | [`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md) |
 
 ## Read First
 
@@ -279,7 +279,7 @@ Legacy topic aliases such as `deskCategoryKey`, `focusCategoryKey`,
 but sections are the desk identity. Topics are knowledge scope.
 
 The current automated-publication desk workflow is documented in
-[`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md).
+[`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md).
 
 ## Semantic Links
 
