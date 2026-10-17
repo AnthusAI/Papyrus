@@ -10,6 +10,7 @@ class FixedWidthOffscreenCanvas {
 }
 (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas = FixedWidthOffscreenCanvas;
 
+import { getPreparedTextCacheMissCount } from "../lib/pretext-layout";
 import { articles } from "../lib/articles";
 import { normalizeEditionLayoutPlan, validateEditionLayoutPlanForItems, type EditionLayoutPlan } from "../lib/layout-plan";
 import { createFixtureEditionLayoutPlan, layoutScenarios } from "../lib/layout-scenarios";
@@ -227,6 +228,16 @@ for (const pageWidth of PAGE_WIDTHS) {
     () => validateEditionLayoutPlanForItems(planAdvertisingPageWithoutContinuation, items),
     /advertises page 2 but that page has no startCursor "current" frame for flow river-court/,
   );
+}
+
+{
+  const items = createFixtureItems();
+  const plan = createFixturePlan();
+  buildNewspaperLayout(items, 1280, VIEWPORT_HEIGHT, plan);
+  const preparedTextCountAfterFirstSolve = getPreparedTextCacheMissCount();
+  assert.ok(preparedTextCountAfterFirstSolve > 0, "first solve prepares text");
+  buildNewspaperLayout(items, 1280, VIEWPORT_HEIGHT, plan);
+  assert.equal(getPreparedTextCacheMissCount(), preparedTextCountAfterFirstSolve, "re-solving prepares no text that was already prepared");
 }
 
 console.log("newspaper layout cursor continuity ok");

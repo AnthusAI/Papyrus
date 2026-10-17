@@ -31,7 +31,7 @@ import {
 import {
   layoutNextLine,
   layoutTextLines,
-  prepareWithSegments,
+  prepareWithSegmentsCached,
   type LayoutCursor,
   type PreparedTextWithSegments,
   type TextLine,
@@ -450,7 +450,6 @@ type FrontArticleSolveOptions = {
 
 type FrontCompositionFlowMode = "offsetBody" | "integrated" | "titleStackedMedia" | "stackedMedia";
 
-type PreparedTextCache = Map<string, PreparedTextWithSegments>;
 
 type ArticleFrameCandidate = {
   block: SolvedBlock;
@@ -588,12 +587,11 @@ export function buildNewspaperLayout(
   const config = getLayoutConfig(pageWidth, viewportHeight);
   const itemsBySlug = new Map(items.map((item) => [item.slug, item]));
   const flows = createArticleFlows(items);
-  const prepared: PreparedTextCache = new Map();
   const pages: SolvedPage[] = [];
   const textRanges: PlacedTextRange[] = [];
 
   for (const pageSpec of layoutPlan.pages) {
-    const page = solvePage(pageSpec, itemsBySlug, flows, prepared, config);
+    const page = solvePage(pageSpec, itemsBySlug, flows, config);
     pages.push(page);
     textRanges.push(...collectPageTextRanges(page));
   }
@@ -623,20 +621,18 @@ function solvePage(
   pageSpec: LayoutPageSpec,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
 ): SolvedPage {
   if (pageSpec.presetId === "front.mosaic") {
-    return solveFrontMosaicPage(pageSpec, itemsBySlug, flows, prepared, config);
+    return solveFrontMosaicPage(pageSpec, itemsBySlug, flows, config);
   }
-  return solveStackedEditorialPage(pageSpec, itemsBySlug, flows, prepared, config);
+  return solveStackedEditorialPage(pageSpec, itemsBySlug, flows, config);
 }
 
 function solveFrontMosaicPage(
   pageSpec: LayoutPageSpec,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
 ): SolvedPage {
   const regionSpec = pageSpec.regions[0];
@@ -652,18 +648,26 @@ function solveFrontMosaicPage(
   }));
   const previewFlows = new Map<string, ArticleFlow>();
   const provisionalBlocks = solvedPlacements.map((placement) => (
-    solveFrontArticleFrame(placement, itemsBySlug, previewFlows, prepared, config, pageSpec.pageNumber)
+    solveFrontArticleFrame(placement, itemsBySlug, previewFlows, config, pageSpec.pageNumber)
   ));
   const rowHeights = getSolvedResponsiveFrontRowHeights(baseRowHeights, provisionalBlocks, config);
   const finalPlacements = solvedPlacements.map((placement) => ({
     ...placement,
     rowHeight: getResponsiveFrontPlacementHeight(placement, rowHeights, config.rowGap),
   }));
-  const blocks = finalPlacements.map((placement) => (
-    solveFrontArticleFrame(placement, itemsBySlug, flows, prepared, config, pageSpec.pageNumber, {
+  const flowKeysResolvedAgain = new Set<string>();
+  const blocks = finalPlacements.map((placement, index) => {
+    const flowKey = placement.block.flowKey ?? placement.block.itemId;
+    const provisionalBlock = provisionalBlocks[index];
+    const provisionalRowHeightStillHolds = placement.rowHeight === solvedPlacements[index].rowHeight;
+    if (provisionalRowHeightStillHolds && !flowKeysResolvedAgain.has(flowKey)) {
+      return adoptProvisionalFrontBlock(provisionalBlock, placement, itemsBySlug, flows);
+    }
+    flowKeysResolvedAgain.add(flowKey);
+    return solveFrontArticleFrame(placement, itemsBySlug, flows, config, pageSpec.pageNumber, {
       enforcePlacementHeight: true,
-    })
-  ));
+    });
+  });
   const gridHeight = getFrontPageGridHeightFromRowHeights(rowHeights, config.rowGap);
   const frontFooter = solveFrontFooter(blocks, config, pageSpec.pageNumber);
   const regionY = config.pageChrome.pagePaddingTop + config.pageChrome.mastheadHeight + config.pageChrome.frontGridMarginTop;
@@ -692,6 +696,20 @@ function solveFrontMosaicPage(
       },
     ],
   };
+}
+
+function adoptProvisionalFrontBlock(
+  provisionalBlock: SolvedBlock,
+  placement: FrontArticlePlacement,
+  itemsBySlug: Map<string, PublicationItem>,
+  flows: Map<string, ArticleFlow>,
+): SolvedBlock {
+  const { block: blockSpec } = placement;
+  const flow = getOrCreateFlow(flows, blockSpec.flowKey ?? blockSpec.itemId, requireArticleItem(blockSpec.itemId, itemsBySlug));
+  if (blockSpec.startCursor === "beginning") resetArticleFlow(flow);
+  if (provisionalBlock.textRange) commitTextRange(flow, provisionalBlock.textRange);
+  commitUsedImageFurniture(flow, provisionalBlock.furniture ?? []);
+  return provisionalBlock;
 }
 
 function getActiveFrontResponsiveLayout(regionSpec: LayoutRegionSpec, config: LayoutConfig): FrontResponsiveLayoutSpec | null {
@@ -941,7 +959,6 @@ function solveFrontArticleFrame(
   placement: FrontArticlePlacement,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
   pageNumber: number,
   options: FrontArticleSolveOptions = {},
@@ -954,7 +971,7 @@ function solveFrontArticleFrame(
   const span = placement.gridPlacement?.columnSpan ?? Math.min(blockSpec.span?.preferred ?? 1, config.columnCount);
   const blockWidth = getSpanWidth(config, span);
   if (blockSpec.composition) {
-    return solveComposedFrontArticleFrame(placement, item, flow, prepared, config, pageNumber, span, blockWidth, options);
+    return solveComposedFrontArticleFrame(placement, item, flow, config, pageNumber, span, blockWidth, options);
   }
   const preludeImage = createFrontPreludeImage(item, blockSpec, blockWidth, config, flow.usedImageAssetIds);
   const storyRole = resolveFrontStoryRole(blockSpec, span, preludeImage !== null);
@@ -973,7 +990,7 @@ function solveFrontArticleFrame(
     bodySlotHeight = Math.max(bodySlotHeight, textLimit.height);
   }
   const startCursor = { ...flow.currentCursor };
-  const text = getPrepared(prepared, item, config.bodyFont);
+  const text = getPrepared(item, config.bodyFont);
   let maxHeight = getFrontTeaserMeasureHeight(textLimit, bodySlotHeight);
   let result = layoutTextLines({
     prepared: text,
@@ -1063,7 +1080,6 @@ function solveComposedFrontArticleFrame(
   placement: FrontArticlePlacement,
   item: ArticlePublicationItem,
   flow: ArticleFlow,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
   pageNumber: number,
   span: number,
@@ -1190,7 +1206,6 @@ function solveComposedFrontArticleFrame(
   const maxHeight = getComposedFrontTextMeasureHeight(textLimit, compositionMode, copyBandTop, bodySlotHeight);
   const textResult = layoutTextColumns({
     item,
-    prepared,
     cursor: startCursor,
     columnCount: localColumnCount,
     textHeight: maxHeight,
@@ -1386,7 +1401,6 @@ function solveStackedEditorialPage(
   pageSpec: LayoutPageSpec,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
 ): SolvedPage {
   const pageStartY = config.pageChrome.insideHeaderHeight;
@@ -1405,7 +1419,7 @@ function solveStackedEditorialPage(
         config.rhythm,
       ),
     );
-    const region = solveRegion(regionSpec, pageSpec, allocatedHeight, itemsBySlug, flows, prepared, config, currentY);
+    const region = solveRegion(regionSpec, pageSpec, allocatedHeight, itemsBySlug, flows, config, currentY);
     regions.push(region);
     currentY += region.height + (index < pageSpec.regions.length - 1 ? config.pageChrome.continuationSectionSeparatorHeight : 0);
   }
@@ -1435,7 +1449,6 @@ function solveRegion(
   allocatedHeight: number,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
   y: number,
 ): SolvedRegion {
@@ -1444,7 +1457,7 @@ function solveRegion(
 
   for (const blockSpec of regionSpec.blocks) {
     const remainingHeight = Math.max(getMinimumTextFrameHeight(config), snapDownToRhythm(allocatedHeight - currentY, config.rhythm));
-    const block = solveBlock(blockSpec, pageSpec, remainingHeight, itemsBySlug, flows, prepared, config);
+    const block = solveBlock(blockSpec, pageSpec, remainingHeight, itemsBySlug, flows, config);
     blocks.push({ ...block, y: currentY });
     currentY += block.height;
   }
@@ -1473,11 +1486,10 @@ function solveBlock(
   allocatedHeight: number,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
 ): SolvedBlock {
   if (blockSpec.type === "articleFrame") {
-    return solveArticleFrameBlock(blockSpec, pageSpec, allocatedHeight, itemsBySlug, flows, prepared, config);
+    return solveArticleFrameBlock(blockSpec, pageSpec, allocatedHeight, itemsBySlug, flows, config);
   }
   return solveStaticBlock(blockSpec, pageSpec, allocatedHeight, itemsBySlug, config);
 }
@@ -1488,7 +1500,6 @@ function solveArticleFrameBlock(
   allocatedHeight: number,
   itemsBySlug: Map<string, PublicationItem>,
   flows: Map<string, ArticleFlow>,
-  prepared: PreparedTextCache,
   config: LayoutConfig,
 ): SolvedBlock {
   const item = requireArticleItem(blockSpec.itemId, itemsBySlug);
@@ -1523,7 +1534,6 @@ function solveArticleFrameBlock(
     bodyBudget,
     offeredHeight,
     mustExhaust,
-    prepared,
     config,
   });
   const best = chooseBestCandidate(candidates, blockSpec.id);
@@ -1554,7 +1564,6 @@ function solveArticleFrameCandidates({
   bodyBudget,
   offeredHeight,
   mustExhaust,
-  prepared,
   config,
 }: {
   blockSpec: ArticleFrameBlockSpec;
@@ -1569,7 +1578,6 @@ function solveArticleFrameCandidates({
   bodyBudget: number;
   offeredHeight: number;
   mustExhaust: boolean;
-  prepared: PreparedTextCache;
   config: LayoutConfig;
 }): ArticleFrameCandidate[] {
   const localColumnCounts = getLocalColumnCountCandidates(blockSpec.localGrid?.columns, config, blockWidth);
@@ -1598,17 +1606,19 @@ function solveArticleFrameCandidates({
       const textHeights = mustExhaust
         ? getExhaustiveTextHeightVariants(Math.max(minimumHeight, bodyBudget), minimumHeight, localConfig)
         : getTextHeightVariants(Math.max(minimumHeight, bodyBudget), minimumHeight, localConfig);
+      const furnitureLayoutsAlreadyExhausted = new Set<string>();
       for (const textHeight of textHeights) {
         for (const pullQuoteVariant of pullQuoteVariants) {
           const pullQuote = createPullQuoteFurniture(item, pullQuoteVariant, localConfig, textHeight, image, blockSpec.chrome);
           if (blockSpec.pullQuote?.required && !pullQuote) continue;
+          const furnitureLayoutKey = JSON.stringify(pullQuote);
+          if (furnitureLayoutsAlreadyExhausted.has(furnitureLayoutKey)) continue;
 
           const furniture: SolvedFurniture[] = [];
           if (image) furniture.push(image);
           if (pullQuote) furniture.push(pullQuote);
           const textResult = layoutTextColumns({
             item,
-            prepared,
             cursor: startCursor,
             columnCount,
             textHeight,
@@ -1626,6 +1636,7 @@ function solveArticleFrameCandidates({
             config: localConfig,
           });
           if (!furnitureSufficiency.accepted) continue;
+          if (mustExhaust) furnitureLayoutsAlreadyExhausted.add(furnitureLayoutKey);
           const range = createTextRange({
             flow,
             pageId: pageIdFor(pageSpec.pageNumber),
@@ -1785,7 +1796,6 @@ function solveStaticBlock(
 
 function layoutTextColumns({
   item,
-  prepared,
   cursor,
   columnCount,
   textHeight,
@@ -1798,7 +1808,6 @@ function layoutTextColumns({
   minimumLineStartYByColumn = [],
 }: {
   item: ArticlePublicationItem;
-  prepared: PreparedTextCache;
   cursor: LayoutCursor;
   columnCount: number;
   textHeight: number;
@@ -1811,7 +1820,7 @@ function layoutTextColumns({
   minimumLineStartYByColumn?: number[];
 }): { columns: TextLine[][]; cursor: LayoutCursor; hasMore: boolean } {
   const columns: TextLine[][] = [];
-  const preparedText = getPrepared(prepared, item, localConfig.bodyFont);
+  const preparedText = getPrepared(item, localConfig.bodyFont);
   const columnWidth = getSpanWidth(localConfig, 1);
   let current = { ...cursor };
   let hasMore = true;
@@ -2933,7 +2942,7 @@ function measureWrappedTextBlock(
   lineHeight: number,
   paintHeight = lineHeight,
 ): { lineCount: number; height: number } {
-  const prepared = prepareWithSegments(text, font);
+  const prepared = prepareWithSegmentsCached(text, font);
   let cursor = { ...EMPTY_CURSOR };
   let lineCount = 0;
   while (lineCount < 20) {
@@ -3089,17 +3098,8 @@ function leadImageToFurniture(article: ArticlePublicationItem, obstacle: TextObs
   };
 }
 
-function getPrepared(
-  cache: PreparedTextCache,
-  article: ArticlePublicationItem,
-  font: string,
-): PreparedTextWithSegments {
-  const key = `${article.slug}:${font}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
-  const prepared = prepareWithSegments(getPublicationItemText(article), font, { whiteSpace: "pre-wrap" });
-  cache.set(key, prepared);
-  return prepared;
+function getPrepared(article: ArticlePublicationItem, font: string): PreparedTextWithSegments {
+  return prepareWithSegmentsCached(getPublicationItemText(article), font, { whiteSpace: "pre-wrap" });
 }
 
 function getLineLimitHeight(maxLines: number, lineHeight: number, linePaintHeight: number, rhythm: VerticalRhythm): number {
