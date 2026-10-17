@@ -1,0 +1,27 @@
+{
+  "id": "PPY-b090c600-ad2f-47cf-9862-0adabaa43a41",
+  "title": "Clean repository root of console-chat fix notes",
+  "description": "Repository root carries six June 2026 console-chat incident notes (CONSOLE-CHAT-FIX-STATUS.md, README-WEB-CONSOLE-FIX.md, VERIFICATION-SUMMARY.md, WEB-CONSOLE-CHAT-FIX.md, WEB-CONSOLE-CHAT-FIX-VERIFICATION.md, MANUAL-TEST-GUIDE.md). Move anything still useful under docs/ and delete the rest. Requested by Ryan, portfolio review 2026-10-16.",
+  "type": "chore",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T12:11:29.587525Z",
+  "updated_at": "2026-10-17T12:11:35.867739Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude",
+    "name": "Papyrus thread session",
+    "settings": {}
+  },
+  "agent_assignment": null
+}
