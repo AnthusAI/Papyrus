@@ -16,49 +16,106 @@ export const UNAUTHENTICATED_SENDER_RESPONSE_ERROR =
 export const REJECTION_KIND_UNAUTHENTICATED_SENDER = "unauthenticated_sender";
 
 export type InboundSenderAuthentication = {
-  spf: string;
-  dkim: string;
+  spfPassDomains: string[];
+  dkimPassDomains: string[];
+  spamVerdict: string;
+  virusVerdict: string;
 };
 
 const TRUSTED_AUTHENTICATION_RESULTS_SERVER_ID = "amazonses.com";
 
-export const UNVERIFIED_SENDER_AUTHENTICATION: InboundSenderAuthentication = { spf: "none", dkim: "none" };
+export const UNVERIFIED_SENDER_AUTHENTICATION: InboundSenderAuthentication = {
+  spfPassDomains: [],
+  dkimPassDomains: [],
+  spamVerdict: "unknown",
+  virusVerdict: "unknown",
+};
 
-export function isInboundSenderAuthenticated(authentication: InboundSenderAuthentication): boolean {
-  return authentication.spf === "pass" || authentication.dkim === "pass";
+function domainOfAddress(address: string): string {
+  return normalizeEmailAddress(address).split("@")[1] ?? "";
 }
 
-export function readInboundSenderAuthenticationFromSesReceipt(
+function domainsAreAligned(authenticatedDomain: string, fromDomain: string): boolean {
+  if (!authenticatedDomain || !fromDomain) return false;
+  return authenticatedDomain === fromDomain
+    || fromDomain.endsWith(`.${authenticatedDomain}`)
+    || authenticatedDomain.endsWith(`.${fromDomain}`);
+}
+
+export function isInboundSenderAuthenticated(
+  authentication: InboundSenderAuthentication,
+  fromAddress: string,
+): boolean {
+  if (authentication.spamVerdict === "fail" || authentication.virusVerdict === "fail") return false;
+  const fromDomain = domainOfAddress(fromAddress);
+  return [...authentication.spfPassDomains, ...authentication.dkimPassDomains]
+    .some((domain) => domainsAreAligned(domain, fromDomain));
+}
+
+export function readInboundScanVerdictsFromSesReceipt(
   receipt: Record<string, unknown> | undefined,
-): InboundSenderAuthentication | null {
-  if (!receipt) return null;
-  const verdictStatus = (key: string): string | null => {
-    const verdict = receipt[key];
-    if (!verdict || typeof verdict !== "object") return null;
-    const status = (verdict as { status?: unknown }).status;
-    return typeof status === "string" ? status.trim().toLowerCase() : null;
+): Pick<InboundSenderAuthentication, "spamVerdict" | "virusVerdict"> {
+  const verdictStatus = (key: string): string => {
+    const verdict = receipt?.[key];
+    const status = verdict && typeof verdict === "object" ? (verdict as { status?: unknown }).status : null;
+    return typeof status === "string" ? status.trim().toLowerCase() : "unknown";
   };
-  const spf = verdictStatus("spfVerdict");
-  const dkim = verdictStatus("dkimVerdict");
-  if (spf === null && dkim === null) return null;
-  return { spf: spf ?? "none", dkim: dkim ?? "none" };
+  return { spamVerdict: verdictStatus("spamVerdict"), virusVerdict: verdictStatus("virusVerdict") };
 }
 
-export function readInboundSenderAuthenticationFromRawMime(rawBytes: Uint8Array): InboundSenderAuthentication {
+function readHeaderBlock(rawBytes: Uint8Array): string[] {
   const raw = Buffer.from(rawBytes).toString("utf8");
   const headerBlockEnd = raw.search(/\r?\n\r?\n/);
   const headerBlock = headerBlockEnd === -1 ? raw : raw.slice(0, headerBlockEnd);
-  const unfoldedHeaders = headerBlock.replace(/\r?\n[ \t]+/g, " ").split(/\r?\n/);
-  const topmostResultsHeader = unfoldedHeaders.find((line) => /^Authentication-Results:/i.test(line));
-  if (!topmostResultsHeader) return UNVERIFIED_SENDER_AUTHENTICATION;
-  const value = topmostResultsHeader.replace(/^Authentication-Results:\s*/i, "");
-  const [serverId, ...methodResults] = value.split(";").map((part) => part.trim());
-  if (serverId.toLowerCase() !== TRUSTED_AUTHENTICATION_RESULTS_SERVER_ID) return UNVERIFIED_SENDER_AUTHENTICATION;
-  const resultFor = (method: string): string => {
-    const found = methodResults.find((part) => new RegExp(`^${method}\\s*=\\s*[a-z]+`, "i").test(part));
-    return found ? found.replace(new RegExp(`^${method}\\s*=\\s*`, "i"), "").split(/\s/)[0].toLowerCase() : "none";
+  return headerBlock.replace(/\r?\n[ \t]+/g, " ").split(/\r?\n/);
+}
+
+function firstHeaderValue(headerLines: string[], name: string): string | null {
+  const prefix = new RegExp(`^${name}:\\s*`, "i");
+  const line = headerLines.find((entry) => prefix.test(entry));
+  return line ? line.replace(prefix, "") : null;
+}
+
+export function readInboundSenderAuthenticationFromRawMime(rawBytes: Uint8Array): InboundSenderAuthentication {
+  const headerLines = readHeaderBlock(rawBytes);
+  const verdictHeader = (name: string): string =>
+    (firstHeaderValue(headerLines, name) ?? "unknown").trim().toLowerCase();
+  const scanVerdicts = {
+    spamVerdict: verdictHeader("X-SES-Spam-Verdict"),
+    virusVerdict: verdictHeader("X-SES-Virus-Verdict"),
   };
-  return { spf: resultFor("spf"), dkim: resultFor("dkim") };
+  const topmostResults = firstHeaderValue(headerLines, "Authentication-Results");
+  if (!topmostResults) return { ...UNVERIFIED_SENDER_AUTHENTICATION, ...scanVerdicts };
+  const [serverId, ...parts] = topmostResults.replace(/\([^)]*\)/g, "").split(";").map((part) => part.trim());
+  if (serverId.toLowerCase() !== TRUSTED_AUTHENTICATION_RESULTS_SERVER_ID) {
+    return { ...UNVERIFIED_SENDER_AUTHENTICATION, ...scanVerdicts };
+  }
+
+  const spfPassDomains: string[] = [];
+  const dkimPassDomains: string[] = [];
+  let spfPassed = false;
+  let envelopeFromDomain = "";
+  let heloDomain = "";
+  for (const part of parts) {
+    const result = /^(spf|dkim)\s*=\s*([a-z]+)/i.exec(part);
+    if (result) {
+      const passed = result[2].toLowerCase() === "pass";
+      if (result[1].toLowerCase() === "spf") spfPassed = spfPassed || passed;
+      else if (passed) {
+        const signingDomain = /header\.(?:i|d)\s*=\s*@?([^\s;]+)/i.exec(part)?.[1];
+        if (signingDomain) dkimPassDomains.push(signingDomain.toLowerCase().replace(/^.*@/, ""));
+      }
+    }
+    const envelopeFrom = /^(?:envelope-from|smtp\.mailfrom)\s*=\s*(\S+)/i.exec(part)?.[1];
+    if (envelopeFrom) envelopeFromDomain = domainOfAddress(envelopeFrom.replace(/^<|>$/g, ""));
+    const helo = /^(?:helo|smtp\.helo)\s*=\s*(\S+)/i.exec(part)?.[1];
+    if (helo) heloDomain = helo.toLowerCase();
+  }
+  if (spfPassed) {
+    const spfDomain = envelopeFromDomain || heloDomain;
+    if (spfDomain) spfPassDomains.push(spfDomain);
+  }
+  return { spfPassDomains, dkimPassDomains, ...scanVerdicts };
 }
 
 const URL_PATTERN = /https?:\/\/[^\s<>"')\]]+/gi;

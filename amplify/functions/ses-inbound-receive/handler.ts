@@ -4,7 +4,7 @@ import {
   buildEmailSubmissionMessageInput,
   isInboundSenderAuthenticated,
   readInboundSenderAuthenticationFromRawMime,
-  readInboundSenderAuthenticationFromSesReceipt,
+  readInboundScanVerdictsFromSesReceipt,
   REJECTION_KIND_UNAUTHENTICATED_SENDER,
   UNAUTHENTICATED_SENDER_RESPONSE_ERROR,
   UNVERIFIED_SENDER_AUTHENTICATION,
@@ -131,7 +131,7 @@ async function processInboundSubmission(inbound: InboundPayload): Promise<Record
   const resolvedMessageId = messageId ?? `message-email-submission-${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
   const dataClient = await getLambdaDataClient();
   const profileId = await lookupRegisteredUserProfileId(dataClient, inbound.senderEmail);
-  const senderAuthenticated = isInboundSenderAuthenticated(inbound.senderAuthentication);
+  const senderAuthenticated = isInboundSenderAuthenticated(inbound.senderAuthentication, inbound.senderEmail);
   const authorized = Boolean(profileId) && senderAuthenticated;
   const citations = authorized
     ? (inbound.citations.length > 0
@@ -402,7 +402,7 @@ async function resolveFromSesMail(
       senderEmail: loaded.senderEmail || senderEmail,
       recipients: loaded.recipients.length > 0 ? loaded.recipients : recipients,
       subject: loaded.subject !== "(no subject)" ? loaded.subject : subject,
-      senderAuthentication: readInboundSenderAuthenticationFromSesReceipt(receipt) ?? loaded.senderAuthentication,
+      senderAuthentication: mergeScanVerdicts(loaded.senderAuthentication, readInboundScanVerdictsFromSesReceipt(receipt)),
     };
   }
 
@@ -420,7 +420,7 @@ async function resolveFromSesMail(
     attachmentCount: 0,
     userComposedText: "",
     parentSubmissionMessageId: null,
-    senderAuthentication: readInboundSenderAuthenticationFromSesReceipt(receipt) ?? UNVERIFIED_SENDER_AUTHENTICATION,
+    senderAuthentication: { ...UNVERIFIED_SENDER_AUTHENTICATION, ...readInboundScanVerdictsFromSesReceipt(receipt) },
   });
 }
 
@@ -458,6 +458,19 @@ function enrichInboundPayload(payload: InboundPayload): InboundPayload {
     ...payload,
     parentSubmissionMessageId,
     userComposedText: payload.userComposedText || extractUserComposedReplyText(payload.bodyText),
+  };
+}
+
+function mergeScanVerdicts(
+  authentication: InboundSenderAuthentication,
+  receiptVerdicts: Pick<InboundSenderAuthentication, "spamVerdict" | "virusVerdict">,
+): InboundSenderAuthentication {
+  const worst = (fromMime: string, fromReceipt: string) =>
+    fromMime === "fail" || fromReceipt === "fail" ? "fail" : fromMime !== "unknown" ? fromMime : fromReceipt;
+  return {
+    ...authentication,
+    spamVerdict: worst(authentication.spamVerdict, receiptVerdicts.spamVerdict),
+    virusVerdict: worst(authentication.virusVerdict, receiptVerdicts.virusVerdict),
   };
 }
 
