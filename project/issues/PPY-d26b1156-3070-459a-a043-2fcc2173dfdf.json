@@ -1,0 +1,30 @@
+{
+  "id": "PPY-d26b1156-3070-459a-a043-2fcc2173dfdf",
+  "title": "P4-15: Pretext width cache is not cleared after web fonts load, so some loads wrap with fallback widths",
+  "description": "Found by the Threat Intelligence scaffold (P4-04, Threat-Intelligence#10): with Google-loaded fonts (brand fonts slot, Papyrus#150) the Pretext text measurement races the font load. Papyrus never clears Pretext width cache once the fonts are ready, so some page loads wrap lines with fallback-font widths and clip lines (edition height 17328 px vs 17648 px baseline when fonts load in time). Fix in Papyrus (lib/pretext-layout.ts, hooks use-brand-fonts-ready.ts and the rhythm overlay/blog presentation): when document.fonts reports the brand fonts ready (or a font loads), clear Pretext measurement caches and re-run layout; make it deterministic (no race), with tests, and verify against the P4-01 baseline (/Users/home/Projects/.baselines/threat-intelligence-20261007/) at 390/768/1280 px: heights equal on every load.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ae64759b-602e-449f-a898-a9305182773f",
+      "author": "home",
+      "text": "Fixed in Papyrus#155 (squash-merged to develop). Root cause: useBrandFontsReadyVersion only bumped a version number and never called Pretext clearCache(), so per-font widths measured with fallback metrics were reused after the brand fonts loaded. Fix: lib/brand-fonts-watch.ts clears the Pretext cache and then triggers re-layout on initial load and on every loadingdone event (SSR-safe no-op without document.fonts); newspaper.tsx font refresh also clears. Test: test:brand-fonts-watch (in test:ci:ts); brand render snapshots and rhythm layout pass; CI green. NOT yet verified against the 17328/17648 px baseline heights at 390/768/1280 (needs a TI build on the next published Papyrus release), so leaving open.",
+      "created_at": "2026-10-07T16:15:18.520668Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T16:09:17.566159Z",
+  "updated_at": "2026-10-07T16:15:18.520693Z",
+  "closed_at": null,
+  "right_now_summary": "Papyrus now clears font width caches and reruns layout when brand fonts load; baseline verification remains.",
+  "right_now_updated_at": "2026-10-07T16:15:20.283733Z",
+  "custom": {}
+}

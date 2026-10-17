@@ -1,0 +1,35 @@
+{
+  "id": "PPY-6cb16a18-a892-4733-b1d2-f4d9b0e5de9e",
+  "title": "M0 Spike: render one Anth.us article page in a Lambda, byte-identical and timed",
+  "description": "## Outcome\nProve, before any build-out, that one Anth.us article page renders inside a Lambda in milliseconds and produces exactly the bytes the full build produces.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md sections 1 (Measurements) and 10 (Spike).\n\n## Checklist\n- [ ] Test Lambda (Python 3.12, arm64, 2048 MB) packaged like content-actions (Markus 0.5.1, Pillow>=11.3, citeproc) plus Papyrus pin c98435f renderer and the Anth.us web/ modules\n- [ ] Image metadata supplied as meta.json (or a copied rendition cache) so no image is decoded\n- [ ] Render articles/agent-skills/index.html with Markus called in-process; PUT to a scratch bucket\n- [ ] Record split: import/init, render, image metadata, PUT\n\n## Acceptance (pass/fail)\n- PASS: object bytes equal the local full build's file (sha256 equal) AND warm invoke (render + PUT) < 200 ms AND cold start < 2 s.\n- FAIL: report the measured split and update v2 section 1.\n\n## Out of scope\nAny production resource, any template change, listings, renditions generation.\n\n## Dependencies\nNone.\n\n## Risk\nLow. Scratch bucket and test function only (create in papyrus-staging or a sandbox with Ryan's yes).\n\n## Estimate\n1 agent-hour.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7f18866b-5a60-43c2-8ecd-2b5f07aceee4",
+      "author": "home",
+      "text": "M0 spike result (2026-10-12). Overall: PARTIAL. Parity and cold start pass; warm under 200 ms passes only after one design change, and not for the heaviest article. Epic left open for Ryan.\n\n1. Bytes: PASS. sha256 equal for articles/agent-skills/, articles/maximize-profit-not-intelligence/ (18 images, 15 citations) and the /articles/ listing, against a cold full CMS-export build (Papyrus c98435f, Markus 0.5.1 in-process in the Lambda, subprocess in the reference). Condition: the version token had to be supplied. The reference build has two tokens: 8bfa91c69d80 on the 129 Markus pages and e10e352d5970 on the 68 generated pages, because it hashes assets/ including image renditions at different build stages. The Lambda cannot recompute that; M1 needs one deploy-time token.\n2. Warm render+PUT under 200 ms: FAIL as built (median 411 ms agent-skills, 584 ms rich article, 407 ms listing; 360 ms is pure-Python YAML parsing of 129 front matters per invocation). With front matter pre-parsed (JSON, lossless for this corpus): 102 ms agent-skills (prepare 51, render 5, PUT 35), 98 ms listing, 235 ms rich article (render 110, prepare 85, PUT 39). So PASS for typical articles, FAIL for the citation-heavy one by ~35 ms.\n3. Cold start under 2 s: PASS. Init 978 ms (Python imports 892 ms) across 4 cold samples (951-978 ms); first invoke adds 259 ms (agent-skills) to ~480 ms (rich; citeproc/CSL lazy imports), billed 1.24-1.47 s; client wall 1.66-2.0 s. YAML variant: Init 1261 ms, billed 1886 ms.\nPackage: 14.8 MB zip, 43 MB unzipped, 133 MB max memory at 2048 MB. Images: renditions assumed present; image metadata from precomputed size/alpha (no decode).\nCleanup done: stack papyrus-spike-m0 (bucket emptied first, only spike output) and its log group deleted, scratch dir and npm caches removed. Artifacts: /Users/home/Projects/.baselines/m0-spike-20261012/ (NOTES.md, handler, scripts, raw results).",
+      "created_at": "2026-10-12T19:00:36.675066Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-12T18:27:36.800187Z",
+  "updated_at": "2026-10-12T19:00:36.675089Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The Lambda spike will test byte-identical rendering and measure cold-start, render, and upload times.",
+  "right_now_updated_at": "2026-10-12T18:28:19.598050Z",
+  "custom": {}
+}

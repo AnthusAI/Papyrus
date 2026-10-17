@@ -1,6 +1,7 @@
 "use client";
 
 import { generateClient } from "aws-amplify/data";
+import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
 import type { Schema } from "../amplify/data/resource";
 import type { NewsDeskAppendix, NewsDeskCategoryTreeNode } from "../lib/content-types";
@@ -38,6 +39,7 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
+import { CONTENT_ITEM_STAGES, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
@@ -252,7 +254,7 @@ const UPDATE_MESSAGE_MUTATION = `
 const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
   query ListAssignmentsByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelAssignmentFilterInput) {
     listAssignmentsByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id assignmentTypeKey queueKey queueStatusKey status priority title summary assigneeType assigneeId assigneeKey claimedAt claimExpiresAt completedAt canceledAt corpusId categorySetId classifierId sectionId sectionKey sectionType sectionStatusKey sectionQueueStatusKey primaryFocusCategoryKey topicScopeCategoryKeys sourceSnapshotId importRunId createdBy createdAt updatedAt newsroomFeedKey }
+      items { id assignmentTypeKey queueKey queueStatusKey status priority title summary assigneeType assigneeId assigneeKey claimedAt claimExpiresAt completedAt canceledAt corpusId categorySetId classifierId sectionId sectionKey sectionType sectionStatusKey sectionQueueStatusKey primaryFocusCategoryKey topicScopeCategoryKeys sourceSnapshotId importRunId createdBy createdAt updatedAt newsroomFeedKey itemLineageId }
       nextToken
     }
   }
@@ -2156,6 +2158,41 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
   });
 }
 
+const CONTENT_ITEMS_BY_STAGE_QUERY = `
+  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { id lineageId versionNumber stage type status title headline slug section updatedAt }
+      nextToken
+    }
+  }
+`;
+
+export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
+  };
+  const field = "listItemsByStageAndUpdatedAt";
+  const versionsPerStage = await Promise.all(CONTENT_ITEM_STAGES.map(async (stage) => {
+    const versions: ContentItemVersionRecord[] = [];
+    let nextToken: string | null = null;
+    do {
+      const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+        query: CONTENT_ITEMS_BY_STAGE_QUERY,
+        variables: { stage, sortDirection: "DESC", limit: NEWSROOM_PAGE_LIMIT, nextToken },
+        authMode: USER_POOL_AUTH_MODE,
+      });
+      assertNoGraphQLErrors(response.errors);
+      const connection = response.data?.[field];
+      if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+      versions.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
+      nextToken = connection.nextToken ?? null;
+    } while (nextToken);
+    return versions;
+  }));
+  return versionsPerStage.flat();
+}
+
 export async function loadModelPayloadsForOwner(
   ownerKind: string,
   ownerId: string,
@@ -2569,8 +2606,7 @@ export async function runNewsroomKnowledgeQuery(input: Record<string, unknown>):
 
 export function hasTestEditorOverride(): boolean {
   if (typeof window === "undefined") return false;
-  const allowOverride = process.env.NODE_ENV === "test"
-    || process.env.NEXT_PUBLIC_ENABLE_TEST_EDITOR_OVERRIDE === "true";
+  const allowOverride = testEditorOverrideAllowed(process.env.NODE_ENV, process.env.NEXT_PUBLIC_ENABLE_TEST_EDITOR_OVERRIDE);
   if (!allowOverride) return false;
   return window.localStorage.getItem(TEST_EDITOR_STORAGE_KEY) === "true";
 }
@@ -3681,4 +3717,55 @@ function normalizeUnknownErrorMessage(error: unknown, fallback: string): string 
   } catch {
     return fallback;
   }
+}
+
+const CREATE_KNOWLEDGE_RAW_PAYLOAD_MUTATION = `
+  mutation CreateKnowledgeRawPayload($input: CreateKnowledgeRawPayloadInput!) {
+    createKnowledgeRawPayload(input: $input) { id }
+  }
+`;
+
+const GET_KNOWLEDGE_RAW_PAYLOAD_QUERY = `
+  query GetKnowledgeRawPayload($id: ID!) {
+    getKnowledgeRawPayload(id: $id) { id }
+  }
+`;
+
+/** The relevance cyclotron's latest cyclotron-status/v1 snapshot, as the sweep recorded it. */
+export async function loadCyclotronStatus(cyclotronId: string): Promise<import("cyclotron/cyclotron-status").CyclotronStatus | null> {
+  const { cyclotronStatusPayloadId, latestCyclotronStatus } = await import("../lib/relevance-status");
+  const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", cyclotronStatusPayloadId(cyclotronId), ["raw_payload"]);
+  return latestCyclotronStatus(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
+}
+
+/** Ask the next decide-relevance sweep to set or clear a manual review rate. */
+export async function requestCyclotronReviewRate(
+  cyclotronId: string,
+  request: import("../lib/relevance-status").ReviewRateRequest,
+): Promise<void> {
+  const { reviewRateRequestPayloadId, safeId } = await import("../lib/relevance-status");
+  const id = reviewRateRequestPayloadId(cyclotronId);
+  const existing = await runGraphql<{ getKnowledgeRawPayload?: { id: string } | null }>(GET_KNOWLEDGE_RAW_PAYLOAD_QUERY, { id });
+  if (!existing.getKnowledgeRawPayload) {
+    await runGraphql(CREATE_KNOWLEDGE_RAW_PAYLOAD_MUTATION, {
+      input: {
+        id,
+        ownerType: "cyclotron",
+        ownerId: safeId(cyclotronId),
+        payloadKind: "cyclotron-review-rate-request",
+        createdAt: request.requestedAt,
+        updatedAt: request.requestedAt,
+      },
+    });
+  }
+  await uploadModelPayloadForOwner({
+    ownerKind: "knowledgeRawPayload",
+    ownerId: id,
+    ownerLineageId: id,
+    role: "raw_payload",
+    sortKey: `review-rate-request-${request.requestedAt}`,
+    filename: "review-rate-request.json",
+    mediaType: "application/json",
+    content: JSON.stringify(request),
+  });
 }

@@ -4118,11 +4118,6 @@ def _storage_bucket_name() -> str | None:
     return str(storage.get("bucket_name") or storage.get("bucketName") or "").strip() or None
 
 
-def _lambda_auth_token(token: str) -> str:
-    sanitized = re.sub(r"^Bearer\s+", "", token.strip(), flags=re.IGNORECASE)
-    return f"PapyrusJwt {sanitized}"
-
-
 def _resolve_corpus(corpus_key: str, config_path: str = "") -> dict[str, Any]:
     config = _load_steering_config(config_path)
     key = _required(corpus_key, "corpus_key")

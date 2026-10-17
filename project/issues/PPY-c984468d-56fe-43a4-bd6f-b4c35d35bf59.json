@@ -1,0 +1,42 @@
+{
+  "id": "PPY-c984468d-56fe-43a4-bd6f-b4c35d35bf59",
+  "title": "Throttle AppSync resolver creation with wave-ordered data model stacks (429 mitigation)",
+  "description": "Implements plan section 5 option B in /Users/home/Projects/threat-intelligence-move-plan.md: order the Amplify data model nested stacks into waves (NestedStack.addDependency) so AppSync CreateResolver is not called with full parallelism in new accounts. Config backend.resolverWaveSize, default 12; dependencies only, no resource change. Branch fix/PPY-429wave-appsync-resolver-waves.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "ti-move-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "953bffca-f389-42bb-8013-0ce0cf7b7d7c",
+      "author": "home",
+      "text": "Branch fix/PPY-429wave-appsync-resolver-waves, PR #186 merged into develop (159642f). Mechanism: model nested stacks chained in waves of backend.resolverWaveSize (default 12, 0 disables) via NestedStack.addDependency in amplify/resolver-waves.ts. Full defineSiteBackend synth with vs without waves: 27 DependsOn lists changed (324 edges), no other resource differences, no cycle. CI green (ts, python, smoke). Released v1.0.0-next.40 (PyPI papyrus-newsroom 1.0.0.dev40 built by flow). Not deployed to AWS.",
+      "created_at": "2026-10-11T15:42:04.022845Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c1e1c38a-32c6-4aef-8b7b-6edf713ba7c7",
+      "author": "home",
+      "text": "Branch fix/PPY-429wave-appsync-resolver-waves, PR #186 merged into develop (159642f). Mechanism: model nested stacks chained in waves of backend.resolverWaveSize (default 12, 0 disables) via NestedStack.addDependency in amplify/resolver-waves.ts. Full defineSiteBackend synth with vs without waves: 27 DependsOn lists changed (324 edges), no other resource differences, no cycle. CI green. Released v1.0.0-next.40 (npm next, PyPI 1.0.0.dev40). Not deployed to AWS.",
+      "created_at": "2026-10-11T15:43:20.220813Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-11T14:55:28.420930Z",
+  "updated_at": "2026-10-11T15:43:20.220844Z",
+  "closed_at": "2026-10-11T15:42:08.686203Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "ticket agent"
+  },
+  "right_now_summary": "The resolver wave fix is merged and released but has not yet been deployed to AWS.",
+  "right_now_updated_at": "2026-10-11T15:43:21.533394Z",
+  "custom": {}
+}

@@ -1,0 +1,35 @@
+{
+  "id": "PPY-7835f22b-642a-440b-9962-8b90db6fc0f9",
+  "title": "Pilobol.us P3-02: template for NEW repo-less apps: optional domains/staging/reader domain, stackName, boto3 in reader specs (with PPY-a91e9c)",
+  "description": "## Goal\nMake the Papyrus infra template able to stand up Pilobol.us as NEW repo-less apps without touching the old ones: optional domains and staging branch (merge with PPY-a91e9c), reader domain optional, and the reader/staging specs get boto3.\n\n## Context (FACT, 2026-10-06)\n- Decision (Ryan): create new apps from the template, connect repos with the Amplify GitHub App in the console, move domains afterwards, delete the old apps and the old empty backend. The old CMS app d11eu9hbs2mipk lives in stack amplify-app-shell-pilobol-us (same stack name the template would use for siteId pilobol-us) and owns newsroom.pilobol.us; old reader d1od6t7lzbwanr owns pilobol.us and www. A domain can belong to one app only, so the new stack must start with NO domains and add them at the end.\n- The template (infra/amplify-app-shell/lib) today always creates newsroom and staging domains plus a staging branch, requires cms.domainName, hostedZoneId and repository, and for markus-static always creates a reader app with domain.\n- Generated reader and staging specs install papyrus-newsroom[markus]; S3 media needs boto3 (extra newsroom): export-published would fail (src/papyrus_content/media_store.py).\n- Connect test (2026-10-06, PPY-a91e9c): console connect to a repo-less app works; it may flip platform to WEB and replace the service role: verify and fix with aws amplify update-app --platform WEB_COMPUTE.\n\n## Exact steps\n1. Do PPY-a91e9c: cms.domainName and cms.stagingDomainName optional; omit the Domain resources when absent; staging branch optional (flag); reader.domainName optional; hostedZoneId and OAuth redirect URL validation adjusted (redirects may use the default amplifyapp.com origins). Synth tests with and without domains.\n2. Stack name: add optional site.json stackName (default amplify-app-shell-<siteId>) so the new stack can coexist with the old one until it is deleted (siteId stays pilobol-us; app names pilobol-us-cms and pilobol-us-reader).\n3. Reader and staging specs: install papyrus-newsroom[markus] plus boto3 (or rely on boto3 added to the markus extra by the guest-read ticket: coordinate, do it once).\n4. Update docs/site-hosting.md runbook and infra README.\n\n## Acceptance checks\n- npx tsx scripts/test-infra-site-config.ts and node scripts/test-infra-synth.mjs pass with a domain-free site.json (no AWS::Amplify::Domain in the template).\n- Spec snapshot shows boto3 available.\n\n## Rollback\nRevert the PR (develop only).\n\n## Risks\nDomain-free first deploy then domain add-on: the second stack update is where the domain moves (cert validation wait).\n\n## Needs Ryan\nNothing.\n\n## Common rules (Phase 3 Pilobol.us, simplified plan v2)\n- Plan: docs/migrations/pilobol-us.md (PR AnthusAI/Papyrus#128). Ryan 2026-10-06: Pilobol.us is PRE-PRODUCTION, Git history is the rollback, HARD CUTOVER: no soak, no Git freeze, no dual Git/CMS build path, no parity gate, brief downtime is fine. New Amplify apps are created from the template; the old apps and the old EMPTY backend are retired at the end.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan (or on his explicit yes).\n- Never build in /Users/home/Projects/Pilobol.us (its build rewrites content): use a fresh clone or a worktree.\n- Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. Pilobol.us repo: feature branch + PR, never push to its main. In /Users/home/Projects/Papyrus only run kbs.\n- Keep article text verbatim (the importer already does; narration hashes depend on it). The Auritus embed is origin-locked to the site key's origin; the production origin stays pilobol.us, so nothing changes there (narration will not play on temporary amplifyapp.com URLs: expected).\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-a91e9c41-2aa4-4234-b747-f002fff37fa2",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "3d1ba4f0-1bc4-4e5f-b228-235a7d23a6cb",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/131 (branch feature/PPY-7835f2-new-app-template): optional `stackName`, guest-read reader spec (`export-published --auth guest`, no refresh-jwt), reader role SSM statement removed. test-infra-synth and test-infra-site-config pass; CI green (python, ts, smoke). Not merged.",
+      "created_at": "2026-10-06T13:07:49.630770Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T12:38:23.788565Z",
+  "updated_at": "2026-10-06T13:13:52.940529Z",
+  "closed_at": "2026-10-06T13:13:52.940493Z",
+  "right_now_summary": "PR #131 adds optional stack names and guest-read reader specs; tests and CI pass, but it is not merged.",
+  "right_now_updated_at": "2026-10-06T13:13:54.472089Z",
+  "custom": {}
+}

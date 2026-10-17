@@ -1,0 +1,30 @@
+{
+  "id": "PPY-30b607fc-4a95-4640-977e-0b6879f5be9b",
+  "title": "Pretext staging build fails: cookies() called outside a request scope during prerender of /[year]/[month]/[day]",
+  "description": "Threat Intelligence new app dzefa11i80jyq, Amplify branch `staging` job 1 (2026-10-08 ~00:0xZ) fails in `next build` page data collection/prerender of `/[year]/[month]/[day]` with \"cookies was called outside a request scope\". In staging (SITE_ENV=staging) Papyrus reads the session cookie per request; Next tries to prerender the page at build time. Fix: make Pretext reader routes dynamic in staging without changing production or other brands.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "fdaed7e7-9012-46cc-bc13-c03734bebb6d",
+      "author": "home",
+      "text": "[2026-10-08T00:55Z] Fixed. Root cause: with PAPYRUS_CONTENT_SOURCE=drafts (SITE_ENV=staging) the reader repository reads the Cognito session through `cookies()`, but `generateStaticParams` for `/[year]/[month]/[day]` and `/articles/[slug]` called it during `next build` page-data collection (no request scope). Reproduced offline with a stub amplify_outputs.json (schema introspection) and `SITE_ENV=staging PAPYRUS_CONTENT_SOURCE=drafts next build`. Fix (AnthusAI/Papyrus PR #165, merge 938cbda, release 1.0.0-next.31): `generateStaticParams` returns [] in drafts mode (production output unchanged; ci ts incl. brand snapshots green); drafts repository calls `await cookies()` before Amplify so a static-render bailout is not swallowed as an anonymous read. Test in test:reader-static-params; docs/site-hosting.md. TI: pin-bump PR #15 (pure bump) merged as 2670fa5, main job 10 SUCCEED, Git staging fast-forwarded to 2670fa5, staging job 2 SUCCEED. Staging: / and /2026/july/04 and /articles/x and /archive -> 307 /newsroom with X-Robots-Tag noindex, nofollow; /newsroom 200 with STAGING banner. Prod threat-intelligence.anth.us / 307 -> /2026/july/04 200, /newsroom 200; anth.us/ and /about/ hashes unchanged. GAP: /robots.txt returns 404 on both staging and prod TI (Disallow not served; noindex header and meta present). Left open for that and Ryan hand checks.",
+      "created_at": "2026-10-08T00:55:22.820192Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-08T00:19:30.875502Z",
+  "updated_at": "2026-10-08T00:55:22.820222Z",
+  "closed_at": null,
+  "right_now_summary": "The staging build now succeeds after Papyrus made reader routes dynamic without changing production output.",
+  "right_now_updated_at": "2026-10-08T00:55:25.166355Z",
+  "custom": {}
+}

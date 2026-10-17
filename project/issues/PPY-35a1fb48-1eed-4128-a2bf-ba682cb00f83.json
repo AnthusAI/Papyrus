@@ -1,0 +1,30 @@
+{
+  "id": "PPY-35a1fb48-1eed-4128-a2bf-ba682cb00f83",
+  "title": "Staging preview route gets 403 StorageError reading S3, so staging.pilobol.us returns 500",
+  "description": "On the Pilobol.us CMS staging branch (app `dv0pdx67fk80m`, host staging.pilobol.us) `/` and `/articles` return 500. CloudWatch shows `StorageError` 403 from `.next/server/app/__preview/[[...path]]/route.js`.\n\nRoot cause: with the newsroom mounted at root (`newsroomBasePath \"\"`), `middleware.ts` treats no path as staging-gated (`isStagingGatedPath` returns false when newsroom is at root) but still rewrites every non-newsroom path, including `/`, to `/__preview`. An anonymous request therefore reaches the route, `getUrl` runs with Cognito guest credentials, and `preview/*` is readable only by the editor and admin groups, so S3 answers 403 and the route throws. The preview objects exist (`preview/index.html` etc. in the media bucket).\n\nFix: in root-newsroom mode rewrite only `.html` paths to the preview route and gate them (anonymous redirects to sign-in); the route turns a forbidden storage error into a 403 response.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0c49dbbb-b5c6-4737-8398-b76163f12092",
+      "author": "home",
+      "text": "Fix merged: AnthusAI/Papyrus PR 163 (squash 21ef5f4) on develop. Not yet deployed: the Pilobol.us app pins `@anthusai/papyrus` 1.0.0-next.24 in its own `package.json` (git `staging` branch), not in the CDK stack, so the template and stack need no change; staging needs that pin bumped to the release containing 21ef5f4 and a staging build.",
+      "created_at": "2026-10-07T21:44:54.122215Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T21:31:21.727736Z",
+  "updated_at": "2026-10-07T21:44:54.122239Z",
+  "closed_at": null,
+  "right_now_summary": "A fix was merged, but staging needs the package update and a new build before deployment.",
+  "right_now_updated_at": "2026-10-07T21:44:57.029656Z",
+  "custom": {}
+}

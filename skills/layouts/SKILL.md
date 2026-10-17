@@ -51,20 +51,15 @@ Required `.env` values for authoring:
 
 ```bash
 PAPYRUS_GRAPHQL_ENDPOINT=https://...
-PAPYRUS_GRAPHQL_JWT=...
 PAPYRUS_EDITION_SLUG=current
 ```
 
+Authenticate with `AWS_PROFILE` set to a profile for the site's authoring role.
+
 The endpoint can come from `amplify_outputs.json` when that file exists, or
-from the AppSync API in AWS. The JWT is a direct authoring token accepted by the
-AppSync Lambda authorizer. It is not a Cognito login session. If the JWT is
-missing or expired, the CLI cannot inspect or sync cloud content.
-
-Refresh JWTs with:
-
-```bash
-npm run auth:refresh-jwt -- --write-env .env
-```
+from the AppSync API in AWS. Requests are signed with SigV4 from your AWS
+credentials; it is not a Cognito login session. If credentials are missing or
+expired (`aws sso login`), the CLI cannot inspect or sync cloud content.
 
 Basic CLI checks:
 

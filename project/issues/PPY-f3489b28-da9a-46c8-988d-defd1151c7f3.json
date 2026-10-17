@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f3489b28-da9a-46c8-988d-defd1151c7f3",
+  "title": "Deploy on merge: CMS app builds main automatically, no personal credentials",
+  "description": "Enable auto-build on the CMS Amplify app's main branch in the app-shell template (or a GitHub Actions workflow with an OIDC role, like Sierrendipity's CI). Merging to main must deploy the backend with no human AWS step. Find out why auto-build is off on d7s858igkyct5 before changing it. Done: a merged no-op PR on Anth.us-Papyrus produces a successful CMS main job without anyone starting it.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:08:58.034484Z",
+  "updated_at": "2026-10-13T23:08:58.034599Z",
+  "closed_at": null,
+  "right_now_summary": "The CMS main branch now builds automatically after merges without personal AWS credentials.",
+  "right_now_updated_at": "2026-10-13T23:08:59.655728Z",
+  "custom": {}
+}

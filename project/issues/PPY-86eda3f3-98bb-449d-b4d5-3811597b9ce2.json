@@ -1,0 +1,44 @@
+{
+  "id": "PPY-86eda3f3-98bb-449d-b4d5-3811597b9ce2",
+  "title": "Drag approved editorial work to publish",
+  "description": "As an editor, I want the remaining production board behavior to use canonical CMS contracts.\n\nFeature: Drag approved editorial work to publish\n  Scenario: Observable acceptance\n    Given an authorized editor and a publishable linked Story with satisfied editorial prerequisites\n    When the editor drags work to the publication stage\n    Then the protected publish workflow records its result and a failed or forbidden action does not falsely show published content\n\nPlanning only. No new implementation, deployment, paid call or permission is authorized by this record.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "21269907-b450-4b71-8995-83f1b30d0163",
+      "author": "home",
+      "text": "2026-10-16 reconciliation: Status describes remaining acceptance, not implementation authorization.",
+      "created_at": "2026-10-16T20:46:43.042972Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "unfinished-work-reconciliation",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
+  "created_at": "2026-10-16T20:46:42.982803Z",
+  "updated_at": "2026-10-16T20:46:43.042999Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "unfinished-work-reconciliation",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

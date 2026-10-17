@@ -10,6 +10,8 @@ import type {
 } from "./content-types";
 import { graphqlContentRepository } from "./graphql-content-repository";
 import { READER_REVALIDATE_SECONDS } from "./reader-route-config";
+import type { VideoScriptRef } from "./video-script";
+import { getContentSource } from "./site-env";
 
 const bypassReaderCacheInDevelopment = process.env.NODE_ENV === "development";
 
@@ -34,7 +36,7 @@ function withReaderCache<T>(
   tags: string[],
   loader: () => Promise<T>,
 ): Promise<T> {
-  if (bypassReaderCacheInDevelopment) return loader();
+  if (bypassReaderCacheInDevelopment || getContentSource() === "drafts") return loader();
   return unstable_cache(loader, cacheKey, {
     tags,
     revalidate: READER_REVALIDATE_SECONDS,
@@ -85,5 +87,16 @@ export function getCachedLatestPublishedEdition(): Promise<EditionRouteSummary |
     ["reader-latest-published-edition"],
     [EDITIONS_CACHE_TAG, ARCHIVE_CACHE_TAG],
     async () => graphqlContentRepository.getLatestPublishedEdition(),
+  );
+}
+
+export function getCachedVideoScript(targetSlug: string): Promise<VideoScriptRef | null> {
+  if (bypassReaderCacheInDevelopment) {
+    return Promise.resolve(graphqlContentRepository.loadVideoScript(targetSlug)).then((result) => result ?? null);
+  }
+  return withReaderCache(
+    ["reader-video-script", targetSlug],
+    [articleCacheTag(targetSlug), ARTICLES_CACHE_TAG],
+    async () => graphqlContentRepository.loadVideoScript(targetSlug),
   );
 }

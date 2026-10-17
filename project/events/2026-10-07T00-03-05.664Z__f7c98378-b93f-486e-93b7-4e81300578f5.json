@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f7c98378-b93f-486e-93b7-4e81300578f5",
+  "issue_id": "PPY-73f1b5dc-c3d6-498d-9442-3fc10c787ab9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T00:03:05.664Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Pilobol.us scaffold does not wire the reader app, so publish never rebuilds it",
+    "description": "Verified: Ryan published an edit to item articles/the-part-of-the-machine-that-could-talk in the new Pilobol.us CMS (app dv0pdx67fk80m) at about 20:00 EDT 2026-10-06 and no reader rebuild started (reader app dssc97s4q5kgk has no job after job 7 at 19:34). Cause: the backend passes site.reader ({ amplifyAppId, branchName? }) to rebuildTriggerSettings, which sets PAPYRUS_READER_AMPLIFY_APP_ID and PAPYRUS_READER_BRANCH on the content-actions Lambda and grants amplify:StartJob/ListJobs on that app branch jobs. The scaffold papyrus.config.ts backend (AnthusAI/Pilobol.us main) has no reader key, so the live Lambda env has PAPYRUS_CMS_AMPLIFY_APP_ID and PAPYRUS_STAGING_BRANCH but not the reader vars. Fix: add reader: { amplifyAppId: \"dssc97s4q5kgk\", branchName: \"main\" } to the backend block of Pilobol.us papyrus.config.ts.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

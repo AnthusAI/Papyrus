@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "3899c028-6056-4ba2-9a0a-62c2294a85a4",
+  "issue_id": "PPY-84cce3f2-0d3d-47a7-96cd-30037430a1db",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-12T18:28:41.316Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "## Outcome\nStatic Markus sites gain dynamic features without losing static SEO: first, generated JSON files written by the projector (search index, latest items, tags, feed); later, a narrow, throttled guest write pattern.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 6 (Public GraphQL surface for static sites).\n\n## Verified today\nGuest (identity pool unauthenticated) can read only PublishedItem, PublishedMediaAsset, PublishedEdition, PublishedEditionItem, PublishedCategorySet, PublishedCategory and media/*; no guest write anywhere; API key mode enabled but unused by any rule.\n\n## Checklist\n- [ ] Projector writes /_data/latest.json, /_data/search-index.json, /_data/tags.json and an optional feed on every relevant projection\n- [ ] Review guest-readable PublishedItem fields (metadata, editorial, layout) for anything that must never be public\n- [ ] Later: WAF web ACL on AppSync with a rate-based rule; pattern for a guest custom mutation (validation, size limits, honeypot, non-public target model)\n\n## Acceptance\n- curl https://<site>/_data/search-index.json returns current titles after an edit (within the M4 freshness bound).\n- Schema test: no guest rule on any non-Published model.\n\n## Out of scope (YAGNI for now)\nSubscriptions, browser GraphQL reads, comments, a custom API domain.\n\n## Dependencies\nBlocked by M3.\n\n## Risk\nGuest writes are a new abuse surface; deferred until M9 needs them.\n\n## Estimate\n3-4 agent-hours (JSON) + 3-6 (WAF and guest mutation pattern).",
+        "to": "## Outcome\nNo Markus site uses an Amplify reader app; the template no longer creates reader apps for markus-static, which relieves apps-per-account pressure (6 of 30 apps today -> 4; one app per future Markus site instead of two).\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 5 (Default publication option: what gets removed).\n\n## Checklist\n- [ ] Template: remove markus-static reader app resources, reader build specs, custom rules, amplify:StartJob/ListJobs grants, PAPYRUS_READER_AMPLIFY_APP_ID wiring\n- [ ] Retire the CMS staging full build for Markus sites if previewItem replaces it (decision)\n- [ ] Update docs/site-hosting.md hosting axis (\"s3-projection\" replaces amplify-static for Markus)\n- [ ] List retired resources for Ryan (he deletes them)\n\n## Acceptance\n- Synth snapshot of a markus fixture site: zero AWS::Amplify::App for the reader; pretext sites unchanged.\n- aws amplify list-apps in papyrus-production shows no *-reader apps after Ryan's deletions.\n\n## Out of scope\nDeleting resources (Ryan does it).\n\n## Dependencies\nBlocked by M6.\n\n## Risk\nLow.\n\n## Estimate\n2-3 agent-hours."
+      }
+    }
+  }
+}

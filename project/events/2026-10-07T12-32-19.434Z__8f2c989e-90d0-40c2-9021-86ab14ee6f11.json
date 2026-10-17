@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "8f2c989e-90d0-40c2-9021-86ab14ee6f11",
+  "issue_id": "PPY-b1056237-8d31-4077-898e-527bf147fe1d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:32:19.434Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-05: Publication repo AnthusAI/p.apyr.us scaffold on the packages, with legacy-path redirects",
+    "description": "## Goal\nNew repository `AnthusAI/p.apyr.us` on the published packages: brand `papyrus` moved out of the Papyrus repo's brand table, `papyrus.config.ts` with `readerBasePath: \"/information\"` and `rootRoute` untouched, the one-line `amplify/backend.ts`, `infra/site.json`, a placeholder site-owned `app/page.tsx` (marketing lands in P5-06), and the legacy-path redirects.\n\n## Context (FACT)\n- Pilobol.us is the worked example (papyrus.config.ts `defineSite({ brands, defaultBrand, backend })`, `amplify/backend.ts` = `defineSiteBackend(site)`, `infra/site.json`).\n- Today p.apyr.us builds the Papyrus repo directly: root `amplify/backend.ts` is `defineSiteBackend({ backend: { productionAppId: \"dbsyytcm9drqa\" } })`, root `amplify.yml` builds, and the app is on `main` (97 commits behind develop; last good job 336 on 2026-10-05, commit d04b068).\n- Newspaper content: the live `/` renders an empty edition (\"Page -- of --\"); `/2026/october/07` returns HTTP 500; PublishedItem, Item, Edition, PublishedEdition all have 0 rows. Layout today = brand `papyrus` default (newsprint). Keep layout and brand text unchanged (Q3).\n- Legacy paths to redirect to the new mount (permanent): `/YYYY/<month>/DD[/page/N|/section/<k>|/<slug>]` -> `/information/YYYY/...`; `/articles/<slug>` -> `/information/articles/<slug>`; `/archive` -> `/information/archive`; `/settings` -> `/information/settings`. `/newsroom` and `/api` do not move. `/` is marketing (no redirect).\n- Redirects live in the repo's `next.config` (`redirects()` with `permanent: true`), version-controlled and testable; the apex redirect stays in `infra/site.json` (P5-03).\n\n## Exact steps\n1. Ryan creates the empty repo (or says yes to `gh repo create AnthusAI/p.apyr.us --public`).\n2. Scaffold PR: files above, exact pin of the P5-02 prerelease, `.gitignore` for generated shims, AGENTS.md, `redirectUrls` in backend.auth: `http://localhost:3001/newsroom`, `https://main.<appId>.amplifyapp.com/newsroom` (placeholder until P5-07), `https://p.apyr.us/newsroom`, `https://staging.p.apyr.us/newsroom`.\n3. Gherkin: \"an old dated URL answers 308/301 to the /information equivalent\", \"/newsroom does not redirect\", \"/ is not redirected\".\n4. Papyrus repo side (separate PR in Papyrus, after cutover only, see P5-12): remove brand.\n\n## Acceptance checks\n- `npm ci && npx papyrus-app sync && npm run build` green; local `next start`: `curl -I /2026/october/07` returns 301/308 with `Location: /information/2026/october/07`; `/articles/x`, `/archive` likewise; `/newsroom` 200; `/information` 200.\n- `papyrus-infra synth` validates `infra/site.json`.\n- CI green on the PR.\n\n## Rollback\nDelete the repo; nothing is deployed from it yet.\n\n## Risks\nRegex precedence between the dated route and `/newsroom`; month names are lowercase English words (match `[a-z]+`).\n\n## Needs Ryan\nRepo creation; PR merge.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

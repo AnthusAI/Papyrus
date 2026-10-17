@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from papyrus_content.auth_commands import _is_amplify_secret_placeholder, _resolve_amplify_ssm_secret
+from papyrus_content.amplify_ssm_secrets import _is_amplify_secret_placeholder, _resolve_amplify_ssm_secret
 from papyrus_newsroom.console_chat_enqueue import enqueue_console_chat_turn
 
 _SLACK_API_BASE = "https://slack.com/api/"

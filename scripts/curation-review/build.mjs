@@ -1,0 +1,11 @@
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+const tooling=process.argv[2];if(!tooling)throw new Error('Pass the read-only Cyclotron tooling checkout');
+const require=createRequire(path.resolve(tooling,'trace-ui/package.json'));
+const {build}=await import(require.resolve('vite'));
+const {default:react}=await import(require.resolve('@vitejs/plugin-react'));
+const {default:tailwind}=await import(require.resolve('@tailwindcss/vite'));
+const fixture=path.join(root,'scripts/curation-review');
+await build({configFile:false,root:fixture,base:'/curation-review-assets/',plugins:[react(),tailwind()],resolve:{dedupe:['react','react-dom'],alias:[{find:'@',replacement:root},{find:'papyrus-site',replacement:path.join(root,'papyrus.config.ts')},{find:/^next\/(navigation|link)$/,replacement:path.join(fixture,'navigation.tsx')},{find:/^(.*\/)?(news-desk-client-provider|reader-auth-control|news-desk-taxonomy-client|amplify-client-provider)$/,replacement:path.join(fixture,'offline.tsx')},{find:'radix-ui',replacement:require.resolve('radix-ui')}]},build:{outDir:path.join(root,'.papyrus-runs/curation-review-ui'),emptyOutDir:true}});

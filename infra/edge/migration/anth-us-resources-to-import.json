@@ -1,0 +1,22 @@
+[
+  {
+    "ResourceType": "AWS::CloudFront::Distribution",
+    "LogicalResourceId": "ReaderDistribution",
+    "ResourceIdentifier": { "Id": "E3UMOOJRMY7FK7" }
+  },
+  {
+    "ResourceType": "AWS::CloudFront::OriginAccessControl",
+    "LogicalResourceId": "SiteBucketOriginAccessControl",
+    "ResourceIdentifier": { "Id": "EIPFJM917AYHO" }
+  },
+  {
+    "ResourceType": "AWS::CloudFront::Function",
+    "LogicalResourceId": "ViewerRequestFunction",
+    "ResourceIdentifier": { "FunctionARN": "arn:aws:cloudfront::712236451410:function/papyrus-edge-anth-us-viewer-request" }
+  },
+  {
+    "ResourceType": "AWS::CloudFront::Function",
+    "LogicalResourceId": "ViewerResponseFunction",
+    "ResourceIdentifier": { "FunctionARN": "arn:aws:cloudfront::712236451410:function/papyrus-edge-anth-us-viewer-response" }
+  }
+]

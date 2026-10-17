@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 790" width="1300" height="790" role="img" lang="en" aria-labelledby="pa-title pa-desc" font-family="Helvetica, Arial, sans-serif">
+<title id="pa-title">How a Papyrus publication fits together</title>
+<desc id="pa-desc">Editors use the newsroom UI in the CMS app. Saving calls the GraphQL API (AppSync) over DynamoDB. The content-actions Lambda renders only the affected pages into a versioned S3 site bucket, then invalidates exact paths in CloudFront. A renditions Lambda makes images at upload. CloudFront serves the bucket to readers. A Pretext publication is the alternative kind: a Next.js server on Amplify that reads published models as a guest and is revalidated on publish.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#222"/></marker>
+<style>
+.t{font-size:15px;font-weight:700;fill:#111}
+.s{font-size:12.5px;fill:#222}
+.l{font-size:12.5px;fill:#111;font-style:italic}
+.g{font-size:14px;font-weight:700;fill:#111;letter-spacing:.3px}
+.box{fill:#fff;stroke:#111;stroke-width:2}
+.soft{fill:#f2f2f2;stroke:#111;stroke-width:2}
+.grp{fill:none;stroke:#555;stroke-width:1.5;stroke-dasharray:8 5}
+.arr{fill:none;stroke:#222;stroke-width:2;marker-end:url(#arrow)}
+.dash{fill:none;stroke:#222;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#arrow)}
+.pill{fill:#fff;stroke:#111;stroke-width:1.2}
+.n{fill:#111}
+.nt{fill:#fff;font-size:13px;font-weight:700;text-anchor:middle}
+</style>
+</defs>
+<rect width="1300" height="790" fill="#fff"/>
+
+<rect class="grp" x="215" y="40" width="790" height="330" rx="10"/>
+<text class="g" x="230" y="62">CMS APP (AMPLIFY) - THE SAME FOR EVERY PUBLICATION KIND</text>
+<rect class="grp" x="215" y="395" width="790" height="365" rx="10"/>
+<text class="g" x="230" y="417">PUBLICATION KIND "s3-projection" (MARKUS SITES)</text>
+<rect class="grp" x="1030" y="40" width="250" height="330" rx="10"/>
+<text class="g" x="1042" y="62">PRETEXT KIND (ALTERNATIVE)</text>
+
+<rect class="box" x="30" y="100" width="140" height="64" rx="32"/>
+<text class="t" x="100" y="128" text-anchor="middle">Editors</text>
+<text class="s" x="100" y="146" text-anchor="middle">sign in with Google</text>
+
+<rect class="box" x="245" y="95" width="175" height="74" rx="4"/>
+<text class="t" x="332" y="124" text-anchor="middle">Newsroom UI</text>
+<text class="s" x="332" y="143" text-anchor="middle">/newsroom (Next.js)</text>
+
+<rect class="box" x="500" y="85" width="210" height="104" rx="4"/>
+<text class="t" x="605" y="112" text-anchor="middle">GraphQL API (AppSync)</text>
+<text class="s" x="605" y="132" text-anchor="middle">editors: read and write</text>
+<rect class="soft" x="512" y="144" width="186" height="36" rx="4"/>
+<text class="s" x="605" y="159" text-anchor="middle">Guests: read-only,</text>
+<text class="s" x="605" y="173" text-anchor="middle">published models only</text>
+
+<path class="box" d="M790,100 a85,14 0 0 1 170,0 v62 a85,14 0 0 1 -170,0 z"/>
+<path class="box" d="M790,100 a85,14 0 0 0 170,0" />
+<text class="t" x="875" y="138" text-anchor="middle">DynamoDB</text>
+<text class="s" x="875" y="156" text-anchor="middle">items, published items</text>
+
+<rect class="box" x="500" y="255" width="210" height="88" rx="4"/>
+<text class="t" x="605" y="282" text-anchor="middle">content-actions Lambda</text>
+<text class="s" x="605" y="302" text-anchor="middle">saves, then projects:</text>
+<text class="s" x="605" y="318" text-anchor="middle">renders only affected pages</text>
+
+<path class="box" d="M245,265 a87,12 0 0 1 175,0 v52 a87,12 0 0 1 -175,0 z"/>
+<path class="box" d="M245,265 a87,12 0 0 0 175,0"/>
+<text class="t" x="332" y="297" text-anchor="middle">Media bucket (S3)</text>
+<text class="s" x="332" y="315" text-anchor="middle">uploaded originals</text>
+
+<rect class="box" x="245" y="440" width="175" height="80" rx="4"/>
+<text class="t" x="332" y="468" text-anchor="middle">renditions Lambda</text>
+<text class="s" x="332" y="487" text-anchor="middle">responsive images and</text>
+<text class="s" x="332" y="503" text-anchor="middle">sizes, made at upload</text>
+
+<path class="box" d="M500,455 a105,14 0 0 1 210,0 v62 a105,14 0 0 1 -210,0 z"/>
+<path class="box" d="M500,455 a105,14 0 0 0 210,0"/>
+<text class="t" x="605" y="489" text-anchor="middle">Site bucket (S3)</text>
+<text class="s" x="605" y="507" text-anchor="middle">versioned, private, static pages</text>
+
+<polygon class="box" points="520,625 540,590 680,590 700,625 680,660 540,660"/>
+<text class="t" x="610" y="620" text-anchor="middle">CloudFront</text>
+<text class="s" x="610" y="637" text-anchor="middle">own edge stack, ACM</text>
+
+<rect class="box" x="245" y="595" width="175" height="80" rx="4"/>
+<text class="t" x="332" y="623" text-anchor="middle">Edge functions</text>
+<text class="s" x="332" y="642" text-anchor="middle">redirects, /x/ to</text>
+<text class="s" x="332" y="658" text-anchor="middle">/x/index.html</text>
+
+<rect class="box" x="790" y="610" width="170" height="64" rx="32"/>
+<text class="t" x="875" y="638" text-anchor="middle">Readers</text>
+<text class="s" x="875" y="656" text-anchor="middle">browsers, search engines</text>
+
+<rect class="box" x="1050" y="235" width="210" height="104" rx="4"/>
+<text class="t" x="1155" y="262" text-anchor="middle">Next.js server (Amplify)</text>
+<text class="s" x="1155" y="282" text-anchor="middle">renders pages on request,</text>
+<text class="s" x="1155" y="298" text-anchor="middle">refreshes after a publish,</text>
+<text class="s" x="1155" y="314" text-anchor="middle">page lifetime about 1 minute</text>
+
+<path class="arr" d="M170,132 H245"/>
+<text class="l" x="177" y="122">sign in</text>
+<path class="arr" d="M420,132 H500"/>
+<g><rect class="pill" x="428" y="108" width="64" height="18" rx="9"/><circle class="n" cx="440" cy="117" r="8"/><text class="nt" x="440" y="121.5">1</text><text class="l" x="452" y="121">Save</text></g>
+<path class="arr" d="M710,137 H790"/>
+<text class="l" x="718" y="130">stores</text>
+<path class="arr" d="M560,189 V255"/>
+<g><rect class="pill" x="470" y="212" width="86" height="18" rx="9"/><circle class="n" cx="482" cy="221" r="8"/><text class="nt" x="482" y="225.5">2</text><text class="l" x="494" y="225">mutation</text></g>
+<path class="arr" d="M332,169 V250"/>
+<text class="l" x="340" y="212">upload images</text>
+<path class="arr" d="M332,333 V440"/>
+<text class="l" x="340" y="388">S3 event on upload</text>
+<path class="arr" d="M420,480 H500"/>
+<path class="arr" d="M605,343 V441"/>
+<g><rect class="pill" x="613" y="373" width="150" height="18" rx="9"/><circle class="n" cx="625" cy="382" r="8"/><text class="nt" x="625" y="386.5">3</text><text class="l" x="637" y="386">write changed pages</text></g>
+<path class="arr" d="M605,531 V590"/>
+<text class="l" x="613" y="565">origin: read only</text>
+<path class="dash" d="M710,328 H745 V625 H700"/>
+<g><rect class="pill" x="752" y="440" width="150" height="34" rx="9"/><circle class="n" cx="765" cy="457" r="8"/><text class="nt" x="765" y="461.5">4</text><text class="l" x="778" y="454">invalidate exact</text><text class="l" x="778" y="469">paths, no wildcard</text></g>
+<path class="arr" d="M420,635 H520"/>
+<path class="arr" d="M700,642 H790"/>
+<g><rect class="pill" x="706" y="650" width="76" height="18" rx="9"/><circle class="n" cx="718" cy="659" r="8"/><text class="nt" x="718" y="663.5">5</text><text class="l" x="730" y="663">pages</text></g>
+<path class="dash" d="M710,268 H1050"/>
+<text class="l" x="760" y="260">revalidate (Pretext kind only)</text>
+<path class="arr" d="M1155,235 V215 H670 V189"/>
+<text class="l" x="880" y="208">reads published models as a guest</text>
+<path class="arr" d="M1155,339 V642 H960"/>
+<text class="l" x="1146" y="520" text-anchor="end">pages for readers,</text>
+<text class="l" x="1146" y="536" text-anchor="end">served by the Amplify CDN</text>
+
+<rect x="15" y="560" width="190" height="200" fill="#fff" stroke="#555" stroke-width="1"/>
+<text class="g" x="25" y="582">KEY</text>
+<path class="arr" d="M25,602 H80"/><text class="s" x="90" y="606">request or write</text>
+<path class="dash" d="M25,624 H80"/><text class="s" x="90" y="628">purge or refresh</text>
+<text class="s" x="25" y="654">Rounded: people, browsers</text>
+<text class="s" x="25" y="672">Rectangle: service or function</text>
+<text class="s" x="25" y="690">Can: data store</text>
+<text class="s" x="25" y="708">Hexagon: CDN</text>
+<text class="s" x="25" y="726">Numbers: order of one Save</text>
+<text class="s" x="25" y="744">Grey box: guest access</text>
+</svg>

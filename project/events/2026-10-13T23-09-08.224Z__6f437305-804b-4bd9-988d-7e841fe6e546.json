@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6f437305-804b-4bd9-988d-7e841fe6e546",
+  "issue_id": "PPY-14d542af-0dc2-447e-aedd-267cb58d9e04",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-13T23:09:08.224Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Write 404.html with the right headers natively",
+    "description": "The renderer writes 404.html with the projection's default headers, so bin/fix_404_headers.py has to rewrite it (text/html, no Cache-Control) after every full render, because CloudFront serves it through the error-response path. Write it correctly in the first place and retire the script. Done: check-404 passes right after a render with no follow-up step.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+    "labels": []
+  }
+}

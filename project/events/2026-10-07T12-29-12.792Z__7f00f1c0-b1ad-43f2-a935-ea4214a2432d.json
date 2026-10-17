@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "7f00f1c0-b1ad-43f2-a935-ea4214a2432d",
+  "issue_id": "PPY-301b12c4-c993-4835-80f2-163db57f136e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:12.792Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-08: one-off content copy tool (old backend to new) and dry run",
+        "to": "TI P4-09: apply the copy, convert bodies to Markus, fidelity check against the baseline"
+      }
+    }
+  }
+}

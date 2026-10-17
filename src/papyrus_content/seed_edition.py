@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import mimetypes
 import os
@@ -11,10 +10,12 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from .convert_bodies_commands import derive_from_paragraphs
 from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .reader_revalidation import trigger_reader_cache_revalidation
+from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
 from .records import apply_record_changes, build_record_changes_targeted_by_id
 
 SEED_CONTENT_PATH = PAPYRUS_ROOT / "amplify" / "seed" / "seed-edition-content.json"
@@ -220,6 +221,14 @@ def apply_seed_house_ads(layout_plan: dict[str, Any], house_ads: Any) -> dict[st
     return layout_plan
 
 
+def seed_article_markus_body(article: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    paragraphs = [str(paragraph) for paragraph in article.get("body") or []]
+    body_markus, body_ir, skip_reason = derive_from_paragraphs(paragraphs)
+    if body_ir is None:
+        raise ValueError(f"Seed article {article.get('slug')} body cannot be converted to Markus: {skip_reason}")
+    return body_markus, body_ir
+
+
 def seed_article_records(article: dict[str, Any], index: int, edition_config: dict[str, Any]) -> list[dict[str, Any]]:
     item_id = f"item-{article['slug']}"
     section_slug = slugify(article.get("section") or "")
@@ -230,6 +239,7 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
     if excerpt:
         editorial_payload["customExcerpt"] = excerpt
 
+    body_markus, body_ir = seed_article_markus_body(article)
     item_record = with_version_fields(
         {
             "id": item_id,
@@ -243,7 +253,8 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
             "title": article.get("headline"),
             "headline": article.get("headline"),
             "deck": article.get("deck"),
-            "body": article.get("body") or [],
+            "bodyMarkus": body_markus,
+            "bodyIr": to_aws_json(body_ir),
             "byline": article.get("byline"),
             "dateline": article.get("dateline"),
             "publishedAt": edition_config["publishedAt"],
@@ -277,7 +288,8 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
                 "title": article.get("headline"),
                 "headline": article.get("headline"),
                 "deck": article.get("deck"),
-                "body": article.get("body") or [],
+                "bodyMarkus": body_markus,
+                "bodyIr": to_aws_json(body_ir),
                 "byline": article.get("byline"),
                 "dateline": article.get("dateline"),
                 "publishedAt": edition_config["publishedAt"],
@@ -1155,8 +1167,6 @@ def record(model_name: str, expected: dict[str, Any]) -> dict[str, Any]:
     return {"modelName": model_name, "expected": compact_dict(expected)}
 
 
-def compact_dict(value: dict[str, Any]) -> dict[str, Any]:
-    return {key: entry for key, entry in value.items() if entry is not None}
 
 
 def with_version_fields(
@@ -1180,25 +1190,12 @@ def with_version_fields(
     return {**versioned, "contentHash": content_hash_for(versioned)}
 
 
-def content_hash_for(value: Any) -> str:
-    return "sha256:" + hashlib.sha256(stable_stringify(value).encode("utf-8")).hexdigest()
 
 
-def stable_stringify(value: Any) -> str:
-    if value is None or not isinstance(value, (dict, list)):
-        return json.dumps(value, separators=(",", ":"))
-    if isinstance(value, list):
-        return "[" + ",".join(stable_stringify(entry) for entry in value) + "]"
-    entries = [(key, entry) for key, entry in value.items() if entry is not None]
-    return "{" + ",".join(f"{json.dumps(key, separators=(',', ':'))}:{stable_stringify(entry)}" for key, entry in sorted(entries)) + "}"
 
 
-def to_aws_json(value: Any) -> str:
-    return json.dumps(value, separators=(",", ":"))
 
 
-def slugify(value: str) -> str:
-    return re.sub(r"(^-+|-+$)", "", re.sub(r"[^a-z0-9]+", "-", value.lower()))
 
 
 def published_edition_id(edition_id: str) -> str:

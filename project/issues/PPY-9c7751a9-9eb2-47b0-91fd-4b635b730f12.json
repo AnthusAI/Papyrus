@@ -1,0 +1,36 @@
+{
+  "id": "PPY-9c7751a9-9eb2-47b0-91fd-4b635b730f12",
+  "title": "AN-09: Hostname mechanics gate: p6-rehearsal result, CUSTOM-certificate and two-prefix update rehearsal (production, throwaway names)",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 3, section 4 AN-09. Reads the in-progress p6-rehearsal result (/Users/home/Projects/.baselines/hostname-rehearsal-20261011/A-poll.log), then with R yes per write: second throwaway prefix with certificate-settings type=CUSTOM (ACM cert in production, validation CNAME in the legacy zone with saved DELETE batch); two-prefix association then update-domain-association removing one prefix. ACCEPT: timelines and cert serials recorded; association reaches AVAILABLE within minutes; five other apps' associations, get-domain-association d2hbn1ig6nqyhy, Anth.us hashes and serial 4011E199 and zone unchanged (diff empty or only the named validation CNAME); throwaways deleted. If it sticks in PENDING_VERIFICATION: STOP, delete-first cutover is NOT safe, report to Ryan (plan Q1 option 6).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d752007f-1761-4176-8b7d-0f25cecaacd2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-134457d2-5177-47f6-9e77-ad593a362d0e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-52d4554c-d10e-41c1-8aae-097a022f76db",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T16:25:38.115834Z",
+  "updated_at": "2026-10-11T16:27:24.836212Z",
+  "closed_at": null,
+  "right_now_summary": "The team is reviewing rehearsal results before testing custom certificates and hostname updates on throwaway names.",
+  "right_now_updated_at": "2026-10-11T16:27:26.157548Z",
+  "custom": {}
+}

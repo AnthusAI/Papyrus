@@ -3,7 +3,7 @@
   "title": "Establish the standalone Papyrus marketing site",
   "description": "## Intent\n\nAs a prospective Papyrus adopter, I want a standalone Papyrus marketing site at papyrus.anth.us, so that I can understand the product separately from the demo publication at p.apyr.us.\n\n## Initial scope\n\n- Establish a simple, normal marketing-site application separate from the Papyrus CMS reader.\n- Provide a reliable local development command and foundation for static deployment.\n- Reserve the existing Papyrus plant pictogram as the initial brand anchor.\n- Do not add CMS, publication-reader, or wiki behavior.\n\n## Definition of Done\n\n- The marketing app has an executable behavior specification.\n- A local dev server starts and serves the app.\n- The work is ready for later visual design.",
   "type": "story",
-  "status": "in_progress",
+  "status": "open",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -34,7 +34,17 @@
     }
   ],
   "created_at": "2026-09-08T14:50:56.413084Z",
-  "updated_at": "2026-09-08T15:01:40.512135Z",
+  "updated_at": "2026-10-17T13:23:17.054467Z",
   "closed_at": null,
-  "custom": {}
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "cross-project-wip-reset"
+  },
+  "right_now_summary": "The standalone Papyrus marketing site is implemented and ready for review.",
+  "right_now_updated_at": "2026-10-17T13:23:19.053470Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

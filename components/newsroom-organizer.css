@@ -1,0 +1,63 @@
+@font-face{font-family:Newsroom Display;src:url('./newsroom-fonts/playfair-display-700.ttf') format('truetype');font-weight:700;font-display:swap}
+@font-face{font-family:Newsroom Display;src:url('./newsroom-fonts/playfair-display-900.ttf') format('truetype');font-weight:900;font-display:swap}
+@font-face{font-family:Newsroom UI;src:url('./newsroom-fonts/plus-jakarta-sans-400.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:Newsroom UI;src:url('./newsroom-fonts/plus-jakarta-sans-600.ttf') format('truetype');font-weight:600;font-display:swap}
+.newsroom-organizer,.organizer-menu,.organizer-account-popup{--org-paper:var(--background);--org-ink:var(--foreground);--org-line:var(--border);--org-muted:var(--muted-foreground);font-family:Newsroom UI,system-ui,sans-serif;color:var(--org-ink);background:var(--org-paper)}
+.newsroom-organizer{display:grid;grid-template-columns:264px minmax(0,1fr);height:100dvh;max-height:100dvh;overflow:clip;font-size:14px}
+.newsroom-organizer[data-sidebar-collapsed=true]{grid-template-columns:minmax(0,1fr)}
+body:has(.newsroom-organizer){display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
+.papyrus-console-page:has(.newsroom-organizer){display:flex;flex:1;min-height:0;min-width:0;overflow:hidden}
+.papyrus-console-page .newsroom-organizer{height:100%;max-height:100%;flex:1}
+.newsroom-organizer h1,.newsroom-organizer h2,.newsroom-organizer h3{font-family:Newsroom Display,Georgia,serif}
+.organizer-sidebar{min-height:0;display:flex;flex-direction:column;border-right:1px solid var(--org-line);padding:16px;gap:16px;overflow:hidden}
+.organizer-sidebar[hidden]{display:none}.organizer-brand{font:900 40px/1.1 Newsroom Display,Georgia,serif;padding-bottom:20px;border-bottom:3px double var(--org-ink)}
+.organizer-brand small{display:block;font:400 10px Newsroom UI,system-ui;letter-spacing:.3em;text-transform:uppercase;margin-top:12px}
+.organizer-destinations{min-height:0;overflow:auto;overscroll-behavior:contain;flex:1;padding-right:1px}
+.organizer-destinations section+section{margin-top:24px}.organizer-destinations h3{font:600 10px Newsroom UI,system-ui;letter-spacing:.07em;text-transform:uppercase;color:var(--org-muted);margin:16px 0 8px}
+.organizer-destinations a{display:flex;flex-direction:column;align-items:start;gap:6px;padding:14px 8px;border-bottom:1px solid var(--org-line);color:var(--org-muted);text-decoration:none;min-height:44px}
+.organizer-destinations a strong{font:700 16px Newsroom Display,Georgia,serif}.organizer-destinations a small{font:400 11px/1.5 Newsroom UI,system-ui;white-space:normal;overflow-wrap:anywhere}
+.organizer-destinations a[aria-current=page]{border-bottom:2px solid var(--org-ink);color:var(--org-ink)}
+.newsroom-organizer :is(a,button):focus-visible,.organizer-menu :is(a,button):focus-visible{outline:2px solid currentColor;outline-offset:-3px}
+.organizer-workspace{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;padding:0 16px}
+.organizer-topbar{height:57px;min-height:57px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--org-ink)}
+.organizer-masthead{font:900 28px Newsroom Display,Georgia,serif;white-space:nowrap;max-width:30vw;overflow:hidden;text-overflow:ellipsis}
+.organizer-topbar h1{font:400 12px Newsroom UI,system-ui;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.organizer-toggle{display:flex;align-items:center;gap:8px;min-height:36px;padding:8px 12px;border:1px solid var(--org-line);font:400 11px Newsroom UI,system-ui;flex-shrink:0}
+.organizer-header-actions{display:flex;align-items:center;gap:8px;min-width:0;max-width:45%;overflow-x:auto}
+.organizer-main{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;flex:1;padding:16px 0}
+.organizer-main>[data-category-steering]{min-height:0}.organizer-demo-notice{font-size:11px;color:var(--org-muted);margin-bottom:12px}
+.organizer-account{display:flex;align-items:center;gap:10px;min-height:44px;flex-shrink:0;border:1px solid var(--org-line);padding:8px;text-align:left;border-radius:3px}
+.organizer-account span{min-width:0}.organizer-account strong{display:block;font:600 11px Newsroom UI,system-ui;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.organizer-account small{display:block;font-size:9px;color:var(--org-muted);margin-top:2px}
+.organizer-account-header{display:none;padding:8px;min-width:36px;min-height:36px}.organizer-account-header span{display:none}
+.newsroom-organizer[data-sidebar-collapsed=true] .organizer-account-header{display:flex}
+.organizer-account-popup{min-width:250px;max-width:calc(100vw - 32px);border:1px solid var(--org-line);padding:6px;border-radius:4px}
+.organizer-account-popup [role=menuitem]{min-height:40px;font-size:12px}.organizer-account-popup .reader-auth{display:contents}.organizer-account-popup .reader-auth__error{display:block;white-space:normal;font-size:11px;padding:8px}
+.organizer-bottom-nav{display:none}
+.organizer-main:has(.organizer-native-board){display:flex;overflow:hidden}
+.organizer-native-board{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;gap:12px}
+.organizer-board-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex-wrap:wrap}
+.organizer-board-toolbar [role=group],.organizer-board-pages{display:flex;gap:8px;flex-wrap:wrap}
+.organizer-board-toolbar button,.organizer-board-pages button{min-height:44px;padding:8px 12px;border:1px solid var(--org-line)}
+.organizer-board-toolbar button[aria-pressed=true]{background:var(--org-ink);color:var(--org-paper)}
+.organizer-board-note{font-size:11px;line-height:1.5;margin:0;color:var(--org-muted)}
+.organizer-board-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-width:0;min-height:0;gap:16px}
+.organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr) minmax(280px,360px)}
+.organizer-board-body>.kb-issue-collection{height:100%;min-height:0;overflow:auto}
+.organizer-board-body>.kb-issue-detail{overflow:auto;min-height:0}
+.organizer-board-body .kb-issue-detail a{display:block;min-height:44px;text-decoration:underline;padding:12px 0}
+.organizer-menu{height:min(85dvh,760px);max-height:85dvh;display:flex;flex-direction:column;padding:16px;border-radius:24px 24px 0 0;gap:20px}
+.organizer-menu .organizer-destinations{overflow-y:auto}.organizer-menu .organizer-destinations section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.organizer-menu .organizer-destinations h3{grid-column:1/-1;font-size:12px;text-transform:none;margin:0 0 4px}
+.organizer-menu .organizer-destinations a{border:1px solid var(--org-line);padding:12px;color:var(--org-ink)}
+@media(max-width:900px){
+ .newsroom-organizer,.newsroom-organizer[data-sidebar-collapsed=true]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+ .organizer-sidebar,.organizer-toggle{display:none}.organizer-workspace{padding:0 16px}.organizer-topbar{gap:8px;height:55px;min-height:55px}
+ .organizer-masthead{font-size:24px;max-width:36vw}.organizer-topbar h1{font-size:10px}.organizer-account-header{display:flex}.organizer-header-actions{gap:4px;max-width:35%}
+ .organizer-bottom-nav{display:block;border-top:1px solid var(--org-ink);background:var(--org-paper);padding:4px 8px max(4px,env(safe-area-inset-bottom))}
+ .organizer-bottom-nav ul{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;list-style:none;margin:0;padding:0}
+ .organizer-bottom-nav :is(a,button){display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:54px;width:100%;font:400 10px Newsroom UI,system-ui;padding:6px 0;text-decoration:none;border-radius:8px}
+ .organizer-bottom-nav a[aria-current=page]{background:var(--muted);font-weight:600}
+ .organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr)}
+ .organizer-board-body>.kb-issue-detail{position:absolute;inset:0;z-index:2;overflow:auto}
+}
+@media(prefers-reduced-motion:reduce){.newsroom-organizer,.newsroom-organizer *,.organizer-menu,.organizer-menu *,.organizer-account-popup,.organizer-account-popup *{scroll-behavior:auto;animation:none!important;transition:none!important}}

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,14 +13,6 @@ SEARCH_PATHS = [
 for root in SEARCH_PATHS:
     if root.exists() and str(root) not in sys.path:
         sys.path.insert(0, str(root))
-
-
-def _ensure_graphql_authoring_jwt() -> None:
-    if not os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "").strip():
-        return
-    from papyrus_content.env import ensure_graphql_authoring_jwt  # type: ignore
-
-    ensure_graphql_authoring_jwt()
 
 
 def _error(code: str, message: str, *, retryable: bool = False) -> dict[str, Any]:
@@ -94,7 +85,6 @@ def _execute_tactus(arguments: dict[str, Any], web_ui_context: dict[str, Any] | 
 
 
 def main() -> None:
-    _ensure_graphql_authoring_jwt()
     raw = sys.stdin.read()
     payload = json.loads(raw or "{}")
     mode = str(payload.get("mode") or "").strip()

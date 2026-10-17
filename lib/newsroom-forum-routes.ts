@@ -1,3 +1,5 @@
+import { toPublicNewsroomPath } from "./newsroom-base-path";
+
 export const FORUM_THREAD_ROUTE_PREFIX = "/newsroom/forum/";
 export const INSIGHT_THREAD_ROUTE_PREFIX = "/newsroom/insights/";
 export const FORUM_MESSAGE_HASH_PREFIX = "message-";
@@ -81,7 +83,7 @@ export function buildForumThreadUrl(
   if (options?.demo) params.set("demo", "1");
   const query = params.toString();
   const hash = options?.messageId ? getForumMessageAnchorId(options.messageId) : "";
-  return `/newsroom/forum/${encodedThreadId}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
+  return toPublicNewsroomPath(`/newsroom/forum/${encodedThreadId}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`);
 }
 
 export function buildInsightThreadUrl(
@@ -93,7 +95,7 @@ export function buildInsightThreadUrl(
   if (options?.demo) params.set("demo", "1");
   const query = params.toString();
   const hash = options?.messageId ? getForumMessageAnchorId(options.messageId) : "";
-  return `${INSIGHT_THREAD_ROUTE_PREFIX}${encodedThreadId}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
+  return toPublicNewsroomPath(`${INSIGHT_THREAD_ROUTE_PREFIX}${encodedThreadId}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`);
 }
 
 export function buildThreadUrlForSurface(
@@ -141,7 +143,7 @@ export function buildNewsroomForumIndexUrl(demo?: boolean): string {
   const params = new URLSearchParams();
   if (demo) params.set("demo", "1");
   const query = params.toString();
-  return query ? `/newsroom?${query}` : "/newsroom";
+  return toPublicNewsroomPath(query ? `/newsroom?${query}` : "/newsroom");
 }
 
 export function buildNewsroomInsightsIndexUrl(demo?: boolean, domain?: string): string {
@@ -149,5 +151,5 @@ export function buildNewsroomInsightsIndexUrl(demo?: boolean, domain?: string): 
   if (demo) params.set("demo", "1");
   if (domain?.trim()) params.set("domain", domain.trim());
   const query = params.toString();
-  return query ? `/newsroom/insights?${query}` : "/newsroom/insights";
+  return toPublicNewsroomPath(query ? `/newsroom/insights?${query}` : "/newsroom/insights");
 }

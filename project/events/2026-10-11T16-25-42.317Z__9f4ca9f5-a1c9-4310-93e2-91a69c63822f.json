@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "9f4ca9f5-a1c9-4310-93e2-91a69c63822f",
+  "issue_id": "PPY-9056aa0f-867b-4a6f-8810-e0d98f98609f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-11T16:25:42.317Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "AN-10: CMS hosts newsroom.anth.us (+staging): first real hostnames in production (optional, Ryan Q3)",
+    "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-10. New unheld names, no delete involved. cdk diff ADD Domain only; validation CNAME only if absent (R yes); host CNAMEs UPSERT with saved batch; host origins added to PAPYRUS_OAUTH_REDIRECT_URLS and redeployed. ACCEPT: AVAILABLE; sign-in from the host; CMS host serves noindex; zone diff = only named records; other apps unchanged.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+    "labels": [
+      "phase-6",
+      "anthus-move-plan"
+    ]
+  }
+}

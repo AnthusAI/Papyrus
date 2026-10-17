@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "a6478e45-0e87-4858-8dc9-b82ff88ea36a",
+  "issue_id": "PPY-c984468d-56fe-43a4-bd6f-b4c35d35bf59",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-11T14:55:36.761Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "Implements plan section 5 option B in /Users/home/Projects/threat-intelligence-move-plan.md: order the Amplify data model nested stacks into waves (NestedStack.addDependency) so AppSync CreateResolver is not called with full parallelism in new accounts. Config backend.resolverWaveSize, default 12; dependencies only, no resource change. Branch fix/PPY-429wave-appsync-resolver-waves."
+      }
+    }
+  }
+}

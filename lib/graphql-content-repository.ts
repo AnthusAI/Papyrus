@@ -1,8 +1,9 @@
+import { generateServerClientUsingCookies } from "@aws-amplify/adapter-nextjs/api";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import type { Article, ArticleImage, ArticleImageAsset, ArticleImageLayout, ArticleImageThemeVariants, ArticleVideoAsset, ArticleVideoThemeVariants } from "./articles";
 import { withContentLoadTiming } from "./content-load-timing";
-import { getAmplifyServerRuntime } from "./amplify-server-runtime";
+import { getAmplifyServerRuntime, runWithGuestAmplifyContext } from "./amplify-server-runtime";
 import { resolveReaderStorageUrl, signStorageUrl } from "./reader-storage-url";
 import type { ContentRepository, EditionContent, EditionRouteSummary, ListPublishedEditionsOptions, LoadEditionContentOptions } from "./content-types";
 import { isDemoAmplifyOutputs } from "./demo-amplify-outputs";
@@ -15,12 +16,18 @@ import {
   type PublicationItem,
   type PublicationItemType,
 } from "./publication-items";
+import { BodyIrError, matchBodyImages, projectBodyIr, type BodyProjection, type BodyProjectionImage } from "./markus-body";
 import { SITE_BRAND } from "./site-brand";
+import { shouldFetchVideoScripts } from "./video-mode";
+import { collectVideoScriptTargets, parseVideoScriptRef, videomlItemSlug, type VideoScriptRef } from "./video-script";
+import { currentContentSource, currentRequestClient, runWithContentSource } from "./content-source-context";
+import { withRateLimitRetry } from "./rate-limit-retry";
+import { getContentSource } from "./site-env";
 
-const AUTH_MODE = "identityPool";
 const DEFAULT_EDITION_SLUG = "current";
 const PUBLISHED_STATUS = "published";
-const ARTICLE_TYPE_STATUS = "article#published";
+const DRAFT_STATUS = "draft";
+const ARTICLE_TYPE = "article";
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
 type EditionPublishedAtIndexQuery = (
@@ -63,8 +70,6 @@ type GraphQLEditionItem = {
 
 type GraphQLItem = {
   id: string;
-  sourceItemId?: string | null;
-  itemLineageId?: string | null;
   versionNumber?: number | null;
   type: string;
   status: string;
@@ -74,7 +79,10 @@ type GraphQLItem = {
   title?: string | null;
   headline?: string | null;
   deck?: string | null;
-  body?: Array<string | null> | null;
+  bodyMarkus?: string | null;
+  bodyIr?: unknown;
+  aliases?: Array<string | null> | null;
+  metadata?: unknown;
   byline?: string | null;
   dateline?: string | null;
   publishedAt?: string | null;
@@ -115,7 +123,6 @@ type ContentAttachmentPointer = {
 };
 
 type ResolvedItemContent = {
-  body: string[] | null;
   excerpt: string | null;
 };
 
@@ -127,22 +134,33 @@ const IMAGE_ROLES: NonNullable<ArticleImageAsset["roles"]> = [
   "thumbnail",
 ];
 
-let readerContextClient: DataClient | null = null;
 let buildTimeClient: DataClient | null = null;
 
+export function authMode(): "userPool" | "identityPool" {
+  return currentContentSource() === "drafts" ? "userPool" : "identityPool";
+}
+
+function isVisibleItemStatus(status: string): boolean {
+  if (status === PUBLISHED_STATUS) return true;
+  return currentContentSource() === "drafts" && status === DRAFT_STATUS;
+}
+
 async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise<T> {
-  const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
-  return runWithAmplifyServerContext({
-    nextServerContext: null,
-    operation: async () => {
-      readerContextClient = generateClient<Schema>({ authMode: AUTH_MODE });
-      try {
-        return await operation();
-      } finally {
-        readerContextClient = null;
-      }
-    },
-  });
+  const { config } = getAmplifyServerRuntime();
+  const source = getContentSource();
+  if (source === "drafts") {
+    // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
+    // kept in the request's async context (never a module global) so one visitor's session cannot serve another.
+    const { cookies } = await import("next/headers");
+    await cookies();
+    const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
+    return runWithContentSource(source, operation, client);
+  }
+  return withRateLimitRetry(() =>
+    runWithGuestAmplifyContext(() =>
+      runWithContentSource(source, operation, generateClient<Schema>({ authMode: authMode() })),
+    ),
+  );
 }
 
 export const graphqlContentRepository: ContentRepository = {
@@ -197,7 +215,7 @@ export const graphqlContentRepository: ContentRepository = {
   getArticle(slug) {
     return withReaderGraphQLContext(async () => {
       const item = await getItemBySlug(slug);
-      if (!item || item.type !== "article" || item.status !== "published") return undefined;
+      if (!item || item.type !== ARTICLE_TYPE || !isVisibleItemStatus(item.status)) return undefined;
       return normalizeArticle(item, await listMediaAssets(item.id));
     });
   },
@@ -213,11 +231,15 @@ export const graphqlContentRepository: ContentRepository = {
     return withReaderGraphQLContext(() => loadEditionItem(editionDate, itemSlug));
   },
 
+  loadVideoScript(targetSlug) {
+    return withReaderGraphQLContext(() => loadVideoScriptForTarget(targetSlug));
+  },
+
   listArticleSlugs() {
     return withReaderGraphQLContext(async () => {
-      const items = await listItemsByTypeStatus(ARTICLE_TYPE_STATUS);
+      const items = await listItemsByTypeStatus(`${ARTICLE_TYPE}#${PUBLISHED_STATUS}`);
       return items
-        .filter((item) => item.type === "article" && item.status === "published")
+        .filter((item) => item.type === ARTICLE_TYPE && isVisibleItemStatus(item.status))
         .map((item) => item.slug)
         .sort();
     });
@@ -225,11 +247,12 @@ export const graphqlContentRepository: ContentRepository = {
 };
 
 function getClient(): DataClient {
-  if (readerContextClient) return readerContextClient;
+  const requestClient = currentRequestClient<DataClient>();
+  if (requestClient) return requestClient;
 
   if (!buildTimeClient) {
     getAmplifyServerRuntime();
-    buildTimeClient = generateClient<Schema>({ authMode: AUTH_MODE });
+    buildTimeClient = generateClient<Schema>({ authMode: authMode() });
   }
   return buildTimeClient;
 }
@@ -328,7 +351,7 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
     await Promise.all(
       editionItems.map(async (editionItem) => {
         const item = await getItemById(editionItem.publishedItemId);
-        if (!item || item.status !== PUBLISHED_STATUS) return null;
+        if (!item || !isVisibleItemStatus(item.status)) return null;
         return normalizePublicationItem(item, await listMediaAssets(item.id));
       }),
     )
@@ -341,7 +364,7 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
       await Promise.all(
         missingLayoutItems.map(async (itemId) => {
           const item = await getItemBySlug(itemId);
-          if (!item || item.status !== PUBLISHED_STATUS) return null;
+          if (!item || !isVisibleItemStatus(item.status)) return null;
           return normalizePublicationItem(item, await listMediaAssets(item.id));
         }),
       )
@@ -354,6 +377,9 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
   const sanitizedLayoutPlan = pruneLayoutPlanUnavailableItems(layoutPlan, availableItemSlugs, edition.id);
   validateEditionLayoutPlanForItems(sanitizedLayoutPlan, items, `PublishedEdition(${edition.id}).layoutPlan`);
 
+  const editionVideo = await normalizeEditionVideoAsset(editionMetadata?.editionVideo);
+  const videoScripts = await loadEditionVideoScripts(items, editionVideo);
+
   return {
     id: edition.id,
     source: "graphql",
@@ -364,8 +390,36 @@ async function loadEditionContentFromEdition(edition: GraphQLEdition): Promise<E
     items,
     sections: createEditionSectionPlan(items, edition.metadata),
     suppressNewsDeskAppendix: editionMetadata?.suppressNewsDeskAppendix === true,
-    editionVideo: await normalizeEditionVideoAsset(editionMetadata?.editionVideo),
+    editionVideo,
+    videoScripts,
   };
+}
+
+function videoScriptsEnabled(): boolean {
+  return Boolean(SITE_BRAND.videoPlayer) && shouldFetchVideoScripts();
+}
+
+async function loadVideoScriptForTarget(targetSlug: string): Promise<VideoScriptRef | null> {
+  if (!videoScriptsEnabled()) return null;
+  const item = await getItemBySlug(videomlItemSlug(targetSlug));
+  if (!item || item.type !== "videoml" || !isVisibleItemStatus(item.status)) return null;
+  return parseVideoScriptRef(item);
+}
+
+async function loadEditionVideoScripts(
+  items: PublicationItem[],
+  editionVideo: ArticleVideoAsset | null,
+): Promise<Record<string, VideoScriptRef> | undefined> {
+  if (!videoScriptsEnabled()) return undefined;
+  const targets = collectVideoScriptTargets(items, editionVideo !== null);
+  const entries = await Promise.all(
+    targets.map(async (targetSlug) => {
+      const script = await loadVideoScriptForTarget(targetSlug);
+      return script ? ([targetSlug, script] as const) : null;
+    }),
+  );
+  const videoScripts = Object.fromEntries(entries.filter((entry): entry is [string, VideoScriptRef] => entry !== null));
+  return Object.keys(videoScripts).length > 0 ? videoScripts : undefined;
 }
 
 async function normalizeEditionVideoAsset(value: unknown): Promise<ArticleVideoAsset | null> {
@@ -458,7 +512,7 @@ async function loadEditionItem(editionDate: string, itemSlug: string): Promise<P
   const editionItems = await listEditionItems(edition.id);
   for (const editionItem of editionItems) {
     const item = await getItemById(editionItem.publishedItemId);
-    if (!item || item.slug !== itemSlug || item.status !== PUBLISHED_STATUS) continue;
+    if (!item || item.slug !== itemSlug || !isVisibleItemStatus(item.status)) continue;
     return (await normalizePublicationItem(item, await listMediaAssets(item.id))) ?? undefined;
   }
   return undefined;
@@ -502,36 +556,168 @@ function isMissingReaderBackendError(error: unknown): boolean {
 }
 
 function getEditionPublishedAtIndexQuery(): EditionPublishedAtIndexQuery | null {
-  const editionModel = getPublishedEditionModel() as unknown as {
-    listPublishedEditionsByStatusAndPublishedAt?: EditionPublishedAtIndexQuery;
-  };
+  const editionModel = getPublishedEditionModel();
   return typeof editionModel.listPublishedEditionsByStatusAndPublishedAt === "function"
     ? editionModel.listPublishedEditionsByStatusAndPublishedAt
     : null;
 }
 
-function getPublishedEditionModel() {
+type ListOptions = Record<string, unknown>;
+type ListResponse<T> = Promise<GraphQLListResponse<T>>;
+
+type EditionSourceModel = {
+  publishedEditionBySlug: (input: { slug: string }, options: ListOptions) => ListResponse<GraphQLEdition>;
+  listPublishedEditionsByStatusAndEditionDate: (
+    input: { status: string; editionDate?: { eq: string } },
+    options: ListOptions,
+  ) => ListResponse<GraphQLEdition>;
+  listPublishedEditionsByStatusAndPublishedAt?: EditionPublishedAtIndexQuery;
+};
+
+type EditionItemSourceModel = {
+  listPublishedEditionItemsByEditionAndSortKey: (
+    input: { publishedEditionId: string },
+    options: ListOptions,
+  ) => ListResponse<GraphQLEditionItem>;
+};
+
+type ItemSourceModel = {
+  get: (input: { id: string }, options: ListOptions) => Promise<GraphQLGetResponse<GraphQLItem>>;
+  publishedItemBySlug: (input: { slug: string }, options: ListOptions) => ListResponse<GraphQLItem>;
+  listPublishedItemsByTypeStatusAndPublishedAt: (input: { typeStatus: string }, options: ListOptions) => ListResponse<GraphQLItem>;
+};
+
+type MediaAssetSourceModel = {
+  listPublishedMediaAssetsByItemAndSortKey: (
+    input: { publishedItemId: string },
+    options: ListOptions,
+  ) => ListResponse<GraphQLMediaAsset>;
+};
+
+const DRAFTS_EDITION_STATUSES = [PUBLISHED_STATUS, DRAFT_STATUS];
+
+async function listMergedAcrossStatuses<T>(
+  statuses: string[],
+  runForStatus: (status: string, pageOptions: ListOptions) => ListResponse<T>,
+  sortValue: (row: T) => string,
+  options: ListOptions,
+): ListResponse<T> {
+  const rows: T[] = [];
+  for (const status of statuses) {
+    let pageToken: string | null | undefined;
+    do {
+      const response = await runForStatus(status, { authMode: options.authMode, limit: 100, nextToken: pageToken });
+      if (response.errors?.length) return { data: [], errors: response.errors };
+      rows.push(...((response.data ?? []).filter(Boolean) as T[]));
+      pageToken = response.nextToken;
+    } while (pageToken);
+  }
+  const direction = options.sortDirection === "DESC" ? -1 : 1;
+  rows.sort((left, right) => direction * sortValue(left).localeCompare(sortValue(right)));
+  const offset = Number(options.nextToken ?? 0) || 0;
+  const limit = typeof options.limit === "number" ? options.limit : undefined;
+  const end = limit === undefined ? rows.length : offset + limit;
+  return {
+    data: rows.slice(offset, end),
+    nextToken: end < rows.length ? String(end) : undefined,
+  };
+}
+
+function getPublishedEditionModel(): EditionSourceModel {
+  if (currentContentSource() === "drafts") {
+    const model = getClient().models.Edition;
+    if (!model) throw missingProjectionModelError("Edition");
+    return {
+      publishedEditionBySlug: (input, options) => model.editionBySlug(input, options) as ListResponse<GraphQLEdition>,
+      listPublishedEditionsByStatusAndEditionDate: (input, options) =>
+        listMergedAcrossStatuses<GraphQLEdition>(
+          DRAFTS_EDITION_STATUSES,
+          (status, pageOptions) =>
+            model.listEditionsByStatusAndEditionDate({ ...input, status }, pageOptions) as ListResponse<GraphQLEdition>,
+          (edition) => edition.editionDate,
+          options,
+        ),
+    };
+  }
   const model = getClient().models.PublishedEdition;
   if (!model) throw missingProjectionModelError("PublishedEdition");
-  return model;
+  return model as unknown as EditionSourceModel;
 }
 
-function getPublishedEditionItemModel() {
+function getPublishedEditionItemModel(): EditionItemSourceModel {
+  if (currentContentSource() === "drafts") {
+    const model = getClient().models.EditionItem;
+    if (!model) throw missingProjectionModelError("EditionItem");
+    return {
+      listPublishedEditionItemsByEditionAndSortKey: async ({ publishedEditionId }, options) => {
+        const response = (await model.listEditionItemsByEditionAndSortKey(
+          { editionId: publishedEditionId },
+          options,
+        )) as unknown as GraphQLListResponse<{ id: string; editionId: string; itemId: string; sortKey: string }>;
+        return {
+          ...response,
+          data: (response.data ?? []).filter(Boolean).map((row) => ({
+            id: row.id,
+            publishedEditionId: row.editionId,
+            publishedItemId: row.itemId,
+            sortKey: row.sortKey,
+          })),
+        };
+      },
+    };
+  }
   const model = getClient().models.PublishedEditionItem;
   if (!model) throw missingProjectionModelError("PublishedEditionItem");
-  return model;
+  return model as unknown as EditionItemSourceModel;
 }
 
-function getPublishedItemModel() {
+function getPublishedItemModel(): ItemSourceModel {
+  if (currentContentSource() === "drafts") {
+    const model = getClient().models.Item;
+    if (!model) throw missingProjectionModelError("Item");
+    return {
+      get: (input, options) => model.get(input, options) as Promise<GraphQLGetResponse<GraphQLItem>>,
+      publishedItemBySlug: (input, options) => model.itemBySlug(input, options) as ListResponse<GraphQLItem>,
+      listPublishedItemsByTypeStatusAndPublishedAt: ({ typeStatus }, options) => {
+        const itemType = typeStatus.split("#")[0];
+        return listMergedAcrossStatuses<GraphQLItem>(
+          [DRAFT_STATUS, PUBLISHED_STATUS],
+          (status, pageOptions) =>
+            model.listItemsByTypeStatusAndPublishedAt(
+              { typeStatus: `${itemType}#${status}` },
+              pageOptions,
+            ) as ListResponse<GraphQLItem>,
+          (item) => item.publishedAt ?? "",
+          options,
+        );
+      },
+    };
+  }
   const model = getClient().models.PublishedItem;
   if (!model) throw missingProjectionModelError("PublishedItem");
-  return model;
+  return model as unknown as ItemSourceModel;
 }
 
-function getPublishedMediaAssetModel() {
+function getPublishedMediaAssetModel(): MediaAssetSourceModel {
+  if (currentContentSource() === "drafts") {
+    const model = getClient().models.MediaAsset;
+    if (!model) throw missingProjectionModelError("MediaAsset");
+    return {
+      listPublishedMediaAssetsByItemAndSortKey: async ({ publishedItemId }, options) => {
+        const response = (await model.listMediaAssetsByItemAndSortKey(
+          { itemId: publishedItemId },
+          options,
+        )) as unknown as GraphQLListResponse<Omit<GraphQLMediaAsset, "publishedItemId"> & { itemId: string }>;
+        return {
+          ...response,
+          data: (response.data ?? []).filter(Boolean).map((row) => ({ ...row, publishedItemId: row.itemId })),
+        };
+      },
+    };
+  }
   const model = getClient().models.PublishedMediaAsset;
   if (!model) throw missingProjectionModelError("PublishedMediaAsset");
-  return model;
+  return model as unknown as MediaAssetSourceModel;
 }
 
 function missingProjectionModelError(modelName: string): Error {
@@ -558,7 +744,7 @@ async function listItemsByTypeStatus(typeStatus: string): Promise<GraphQLItem[]>
 }
 
 async function getItemById(id: string): Promise<GraphQLItem | null> {
-  const response = await getPublishedItemModel().get({ id }, { authMode: AUTH_MODE });
+  const response = await getPublishedItemModel().get({ id }, { authMode: authMode() });
   return readGetResponse<GraphQLItem>(response);
 }
 
@@ -580,7 +766,7 @@ async function listAll<T>(operation: (options: Record<string, unknown>) => Promi
 
   do {
     const response = await operation({
-      authMode: AUTH_MODE,
+      authMode: authMode(),
       limit: 100,
       nextToken,
     });
@@ -594,7 +780,7 @@ async function listAll<T>(operation: (options: Record<string, unknown>) => Promi
 
 async function listFirst<T>(operation: (options: Record<string, unknown>) => Promise<GraphQLListResponse<T>>): Promise<T[]> {
   const response = await operation({
-    authMode: AUTH_MODE,
+    authMode: authMode(),
     limit: 1,
     sortDirection: "DESC",
   });
@@ -608,7 +794,7 @@ async function listPage<T>(
   nextToken?: string | null,
 ): Promise<{ editions: T[]; nextToken?: string | null }> {
   const response = await operation({
-    authMode: AUTH_MODE,
+    authMode: authMode(),
     limit,
     nextToken,
     sortDirection: "DESC",
@@ -632,11 +818,9 @@ function readGetResponse<T>(response: GraphQLGetResponse<T>): T | null {
 
 async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsset[]): Promise<Article> {
   const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
-  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const bodyProjection = projectPublishedItemBody(item);
   const videoAssets = mediaAssets.filter((asset) => asset.type === "video");
-  const assets = (
-    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
-  ).filter((asset): asset is ArticleImageAsset => asset !== null);
+  const assets = await normalizeItemImageAssets(item, mediaAssets, bodyProjection.imageSrcs);
   const primaryImage = assets.find((asset) => asset.roles?.includes("lead")) ?? assets[0];
   const normalizedVideos = (
     await Promise.all(videoAssets.map((asset) => normalizeVideoAsset(item, asset, primaryImage)))
@@ -655,21 +839,59 @@ async function normalizeArticle(item: GraphQLItem, mediaAssets: GraphQLMediaAsse
     image: primaryImage,
     video: leadVideo,
     assets: [...assets, ...normalizedVideos],
-    pullQuotes: compactStrings(item.pullQuotes),
-    body: resolvedContent.body ?? compactStrings(item.body),
+    pullQuotes: bodyProjection.pullQuotes,
+    body: bodyProjection.body,
   };
 }
 
+function projectPublishedItemBody(item: GraphQLItem): BodyProjection {
+  if (item.bodyIr === null || item.bodyIr === undefined || item.bodyIr === "") {
+    throw new BodyIrError(`PublishedItem ${item.slug} has no bodyIr; run: papyrus ops content convert-bodies`);
+  }
+  return projectBodyIr(item.bodyIr);
+}
+
+async function normalizeItemImageAssets(
+  item: GraphQLItem,
+  mediaAssets: GraphQLMediaAsset[],
+  bodyImages: BodyProjectionImage[],
+): Promise<ArticleImageAsset[]> {
+  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const matches = matchBodyImages(
+    bodyImages,
+    imageAssets.map((asset) => {
+      const srcPath = parseObjectMetadata(asset.metadata)?.srcPath;
+      return typeof srcPath === "string" ? srcPath : null;
+    }),
+  );
+  const normalizedMedia = (
+    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
+  ).filter((asset): asset is ArticleImageAsset => asset !== null);
+  const externalImages = matches.flatMap((match, index): ArticleImageAsset[] =>
+    match.kind === "external"
+      ? [
+          {
+            id: `${item.id}-body-image-${index}`,
+            type: "image",
+            src: match.image.src,
+            alt: match.image.alt,
+            caption: match.image.caption,
+            credit: match.image.credit ?? match.image.caption ?? "Media asset",
+          },
+        ]
+      : [],
+  );
+  return [...normalizedMedia, ...externalImages];
+}
+
 async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLMediaAsset[]): Promise<PublicationItem | null> {
-  const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
   if (item.type === "article") return articleToPublicationItem(await normalizeArticle(item, mediaAssets));
   const type = normalizePublicationItemType(item.type);
   if (!type) return null;
-  const imageAssets = mediaAssets.filter((asset) => asset.type === "image");
+  const resolvedContent = await resolveItemContentFromAttachments(item.editorial);
+  const bodyProjection = projectPublishedItemBody(item);
   const videoAssets = mediaAssets.filter((asset) => asset.type === "video");
-  const assets = (
-    await Promise.all(imageAssets.map((asset) => normalizeImageAsset(item, asset)))
-  ).filter((asset): asset is ArticleImageAsset => asset !== null);
+  const assets = await normalizeItemImageAssets(item, mediaAssets, bodyProjection.imageSrcs);
   const image = assets[0] ?? undefined;
   const normalizedVideos = (
     await Promise.all(videoAssets.map((asset) => normalizeVideoAsset(item, asset, image)))
@@ -682,7 +904,7 @@ async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLM
     title: item.headline ?? item.title ?? item.slug,
     deck: item.deck ?? undefined,
     excerpt: resolvedContent.excerpt ?? undefined,
-    body: resolvedContent.body ?? compactStrings(item.body),
+    body: bodyProjection.body,
     image,
     video,
     assets: [...assets, ...normalizedVideos],
@@ -692,10 +914,8 @@ async function normalizePublicationItem(item: GraphQLItem, mediaAssets: GraphQLM
 
 async function resolveItemContentFromAttachments(editorial: unknown): Promise<ResolvedItemContent> {
   const pointers = parseContentAttachmentPointers(editorial);
-  const bodyText = await readAttachmentPointerText(pointers.body);
   const excerptText = await readAttachmentPointerText(pointers.excerpt);
   return {
-    body: bodyText ? textToParagraphs(bodyText) : null,
     excerpt: excerptText?.trim() || readInlineExcerpt(editorial) || null,
   };
 }
@@ -714,11 +934,10 @@ async function readAttachmentPointerText(pointer: ContentAttachmentPointer | nul
   }
 }
 
-function parseContentAttachmentPointers(editorial: unknown): { body: ContentAttachmentPointer | null; excerpt: ContentAttachmentPointer | null } {
+function parseContentAttachmentPointers(editorial: unknown): { excerpt: ContentAttachmentPointer | null } {
   const parsed = parseObjectMetadata(editorial);
   const attachments = readContentAttachmentObject(parsed);
   return {
-    body: parseAttachmentPointer(attachments?.body),
     excerpt: parseAttachmentPointer(attachments?.excerpt),
   };
 }
@@ -749,23 +968,20 @@ function parseAttachmentPointer(value: unknown): ContentAttachmentPointer | null
   };
 }
 
-function textToParagraphs(value: string): string[] {
-  return value
-    .replace(/\r\n/g, "\n")
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function readInlineExcerpt(editorial: unknown): string | null {
+export function readInlineExcerpt(editorial: unknown): string | null {
   const parsed = parseObjectMetadata(editorial);
   if (!parsed) return null;
   const direct = parsed.excerpt;
   if (typeof direct === "string" && direct.trim()) return direct.trim();
+  const custom = parsed.customExcerpt;
+  if (typeof custom === "string" && custom.trim()) return custom.trim();
   const newsroom = parsed.newsroom;
   if (!newsroom || typeof newsroom !== "object" || Array.isArray(newsroom)) return null;
-  const nestedExcerpt = (newsroom as Record<string, unknown>).excerpt;
-  return typeof nestedExcerpt === "string" && nestedExcerpt.trim() ? nestedExcerpt.trim() : null;
+  const newsroomRecord = newsroom as Record<string, unknown>;
+  const nestedExcerpt = newsroomRecord.excerpt;
+  if (typeof nestedExcerpt === "string" && nestedExcerpt.trim()) return nestedExcerpt.trim();
+  const nestedCustom = newsroomRecord.customExcerpt;
+  return typeof nestedCustom === "string" && nestedCustom.trim() ? nestedCustom.trim() : null;
 }
 
 function normalizePublicationItemType(value: string): Exclude<PublicationItemType, "article"> | null {
@@ -945,10 +1161,6 @@ function parseImageRoles(role: string | null | undefined): ArticleImageAsset["ro
       IMAGE_ROLES.includes(candidate as NonNullable<ArticleImageAsset["roles"]>[number]),
     );
   return roles.length > 0 ? roles : ["lead", "continuation", "continuationInset"];
-}
-
-function compactStrings(values: Array<string | null> | null | undefined): string[] {
-  return (values ?? []).filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 }
 
 function normalizeShortSlug(value: string | null | undefined): string | undefined {

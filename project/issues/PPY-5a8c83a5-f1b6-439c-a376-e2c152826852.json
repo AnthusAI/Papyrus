@@ -1,0 +1,28 @@
+{
+  "id": "PPY-5a8c83a5-f1b6-439c-a376-e2c152826852",
+  "title": "Move Papyrus to current Limatus (limatus >=0.29.0,<1)",
+  "description": "Papyrus pinned limatus >=0.17.0,<0.18.0; PyPI has 0.29.0. Widen to current in the tactus style and track Limatus.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7eacb00e-2875-48c8-b44d-814b17d9a144",
+      "author": "home",
+      "text": "PR #103 merged to develop: limatus >=0.29.0,<1 (tracks current Limatus). Tests identical vs baseline on 0.17.1 and 0.29.0.",
+      "created_at": "2026-10-05T19:55:37.646310Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-05T19:33:30.790965Z",
+  "updated_at": "2026-10-05T19:55:41.672231Z",
+  "closed_at": "2026-10-05T19:55:41.672183Z",
+  "right_now_summary": "Papyrus now tracks current Limatus with support for versions 0.29.0 and later.",
+  "right_now_updated_at": "2026-10-05T19:55:42.940843Z",
+  "custom": {}
+}

@@ -1,55 +1,27 @@
 from __future__ import annotations
 
-from typing import Any
+import os
 
-from .env import decode_jwt_claims, graphql_endpoint, graphql_jwt
+from .env import graphql_endpoint
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .options import normalize_string, parse_comma_list, parse_options
 
 
-def _claim_values(claims: dict[str, Any], key: str) -> list[str]:
-    value = claims.get(key)
-    if isinstance(value, list):
-        return [str(entry) for entry in value if entry]
-    if isinstance(value, str) and value.strip():
-        return [value.strip()]
-    return []
+def _caller_identity_arn() -> str:
+    import boto3
 
-
-def _format_claim(value: Any) -> str:
-    if isinstance(value, list):
-        return ", ".join(str(entry) for entry in value)
-    if value is None:
-        return "none"
-    return str(value)
+    return str(boto3.client("sts").get_caller_identity().get("Arn") or "unknown")
 
 
 def content_inspect(_flags: list[str]) -> None:
     endpoint = graphql_endpoint()
-    token = graphql_jwt()
-    claims = decode_jwt_claims(token)
-    client = PapyrusGraphQLAuthoringClient(endpoint=endpoint, auth_token=token)
+    client = PapyrusGraphQLAuthoringClient(endpoint=endpoint)
     client.inspect_reachability()
 
-    groups = _claim_values(claims, "groups") + _claim_values(claims, "cognito:groups")
-    roles = _claim_values(claims, "roles")
-    scope = claims.get("scope") or claims.get("scp") or ""
-
     print(f"GraphQL endpoint: {endpoint}")
-    print("Auth source: PAPYRUS_GRAPHQL_JWT")
-    print(f"JWT issuer: {claims.get('iss') or 'unknown'}")
-    print(f"JWT subject: {claims.get('sub') or 'unknown'}")
-    print(f"JWT audience: {_format_claim(claims.get('aud'))}")
-    exp = claims.get("exp")
-    if isinstance(exp, (int, float)):
-        from datetime import datetime, timezone
-
-        print(f"JWT expires: {datetime.fromtimestamp(exp, tz=timezone.utc).isoformat()}")
-    else:
-        print("JWT expires: unknown")
-    print(f"JWT groups: {', '.join(groups) or 'none'}")
-    print(f"JWT roles: {', '.join(roles) or 'none'}")
-    print(f"JWT scope: {_format_claim(scope)}")
+    print("Auth source: AWS credential chain (IAM, SigV4)")
+    print(f"AWS profile: {os.environ.get('AWS_PROFILE') or 'default chain'}")
+    print(f"AWS caller: {_caller_identity_arn()}")
     print("GraphQL reachability: ok")
 
 

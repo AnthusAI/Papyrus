@@ -1,0 +1,35 @@
+{
+  "id": "PPY-8b0f915e-2151-414a-91bb-ea3ad3fc5469",
+  "title": "Pilobol.us P3-08: rebuild-on-publish live proof (StartJob from publish/unpublish)",
+  "description": "## Goal\nProve rebuild-on-publish live: publish and unpublish in the newsroom start a reader build through IAM amplify:StartJob, no webhook URL, no token.\n\n## Context (FACT)\n- PR #125: content-actions Lambda calls StartJob for the reader (PAPYRUS_READER_AMPLIFY_APP_ID, branch) after a changed publish/unpublish; a PENDING job suppresses a new start; unchanged publishes trigger nothing; errors never fail the publish; IAM only amplify:StartJob and ListJobs on apps/<id>/branches/<branch>/jobs/*. The ARN form is flagged unverified in #125. CLI: papyrus content rebuild --reader --app-id <id>.\n- Pre-production site: a test article is acceptable on the reader; unpublish afterwards.\n\n## Exact steps\n1. Ensure papyrus.config.ts backend.reader is the new reader app id, branch main (scaffold/new-apps tickets); deploy through the CMS main build.\n2. Import a throwaway draft (scratch dir with articles/zz-rebuild-proof.md, audio false) with --no-publish; in /newsroom click Publish. Expect a new reader job (aws amplify list-jobs --app-id <reader> --branch-name main) that SUCCEEDs and the page appears; click Publish again at once: pending-job-exists; then Unpublish: job runs, page gone.\n3. Check the Lambda logs for errors and aws iam get-role-policy shows StartJob only on the reader app. Leave the item an unpublished draft.\n\n## Acceptance checks\nJobs started by publish and unpublish; suppression seen; no AccessDenied.\n\n## Rollback\nUnpublish the test item; if the ARN form is wrong fix rebuild-trigger-settings.ts in Papyrus.\n\n## Risks\nIAM ARN form unverified.\n\n## Needs Ryan\nHe clicks Publish/Unpublish (or says the agent may use his session).\n\n## Common rules (Phase 3 Pilobol.us, simplified plan v2)\n- Plan: docs/migrations/pilobol-us.md (PR AnthusAI/Papyrus#128). Ryan 2026-10-06: Pilobol.us is PRE-PRODUCTION, Git history is the rollback, HARD CUTOVER: no soak, no Git freeze, no dual Git/CMS build path, no parity gate, brief downtime is fine. New Amplify apps are created from the template; the old apps and the old EMPTY backend are retired at the end.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan (or on his explicit yes).\n- Never build in /Users/home/Projects/Pilobol.us (its build rewrites content): use a fresh clone or a worktree.\n- Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. Pilobol.us repo: feature branch + PR, never push to its main. In /Users/home/Projects/Papyrus only run kbs.\n- Keep article text verbatim (the importer already does; narration hashes depend on it). The Auritus embed is origin-locked to the site key's origin; the production origin stays pilobol.us, so nothing changes there (narration will not play on temporary amplifyapp.com URLs: expected).\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-bd249d3b-eeb5-4d26-a6a3-50400324926d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "ffee5d8e-6f2b-482a-8ffc-96b44951b6fb",
+      "author": "home",
+      "text": "Live proof 2026-10-07: first publish (before the reader app was wired) started no build; after Pilobol.us#53 wired backend.reader, republishing started reader job 9 within seconds with no Git push; the page then matched the original pilobol.us page byte for byte (sha256 prefix 2526a2cbc1f9ba59). Unpublish not exercised separately.",
+      "created_at": "2026-10-07T10:36:46.883806Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T12:39:21.616089Z",
+  "updated_at": "2026-10-07T10:36:52.276439Z",
+  "closed_at": "2026-10-07T10:36:52.276399Z",
+  "right_now_summary": "Republishing now starts the reader build; unpublish still needs separate testing.",
+  "right_now_updated_at": "2026-10-07T10:36:53.373791Z",
+  "custom": {}
+}

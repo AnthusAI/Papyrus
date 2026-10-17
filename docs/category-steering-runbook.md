@@ -7,5 +7,5 @@ curation-cycle work now lives in the Papyrus agent skill:
 
 This file remains as a compatibility pointer for older links. Do not duplicate
 runbook steps here; update the skill instead so future agents have one source of
-truth for production JWT authoring, Biblicus/Papyrus boundaries, S3 corpus
+truth for production authoring, Biblicus/Papyrus boundaries, S3 corpus
 handling, curation-cycle commands, troubleshooting, and verification.

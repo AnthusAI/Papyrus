@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "a140a32d-db36-468c-9129-cc494d421313",
+  "issue_id": "PPY-709c5d04-8ecc-4c22-85d9-0dbf0d8834f6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:30:55.947Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A Papyrus relevance run is recorded for the Cyclotron marketing site",
+    "description": "As the Cyclotron site's editor, I want a recording of real Papyrus reviews changing the relevance cyclotron, with its measured cost, so that the services page shows a real integration and only what was recorded.\n\nNot included: copying the fixture into Cyclotron-web (Ryan approves first); computing prices for models without a stated source.\n\n```gherkin\nFeature: A Papyrus relevance run is recorded for the Cyclotron marketing site\n  The recording follows the editorial-run fixture's schema 2 with source\n  \"papyrus-live\". It shows real decisions before real reviews, measured model\n  usage and cost at list prices, and editors' explanations only where they\n  agreed to be quoted.\n\n  Background:\n    Given a publication with a relevance cyclotron\n    And two pending references and one accepted reference\n    And the decide-relevance sweep has run with apply\n    And an editor rejected the first pending reference as \"out_of_scope\" saying \"Vendor marketing.\" and allowed quoting\n    And an editor accepted the second pending reference saying \"On our beat.\"\n    And the decide-relevance sweep has run with apply\n\n  Scenario: The recording follows the editorial-run fixture shape\n    When the relevance recording is exported\n    Then the recording is schema version 2 from source \"papyrus-live\"\n    And it has one cycle per decision in the order they were made\n    And each reviewed cycle shows the decision before the review, the editor's label and its reason code\n    And the first window counts 2 decisions and 2 reviewed\n    And the first window and the total carry decision-model usage and cost at the Jev list price\n\n  Scenario: Explanations appear only with the editor's consent\n    When the relevance recording is exported\n    Then the explanation \"Vendor marketing.\" is in the recording\n    And the text \"On our beat.\" is not in the recording\n    And the text \"editor-7\" is not in the recording\n\n  Scenario: Explanations can be switched off entirely\n    When the relevance recording is exported without explanations\n    Then the text \"Vendor marketing.\" is not in the recording\n\n  Scenario: A run that called the optimizer needs the optimizer's list price\n    When a recording with optimizer calls is exported without an optimizer price\n    Then the export asks for the optimizer's list price and its source\n\n  Scenario: The export command reads the private bucket and calls no model\n    When the export command writes the recording from the private bucket\n    Then the recording file has 2 cycles\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-54957abe-6388-461c-84e1-561cb68f5c17",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

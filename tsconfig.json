@@ -27,6 +27,15 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "papyrus-site": [
+        "./papyrus.config.ts"
+      ],
+      "papyrus-site-theme": [
+        "./app/dev-themes.css"
+      ],
+      "papyrus-amplify-outputs": [
+        "./amplify_outputs.json"
       ]
     }
   },
@@ -42,6 +51,8 @@
     "node_modules",
     "infra",
     "cdk.out",
-    ".amplify"
+    ".amplify",
+    "dist-packages",
+    "packages"
   ]
 }

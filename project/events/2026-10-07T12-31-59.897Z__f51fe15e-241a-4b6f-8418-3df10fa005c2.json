@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f51fe15e-241a-4b6f-8418-3df10fa005c2",
+  "issue_id": "PPY-f1f69561-163c-4af0-8f9f-5a52f30b0fb8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:31:59.897Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-01: Papyrus: readerBasePath so the Pretext reader can live under /information",
+    "description": "## Goal\nPapyrus can serve its Pretext reader (home, dated edition pages, articles, sections, pages, archive, settings) under a configurable public prefix, `/information` for p.apyr.us, with every generated link, canonical redirect and cache revalidation using the prefix. Default (no prefix) behavior is byte-identical for every other site.\n\n## Context (FACT, origin/develop 4541deb)\n- No reader base path exists. `getEditionDatePath()` in `lib/edition-routes.ts` returns `/YYYY/<month>/DD`; `getCurrentDatePath()` builds `/${year}/${month}/${day}`; the four `app/[year]/[month]/[day]/**/page.tsx` routes `redirect(route.canonicalPath)`.\n- Other hardcoded reader paths: `components/newspaper.tsx:1880` (`/articles/${slug}` fallback), `lib/newspaper-layout.ts:899` and `lib/presentation-footer.ts:46` (`/archive`), `lib/papyrus-web-locations.ts:60,66,219,452` (`/archive`, `/articles/`), `components/settings-page.tsx:117` (`href=\"/\"`), `app/api/revalidate/route.ts:38-48,79` (`revalidatePath` for edition date, `/articles/<slug>`, `/archive`), `lib/archive-data.ts:18`.\n- `lib/newsroom-base-path.ts` only supports `/newsroom` or `\"\"` (`toInternalNewsroomPath` does not map a custom prefix to `/newsroom`), so the newsroom stays at `/newsroom` (decision; see Phase ticket).\n- `lib/site-brand.ts` has `rootRoute` and `newsroomBasePath` but no reader prefix.\n\n## Exact steps (outside-in BDD)\n1. Gherkin first (features/): scenarios \"a brand with readerBasePath /information renders edition links under /information\", \"article, section, page, archive and footer links carry the prefix\", \"a non-canonical date URL redirects to the prefixed canonical path\", \"revalidate refreshes prefixed paths\", \"a brand without readerBasePath is unchanged\".\n2. Add optional `readerBasePath?: string` (normalized: leading slash, no trailing slash, default `\"\"`) to `SiteBrand`; new `lib/reader-base-path.ts` with `getReaderBasePath()` and `toPublicReaderPath(path)`.\n3. Route every hardcoded reader path listed above through `toPublicReaderPath`. `parseEdition*Route` compare against prefixed canonical paths and accept params from the prefixed mount.\n4. `settings-page` home link and `app/api/revalidate` use the helper. Do not touch `/newsroom` handling.\n\n## Acceptance checks\n- New feature file green; full existing BDD and unit suites green with no snapshot or text changes (default brand).\n- With a test brand `readerBasePath: \"/information\"`: `getEditionDatePath(\"2026-10-07\")` = `/information/2026/october/07`; article, section, page, archive, footer and web-location paths all start with `/information`; no remaining string literal `\"/articles` or `\"/archive` outside the helper (grep in the PR description).\n- `npm run typecheck` and lint clean.\n\n## Rollback\nRevert the PR; the field is optional and absent everywhere else.\n\n## Risks\nMissed hardcoded link (grep and the footer/masthead component tests cover it); search for template literals starting with a slash in `components/` and `lib/`.\n\n## Needs Ryan\nPR merge into develop only.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

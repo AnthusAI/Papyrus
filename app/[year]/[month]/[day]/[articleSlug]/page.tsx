@@ -4,8 +4,13 @@ import { getCachedEditionItem, loadCachedEditionContent } from "../../../../../l
 import { getEditionDatePath, parseEditionArticleRoute } from "../../../../../lib/edition-routes";
 import { buildPresentationFooterEntries } from "../../../../../lib/presentation-footer";
 import { SITE_BRAND } from "../../../../../lib/site-brand";
+import { generateEditionItemStaticParams } from "../../../../../lib/reader-static-params";
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
-export const revalidate = 3600;
+export const revalidate = 60;
+
+export async function generateStaticParams() {
+  return generateEditionItemStaticParams();
+}
 
 type DateScopedArticlePageProps = {
   params: Promise<{
@@ -52,10 +57,12 @@ export default async function DateScopedArticlePage({ params }: DateScopedArticl
       editionFooter={{
         editionBasePath,
         entries: buildPresentationFooterEntries(content),
-        subtitle: SITE_BRAND.id === "threat-intelligence" ? "" : (content.description?.trim() || "Inside Papyrus"),
-        title: SITE_BRAND.id === "threat-intelligence" ? "ANTHUS THREAT INTELLIGENCE" : undefined,
+        sections: content.sections.map((section) => ({ key: section.key, label: section.label })),
+        subtitle: SITE_BRAND.footerSubtitleOverride ?? (content.description?.trim() || "Inside Papyrus"),
+        title: SITE_BRAND.footerTitle,
       }}
       item={item}
+      videoScript={content.videoScripts?.[item.slug] ?? null}
       backHref={`${editionBasePath}#${item.slug}`}
     />
   );

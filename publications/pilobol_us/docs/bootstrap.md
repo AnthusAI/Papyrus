@@ -59,11 +59,10 @@ PAPYRUS_CONTENT_SOURCE=graphql
 PAPYRUS_EDITION_SLUG=current
 PAPYRUS_ENABLE_CONSOLE_RESPONDER=false
 PAPYRUS_ENABLE_SLACK=false
-PAPYRUS_REVALIDATE_SECRET=<generate>
 ```
 
 Trigger the first deploy. Note the new `appId`, AppSync endpoint, media bucket,
-and JWT SSM parameter path from `amplify_outputs.json` / CloudFormation outputs.
+and the authoring role ARN from `amplify_outputs.json` / CloudFormation outputs.
 
 Record them here after first deploy:
 
@@ -72,11 +71,18 @@ appId:           d11eu9hbs2mipk
 defaultDomain:   d11eu9hbs2mipk.amplifyapp.com
 GraphQL:         https://q2c7ulf45rh2nesbg6p3yki4si.appsync-api.us-east-1.amazonaws.com/graphql
 Media bucket:    amplify-d11eu9hbs2mipk-ma-papyrusmediabucket0dab24-nictgfucsrga
-JWT SSM param:   /amplify/d11eu9hbs2mipk/main-branch-3c5f57c311/PAPYRUS_JWT_SECRET
+Authoring role:  arn:aws:iam::335163751677:role/<siteId>-papyrus-authoring
 ```
 
-The app shell is provisioned by `infra/amplify-app-shell` (CDK); the backend
-deploys via `ampx pipeline-deploy` on the first Amplify CI build of `main`.
+The app shell is provisioned by `@anthusai/papyrus/infra` (CDK) from the
+publication's `infra/site.json` (see
+[`infra/amplify-app-shell/README.md`](../../../infra/amplify-app-shell/README.md)):
+no GitHub token is stored. After the one-time GitHub App connection per app
+([`docs/site-hosting.md`](../../../docs/site-hosting.md#one-time-github-app-connection-per-app)),
+the backend deploys via `ampx pipeline-deploy` on the first Amplify CI build of
+`main`, pinned to the `papyrusVersion` in `site.json` (no floating `main` of
+`AnthusAI/Papyrus`). The `Repository` line above describes the legacy app
+`d11eu9hbs2mipk` until the Phase 3 migration.
 
 ## 2. DNS
 
@@ -93,13 +99,12 @@ Hosted zone: `pilobol.us` (`Z09961547QX1VHIXOBD7`). Apex + `www` belong to the
 PAPYRUS_SITE_BRAND=pilobol-us
 NEXT_PUBLIC_PAPYRUS_SITE_BRAND=pilobol-us
 PAPYRUS_GRAPHQL_ENDPOINT=<from amplify_outputs.json>
-PAPYRUS_JWT_SECRET_SSM_PARAM=/amplify/<appId>/main-branch-<hash>/PAPYRUS_JWT_SECRET
 ```
 
-Mint a CLI JWT:
+Run the CLI with AWS credentials for the authoring role (no token to mint):
 
 ```bash
-PYTHONPATH=src python -m papyrus.cli auth refresh-jwt --write-env .env
+AWS_PROFILE=<profile> PYTHONPATH=src python -m papyrus.cli ops content inspect
 ```
 
 ## 4. Materialize newsroom config
@@ -148,10 +153,12 @@ PYTHONPATH=src python -m papyrus.cli references create-from-catalog \
   --status accepted
 ```
 
-## 6. Google sign-in (optional)
+## 6. Google sign-in
 
-Google OAuth is **disabled** by default (`PAPYRUS_DISABLE_GOOGLE_OAUTH=1`) until
-you create a Google OAuth client and store credentials in SSM.
+Google is the standard sign-in. The site's `infra/site.json` sets
+`cms.cognitoDomainPrefix`; the Amplify backend secrets `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` come from a Google OAuth client (an existing client can
+be reused by adding the new Cognito origin and redirect URI to it).
 
 Follow [`docs/google-oauth-setup.md`](../../../docs/google-oauth-setup.md) for the
 full Google Cloud Console walkthrough. Pilobolus uses:

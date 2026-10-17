@@ -3,7 +3,7 @@
   "title": "build.py global HTML unescape defeats Markus escaping (XSS vector)",
   "description": "",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,19 @@
       "text": "Found in /Users/home/Projects/Pilobol.us/web/build.py (now committed as c9a8823 to preserve at-risk work; committing it did NOT bless it).\n\nTHE CODE:\n  out = result.stdout.replace(\"&lt;\", \"<\").replace(\"&gt;\", \">\").replace(\"&quot;\", '\\\"')\n\nThis globally un-escapes ALL Markus output after 'markus convert --fragment --no-css'. It does not distinguish content the author intended as markup from content Markus deliberately escaped.\n\nWHY IT IS A REAL VECTOR: Markus runs with raw HTML DISABLED by default, and escapes literal angle brackets in prose precisely so a Markdown author cannot inject markup. This line reverses that decision for every character of every document. Any author writing a literal <script> in an article body gets live markup in the published page. The output is then mounted as trusted HTML.\n\nIt also directly contradicts the invariant recorded on PPY-88f77b: 'fragments are trusted because they are built from repo-committed Markdown with --allow-html OFF.' That invariant is false while this line exists - the pipeline is no longer honoring Markus's escaping regardless of the flag.\n\nWHY IT WAS PROBABLY ADDED: the effects pages (physarum, reaction-diffusion, cellular-automata) need to embed <canvas> and <script>. A blanket unescape is the quickest way to get that through.\n\nCORRECT FIXES (pick one, do not keep the unescape):\n(a) Add a Markus directive for embedded interactive media, so the escape hatch is explicit, validated, and part of the vocabulary. Best long-term - it is exactly what the directive registry is for, and it keeps the content model honest.\n(b) Keep effect scaffolding in the PAGE SHELL in build.py (which is trusted Python, not author content) and have the Markdown only name which effect to mount. Smallest change.\n(c) Run those specific pages with --allow-html and a sanitizer, accepting a narrower blast radius. Weakest.\n\nRecommend (b) now and (a) as the durable answer.\n\nNOTE: the deploy branch's build.py (cursor/feature/PPY-17fcfc-amplify-static-3af6) does NOT contain this line. Production is not currently exposed. This is in the divergent local copy - see the reconciliation issue.",
       "created_at": "2026-09-06T17:25:26.733549Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5eccae98-1539-4cf5-9ca2-d09c3b24ead3",
+      "author": "home",
+      "text": "Investigated 2026-10-05: the global unescape was only in Pilobol.us web/build.py history between c9a8823 and 38c8a5c (both 2026-09-06; removed the same day). Papyrus markus_renderer never passes --allow-html and has no global unescape; live pilobol.us (7f30fa9, build_via_papyrus.py) and live anth.us both do targeted unescape-then-escape only; markus convert escapes <script>, onerror and onclick in a direct test. Not exploitable on any live site. Closing.",
+      "created_at": "2026-10-05T14:00:30.170822Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T17:25:26.709982Z",
-  "updated_at": "2026-09-06T17:25:26.733549Z",
-  "closed_at": null,
+  "updated_at": "2026-10-05T14:00:51.694987Z",
+  "closed_at": "2026-10-05T14:00:51.694911Z",
+  "right_now_summary": "The global HTML unescape was removed, and live sites are not exposed.",
+  "right_now_updated_at": "2026-10-05T14:00:53.058239Z",
   "custom": {}
 }

@@ -30,13 +30,13 @@ from .analysis_commands import (
     analysis_reindex_plan,
     analysis_run_now,
 )
-from .auth_commands import refresh_jwt
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
+    assignments_backfill_content_items,
     assignments_backfill_section_indexes,
     assignments_build_context,
     assignments_cancel,
@@ -197,7 +197,15 @@ from .steering import (
     resolve_classifier_for_corpus,
     selected_corpus_configs,
 )
-from publications.threat_intelligence.videoml.videos_commands import videos_attach, videos_render, videos_seed
+from .convert_bodies_commands import content_convert_bodies
+from .markus_derive_commands import content_markus_derive
+from .markus_export_commands import content_export_published
+from .backend_copy_commands import content_copy_backend
+from .markus_import_commands import content_import_markus
+from .preview_upload_commands import content_upload_preview
+from .project_commands import content_project
+from .renditions_commands import content_renditions
+from .publish_commands import content_publish, content_rebuild, content_unpublish
 from .markus_renderer.commands import markus_build
 
 
@@ -209,6 +217,17 @@ PORTED_COMMANDS = frozenset(
         "content:seed-edition",
         "content:backfill-item-body-attachments",
         "content:scrub-item-inline-body",
+        "content:markus-derive",
+        "content:import-markus",
+        "content:publish",
+        "content:unpublish",
+        "content:rebuild",
+        "content:convert-bodies",
+        "content:export-published",
+        "content:copy-backend",
+        "content:upload-preview",
+        "content:project",
+        "content:renditions",
         "corpora:status",
         "corpora:worker-bootstrap",
         "corpora:sync-from-cloud",
@@ -247,6 +266,10 @@ PORTED_COMMANDS = frozenset(
         "references:execute-identifier-backfill",
         "references:export-analysis-manifest",
         "references:export-scope-training",
+        "references:decide-relevance",
+        "references:export-relevance-recording",
+        "references:freeze-priming-held-out",
+        "references:prove-priming",
         "references:backfill-reviewed-feed-key",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -264,6 +287,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "assignments:backfill-content-items",
         "assignments:for-object",
         "assignments:build-context",
         "assignments:research-packets",
@@ -338,7 +362,6 @@ PORTED_COMMANDS = frozenset(
         "categories:review-proposal",
         "categories:reset",
         "categories:run-curation-cycle",
-        "auth:refresh-jwt",
         "batch:register-catalog",
         "batch:enrich-references",
         "test:category-mappers",
@@ -392,6 +415,28 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_backfill_item_body_attachments(flags)
     elif route == "content:scrub-item-inline-body":
         content_scrub_item_inline_body(flags)
+    elif route == "content:markus-derive":
+        content_markus_derive(flags)
+    elif route == "content:import-markus":
+        content_import_markus(flags)
+    elif route == "content:publish":
+        content_publish(flags)
+    elif route == "content:unpublish":
+        content_unpublish(flags)
+    elif route == "content:rebuild":
+        content_rebuild(flags)
+    elif route == "content:convert-bodies":
+        content_convert_bodies(flags)
+    elif route == "content:copy-backend":
+        content_copy_backend(flags)
+    elif route == "content:export-published":
+        content_export_published(flags)
+    elif route == "content:upload-preview":
+        content_upload_preview(flags)
+    elif route == "content:project":
+        content_project(flags)
+    elif route == "content:renditions":
+        content_renditions(flags)
     elif route == "corpora:status":
         corpora_status(flags)
     elif route == "corpora:worker-bootstrap":
@@ -482,6 +527,18 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_export_analysis_manifest(flags)
     elif route == "references:export-scope-training":
         references_export_scope_training(flags)
+    elif route == "references:decide-relevance":
+        from .relevance_sweep import references_decide_relevance
+        references_decide_relevance(flags)
+    elif route == "references:export-relevance-recording":
+        from .relevance_recording import references_export_relevance_recording
+        references_export_relevance_recording(flags)
+    elif route == "references:freeze-priming-held-out":
+        from .priming_proof import references_freeze_priming_held_out
+        references_freeze_priming_held_out(flags)
+    elif route == "references:prove-priming":
+        from .priming_proof import references_prove_priming
+        references_prove_priming(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-corpus-storage-paths":
@@ -516,6 +573,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "assignments:backfill-content-items":
+        assignments_backfill_content_items(flags)
     elif route == "assignments:for-object":
         assignments_for_object(flags)
     elif route == "assignments:build-context":
@@ -677,8 +736,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         categories_reset(flags)
     elif route == "categories:run-curation-cycle":
         categories_run_curation_cycle(flags)
-    elif route == "auth:refresh-jwt":
-        refresh_jwt(flags)
     elif route == "batch:register-catalog":
         register_catalog_batches(flags)
     elif route == "batch:enrich-references":
@@ -692,10 +749,16 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "policy:check-reference-action-contract":
         check_reference_action_contract(flags)
     elif route == "videos:render":
+        from papyrus_content.videoml.commands import videos_render
+
         videos_render(flags)
     elif route == "videos:seed":
+        from papyrus_content.videoml.commands import videos_seed
+
         videos_seed(flags)
     elif route == "videos:attach":
+        from papyrus_content.videoml.commands import videos_attach
+
         videos_attach(flags)
     elif route == "editorial:diagnose":
         editorial_diagnose(flags)
@@ -1425,6 +1488,15 @@ def print_usage() -> None:
     print("  categories import/export/draft/review/curation-cycle/rebuild-roots commands,")
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
-    print("  auth refresh-jwt, batch register-catalog/enrich-references,")
+    print("  batch register-catalog/enrich-references,")
+    print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
+    print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
+    print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
+    print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
+    print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
+    print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
+    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
+    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json],")
+    print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")

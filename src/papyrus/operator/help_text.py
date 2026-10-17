@@ -10,7 +10,6 @@ Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [o
 Operator groups:
   references    List or show references (local pod or cloud GraphQL)
   assignments   List newsroom assignments (cloud) or pod stories (local)
-  auth          Mint cloud authoring JWTs
   knowledge     Knowledge query and steering utilities
   reporting     Reporting assignment workflow
   research      Research assignment workflow
@@ -70,17 +69,6 @@ def build_assignments_parser() -> argparse.ArgumentParser:
   return parser
 
 
-def build_auth_parser() -> argparse.ArgumentParser:
-  parser = argparse.ArgumentParser(prog="papyrus auth", add_help=False)
-  subparsers = parser.add_subparsers(dest="command")
-  refresh = subparsers.add_parser("refresh", help="Mint PAPYRUS_GRAPHQL_JWT for cloud authoring")
-  refresh.add_argument("--write-env", default="")
-  refresh.add_argument("--ttl-seconds", default="")
-  refresh.add_argument("--format", default="plain")
-  subparsers.add_parser("refresh-jwt", help="Alias maintained for existing scripts")
-  return parser
-
-
 def build_knowledge_parser() -> argparse.ArgumentParser:
   parser = argparse.ArgumentParser(prog="papyrus knowledge", add_help=False)
   subparsers = parser.add_subparsers(dest="command")
@@ -118,7 +106,6 @@ def print_group_help(group: str) -> None:
   builders = {
     "references": build_references_parser,
     "assignments": build_assignments_parser,
-    "auth": build_auth_parser,
     "knowledge": build_knowledge_parser,
     "editorial": build_editorial_parser,
   }

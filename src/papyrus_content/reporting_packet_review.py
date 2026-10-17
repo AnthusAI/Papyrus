@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .catalog import semantic_relation_record
+from .content_item_lifecycle import require_assignment_content_item_lineage_id
 from .ids import hash_short, safe_id
 from .model_attachments import attachment_record, build_json_model_payload_attachment
 from .options import normalize_string
@@ -426,6 +427,7 @@ def _copywriting_assignment_for_reporting_packet(
     actor_label: str,
     now: str,
 ) -> dict[str, Any]:
+    content_item_lineage_id = require_assignment_content_item_lineage_id(assignment)
     target_item_type = "brief" if decision == "brief" else "article"
     assignment_type_key = (
         COPYWRITING_BRIEF_ASSIGNMENT_TYPE if target_item_type == "brief" else COPYWRITING_ARTICLE_ASSIGNMENT_TYPE
@@ -525,6 +527,7 @@ def _copywriting_assignment_for_reporting_packet(
         "createdAt": now,
         "updatedAt": now,
         "newsroomFeedKey": "assignment#open",
+        "itemLineageId": content_item_lineage_id,
     }
 
 

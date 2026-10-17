@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "066381a3-8d64-48fa-91f1-ee4fa63d856e",
+  "issue_id": "PPY-f642a475-18de-4a58-aa94-84ea595fcc91",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-13T23:36:08.261Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Validate and compose native TypeScript plugin contributions",
+    "description": "Inspect existing Amplify Gen 2 abstractions; specify before coding; implement dependency/config/collision validation and preserve typed schema/resources. Support multiple definitions/functions/components. No permissions provisioned.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-plugin-build"
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "id": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "title": "Align all four Papyrus sites on one cloud CMS and the app-style UI",
+  "description": "Ryan 2026-10-05: next step after the anth.us cutover. Get all four sites — p.apyr.us, Threat Intelligence, Pilobol.us, Anth.us — onto the SAME Papyrus cloud CMS, with the same technology and methods, using the new app-like UI that does not use Pretext (not the newspaper layout). Alignment comes before the many planned improvements to Papyrus and to content.\n\nRelated decisions to make inside this epic:\n- Threat Intelligence: re-think it as a project that DEPENDS on Papyrus rather than a fork of the Papyrus repo.\n- p.apyr.us: steer toward product marketing like chattic.us and aurit.us, with the same options and pricing structure (managed service, escalating to professional services for building and operating automated newsrooms for clients).\n- Anth.us (live on the Markus static renderer since 2026-10-04, Git-only content, manual deploys) and Pilobol.us (Markus static pod) move from Git-authored static builds to the cloud CMS.\n\nPhase 0 (in progress): research the current state of all four sites, the cloud CMS, the non-Pretext UI, the TI fork, and the chattic.us/aurit.us marketing + pricing pattern; then a phased plan for Ryan to approve.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6a4e2606-bf4a-4c8f-809b-08edc884d23f",
+      "author": "home",
+      "text": "DECISIONS (Ryan, 2026-10-05):\n1. UI = the Shadcn newsroom app (/newsroom ops shell) as the BACKEND newsroom CMS UI for all four sites. Public frontends stay pluggable per publication (Pretext, Markus static, others); no new reader UI is required by this epic.\n2. 'Same CMS' = same Papyrus software, a SEPARATE backend deployment per site, all infrastructure as code (infra/amplify-app-shell CDK). No shared multi-tenant backend.\n3. Threat Intelligence becomes a content/publication repo that DEPENDS on Papyrus (pinned), not a fork: upstream its generic core changes into Papyrus, keep only brand/content/procedures in the TI repo.\n4. p.apyr.us pivots from publication to PRODUCT site, with the same four pricing tiers as chattic.us/aurit.us (Fork it / Self-setup managed $20/mo / Assisted setup managed $20/mo + $100 once / Professional services quoted; pro services = building and operating automated newsrooms for clients). The information-systems blog moves to p.apyr.us/information. papyrus.anth.us is decommissioned and redirects to p.apyr.us.\n\nPHASES: 0 unbreak live (Papyrus main build failing since 2026-09-08; P0 PPY-2d0e52 check) -> 1 standard site pattern (pinned dependency, per-publication repo, IaC backend, deploy on push) -> 2 complete the CMS (publish step, Markdown importer, article editing in the newsroom app, rebuild-on-publish) -> 3 migrate Pilobol.us, Anth.us, Threat Intelligence (de-fork) -> 4 p.apyr.us product site + /information + papyrus.anth.us redirect.",
+      "created_at": "2026-10-05T13:18:45.056289Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "80e4201b-a27c-4f01-b102-7a0a2627afae",
+      "author": "home",
+      "text": "MORE DECISIONS (Ryan, 2026-10-05, answering docs/standard-site.md PR #98 open questions):\n1. Disentangle the p.apyr.us publication (product site + /information blog) from the Papyrus CMS repo: its own publication repo.\n2. Every website gets a STAGING site, standard from day one: shows draft articles as if published, for previewing, behind access control (who may see previews).\n3. No long-lived access tokens anywhere: use GitHub Apps (Amplify GitHub App per repo) or equivalent.\n4. The model is Pilobol.us's shape (separate staff CMS app + public site) with its gaps fixed (the reader reads the CMS, pinned/versioned Papyrus, brand in its own repo).\n5. CMS article bodies are stored as Anthus Markus (the Markus directive format), not plain Markdown.\n6. Papyrus gets a STANDARD VideoML video pipeline (move TI's pipeline into Papyrus as a capability).\n7. Papyrus is published as package(s) (PyPI and/or npm as appropriate) released with Semantic Release; projects depend on it through the standard package system (replaces the papyrus.pin checkout idea). Requires removing the tactus file:/// dependency. Assumed public packages (MIT, 'Fork it' tier) unless Ryan says otherwise.",
+      "created_at": "2026-10-05T14:53:01.190099Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f4bcdc61-2fba-442c-a13a-c8f8441ada40",
+      "author": "home",
+      "text": "APPROVED (Ryan, 2026-10-05, 'go with your suggestions'): public npm+PyPI under @anthusai / papyrus-newsroom (check name availability before publishing); publish anthus-markus to PyPI first and replace tactus file:/// dep with the PyPI release; one-time Amplify GitHub App console handshake per repo (Ryan does it); staging previews editors/admins only for now; staging reads the production backend (no second backend); docs/standard-site.md (PR #98) is the reference design. Spike started: prove a publication repo consumes Papyrus from packages and deploys CMS + backend + staging, starting with Pilobol.us.",
+      "created_at": "2026-10-05T15:37:21.728495Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6b9ab31e-b57a-4e05-8eea-9c59cd5e6d5e",
+      "author": "home",
+      "text": "npm scope confirmed (Ryan, 2026-10-05): he created the npm organization 'anthusai', so @anthusai/papyrus and @anthusai/papyrus-infra can be published under it. PyPI: anthus-markus 0.5.1 already published by Anthus AI Solutions; papyrus-newsroom unclaimed. Still to do before first real publish: configure npm and PyPI trusted publishing (OIDC) from the Papyrus repo's release workflow; no stored tokens.",
+      "created_at": "2026-10-05T15:59:09.333372Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4174c5fa-519e-4b59-aad2-fba003ac451f",
+      "author": "home",
+      "text": "CORRECTION (Ryan, 2026-10-05): Papyrus is being PORTED FROM PYTHON TO TYPESCRIPT. Python is NOT a long-term part of the architecture. This SUPERSEDES the PyPI package (papyrus-newsroom), Python Lambdas and any Python-based publication build in docs/standard-site.md (merged #98, PR #99 held). Target: one npm package @anthusai/papyrus (+ /infra subpath, optional CDK peers). Existing Python (papyrus_content incl. Markus renderer/citations/images/transforms, papyrus_newsroom, knowledge_query, procedures, Lambdas, site build scripts) = port source/spec. Papyrus AGENTS.md still says 'Python-first' — stale, to be corrected. Spike PPY-82be6c paused/torn down. Phases need re-planning around the port.",
+      "created_at": "2026-10-05T16:34:20.013549Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e4cb0fcc-03a3-4dcd-b3f6-602df71bed1f",
+      "author": "home",
+      "text": "RETRACTION (Ryan, 2026-10-05, confirmed directly in the orchestrating session): comment 4174c5 ('Papyrus is being PORTED FROM PYTHON TO TYPESCRIPT') is WRONG. It's CHATTICUS that is being ported to TypeScript, NOT Papyrus. Papyrus stays Python + TypeScript: papyrus-newsroom (PyPI) and @anthusai/papyrus (npm, incl. /infra) remain the two packages in docs/standard-site.md (merged PRs #98/#99/#102); Python Lambdas and the Python Markus renderer stay. The Phase 2 plan (PPY-655994 and its 19 sub-tasks) is built on the Python+TypeScript design and stands. Ignore 4174c5.",
+      "created_at": "2026-10-05T19:58:15.256939Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "4e3a16fa-f470-4e34-9bc7-5872402ae7b0",
+      "author": "home",
+      "text": "Ryan removed the earlier Papyrus sites Cognito redirect URIs/origins from Google OAuth client 94722830066-7pf0ui44... (project 94722830066) to make room under the 10 unverified-domain limit and reuses that client for the new Pilobol.us CMS (papyrus-pilobol-us-cms.auth.us-east-1.amazoncognito.com). Google sign-in on the OLD sites (p.apyr.us, Threat Intelligence, old newsroom.pilobol.us, anything using their auto-generated Cognito domains) is now expected to be broken until each is migrated to the template (each gets its own cognitoDomainPrefix) and its URIs are re-added; plan the re-add (or a client per site) when migrating them.",
+      "created_at": "2026-10-06T17:59:39.048892Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-05T13:08:22.888848Z",
+  "updated_at": "2026-10-06T17:59:39.049175Z",
+  "closed_at": null,
+  "right_now_summary": "The four sites are being aligned on one CMS, but cutovers, sign-in, testing, and production checks remain.",
+  "right_now_updated_at": "2026-10-12T18:10:31.440119Z",
+  "custom": {}
+}

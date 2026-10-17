@@ -1,0 +1,278 @@
+/*
+  Structural CSS for the rhythm blog layout (blogLayout: "rhythm").
+  Every rule is scoped to .blog-rhythm-shell, which only the rhythm layout
+  renders, so classic layouts are unaffected. The shell sets --blog-rhythm,
+  --blog-row-height, --blog-paint-buffer and --blog-paint-height inline.
+  Typography, colors and the header look belong to the publication's theme.css.
+  Optional tokens a publication may set:
+    --blog-hrule-foreground, --blog-section-rule, --blog-section-band-height,
+    --blog-page-padding-x, --blog-secondary-pair-min-width.
+*/
+
+.blog-rhythm-shell {
+  --blog-hrule-foreground: var(--border);
+  --blog-section-rule: var(--border);
+  --blog-section-band-height: calc(var(--blog-row-height) * 2);
+  --blog-page-padding-x: calc(var(--blog-rhythm) * 3);
+  --paper-rhythm: var(--blog-row-height);
+
+  isolation: isolate;
+  position: relative;
+}
+
+.blog-rhythm-shell.presentation-page--blog {
+  padding: calc(var(--blog-row-height) * 4) var(--blog-page-padding-x) 0;
+}
+
+.blog-rhythm-shell > :not(.blog-page-background) {
+  position: relative;
+  z-index: 1;
+}
+
+.blog-rhythm-shell[data-rhythm-overlay="true"]::before {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgb(var(--rhythm-overlay-rule-rgb) / var(--rhythm-overlay-rule-alpha)) 0,
+      rgb(var(--rhythm-overlay-rule-rgb) / var(--rhythm-overlay-rule-alpha)) 1px,
+      transparent 1px,
+      transparent var(--blog-row-height)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(var(--rhythm-overlay-blue-rgb) / var(--rhythm-overlay-blue-alpha)) 0,
+      rgb(var(--rhythm-overlay-blue-rgb) / var(--rhythm-overlay-blue-alpha)) var(--blog-row-height),
+      rgb(var(--rhythm-overlay-yellow-rgb) / var(--rhythm-overlay-yellow-alpha)) var(--blog-row-height),
+      rgb(var(--rhythm-overlay-yellow-rgb) / var(--rhythm-overlay-yellow-alpha)) calc(var(--blog-row-height) * 2)
+    );
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 900;
+}
+
+.blog-rhythm-shell .presentation-header {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-section-header,
+.blog-rhythm-shell .presentation-item,
+.blog-rhythm-shell .presentation-item__copy {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.blog-rhythm-shell .presentation-section-header {
+  align-items: stretch;
+  border-bottom: 0;
+  border-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--blog-row-height);
+  margin: 0;
+  min-height: 0;
+  padding: calc(var(--blog-row-height) * 4) 0 calc(var(--blog-row-height) * 2);
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-section-header__band {
+  align-items: center;
+  display: grid;
+  gap: 0 var(--blog-rhythm);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: var(--blog-section-band-height);
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-section-header__band::before,
+.blog-rhythm-shell .presentation-section-header__band::after {
+  background: var(--blog-section-rule);
+  content: "";
+  grid-row: 1;
+  height: var(--blog-section-band-height);
+}
+
+.blog-rhythm-shell .presentation-section-header__band::before {
+  grid-column: 1;
+}
+
+.blog-rhythm-shell .presentation-section-header__band::after {
+  grid-column: 3;
+}
+
+.blog-rhythm-shell .presentation-section-header__band p {
+  grid-column: 2;
+  grid-row: 1;
+  height: var(--blog-section-band-height);
+  justify-self: center;
+  line-height: var(--blog-section-band-height);
+  margin: 0;
+  padding: 0 var(--blog-rhythm);
+  width: max-content;
+}
+
+.blog-rhythm-shell .presentation-item {
+  border-bottom: 0;
+  gap: var(--blog-row-height) calc(var(--blog-rhythm) * 4);
+  padding-bottom: 0;
+}
+
+.blog-rhythm-shell .presentation-item--blog {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.blog-rhythm-shell .presentation-rhythm-hrule {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-rows: repeat(5, var(--blog-row-height));
+  height: calc(var(--blog-row-height) * 5);
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-rhythm-hrule__line {
+  background: var(--blog-hrule-foreground);
+  grid-row: 3;
+  height: var(--blog-row-height);
+}
+
+@media (min-width: 1100px) {
+  .blog-rhythm-shell .blog-section:has(> .presentation-item[data-item-index="2"]) {
+    column-gap: calc(var(--blog-row-height) * 2);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .blog-rhythm-shell .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-section-header,
+  .blog-rhythm-shell .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-item[data-item-index="0"] {
+    grid-column: 1 / -1;
+  }
+
+  .blog-rhythm-shell .blog-section:has(> .presentation-item[data-item-index="2"]) > .presentation-rhythm-hrule[data-hide-in-secondary-pair="true"] {
+    display: none;
+  }
+}
+
+.blog-rhythm-shell .presentation-item[data-feature-layout][data-has-image="true"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.blog-rhythm-shell .presentation-item[data-feature-layout] .presentation-item__text-frame {
+  height: var(--feature-text-frame-height);
+  max-width: none;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-item[data-feature-layout] .presentation-item__media {
+  height: var(--feature-media-height);
+  width: var(--feature-image-width);
+}
+
+.blog-rhythm-shell .presentation-item[data-feature-layout] .pictogram-figure__frame {
+  aspect-ratio: auto;
+  height: var(--feature-image-height);
+  width: var(--feature-image-width);
+}
+
+.blog-rhythm-shell .presentation-item--blog[data-feature-layout][data-has-image="true"] .presentation-item__copy {
+  display: contents;
+}
+
+.blog-rhythm-shell .presentation-item--blog[data-feature-layout][data-has-image="true"] .presentation-item__header {
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-item--blog[data-feature-layout][data-has-image="true"] .presentation-item__body {
+  min-width: 0;
+  position: relative;
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-item--blog[data-feature-layout][data-has-image="true"] .presentation-item__body .presentation-item__text-frame {
+  margin-top: 0;
+}
+
+.blog-rhythm-shell .presentation-item--blog[data-feature-layout][data-has-image="true"] .presentation-item__media {
+  margin: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 1;
+}
+
+.blog-rhythm-shell .presentation-item__image img {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.blog-rhythm-shell .presentation-item__video {
+  grid-column: 1 / -1;
+  margin: var(--blog-row-height) 0 0;
+}
+
+.blog-rhythm-shell .article-page__hero-video {
+  margin: 0 0 calc(var(--blog-rhythm) * 5);
+}
+
+.blog-rhythm-shell .article-page__hero-video .article-video,
+.blog-rhythm-shell .presentation-item__video-figure {
+  container-type: inline-size;
+}
+
+.blog-rhythm-shell .presentation-item__video-figure .article-video__media,
+.blog-rhythm-shell .article-page__hero-video .article-video__media {
+  height: round(up, calc(100cqw * 9 / 16), var(--blog-row-height));
+}
+
+.blog-rhythm-shell .article-float-grid[data-feature-layout][data-has-image="true"] {
+  display: grid;
+  gap: var(--feature-layout-gap);
+  grid-template-columns: minmax(0, 1fr) var(--feature-image-width);
+}
+
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .article-page__hero-video,
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .article-float-grid__header {
+  grid-column: 1 / -1;
+}
+
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .article-float-grid__body {
+  align-self: start;
+  grid-column: 1;
+  max-width: var(--feature-copy-width);
+  min-width: 0;
+  width: var(--feature-copy-width);
+}
+
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .article-float-grid__media,
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .pictogram-figure__frame {
+  height: var(--feature-image-height);
+  width: var(--feature-image-width);
+}
+
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .pictogram-figure__frame {
+  aspect-ratio: auto;
+}
+
+.blog-rhythm-shell .article-float-grid[data-feature-layout] .article-float-grid__media {
+  align-self: start;
+  grid-column: 2;
+  margin: 0;
+  position: relative;
+}
+
+.blog-rhythm-shell .article-float-grid .presentation-item__image {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .blog-rhythm-shell .presentation-item--blog {
+    grid-template-columns: 1fr;
+  }
+}

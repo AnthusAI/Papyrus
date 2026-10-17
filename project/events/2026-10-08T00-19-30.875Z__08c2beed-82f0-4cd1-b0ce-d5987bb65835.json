@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "08c2beed-82f0-4cd1-b0ce-d5987bb65835",
+  "issue_id": "PPY-30b607fc-4a95-4640-977e-0b6879f5be9b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-08T00:19:30.875Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Pretext staging build fails: cookies() called outside a request scope during prerender of /[year]/[month]/[day]",
+    "description": "Threat Intelligence new app dzefa11i80jyq, Amplify branch `staging` job 1 (2026-10-08 ~00:0xZ) fails in `next build` page data collection/prerender of `/[year]/[month]/[day]` with \"cookies was called outside a request scope\". In staging (SITE_ENV=staging) Papyrus reads the session cookie per request; Next tries to prerender the page at build time. Fix: make Pretext reader routes dynamic in staging without changing production or other brands.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+    "labels": [
+      "phase-4"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "PPY-240d9f2f-8d1a-438e-adc5-676d3cfabee7",
+  "title": "Phase 0: unbreak Papyrus main builds (p.apyr.us, newsroom.pilobol.us) and check P0 PPY-2d0e52 against live sites",
+  "description": "",
+  "type": "task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f31df041-defd-42d0-b471-8353f388b707",
+      "author": "home",
+      "text": "Phase 0 results (2026-10-05).\n\nTASK A. Root cause (all 12 failed jobs inspected: Papyrus app dbsyytcm9drqa jobs 329-334, pilobol-us-cms d11eu9hbs2mipk jobs 10-15, both since 2026-09-09): identical TS2322 at app/page.tsx:42 during next build type check. Home passes its narrow searchParams (scenario/code/state/error) to NewsDeskRootPage whose all-optional searchParams type shares no properties (weak-type check). Introduced by efaf493 (Pilobolus newsroom at subdomain root). The backend phase (ampx pipeline-deploy) SUCCEEDS on every run; only the frontend fails. origin/main app/page.tsx and app/newsroom/page.tsx are identical to develop, so main fails identically (job 334 = main HEAD 6952f15). No other errors: develop typecheck/lint/next build clean with the fix. Fix: PR #94 (fix/PPY-240d9f-unbreak-build), export NewsDeskRootSearchParams and intersect into HomePageProps; no casts. MERGED into develop as 799c43a (no CI exists on the repo for this path; local typecheck, lint, build all green; build verified with amplify_outputs generated read-only via ampx generate outputs). Note: bare checkouts lack gitignored amplify_outputs.json (written by pipeline-deploy in the real build) so local typecheck needs it. NOT released: develop -> main not opened.\n\nRelease risk (develop -> main, 43 commits, 191 files, mostly project/ events+issues): amplify/ (schema, data, functions) has ZERO changes, so no GraphQL/schema changes and no data migrations. Backend deploy would be a no-op diff versus what the failed builds already deployed. Frontend changes: lib/site-brand.ts adds anth-us brand and DROPS the bare 'pilobol' PAPYRUS_SITE_BRAND alias (pilobol-us-cms env is 'pilobol-us', so safe; Papyrus app has no brand var); lib/site-stack.ts types/tokens for anth-us; app/globals.css imports anth_us theme scoped to :root[data-site-brand=anth-us] (inert for the two live apps); app/page.tsx + newsroom/page.tsx type fix; package.json test script only. Python-only (not in Amplify build): Markus renderer (images, citations, content markup, shell transforms, slug handling), Limatus SDK delegation for editorial_*, pyproject adds citeproc-py and limatus. Residual risks: pyproject tactus path dep is file:///Users/ryan/... (existing); first successful frontend build after 1 month means p.apyr.us and newsroom.pilobol.us go live on a month of unverified-in-prod frontend code (the newsroom UI served from main today is the 2026-09-08 build).\n\nTASK B (PPY-2d0e52): not in Papyrus code. markus_renderer never passes --allow-html and has no global unescape (only scoped unescape then html.escape for img attributes). The vulnerable line lived in Pilobol.us web/build.py, in origin/main history from c9a8823 to 38c8a5c (both 2026-09-06, same day) and was deleted before the first Amplify static deploy; origin/main (7f30fa9, deployed, SUCCEED) uses web/build_via_papyrus.py with only targeted unescape (lede text, tags stripped, re-escaped). Anth.us-Papyrus web/ uses only targeted unescape-then-escape; markus convert verified to escape script, img onerror and div onclick. Live pilobol.us and anth.us are NOT affected. Exploitability had it shipped: stored XSS requiring a Git committer, i.e. trusted authors/supply chain only. No fix PR needed; recommend closing after the divergent local branches stop carrying c9a8823-era build.py.",
+      "created_at": "2026-10-05T13:26:48.891833Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "7410100b-7497-44d8-950d-8c4eb6a1b57f",
+      "author": "home",
+      "text": "Phase 0 DONE 2026-10-05. Root cause of the month of failed builds: TS2322 at app/page.tsx:42 (from efaf493), fixed in #94. Released develop->main (#95, 7712756): both apps built (p.apyr.us job 335, newsroom.pilobol.us job 16), the first successes since 2026-09-08. That exposed a runtime 500 on newsroom.pilobol.us (getSiteRenderer() threw MarkusSiteRendererError before the rootRoute check); fixed in #96, hotfix release #97 (d04b068). Jobs 336/17 SUCCEED. Live: newsroom.pilobol.us / and /assignments 200 (Pilobolus newsroom); p.apyr.us / and /newsroom 200 on the new code (data-default-presentation=newsprint). PPY-2d0e52: not in Papyrus; live sites not affected (see agent findings above).",
+      "created_at": "2026-10-05T14:00:25.824187Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-05T13:18:46.762370Z",
+  "updated_at": "2026-10-05T14:00:48.413443Z",
+  "closed_at": "2026-10-05T14:00:48.413412Z",
+  "right_now_summary": "Both sites now build and load correctly, and the reported XSS issue does not affect the live sites.",
+  "right_now_updated_at": "2026-10-05T14:00:50.382707Z",
+  "custom": {}
+}

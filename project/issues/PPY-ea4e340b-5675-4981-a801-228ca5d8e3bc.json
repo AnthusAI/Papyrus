@@ -1,0 +1,40 @@
+{
+  "id": "PPY-ea4e340b-5675-4981-a801-228ca5d8e3bc",
+  "title": "Enabled plugins build their API and matching components",
+  "description": "As a publication operator I want enabled plugins to supply multiple API resources and components sharing one typed client.\n\nFeature: Build-time plugin composition\n  Scenario: Compose enabled plugins\n    Given a site enables a plugin with multiple GraphQL resources and components\n    When its normal build runs\n    Then the API and components are registered deterministically with shared types\n  Scenario: No plugin parity\n    Given no plugins are enabled\n    When the build runs\n    Then the existing backend and frontend are unchanged\n  Scenario: Invalid composition\n    Given duplicate names or missing dependencies or invalid settings\n    When the build runs\n    Then it fails with actionable errors\n  Scenario: Private plugin data\n    Given a private model and an explicit guest operation\n    When guest authorization is evaluated\n    Then only that explicit guest operation is accessible",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+  "labels": [
+    "canceled"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b8ab61fc-ceaf-46ba-b94f-628cc3e9ff0d",
+      "author": "home",
+      "text": "CANCELED by Ryan on 2026-10-13: \"take back that initiative about creating plugins into Papyrus, cuz I think we just eliminated that entire problem\". Prospectus can use existing Kanbus/Virtuus issue storage as a separate application/subdomain with simple configured links/intake; the proposed plugin foundation is therefore no longer needed. All implementation agents stopped immediately. This is cancellation, not completed delivery. Partial work is preserved in the isolated feature/PPY-f8bbd3-plugin-build-foundation worktree and a local archive; no implementation was merged or deployed. No alternative CRM or baseline tables are being implemented. Supersedes this issue and its initiative plan.",
+      "created_at": "2026-10-13T23:44:04.097230Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-plugin-cancellation"
+      }
+    }
+  ],
+  "created_at": "2026-10-13T23:36:04.720024Z",
+  "updated_at": "2026-10-13T23:44:23.359072Z",
+  "closed_at": "2026-10-13T23:44:23.359027Z",
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-plugin-build"
+  },
+  "right_now_summary": "The plugin build initiative was canceled, and no implementation was merged or deployed.",
+  "right_now_updated_at": "2026-10-13T23:44:24.375160Z",
+  "custom": {}
+}

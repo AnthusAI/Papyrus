@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: papyrus-edge-pilobol-us CloudFront distributions in front of the Pilobol.us Amplify apps
+Parameters:
+  CertificateArn:
+    Type: String
+  ReaderBucketDomainName:
+    Type: String
+  ReaderRedirectFunctionArn:
+    Type: String
+Resources:
+  ForwardHostFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: pilobol-us-forward-host
+      AutoPublish: true
+      FunctionConfig:
+        Comment: copy viewer Host to x-forwarded-host
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.headers['x-forwarded-host'] = { value: request.headers.host.value };
+          return request;
+        }
+  ReaderOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: pilobol-us-reader-site-bucket
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  ReaderDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: pilobol.us reader (main)
+        Aliases: [pilobol.us]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: site-bucket
+            DomainName: !Ref ReaderBucketDomainName
+            OriginAccessControlId: !GetAtt ReaderOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: site-bucket
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !Ref ReaderRedirectFunctionArn
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+  CmsMainDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: newsroom.pilobol.us CMS (main)
+        Aliases: [newsroom.pilobol.us]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: main.d1eiwl0gedkmnj.amplifyapp.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+  CmsStagingDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: staging.pilobol.us CMS (staging)
+        Aliases: [staging.pilobol.us]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: staging.d1eiwl0gedkmnj.amplifyapp.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+Outputs:
+  ReaderDistributionId: {Value: !Ref ReaderDistribution}
+  ReaderDomain: {Value: !GetAtt ReaderDistribution.DomainName}
+  CmsMainDistributionId: {Value: !Ref CmsMainDistribution}
+  CmsMainDomain: {Value: !GetAtt CmsMainDistribution.DomainName}
+  CmsStagingDistributionId: {Value: !Ref CmsStagingDistribution}
+  CmsStagingDomain: {Value: !GetAtt CmsStagingDistribution.DomainName}

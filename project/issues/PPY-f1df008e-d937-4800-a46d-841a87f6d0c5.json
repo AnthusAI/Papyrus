@@ -1,0 +1,68 @@
+{
+  "id": "PPY-f1df008e-d937-4800-a46d-841a87f6d0c5",
+  "title": "M6 Anth.us onto S3 projection (production, parity gate)",
+  "description": "## Outcome\nanth.us and www.anth.us are served from the Anth.us projection bucket through papyrus-edge-anth-us (E3UMOOJRMY7FK7) with parity to today's site, including all 402 redirects; the Amplify reader d15dpu9buefmq0 is no longer used.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 9 (Migration, Anth.us).\n\n## Interim state\nCMS-driven Amplify reader on branch cms-parity (PR AnthusAI/Anth.us-Papyrus#25) until this epic's cutover.\n\n## Checklist\n- [ ] Anth.us SiteProjector refactor; gate: project_all equals today's build from the same export (byte-identical; in-process Markus already proven byte-identical on 2,352 files)\n- [ ] 401 generated redirect rules + pattern rules in KVS/function; 404 behaviour; robots and sitemap; headers\n- [ ] Test distribution parity: /Users/home/Projects/.baselines/anthus-live-20261011 compare (93 paths, normalized HTML) plus all 402 redirects (status and Location); renditions by dimensions and visual diff\n- [ ] Ryan's yes; origin swap in a chosen window; rollback = swap back\n- [ ] Quiet week, then hand d15dpu9buefmq0 to Ryan for deletion\n\n## Acceptance\n- python3 capture.py compare https://anth.us --manifest manifest.json: no status/redirect/header differences; every HTML difference listed and explained.\n- All 402 legacy redirects return 301 with the expected Location.\n- A test edit is live within 60 s.\n\n## Out of scope\nContent model changes; DNS changes (none needed).\n\n## Dependencies\nBlocked by M5 (pattern proven on Pilobol.us).\n\n## Risk\nProduction: downtime care, every production step needs Ryan's explicit yes.\n\n## Estimate\n5-8 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-65d13a20-eef2-40f7-a3d3-4fab8f595fce",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "c1b0eff0-922c-45f9-82ea-5f8b0d019bdc",
+      "author": "home",
+      "text": "Checkpoint 1-2 (agent). Projector complete: project_all of the Anth.us projector equals the production-pin reader build byte for byte on 230 files (195 HTML, sitemaps, robots, stylesheet, scripts, site images, root files; same export, 128 items); renditions (2,088 files) come from the renditions function. Redirects: 392 live exact rules + 128 new generated, 4 rules that never fired on Amplify dropped; 5 pattern rules + static-hosting behaviour + header rewriting in infra/edge (node tests). PR AnthusAI/Anth.us-Papyrus#26 (not merged; reader build from the branch is byte-identical to main, 2,318 files). Waiting for Ryan's merge.",
+      "created_at": "2026-10-13T00:38:25.272547Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c882b82e-29bb-45bf-ad19-eb8dbc628dbf",
+      "author": "home",
+      "text": "Checkpoint 3-4 (agent). PR #26 merged (a56cbb7); CMS main build job 5 SUCCEED, reader app d15dpu9buefmq0 unchanged (app, buildSpec, env, rules identical; no reader build started). Site bucket filled: renditions backfill 266 images, project --all 230 files + 520 KVS redirects in 77 s. Bucket tree vs production-pin reader build: 0 missing, all non-image files equal modulo ?v= tokens, 2105 images same dimensions (max mean pixel diff 0.1/255). Preview distribution E3UUW11JZWIDX7 (papyrus-edge-anth-us-preview, no aliases): capture.py compare vs current live on 93 paths: status, chain, cache-control, content-type and body identical; 397 redirect rules checked, 1 intended difference (a stale og:image target that 404s on live); 33 odd probes identical to live. Publish test via the content-actions Lambda: save 10.2 s cold, live:true, page visible on preview in 0.2 s, unpublish projection 4.1 s; counts before/after equal (bucket 3177, KVS 520, PublishedItem 128). Change set m6-origin-swap-to-s3 on papyrus-edge-anth-us created, NOT executed. Waiting for FLIP APPROVED.",
+      "created_at": "2026-10-13T01:16:22.005871Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "5f85ecf5-b951-433e-b0fe-46150386e271",
+      "author": "home",
+      "text": "Checkpoint 5 (agent). FLIP DONE 2026-10-13 01:20:19 UTC (change set m6-origin-swap-to-s3, stack UPDATE_COMPLETE ~4 min). anth.us and www polled every 5 s from 01:20:07 to 01:26:46 UTC: 152 samples, all 200, no downtime. Real hostnames: 93-path compare for anth.us and www identical to the verified preview (status, chain, cache-control, content-type, body modulo tokens); 33 odd probes identical to pre-flip live; 397 redirect rules checked (1 intended difference); 15 draft-state pages 200 and equal; robots, sitemaps, 404 headers as before; newsroom, cyclotron, hard-decisions, biased-decisions 200, threat-intelligence 307 (unchanged). Temporary preview bucket-policy statement removed (only E3UMOOJRMY7FK7 admitted). Preview stack papyrus-edge-anth-us-preview left for Ryan to delete. Evidence: /Users/home/Projects/.baselines/anthus-m6-20261012/. Rollback procedure unchanged (update stack with edge-cloudfront/anth-us.yaml).",
+      "created_at": "2026-10-13T01:27:16.961238Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "58a54c3e-5974-413f-b59f-032ba2e1aaf2",
+      "author": "home",
+      "text": "Final (agent). anth.us and www served from the S3 projection since 2026-10-13 01:20:19 UTC, zero non-200 in 152 polls. PRs (not merged): #27 new-image fallback (rendition records read from the site store; tested with a real uploaded image: renditions 4.6 s after upload, publish projection 13.9 s cold, page live immediately, cleanup, counts equal) and #28 drop the reader app id (merge only after the flip is judged stable). Amplify reader d15dpu9buefmq0 untouched and running (rollback origin). Preview stack papyrus-edge-anth-us-preview left for Ryan to delete. Evidence /Users/home/Projects/.baselines/anthus-m6-20261012/. Status left for Ryan.",
+      "created_at": "2026-10-13T01:30:59.350422Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2f63bbdf-5cf6-4218-9454-7c0096fdfab2",
+      "author": "home",
+      "text": "FINAL (agent). M6 complete. PRs merged: #26 a56cbb7 (projection), #27 d95ce8d (new-image fallback), #28 32e5382 (drop reader app id). anth.us and www served from the S3 projection since 2026-10-13 01:20:19 UTC (no downtime, 152 polls all 200). CMS build job 6 SUCCEED: content-actions env has no PAPYRUS_READER_*; distribution ETag unchanged by the deploy; 404.html headers intact. End-to-end on production through the real Lambda with a new image: renditions 3.6 s after upload, publishItem 9.4 s (live:true, no rebuild), page + responsive images live immediately, unpublishItem 8.5 s; counts equal (site bucket 3177, media 2584, KVS 520, PublishedItem 128, MediaAsset 280, Item 131); Amplify reader latest job still 8 (no build started). Final 93-path compare for anth.us and www: status/chain/cache-control/content-type/body identical (63 hash-only diffs vs the 10-11 baseline = content drift); 33 odd probes identical. Amplify reader d15dpu9buefmq0 untouched and running (M7 retires, Ryan deletes). Leftover for Ryan: stack papyrus-edge-anth-us-preview (+ its distribution E3UUW11JZWIDX7). Evidence: /Users/home/Projects/.baselines/anthus-m6-20261012/. Status left for Ryan.",
+      "created_at": "2026-10-13T02:01:03.145205Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-12T18:27:55.260333Z",
+  "updated_at": "2026-10-13T02:01:03.145235Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The production migration awaits M5, parity testing, Ryan’s approval, and a scheduled origin swap.",
+  "right_now_updated_at": "2026-10-12T18:29:26.388970Z",
+  "custom": {}
+}

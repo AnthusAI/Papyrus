@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "6d4750d7-af80-482e-9a18-520a41345a9a",
+  "issue_id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-17T07:56:23.277Z",
+  "actor_id": "unknown",
+  "payload": {
+    "comment_id": "f80012f4-f86c-413a-b835-96cd8c896c4a",
+    "comment_author": "unknown",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Papyrus owner (PPY-58f107)"
+    }
+  }
+}

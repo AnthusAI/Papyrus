@@ -59,8 +59,7 @@ export AWS_REGION=us-east-1
 # Disable Google OAuth for sandbox synth/deploy
 export PAPYRUS_DISABLE_GOOGLE_OAUTH=1
 
-# Required by graphql-jwt-authorizer and knowledge-query Lambda
-printf 'your-sandbox-jwt-secret\n' | npx ampx sandbox secret set PAPYRUS_JWT_SECRET --identifier ppy-6b4094
+# Required by the knowledge-query Lambda
 printf 'sk-placeholder\n'           | npx ampx sandbox secret set OPENAI_API_KEY --identifier ppy-6b4094
 ```
 
@@ -182,7 +181,7 @@ not layout regressions. Operator-cli scenarios are largely **undefined** (missin
 1. **Identifier length** — `ppy-6b4094-sandbox` rejected; max 14 chars.
 2. **Google OAuth secrets** — deploy fails without `GOOGLE_CLIENT_ID` unless
    `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`.
-3. **Pre-deploy secrets** — `PAPYRUS_JWT_SECRET` and `OPENAI_API_KEY` must exist before
+3. **Pre-deploy secrets** — `OPENAI_API_KEY` must exist before
    first successful deploy.
 4. **Outputs generation** — `ampx sandbox --once` may not write `amplify_outputs.json`;
    run `ampx generate outputs --stack <name>` manually.
@@ -196,11 +195,11 @@ not layout regressions. Operator-cli scenarios are largely **undefined** (missin
 8. **BDD vs empty newsroom data** — many newsroom scenarios expect knowledge/section
    steering data beyond fixture seed content.
 
-## JWT authoring (optional)
+## CLI authoring (optional)
 
-Mint CLI JWTs against sandbox SSM (after deploy):
+The CLI signs AppSync requests with SigV4 from your AWS credentials; your
+sandbox profile already holds `appsync:GraphQL`:
 
 ```bash
-# SSM path pattern: /amplify/papyrus/<sandbox-hash>/PAPYRUS_JWT_SECRET
-poetry run papyrus auth refresh-jwt --write-env .env
+AWS_PROFILE=<sandbox-profile> poetry run papyrus ops content inspect
 ```

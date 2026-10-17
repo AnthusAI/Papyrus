@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
-import { cookies } from "next/headers";
 import Script from "next/script";
 import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { getPresentationChoices, getSiteBrand, resolveRuntimeSiteBrandId } from "../lib/site-brand";
+import { resolveBrandFontAssets } from "../lib/brand-fonts";
+import { getPresentationChoices, getSiteBrand } from "../lib/site-brand";
 import { getSiteStack } from "../lib/site-stack";
+import { isIndexable, showStagingBanner } from "../lib/site-env";
+import { StagingBanner } from "../components/staging-banner";
 import "./tailwind.css";
 import "./globals.css";
+import "./blog-rhythm.css";
+import "papyrus-site-theme";
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -22,19 +26,12 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 const faviconVersion = "20260517-1";
 const defaultTheme = "system";
-const BRAND_OVERRIDE_COOKIE = "papyrus-site-brand-override";
-
-async function resolveLayoutSiteBrand() {
-  const cookieStore = await cookies();
-  const brandId = resolveRuntimeSiteBrandId(cookieStore.get(BRAND_OVERRIDE_COOKIE)?.value ?? null);
-  return getSiteBrand(brandId);
-}
-
 export async function generateMetadata(): Promise<Metadata> {
-  const siteBrand = await resolveLayoutSiteBrand();
+  const siteBrand = getSiteBrand();
   return {
     title: siteBrand.appTitle,
     description: siteBrand.appDescription,
+    ...(isIndexable() ? {} : { robots: { index: false, follow: false } }),
     icons: {
       icon: [
         { url: `/icon-light.png?v=${faviconVersion}`, type: "image/png" },
@@ -45,9 +42,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const siteBrand = await resolveLayoutSiteBrand();
+  const siteBrand = getSiteBrand();
   const presentationChoices = getPresentationChoices(siteBrand);
   const siteStack = getSiteStack(siteBrand);
+  const brandFonts = resolveBrandFontAssets(siteBrand.fonts);
 
   return (
     <html
@@ -61,8 +59,21 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       data-default-presentation={siteBrand.defaultPresentation}
       data-presentation-choices={presentationChoices.join(",")}
       {...(siteBrand.forcedPresentation ? { "data-forced-presentation": siteBrand.forcedPresentation } : {})}
+      {...(siteBrand.blogLayout === "rhythm" ? { "data-blog-layout": "rhythm" } : {})}
+      {...(brandFonts.isEmpty ? {} : { style: brandFonts.rootStyle as React.CSSProperties })}
       suppressHydrationWarning
     >
+      {brandFonts.isEmpty ? null : (
+        <head>
+          {brandFonts.preconnectOrigins.map((origin) => (
+            <link crossOrigin="anonymous" href={origin} key={origin} rel="preconnect" />
+          ))}
+          {brandFonts.stylesheetHrefs.map((href) => (
+            <link href={href} key={href} rel="stylesheet" />
+          ))}
+          {brandFonts.fontFaceCss ? <style data-brand-fonts="true">{brandFonts.fontFaceCss}</style> : null}
+        </head>
+      )}
       <body className={`${playfairDisplay.variable} ${plusJakartaSans.variable}`}>
         <Script id="papyrus-favicon-color-scheme" strategy="beforeInteractive">
           {`(() => {
@@ -135,6 +146,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   window.addEventListener("papyrus:settings-changed", apply);
 })();`}
         </Script>
+        {showStagingBanner() ? <StagingBanner /> : null}
         <AmplifyClientProvider>
           <TooltipProvider>
             <PapyrusConsoleShell>{children}</PapyrusConsoleShell>

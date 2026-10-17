@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "3a292d13-9fa7-409d-b42e-fa277e6dc404",
+  "issue_id": "PPY-84cce3f2-0d3d-47a7-96cd-30037430a1db",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T18:27:59.160Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M7 Retire Amplify reader apps and reader template resources",
+    "description": "## Outcome\nStatic Markus sites gain dynamic features without losing static SEO: first, generated JSON files written by the projector (search index, latest items, tags, feed); later, a narrow, throttled guest write pattern.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 6 (Public GraphQL surface for static sites).\n\n## Verified today\nGuest (identity pool unauthenticated) can read only PublishedItem, PublishedMediaAsset, PublishedEdition, PublishedEditionItem, PublishedCategorySet, PublishedCategory and media/*; no guest write anywhere; API key mode enabled but unused by any rule.\n\n## Checklist\n- [ ] Projector writes /_data/latest.json, /_data/search-index.json, /_data/tags.json and an optional feed on every relevant projection\n- [ ] Review guest-readable PublishedItem fields (metadata, editorial, layout) for anything that must never be public\n- [ ] Later: WAF web ACL on AppSync with a rate-based rule; pattern for a guest custom mutation (validation, size limits, honeypot, non-public target model)\n\n## Acceptance\n- curl https://<site>/_data/search-index.json returns current titles after an edit (within the M4 freshness bound).\n- Schema test: no guest rule on any non-Published model.\n\n## Out of scope (YAGNI for now)\nSubscriptions, browser GraphQL reads, comments, a custom API domain.\n\n## Dependencies\nBlocked by M3.\n\n## Risk\nGuest writes are a new abuse surface; deferred until M9 needs them.\n\n## Estimate\n3-4 agent-hours (JSON) + 3-6 (WAF and guest mutation pattern).",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+    "labels": [
+      "static-projection"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "markus-publication-architect"
+    }
+  }
+}

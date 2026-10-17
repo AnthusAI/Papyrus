@@ -48,16 +48,16 @@ cloud-visible:
 2. Biblicus ingest/extraction has succeeded locally;
 3. the changed corpus working copy has been synced to the configured private S3
    `corpora/*` prefix, using a reviewed `aws s3 sync --dryrun` first;
-4. the Papyrus production curation cycle has completed through the JWT
-   authoring lane;
+4. the Papyrus production curation cycle has completed through the IAM
+   authoring role;
 5. Newsroom/GraphQL verification shows the new `Reference` rows or explains
    why they are not expected yet.
 
 "Do not run production casually" means run production steps deliberately with
-the correct AWS profile, JWT, endpoint, and config. It does not mean stop before
+the correct AWS profile, endpoint, and config. It does not mean stop before
 S3 sync or GraphQL import when the user asked for cloud import.
 
-If you lack AWS access, a production JWT, or permission to mutate production,
+If you lack AWS access, a authoring role, or permission to mutate production,
 state the exact blocker and report "local-only / not imported into Papyrus."
 Do not claim references are imported into Papyrus until the curation cycle and
 verification have succeeded.
@@ -66,7 +66,7 @@ verification have succeeded.
 
 - `corpora/papyrus-steering.yml`: configured corpora, corpus keys, local paths,
   S3 prefixes, roles, and classifier ids.
-- `skills/category-steering/SKILL.md`: production JWT setup, curation-cycle
+- `skills/category-steering/SKILL.md`: production auth setup, curation-cycle
   commands, S3 corpus rules, and Biblicus escalation rules.
 - `src/papyrus_content/categories_steering.py`: current reference, attachment, message,
   assignment, and semantic-relation import mappers.
@@ -346,7 +346,7 @@ poetry run papyrus references create-from-catalog \
    ```
 
    Repeat the same command without `--dryrun` only after reviewing the output.
-4. Papyrus imports Biblicus artifacts through the JWT authoring lane:
+4. Papyrus imports Biblicus artifacts through the IAM authoring role:
 
    ```bash
    poetry run papyrus ops categories import-steering \
@@ -375,7 +375,7 @@ export BIBLICUS_WORKDIR="/Users/ryan/Projects/Biblicus"
 poetry run papyrus ops categories run-curation-cycle --config corpora/papyrus-steering.yml
 ```
 
-Use `skills/category-steering/SKILL.md` for the full cycle and JWT setup. The
+Use `skills/category-steering/SKILL.md` for the full cycle and auth setup. The
 cycle does not sync S3; do the S3 sync explicitly before the cycle when corpus
 files changed.
 
@@ -399,7 +399,7 @@ poetry run papyrus ops categories run-curation-cycle --config corpora/papyrus-st
 ```
 
 `poetry run papyrus ops content inspect` is the hard auth preflight before any live
-CLI smoke run. If it fails, stop and refresh JWT auth before running additional
+CLI smoke run. If it fails, stop and fix the AWS profile or role before running additional
 reference commands.
 
 Inspect `.papyrus-runs/<timestamp>/verification.json` after the cycle.

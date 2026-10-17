@@ -17,15 +17,16 @@ class ReaderRevalidationTests(unittest.TestCase):
             "os.environ",
             {
                 "PAPYRUS_BASE_URL": "http://localhost:3001",
-                "PAPYRUS_REVALIDATE_SECRET": "test-secret",
+                "PAPYRUS_REVALIDATE_SECRET_PARAMETER": "/papyrus/demo/revalidate-secret",
             },
             clear=False,
-        ):
+        ), patch("papyrus_content.papyrus_config._read_ssm_secret", return_value="test-secret") as read_secret:
             result = trigger_reader_cache_revalidation(
                 edition_date="2026-06-28",
                 article_slugs=["sample-story"],
             )
 
+        read_secret.assert_called_once_with("/papyrus/demo/revalidate-secret")
         self.assertEqual(result, {"ok": True, "revalidatedPaths": ["/2026/june/28"]})
         request = urlopen_mock.call_args.args[0]
         self.assertEqual(request.full_url, "http://localhost:3001/api/revalidate")
@@ -33,6 +34,12 @@ class ReaderRevalidationTests(unittest.TestCase):
         payload = json.loads(request.data.decode("utf-8"))
         self.assertEqual(payload["editionDate"], "2026-06-28")
         self.assertEqual(payload["articleSlugs"], ["sample-story"])
+
+    def test_a_secret_environment_variable_is_not_a_secret_source(self) -> None:
+        from papyrus_content.papyrus_config import resolve_reader_cache_revalidate_secret
+
+        with patch.dict("os.environ", {"PAPYRUS_REVALIDATE_SECRET": "ignored"}, clear=True):
+            self.assertIsNone(resolve_reader_cache_revalidate_secret())
 
     def test_trigger_reader_cache_revalidation_skips_without_config(self) -> None:
         with (

@@ -1,0 +1,39 @@
+{
+  "id": "PPY-bd249d3b-eeb5-4d26-a6a3-50400324926d",
+  "title": "Pilobol.us P3-06: hard switch: reader builds from the CMS export (guest read), Git content path deleted",
+  "description": "## Goal\nHard switch: the new reader app builds pilobol.us from the CMS export (guest read, no credentials), and the Git content path is deleted.\n\n## Context (FACT)\n- The reader entry reader/build.py (scaffold ticket) takes --content and --out; the generated reader spec (template ticket) installs papyrus-newsroom[markus] with boto3, runs papyrus content export-published --auth guest --out content-export --clean (guest-read ticket, Ryan agreed D2), then the site.json reader.buildCommand. export-published is fail-closed (empty or error fails the build).\n- Public values for guest read are plain branch env vars on the reader app: PAPYRUS_GRAPHQL_ENDPOINT, PAPYRUS_IDENTITY_POOL_ID, PAPYRUS_MEDIA_BUCKET, AWS_REGION (from the new backend's outputs; not secrets).\n- Python 3.12 via uv on the Amplify image: unproven (+1 day).\n- The Auritus embed is origin-locked; the temporary amplifyapp.com origin will not narrate; fine, the check is on text and bytes.\n\n## Exact steps\n1. Set the four env vars on the new reader app branch main (Ryan yes; aws amplify update-branch sends the full map).\n2. Pilobol.us PR: git rm web/content/{articles,drafts,effects,a-fungus-among-us.md}; move reader-owned files (JS, CSS, HTML, unreferenced images) from web/content/assets to web/reader-assets and point reader/build.py's overlay there. Merge (Ryan yes); the reader job runs.\n3. Verify on https://main.<newReaderAppId>.amplifyapp.com: 94 files; run the byte-diff sanity check of a scratch Git build (tag the old main commit first: git tag pre-cms-cutover) against the new site: identical, or every difference explained.\n4. Negative check: a wrong endpoint env value fails the build (then restore).\n\n## Acceptance checks\nReader job SUCCEED from the CMS export; diff-trees --dist <scratch Git build> --live https://main.<id>.amplifyapp.com clean; no Git content path left.\n\n## Rollback\nGit history (tag pre-cms-cutover); revert the PR.\n\n## Risks\nPython provisioning; the 6 MB-class asset (6,047,745 byte jpeg) is a reader-owned file and unaffected.\n\n## Needs Ryan\nYes for env vars and merge.\n\n## Common rules (Phase 3 Pilobol.us, simplified plan v2)\n- Plan: docs/migrations/pilobol-us.md (PR AnthusAI/Papyrus#128). Ryan 2026-10-06: Pilobol.us is PRE-PRODUCTION, Git history is the rollback, HARD CUTOVER: no soak, no Git freeze, no dual Git/CMS build path, no parity gate, brief downtime is fine. New Amplify apps are created from the template; the old apps and the old EMPTY backend are retired at the end.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan (or on his explicit yes).\n- Never build in /Users/home/Projects/Pilobol.us (its build rewrites content): use a fresh clone or a worktree.\n- Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. Pilobol.us repo: feature branch + PR, never push to its main. In /Users/home/Projects/Papyrus only run kbs.\n- Keep article text verbatim (the importer already does; narration hashes depend on it). The Auritus embed is origin-locked to the site key's origin; the production origin stays pilobol.us, so nothing changes there (narration will not play on temporary amplifyapp.com URLs: expected).\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-d9194c9f-f96d-423b-893e-339717e90a67",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-54b7e30a-68f1-4685-a6bc-7ed835415700",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "96594c5c-486e-419a-a372-d7ce96bb75d3",
+      "author": "home",
+      "text": "P3-06 progress. (1) Stack amplify-app-shell-pilobol-us-cms updated: cdk diff showed only ReaderBranch EnvironmentVariables; first deploy failed and rolled back because Amplify rejects env names starting with AWS (AWS_REGION), so reader.environment has PAPYRUS_GRAPHQL_ENDPOINT, PAPYRUS_IDENTITY_POOL_ID, PAPYRUS_MEDIA_BUCKET only (region derives from the endpoint). Second deploy succeeded; reader app dssc97s4q5kgk still platform WEB, repo anthusai/pilobol.us, same service role; main branch env names: PAPYRUS_GRAPHQL_ENDPOINT, PAPYRUS_IDENTITY_POOL_ID, PAPYRUS_MEDIA_BUCKET, PAPYRUS_SITE_BRAND, SITE_ENV. (2) PR https://github.com/AnthusAI/Pilobol.us/pull/50 (feature/PPY-bd249d-reader-from-cms, not merged): web/content deleted, 57 reader-owned files moved to web/reader-assets, reader/build.py fails on empty export, docs updated. Offline proof: guest export (18 items) + reader/build.py = 94 files, diff-trees vs pre-deletion Git build: identical. Bogus endpoint: export-published exit 1. Tag pre-cms-cutover not yet created (previous main 8210c6f).",
+      "created_at": "2026-10-06T19:37:47.322830Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T12:39:09.995713Z",
+  "updated_at": "2026-10-06T20:40:02.433138Z",
+  "closed_at": "2026-10-06T20:40:02.433114Z",
+  "right_now_summary": "The CMS reader setup works, and PR #50 awaits merge after the rollback tag is created.",
+  "right_now_updated_at": "2026-10-06T20:40:03.657622Z",
+  "custom": {}
+}

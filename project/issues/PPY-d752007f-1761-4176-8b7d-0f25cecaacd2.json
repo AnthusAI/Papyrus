@@ -1,0 +1,32 @@
+{
+  "id": "PPY-d752007f-1761-4176-8b7d-0f25cecaacd2",
+  "title": "AN-04: Deploy domain-free app-shell stack amplify-app-shell-anth-us-cms in papyrus-production",
+  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-04. R yes for cdk deploy. ACCEPT: cdk diff is create-only (2 Amplify::App CMS WEB_COMPUTE + reader WEB, 3 branches, roles, 0 Domain, no legacy account id); get-app shows repository null and 0 domain associations; outputs.json saved; SSM prefix computed. Rollback: delete-stack.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "anthus-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-44a21574-01eb-4d78-8d4f-af49dbfe453f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b0d5d39b-7bcf-4d82-a22b-8e61595fda6b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T16:24:58.053975Z",
+  "updated_at": "2026-10-11T16:26:42.420063Z",
+  "closed_at": null,
+  "right_now_summary": "The team is preparing a domain-free Amplify app-shell stack in papyrus-production.",
+  "right_now_updated_at": "2026-10-11T16:26:44.058706Z",
+  "custom": {}
+}

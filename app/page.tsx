@@ -2,6 +2,7 @@ import { getSiteRenderer } from "../lib/site-renderer";
 import { contentRepository, getScenarioIdParam } from "../lib/content-repository";
 import type { EditionContent } from "../lib/content-types";
 import { createEditionSectionPlan } from "../lib/edition-sections";
+import { getCachedLatestPublishedEdition, loadCachedEditionContent } from "../lib/cached-content-repository";
 import { getEditionDatePath } from "../lib/edition-routes";
 import {
   EMPTY_EDITION_PLACEHOLDER_SLUG,
@@ -15,7 +16,10 @@ import {
 } from "../lib/public-placeholder-config";
 import type { PublicationItem } from "../lib/publication-items";
 import { SITE_BRAND, rootRoute } from "../lib/site-brand";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getReaderBasePath } from "../lib/reader-base-path";
+import { buildRootRedirectTarget } from "../lib/root-route-redirect";
+import { NewsroomClientShell } from "../components/newsroom-client-shell";
 import NewsDeskRootPage, { type NewsDeskRootSearchParams } from "./newsroom/page";
 
 export const dynamic = "force-dynamic";
@@ -37,12 +41,22 @@ export default async function Home({ searchParams }: HomePageProps) {
   // co-hosts reader + CMS uses the default "reader" (render the publication
   // home page here). A CMS-only site points the root at the newsroom or
   // anywhere else. Preserve the scenario and OAuth-callback paths.
-  if (rootRoute.kind === "newsroom" && !scenarioId) {
-    return <NewsDeskRootPage searchParams={searchParams} />;
+  const publicationOwnsRoot = getReaderBasePath() !== "";
+
+  if (!publicationOwnsRoot && rootRoute.kind === "newsroom" && !scenarioId) {
+    return (
+      <NewsroomClientShell>
+        <NewsDeskRootPage searchParams={searchParams} />
+      </NewsroomClientShell>
+    );
   }
 
-  if (rootRoute.kind === "redirect" && !scenarioId && !hasOAuthRedirectParams(resolvedSearchParams)) {
-    redirect(rootRoute.destination);
+  if (!publicationOwnsRoot && rootRoute.kind === "redirect") {
+    redirect(buildRootRedirectTarget(rootRoute.destination, resolvedSearchParams));
+  }
+
+  if (SITE_BRAND.renderer.kind === "markus") {
+    notFound();
   }
 
   // Resolved only on the reader path: Markus brands (renderer "markus") have
@@ -64,7 +78,7 @@ export default async function Home({ searchParams }: HomePageProps) {
       );
     }
 
-    const latestEdition = await contentRepository.getLatestPublishedEdition();
+    const latestEdition = await getCachedLatestPublishedEdition();
     if (latestEdition) redirect(getEditionDatePath(latestEdition.editionDate));
     return <siteRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
   }
@@ -75,9 +89,9 @@ export default async function Home({ searchParams }: HomePageProps) {
 }
 
 async function loadLatestGraphQLEdition(): Promise<EditionContent | null> {
-  const latestEdition = await contentRepository.getLatestPublishedEdition();
+  const latestEdition = await getCachedLatestPublishedEdition();
   if (!latestEdition) return null;
-  return contentRepository.loadEditionContent({ editionDate: latestEdition.editionDate });
+  return loadCachedEditionContent({ editionDate: latestEdition.editionDate });
 }
 
 async function loadFirstPublishedEditionPath(): Promise<string | undefined> {

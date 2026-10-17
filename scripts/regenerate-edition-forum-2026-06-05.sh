@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate edition-forum messages for 2026-06-05 (trimmed bodies, three-post sequence).
-# Requires valid AppSync auth in .env (run: poetry run papyrus auth refresh-jwt --write-env .env)
+# Requires AWS credentials for the papyrus-authoring role (set AWS_PROFILE)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

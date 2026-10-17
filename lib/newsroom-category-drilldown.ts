@@ -1,3 +1,4 @@
+import { toPublicNewsroomPath } from "./newsroom-base-path";
 import type {
   CategorySteeringCategory,
   SemanticRelationRecord,
@@ -93,11 +94,11 @@ export function uniqueNeighborGroupsForCategoryContext(graph: CategoryGraph, con
 export function topicHref(rootCategoryKey: string, selectedCategoryKey?: string | null): string {
   const encodedRoot = encodeURIComponent(rootCategoryKey);
   const encodedSelected = selectedCategoryKey && selectedCategoryKey !== rootCategoryKey ? `/${encodeURIComponent(selectedCategoryKey)}` : "";
-  return `/newsroom/topics/${encodedRoot}${encodedSelected}`;
+  return toPublicNewsroomPath(`/newsroom/topics/${encodedRoot}${encodedSelected}`);
 }
 
 export function categoryDrilldownHref(section: "references" | "concepts", categoryKey: string): string {
-  return `/newsroom/${section}/${encodeURIComponent(categoryKey)}`;
+  return toPublicNewsroomPath(`/newsroom/${section}/${encodeURIComponent(categoryKey)}`);
 }
 
 function matchesCategorySelection(category: CategorySteeringCategory, selection: string): boolean {

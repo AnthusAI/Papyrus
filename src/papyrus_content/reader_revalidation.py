@@ -11,21 +11,23 @@ from .papyrus_config import resolve_reader_cache_revalidate_secret, resolve_read
 
 def trigger_reader_cache_revalidation(
     *,
-    edition_date: str,
+    edition_date: str | None,
     article_slugs: list[str] | None = None,
     item_slugs: list[str] | None = None,
+    base_url: str | None = None,
 ) -> dict[str, Any] | None:
     load_dotenv()
-    base_url = resolve_reader_revalidation_base_url()
+    base_url = (base_url or resolve_reader_revalidation_base_url()).rstrip("/")
     secret = resolve_reader_cache_revalidate_secret() or ""
     if not base_url or not secret:
         return None
 
     payload = {
-        "editionDate": edition_date,
         "articleSlugs": article_slugs or [],
         "itemSlugs": item_slugs or article_slugs or [],
     }
+    if edition_date:
+        payload["editionDate"] = edition_date
     request = urllib.request.Request(
         f"{base_url}/api/revalidate",
         data=json.dumps(payload).encode("utf-8"),

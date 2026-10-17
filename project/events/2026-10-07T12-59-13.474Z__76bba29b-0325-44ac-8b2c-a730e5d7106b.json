@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "76bba29b-0325-44ac-8b2c-a730e5d7106b",
+  "issue_id": "PPY-72c01d37-9328-4e6b-9d1b-5e542c602c19",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:59:13.474Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cognito hosted-UI domain ignores the configured cognitoDomainPrefix",
+    "description": "On the new Pilobol.us CMS the user pool domain is an auto-generated hex name (69a74c507e157f784c3c), not the configured papyrus-pilobol-us-cms; looking the prefix up finds nothing. defineSiteAuth (amplify/auth/resource.ts) passes domainPrefix inside externalProviders, and defineSite backend.auth.cognitoDomainPrefix is meant to feed it. Find why it is not honored (config path, Amplify Gen2 behavior, or defineAuth shape), fix it so a site gets a stable, predictable domain (required for Google redirect URIs to be known BEFORE the first deploy), or if Amplify cannot support it, remove the misleading cognitoDomainPrefix option and document how to read the real domain from stack outputs. Update docs/google-oauth-setup.md, docs/site-hosting.md, the template examples and tests. Note: changing the domain of a live pool changes the Google redirect URIs, so provide a safe migration note for existing sites.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ]
+  }
+}

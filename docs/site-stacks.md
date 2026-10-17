@@ -32,7 +32,11 @@ type SiteStack = {
 `SiteBrand` also carries an optional `rootRoute` (see `lib/site-brand.ts`):
 `{ kind: "reader" }` (default — render the publication home page at `/`) or
 `{ kind: "redirect", destination }` (send `/` to a path/URL, e.g. for a
-CMS-only deployment whose reader lives on another app).
+CMS-only deployment whose reader lives on another app). A redirect root sends
+every request to `/`, including OAuth `code`/`state`/`error` callbacks, to the
+destination with the query string preserved so the sign-in listener on the
+newsroom path can finish. A Markus-renderer brand has no Next.js reader, so a
+root that would fall through to the reader answers 404 instead of an error.
 ```
 
 `app/layout.tsx` exposes the live choice on `<html>`:
@@ -70,3 +74,7 @@ and not a signal to implement Markus inside ops.
 Common hosting pairings (`amplify-ssr`+`pretext`, `amplify-static`+`markus`)
 are documented in [site-hosting.md](site-hosting.md). They are examples, not
 locks.
+
+## CMS-only hosts: newsroom at `/`
+
+A brand with `rootRoute: { kind: "newsroom" }` and `newsroomBasePath: ""` serves the newsroom at `/` (`/articles`, `/references`, ...). `/newsroom/*` redirects to `/*` and keeps the query string. Add both `https://<host>/` and `https://<host>/newsroom` to the Cognito redirect URLs while bookmarks and in-flight sign-ins may still use the old path. Internal Next.js routes stay under `app/newsroom`; use `newsroomHref` / `toPublicNewsroomPath` from `lib/newsroom-base-path.ts` for every browser-visible URL.

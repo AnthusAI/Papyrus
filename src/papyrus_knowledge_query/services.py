@@ -492,9 +492,7 @@ def _normalize_optional_string(value: Any) -> str:
 @dataclass
 class GraphQLKnowledgeGraphProvider:
     endpoint: str
-    token: str = ""
-    auth_header_prefix: str = "PapyrusJwt"
-    authorization_header: str = ""
+    authorization_header: str
     page_limit: int = 100
     name: str = "appsync-graphql"
     profile_stats: dict[str, Any] = field(default_factory=lambda: {"graphqlCalls": 0, "graphqlMs": 0.0, "operations": {}})
@@ -738,7 +736,7 @@ query ResolveKnowledgeObjectByLineage($lineageId: ID!, $limit: Int, $nextToken: 
             data=body,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": self.authorization_header or f"{self.auth_header_prefix} {self.token}",
+                "Authorization": self.authorization_header,
             },
             method="POST",
         )
@@ -950,14 +948,7 @@ def _graph_from_environment(event: dict[str, Any] | None = None) -> KnowledgeGra
     authorization_header = _authorization_header_from_event(event)
     if endpoint and authorization_header:
         return GraphQLKnowledgeGraphProvider(endpoint=endpoint, authorization_header=authorization_header)
-    token = os.environ.get("PAPYRUS_GRAPHQL_JWT") or os.environ.get("PAPYRUS_KNOWLEDGE_QUERY_JWT")
-    if not endpoint or not token:
-        return None
-    return GraphQLKnowledgeGraphProvider(
-        endpoint=endpoint,
-        token=token,
-        auth_header_prefix=os.environ.get("PAPYRUS_GRAPHQL_AUTH_PREFIX", "PapyrusJwt"),
-    )
+    return None
 
 
 def _authorization_header_from_event(event: dict[str, Any] | None) -> str:

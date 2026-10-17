@@ -1,5 +1,9 @@
 "use client";
 
+import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
+import { ReferencePriming } from "./reference-priming";
+import { ReferenceCurationControls } from "./reference-curation-controls";
+
 import {
   ArchiveIcon,
   ChevronLeftIcon,
@@ -44,21 +48,38 @@ import {
 import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
+import { ReferenceRelevanceReview } from "./reference-relevance-review";
+import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
+import type { CyclotronStatus } from "cyclotron/cyclotron-status";
+import type { RelevanceCuration, RelevanceDecisionView } from "../lib/relevance-decisions";
 import {
   loadReferenceAttachmentsForLineageId,
   loadStoragePathUrl,
 } from "./news-desk-taxonomy-client";
 
 type NewsroomReferencesViewProps = {
+  /** Present only when the host has configured optional example priming. */
+  priming?: PrimingPanelProps;
+  /** The relevance cyclotron's status snapshot, shown above the list. */
+  cyclotronStatus?: CyclotronStatus | null;
+  /** Present for editors who may ask for a manual review rate. */
+  onRequestReviewRate?: (choice: ReviewRateChoice) => Promise<void> | void;
   demo?: boolean;
+  /** The relevance cyclotron's current decisions, keyed by reference lineage. */
+  decisions?: Map<string, RelevanceDecisionView>;
   disabled?: boolean;
+  onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => void;
   initialReferenceLineageId?: string | null;
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction) => void;
   referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
 };
 
-const STATUS_FILTERS: Array<{ key: ReferenceStatusFilter; label: string }> = [
+type ReferenceListFilter = ReferenceStatusFilter | "needs_review";
+
+const NEEDS_REVIEW_FILTER: { key: ReferenceListFilter; label: string } = { key: "needs_review", label: "Needs review" };
+
+const STATUS_FILTERS: Array<{ key: ReferenceListFilter; label: string }> = [
   { key: "all", label: "All" },
   { key: "pending", label: "Pending" },
   { key: "accepted", label: "Accepted" },
@@ -183,16 +204,30 @@ function useReferencePreviewAttachments(
   return previewAttachments;
 }
 
+function decisionSummary(decision: RelevanceDecisionView): string {
+  const sure = decision.confidence == null ? "confidence unknown" : `${Math.round(decision.confidence * 100)}% sure`;
+  return `${decision.label} · ${sure}${decision.version != null ? ` · version ${decision.version}` : ""}`;
+}
+
+function needsReview(reference: ReferenceRecord, decision: RelevanceDecisionView | undefined): boolean {
+  return Boolean(decision?.reviewRecommended)
+    && normalizeReferenceCurationStatus(reference.curationStatus) === "pending";
+}
+
 function ReferenceDetailPanel({
+  decision,
   demo,
   disabled,
+  onRelevanceReview,
   onReview,
   previewAttachments,
   reference,
   onClose,
 }: {
+  decision?: RelevanceDecisionView;
   demo?: boolean;
   disabled?: boolean;
+  onRelevanceReview?: (curation: RelevanceCuration) => void;
   onReview: (action: ReferenceCurationAction) => void;
   previewAttachments: ReferenceAttachmentRecord[];
   reference: ReferenceRecord;
@@ -224,11 +259,25 @@ function ReferenceDetailPanel({
           ) : null}
         </div>
 
+        {decision && status === "pending" && onRelevanceReview ? (
+          <ReferenceRelevanceReview
+            decision={decision}
+            disabled={disabled}
+            onCurate={onRelevanceReview}
+            referenceLineageId={lineageId}
+          />
+        ) : decision ? (
+          <p className="text-sm text-muted-foreground" data-reference-relevance-decision={lineageId}>
+            Cyclotron decision: {decisionSummary(decision)}
+          </p>
+        ) : null}
+
         <div
           className="flex flex-wrap items-center gap-2"
           data-news-desk-reference-curation-cluster
           data-reference-curation-status={status}
         >
+          {decision && status === "pending" && onRelevanceReview ? null : <>
           <Button
             aria-label="Accept reference"
             aria-pressed={status === "accepted"}
@@ -255,6 +304,7 @@ function ReferenceDetailPanel({
             <ThumbsDownIcon className="size-4" />
             Reject
           </Button>
+          </>}
           <Button
             aria-label="Archive reference"
             disabled={archiveDisabled}
@@ -347,8 +397,13 @@ function ReferenceDetailPanel({
 }
 
 export function NewsroomReferencesView({
+  priming,
+  cyclotronStatus,
+  decisions,
+  onRequestReviewRate,
   demo = false,
   disabled = false,
+  onRelevanceReview,
   initialReferenceLineageId = null,
   onReview,
   referenceAttachments = [],
@@ -365,13 +420,20 @@ export function NewsroomReferencesView({
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
 
-  const [statusFilter, setStatusFilter] = useState<ReferenceStatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<ReferenceListFilter>("all");
+  const needsReviewCount = useMemo(
+    () => canonicalReferences.filter((reference) => needsReview(reference, decisions?.get(referenceLineageId(reference)))).length,
+    [canonicalReferences, decisions],
+  );
+  const filters = decisions?.size ? [NEEDS_REVIEW_FILTER, ...STATUS_FILTERS] : STATUS_FILTERS;
   const [selectedLineageId, setSelectedLineageId] = useState(routeLineageId);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(routeLineageId) && isMobileDetail);
 
   const filteredReferences = useMemo(
-    () => filterReferencesByStatus(canonicalReferences, statusFilter),
-    [canonicalReferences, statusFilter],
+    () => statusFilter === "needs_review"
+      ? canonicalReferences.filter((reference) => needsReview(reference, decisions?.get(referenceLineageId(reference))))
+      : filterReferencesByStatus(canonicalReferences, statusFilter),
+    [canonicalReferences, decisions, statusFilter],
   );
 
   const selectedReference = useMemo(
@@ -390,7 +452,7 @@ export function NewsroomReferencesView({
     ? filteredReferences[selectedIndex + 1]
     : null;
 
-  const syncStatusUrl = useCallback((nextStatus: ReferenceStatusFilter) => {
+  const syncStatusUrl = useCallback((nextStatus: ReferenceListFilter) => {
     if (demo) return;
     syncBrowserNewsroomIndexUrl("references", {
       status: nextStatus === "all" ? "" : nextStatus,
@@ -452,22 +514,31 @@ export function NewsroomReferencesView({
             Review source intake before it becomes accepted evidence.
           </p>
         </div>
+        <ReferenceCurationControls disabled={disabled} />
+        {priming && !disabled ? <ReferencePriming {...priming} /> : null}
+        {cyclotronStatus ? (
+          <div className="shrink-0">
+            <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />
+          </div>
+        ) : null}
 
         <Tabs
           className="shrink-0"
           defaultValue="all"
           onValueChange={(value) => {
-            const next = value as ReferenceStatusFilter;
+            const next = value as ReferenceListFilter;
             setStatusFilter(next);
             syncStatusUrl(next);
           }}
           value={statusFilter}
         >
           <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
-            {STATUS_FILTERS.map((filter) => {
+            {filters.map((filter) => {
               const count = filter.key === "all"
                 ? canonicalReferences.length
-                : statusCounts[filter.key] ?? 0;
+                : filter.key === "needs_review"
+                  ? needsReviewCount
+                  : statusCounts[filter.key] ?? 0;
               return (
                 <TabsTrigger className="text-xs sm:text-sm" key={filter.key} value={filter.key}>
                   {filter.label}
@@ -484,6 +555,7 @@ export function NewsroomReferencesView({
               const lineageId = referenceLineageId(reference);
               const status = normalizeReferenceCurationStatus(reference.curationStatus);
               const active = selectedLineageId === lineageId;
+              const decision = decisions?.get(lineageId);
               return (
                 <button
                   aria-current={active ? "true" : undefined}
@@ -504,6 +576,14 @@ export function NewsroomReferencesView({
                     <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">{formatReferenceListDate(reference)}</p>
+                  {decision ? (
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-reference-relevance-row={lineageId}>
+                      <span>Decision: {decisionSummary(decision)}</span>
+                      {needsReview(reference, decision) ? (
+                        <Badge variant="outline"><span aria-hidden="true">●</span> Needs review</Badge>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </button>
               );
             }) : (
@@ -552,8 +632,10 @@ export function NewsroomReferencesView({
         <ScrollArea className="min-h-0 flex-1">
           {selectedReference ? (
             <ReferenceDetailPanel
+              decision={decisions?.get(referenceLineageId(selectedReference))}
               demo={demo}
               disabled={disabled}
+              onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
               onReview={runReview}
               previewAttachments={previewAttachments}
               reference={selectedReference}
@@ -581,9 +663,11 @@ export function NewsroomReferencesView({
             {selectedReference ? (
               <ScrollArea className="max-h-[75dvh]">
                 <ReferenceDetailPanel
+                  decision={decisions?.get(referenceLineageId(selectedReference))}
                   demo={demo}
                   disabled={disabled}
                   onClose={closeDetail}
+                  onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
                   onReview={runReview}
                   previewAttachments={previewAttachments}
                   reference={selectedReference}

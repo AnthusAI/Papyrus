@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "markus": {
+    "version": "0.5.1",
+    "irSchemaVersion": 1
+  },
+  "document": {
+    "type": "document",
+    "schema_version": 1,
+    "front_matter": {
+      "title": "Pull quote"
+    },
+    "children": [
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "Before."
+          }
+        ],
+        "line": 5
+      },
+      {
+        "type": "directive",
+        "name": "pull-quote",
+        "attributes": {
+          "id": null,
+          "attribution": "X",
+          "source": null,
+          "tone": "default",
+          "align": "inline"
+        },
+        "leaf": false,
+        "line": 7,
+        "children": [
+          {
+            "type": "paragraph",
+            "inline": [
+              {
+                "type": "text",
+                "text": "A quoted line."
+              }
+            ],
+            "line": 8
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "After."
+          }
+        ],
+        "line": 11
+      }
+    ]
+  },
+  "papyrus": {
+    "images": {},
+    "citations": {},
+    "citationLists": {},
+    "entries": {},
+    "bibliography": []
+  }
+}

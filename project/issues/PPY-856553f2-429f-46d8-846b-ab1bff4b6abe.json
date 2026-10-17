@@ -1,0 +1,36 @@
+{
+  "id": "PPY-856553f2-429f-46d8-846b-ab1bff4b6abe",
+  "title": "TI-11: TI DNS cutover, delete-first, with restore batches and Anth.us proof",
+  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-11. No PATH 1 (R1 confirmed). ACCEPT: both hosts serve from new app (curl --resolve before DNS, cert issuer Amazon, SAN has host, serial not 0FE6E6DA/43663B95); downtime recorded (target 5-15 min); text-hash parity vs baseline; sign-in round trip from public host; production no noindex; Anth.us proof identical (hashes, serial 4011E199.. notAfter 2027-04-20, five other associations, zone diff only the two CNAME targets plus at most one validation CNAME); rollback batches saved and tested for syntax.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "ti-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-134457d2-5177-47f6-9e77-ad593a362d0e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9e09e00f-c3f2-4d4c-a6ae-9f17ae00a6ce",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5d9c2744-3a41-44c4-95e4-2933105af38f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-11T14:40:59.432388Z",
+  "updated_at": "2026-10-11T14:42:44.694152Z",
+  "closed_at": null,
+  "right_now_summary": "The TI DNS cutover plan is set, with restore batches and Anth.us proof required before changes.",
+  "right_now_updated_at": "2026-10-11T14:42:45.720182Z",
+  "custom": {}
+}

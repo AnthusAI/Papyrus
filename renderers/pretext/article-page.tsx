@@ -7,21 +7,34 @@ import { getPublicationItemVideoAsset } from "../../lib/publication-items";
 import type { ArticlePageEditionFooter, RenderArticleProps, RenderItemProps } from "../../lib/renderer";
 import { SITE_BRAND } from "../../lib/site-brand";
 import { ArticleVideoFigure } from "../../components/article-video";
-import { PictogramFigure as ThreatIntelligencePictogramFigure } from "../../publications/threat_intelligence/pictograms/figure";
 import { PictogramFigure as GenericPictogramFigure } from "../../components/pictogram-figure";
 import { PresentationFooter } from "../../components/presentation-footer";
+import { RhythmArticlePage } from "./rhythm-article-page";
 
-// Threat Intelligence supplies its own pictogram figure media; any other
-// publication gets the generic fallback (components/pictogram-figure.tsx).
-// Same decoupling as renderers/pretext/presentation-shell.tsx -- see
-// docs/pluggable-publishers.md section 2.6 and PPY-d79ff2.
-const PictogramFigure = SITE_BRAND.id === "threat-intelligence" ? ThreatIntelligencePictogramFigure : GenericPictogramFigure;
+const PictogramFigure = SITE_BRAND.components?.PictogramFigure ?? GenericPictogramFigure;
 
 export type { ArticlePageEditionFooter };
 
 type ArticlePageViewProps = RenderArticleProps;
 
-export function ArticlePageView({ article, backHref, backLabel = SITE_BRAND.backToHomeLabel, editionFooter, editionDate }: ArticlePageViewProps) {
+export function ArticlePageView({ article, backHref, backLabel = SITE_BRAND.backToHomeLabel, editionFooter, editionDate, videoScript = null }: ArticlePageViewProps) {
+  if (SITE_BRAND.blogLayout === "rhythm") {
+    return (
+      <RhythmArticlePage
+        body={article.body}
+        deck={article.deck}
+        editionDate={editionDate}
+        editionFooter={editionFooter}
+        headline={article.headline}
+        image={article.image ?? null}
+        section={article.section}
+        slug={article.slug}
+        video={article.video ?? null}
+        videoScript={videoScript}
+      />
+    );
+  }
+
   const articleDate = editionDate ? formatArticleDate(editionDate) : null;
 
   return (
@@ -60,9 +73,27 @@ export function ArticlePageView({ article, backHref, backLabel = SITE_BRAND.back
 
 type ItemPageViewProps = RenderItemProps;
 
-export function ItemPageView({ item, backHref, backLabel = "Back to edition", editionFooter, editionDate }: ItemPageViewProps) {
+export function ItemPageView({ item, backHref, backLabel = "Back to edition", editionFooter, editionDate, videoScript = null }: ItemPageViewProps) {
   if (item.type === "article") {
-    return <ArticlePageView article={item} backHref={backHref} backLabel={backLabel} editionFooter={editionFooter} editionDate={editionDate} />;
+    return <ArticlePageView article={item} backHref={backHref} backLabel={backLabel} editionFooter={editionFooter} editionDate={editionDate} videoScript={videoScript} />;
+  }
+
+  if (SITE_BRAND.blogLayout === "rhythm") {
+    return (
+      <RhythmArticlePage
+        body={item.body ?? []}
+        deck={item.deck}
+        editionDate={editionDate}
+        editionFooter={editionFooter}
+        headline={item.title}
+        image={item.image ?? null}
+        itemType={item.type}
+        section={item.section ?? item.type}
+        slug={item.slug}
+        video={getPublicationItemVideoAsset(item) ?? null}
+        videoScript={videoScript}
+      />
+    );
   }
 
   const itemDate = editionDate ? formatArticleDate(editionDate) : null;

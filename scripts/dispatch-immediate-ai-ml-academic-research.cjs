@@ -115,30 +115,6 @@ function ensureAuthoringEnv() {
   if (!process.env.PAPYRUS_GRAPHQL_ENDPOINT) {
     process.env.PAPYRUS_GRAPHQL_ENDPOINT = DEFAULT_ENDPOINT;
   }
-  if (process.env.PAPYRUS_GRAPHQL_JWT) return;
-
-  const mintArgs = ["run", "-s", "auth:refresh-jwt", "--"];
-  if (process.env.PAPYRUS_JWT_SECRET) {
-    mintArgs.push("--secret-env", "PAPYRUS_JWT_SECRET", "--no-discover-ssm-param");
-  } else if (process.env.PAPYRUS_SANDBOX_JWT_SECRET) {
-    mintArgs.push("--secret-env", "PAPYRUS_SANDBOX_JWT_SECRET", "--no-discover-ssm-param");
-  } else if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-    if (!process.env.AWS_REGION) process.env.AWS_REGION = "us-east-1";
-    mintArgs.push(
-      "--ssm-param",
-      process.env.PAPYRUS_JWT_SECRET_SSM_PARAM ||
-        "/amplify/dbsyytcm9drqa/main-branch-cb38ada667/PAPYRUS_JWT_SECRET",
-    );
-  } else {
-    throw new Error(
-      [
-        "Missing production authoring credentials.",
-        "Configure automation secrets PAPYRUS_JWT_SECRET (preferred) or export PAPYRUS_GRAPHQL_JWT before running.",
-        "Alternatively provide AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION for SSM JWT minting.",
-      ].join(" "),
-    );
-  }
-  process.env.PAPYRUS_GRAPHQL_JWT = runNpm(mintArgs).trim();
 }
 
 function runNpm(args) {

@@ -19,11 +19,20 @@ export function usesNewsroomRootPaths(): boolean {
 export function toPublicNewsroomPath(internalPath: string): string {
   const publicBase = getPublicNewsroomBasePath();
   if (publicBase !== "") return internalPath;
-  if (internalPath === "/newsroom" || internalPath === "/newsroom/") return "/";
-  if (internalPath.startsWith("/newsroom/")) {
-    return internalPath.slice("/newsroom".length) || "/";
+  const suffixStart = internalPath.search(/[?#]/);
+  const pathOnly = suffixStart === -1 ? internalPath : internalPath.slice(0, suffixStart);
+  const suffix = suffixStart === -1 ? "" : internalPath.slice(suffixStart);
+  if (pathOnly === "/newsroom" || pathOnly === "/newsroom/") return `/${suffix}`;
+  if (pathOnly.startsWith("/newsroom/")) {
+    return `${pathOnly.slice("/newsroom".length) || "/"}${suffix}`;
   }
   return internalPath;
+}
+
+/** Maps a browser pathname to the internal `/newsroom/...` form on CMS-only hosts; identity elsewhere. */
+export function browserPathToInternalNewsroomPath(browserPath: string): string {
+  if (!usesNewsroomRootPaths()) return browserPath;
+  return toInternalNewsroomPath(browserPath);
 }
 
 export function toInternalNewsroomPath(publicPath: string): string {

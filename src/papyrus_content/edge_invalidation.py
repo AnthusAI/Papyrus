@@ -1,0 +1,136 @@
+"""Targeted CloudFront invalidations: exact paths, batched, retried on throttling, counted for the monthly alarm."""
+
+from __future__ import annotations
+
+import json
+import time
+import uuid
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
+from urllib.parse import quote
+
+MAXIMUM_PATHS_PER_BATCH = 500
+THROTTLED_ERROR_CODES = frozenset(
+    {"Throttling", "ThrottlingException", "TooManyInvalidationsInProgress", "ServiceUnavailable", "RequestLimitExceeded"}
+)
+MAXIMUM_ATTEMPTS = 5
+FIRST_RETRY_DELAY_SECONDS = 1.0
+METRIC_NAMESPACE = "Papyrus/Edge"
+METRIC_NAME = "InvalidatedPaths"
+METRIC_DIMENSION = "DistributionId"
+
+
+class WholeSiteInvalidationRefused(ValueError):
+    """The edge is purged by exact path; a wildcard would clear every page and costs a path per match."""
+
+
+def encoded_path(path: str) -> str:
+    return quote(path, safe="/*")
+
+
+def refuse_wildcards(paths: Iterable[str]) -> None:
+    for path in paths:
+        if "*" in path:
+            raise WholeSiteInvalidationRefused(f"wildcard invalidation refused: {path!r}")
+
+
+def _error_code(error: Exception) -> str:
+    return str(getattr(error, "response", {}).get("Error", {}).get("Code", ""))
+
+
+def emit_invalidated_paths_metric(distribution_id: str, count: int) -> None:
+    """One CloudWatch embedded-metric-format line, summed per day by the monthly path-count alarm."""
+    print(
+        json.dumps(
+            {
+                "_aws": {
+                    "Timestamp": int(time.time() * 1000),
+                    "CloudWatchMetrics": [
+                        {
+                            "Namespace": METRIC_NAMESPACE,
+                            "Dimensions": [[METRIC_DIMENSION]],
+                            "Metrics": [{"Name": METRIC_NAME, "Unit": "Count"}],
+                        }
+                    ],
+                },
+                METRIC_DIMENSION: distribution_id,
+                METRIC_NAME: count,
+            }
+        ),
+        flush=True,
+    )
+
+
+def invalidate_distribution(
+    distribution_id: str,
+    paths: Sequence[str],
+    cloudfront_client: Any = None,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> list[str]:
+    """Invalidate exactly these paths on one distribution, in batches; returns the paths invalidated."""
+    unique = list(dict.fromkeys(encoded_path(path) for path in paths))
+    refuse_wildcards(unique)
+    if not unique:
+        return []
+    if cloudfront_client is None:
+        import boto3
+
+        cloudfront_client = boto3.client("cloudfront")
+    for start in range(0, len(unique), MAXIMUM_PATHS_PER_BATCH):
+        batch = unique[start : start + MAXIMUM_PATHS_PER_BATCH]
+        _create_invalidation_with_retries(cloudfront_client, distribution_id, batch, sleep)
+        emit_invalidated_paths_metric(distribution_id, len(batch))
+    return unique
+
+
+def _create_invalidation_with_retries(
+    cloudfront_client: Any, distribution_id: str, batch: list[str], sleep: Callable[[float], None]
+) -> None:
+    caller_reference = uuid.uuid4().hex
+    for attempt in range(MAXIMUM_ATTEMPTS):
+        try:
+            cloudfront_client.create_invalidation(
+                DistributionId=distribution_id,
+                InvalidationBatch={
+                    "Paths": {"Quantity": len(batch), "Items": batch},
+                    "CallerReference": caller_reference,
+                },
+            )
+            return
+        except Exception as error:  # noqa: BLE001 - only throttling is retried; the caller reports anything else
+            if _error_code(error) not in THROTTLED_ERROR_CODES or attempt == MAXIMUM_ATTEMPTS - 1:
+                raise
+            sleep(FIRST_RETRY_DELAY_SECONDS * (2**attempt))
+
+
+REVALIDATE_DISTRIBUTION_IDS_ENV = "PAPYRUS_REVALIDATE_DISTRIBUTION_IDS"
+
+
+def distribution_ids_from_environment(environment: dict[str, str] | Any) -> list[str]:
+    configured = (environment.get(REVALIDATE_DISTRIBUTION_IDS_ENV) or "").split(",")
+    return [identifier.strip() for identifier in configured if identifier.strip()]
+
+
+def invalidate_revalidated_paths(
+    distribution_ids: Sequence[str],
+    revalidated: dict[str, Any] | None,
+    cloudfront_client: Any = None,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """After a Pretext reader refreshed its own cache, purge our CloudFront copies of exactly those paths.
+
+    The reader answers with the paths it revalidated; each distribution that fronts it is invalidated for
+    them. A failure on one distribution never stops the others and is reported, never raised.
+    """
+    paths = [path for path in (revalidated or {}).get("revalidatedPaths", []) if isinstance(path, str) and path.startswith("/")]
+    if not paths:
+        return {"ok": True, "paths": [], "distributions": {}}
+    outcomes: dict[str, Any] = {}
+    for distribution_id in distribution_ids:
+        try:
+            outcomes[distribution_id] = {"ok": True, "paths": len(invalidate_distribution(distribution_id, paths, cloudfront_client, sleep=sleep))}
+        except Exception as error:  # noqa: BLE001 - reported per distribution; the publish never fails because of an edge purge
+            outcomes[distribution_id] = {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    return {"ok": all(outcome["ok"] for outcome in outcomes.values()), "paths": paths, "distributions": outcomes}

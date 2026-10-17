@@ -1,0 +1,40 @@
+{
+  "id": "PPY-fabbf75a-2b8b-4dc4-8bb0-b9644c84beff",
+  "title": "Composable Papyrus plugins for GraphQL APIs and their frontend components",
+  "description": "Goal: As a publication operator, I want Papyrus to compose enabled plugins during the normal build so one configured Amplify application and deployment includes new GraphQL API resources and the components that use their shared client/types. Ryan explicitly requested this initiative in the Papyrus product project. Present state: Amplify Gen 2, existing signup deploy-time plugin (PR #201 / a85ddb2), static Markus HTML published to S3, restricted editorial CMS. Foundation scope: validate enabled configuration/dependencies/collisions, deterministic native TypeScript schema/resource composition and frontend registrations, multiple resources/components per plugin, no-plugin parity, proof plugin and authorization/build tests. Prospectus later literally reuses Kanbus for CRM; private prospects remain separate from public lead submission. Excluded: full CRM, index invalidation, production migration, deletion, merge/deployment, persistent permission provisioning. Plan: inspect current mechanisms and Right Now, specify behaviors, implement in isolated worktree, independent review, checks, commit/push and draft PR; retain open status until landing.",
+  "type": "initiative",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "canceled"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a100fd33-54cd-4098-9b74-e81ebf95298a",
+      "author": "home",
+      "text": "CANCELED by Ryan on 2026-10-13: \"take back that initiative about creating plugins into Papyrus, cuz I think we just eliminated that entire problem\". Prospectus can use existing Kanbus/Virtuus issue storage as a separate application/subdomain with simple configured links/intake; the proposed plugin foundation is therefore no longer needed. All implementation agents stopped immediately. This is cancellation, not completed delivery. Partial work is preserved in the isolated feature/PPY-f8bbd3-plugin-build-foundation worktree and a local archive; no implementation was merged or deployed. No alternative CRM or baseline tables are being implemented. Supersedes this issue and its initiative plan.",
+      "created_at": "2026-10-13T23:44:42.972772Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-plugin-cancellation"
+      }
+    }
+  ],
+  "created_at": "2026-10-13T23:32:55.353911Z",
+  "updated_at": "2026-10-13T23:44:43.814986Z",
+  "closed_at": "2026-10-13T23:44:43.814940Z",
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-plugin-build"
+  },
+  "right_now_summary": "Ryan canceled the plugin foundation; no implementation was merged or deployed.",
+  "right_now_updated_at": "2026-10-13T23:44:45.102265Z",
+  "custom": {}
+}

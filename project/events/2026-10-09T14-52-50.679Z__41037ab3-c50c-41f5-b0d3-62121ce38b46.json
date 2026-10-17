@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "41037ab3-c50c-41f5-b0d3-62121ce38b46",
+  "issue_id": "PPY-049b6e24-663f-4340-a7d1-2f49a4c2fafa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T14:52:50.679Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Show the cyclotron status strip and review-rate override in the Newsroom",
+    "description": "Above the References list, render the Cyclotron status widget (decision-flywheel-a161455d) from the cyclotron-status KnowledgeRawPayload snapshot: version, agreement, says-sure versus is-right, review rate and its reason, last change and its version. The card variant opens from the strip and offers the review-rate override (rate and expiry) for editors in the write groups; the override is stored as a request the next sweep applies and logs. Ordering: after the pipeline hook; needs the engine review-rate program (decision-flywheel-a81068b4) and package release.\n\nAcceptance criteria:\n- Strip renders from the snapshot with no engine access from the browser; stale snapshots say how old they are.\n- Only editors in the write groups see the override; a non-editor sees the strip read-only.\n- The override appears in the next snapshot with who set it and when it expires.,",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

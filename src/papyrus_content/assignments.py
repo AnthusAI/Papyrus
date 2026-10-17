@@ -132,7 +132,7 @@ def apply_assignment_action(
             or options.get("assignee")
             or auth_claims.get("email")
             or auth_claims.get("sub")
-            or "jwt-worker",
+            or "authoring-cli",
             "note": options.get("note"),
             "createdAt": now,
         },

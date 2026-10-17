@@ -59,6 +59,8 @@
   "created_at": "2026-09-06T12:43:02.752434Z",
   "updated_at": "2026-09-06T17:46:29.936709Z",
   "closed_at": "2026-09-06T17:46:29.936709Z",
+  "right_now_summary": "One sample.md now renders through both Markus and Pretext, preserving content while safely degrading unsupported",
+  "right_now_updated_at": "2026-10-12T16:43:19.548798Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"

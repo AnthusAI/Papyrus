@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2ca2612f-ff0b-41f2-bcab-c0b1f411e1ab",
+  "issue_id": "PPY-023eed93-9795-4537-aa43-cfcf3215a03b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T02:24:54.152Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remove the unused reader includeWww option from the app-shell template",
+    "description": "Papyrus PR #140 added reader.includeWww (site-config.ts validation, addReaderApp subDomainSettings, examples/pilobol-us.site.json, README, docs/site-hosting.md, docs/standard-site.md, scripts/test-infra-site-config.ts, scripts/test-infra-synth.mjs). Decision 2026-10-06: the new Pilobol.us does not support www and nothing uses the option. Remove it (YAGNI, no compat shim). Reader domains revert to apex-only: one subDomainSetting with prefix \"\". Unknown key in site.json fails validation like other unknown keys. Code only, no AWS.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

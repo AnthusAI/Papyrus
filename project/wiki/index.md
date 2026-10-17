@@ -9,6 +9,11 @@ publication's memory works — goals and design commitments first, then the
 representation and retrieval layers in detail, then the current improvement
 roadmap with live issue status.
 
+## Cyclotron integration
+
+See [Cyclotron integration](cyclotron-integration.md) for relevance
+decisions on reference candidates and the editor review control.
+
 ## What's Next
 
 See [What's Next](whats-next.md) for a report of upcoming work.

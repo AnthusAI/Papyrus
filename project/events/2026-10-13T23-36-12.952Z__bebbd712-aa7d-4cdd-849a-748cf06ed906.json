@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "bebbd712-aa7d-4cdd-849a-748cf06ed906",
+  "issue_id": "PPY-93d56f41-13d0-4154-94bb-9f022d4580bc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-13T23:36:12.952Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Register enabled plugin frontend components automatically",
+    "description": "Generate deterministic public component metadata during normal builds and compose matching frontend/static registrations using existing Markus/SiteChrome architecture. Preserve no-plugin behavior and avoid raw HTML directives.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-plugin-build"
+    }
+  }
+}

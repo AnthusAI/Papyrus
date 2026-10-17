@@ -7,6 +7,7 @@ capabilities added later are opt-in parameters that default to ``None``.
 
 from .build import build_markus_site, render_fragment
 from .citations import CitationRendering, format_apa
+from .derive import derive_body
 from .content_markup import prepare_page, resolve_fragment
 from .images import ImagePipeline, ImageRequest, with_layouts
 
@@ -20,4 +21,5 @@ __all__ = [
     "with_layouts",
     "prepare_page",
     "resolve_fragment",
+    "derive_body",
 ]

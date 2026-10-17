@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const ts = require("typescript");
 
+require("./register-papyrus-aliases.cjs");
 registerTypeScriptRequire();
 
 const {
@@ -32,17 +33,17 @@ assert.equal(
 
 assert.deepEqual(
   parseNewsroomForumRoute(`/newsroom/forum/${encodeURIComponent(threadId)}`, `#${anchor}`),
-  { threadId, messageId },
+  { threadId, messageId, surface: "edition_forum" },
 );
 
 assert.deepEqual(
   parseNewsroomForumRoute(`/newsroom/messages/forum/${encodeURIComponent(threadId)}`, `#${anchor}`),
-  { threadId, messageId },
+  { threadId, messageId, surface: "edition_forum" },
 );
 
 assert.deepEqual(
   parseNewsroomForumRoute(`/newsroom/messages/${encodeURIComponent(threadId)}`, ""),
-  { threadId, messageId: null },
+  { threadId, messageId: null, surface: "edition_forum" },
 );
 
 console.log("newsroom forum route tests passed");

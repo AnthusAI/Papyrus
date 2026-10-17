@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "961d28bb-70e3-4659-a9f7-1a5c00baa445",
+  "issue_id": "PPY-cb27a631-5bce-4866-9526-cd6d1b2d409e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T14:59:53.410Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Staging build cannot find amplify_outputs.json: papyrus resolves PAPYRUS_ROOT inside the venv, not the checkout",
+    "description": "CMS staging job 1 (app dv0pdx67fk80m, branch staging) failed at `papyrus ops content export-published --drafts` with \"Missing amplify_outputs.json\". The cutover note blamed a missing backend association; the build log shows that message (\"No backend environment association found, continuing\") is benign, and that `npx ampx generate outputs --branch main --app-id $AWS_APP_ID` DID write amplify_outputs.json into the checkout. Root cause: a pip-installed papyrus resolves PAPYRUS_ROOT (src/papyrus_content/env.py) to a directory inside the venv, so it never looks at the checkout. Fix: run the two staging papyrus commands with PAPYRUS_ROOT=\"$PWD\" in the template cms-staging build spec (infra/amplify-app-shell/lib/build-specs.ts), plus synth test. Staging keeps sharing main backend.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

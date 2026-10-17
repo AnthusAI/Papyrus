@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f440d4fd-7cb8-4646-a7c5-cf748c5f9ad5",
+  "issue_id": "PPY-92d4dcb0-cd5d-41d2-8a96-21458bb0a9b2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T18:50:52.138Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "OAuth callback to / on a redirect-root brand returns 500 instead of redirecting to the newsroom",
+    "description": "On the deployed CMS, GET / returns 307 to /newsroom but GET /?code=abc&state=xyz returns 500 (MarkusSiteRendererError: Site brand \"pilobol-us\" uses Markus renderer ... Next.js reader routes are not available) thrown from app/page.js via lib/site-renderer.ts. Cause: app/page.tsx skips the rootRoute redirect when hasOAuthRedirectParams is true, then falls through to getSiteRenderer(), which throws for Markus brands. Fix: for rootRoute kind redirect, always redirect to the destination preserving the query string so the Amplify OAuth listener on /newsroom completes sign-in; the reader path must never throw for a Markus brand (notFound instead). Add tests; update docs/site-stacks.md.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

@@ -132,6 +132,17 @@ relationTypes:
     isSymmetric: false
     isTransitive: false
     contextPackTags: [reference_curation, research, context_ranking]
+  - key: relevance_decision_is
+    label: relevance decision is
+    inverseLabel: relevance decision for
+    description: Links a candidate reference to the relevance cyclotron's current decision node (relevance.include or relevance.exclude); score is the probability of the positive label, confidence and modelVersion (cyclotron version) and reviewRecommended (sent to review) come from the decision. Workflow state, not evidence.
+    domain: workflow
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation]
   - key: mentions
     label: mentions
     inverseLabel: mentioned by

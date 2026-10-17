@@ -1,0 +1,30 @@
+{
+  "id": "PPY-e186e568-0af9-4fb7-9ac2-6134c48e6b25",
+  "title": "P5-04: Papyrus: backend features from packages (inbound email, backups, Slack, console responder) for the features Ryan keeps",
+  "description": "## Goal\nThe package-built backend can run the features p.apyr.us uses today, each behind its `features` flag in `papyrus.config.ts`: inbound email, storage backups, Slack agent and the console chat responder. Which of them stay is Ryan's decision (open question Q4); this ticket implements only the ones he keeps, and proves them in a sandbox.\n\n## Context (FACT, read-only AWS 2026-10-07)\n- Old main backend (stack amplify-dbsyytcm9drqa-main-branch-cb38ada667, 6 nested groups, 2,372 resources incl. nested): 24 Lambdas (console chat responder container, assignment/category/procedure/knowledge-query/model-attachment/newsroom-summary/reader-settings/manage-user-role, Slack events + delivery, SES inbound receive, email submission processor, graphql JWT authorizer), S3 Vectors bucket and index, 3 S3 buckets (media 53,183 objects, 10.6 GB), AppSync API, Cognito pool us-east-1_40Uot7WSv with Google IdP and groups admin/editor/curator, SES receipt rule set `papyrus-inbound-p-apyr-us` (active), EventBridge rules (rate(15 minutes) email processor, one event rule), storage-backups stack.\n- Branch env var NAMES on main: NEXT_PUBLIC_PAPYRUS_CONSOLE_MODEL, PAPYRUS_CONSOLE_OPENAI_API_KEY_SSM_PARAM, PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI, PAPYRUS_CONTENT_SOURCE, PAPYRUS_EDITION_SLUG, PAPYRUS_ENABLE_CONSOLE_RESPONDER, PAPYRUS_ENABLE_SLACK, PAPYRUS_REVALIDATE_SECRET. SSM secret names under /amplify/dbsyytcm9drqa/main-branch-cb38ada667/: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, PAPYRUS_JWT_SECRET, PAPYRUS_SLACK_BOT_TOKEN, PAPYRUS_SLACK_SIGNING_SECRET. No scheduled ingestion jobs exist beyond the 15-minute email processor.\n- docs/standard-site.md section 5 records the package spike proved the Python Lambda bundling but NOT the console-responder container image, SES, Slack or backups.\n- Account-global names (SES receipt rule set `papyrus-inbound-<domain>`, active rule set, MX record in the zone, backup vault, S3 Vectors index `papyrus-knowledge` kept for appId dbsyytcm9drqa by `productionAppId` special cases, C5) will collide with the old backend while both exist: a second active SES rule set is impossible and the rule set name and MX record already exist.\n\n## Exact steps\n1. Per kept feature: Gherkin scenario, then sandbox deploy (`ampx sandbox` with `features.<x>: true`) and the existing e2e script for it (`scripts/e2e-inbound-email-intake.sh`, `verify-production-console-chat.sh`).\n2. Namespace account-global resources by brand (`papyrus` brand for the new backend) with a one-line import/rename note, so the new stack can be deployed with the feature OFF until cutover, and turned ON by a config change (flag) at P5-11.\n3. Build the console responder image from the package (not from the Papyrus checkout) or drop the feature.\n4. Document the cutover handoff order for SES (deactivate old rule set, then new stack activates its own) in docs/migrations/p-apyr-us.md.\n\n## Acceptance checks\n- Sandbox: each kept feature's e2e script passes against the sandbox backend, output pasted in the ticket.\n- Deploying the new site stack with all four flags false succeeds while the old backend still runs (no name conflict).\n- Turning a flag on changes only that feature's resources (cdk diff).\n\n## Rollback\nSandbox only; delete the sandbox. Production old backend untouched.\n\n## Risks\nLargest ticket (about 3 days). If Ryan drops Slack and console responder (recommended default for a product marketing site, see Q4), cut it to inbound email and backups, about 1.5 days.\n\n## Needs Ryan\nQ4 decision first; yes for the sandbox deploy.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "labels": [
+    "phase-5"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "51bef2b0-5dcb-43d5-9524-6e2783fc1a6d",
+      "author": "home",
+      "text": "Code merged: PR #166 (squash 7d97a81) into develop, CI green (ts, python, smoke). Global names now site-scoped: SES rule set papyrus-site-inbound-<brand> (never activated by CloudFormation; legacy keeps papyrus-inbound-p-apyr-us), rule <brand>-inbound-submissions, no SES domain identity/TXT unless inboundEmailSes.manageDomainIdentity, backup vault papyrus-<brand>-<hash8>-media-vault, vector index papyrus-knowledge-<brand>. Flags drive resources; example site.json sets the four PAPYRUS_ENABLE_* vars. Tests: test:site-backend-names and test:site-backend-synth in test:ci:ts. Docs: site-hosting, standard-site s5, migrations/p-apyr-us. Acceptance NOT fully met: sandbox e2e scripts and cdk diff not run (code-only, no AWS writes); real SES delivery and Backup runs are unprovable offline (P5-07, P5-11). Ticket left open. Console responder stays off, needs separate image work.",
+      "created_at": "2026-10-08T01:02:00.897267Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:32:13.840244Z",
+  "updated_at": "2026-10-08T01:02:00.897305Z",
+  "closed_at": null,
+  "right_now_summary": "Resource names and feature flags are implemented; sandbox e2e and cdk diff remain, with the console responder off.",
+  "right_now_updated_at": "2026-10-08T01:02:02.840781Z",
+  "custom": {}
+}

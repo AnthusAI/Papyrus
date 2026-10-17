@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "71a6b3dd-0e17-4a6c-a5e5-6bb922f80e44",
+  "issue_id": "PPY-fe42ebd5-01e1-4221-a08d-9d18b5254f4f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T01:49:34.061Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "App-shell template cannot attach www to a reader app domain",
+    "description": "The Pilobol.us cutover needs the new reader app (dssc97s4q5kgk) to serve both pilobol.us and www.pilobol.us (branch main). addReaderApp in infra/amplify-app-shell/lib/amplify-app-shell.ts creates the domain association with only prefix \"\" (apex); site.json has no way to add www. Fix at template level: optional reader.includeWww boolean; apex+www subDomainSettings both on the reader branch; unchanged when unset. Add synth and site-config tests, README and docs updates.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "ec7fdcea-bc8b-4855-8ec4-1072fc1b663c",
+  "issue_id": "PPY-ac39d831-39ae-46a2-ab7c-c78ebd1303cb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:44:13.743Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The relevance cyclotron runs against a sandbox publication",
+    "description": "As Ryan, I want the relevance cyclotron run for real against a development sandbox, so that the decisions, reviews, status and recording are exercised with a real decision model before production.\n\nNot included: production runs; creating or redeploying AWS resources; the LLM optimizer (off for the first run).\n\n```gherkin\nFeature: A sandbox run of the relevance cyclotron\n  Scenario: The sandbox steering config carries the cyclotron to the sandbox bucket\n    Given the publication's steering config with a relevance cyclotron block\n    When the sandbox steering config is generated for a sandbox bucket\n    Then the cyclotron's store snapshot prefix points at the sandbox bucket\n\n  Scenario: A sweep decides the sandbox's pending references\n    Given a sandbox with pending candidate references\n    When the decide-relevance sweep runs with apply on at most 30 of them\n    Then each has a recorded decision and the status snapshot is recorded\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

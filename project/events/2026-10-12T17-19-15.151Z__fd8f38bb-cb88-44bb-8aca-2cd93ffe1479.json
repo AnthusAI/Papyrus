@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "fd8f38bb-cb88-44bb-8aca-2cd93ffe1479",
+  "issue_id": "PPY-728322ef-a016-4b06-aaf5-fc9a0df0a95d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T17:19:15.151Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publish: Amplify CDN keeps reader HTML for long (s-maxage=3600) and nothing purges it after the rebuild",
+    "description": "Found 2026-10-12. After a publish triggers a reader rebuild, the new build deploys but the CDN keeps serving the old HTML for up to s-maxage=3600; nothing invalidates it, so editors see their publish not take effect. Fix options: make sure the deployment invalidates (Amplify does for its own branch URL; verify for custom domains behind a separate CloudFront such as papyrus-edge-anth-us, which Amplify cannot invalidate and needs an explicit invalidation after the job), or lower the HTML s-maxage in customHttp.yml for Papyrus readers; document in docs/site-hosting.md.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "anthus-cms-parity"
+    }
+  }
+}

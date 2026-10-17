@@ -1,0 +1,37 @@
+{
+  "id": "PPY-1e036d48-4d9e-4d56-abbd-3a2b29c4a88e",
+  "title": "Markus-brand sites must not enumerate Next reader static params (CMS build fails)",
+  "description": "Pilobol.us CMS Amplify app dv0pdx67fk80m builds fail since scaffold PR #50: generateArticleStaticParams in lib/reader-static-params.ts lists CMS article slugs from GraphQL (now non-empty), but app/articles/[slug]/page.tsx throws MarkusSiteRendererError for Markus brands during prerender. Job 5 (next.12) had no slugs, 5 pages; job 7 (next.15) 15 pages, fails on /articles/believe-the-rainbow. Fix: both static-params generators return [] for Markus brands.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "db2eb1ef-5cb6-486d-9514-5747eefd08fb",
+      "author": "home",
+      "text": "Root cause: `generateArticleStaticParams` (lib/reader-static-params.ts) lists published CMS article slugs via GraphQL for every brand. CMS job 5 (next.12, 5 static pages) had no slugs; job 7 (next.15, 15 pages) found articles and `/articles/[slug]` threw MarkusSiteRendererError for brand pilobol-us. Fix PR: https://github.com/AnthusAI/Papyrus/pull/138 (both generators return [] for Markus).",
+      "created_at": "2026-10-06T23:02:08.043054Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f85cc311-0964-4255-9f95-fc8d031d337c",
+      "author": "home",
+      "text": "Duplicate of PPY-dc5273 (created by a first diagnosis agent that lost its brief). Fixed by Papyrus#139 (released in next.16); verified by CMS build job 9 passing.",
+      "created_at": "2026-10-07T10:37:26.851984Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T22:59:16.198459Z",
+  "updated_at": "2026-10-07T10:37:32.001657Z",
+  "closed_at": "2026-10-07T10:37:32.001614Z",
+  "right_now_summary": "Papyrus #139 fixes Markus builds by skipping article static params, and CMS build job 9 now passes.",
+  "right_now_updated_at": "2026-10-07T10:37:33.153500Z",
+  "custom": {}
+}

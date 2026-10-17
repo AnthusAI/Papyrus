@@ -1,4 +1,5 @@
 import {
+  clearCache,
   layoutNextLine,
   prepareWithSegments,
   type LayoutCursor,
@@ -78,14 +79,18 @@ export function layoutAllTextLines({
   linePaintHeight,
   fontSize,
   fontFamily,
-}: Omit<LayoutTextLinesOptions, "cursor" | "maxHeight" | "obstacles">): TextLine[] {
+  obstacles = [],
+}: Omit<LayoutTextLinesOptions, "cursor" | "maxHeight" | "obstacles"> & { obstacles?: TextObstacle[] }): TextLine[] {
   const lines: TextLine[] = [];
   let cursor: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
 
   for (let lineIndex = 0; lineIndex < 2000; lineIndex += 1) {
-    const line = layoutNextLine(prepared, cursor, maxWidth);
+    const y = lineIndex * lineHeight;
+    const slot = getAvailableSlot(maxWidth, y, linePaintHeight, obstacles);
+    if (!slot) continue;
+    const line = layoutNextLine(prepared, cursor, slot.width);
     if (!line) return lines;
-    lines.push(toTextLine(line, 0, lineIndex * lineHeight, fontSize, fontFamily, lineHeight, linePaintHeight));
+    lines.push(toTextLine(line, slot.x, y, fontSize, fontFamily, lineHeight, linePaintHeight));
     cursor = line.end;
   }
 
@@ -176,4 +181,8 @@ function toTextLine(line: LayoutLine, x: number, y: number, fontSize: number, fo
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+export function clearPretextMeasurementCache(): void {
+  clearCache();
 }

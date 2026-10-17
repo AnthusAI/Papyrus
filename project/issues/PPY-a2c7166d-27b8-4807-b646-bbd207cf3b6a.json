@@ -43,5 +43,7 @@
   "created_at": "2026-09-06T17:25:45.879304Z",
   "updated_at": "2026-09-06T18:26:11.799591Z",
   "closed_at": null,
+  "right_now_summary": "The WebGL fixes are in place, but animation still needs confirmation in a real browser.",
+  "right_now_updated_at": "2026-10-12T16:43:18.002317Z",
   "custom": {}
 }

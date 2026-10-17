@@ -1,0 +1,317 @@
+{
+  "id": "PPY-550d24e5-1de1-4ada-94a3-7d5c13bca405",
+  "title": "Persist restored CMS workflows through an injectable backend",
+  "description": "Verify the actual restored CMS component paths. Add typed injectable persistence boundaries with an isolated local fixture backend, optimistic concurrency and failure handling. Keep live Amplify/auth and production data disconnected. Inventory every module integration and report exact remaining cloud requirements.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "fe1aa947-df1f-4948-9c44-f493f185bcd1",
+      "author": "home",
+      "text": "Tested increment f2ca29ef74585815c74deac003485845973e8139: actual shared publication-policy/section editors persist through isolated SQLite with transactional revision/event; failure and concurrent stale-write UI proofs pass. Typed production factory accepts actual generated Amplify client without casts, retains userPool authorization and validates required Item versions/section status. Article/editor/media injection seams added. 12 Python checks; content-action/article/media/backend TypeScript tests; isolated tsc/ESLint/build; CMS ready-render checks, mobile shell, real Kanbus create/move/note/reload, real synthetic Cyclotron labels/accept, typed records/forum regression all pass. Per-module missing integration in docs/unified-cms-integration.md. Full backend carry-forward remains open: category doctrine, reorder, articles/media, taxonomy/ontology, original forums, procedures and actual semantic services. No live privileged CMS data/credentials connected.",
+      "created_at": "2026-10-15T02:56:21.332508Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "Unified Newsroom Review"
+      }
+    },
+    {
+      "id": "f28f39be-d36e-4e7d-8512-6a6a28c22ba5",
+      "author": "home",
+      "text": "Next verified increment be203f245dafa55b584280920b0f63c3158c2b1c: scoped category-policy creation/update uses actual doctrine helper identities and persists/reloads. Section create is durable; failed creation retains draft inputs. Injected section ordering now requires explicit atomic capability; isolated exact-permutation update and event commit together, survives reload, rejects malformed/duplicate/incomplete ids. Shared-component browser structure proof and existing policy failure/conflict/merge proof pass. 14 Python checks, generated-client TypeScript compatibility, adapter contracts, lint/build pass. Public-cloud factory deliberately has no fake atomic reorder capability; production needs an actual atomic host operation. Remaining inventory updated. No live credentials/data, deployment or push.",
+      "created_at": "2026-10-15T03:09:53.200596Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "Unified Newsroom Review"
+      }
+    },
+    {
+      "id": "4b4b80a9-8309-49f3-af6b-33f384bde967",
+      "author": "home",
+      "text": "Continuing authorized taxonomy and knowledge-base carry-forward. Inspect original versioned category and reference-curation commands, retain source provenance, add isolated persistence and conflict/reload proof. Existing blocked destructive merge apply semantics stay blocked; production atomic operations remain explicit gaps.",
+      "created_at": "2026-10-15T03:14:52.733234Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "3de2433a-e6e0-463c-a4a4-c4a03ef5b36e",
+      "author": "home",
+      "text": "Local product checkpoint ba4d560ab8e46e85b3ccfd5526e6e86c4503d3b9: original taxonomy copy editor now versions the actual source category, validates original stable hash including UTF-16, and retains predecessor history; original reference accept/reject/archive persists commentary plus source lineage/version links. Source fields immutable, 503 failures and 409 stale edits visible, reload and forced event-write rollback proved. 18 Python tests, generated Amplify-client contract/receipt validation, tsc, scoped lint, build, taxonomy/curation browser flows, 11 original CMS routes, mobile navigation, and retained Kanbus/Cyclotron flows pass. Combined Tailwind import graph fixes hidden desktop reference detail. Preview 192.168.0.199:8899 responding after graceful restart; transient OS no-buffer listener startup recovered. No public push/cloud data. Still open: taxonomy set/tree lifecycle/proposal decisions, concepts/ontology merge and curation command mapping, original forum adapter, durable articles and procedures/services. Existing destructive merge/split guard retained. Production atomic category-version and section-order operations remain explicit gaps; local SQLite proof does not cover them.",
+      "created_at": "2026-10-15T03:32:35.579953Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "96dfd38e-674b-41c3-97b0-595f75a01c3c",
+      "author": "home",
+      "text": "Continuing authorized taxonomy draft lifecycle, concept/ontology command mapping, then original forum adapters. Found existing draft handlers and modal retained but disconnected from current Desks/Topics routing; restore actual modal and command callbacks with isolated durable adapter, keep production merge guards and source identities unchanged.",
+      "created_at": "2026-10-15T03:35:54.352951Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "9164d73c-c6d3-4208-9fb7-c5496fe544c7",
+      "author": "home",
+      "text": "Tested local carry-forward checkpoint 208ea0a6d9cc65cbfc18d9d06c0000f64b32d1ac. Actual original taxonomy draft/create/edit/deprecate/promote/discard handlers and original edition/section/insight forum functions run in credential-free per-command kernels against the isolated store. Actual shared modals, insight composer and forums persist; 503 failure, 409 conflict, reload, parent/sequence, soft deletion, source/audit provenance, mobile dark/reduced-motion and Dialog Escape/focus proofs pass. Coupled promotion-to-policy UI proof caught and fixed same-slug/different-lineage policy selection; historical owner records remain unchanged. 25 Python tests, generated Amplify-client contracts, command phase-failure tests, scoped tsc/ESLint, Vite build, 11 CMS routes, mobile shell and real Kanbus/Cyclotron regression pass. Base UI menu callback and mounted deep-link bugs fixed. Preview 192.168.0.199:8899 remains live; no push, deployment or cloud credentials. Inventory docs/unified-cms-integration.md distinguishes local functionality from staging. Remaining: category-proposal apply, canonical IDs across older generic fixture, durable articles/media, workers/search/procedures and authenticated staging. Genuine semantic gap: no authoritative implemented node/edge edit or merge command in inspected source; original destructive apply guards stay intact. Production atomic category-version, ordering and multi-command forum guarantees are not provided by local proofs.",
+      "created_at": "2026-10-15T04:26:51.637192Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "bd9b484b-9c69-406b-85d7-2625c76e0d88",
+      "author": "home",
+      "text": "Continuing carry-forward inventory: preserve durable taxonomy/policies/curation/forums, implement isolated article/media persistence and original procedure registry contracts, inspect actual knowledge engine before search integration. Ontology edit/merge remains explicit design gap; no public push or deployment.",
+      "created_at": "2026-10-15T04:31:34.150639Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "9f073aca-71ea-4a08-bf27-71c4a7a3c945",
+      "author": "home",
+      "text": "Local carry-forward checkpoint 4c77694 on feature/PPY-a8471b-unified-newsroom-review: original Python Markus/publishing engine plus durable article/media port; save/conflict/reload and upload interruption/repeat proofs. Original procedure registry handlers now durable with version selection/publication/archive, published+archived immutability and rollback proofs; Run Now explicitly disconnected. Original knowledge engine provides synthetic anchored/ontology context; semantic-only queries clearly unavailable. 52 Python tests, isolated tsc, scoped lint, local build, original client/article/media/workspace/kernel tests, article+registry+search browser flows, mobile shell and 11 CMS render proofs pass. Fixed publication witness/slug lock without blocking dated drafts and legacy CMS spacing/contrast. Inventory docs record authenticated staging/vector/worker/category-apply/ontology edit-merge gaps. Preview 192.168.0.199:8899 stays synthetic-only; no public push/deploy. Issue remains in_progress until landing.",
+      "created_at": "2026-10-15T04:49:05.183749Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "95084cf6-c9af-4a4c-bc01-f1d897c6b983",
+      "author": "home",
+      "text": "Continuing locally testable execution/search: inspect existing immediate seeded executor versus external CLI Tactus runtime before choosing a faithful carry-forward; add deterministic embedding/vector-service boundary fixtures to the original semantic provider and knowledge engine. No paid providers, real data/service effects, public push or deploy. Stop any execution path requiring new product semantics and record the exact decision.",
+      "created_at": "2026-10-15T04:53:18.970010Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "966980d4-82e9-471b-982a-00c2a39126d4",
+      "author": "home",
+      "text": "Final local acceptance: product 9d7b7a6 adds original S3VectorsProvider/knowledge engine through deterministic embedding and vector-service IO fixtures; UI/provenance label fixture cases, pending semantic references excluded, repeated and stale queries tested. 118 Python tests and all 13 browser suites pass; types/lint/local build/shared contracts pass. Full existing Kanbus/Cyclotron, typed records, policies/sections, taxonomy/curation, forums/ontology/insights, content/media and registry flows retained; affected UI suites rerun after viewport clip/hit-test fix. Generic CMS procedure execution STOPPED at explicit product decision: existing immediate runner emits seeded placeholder/hold packets; alias-driven full Tactus CLI is a different path. Actual two safe original seeded executors regression-tested; no arbitrary source, registration, real data/service effects, paid provider, push or deploy. Exact decision docs/unified-procedure-execution-decision.md; concise full acceptance docs/unified-final-acceptance.md includes remaining canonical-ID/category-apply/worker/auth/vector/ontology-edit gaps and staging checks. Preview 192.168.0.199:8899/newsroom/work and /newsroom/cms/search HTTP200; anonymous loopback backend401. Service stays alive. Publication hold intact; issue remains in_progress until landing.",
+      "created_at": "2026-10-15T05:08:34.967163Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "59f43a41-1acc-48f6-aa00-c0a6bbbc9ada",
+      "author": "home",
+      "text": "Ryan layout correction: inspect actual Kanbus console viewport flex/min-height pattern; make board a dedicated full-height tab, remove above-board statistics strip and page masthead, route main page to a compact overview. Preserve shared components and every CMS route. Verify desktop/iPad resizing, internal column scrolling, filters/view/detail state and browser Back/Forward. No public push/deploy.",
+      "created_at": "2026-10-15T10:24:16.127124Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "deb37b9b-c35b-4500-8e07-2939a3e961ef",
+      "author": "home",
+      "text": "Ryan viewport correction complete: dedicated Board tab /newsroom/work fills remaining dynamic viewport; summary strip, large heading, footnote/footer removed from board. Main / and /newsroom now compact overview with actual editorial pipeline and CMS entry points; original operations overview preserved. Reused inspected Kanbus console flex/min-height/full-height frame pattern; shared package unmodified, 430px/min-height board floors removed. URL-backed filter/view/issue state survives history/reload/tab switching. 119 Python tests, isolated tsc, scoped lint, Vite build and browser proof pass: 1440 desktop, 1024x768/768x1024/1180x820 tablet, 390x844/844x390 mobile, taller desktop; column scrolling, empty filter, normal/reduced motion, detail panels, Back/Forward, CMS home navigation. Existing mobile, actual Kanbus/Cyclotron create/move/note/reload/priming and 11 CMS render suites pass. Overview and board HTTP200; anonymous backend401. Server remains on8899; no push/deploy; existing procedure/ontology/staging gaps unchanged.",
+      "created_at": "2026-10-15T10:36:23.079743Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "2eb60fb1-093d-475e-8883-0ee2db03685b",
+      "author": "home",
+      "text": "Ryan review: Board becomes second tab before Articles. Root cause of missing type filter confirmed: host omits console AnimatedSelector controls, IssueCollection exports no filter UI, and gateway/client both force story. Extract configured type filter/control and semantics into Kanbus shared UI, adopt in console and Papyrus, lift synthetic gateway type restriction without changing real CMS Item semantics or hierarchy. Verify configured Story/Article/other types, All/repeat clear, responsive controls, URL/history/detail state and regressions. No public push/deploy.",
+      "created_at": "2026-10-15T11:07:08.683473Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroomReview"
+      }
+    },
+    {
+      "id": "c67955dd-c185-4438-b995-a28afe487f88",
+      "author": "home",
+      "text": "Ryan reiterated full CMS carry-forward: taxonomy, concepts, knowledge, merging/curation, policies and interface settings. Existing original modules remain mounted. Make hidden administration capabilities explicit in desktop/mobile navigation; preserve documented ontology edit/merge and authenticated persistence gaps. No public push or deployment.",
+      "created_at": "2026-10-15T11:10:42.317137Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "ff8b3cb1-50d4-4320-9199-e4c38841ea30",
+      "author": "home",
+      "text": "Local product checkpoint 7335a0a: Board second after Overview; explicit Policies, Sections, Procedures, Users & identity merging and Knowledge search in desktop navigation/mobile More. Original modules retained. tsc, scoped ESLint, Vite build, 11 CMS rendering checks and mobile navigation/light-dark/reduced-motion checks pass. LAN8899 HTTP200; no push/deploy. Existing authenticated staging and ontology editing/merging gaps remain. Shared configured-type filter task remains pending in separate owned Kanbus worktree.",
+      "created_at": "2026-10-15T11:12:37.837249Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "a0d9eacb-2215-4544-b59f-80c82e42cf4a",
+      "author": "home",
+      "text": "Completed active Board/type-filter correction. Board order Overview, Board, Articles verified (ordering checkpoint 7335a0a). Papyrus product 9720724 restores shared IssueTypeFilter extracted from actual console AnimatedSelector, adopted in console toolbar/sidebar as well. Root cause: embedded host omitted toolbar and host+gateway forced type=story. All configured synthetic types now reach IssueCollection; Story/Article/Reference/Task exact filters, empty hierarchy filters, All/repeat clearing, search/detail/list/history/reload verified. Final Kanbus source c50b3d3f9ac2a3f8c822e8d23a4447832098a17a, artifact SHA256 15a1e82b91880f446af0940b3fbc77abac5cbf17a7b8eaef63c3c0cd73219fa7. 24 component scenarios/120 steps; actual console desktop/phone; 121 Python tests; tsc/lint/build; LAN type/layout/mobile/real-flow/all eleven CMS rendering checks pass. Full viewport height preserved through short landscape/tall desktop. Preview8899 remains alive HTTP200, backend8900 loopback. No public push/deployment; physical iPad/Safari unverified. Shared task kbs-c197fb96-19b0-444c-8d09-5c25fa67c54c.",
+      "created_at": "2026-10-15T11:31:12.332921Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "727d5ba8-99fc-4131-aed6-b1d2497d2b51",
+      "author": "home",
+      "text": "Ryan domain correction: newsroom schema/filter only Story Article Reference Assignment; preserve Story-to-Article hierarchy, independent story-linked assignments with actual open/claimed/completed/canceled/reopen semantics. New References request: existing CMS list/card curation, predictive recommendation+human feedback, canonical same records as Board Reference filter, preserve discovery provenance; no paid providers/cloud mutation. Investigating API parent-write refusal and native CMS model mappings before implementation.",
+      "created_at": "2026-10-15T11:38:05.220329Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "2f646670-9c15-4de7-b56c-0d7f162d2ef8",
+      "author": "home",
+      "text": "Completed product 8df0904: newsroom types Story/Article/Reference/Assignment only, hierarchy [story,article], native Assignment lifecycle open/claimed/completed/canceled/release/reopen with timestamps and story links. Canonical CMS References project into shared Board, primary References reuses original list/source curator + actual Cyclotron review controls, durable accept/reject/archive reasons and immutable prediction/human override provenance. Manual and research-source fixtures additive; old synthetic PM/reference issue fixtures preserved but retired from active view. Mobile More groups all21 destinations with subtitles; Overview Board Articles order preserved.127 Python tests,8 browser suites,original relevance UI contract,tsc/lint/build pass. API source a16ee24211d4f915d50bd7b3d7a57e95a8d3d8f3 adopts prior hierarchy fix; owned binary55f8ce455618b8b6c2cba6cedf482bd11aea72a0ad512979aff4edd40360c607. Preview8899 stays KeepAlive; backend8900 loopback. Unload was denied by automatic review as potentially leaving preview stopped; not executed, approved graceful SIGTERM reload used. No push/deploy/paid models/cloud writes. Fresh classification/training dispatch and production Story/Item/Assignment identity/phase decisions documented in docs/unified-newsroom-domain-and-curation.md; physical iPad unverified.",
+      "created_at": "2026-10-15T12:13:09.136372Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "0db63b92-afe9-4882-bb74-34f7bdc29a65",
+      "author": "home",
+      "text": "Ryan navigation correction: same grouped destinations and explanatory subtitles must appear in wide sidebar as mobile More and compact navigation. Refactor into one destination definition/shared renderer, preserve destination-owned access controls, all21destinations and Overview Board Articles order. Verify wide/medium/narrow wrapping, scrolling, active links, keyboard/focus, full-height Board and References. Local only; no push/deploy.",
+      "created_at": "2026-10-15T13:14:58.186107Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "a54a3f5a-23db-405b-ae83-bbf985ee425e",
+      "author": "home",
+      "text": "Scope addition: standard desktop Collapse sidebar / Expand sidebar panel-icon button, always-reachable expand control, reclaim content width, persist desktop preference, preserve narrow hamburger. Include keyboard/focus, reload/navigation and breakpoint resize acceptance with shared grouped navigation.",
+      "created_at": "2026-10-15T13:17:13.118224Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "32e1ea52-41f4-4c42-9290-f46003153372",
+      "author": "home",
+      "text": "Scope addition implemented for verification: remove sidebar slogans; standard account dropdown with neutral avatar and honest Demo visitor/signedOut ReaderSessionSnapshot contract. Reuse actual SettingsPage via injected local reader-settings adapter; no OAuth/configure/signout calls fabricated. Working browser-local preferences and Leave demo/Return to demo, explicit no-auth-session notice. Header account trigger remains separate from More and visible narrow/collapsed; cloud sign-out requires a real authenticated host later.",
+      "created_at": "2026-10-15T13:25:29.708805Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "913d72a3-2333-4f55-bc5a-f3e37046410b",
+      "author": "home",
+      "text": "Carry-forward scope explicitly retains taxonomy, topic proposals, concepts, knowledge search, reference curation, publication/category policies, sections, procedures, users/identity merging and reader UI settings. Shared navigation exposes original modules in desktop and mobile. Existing identity merge differs from blocked semantic graph/destructive taxonomy merge; no simulated success. Detailed original-module integration inventory retained; adding navigation/account checkpoint with verification.",
+      "created_at": "2026-10-15T13:41:17.990031Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "f8eb28ae-9008-493f-be39-930675be9413",
+      "author": "home",
+      "text": "Local product checkpoint 63f1c87 on feature/PPY-a8471b-unified-newsroom-review. One shared 21-destination metadata source and full navigation renderer preserves complete CMS carry-forward; desktop sidebar and More show matching group headings/descriptions, bottom tabs remain concise icons/labels. Conventional collapse/expand reclaims 264px and persists; breakpoint focus, nested active routes and inner scrolling pass. Existing dropdown primitives + signed-out demo snapshot + actual SettingsPage/local adapter provide honest account controls; Leave demo closes UI, no cloud sign-out claimed. Fresh isolated tsc, scoped ESLint, Vite build, responsive navigation/account suite, canonical domain/curation suite, all 11 original CMS rendering checks and 12 gateway tests PASS. Existing board type/full-height/mobile regressions passed this checkpoint work. Screenshots and detailed boundary inventory: docs/unified-navigation-and-account.md. Local 8899 review remains alive. No push, PR, deployment, DNS or real authentication/data changes; issue remains in progress until integration lands.",
+      "created_at": "2026-10-15T13:42:52.144742Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    },
+    {
+      "id": "dbfd18a5-8497-4e22-a923-889d00cae85c",
+      "author": "home",
+      "text": "Adopted shared Kanbus release candidate0.2.0 unmodified from clean UI-only branch producteb781a16/head454f165b; PRhttps://github.com/AnthusAI/Kanbus/pull/402. Local artifact /tmp/kanbus-ui-0.2.0.tgz SHA3730cc6c968853d21c688f31896a58b398dca20b01654d42b06cf9ed253a9206. Only consumer props added: columnStateKey + detailOpen. Shared Board owns all collapse behavior; no Papyrus toggle implementation. Actual8899 1440light/390dark/844landscape: reclaims197px, keyboard, list/type/reload persistence and selection/detail/Escape pass. Type/history and fullheight/sidebar/account/tab regressions pass. Fresh UI+console installs,32scenarios/183steps and actualconsole1440/390 pass. Detailed ownership/parity/API in docs/shared-board-parity.md. Shared dependency publication and production CMS integration remain release gates; deployment subsequently authorized but no production site changed by this adoption.",
+      "created_at": "2026-10-15T15:53:53.703768Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6.1-Sol",
+        "name": "UnifiedNewsroom"
+      }
+    }
+  ],
+  "created_at": "2026-10-15T02:35:53.309208Z",
+  "updated_at": "2026-10-15T15:53:53.703815Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "Unified Newsroom Review"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

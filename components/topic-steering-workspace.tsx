@@ -10,6 +10,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import amplifyOutputs from "papyrus-amplify-outputs";
+import { SignupEntriesPanel } from "./signup-entries-panel";
+import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import {
@@ -53,6 +56,8 @@ import {
   type ForumThreadWithMessages,
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
+  loadCyclotronStatus,
+  requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
 import { listConsoleThreads } from "../lib/console-chat-client";
 import {
@@ -76,12 +81,13 @@ import { buildNewsroomKnowledgeQueryInput, type NewsroomKnowledgeQueryAnchor as 
 import { NewsroomConsoleProgressToggle, PapyrusConsoleChatIcon, usePapyrusConsole } from "./papyrus-console-shell";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { SITE_BRAND } from "../lib/site-brand";
+import { browserPathToInternalNewsroomPath, toPublicNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { cn } from "../lib/utils";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
-import { ReaderAuthControl } from "./reader-auth-control";
+import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
@@ -150,9 +156,13 @@ import {
   type SemanticObjectSummary,
 } from "../lib/semantic-graph";
 import {
+  normalizeReferenceRejectionReasonCode,
   REFERENCE_REJECTION_REASON_CODES,
   referenceCurationStatusForAction,
 } from "../lib/reference-policy";
+import { currentRelevanceDecisions } from "../lib/relevance-decisions";
+import { buildReviewRateRequest, DEMO_CYCLOTRON_STATUS } from "../lib/relevance-status";
+import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import {
   referenceDisplaySummary,
   referenceMetadataField,
@@ -169,7 +179,6 @@ import {
   uniqueNeighborGroupsForCategoryContext,
   type CategoryDrilldownContext,
 } from "../lib/newsroom-category-drilldown";
-import type { NewsDeskShellState } from "../lib/news-desk-session";
 import {
   resolveNewsroomCardTemplate,
   type NewsroomCardSpan,
@@ -229,7 +238,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "signups";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "insights" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -776,6 +785,24 @@ function NewsDeskDashboard({
   const [referenceAttachments, setReferenceAttachments] = useState(dashboard.referenceAttachments);
   const [messages, setMessages] = useState(dashboard.messages);
   const [semanticRelations, setSemanticRelations] = useState(dashboard.semanticRelations);
+  const relevanceDecisions = useMemo(() => currentRelevanceDecisions(semanticRelations), [semanticRelations]);
+  const relevanceCyclotronId = useMemo(
+    () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
+    [relevanceDecisions],
+  );
+  const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
+  useEffect(() => {
+    if (!relevanceCyclotronId) return;
+    if (dashboard.isDemo) {
+      setCyclotronStatus(DEMO_CYCLOTRON_STATUS);
+      return;
+    }
+    let cancelled = false;
+    loadCyclotronStatus(relevanceCyclotronId)
+      .then((status) => { if (!cancelled) setCyclotronStatus(status); })
+      .catch(() => { if (!cancelled) setCyclotronStatus(null); });
+    return () => { cancelled = true; };
+  }, [dashboard.isDemo, relevanceCyclotronId]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
@@ -1507,7 +1534,13 @@ function NewsDeskDashboard({
     });
   }
 
-  function runReferenceCurationAction(reference: ReferenceRecord, action: ReferenceCurationAction, note?: string, reasonCode?: ReferenceRejectionReasonCode | null) {
+  function runReferenceCurationAction(
+    reference: ReferenceRecord,
+    action: ReferenceCurationAction,
+    note?: string,
+    reasonCode?: ReferenceRejectionReasonCode | null,
+    relevance?: { decisionRelationId: string; shareable: boolean },
+  ) {
     const nextStatus = referenceCurationStatusForAction(action);
     setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
     if (dashboard.isDemo) {
@@ -1535,6 +1568,7 @@ function NewsDeskDashboard({
           action,
           curationStatus: nextStatus,
           reasonCode: action === "reject" ? reasonCode ?? null : null,
+          ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
         },
       }, ...current]);
       setSemanticRelations((current) => [{
@@ -1575,6 +1609,8 @@ function NewsDeskDashboard({
               actorLabel: authState.label,
               note: note?.trim() || undefined,
               reasonCode: action === "reject" ? reasonCode ?? undefined : undefined,
+              decisionRelationId: relevance?.decisionRelationId,
+              shareable: relevance ? relevance.shareable : undefined,
             },
             { authMode: USER_POOL_AUTH_MODE },
           );
@@ -3153,6 +3189,20 @@ function NewsDeskDashboard({
             demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
             initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
+            cyclotronStatus={cyclotronStatus}
+            decisions={relevanceDecisions}
+            onRequestReviewRate={relevanceCyclotronId ? async (choice) => {
+              const request = buildReviewRateRequest(choice, authState.label);
+              if (dashboard.isDemo) return;
+              await requestCyclotronReviewRate(relevanceCyclotronId, request);
+            } : undefined}
+            onRelevanceReview={(reference, curation) => runReferenceCurationAction(
+              reference,
+              curation.action,
+              curation.note ?? undefined,
+              normalizeReferenceRejectionReasonCode(curation.reasonCode),
+              { decisionRelationId: curation.decisionRelationId, shareable: curation.shareable },
+            )}
             onReview={(reference, action) => runReferenceCurationAction(reference, action)}
             referenceAttachments={referenceAttachments}
             references={references}
@@ -4405,8 +4455,20 @@ function AdministrationDeskView({
                 <strong>Procedures</strong>
                 <span>Procedure registry and versioned Tactus code</span>
               </Link>
+              {signupPluginEnabled() ? (
+                <Link
+                  href={administrationPanelHref("signups", isDemo)}
+                  data-news-desk-admin-nav="signups"
+                  data-active={administrationPanel === "signups" || undefined}
+                  onClick={() => onPanelChange("signups")}
+                >
+                  <strong>Signups</strong>
+                  <span>Addresses from the site&apos;s signup forms</span>
+                </Link>
+              ) : null}
             </nav>
             <div className="news-desk-settings-panel">
+              {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
               {administrationPanel === "users" ? (
                 <AdministrationUsersPanel
                   canManageUsers={canManageUsers}
@@ -13599,8 +13661,13 @@ function semanticVersionKey(kind: string, id: string): string {
   return `${kind}#${id}`;
 }
 
+function signupPluginEnabled(): boolean {
+  return pluginSettings(amplifyOutputs as PluginOutputs, "signup") !== null;
+}
+
 function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
   if (value === "policies" || value === "sections" || value === "procedures") return value;
+  if (value === "signups" && signupPluginEnabled()) return value;
   return "users";
 }
 
@@ -14975,6 +15042,9 @@ function buildUiCopywritingAssignment({ actorLabel, assignment, decision, messag
   message: MessageRecord;
   now: string;
 }): AssignmentRecord {
+  if (!assignment.itemLineageId) {
+    throw new Error(`Assignment ${assignment.id} has no content item lineage; copywriting must continue the same content item.`);
+  }
   const type = decision === "brief" ? "brief" : "article";
   const assignmentTypeKey = type === "brief" ? "copywriting.brief-draft" : "copywriting.article-draft";
   const section = assignment.sectionKey ?? assignment.sectionId ?? "unsectioned";
@@ -15027,6 +15097,7 @@ function buildUiCopywritingAssignment({ actorLabel, assignment, decision, messag
     createdAt: now,
     updatedAt: now,
     newsroomFeedKey: "assignment#open",
+    itemLineageId: assignment.itemLineageId,
     metadata,
   };
 }
@@ -15188,14 +15259,14 @@ function normalizeKnowledgeQueryAnchorKind(value: string | null | undefined): Kn
 
 function normalizeNewsroomFromHref(value: string | null | undefined): string | null {
   if (!value) return null;
-  const trimmed = value.trim();
+  const trimmed = browserPathToInternalNewsroomPath(value.trim());
   if (!trimmed.startsWith("/newsroom")) return null;
-  return trimmed;
+  return toPublicNewsroomPath(trimmed);
 }
 
 function currentNewsroomOriginHref(fallback: string | null): string | null {
   if (typeof window === "undefined") return fallback;
-  const current = `${window.location.pathname}${window.location.search}`;
+  const current = browserPathToInternalNewsroomPath(`${window.location.pathname}${window.location.search}`);
   return current.startsWith("/newsroom/search") ? fallback : normalizeNewsroomFromHref(current);
 }
 
@@ -15229,7 +15300,7 @@ function buildNewsroomSearchHref(request: NewsroomSearchRequest, demo?: boolean)
   if (request.from) params.set("from", request.from);
   if (demo) params.set("demo", "1");
   const queryString = params.toString();
-  return queryString ? `/newsroom/search?${queryString}` : "/newsroom/search";
+  return toPublicNewsroomPath(queryString ? `/newsroom/search?${queryString}` : "/newsroom/search");
 }
 
 function focusNewsroomSearchForm() {
@@ -15397,63 +15468,6 @@ async function getNewsDeskActorLabel(): Promise<string> {
 
 function readTextClaim(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
-  const accessPhase = shell?.phase ?? "checkingAccess";
-
-  return (
-    <NewsroomOpsShell
-      activeTab="overview"
-      appTitle={SITE_BRAND.appTitle}
-      backHref="/"
-      backLabel={SITE_BRAND.backToHomeLabel}
-      headerActions={(
-        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
-      )}
-      pageTitle="Newsroom"
-      showNavigation={showSectionTabs}
-    >
-      <section aria-live="polite" data-news-desk-access={accessPhase} data-news-desk-access-phase={accessPhase}>
-        <div className="space-y-3 rounded-xl border border-border bg-card p-6">
-          <p className="m-0 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access</p>
-          <h2 className="m-0 font-sans text-xl font-semibold tracking-tight">{formatAccessTitle(shell)}</h2>
-          <p className="m-0 text-sm text-muted-foreground">{formatAccessDetail(shell)}</p>
-          {shell?.error ? <p className="text-sm text-destructive">{shell.error}</p> : null}
-          <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
-          {shell?.phase === "signedOut" || shell?.phase === "error" ? (
-            <div className="news-desk-access-panel__auth">
-              <ReaderAuthControl postAuthPath="/newsroom" showIdentity />
-            </div>
-          ) : null}
-        </div>
-      </section>
-    </NewsroomOpsShell>
-  );
-}
-
-function formatAccessTitle(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "Checking Desk Credentials";
-  if (state.phase === "loadingDesk") return "Loading Newsroom Records";
-  if (state.phase === "forbidden") return "Editor Role Required";
-  if (state.phase === "error") return "Newsroom Unavailable";
-  return "Editor Sign-In Required";
-}
-
-function formatAccessDetail(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return `${SITE_BRAND.appTitle} is checking the current browser session before loading steering state.`;
-  if (state.phase === "loadingDesk") return `${SITE_BRAND.appTitle} verified the browser session and is loading private Newsroom records.`;
-  if (state.phase === "forbidden") return "This account is signed in, but the Cognito session does not include the editor or admin group.";
-  if (state.phase === "error") return `${SITE_BRAND.appTitle} could not verify this editor session or load the private Newsroom data.`;
-  return "Sign in with an editor or admin account to inspect category, category tree, ontology, and graph steering.";
-}
-
-function formatAccessActionDetail(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "This should only take a moment. If it hangs, reload the page.";
-  if (state.phase === "loadingDesk") return "Private records are loading from GraphQL. Large reference queues may take several seconds.";
-  if (state.phase === "forbidden") return "Ask an admin to add this account to the editor or admin group, then sign out and back in.";
-  if (state.phase === "error") return "Reload the page or check the local development console for the GraphQL error.";
-  return "Use the login button above to authenticate with an editor or admin account.";
 }
 
 function SectionHeader({ title, detail }: { title: string; detail: string }) {

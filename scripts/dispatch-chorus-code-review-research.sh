@@ -25,26 +25,11 @@ fi
 
 ensure_authoring_env() {
   export PAPYRUS_GRAPHQL_ENDPOINT="${PAPYRUS_GRAPHQL_ENDPOINT:-https://64hviw44q5cq5nwjcigmasowlq.appsync-api.us-east-1.amazonaws.com/graphql}"
-  if [[ -n "${PAPYRUS_GRAPHQL_JWT:-}" ]]; then
-    return 0
-  fi
-  local refresh_args=(auth refresh-jwt)
-  if [[ -n "${PAPYRUS_JWT_SECRET:-}" ]]; then
-    refresh_args+=(--secret-env PAPYRUS_JWT_SECRET --no-discover-ssm-param)
-  elif [[ -n "${PAPYRUS_SANDBOX_JWT_SECRET:-}" ]]; then
-    refresh_args+=(--secret-env PAPYRUS_SANDBOX_JWT_SECRET --no-discover-ssm-param)
-  elif [[ -n "${AWS_ACCESS_KEY_ID:-}" && -n "${AWS_SECRET_ACCESS_KEY:-}" ]]; then
-    export AWS_REGION="${AWS_REGION:-us-east-1}"
-    refresh_args+=(
-      --ssm-param
-      "${PAPYRUS_JWT_SECRET_SSM_PARAM:-/amplify/dbsyytcm9drqa/main-branch-cb38ada667/PAPYRUS_JWT_SECRET}"
-    )
-  else
+  if ! "${PAPYRUS_CMD[@]}" ops content inspect >/dev/null 2>&1; then
     echo "Missing production authoring credentials." >&2
-    echo "Set PAPYRUS_GRAPHQL_JWT, or PAPYRUS_JWT_SECRET, or AWS credentials for SSM JWT minting." >&2
+    echo "Set AWS_PROFILE to a profile that assumes the papyrus-authoring role, or run with an OIDC role." >&2
     exit 1
   fi
-  export PAPYRUS_GRAPHQL_JWT="$("${PAPYRUS_CMD[@]}" "${refresh_args[@]}")"
 }
 
 require_tavily() {

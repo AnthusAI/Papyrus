@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4e6a7766-fbf2-4529-aba7-b0c422bacb84",
+  "issue_id": "PPY-67226eff-d85a-4f1a-a189-b52435334a42",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:43.047Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-04: Threat Intelligence publication repo scaffold on the packages (brand, theme, infra/site.json)",
+        "to": "TI P4-05: template: host under a shared root domain and an explicit staging host"
+      },
+      "priority": {
+        "from": 1,
+        "to": 2
+      }
+    }
+  }
+}

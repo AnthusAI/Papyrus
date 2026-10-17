@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "7aad02bc-07f8-4db5-b116-da1022230d83",
+  "issue_id": "PPY-9febe430-0683-45a1-9109-d2d878d348ff",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T16:00:12.682Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remove PAPYRUS_JWT_SECRET and the JWT authorizer; CLI authenticates with IAM (SigV4)",
+    "description": "Ryan decision 2026-10-06: no long-lived token anywhere in the Papyrus design. Delete PAPYRUS_JWT_SECRET, the custom JWT Lambda authorizer and refresh-jwt. The CLI and automation sign AppSync requests with SigV4 from the standard AWS credential chain (SSO, OIDC role, build role), authorized through a dedicated papyrus-authoring role created by infra/amplify-app-shell.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "b689f4d5-cfd0-4721-8cf4-e63a03f0cbd5",
+  "issue_id": "PPY-90ae2242-da82-4a09-835f-22ea6a62e476",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T17:13:00.009Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Check whether the scope-training export has been missing its negatives",
+    "description": "Finding from the relevance sweep (PPY-7a1ca2), not fixed yet.\n\nEvidence: 'references export-scope-training' (src/papyrus_content/references_commands.py -> reference_exports.build_reference_scope_training_export) lists Message records and reads each curation Message's metadata field to find the rejection reason code; only out_of_scope and policy_exclusion rejections become negatives. But the reviewReferenceCuration handler (amplify/functions/category-action/handler.ts) writes that metadata to a ModelAttachment (role metadata), not to Message.metadata, and the Python authoring client strips 'metadata' from Message writes (graphql_authoring.strip_unsupported_payload_fields). If Message.metadata is empty in production, every rejected reference has no reason code and the export has produced positives only. The relevance sweep reads the attachment instead (relevance_sweep._owner_metadata).\n\nAcceptance criteria:\n- Count, in production, rejected references whose curation Messages carry a reason code in Message.metadata versus only in the metadata attachment; record the numbers here.\n- If negatives were missing: the export reads the reason code from the metadata attachment (sharing the sweep's helper), a spec covers a rejected out_of_scope reference whose reason lives only in the attachment, and earlier exports are noted as positives-only.\n- If they were not missing: record the evidence and close.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b0396fee-2767-4dfa-ad92-c03e101e93ad",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

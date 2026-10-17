@@ -52,7 +52,7 @@
     "platform": "claude_code",
     "model": "claude-sonnet-5-5"
   },
-  "right_now_summary": null,
-  "right_now_updated_at": null,
+  "right_now_summary": "Markus now slugifies eligible Markdown filenames and errors on slug collisions or empty slugs.",
+  "right_now_updated_at": "2026-10-12T16:42:40.686108Z",
   "custom": {}
 }

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0d3dbc97-b115-4e26-bfda-a11afc57d26f",
+  "issue_id": "PPY-7a1ca2f7-1a02-4640-ac58-7a6a0dd92874",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T14:52:40.175Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Hook the candidate pipeline: a decide-relevance sweep that decides, syncs reviews and writes status",
+    "description": "Add papyrus references decide-relevance --corpus-key K [--apply] [--max-count N] in src/papyrus_content. Under an exclusive claim on a cyclotron.relevance Assignment, it restores the engine store from the media bucket, finds current pending References with no current decision (created by intake_research_packet_proposals in assignments_workflow.py and build_reference_catalog_registration_records in catalog.py, plus email submissions), builds an item (id = Reference lineageId; title, source URI and domain, ingestion rationale, summary or opening text, published date, discovering assignment and section), calls decide, and writes the decision relation. It then reads reference_curation Messages since its cursor, maps them to labels, calls review with selected_by program or reviewer, writes the status snapshot, and snapshots the store back. Run it after research-intake-now in the dispatch automation and on a schedule. Uses the Cyclotron SDK facade (decision-flywheel-0736e4a0) and portable store (decision-flywheel-f0285316). Ordering: after the data model task and those engine tasks.\n\nAcceptance criteria:\n- Dry run is the default and prints the plan; --apply writes; reruns are no-ops for unchanged items and versions.\n- Never changes curationStatus in phase one.\n- A second concurrent sweep exits before any model call.\n- Specs use a fake decision model and a fake GraphQL client; a live smoke on one sandbox publication is recorded in the issue.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

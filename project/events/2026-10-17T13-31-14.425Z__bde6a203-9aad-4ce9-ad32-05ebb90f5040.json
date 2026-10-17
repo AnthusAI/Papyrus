@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bde6a203-9aad-4ce9-ad32-05ebb90f5040",
+  "issue_id": "PPY-cfa5cedb-36c6-4396-b56e-49b89f830828",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T13:31:14.425Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Backfill existing items and in-flight work onto content item lineages",
+    "description": "Feature: One-time content item backfill\n  Scenario: Existing records join one content item each\n    Given Items without a stage and reporting or copywriting Assignments without itemLineageId\n    When an operator runs papyrus assignments backfill-content-items\n    Then published Items get stage published and other Items get stage copywriting\n    And a drafted reporting candidate adopts its draft's lineage\n    And an undrafted reporting candidate gets a new content item at report or editor_select\n    And copywriting work follows its draft or its reporting candidate\n    And ambiguous cases are reported as warnings instead of guessed",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+    "labels": []
+  }
+}

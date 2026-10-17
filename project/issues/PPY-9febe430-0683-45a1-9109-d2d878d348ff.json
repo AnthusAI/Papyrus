@@ -1,0 +1,30 @@
+{
+  "id": "PPY-9febe430-0683-45a1-9109-d2d878d348ff",
+  "title": "Remove PAPYRUS_JWT_SECRET and the JWT authorizer; CLI authenticates with IAM (SigV4)",
+  "description": "Ryan decision 2026-10-06: no long-lived token anywhere in the Papyrus design. Delete PAPYRUS_JWT_SECRET, the custom JWT Lambda authorizer and refresh-jwt. The CLI and automation sign AppSync requests with SigV4 from the standard AWS credential chain (SSO, OIDC role, build role), authorized through a dedicated papyrus-authoring role created by infra/amplify-app-shell.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1dc2e0f4-2c2b-4146-8d66-caf7557e2fe5",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/133 (commit b99e113, branch feature/PPY-9febe4-iam-cli-auth). IAM (SigV4) CLI auth via the standard AWS credential chain; AppSync IAM authorization (enableIamAuthorizationMode) scoped by the new <siteId>-papyrus-authoring role (appsync:GraphQL on Query/Mutation fields, media/preview S3, Amplify jobs). JWT authorizer, PAPYRUS_JWT_SECRET, refresh-jwt and all allow.custom rules removed. CI green (python, smoke, ts, unit). Expected release 1.0.0-next.11. Not merged.",
+      "created_at": "2026-10-06T16:17:23.292165Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T16:00:12.682736Z",
+  "updated_at": "2026-10-06T16:17:59.401226Z",
+  "closed_at": "2026-10-06T16:17:59.401197Z",
+  "right_now_summary": "PR #133 adds SigV4 IAM authentication and removes JWT-based access.",
+  "right_now_updated_at": "2026-10-06T16:18:00.546371Z",
+  "custom": {}
+}

@@ -1,0 +1,40 @@
+{
+  "id": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "title": "M4 Cache strategy: TTLs and targeted invalidation",
+  "description": "## Outcome\nReaders see an edit within about a minute of Save, without blanket invalidations, and today's staleness sources are removed.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 2 (Atomicity, versioning, caching).\n\n## Checklist\n- [ ] HTML Cache-Control public, max-age=0, s-maxage=86400 set as S3 object metadata; renditions/versioned CSS-JS max-age=31536000, immutable\n- [ ] Targeted CreateInvalidation of written paths (both /x/ and /x/index.html forms); measure completion time\n- [ ] Fallback switch: s-maxage=60 without invalidation if invalidations prove slow\n- [ ] Record and fix today's staleness findings: Pretext s-maxage=3600 plus the Amplify CDN layer; Pilobol.us reader distribution on CachingOptimized (1-day default TTL) with nothing invalidating it\n- [ ] Monthly invalidation path count alarm (first 1000 free)\n\n## Acceptance\n- After a test edit, curl of the item URL and home through the site hostname shows the new content within 60 s (measured, 5 runs).\n- No /* invalidations issued by the projector (CloudTrail check).\n\n## Out of scope\nPretext revalidation redesign beyond documenting/fixing the TTL.\n\n## Dependencies\nBlocked by M1.\n\n## Risk\nInvalidation latency/cost if edit volume grows.\n\n## Estimate\n2-3 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-aebfcdf1-ccf7-41bb-933b-ded29a19f4ea",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "b3a87ad3-fa3f-4513-85c1-d5b1348210e7",
+      "author": "home",
+      "text": "M4 evidence. PRs #195 (48c512a: s3-projection cache policy, batched exact-path invalidation with throttle retry, unpurged retry task, weekly-pace alarm, publication.cache) and #196 (4015baa: Pretext reader revalidate 3600->60 plus expireTime 120, backend.revalidateDistributionIds edge purge). CI green on both. Throwaway CloudFront+S3 (papyrus-production, since deleted): edit-to-visible with targeted invalidation, 5 runs, item and home both new: 1.9-3.1 s from edit start (invalidate call 0.13-0.23 s). 12 edits at 1 s gap: no errors, final content visible within ~9 s. 40 back-to-back invalidations: no throttling. Without invalidation: s-maxage=60 shows the edit after 60.0-61.0 s (4 runs); default s-maxage=300 after 300.3 s. CloudTrail: 63 CreateInvalidation events on the test distribution, 0 with a wildcard. Cost: 2-40 paths/edit; 1000 free paths/month = 250 edits at 4 paths or 50 at 20; beyond that 0.005 USD/path (10 paths x 1000 edits = 45 USD/month). Pretext: local Next 15.5 build shows s-maxage equals revalidate and stale-while-revalidate defaults to about one year (31535940 s) which lets a shared cache serve a page long past s-maxage; expireTime 120 gives s-maxage=60, stale-while-revalidate=60. Amplify CDN layer cannot be purged and a manual-deploy Amplify app does not run SSR compute (served the zip as static), so the layer was not measured live; the bound is s-maxage+swr = about 2 min once a site bumps its pin. App-shell templates byte-identical (sha256) before/after for Pilobol.us x2, p.apyr.us x2, Threat-Intelligence, Pretext example, Anth.us fixture. Pilobol Amplify 301 without cache-control (24 h) is an Amplify default for static apps, not fixed here (M5 moves Pilobol to S3).",
+      "created_at": "2026-10-12T23:16:36.209430Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-12T18:27:50.036076Z",
+  "updated_at": "2026-10-12T23:16:36.209861Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The cache strategy work is waiting for M1, with TTL and targeted invalidation changes still pending.",
+  "right_now_updated_at": "2026-10-12T18:29:13.402129Z",
+  "custom": {}
+}

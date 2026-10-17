@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "d16ab409-9459-45e8-8b59-9ec6501a00cd",
+  "issue_id": "PPY-550d24e5-1de1-4ada-94a3-7d5c13bca405",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-15T12:13:09.136Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "2f646670-9c15-4de7-b56c-0d7f162d2ef8",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "UnifiedNewsroom"
+    }
+  }
+}

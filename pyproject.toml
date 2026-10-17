@@ -3,30 +3,56 @@ name = "papyrus-newsroom"
 version = "0.1.0"
 description = "Papyrus newsroom Python tools and CLI."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "PyYAML >=6.0.2,<7.0.0",
     "citeproc-py >=0.8.2,<1.0.0",
+    # The `papyrus` CLI imports limatus at import time, and Papyrus is
+    # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
+    "limatus >=0.29.0,<1",
+]
+
+[project.optional-dependencies]
+priming = ["fastapi >=0.115,<1", "uvicorn >=0.30,<1", "strawberry-graphql[fastapi] >=0.280,<1"]
+markus = [
+    "anthus-markus >=0.5.1,<1.0.0",
+    "Pillow >=10,<12",
+    "boto3 >=1.34.0,<2.0.0",
+]
+newsroom = [
     "boto3 >=1.34.0,<2.0.0",
     "markitdown[all] >=0.1.0,<1.0.0",
     "tiktoken >=0.12.0,<0.13.0",
-    "tactus @ file:///Users/ryan/Projects/Tactus",
-    "limatus >=0.17.0,<0.18.0",
+    "tactus >=0.52,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AnthusAI/Papyrus"
+Repository = "https://github.com/AnthusAI/Papyrus"
 
 [project.scripts]
 papyrus = "papyrus.cli:main"
 
 [tool.poetry]
-package-mode = false
 packages = [
     { include = "papyrus", from = "src" },
     { include = "papyrus_newsroom", from = "src" },
     { include = "papyrus_knowledge_query", from = "src" },
     { include = "papyrus_content", from = "src" },
     { include = "papyrus_web", from = "src" },
-    { include = "publications", from = "." },
 ]
+
+# The relevance cyclotron (Cyclotron's application SDK, the Jev decision model and
+# the OpenAI optimizer adapter), pinned to one engine commit. It is a Poetry group,
+# not an extra, so the git requirement never enters the wheel or sdist metadata
+# (PyPI rejects direct URL requirements). Install it with
+# `poetry install --with cyclotron`. Drop the group once decision-flywheel is published.
+[tool.poetry.group.cyclotron]
+optional = true
+
+[tool.poetry.group.cyclotron.dependencies]
+decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "a565dafb1f6953e1eb4d2efb1069396303afe0c6", extras = ["jev", "optimizer", "web"] }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

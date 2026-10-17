@@ -1,52 +1,44 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { normalizeSiteBrandId } from "./lib/site-brand";
+import { getSiteBrand } from "./lib/site-brand";
+import { newsroomHref } from "./lib/newsroom-base-path";
+import { getReaderBasePath } from "./lib/reader-base-path";
+import { isStagingGatedPath, isStaticOrApiPath } from "./lib/staging-gated-path";
+import { getSiteEnv, isIndexable } from "./lib/site-env";
+import { getStagingAccess } from "./lib/staging-gate";
+import {
+  isPreviewGatedPath,
+  isStaticPreviewEnabled,
+  previewRewritePathname,
+  shouldRewriteToPreview,
+} from "./lib/staging-preview-object";
 
-const BRAND_OVERRIDE_COOKIE = "papyrus-site-brand-override";
-
-function usesNewsroomRootPaths(request: NextRequest): boolean {
-  const cookieBrand = request.cookies.get(BRAND_OVERRIDE_COOKIE)?.value;
-  const brandId = normalizeSiteBrandId(cookieBrand)
-    ?? normalizeSiteBrandId(request.nextUrl.searchParams.get("brand"))
-    ?? normalizeSiteBrandId(process.env.NEXT_PUBLIC_PAPYRUS_SITE_BRAND ?? process.env.PAPYRUS_SITE_BRAND);
-  return brandId === "pilobol-us";
+function usesNewsroomRootPaths(): boolean {
+  const brand = getSiteBrand();
+  return brand.rootRoute?.kind === "newsroom" && brand.newsroomBasePath === "";
 }
 
-function isStaticOrApiPath(pathname: string): boolean {
-  return (
-    pathname.startsWith("/_next")
-    || pathname.startsWith("/api")
-    || pathname === "/favicon.ico"
-    || pathname.startsWith("/icon")
-    || /\.[a-zA-Z0-9]+$/.test(pathname)
-  );
+function isStagingGatedPathForBrand(pathname: string): boolean {
+  return isStagingGatedPath(pathname, getReaderBasePath(), usesNewsroomRootPaths());
 }
 
-export function middleware(request: NextRequest) {
-  const brandParam = request.nextUrl.searchParams.get("brand");
-  const brandId = normalizeSiteBrandId(brandParam);
-  let response: NextResponse | null = null;
-
-  if (brandId) {
-    response = NextResponse.next();
-    response.cookies.set(BRAND_OVERRIDE_COOKIE, brandId, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30,
-      sameSite: "lax",
-    });
+function routeRequest(request: NextRequest): NextResponse {
+  if (isStaticPreviewEnabled() && shouldRewriteToPreview(request.nextUrl.pathname, usesNewsroomRootPaths())) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = previewRewritePathname(request.nextUrl.pathname);
+    return NextResponse.rewrite(rewriteUrl);
   }
-
-  if (!usesNewsroomRootPaths(request)) {
-    return response ?? NextResponse.next();
+  if (!usesNewsroomRootPaths()) {
+    return NextResponse.next();
   }
 
   const { pathname } = request.nextUrl;
   if (isStaticOrApiPath(pathname)) {
-    return response ?? NextResponse.next();
+    return NextResponse.next();
   }
 
   if (pathname === "/newsroom" || pathname === "/newsroom/") {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
   }
   if (pathname.startsWith("/newsroom/")) {
     const target = pathname.slice("/newsroom".length) || "/";
@@ -54,24 +46,50 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === "/" || pathname === "") {
-    return response ?? NextResponse.next();
+    return NextResponse.next();
   }
 
   if (!pathname.startsWith("/newsroom")) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/newsroom${pathname}`;
-    const rewrite = NextResponse.rewrite(rewriteUrl);
-    if (response) {
-      for (const cookie of response.cookies.getAll()) {
-        rewrite.cookies.set(cookie);
-      }
-    }
-    return rewrite;
+    return NextResponse.rewrite(rewriteUrl);
   }
 
-  return response ?? NextResponse.next();
+  return NextResponse.next();
+}
+
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  let sessionResponse: NextResponse | null = null;
+  const { pathname } = request.nextUrl;
+  const gated = isStaticPreviewEnabled()
+    ? isPreviewGatedPath(pathname, usesNewsroomRootPaths())
+    : isStagingGatedPathForBrand(pathname);
+  if (getSiteEnv() === "staging" && gated) {
+    sessionResponse = NextResponse.next();
+    const access = await getStagingAccess(request, sessionResponse);
+    if (access === "anonymous") {
+      return withRobotsHeader(NextResponse.redirect(new URL(newsroomHref(), request.url)));
+    }
+    if (access === "forbidden") {
+      return withRobotsHeader(new NextResponse("Staging is limited to editors and admins.", { status: 403 }));
+    }
+  }
+
+  const response = routeRequest(request);
+  if (sessionResponse) {
+    for (const cookie of sessionResponse.headers.getSetCookie()) {
+      response.headers.append("set-cookie", cookie);
+    }
+  }
+  return withRobotsHeader(response);
+}
+
+function withRobotsHeader(response: NextResponse): NextResponse {
+  if (!isIndexable()) response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return response;
 }
 
 export const config = {
+  runtime: "nodejs",
   matcher: ["/((?!_next/static|_next/image|favicon.ico|icon).*)"],
 };

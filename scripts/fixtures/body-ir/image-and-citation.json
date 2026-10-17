@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "markus": {
+    "version": "0.5.1",
+    "irSchemaVersion": 1
+  },
+  "document": {
+    "type": "document",
+    "schema_version": 1,
+    "front_matter": {
+      "title": "Image and citation",
+      "citations": {
+        "a": {
+          "type": "webpage",
+          "title": "Source A",
+          "URL": "https://example.com/a",
+          "issued": {
+            "date-parts": [
+              [
+                2024,
+                1,
+                2
+              ]
+            ]
+          }
+        },
+        "b": {
+          "type": "webpage",
+          "title": "Source B",
+          "URL": "https://example.com/b",
+          "issued": {
+            "date-parts": [
+              [
+                2023,
+                5,
+                6
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "children": [
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "Intro with a cite PAPYRUSMARKUP00002END and again PAPYRUSMARKUP00003END."
+          }
+        ],
+        "line": 18
+      },
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "PAPYRUSMARKUP00001END"
+          }
+        ],
+        "line": 20
+      },
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "Later a pair PAPYRUSMARKUP00004END."
+          }
+        ],
+        "line": 22
+      },
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "PAPYRUSMARKUP00005END"
+          }
+        ],
+        "line": 24
+      }
+    ]
+  },
+  "papyrus": {
+    "images": {
+      "PAPYRUSMARKUP00001END": {
+        "src": "images/a.png",
+        "alt": "A",
+        "layout": "full",
+        "caption": null,
+        "credit": null,
+        "sizes": null,
+        "loading": null
+      }
+    },
+    "citations": {
+      "PAPYRUSMARKUP00002END": [
+        "a"
+      ],
+      "PAPYRUSMARKUP00003END": [
+        "a"
+      ],
+      "PAPYRUSMARKUP00004END": [
+        "b",
+        "a"
+      ]
+    },
+    "citationLists": {
+      "PAPYRUSMARKUP00005END": "apa"
+    },
+    "entries": {
+      "a": {
+        "type": "webpage",
+        "title": "Source A",
+        "URL": "https://example.com/a",
+        "issued": {
+          "date-parts": [
+            [
+              2024,
+              1,
+              2
+            ]
+          ]
+        }
+      },
+      "b": {
+        "type": "webpage",
+        "title": "Source B",
+        "URL": "https://example.com/b",
+        "issued": {
+          "date-parts": [
+            [
+              2023,
+              5,
+              6
+            ]
+          ]
+        }
+      }
+    },
+    "bibliography": [
+      "Source A. (2024, January 2). https://example.com/a",
+      "Source B. (2023, May 6). https://example.com/b"
+    ]
+  }
+}

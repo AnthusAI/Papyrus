@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "6c2dfce4-7e11-40ce-bc38-9f677a161794",
+  "issue_id": "PPY-229754f2-4d7d-47f4-95e0-d37ce9776925",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-15T16:23:58.683Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Restore newsroom.pilobol.us access to existing CMS",
+    "description": "Ryan explicitly requests fixing newsroom.pilobol.us. Existing production CMS at main.d1eiwl0gedkmnj.amplifyapp.com verified HTTP200 and Google sign-in. Amplify cross-account domain history blocks association; production account owns authoritative Route53 zone and issued certificate covering newsroom/staging. Verify callback allowlist; use existing supported CMS CloudFront front-door pattern with no auth/IAM expansion or data changes. Verify custom-host HTTPS page and Google redirect, preserve reader and record rollback.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "ProductionCMS"
+    }
+  }
+}

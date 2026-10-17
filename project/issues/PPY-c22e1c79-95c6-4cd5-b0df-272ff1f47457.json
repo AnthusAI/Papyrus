@@ -1,0 +1,22 @@
+{
+  "id": "PPY-c22e1c79-95c6-4cd5-b0df-272ff1f47457",
+  "title": "Python newsroom unit tests: stale assertions against current references/tavily/relations/entity-graph/cloud-procedure code",
+  "description": "Found by PPY-302a5f. Modules failing on develop (also in CI): test_references_commands (10), test_tavily_research (2), test_relations_commands (2), test_analysis_entity_graph_bridge (1: fake first_pass_apply lacks max_parallel kwarg), test_cloud_procedure_execution (2: expects 'papyrus procedures seed-required --apply', code says 'poetry run papyrus procedures seed-required'). Decide per failure: update stale assertion or fix regressed code. Excluded from tests.yml until fixed.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-655994b3-84ab-4741-b747-aa0e0046453b",
+  "labels": [
+    "phase-2"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-05T20:35:27.971753Z",
+  "updated_at": "2026-10-05T20:35:27.971780Z",
+  "closed_at": null,
+  "right_now_summary": "Tests fail because assertions no longer match current references, Tavily, relations, entity-graph, and cloud-procedure",
+  "right_now_updated_at": "2026-10-05T20:35:29.290856Z",
+  "custom": {}
+}

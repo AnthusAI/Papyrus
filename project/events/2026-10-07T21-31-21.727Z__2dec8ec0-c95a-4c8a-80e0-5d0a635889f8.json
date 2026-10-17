@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2dec8ec0-c95a-4c8a-80e0-5d0a635889f8",
+  "issue_id": "PPY-35a1fb48-1eed-4128-a2bf-ba682cb00f83",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T21:31:21.727Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Staging preview route gets 403 StorageError reading S3, so staging.pilobol.us returns 500",
+    "description": "On the Pilobol.us CMS staging branch (app `dv0pdx67fk80m`, host staging.pilobol.us) `/` and `/articles` return 500. CloudWatch shows `StorageError` 403 from `.next/server/app/__preview/[[...path]]/route.js`.\n\nRoot cause: with the newsroom mounted at root (`newsroomBasePath \"\"`), `middleware.ts` treats no path as staging-gated (`isStagingGatedPath` returns false when newsroom is at root) but still rewrites every non-newsroom path, including `/`, to `/__preview`. An anonymous request therefore reaches the route, `getUrl` runs with Cognito guest credentials, and `preview/*` is readable only by the editor and admin groups, so S3 answers 403 and the route throws. The preview objects exist (`preview/index.html` etc. in the media bucket).\n\nFix: in root-newsroom mode rewrite only `.html` paths to the preview route and gate them (anonymous redirects to sign-in); the route turns a forbidden storage error into a 403 response.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

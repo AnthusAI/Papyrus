@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "54820c5d-e4ac-4df8-9b22-b1c57ab66cd7",
+  "issue_id": "PPY-d0b746c7-6b5f-4821-92d4-8b1291b88709",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:32:35.471Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-08: Google sign-in on the new CMS, first admin and editors",
+    "description": "## Goal\nGoogle sign-in works on the new CMS at `/newsroom`; Ryan is the first admin; editors are added. The shared OAuth client gets the new Cognito URIs.\n\n## Context (FACT)\n- One shared Google OAuth client (project 94722830066, client id begins 94722830066-7pf0ui44...). Ryan removed the earlier Papyrus sites' Cognito URIs on 2026-10-05 to stay under the 10 unverified-domain limit, so Google sign-in on the OLD p.apyr.us is expected broken today.\n- Old pool us-east-1_40Uot7WSv: 4 users (1 CONFIRMED, 3 EXTERNAL_PROVIDER), groups admin 2, editor 4, curator 0; rows UserIdentity 3, UserProfile 2, UserRoleAssignment 3, keyed by Cognito subject, so they cannot be copied to a new pool; these 3 people re-sign in and are re-assigned (Q6).\n- docs/google-oauth-setup.md: Google needs only the Cognito origin `https://papyrus-p-apyr-us.auth.us-east-1.amazoncognito.com` and `/oauth2/idpresponse`; app return URLs come from `backend.auth.redirectUrls` in papyrus.config.ts (P5-05), which feeds Cognito callbacks.\n- Secrets live in SSM at `/amplify/<appId>/main-branch-<hash>/` where hash = first 10 hex chars of sha512(appId + \"main\"); names GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (OPENAI_API_KEY only if the console responder is kept). Names only, never values, in tickets and logs.\n- The marketing root `/` does not handle OAuth codes; the sign-in return path is `/newsroom`.\n\n## Exact steps\n1. Compute the hash and the SSM path from the new AppId (P5-07) and record the path.\n2. Ryan: add the two URIs to the Google client (check the 10-domain limit first); set the two secrets in the Amplify console (or `aws ssm put-parameter` run by Ryan).\n3. Trigger a backend build; confirm the Cognito domain and Google IdP exist (`describe-user-pool-domain`, `list-identity-providers`).\n4. Ryan signs in at `https://main.<appId>.amplifyapp.com/newsroom`; add him to group `admin` (manage-user-role Lambda or Cognito console); sign in the editors.\n\n## Acceptance checks\n- `/newsroom` shows Continue with Google, completes sign-in, lands on `/newsroom` (not `/`), shows the admin UI.\n- `aws cognito-idp admin-list-groups-for-user` shows `admin` for Ryan; a non-admin account gets the editor-only view.\n- The login works from `http://localhost:3001/newsroom` and from the staging host after P5-10.\n\n## Rollback\nRemove the added URIs; old pool untouched.\n\n## Risks\n10 unverified-domain limit; wrong redirectUrls give \"redirect_mismatch\" or \"oauth param not configured\" (symptom list in docs/site-hosting.md).\n\n## Needs Ryan\nYes: Google console URIs, secrets, first sign-in, group assignment.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

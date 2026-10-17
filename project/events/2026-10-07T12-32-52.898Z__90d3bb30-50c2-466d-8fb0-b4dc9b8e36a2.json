@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "90d3bb30-50c2-466d-8fb0-b4dc9b8e36a2",
+  "issue_id": "PPY-52d4554c-d10e-41c1-8aae-097a022f76db",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:32:52.898Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-11: Cutover: move p.apyr.us, apex redirect, SES and Slack, with rollback",
+    "description": "## Goal\nHard cutover: `p.apyr.us` (and the apex redirect, staging host) are served by the new app; inbound email, Slack and the other kept features run on the new backend; rollback proven.\n\n## Context (FACT)\n- Domain association `apyr.us` lives on the old app (subdomains `p` -> main and the apex -> main, apex unverified); a domain belongs to one app, so it is deleted from the old app first, then added by the new stack (brief downtime accepted: pre-production, Git history is the rollback, Ryan 2026-10-07).\n- Zone Z10285921B1G7MVRV06W9 has `p.apyr.us` A alias plus MX `10 inbound-smtp.us-east-1.amazonaws.com`; the old backend creates the MX and the active SES rule set `papyrus-inbound-p-apyr-us` (only one active rule set per region). Apex rule `https://apyr.us` -> `https://p.apyr.us` is an app-level 302 today; `papyrus.anth.us` returns 200 from a different host and is in the epic's earlier scope (redirect to p.apyr.us; not investigated here, Q8).\n- Slack: events URL points at the old backend (secret names PAPYRUS_SLACK_BOT_TOKEN, PAPYRUS_SLACK_SIGNING_SECRET).\n- Rollback = old app and backend are still intact (deleted only in P5-12): re-point the domain back.\n\n## Exact steps (a runbook Ryan or an agent with his yes runs; each step has a stop point)\n1. Pre-flight: P5-07..P5-10 done, delta data copy of P5-09 (editing freeze), `curl` baseline of old `/newsroom` and `/` saved.\n2. Ryan yes. Old app: `aws amplify delete-domain-association --app-id dbsyytcm9drqa --domain-name apyr.us`; record the previous association JSON for rollback.\n3. New stack: set `cms.domainName` `p.apyr.us`, `stagingDomainName`, `redirects` apex (P5-03), flags (P5-04) on; deploy; wait for the ACM certificate; check Route 53 keeps the MX record (or the new backend recreates it).\n4. SES handoff in order: deactivate old rule set (`aws ses set-active-receipt-rule-set` with no name by Ryan), new stack activates `papyrus-inbound-p-apyr-us`-equivalent; send a test mail to submissions@p.apyr.us.\n5. Slack: Ryan updates the events request URL in the Slack app; run the e2e check.\n6. Smoke checks (below). Post-cutover update of `redirectUrls` already includes `https://p.apyr.us/newsroom`.\n7. Announce; keep the old app untouched for 7 days (P5-12).\n\n## Acceptance checks\n- `curl -sI https://p.apyr.us/` 200 marketing; `/information` 200 (empty edition placeholder or published items); `/newsroom` 200 and Google sign-in completes; `/2026/october/07` 301 to `/information/2026/october/07`; `/information` 404 is gone; `https://apyr.us/x` redirects to `https://p.apyr.us/x` with status 301.\n- Test email to the submissions address arrives as a Reference in the NEW backend; no mail in the old.\n- `/robots.txt` allows on production, staging disallows.\n- Cognito callback and sign-in on the production domain succeed.\n\n## Rollback (rehearsed on paper, executed only if the checks fail within the window)\nDelete the new domain association, re-create `apyr.us` on the old app with `p` and apex subdomains from the recorded JSON, re-activate the old SES rule set, restore the Slack URL. The old backend never stopped existing. Git history of AnthusAI/Papyrus main still builds the old site.\n\n## Risks\nCertificate wait; Amplify rewrites DNS for the apex and `p`; MX deletion by old stack if it deploys during the window (pause old main builds first: disable auto-build on old `main`); CloudFront cache of old content.\n\n## Needs Ryan\nYes to every domain, SES and Slack step; go/no-go at step 6.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

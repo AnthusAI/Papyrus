@@ -1,0 +1,43 @@
+{
+  "id": "PPY-ceb84ccd-7741-476b-9847-f43d7bfec38d",
+  "title": "TI-02: TI config PR - env-driven papyrus.config.ts (prefix, apply flag, redirects), legacy auto-build off during merge",
+  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 3 G2, 6 TI-02. ACCEPT: PR changes only papyrus.config.ts; with legacy env values the resolved prefix/flag/redirects equal today's; tsc and papyrus-app sync pass; no legacy job started by the merge (list-jobs); legacy auto-build restore command recorded.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6",
+    "ti-move-plan"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6c531f38-ff5c-4bff-8607-949ee6b31d92",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "0ce2166e-cf9d-4e1e-8bf0-57451ce77052",
+      "author": "home",
+      "text": "PR AnthusAI/Threat-Intelligence#20 squash-merged (31d1d66). papyrus.config.ts now reads PAPYRUS_COGNITO_DOMAIN_PREFIX, PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX, PAPYRUS_OAUTH_REDIRECT_URLS with legacy literals as fallback. No-vars and legacy-branch-vars both resolve to the old values; -cms values take the env. Legacy branch env verified equal to old literals. No CI checks on the repo. Legacy auto-build was NOT turned off (no AWS mutation); merge triggered main job 15, SUCCEED. Site 307 on /, robots 200 Allow: /.",
+      "created_at": "2026-10-11T15:04:40.753719Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "7e9b52af-7cd0-4a44-8445-3afa71bce682",
+      "author": "home",
+      "text": "PR AnthusAI/Threat-Intelligence#20 squash-merged (31d1d66). papyrus.config.ts now reads PAPYRUS_COGNITO_DOMAIN_PREFIX, PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX, PAPYRUS_OAUTH_REDIRECT_URLS with legacy literals as fallback. No-vars and legacy-branch-vars both resolve to the old values; -cms values take the env. Legacy branch env verified equal to old literals. No CI checks on the repo. Legacy auto-build was NOT turned off (no AWS mutation); merge triggered main job 15, SUCCEED. Site 307 on /, robots 200 Allow: /.",
+      "created_at": "2026-10-11T15:04:49.927412Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-11T14:40:09.665215Z",
+  "updated_at": "2026-10-11T15:04:49.927448Z",
+  "closed_at": null,
+  "right_now_summary": "The config PR merged and passed checks, but legacy auto-build remained enabled and triggered a successful main job.",
+  "right_now_updated_at": "2026-10-11T15:04:51.062337Z",
+  "custom": {}
+}

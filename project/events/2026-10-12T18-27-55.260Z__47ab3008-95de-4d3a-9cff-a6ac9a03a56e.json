@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "47ab3008-95de-4d3a-9cff-a6ac9a03a56e",
+  "issue_id": "PPY-f1df008e-d937-4800-a46d-841a87f6d0c5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-12T18:27:55.260Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M6 Anth.us onto S3 projection (production, parity gate)",
+    "description": "## Outcome\nNo Markus site uses an Amplify reader app; the template no longer creates reader apps for markus-static, which relieves apps-per-account pressure (6 of 30 apps today -> 4; one app per future Markus site instead of two).\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 5 (Default publication option: what gets removed).\n\n## Checklist\n- [ ] Template: remove markus-static reader app resources, reader build specs, custom rules, amplify:StartJob/ListJobs grants, PAPYRUS_READER_AMPLIFY_APP_ID wiring\n- [ ] Retire the CMS staging full build for Markus sites if previewItem replaces it (decision)\n- [ ] Update docs/site-hosting.md hosting axis (\"s3-projection\" replaces amplify-static for Markus)\n- [ ] List retired resources for Ryan (he deletes them)\n\n## Acceptance\n- Synth snapshot of a markus fixture site: zero AWS::Amplify::App for the reader; pretext sites unchanged.\n- aws amplify list-apps in papyrus-production shows no *-reader apps after Ryan's deletions.\n\n## Out of scope\nDeleting resources (Ryan does it).\n\n## Dependencies\nBlocked by M6.\n\n## Risk\nLow.\n\n## Estimate\n2-3 agent-hours.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+    "labels": [
+      "static-projection"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "markus-publication-architect"
+    }
+  }
+}

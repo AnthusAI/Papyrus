@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 from pathlib import Path
@@ -22,9 +21,7 @@ def resolve_papyrus_root() -> Path:
 PAPYRUS_ROOT = resolve_papyrus_root()
 BIBLICUS_ROOT = Path(os.environ.get("BIBLICUS_WORKDIR", str(PAPYRUS_ROOT.parent / "Biblicus")))
 _DOTENV_OVERRIDE_KEYS = frozenset({
-    "PAPYRUS_GRAPHQL_JWT",
     "PAPYRUS_GRAPHQL_ENDPOINT",
-    "PAPYRUS_JWT_TTL_SECONDS",
 })
 
 
@@ -71,29 +68,6 @@ def graphql_endpoint() -> str:
     return str(endpoint)
 
 
-def graphql_jwt() -> str:
-    token = os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip()
-    if not token:
-        raise ValueError(
-            "Missing PAPYRUS_GRAPHQL_JWT. Set a direct AppSync Lambda-authorizer authoring JWT before running content commands."
-        )
-    normalized = normalize_jwt(token)
-    claims = decode_jwt_claims(normalized)
-    if is_jwt_expired(claims):
-        raise ValueError("PAPYRUS_GRAPHQL_JWT is expired. Run: poetry run papyrus auth refresh-jwt --write-env .env")
-    return normalized
-
-
-def graphql_jwt_ttl_seconds(default: int = 43_200) -> int:
-    raw = os.environ.get("PAPYRUS_JWT_TTL_SECONDS", "").strip()
-    if not raw:
-        return default
-    try:
-        return max(1, int(raw))
-    except ValueError:
-        return default
-
-
 def graphql_timeout_seconds(default: float = 30.0) -> float:
     raw = os.environ.get("PAPYRUS_GRAPHQL_TIMEOUT_SECONDS", "").strip()
     if not raw:
@@ -103,75 +77,6 @@ def graphql_timeout_seconds(default: float = 30.0) -> float:
     except ValueError:
         return default
     return value if value > 0 else default
-
-
-def normalize_jwt(token: str) -> str:
-    return token.removeprefix("Bearer ").removeprefix("bearer ").strip()
-
-
-def lambda_auth_header(token: str) -> str:
-    return f"PapyrusJwt {normalize_jwt(token)}"
-
-
-def is_jwt_expired(claims: dict) -> bool:
-    exp = claims.get("exp")
-    if not isinstance(exp, (int, float)):
-        return False
-    import time
-
-    return float(exp) <= time.time()
-
-
-def running_in_aws_lambda() -> bool:
-    return bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "").strip())
-
-
-def ensure_graphql_authoring_jwt(*, ttl_seconds: int | None = None) -> str:
-    """Mint or refresh ``PAPYRUS_GRAPHQL_JWT`` for AppSync custom authoring auth in Lambda."""
-    existing = os.environ.get("PAPYRUS_GRAPHQL_JWT", "").strip()
-    if existing:
-        normalized = normalize_jwt(existing)
-        claims = decode_jwt_claims(normalized)
-        if claims and not is_jwt_expired(claims):
-            return normalized
-
-    from .auth_commands import _mint_jwt, _resolve_secret
-
-    resolved_ttl = ttl_seconds if ttl_seconds is not None else graphql_jwt_ttl_seconds()
-    issuer = os.environ.get("PAPYRUS_JWT_ISSUER", "").strip() or "papyrus-cli"
-    subject = os.environ.get("PAPYRUS_JWT_SUBJECT", "").strip() or "papyrus-cli"
-    audience = os.environ.get("PAPYRUS_JWT_AUDIENCE", "").strip() or "papyrus-authoring"
-    scope = (
-        os.environ.get("PAPYRUS_JWT_REQUIRED_SCOPE", "").strip()
-        or os.environ.get("PAPYRUS_JWT_AUTHORING_VALUE", "").strip()
-        or "papyrus:write"
-    )
-    groups_raw = os.environ.get("PAPYRUS_JWT_GROUPS", "").strip() or "editor"
-    groups = [entry.strip() for entry in groups_raw.split(",") if entry.strip()] or ["editor"]
-    token = _mint_jwt(
-        secret=_resolve_secret({}),
-        issuer=issuer,
-        subject=subject,
-        audience=audience,
-        scope=scope,
-        groups=groups,
-        ttl_seconds=max(int(resolved_ttl), 60),
-    )
-    os.environ["PAPYRUS_GRAPHQL_JWT"] = token
-    return token
-
-
-def decode_jwt_claims(token: str) -> dict:
-    normalized = normalize_jwt(token)
-    parts = normalized.split(".")
-    if len(parts) < 2:
-        return {}
-    payload = parts[1] + "=" * (-len(parts[1]) % 4)
-    try:
-        decoded = base64.urlsafe_b64decode(payload.encode("ascii"))
-        return json.loads(decoded.decode("utf-8"))
-    except (ValueError, json.JSONDecodeError):
-        return {}
 
 
 def storage_bucket_from_amplify_outputs(filepath: str | Path | None = None) -> str | None:

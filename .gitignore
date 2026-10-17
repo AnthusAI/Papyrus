@@ -42,3 +42,4 @@ scripts/gitblock
 scripts/gitunblock
 project/.overlay/
 project/.cache/
+dist-packages/

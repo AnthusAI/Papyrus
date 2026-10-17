@@ -2,12 +2,12 @@
   "name": "papyrus-amplify-app-shell",
   "version": "0.1.0",
   "private": true,
-  "description": "CDK stack that provisions an Amplify WEB_COMPUTE app shell (App + Branch + Domain + IAM role) for a Papyrus publication CMS. The backend itself deploys via `ampx pipeline-deploy` from the repo amplify.yml.",
+  "description": "CDK stack that provisions the Amplify app shell (CMS app with production and staging branches, optional static reader app, domains, IAM roles) for a Papyrus publication from its site.json. The backend itself deploys via `ampx pipeline-deploy`.",
   "scripts": {
     "build": "tsc --noEmit",
-    "synth:pilobol-us": "cdk synth -c site=pilobol-us",
-    "deploy:pilobol-us": "cdk deploy -c site=pilobol-us --require-approval never",
-    "diff:pilobol-us": "cdk diff -c site=pilobol-us"
+    "synth": "cdk synth -c site=${SITE:?set SITE=<path-to-site.json>}",
+    "diff": "cdk diff -c site=${SITE:?set SITE=<path-to-site.json>}",
+    "deploy": "cdk deploy -c site=${SITE:?set SITE=<path-to-site.json>} --require-approval never"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.257.0",

@@ -1,5 +1,8 @@
 # Video pipeline (Threat Intelligence seed edition)
 
+> The Python pipeline moved to `papyrus videos` (`src/papyrus_content/videoml/`). Generic stages, scene rules and the post-roll contract: [docs/video-pipeline.md](../../../docs/video-pipeline.md) and [skills/produce-video/SKILL.md](../../../skills/produce-video/SKILL.md). This file keeps the Threat Intelligence branding and seed-edition specifics; sections that name `video_pipeline.py` describe the former implementation.
+
+
 Papyrus can generate narrated summary videos for Threat Intelligence seed articles using [VideoML](https://github.com/AnthusAI/videoml-toolchain) (`vml` CLI). The Python CLI orchestrates DSL generation and invokes `vml pipeline` as a subprocess; VideoML handles TTS, timing, and MP4 rendering.
 
 **Branding, pictogram policy, and content rules:** [skills/produce-video/SKILL.md](../skills/produce-video/SKILL.md)
@@ -93,7 +96,7 @@ PAPYRUS_SEED_VIDEOS=1 npm run seed:amplify
 
 Without `PAPYRUS_SEED_VIDEOS=1`, seed still creates `MediaAsset(type="video")` rows with `externalUrl` pointing at `/seed-art/...` for local Next.js serving, but skips S3 upload.
 
-Alternatively, refresh GraphQL seed records from Python (requires JWT authoring lane):
+Alternatively, refresh GraphQL seed records from Python (requires AWS credentials for the authoring role):
 
 ```bash
 poetry run papyrus videos attach --article the-balance-of-power-is-shifting

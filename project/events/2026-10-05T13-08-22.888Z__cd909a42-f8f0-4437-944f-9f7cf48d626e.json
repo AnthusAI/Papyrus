@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cd909a42-f8f0-4437-944f-9f7cf48d626e",
+  "issue_id": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-05T13:08:22.888Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Align all four Papyrus sites on one cloud CMS and the app-style UI",
+    "description": "Ryan 2026-10-05: next step after the anth.us cutover. Get all four sites — p.apyr.us, Threat Intelligence, Pilobol.us, Anth.us — onto the SAME Papyrus cloud CMS, with the same technology and methods, using the new app-like UI that does not use Pretext (not the newspaper layout). Alignment comes before the many planned improvements to Papyrus and to content.\n\nRelated decisions to make inside this epic:\n- Threat Intelligence: re-think it as a project that DEPENDS on Papyrus rather than a fork of the Papyrus repo.\n- p.apyr.us: steer toward product marketing like chattic.us and aurit.us, with the same options and pricing structure (managed service, escalating to professional services for building and operating automated newsrooms for clients).\n- Anth.us (live on the Markus static renderer since 2026-10-04, Git-only content, manual deploys) and Pilobol.us (Markus static pod) move from Git-authored static builds to the cloud CMS.\n\nPhase 0 (in progress): research the current state of all four sites, the cloud CMS, the non-Pretext UI, the TI fork, and the chattic.us/aurit.us marketing + pricing pattern; then a phased plan for Ryan to approve.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

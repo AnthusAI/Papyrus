@@ -1675,10 +1675,6 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(assignment["liveAssignment"]["doctrine"][0]["scope"], "publication")
         self.assertEqual(item["layout"]["source"], "newsroom-live-assignment")
 
-    def test_lambda_auth_header_matches_authoring_lane(self):
-        token = papyrus_newsroom._lambda_auth_token("Bearer abc.def.ghi")
-        self.assertEqual(token, "PapyrusJwt abc.def.ghi")
-
     def test_biblicus_tool_resolves_config_and_uses_project_venv(self):
         completed = mock.Mock(returncode=0, stdout="ok", stderr="")
         with mock.patch.object(papyrus_newsroom.subprocess, "run", return_value=completed) as run:
@@ -2243,8 +2239,13 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             "versionNumber": 1,
             "title": "Original title",
             "sourceUri": "https://example.test/ref",
+            "sourcePublishedAt": "2021-01-07T00:00:00Z",
+            "sourceIsArchived": True,
         }
         with mock.patch(
+            "papyrus_newsroom.reference_curation_signals.BIBLICUS_ROOT",
+            pathlib.Path(__file__).resolve().parent,
+        ), mock.patch(
             "papyrus_newsroom.reference_curation_signals._semantic_client",
             return_value=mock.Mock(),
         ), mock.patch(
@@ -2267,6 +2268,9 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
                 self.assertEqual(payload["original_subtitle"], "Catalog original subtitle")
                 self.assertEqual(payload["reference_title"], "Original title")
                 self.assertEqual(payload["source_uri"], "https://example.test/ref")
+                self.assertEqual(payload["source_publication_date"], "2021-01-07")
+                self.assertIs(payload["source_is_archived"], True)
+                self.assertEqual(payload["generated_title"], "Generated title" if task == "subtitle" else "")
                 values = {
                     "title": "Generated title",
                     "subtitle": "Generated subtitle",
@@ -3719,7 +3723,18 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(plan["summary"]["researchAssignmentCount"], 2)
         self.assertEqual(plan["summary"]["slotCount"], 3)
         self.assertEqual(plan["summary"]["reportingAssignmentCount"], 5)
-        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in plan["records"]))
+        self.assertFalse(any(record["modelName"] == "EditionItem" for record in plan["records"]))
+        candidate_content_items = [record["input"] for record in plan["records"] if record["modelName"] == "Item"]
+        reporting_assignments = [
+            record["input"] for record in plan["records"]
+            if record["modelName"] == "Assignment" and record["input"]["assignmentTypeKey"] == "reporting.edition-candidate"
+        ]
+        self.assertEqual(len(candidate_content_items), 5)
+        self.assertTrue(all(item["stage"] == "report" and item["status"] == "draft" for item in candidate_content_items))
+        self.assertEqual(
+            sorted(item["lineageId"] for item in candidate_content_items),
+            sorted(assignment["itemLineageId"] for assignment in reporting_assignments),
+        )
         forum_messages = [
             record for record in plan["records"]
             if record["modelName"] == "Message" and record["input"].get("messageKind") == "forum_post"
@@ -3789,7 +3804,10 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertTrue(result["degraded"])
         self.assertEqual(result["summary"]["researchPacketCount"], 2)
         self.assertEqual(result["summary"]["reportingPacketCount"], 5)
-        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in result["records"]))
+        self.assertFalse(any(record["modelName"] == "EditionItem" for record in result["records"]))
+        self.assertTrue(
+            all(record["input"]["stage"] == "report" for record in result["records"] if record["modelName"] == "Item")
+        )
         message_kinds = [
             record["input"]["messageKind"]
             for record in result["records"]

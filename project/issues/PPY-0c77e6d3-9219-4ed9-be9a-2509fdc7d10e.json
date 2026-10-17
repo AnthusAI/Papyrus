@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0c77e6d3-9219-4ed9-be9a-2509fdc7d10e",
+  "title": "Add the CMS/publication architecture diagram to the Papyrus README",
+  "description": "Add a generic Archify diagram to the Papyrus README explaining how a Papyrus publication fits together (CMS app, reader app, Publish -> Amplify StartJob, Git role).",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-07T02:38:01.056734Z",
+  "updated_at": "2026-10-07T10:02:55.907521Z",
+  "closed_at": "2026-10-07T10:02:55.907144Z",
+  "right_now_summary": "The Papyrus README needs a generic diagram showing the CMS, reader app, publishing flow, and Git role.",
+  "right_now_updated_at": "2026-10-07T10:02:58.671403Z",
+  "custom": {}
+}

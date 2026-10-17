@@ -1,6 +1,7 @@
 import { type ClientSchema, a } from "@aws-amplify/backend";
 import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
+import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
 import { manageUserRole } from "../functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "../functions/model-attachment-upload/resource";
@@ -22,7 +23,7 @@ const modelWithoutSubscriptions = <Fields extends Parameters<typeof a.model>[0]>
   a.model(fields).disableOperations(["subscriptions"]);
 const realtimeModel = <Fields extends Parameters<typeof a.model>[0]>(fields: Fields) => a.model(fields);
 
-export const schema = a.schema({
+const baseDefinitions = {
   UserProfile: modelWithoutSubscriptions({
       id: a.id().required(),
       email: a.email(),
@@ -267,11 +268,12 @@ export const schema = a.schema({
       actorLabel: a.string(),
       note: a.string(),
       reasonCode: a.string(),
+      decisionRelationId: a.id(),
+      shareable: a.boolean(),
     })
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom(),
     ])
     .handler(a.handler.function(categoryAction)),
 
@@ -287,7 +289,6 @@ export const schema = a.schema({
     .returns(a.ref("ReferenceQualityActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom(),
     ])
     .handler(a.handler.function(categoryAction)),
 
@@ -399,8 +400,43 @@ export const schema = a.schema({
   getNewsroomSummary: a
     .query()
     .returns(a.ref("NewsroomSummary"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(newsroomSummary)),
+
+  deriveMarkus: a
+    .query()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  saveItemDraft: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  publishItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  unpublishItem: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
+  requestStagingBuild: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
 
   knowledgeQuery: a
     .query()
@@ -408,7 +444,7 @@ export const schema = a.schema({
       input: a.json().required(),
     })
     .returns(a.json())
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(knowledgeQuery)),
 
   updateNewsroomSummary: a
@@ -419,7 +455,7 @@ export const schema = a.schema({
       reason: a.string(),
     })
     .returns(a.ref("NewsroomSummary"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(newsroomSummary)),
 
   ModelAttachmentUploadSlot: a.customType({
@@ -479,7 +515,7 @@ export const schema = a.schema({
       status: a.string(),
     })
     .returns(a.ref("ModelAttachmentUploadSlot"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(modelAttachmentUpload)),
 
   completeModelAttachmentUpload: a
@@ -501,7 +537,7 @@ export const schema = a.schema({
       status: a.string(),
     })
     .returns(a.ref("ModelAttachment"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(modelAttachmentUpload)),
 
   abortModelAttachmentUpload: a
@@ -523,7 +559,7 @@ export const schema = a.schema({
       status: a.string(),
     })
     .returns(a.ref("ModelAttachmentUploadAbortResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(modelAttachmentUpload)),
 
   createModelAttachmentDownload: a
@@ -532,7 +568,7 @@ export const schema = a.schema({
       attachmentId: a.id().required(),
     })
     .returns(a.ref("ModelAttachmentDownloadSlot"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(modelAttachmentUpload)),
 
   AssignmentActionResult: a.customType({
@@ -626,7 +662,7 @@ export const schema = a.schema({
       limit: a.integer(),
     })
     .returns(a.ref("AssignmentContext").array().required())
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   listAssignmentQueue: a
@@ -637,7 +673,7 @@ export const schema = a.schema({
       limit: a.integer(),
     })
     .returns(a.ref("AssignmentContext").array().required())
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   getAssignmentContext: a
@@ -646,7 +682,7 @@ export const schema = a.schema({
       assignmentId: a.id().required(),
     })
     .returns(a.ref("AssignmentContext"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   claimAssignment: a
@@ -663,7 +699,7 @@ export const schema = a.schema({
       note: a.string(),
     })
     .returns(a.ref("AssignmentActionResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   releaseAssignment: a
@@ -675,7 +711,7 @@ export const schema = a.schema({
       note: a.string(),
     })
     .returns(a.ref("AssignmentActionResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   completeAssignment: a
@@ -687,7 +723,7 @@ export const schema = a.schema({
       note: a.string(),
     })
     .returns(a.ref("AssignmentActionResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   cancelAssignment: a
@@ -699,7 +735,7 @@ export const schema = a.schema({
       note: a.string(),
     })
     .returns(a.ref("AssignmentActionResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   reopenAssignment: a
@@ -711,7 +747,7 @@ export const schema = a.schema({
       note: a.string(),
     })
     .returns(a.ref("AssignmentActionResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   retryImmediateAssignment: a
@@ -723,7 +759,7 @@ export const schema = a.schema({
       note: a.string(),
     })
     .returns(a.ref("AssignmentActionResult"))
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 
   listNewsroomProcedureDefinitions: a
@@ -739,7 +775,7 @@ export const schema = a.schema({
       procedureKey: a.string(),
     })
     .returns(a.json())
-    .authorization((allow) => [allow.group(adminGroup), allow.custom()])
+    .authorization((allow) => [allow.group(adminGroup)])
     .handler(a.handler.function(procedureAction)),
 
   saveNewsroomProcedureDefinition: a
@@ -781,7 +817,7 @@ export const schema = a.schema({
       actorLabel: a.string(),
     })
     .returns(a.json())
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(procedureAction)),
 
   getNewsroomProcedureRun: a
@@ -790,7 +826,7 @@ export const schema = a.schema({
       id: a.id().required(),
     })
     .returns(a.json())
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(procedureAction)),
 
   listNewsroomProcedureRunsByProcedure: a
@@ -799,7 +835,7 @@ export const schema = a.schema({
       procedureId: a.id().required(),
     })
     .returns(a.json())
-    .authorization((allow) => [allow.groups(categoryWriteGroups), allow.custom()])
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(procedureAction)),
 
   Assignment: modelWithoutSubscriptions({
@@ -834,9 +870,11 @@ export const schema = a.schema({
       createdAt: a.datetime().required(),
       updatedAt: a.datetime().required(),
       newsroomFeedKey: a.string(),
+      itemLineageId: a.id(),
     })
     .secondaryIndexes((index) => [
       index("newsroomFeedKey").sortKeys(["createdAt"]).queryField("listAssignmentsByNewsroomFeedAndCreatedAt"),
+      index("itemLineageId").sortKeys(["createdAt"]).queryField("listAssignmentsByItemLineageAndCreatedAt"),
       index("queueStatusKey").sortKeys(["priority", "createdAt"]).queryField("listAssignmentsByQueueStatusAndPriority"),
       index("assignmentTypeKey").sortKeys(["status", "createdAt"]).queryField("listAssignmentsByTypeStatusAndCreatedAt"),
       index("status").sortKeys(["updatedAt"]).queryField("listAssignmentsByStatusAndUpdatedAt"),
@@ -849,7 +887,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
       allow.authenticated("identityPool").to(authoringOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   AssignmentEvent: modelWithoutSubscriptions({
@@ -872,7 +909,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   ProcedureDefinition: modelWithoutSubscriptions({
@@ -897,7 +933,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.group(adminGroup),
-      allow.custom().to(authoringOperations),
     ]),
 
   ProcedureVersion: modelWithoutSubscriptions({
@@ -924,7 +959,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.group(adminGroup),
-      allow.custom().to(authoringOperations),
     ]),
 
   ProcedureRun: modelWithoutSubscriptions({
@@ -957,7 +991,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.group("editor").to(["read"]),
       allow.group(adminGroup).to(authoringOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   NewsroomSection: modelWithoutSubscriptions({
@@ -985,7 +1018,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   KnowledgeCorpus: modelWithoutSubscriptions({
@@ -1003,7 +1035,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   KnowledgeImportRun: modelWithoutSubscriptions({
@@ -1031,7 +1062,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   KnowledgeRawPayload: modelWithoutSubscriptions({
@@ -1049,7 +1079,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   KnowledgeArtifact: modelWithoutSubscriptions({
@@ -1069,7 +1098,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   CategorySet: modelWithoutSubscriptions({
@@ -1099,7 +1127,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   Category: modelWithoutSubscriptions({
@@ -1141,7 +1168,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   CategoryKeyword: modelWithoutSubscriptions({
@@ -1170,7 +1196,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   LexicalSteeringRule: modelWithoutSubscriptions({
@@ -1199,7 +1224,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   SteeringProposal: modelWithoutSubscriptions({
@@ -1237,7 +1261,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   SteeringDecision: modelWithoutSubscriptions({
@@ -1257,7 +1280,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   Reference: realtimeModel({
@@ -1309,7 +1331,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   ReferenceAttachment: modelWithoutSubscriptions({
@@ -1339,7 +1360,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   SemanticNode: modelWithoutSubscriptions({
@@ -1361,6 +1381,11 @@ export const schema = a.schema({
       displayName: a.string(),
       description: a.string(),
       aliases: a.string().array(),
+      authorityScore: a.float(),
+      authorityRank: a.integer(),
+      acceptedReferenceMentionCount: a.integer(),
+      distinctSourceKindCount: a.integer(),
+      relationCount: a.integer(),
       status: a.string().required(),
       importRunId: a.id(),
       createdAt: a.datetime(),
@@ -1377,7 +1402,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   Message: realtimeModel({
@@ -1426,7 +1450,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   MessageThread: realtimeModel({
@@ -1464,7 +1487,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read", "create", "update"]),
       allow.authenticated("identityPool").to(authoringOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   ModelAttachment: modelWithoutSubscriptions({
@@ -1496,7 +1518,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
-      allow.custom().to(authoringOperations),
     ]),
 
   SemanticRelationType: modelWithoutSubscriptions({
@@ -1524,7 +1545,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   SemanticRelation: modelWithoutSubscriptions({
@@ -1575,7 +1595,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
-      allow.custom().to(authoringOperations),
     ]),
 
   Item: modelWithoutSubscriptions({
@@ -1589,6 +1608,7 @@ export const schema = a.schema({
       changeReason: a.string(),
       contentHash: a.string(),
       type: a.string().required(),
+      stage: a.string(),
       status: a.string().required(),
       typeStatus: a.string().required(),
       slug: a.string().required(),
@@ -1599,6 +1619,10 @@ export const schema = a.schema({
       headline: a.string(),
       deck: a.string(),
       body: a.string().array(),
+      bodyMarkus: a.string(),
+      bodyIr: a.json(),
+      aliases: a.string().array(),
+      metadata: a.json(),
       byline: a.string(),
       dateline: a.string(),
       publishedAt: a.datetime(),
@@ -1618,10 +1642,10 @@ export const schema = a.schema({
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
+      index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   Tag: modelWithoutSubscriptions({
@@ -1638,7 +1662,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   ItemTag: modelWithoutSubscriptions({
@@ -1658,7 +1681,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   MediaAsset: modelWithoutSubscriptions({
@@ -1691,7 +1713,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   Edition: modelWithoutSubscriptions({
@@ -1723,7 +1744,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   EditionItem: modelWithoutSubscriptions({
@@ -1746,7 +1766,6 @@ export const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   PublishedItem: modelWithoutSubscriptions({
@@ -1765,6 +1784,10 @@ export const schema = a.schema({
       headline: a.string(),
       deck: a.string(),
       body: a.string().array(),
+      bodyMarkus: a.string(),
+      bodyIr: a.json(),
+      aliases: a.string().array(),
+      metadata: a.json(),
       byline: a.string(),
       dateline: a.string(),
       publishedAt: a.datetime(),
@@ -1783,7 +1806,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   PublishedMediaAsset: modelWithoutSubscriptions({
@@ -1819,7 +1841,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   PublishedEdition: modelWithoutSubscriptions({
@@ -1845,7 +1866,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   PublishedEditionItem: modelWithoutSubscriptions({
@@ -1870,7 +1890,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   PublishedCategorySet: modelWithoutSubscriptions({
@@ -1896,7 +1915,6 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
 
   PublishedCategory: modelWithoutSubscriptions({
@@ -1932,14 +1950,28 @@ export const schema = a.schema({
     .authorization((allow) => [
       allow.guest().to(["read"]),
       allow.groups(contentWriteGroups),
-      allow.custom().to(authoringOperations),
     ]),
-}).authorization((allow) => [
+};
+
+export const schema = a.schema(baseDefinitions).authorization((allow) => [
   allow.resource(categoryAction),
+  allow.resource(contentActions),
   allow.resource(manageUserRole),
   allow.resource(modelAttachmentUpload),
   allow.resource(newsroomSummary),
   allow.resource(procedureAction),
 ]);
+
+/** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */
+export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
+  return a.schema({ ...baseDefinitions, ...pluginDefinitions } as typeof baseDefinitions).authorization((allow) => [
+    allow.resource(categoryAction),
+    allow.resource(contentActions),
+    allow.resource(manageUserRole),
+    allow.resource(modelAttachmentUpload),
+    allow.resource(newsroomSummary),
+    allow.resource(procedureAction),
+  ]);
+}
 
 export type Schema = ClientSchema<typeof schema>;

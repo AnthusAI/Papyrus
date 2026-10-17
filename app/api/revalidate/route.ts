@@ -1,3 +1,4 @@
+import { toPublicReaderPath } from "../../../lib/reader-base-path";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import {
@@ -8,6 +9,8 @@ import {
   editionContentCacheTag,
   editionItemCacheTag,
 } from "../../../lib/cached-content-repository";
+import { isAuthorizedRevalidateRequest } from "../../../lib/revalidate-secret";
+import { prewarmPaths, resolvePrewarmOrigin } from "../../../lib/revalidate-prewarm";
 import { getEditionArticlePath, getEditionDatePath } from "../../../lib/edition-routes";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +21,12 @@ type RevalidateRequestBody = {
   itemSlugs?: string[];
   paths?: string[];
   tags?: string[];
+  prewarm?: boolean;
 };
 
 export async function POST(request: Request) {
-  const configuredSecret = process.env.PAPYRUS_REVALIDATE_SECRET?.trim();
-  const providedSecret = request.headers.get("x-papyrus-revalidate-secret")?.trim();
-  if (!configuredSecret || providedSecret !== configuredSecret) {
+  const providedSecret = request.headers.get("x-papyrus-revalidate-secret");
+  if (!(await isAuthorizedRevalidateRequest(providedSecret))) {
     return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
   }
 
@@ -44,8 +47,8 @@ export async function POST(request: Request) {
     if (!normalized) continue;
     revalidateTag(articleCacheTag(normalized));
     revalidatedTags.add(articleCacheTag(normalized));
-    revalidatePath(`/articles/${encodeURIComponent(normalized)}`);
-    revalidatedPaths.add(`/articles/${encodeURIComponent(normalized)}`);
+    revalidatePath(toPublicReaderPath(`/articles/${encodeURIComponent(normalized)}`));
+    revalidatedPaths.add(toPublicReaderPath(`/articles/${encodeURIComponent(normalized)}`));
     if (editionDate) {
       revalidateTag(editionItemCacheTag(editionDate, normalized));
       revalidatedTags.add(editionItemCacheTag(editionDate, normalized));
@@ -76,8 +79,8 @@ export async function POST(request: Request) {
   revalidatedTags.add(ARCHIVE_CACHE_TAG);
   revalidateTag(ARTICLES_CACHE_TAG);
   revalidatedTags.add(ARTICLES_CACHE_TAG);
-  revalidatePath("/archive");
-  revalidatedPaths.add("/archive");
+  revalidatePath(toPublicReaderPath("/archive"));
+  revalidatedPaths.add(toPublicReaderPath("/archive"));
 
   for (const path of body.paths ?? []) {
     const normalized = path.trim();
@@ -86,9 +89,14 @@ export async function POST(request: Request) {
     revalidatedPaths.add(normalized);
   }
 
+  const prewarmed = body.prewarm === false
+    ? []
+    : await prewarmPaths(resolvePrewarmOrigin(request.url), [...revalidatedPaths]);
+
   return NextResponse.json({
     ok: true,
     revalidatedTags: [...revalidatedTags],
     revalidatedPaths: [...revalidatedPaths],
+    prewarmed,
   });
 }

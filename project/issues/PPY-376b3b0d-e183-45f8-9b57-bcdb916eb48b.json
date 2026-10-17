@@ -1,0 +1,37 @@
+{
+  "id": "PPY-376b3b0d-e183-45f8-9b57-bcdb916eb48b",
+  "title": "New Pretext site /api/media/*.mp4 returns 413 (videos do not play): media route must redirect to a presigned S3 URL like the old fork",
+  "description": "On the new Threat Intelligence site (app dzefa11i80jyq) every /api/media/**.mp4 returns HTTP 413 with an empty body (14 distinct URLs, Range requests too). The old live site answers 307 to a presigned S3 URL. Fix: media route redirects (307) to a short-lived presigned GET URL so S3 serves bytes and Range; IAM grant if missing; unit tests with a fake presigner in test:ci:ts; docs. Then roll out to the new TI app. See comment on PPY-4f2519 for evidence.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c6844700-4722-4df3-afc5-0251bfd7785d",
+      "author": "home",
+      "text": "[2026-10-07 18:30 EDT] Root cause: app/api/media/[...path]/route.ts proxied the S3 body (commit 4c9a3ce, done so next/image would work); the SSR compute response size cap turns the 26 MB videos into HTTP 413. The fork redirected (307). IAM/storage rules were already fine (guest read on media/*; signing worked for images). Fix (layer: Papyrus route): images stay proxied (optimizer does not follow redirects), all other media get a 307 to a 1h presigned URL so S3 serves bytes and Range. lib/media-route-response.ts, test:media-route in test:ci:ts (fake signer), docs/site-hosting.md. Papyrus PR #164 merged as d9ac9f6, released 1.0.0-next.30 (npm registry lagged ~8 min after the Release run). No stack/template change needed. TI PR #14 (pure pin bump to next.30, lockfile, infra/site.json) merged; new app build job 9 SUCCEED; old app auto-build false, latest job still 71. Checks on 3 videos: Range 0-1023 and full request answer 307 to the media bucket host; following with GET gives 206 video/mp4 (1024 bytes). Note: HEAD on the presigned URL returns 403 because the signature is for GET; browsers use GET. Headless Chrome: video.play() resolved, readyState 4, duration 199 s. / 307 to /2026/july/04 (200), /newsroom 200, old site 200.",
+      "created_at": "2026-10-07T22:30:51.663326Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "cd8ae1d8-99dd-475e-8cf9-708aa415b103",
+      "author": "home",
+      "text": "Fixed and verified on the new site.",
+      "created_at": "2026-10-07T22:31:05.052593Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T22:00:09.808055Z",
+  "updated_at": "2026-10-07T22:31:11.077656Z",
+  "closed_at": "2026-10-07T22:31:11.077596Z",
+  "right_now_summary": "Media routes now redirect videos to presigned S3 URLs, and playback works on the new site.",
+  "right_now_updated_at": "2026-10-07T22:31:12.270382Z",
+  "custom": {}
+}

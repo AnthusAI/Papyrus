@@ -1,7 +1,9 @@
 import { newsroomHref, toPublicNewsroomPath } from "./newsroom-base-path";
+import { getContentItemName } from "./site-brand";
 
 export type NewsroomNavTabId =
   | "overview"
+  | "articles"
   | "messages"
   | "insights"
   | "assignments"
@@ -22,12 +24,14 @@ export type NewsroomNavItem = {
 
 export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
   { id: "overview", label: "Overview", detail: "Desk home", href: newsroomHref(), mobilePrimary: true },
+  { id: "articles", label: getContentItemName().plural, detail: "Drafts & published", href: newsroomHref("articles"), mobilePrimary: true },
   { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments"), mobilePrimary: true },
   { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references"), mobilePrimary: true },
   { id: "messages", label: "Messages", detail: "Forum", href: newsroomHref("messages") },
   { id: "insights", label: "Insights", detail: "Research threads", href: newsroomHref("insights") },
   { id: "topics", label: "Topics", detail: "Taxonomy", href: newsroomHref("topics"), mobilePrimary: true },
   { id: "concepts", label: "Concepts", detail: "Ontology", href: newsroomHref("concepts") },
+  { id: "search", label: "Search", detail: "Knowledge base", href: newsroomHref("search") },
   { id: "administration", label: "Administration", detail: "Users & policies", href: newsroomHref("administration") },
 ];
 

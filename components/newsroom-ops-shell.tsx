@@ -3,6 +3,7 @@
 import {
   BookOpenIcon,
   ClipboardListIcon,
+  FileTextIcon,
   LayoutGridIcon,
   MenuIcon,
   SearchIcon,
@@ -33,6 +34,8 @@ import {
   NEWSROOM_SIDEBAR_NAV_INACTIVE,
 } from "../lib/newsroom-list-selection";
 import { cn } from "../lib/utils";
+import { SITE_BRAND } from "../lib/site-brand";
+import { NewsroomOrganizerShell } from "./newsroom-organizer-shell";
 
 export type NewsroomNavCount = {
   count: number | null;
@@ -40,7 +43,7 @@ export type NewsroomNavCount = {
   visible?: boolean;
 };
 
-type NewsroomOpsShellProps = {
+export type NewsroomOpsShellProps = {
   activeTab: NewsroomNavTabId | string;
   appTitle: string;
   backHref?: string;
@@ -55,6 +58,7 @@ type NewsroomOpsShellProps = {
 
 const MOBILE_TAB_ICONS: Record<string, typeof LayoutGridIcon> = {
   overview: LayoutGridIcon,
+  articles: FileTextIcon,
   assignments: ClipboardListIcon,
   references: BookOpenIcon,
   topics: TagsIcon,
@@ -134,6 +138,10 @@ export function NewsroomOpsShell({
   const resolvedActiveTab = activeTab === "desks" ? "topics" : activeTab;
   const mobilePrimary = useMemo(() => NEWSROOM_MOBILE_PRIMARY_NAV, []);
 
+  if (SITE_BRAND.newsroomLayout === "organizer") return <NewsroomOrganizerShell activeTab={activeTab} appTitle={appTitle}
+    backHref={backHref} backLabel={backLabel} demo={demo} headerActions={headerActions} pageTitle={pageTitle}
+    showNavigation={showNavigation} tabCounts={tabCounts}>{children}</NewsroomOrganizerShell>;
+
   return (
     <div
       className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-background text-foreground"
@@ -198,7 +206,7 @@ export function NewsroomOpsShell({
           className="shrink-0 border-t border-border bg-card/95 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1 md:hidden"
           data-newsroom-ops-bottom-nav
         >
-          <ul className="grid grid-cols-5 gap-1 px-2">
+          <ul className="grid grid-cols-6 gap-1 px-1">
             {mobilePrimary.map((item) => {
               const Icon = MOBILE_TAB_ICONS[item.id] ?? LayoutGridIcon;
               const active = resolvedActiveTab === item.id;

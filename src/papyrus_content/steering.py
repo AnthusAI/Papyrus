@@ -8,6 +8,7 @@ import yaml
 
 from .env import PAPYRUS_ROOT
 from .papyrus_config import DEFAULT_STEERING_CONFIG_PATH, resolve_topics_steering_config_path
+from .relevance_cyclotron import normalize_relevance_cyclotron_config
 
 DEFAULT_STEERING_CONFIG = DEFAULT_STEERING_CONFIG_PATH
 VALID_CORPUS_ROLES = frozenset({"canonical", "source", "supporting", "archive"})
@@ -73,6 +74,7 @@ def normalize_steering_config(raw_config: Any, config_path: str) -> dict[str, An
             "classifierId": canonical_classifier_id,
         },
         "corpora": normalized_corpora,
+        "relevanceCyclotron": normalize_relevance_cyclotron_config(raw_config.get("relevanceCyclotron")),
     }
 
 

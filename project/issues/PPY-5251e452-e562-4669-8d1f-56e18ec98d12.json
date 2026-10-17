@@ -1,0 +1,24 @@
+{
+  "id": "PPY-5251e452-e562-4669-8d1f-56e18ec98d12",
+  "title": "The References tab shows what the relevance cyclotron is doing",
+  "description": "As an editor, I want to see what the relevance cyclotron is doing, and to set a manual review rate for a while, without leaving the References tab.\n\nNot included: the marketing recording (PPY-54957abe); changing the review program's defaults.\n\n```gherkin\nFeature: The References tab shows what the relevance cyclotron is doing\n  Above the references, a strip says the cyclotron's version, agreement,\n  calibration and review rate in words. The detail card explains each number.\n  Editors who may change the review rate can ask the next sweep for a manual\n  rate with an expiry.\n\n  @brand-agnostic\n  Scenario: An editor reads the status strip and opens the detail\n    Given I open the references newsroom at 1280 by 900\n    Then the cyclotron status strip should say \"Onboarding · 100% reviewed\"\n    When I open what the cyclotron is doing\n    Then the cyclotron card should be titled \"Relevant to this publication\"\n    And the cyclotron card should explain \"Of all items, how many it got right.\"\n    And no browser console errors should occur\n\n  @brand-agnostic\n  Scenario: An editor asks for a manual review rate\n    Given I open the references newsroom at 1280 by 900\n    When I open what the cyclotron is doing\n    And I ask for a manual review rate of \"25%\" for \"7 days\"\n    Then the review rate form should say the next sweep applies it\n```\n\nBackend (features_backend/cyclotron-relevance-sweep.feature): an editor's manual review rate reaches the cyclotron once; an editor clears the manual review rate.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-049b6e24-663f-4340-a7d1-2f49a4c2fafa",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-09T17:20:59.247380Z",
+  "updated_at": "2026-10-09T17:20:59.247443Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5"
+  },
+  "right_now_summary": "The References tab shows cyclotron details and lets editors set a temporary manual review rate.",
+  "right_now_updated_at": "2026-10-09T17:21:00.448821Z",
+  "custom": {}
+}

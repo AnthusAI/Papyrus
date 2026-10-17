@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "3e8ab21a-311c-4d6e-b506-52b60e32f6ac",
+  "issue_id": "PPY-7fd288e6-0b0b-401b-992d-fbe801af5710",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T15:40:17.345Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P4-14: port video-script loading in the GraphQL content repository (article/edition video scripts)",
+    "description": "P4-03 (Papyrus#150) moved the blog layout components and added the optional videoScripts field on EditionContent, passed through the rhythm renderers, but the fork video-script loading in the GraphQL content repository (how Threat Intelligence loads edition/article video scripts from the backend) is NOT ported. Threat Intelligence uses edition/article videos (baseline has a PLAY VIDEO button and edition video blocks). Port the loader generically (any brand with videoPlayer set), with tests against the content model, so a publication on the packages shows the same videos as the fork. Check what data the old backend holds (baseline: /Users/home/Projects/.baselines/threat-intelligence-20261007/) and that the P4-08/P4-09 copy tool carries the video-script fields. Also carry the figure.article-video margin-bottom 2em rule in the TI theme (P4-04).",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+    "labels": [
+      "phase-4"
+    ]
+  }
+}

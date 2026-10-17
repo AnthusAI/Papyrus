@@ -1,0 +1,37 @@
+{
+  "id": "PPY-dc4a8715-0b78-40f6-af35-0c69f2d045e8",
+  "title": "Newsroom landing page has no link to the Articles list",
+  "description": "Reported by Ryan on the new Pilobol.us CMS (https://main.dv0pdx67fk80m.amplifyapp.com/newsroom): the landing page has no link of any kind to /newsroom/articles. The Articles list works when the URL is typed (21 rows: 18 published, 3 drafts) but is not discoverable. Add a link or nav entry to the Articles view from the newsroom landing page and shell; check the other newsroom sections for the same problem.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "179ce87a-4037-4189-8305-b87d7dbfea70",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/147 (branch feature/PPY-dc4a87-newsroom-nav-links): the overview \"Go to\" grid now renders every NEWSROOM_OPS_NAV entry (Articles, Insights, Concepts, Administration added; Search added to the nav). New test scripts/test-newsroom-nav.ts is wired into test:ci:ts. CI green (python, ts, smoke). Not merged.",
+      "created_at": "2026-10-07T13:15:47.998228Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c4712458-7939-437f-ba87-fe9030fa3add",
+      "author": "home",
+      "text": "PR #147 merged into develop; newsroom landing links every section. Done.",
+      "created_at": "2026-10-07T14:57:11.939960Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T00:00:41.578985Z",
+  "updated_at": "2026-10-07T14:57:26.869449Z",
+  "closed_at": "2026-10-07T14:57:26.869398Z",
+  "right_now_summary": "PR #147 merged into develop, adding links to every newsroom section from the landing page.",
+  "right_now_updated_at": "2026-10-07T14:57:27.996330Z",
+  "custom": {}
+}

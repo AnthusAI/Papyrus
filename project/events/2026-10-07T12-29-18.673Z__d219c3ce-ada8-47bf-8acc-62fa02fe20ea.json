@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d219c3ce-ada8-47bf-8acc-62fa02fe20ea",
+  "issue_id": "PPY-26f1580b-913d-447b-8917-8c7c3763a14c",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:18.673Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-07: Google sign-in on the new CMS, first admin and editors",
+        "to": "TI P4-08: one-off content copy tool (old backend to new) and dry run"
+      },
+      "priority": {
+        "from": 2,
+        "to": 1
+      }
+    }
+  }
+}

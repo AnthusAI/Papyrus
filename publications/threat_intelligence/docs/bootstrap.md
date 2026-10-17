@@ -20,13 +20,12 @@ PAPYRUS_SITE_BRAND=threat-intelligence
 PAPYRUS_SEED_PROFILE=threat-intelligence
 PAPYRUS_INBOUND_EMAIL_CORPUS_KEY=threat-intelligence
 PAPYRUS_GRAPHQL_ENDPOINT=<from amplify_outputs.json>
-PAPYRUS_JWT_SECRET_SSM_PARAM=/amplify/d3on1y5vlrxmam/main-branch-aeb7dfa526/PAPYRUS_JWT_SECRET
 ```
 
-Mint a CLI JWT:
+Run the CLI with AWS credentials (no token to mint):
 
 ```bash
-PYTHONPATH=src python -m papyrus.cli auth refresh-jwt --write-env .env
+AWS_PROFILE=<profile> PYTHONPATH=src python -m papyrus.cli ops content inspect
 ```
 
 ## Materialize newsroom config

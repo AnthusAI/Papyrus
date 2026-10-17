@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2d76b668-284d-4706-bc67-7767ff90935c",
+  "issue_id": "PPY-c984468d-56fe-43a4-bd6f-b4c35d35bf59",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-11T14:55:28.420Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Throttle AppSync resolver creation with wave-ordered data model stacks (429 mitigation)",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+    "labels": [
+      "ti-move-plan"
+    ]
+  }
+}

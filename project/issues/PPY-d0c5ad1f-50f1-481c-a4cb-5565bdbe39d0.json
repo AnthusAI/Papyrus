@@ -1,0 +1,70 @@
+{
+  "id": "PPY-d0c5ad1f-50f1-481c-a4cb-5565bdbe39d0",
+  "title": "Pilobol.us P3-07: staging site (Cognito-gated drafts preview) and staging release-gate checks",
+  "description": "## Goal\nStaging site as the standard defines (docs/standard-site.md 1.10): drafts rendered as if published, behind the site's own Cognito (editor/admin), on the new CMS app's staging branch. Discharges the staging release-gate items.\n\n## Context (FACT unless marked)\n- Staging branch builds frontend-only against the production backend (ampx generate outputs), exports drafts with the editor/JWT lane, builds via reader.buildCommand, uploads to the private preview/ prefix (papyrus content upload-preview), and a Cognito-gated Next route serves it. Env on staging only: SITE_ENV=staging, PAPYRUS_STAGING_PREVIEW=static, NEXT_PUBLIC_PAPYRUS_STAGING_URL.\n- Gates (epic c91ed6, 19753b): PAPYRUS_STAGING_PREVIEW only on staging; 6 MB WEB_COMPUTE limit vs the largest build file, assets/he-said-he-could-see-it/gowy-fall-of-icarus.jpg at 6,047,745 bytes; static staging against a real backend; nodejs middleware.\n- Code-reading finding: root-level newsroom would loop the gate; fixed by the /newsroom brand in the scaffold.\n- The new stack starts without domains: staging runs on https://staging.<newCmsAppId>.amplifyapp.com until the domain ticket adds staging.pilobol.us.\n- Drafts: the 3 imported drafts.\n\n## Exact steps\n1. Template flag on: staging branch in site.json; Ryan yes to the stack update (adds branch staging with its env and spec); push git branch staging (from main); connect the branch in the console if needed.\n2. Probes (adapt scripts/staging-auth-test.mjs): anonymous GET / redirects to /newsroom then 200 (no loop); editor sees a draft page with the STAGING banner and the same URL is 404 on the reader; non-editor 403; robots Disallow, noindex; unsigned S3 preview URL 403; get-bucket-policy-status IsPublic false; main branch has no PAPYRUS_STAGING_PREVIEW (names).\n3. Measure the 6,047,745-byte image through the gate as editor; if it fails, exclude files over 5 MB from the staging upload (staging only) and record.\n\n## Acceptance checks\nAll probes pass; results recorded.\n\n## Rollback\nDelete the staging branch (stack update reversal).\n\n## Risks\nBuild time 10-15 minutes; admin-level service role (documented in the shell README).\n\n## Needs Ryan\nYes for step 1; sign in as an editor and a non-editor for the probes.\n\n## Common rules (Phase 3 Pilobol.us, simplified plan v2)\n- Plan: docs/migrations/pilobol-us.md (PR AnthusAI/Papyrus#128). Ryan 2026-10-06: Pilobol.us is PRE-PRODUCTION, Git history is the rollback, HARD CUTOVER: no soak, no Git freeze, no dual Git/CMS build path, no parity gate, brief downtime is fine. New Amplify apps are created from the template; the old apps and the old EMPTY backend are retired at the end.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan (or on his explicit yes).\n- Never build in /Users/home/Projects/Pilobol.us (its build rewrites content): use a fresh clone or a worktree.\n- Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. Pilobol.us repo: feature branch + PR, never push to its main. In /Users/home/Projects/Papyrus only run kbs.\n- Keep article text verbatim (the importer already does; narration hashes depend on it). The Auritus embed is origin-locked to the site key's origin; the production origin stays pilobol.us, so nothing changes there (narration will not play on temporary amplifyapp.com URLs: expected).\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-bd249d3b-eeb5-4d26-a6a3-50400324926d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "3c5d48aa-ce49-4881-95f7-9eec08a6853c",
+      "author": "home",
+      "text": "Deferred by Ryan 2026-10-06: skip staging for the Pilobol.us cutover (pre-production). The CMS staging branch was lost in the console connect; cms.staging is false in site.json. Revisit as a follow-up.",
+      "created_at": "2026-10-07T10:37:13.410196Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "cf6e23af-c51a-4bb6-ae75-c251ade4b518",
+      "author": "home",
+      "text": "Prep for CMS domain + staging (no AWS changes made): Pilobol.us PR #55 (not merged), git branch staging created on origin from main 641e642. Template next.17 supports cms.domainName, cms.staging and a derived staging domain (staging.pilobol.us). cdk diff: adds StagingBranch, StagingDomain, Domain; changes main branch env PAPYRUS_OAUTH_REDIRECT_URLS; outputs only; no replacement/deletion. Cutover order: merge PR -> CMS+reader builds -> verify Cognito client callbacks (pool us-east-1_vyTCcLVQK) -> push main:refs/heads/staging -> delete old association (aws amplify delete-domain-association --app-id d11eu9hbs2mipk --domain-name newsroom.pilobol.us) -> deploy stack, wait AVAILABLE for newsroom and staging domains -> start staging job and run check-staging-guards -> Ryan signs in at newsroom.pilobol.us and uses Preview. Rollback: revert site.json and redeploy stack, then create-domain-association --app-id d11eu9hbs2mipk --domain-name newsroom.pilobol.us --no-enable-auto-sub-domain --sub-domain-settings prefix=,branchName=main. New pool has 1 user (admin); old pool 0 users; editors need admin-add-user-to-group.",
+      "created_at": "2026-10-07T11:51:28.496634Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0e0a68a7-4567-4a9c-ba42-fda9071216c8",
+      "author": "home",
+      "text": "Cutover run 2026-10-07 (Ryan-authorized). PR 55 squash-merged as 7553b04. CMS main job 11 and reader main job 11 SUCCEED. Cognito client callbacks and logouts now include newsroom.pilobol.us (/ and /newsroom), staging.pilobol.us (/ and /newsroom) and staging.dv0pdx67fk80m.amplifyapp.com. Git staging fast-forwarded 641e642 -> 7553b04. cdk diff: only StagingBranch, StagingDomain, Domain added, main Branch OAuth env changed, outputs; no replace/delete. Old association (app d11eu9hbs2mipk, newsroom.pilobol.us, subdomain prefix empty, branch main, enableAutoSubDomain false) deleted 14:48:31Z; stack deployed 14:48:32-14:49:29Z; both new associations AVAILABLE by 14:53:39Z (newsroom answered 200, TLS valid, by then). Rollback: revert site.json and redeploy stack, then aws amplify create-domain-association --app-id d11eu9hbs2mipk --domain-name newsroom.pilobol.us --no-enable-auto-sub-domain --sub-domain-settings prefix=,branchName=main. PROBLEM: CMS staging job 1 (14:53:49Z) FAILED: staging branch has no backend environment association (\"No backend environment association found\"), so the build had no amplify_outputs.json (papyrus ops content export-published --drafts: Missing amplify_outputs.json). main has no association shown either; its backend comes from the pipeline-deploy phase in the app buildSpec, which the staging build skipped. Not fixed: needs a design decision (share main backend vs separate). staging.pilobol.us currently serves the Amplify placeholder page (200, no content, no drafts exposed). Verified: newsroom.pilobol.us/newsroom 200; pilobol.us byte-identical to main.dssc97s4q5kgk.amplifyapp.com for /, one article, robots.txt, sitemap.xml, /zzz/ (404 both); CMS app repo, platform WEB_COMPUTE, service role and main env var names unchanged; Cognito domain prefix unchanged; old CMS app still exists with 0 domains. Ryan by hand after the staging fix: sign in with Google at https://newsroom.pilobol.us/newsroom, click Preview, confirm staging shows a draft.",
+      "created_at": "2026-10-07T14:58:03.784429Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "432d4ab7-d7ef-4c70-9a31-8adfeca46e48",
+      "author": "home",
+      "text": "Staging build fixed (see bug cb27a6): job 4 SUCCEED on release 1.0.0-next.20; anonymous requests redirect to /newsroom. Pending: Ryan signs in at newsroom.pilobol.us/newsroom, clicks Preview, confirms a draft shows on staging; Pilobol.us PR #56 (pin bump) awaits Ryan merge.",
+      "created_at": "2026-10-07T16:22:18.756190Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "3ecf7da4-cf37-419f-bada-5da484b0c094",
+      "author": "home",
+      "text": "Investigating and fixing under PPY-35a1fb: staging.pilobol.us 500s because the root-mounted newsroom leaves `/` ungated while middleware still rewrites it to the `/__preview` route, where guest credentials get S3 403 on `preview/*`.",
+      "created_at": "2026-10-07T21:31:29.770858Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "9e7eacac-087d-4a6f-ae42-70a8a4ca2521",
+      "author": "home",
+      "text": "Sign-in on newsroom.pilobol.us verified (private window). Still to verify by hand: Preview on a draft shows it on staging.pilobol.us.",
+      "created_at": "2026-10-10T17:04:11.635840Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T12:39:15.382266Z",
+  "updated_at": "2026-10-10T17:04:11.635873Z",
+  "closed_at": null,
+  "right_now_summary": "The staging build works; Ryan still needs to sign in and verify a draft preview.",
+  "right_now_updated_at": "2026-10-10T17:04:13.452377Z",
+  "custom": {}
+}

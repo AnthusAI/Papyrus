@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2e99f9d3-cca0-4ebb-9004-1ce936a1e41a",
+  "issue_id": "PPY-820acd11-bed2-4340-869f-a87d16bde2e5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T14:52:45.136Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add the rating UI to the References tab: decision, confidence, thumbs, reason and explanation",
+    "description": "In components/newsroom-references-view.tsx, for each pending Reference show the decision and confidence (for example Include, 82% sure) and why it was picked for review, and add a Needs review filter first in the status tabs. Replace the Accept/Reject pair with the Cyclotron review control (decision-flywheel-dd270031) in thumbs mode: thumbs up accepts; thumbs down asks for a reason from REFERENCE_REJECTION_REASON_CODES (out of scope and policy exclusion mean exclude; duplicate, low quality, unavailable, provenance and other mean no label) and an optional explanation, plus a shareable checkbox. Archive stays. Wire onReview through runReferenceCurationAction in components/topic-steering-workspace.tsx, which today drops note and reasonCode for this tab. Ordering: after the data model and the pipeline hook; needs the Cyclotron package release (decision-flywheel-0dafa816).\n\nAcceptance criteria:\n- A review from the tab stores the reason, explanation, shareable flag and decisionRelationId through reviewReferenceCuration.\n- Items with no decision still work exactly as today.\n- Demo mode renders with fixture decisions and no network.\n- Vitest and the existing newsroom BDD features cover thumbs up, thumbs down with each reason class, and undo.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

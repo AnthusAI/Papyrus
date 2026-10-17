@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "48627905-c22d-4c66-9c86-b3c670b5e80f",
+  "issue_id": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-05T13:18:58.545Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Phase 4: p.apyr.us product site with the four-tier pricing ladder; blog to /information; papyrus.anth.us redirects to p.apyr.us",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": []
+  }
+}

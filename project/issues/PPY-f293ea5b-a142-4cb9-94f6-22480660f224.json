@@ -1,0 +1,54 @@
+{
+  "id": "PPY-f293ea5b-a142-4cb9-94f6-22480660f224",
+  "title": "M8 Public GraphQL surface for static sites",
+  "description": "## Outcome\nStatic Markus sites gain dynamic features without losing static SEO: first, generated JSON files written by the projector (search index, latest items, tags, feed); later, a narrow, throttled guest write pattern.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 6 (Public GraphQL surface for static sites).\n\n## Verified today\nGuest (identity pool unauthenticated) can read only PublishedItem, PublishedMediaAsset, PublishedEdition, PublishedEditionItem, PublishedCategorySet, PublishedCategory and media/*; no guest write anywhere; API key mode enabled but unused by any rule.\n\n## Checklist\n- [ ] Projector writes /_data/latest.json, /_data/search-index.json, /_data/tags.json and an optional feed on every relevant projection\n- [ ] Review guest-readable PublishedItem fields (metadata, editorial, layout) for anything that must never be public\n- [ ] Later: WAF web ACL on AppSync with a rate-based rule; pattern for a guest custom mutation (validation, size limits, honeypot, non-public target model)\n\n## Acceptance\n- curl https://<site>/_data/search-index.json returns current titles after an edit (within the M4 freshness bound).\n- Schema test: no guest rule on any non-Published model.\n\n## Out of scope (YAGNI for now)\nSubscriptions, browser GraphQL reads, comments, a custom API domain.\n\n## Dependencies\nBlocked by M3.\n\n## Risk\nGuest writes are a new abuse surface; deferred until M9 needs them.\n\n## Estimate\n3-4 agent-hours (JSON) + 3-6 (WAF and guest mutation pattern).",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3d905dde-4a01-467b-95b8-53abe6f9e1ef",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "91e3a71e-5212-43d0-89f8-00737880ad02",
+      "author": "home",
+      "text": "M8 JSON half done (WAF/guest-mutation half deferred to M9; no guest writes added). Papyrus PR #200 merged (5f29c89), released 1.0.0-next.49. Adds opt-in projection setting publicData -> _data/search-index.json, _data/latest.json, _plugins/papyrus-search@1.js (listing-class pages; digest of bytes, so a body-only edit writes neither; M4 cache headers + invalidation apply unchanged). <papyrus-search> framework-free web component (no :::search directive possible: Markus validates directives, authors cannot write raw HTML; usage documented in docs/public-surface.md). docs/public-surface.md: guest-readable models/fields, unauth identity-pool vs unused API key, CORS/hostnames, never-public list, front-matter-is-public finding. Tests: random-edit equivalence incl. new public kind, Gherkin projection-public-data.feature, schema test pinning guest rules to the six Published models + media/* (test_guest_surface.py), node ranking tests. Evidence: Anth.us real corpus (128 export items): full projection byte-identical to production-pin build for every non-static-root, non-JSON key with publicData off AND on; random edits incremental == full; search-index.json = 113 entries, 37.6 KB (13.4 KB gzip), queries 'decision model', 'jev', 'kanbus' return sensible results. Pilobol (m5 export): 10 entries; all other 82 files identical with publicData on vs off. Throwaway stack papyrus-m8-test in 712236451410 (deleted; bucket emptied incl. versions; log group, table, role verified gone): real saveItemDraft/publishItem path: new article visible in search-index.json when the mutation returned (1.57 s, index readable 0.07 s later), retitle updates it, body-only edit leaves the index object version unchanged, unpublish removes it, in-Lambda verify = no missing/extra/different, reconcile no drift. Site PRs OPENED not merged: Anth.us-Papyrus#31, Pilobol.us#68 (both bump to next.49 and only add publicData; no HTML change). App-shell templates: Papyrus diff touches only src/papyrus_content/projection, docs, tests, features; no template/app/amplify files, so Pilobol.us, p.apyr.us, Threat-Intelligence and Anth.us site.json are unchanged. Status left for Ryan.",
+      "created_at": "2026-10-13T11:36:18.755061Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "ec4d69d5-355b-4ee7-9335-7237cfea14c1",
+      "author": "home",
+      "text": "M8 deployed and verified live (next.50 / papyrus-newsroom 1.0.0.dev50). Builds: Pilobol.us CMS d1eiwl0gedkmnj main job 13 (commit 20044ed, auto) SUCCEED 07:56:28-08:05:04 EDT (8m36s); Anth.us CMS d7s858igkyct5 main job 7 (RELEASE) SUCCEED 07:57:11-08:05:33 (8m22s). Both content-actions Lambdas updated 12:01 UTC and contain dev50 dist-info, projection/public_data.py and public_assets/papyrus-search.js. Full projection (project all task run through the deployed Lambdas, since the local venv had no papyrus install; Pilobol 11s, Anth.us 44s, both ok:true). Anth.us 404.html was rewritten, so bin/fix_404_headers.py was rerun: stored object text/html, no Cache-Control; 404 via CDN text/html, no cache-control. Files (200): anth.us search-index.json 37579 B/113 entries, latest.json 8096 B/20 entries, papyrus-search@1.js 7740 B (node --check OK), cache-control public, max-age=0, s-maxage=31536000 (non-HTML long TTL + projector invalidation; HTML stays s-maxage=60). pilobol.us search-index.json 3806 B/10 entries (latest.json identical bytes, since only 10 items), js 7740 B, cache-control s-maxage=300, stale-while-revalidate=60 (same as its HTML). Queries on the downloaded index: anth 'decision model' 13, 'kanbus' 1, 'jev' 10; pilobol 'grok' 1. Headless browser not available, component not loaded in a browser. No regression: Anth.us 93-path compare for anth.us and www.anth.us byte-identical to the M6 results (63 paths differ by hash only, live content drift, as in M6); 33 odd probes 0 differ; Pilobol.us 65-path crawl: 0 differences vs the legacy-live manifest (status, hash, length, content type). robots/sitemaps 200 on both (pilobol has /sitemap.xml, no sitemap-index, as before). Publish tests (title 'ZZ publish test (delete me)', dated 2001-06-15, tag zz-publish-test): Pilobol page visible 0.2 s and index entry 1.4 s after the save-and-project Lambda returned (3.1 s); unpublish page gone 0.2 s, index entry 0.9 s. Anth.us page 0.2 s, index entry 2.7 s (Lambda 9.4 s); unpublish page 0.2 s, index entry 2.0 s; home unaffected (not in latest.json, / and 93-path compare unchanged, index back to the same ETag, 113 entries). Counts equal after cleanup: Item/PublishedItem/bucket/KVS 21/18/117/0 (Pilobol) and 131/128/3180/520 (Anth.us). Findings: (1) deleting an Item record leaves its _papyrus/items/<id>.json projector state object in the site bucket, and reconcile does not flag it; I removed the two test ones with delete-object (versioned bucket, delete markers). (2) Pilobol front matter must use its own shape (text date, author, description); the Anth.us-style front matter fails with 'year 0 is out of range' (test input only; item was unpublished/deleted). Status left for Ryan.",
+      "created_at": "2026-10-13T12:31:19.740223Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "452d3fe1-d3ad-438a-b470-3fc2cea20f66",
+      "author": "home",
+      "text": "M8 deployed and verified live (next.50 / papyrus-newsroom 1.0.0.dev50). Builds: Pilobol.us CMS d1eiwl0gedkmnj main job 13 (20044ed, auto) SUCCEED 8m36s; Anth.us CMS d7s858igkyct5 main job 7 (RELEASE) SUCCEED 8m22s. Both content-actions Lambdas updated 12:01 UTC and contain dev50, projection/public_data.py and public_assets/papyrus-search.js.\nFull projection run via the deployed Lambdas (projectionTask all; Pilobol 11s, Anth.us 44s, ok). Anth.us 404.html rewritten, so bin/fix_404_headers.py rerun: text/html, no Cache-Control.\nFiles (200): anth.us search-index.json 37579 B/113 entries, latest.json 8096 B/20, papyrus-search@1.js 7740 B (node --check OK), s-maxage=31536000. pilobol.us search-index.json 3806 B/10 entries (latest.json identical bytes), js 7740 B, s-maxage=300 swr=60. Queries: anth 'decision model' 13, 'kanbus' 1, 'jev' 10; pilobol 'grok' 1. No headless browser; component not loaded in a browser.\nNo regression: Anth.us 93-path compare (anth.us and www) identical to the M6 results; 33 odd probes 0 differ; Pilobol.us 65-path crawl 0 differences vs legacy-live manifest. robots/sitemaps 200.\nPublish tests (ZZ publish test (delete me), dated 2001): Pilobol page 0.2s, index entry 1.4s after the save Lambda returned; unpublish page gone 0.2s, entry 0.9s. Anth.us page 0.2s, entry 2.7s; unpublish 0.2s / 2.0s; home unaffected, index back to same ETag. Counts equal after cleanup (Pilobol 21/18/117/0, Anth.us 131/128/3180/520 for Item/PublishedItem/bucket/KVS).\nFindings: (1) deleting an Item leaves its _papyrus/items/<id>.json state object in the site bucket and reconcile does not flag it; I removed the two test ones (versioned bucket, delete markers). (2) Pilobol needs its own front-matter shape (text date); Anth-style front matter gives 'year 0 is out of range' in test input only.\nStatus left for Ryan.",
+      "created_at": "2026-10-13T12:31:33.163027Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-12T18:28:02.562649Z",
+  "updated_at": "2026-10-13T12:31:33.163062Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "Planning covers projector JSON outputs, guest field review, and later WAF protections.",
+  "right_now_updated_at": "2026-10-12T18:29:32.610884Z",
+  "custom": {}
+}

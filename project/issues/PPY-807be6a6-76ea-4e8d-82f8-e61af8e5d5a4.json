@@ -1,0 +1,27 @@
+{
+  "id": "PPY-807be6a6-76ea-4e8d-82f8-e61af8e5d5a4",
+  "title": "Dev newsroom pages embed the seed editor's username and password in page HTML",
+  "description": "Finding (not fixed). In development (`next dev`), every newsroom page embeds the seed editor's username and password in the server-rendered HTML, and the client signs in with them automatically.\n\nWhere: components/newsroom-client-shell.tsx calls resolveDevSandboxEditorAuth() (lib/dev-sandbox-editor-auth.ts) on the server. When NODE_ENV is development and PAPYRUS_DEV_SEED_SIGNIN is not \"0\", it returns PAPYRUS_SEED_USERNAME/PAPYRUS_SEED_PASSWORD, or the hardcoded defaults (papyrus-seed-editor@example.com and a default password committed in the repo). The result is passed as the `devSandboxEditorAuth` prop to NewsDeskClientProvider, so it is serialized into the RSC payload of the page. components/dev-sandbox-editor-sign-in.tsx then calls signIn with it.\n\nObserved 2026-10-09: `next dev --hostname 0.0.0.0 -p 3100` against sandbox ppy-6b4094. A plain curl of http://<LAN IP>:3100/newsroom/references from another address returned HTML containing `devSandboxEditorAuth` with the seed username and password. With PAPYRUS_DEV_SEED_SIGNIN=0 the payload carries `devSandboxEditorAuth: null`. The seed user exists in that sandbox pool in the editor and admin groups, so anyone on the LAN who loads a dev page gets working editor+admin credentials for the sandbox backend.\n\nImpact: development only (production builds have NODE_ENV=production). Risk grows when the dev server is bound to all interfaces or tunnelled, and when the seed user has admin rights. The default password is also in git.\n\nPossible directions (not decided): sign in server-side and hand the client only tokens; require an explicit opt-in flag instead of on-by-default; refuse when the server is bound beyond localhost; drop the hardcoded default password.\n\n```gherkin\nFeature: Development seed sign-in does not expose credentials\n  Scenario: A dev page carries no seed password\n    Given the newsroom runs under next dev with seed sign-in enabled\n    When a browser loads a newsroom page\n    Then the page HTML does not contain the seed editor's password\n```",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "security"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-09T19:45:46.897957Z",
+  "updated_at": "2026-10-09T19:45:52.670151Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": "The dev newsroom still exposes seed credentials in page HTML, risking unauthorized access when shared beyond localhost.",
+  "right_now_updated_at": "2026-10-09T19:45:54.033433Z",
+  "custom": {}
+}

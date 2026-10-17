@@ -1,0 +1,27 @@
+{
+  "id": "PPY-d0e724be-25d2-4529-ab34-918501bcffd7",
+  "title": "Amplify domain-association API throttling: ServiceLimitExceeded needs documented pacing and a clear failure",
+  "description": "Seen during Phase 6 (see the notes on PPY-7d8cd0 and PPY-52d455; AppSync 429 on new accounts is PPY-c98446): Amplify CreateDomainAssociation/UpdateDomainAssociation return ServiceLimitExceeded or throttle when several associations or apps are created in a short window. The template and docs/site-hosting.md should state the pacing (serialise associations, retry with backoff, no concurrent stack updates) and the stack should fail with a message that says to wait and retry rather than leave a half-created association. The observed limits are in the epic notes; copy them here when this is picked up.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-12T17:19:20.815361Z",
+  "updated_at": "2026-10-12T17:19:20.815391Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5",
+    "name": "anthus-cms-parity"
+  },
+  "right_now_summary": "Amplify domain association calls throttle during rapid, concurrent creation and need pacing guidance and clear retry",
+  "right_now_updated_at": "2026-10-12T17:19:22.081188Z",
+  "custom": {}
+}

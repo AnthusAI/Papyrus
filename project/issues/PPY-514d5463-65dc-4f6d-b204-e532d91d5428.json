@@ -1,0 +1,31 @@
+{
+  "id": "PPY-514d5463-65dc-4f6d-b204-e532d91d5428",
+  "title": "P6-07: Pilobol.us: retire the legacy apps, stacks and backend (human runbook, 7-day soak)",
+  "description": "## Goal\nThreat Intelligence has a NEW CMS app (Pretext reader co-hosted with /newsroom) and a fresh backend in papyrus-production, domain-free, first main build green on its default URL, release gates passed. The legacy copy dzefa11i80jyq keeps serving threat-intelligence.anth.us.\n\n## Context (FACT)\n- Stack amplify-app-shell-threat-intelligence-cms (a different account, no collision). Features all false (inbound email, backups, Slack, console responder). Legacy branch env var NAMES: PAPYRUS_SITE_BRAND/NEXT_PUBLIC_PAPYRUS_SITE_BRAND threat-intelligence, PAPYRUS_CONTENT_SOURCE, PAPYRUS_EDITION_SLUG, PAPYRUS_ENABLE_*, PAPYRUS_OAUTH_REDIRECT_URLS, PAPYRUS_REVALIDATE_SECRET_PARAMETER, SITE_ENV.\n- Cognito prefix: the legacy live pool t1A6sJX55 holds `papyrus-threat-intelligence` (it resolves in DNS), prefixes are unique per region across accounts, so the new pool uses `papyrus-threat-intelligence-cms` (does not resolve today) with `cms.applyCognitoDomainPrefix` true. Reusing the old name would need the legacy domain deleted first, which breaks live sign-in: rejected.\n- Revalidation: on-demand revalidate needs a secret. Create a NEW random value in SSM in production at /papyrus/threat-intelligence/revalidate-secret (SecureString, generated and stored by pipe, never printed); the legacy value is never reused (Ryan 2026-10-07: rotate at cutover).\n- Pin >= @anthusai/papyrus 1.0.0-next.37 (withPapyrus now transpiles cyclotron; next.34 to next.36 fail the build).\n- The repo AnthusAI/Threat-Intelligence is shared with the legacy app (the legacy app is connected as anthusai/threat-intelligence): a push builds both.\n- Lessons from PPY-aa93b3: console connect overwrites buildSpec and branch env vars; one backend deploy at a time (AppSync 429); out-of-repo domain-free site.json.\n\n## Exact steps\n1. Out-of-repo domain-free site.json (no hostedZoneId, domainName, domainPrefix, stagingDomainPrefix; cms.staging true so the stack creates the staging branch with its default URL; prefix pair above; OAUTH list: amplifyapp URLs plus localhost; the backend registers both `<origin>/` and `<origin>/newsroom` callbacks since PR #171). synth, `cdk diff` (create-only), assert no Domain, no legacy ARNs, no SES.\n2. Ryan yes: `cdk deploy` into papyrus-production after the Pilobol.us backend finished deploying (never in parallel). Create the revalidate SSM parameter.\n3. Ryan, console sitting: authorize the GitHub App for papyrus-production on AnthusAI/Threat-Intelligence; connect main (WEB_COMPUTE); repair buildSpec, platform, service role, env var names; staging branch connect and repair.\n4. Start main (and, once the Git `staging` ref is current, staging); poll to SUCCEED.\n5. Gates on the default URL: schema gate (bodyMarkus, bodyIr, aliases), brand gate, `/` redirects to the edition (307), `/newsroom` 200, missing path returns the custom 404, `/robots.txt` 404 as today (names/paths compared with the baseline), no accidental noindex on production.\n\n## Acceptance checks\n- WEB_COMPUTE, repository AnthusAI/Threat-Intelligence, template roles; branches main (PRODUCTION) and staging (BETA) with the env var names from site.json; jobs SUCCEED; new pool domain papyrus-threat-intelligence-cms; legacy baselines (associations, zone) unchanged.\n\n## Rollback\nDelete the stack(s) in production (Ryan); no domain, nothing public depends on it.\n\n## Needs Ryan\nDeploy yes, console sitting, SSO.\n\n## Common rules (Phase 6, PPY-7d8cd0)\n- Read /Users/home/Projects/Papyrus/AGENTS.local.md first. Assert the account with `aws sts get-caller-identity --query Account --output text` before EVERY call: profile legacy = 335163751677, profile papyrus-production = 712236451410. Never use papyrus-development; papyrus-staging (494166748521) is not used by this phase.\n- Every write needs Ryan's explicit yes in chat for that step. Legacy is READ-ONLY except the steps this ticket names (each with a yes). No SCPs on legacy; never risk legacy access; no `cdk deploy` and no `ampx` against the legacy stacks of these sites.\n- Never print secret values (names only; SSM values move by pipe, never to the terminal or a ticket). Ryan deletes retired resources. Do not touch Anth.us production d2hbn1ig6nqyhy or the other anth.us apps (apricity d2n7w4kwqyfwn4, babulus d3epcqvzbxdaq, tactus dfkbdffs2viq8, primus divicqm3nhcwt).\n- Baselines and scratch live under /Users/home/Projects/.baselines/phase6-<date>/ (outside any repo); clones go under /Users/home/Projects/ and are deleted afterwards (disk is tight). Only kbs writes in the Papyrus checkout (never git add/commit there); never `git stash`.\n- The committed infra/site.json in each site repo still describes the LEGACY stack until the cutover ticket; production deploys use an out-of-repo, domain-free copy (as PPY-aa93b3 did for p.apyr.us).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "phase-6"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-fd17b719-c241-451d-abb8-eb7e7f1f3ae1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-343fea7e-c56d-4d84-9fb6-cd302e54ad88",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-10T17:17:31.404614Z",
+  "updated_at": "2026-10-10T17:19:08.369369Z",
+  "closed_at": null,
+  "right_now_summary": "The team is preparing a new CMS backend while the legacy app continues serving traffic.",
+  "right_now_updated_at": "2026-10-10T17:19:10.081666Z",
+  "custom": {}
+}

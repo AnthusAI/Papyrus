@@ -3,8 +3,13 @@
 import {
   BookOpenIcon,
   ClipboardListIcon,
+  FileTextIcon,
   LayersIcon,
+  LightbulbIcon,
   MessageSquareIcon,
+  NetworkIcon,
+  SearchIcon,
+  SettingsIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -12,7 +17,7 @@ import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AssignmentRecord, MessageRecord, NewsroomSectionRecord, ReferenceRecord } from "../lib/category-repository";
-import { getNewsroomNavHref } from "../lib/newsroom-nav";
+import { getNewsroomNavHref, NEWSROOM_OPS_NAV, type NewsroomNavTabId } from "../lib/newsroom-nav";
 import {
   countReferencesByStatus,
   filterReferencesByStatus,
@@ -37,14 +42,27 @@ type NewsroomOpsOverviewProps = {
   references: ReferenceRecord[];
 };
 
-type DestinationKey = "references" | "assignments" | "messages" | "topics";
+type DestinationKey = Exclude<NewsroomNavTabId, "overview" | "desks">;
 
-const DESTINATION_META: Record<DestinationKey, { label: string; detail: string; href: string; icon: typeof BookOpenIcon }> = {
-  references: { label: "References", detail: "Source intake", href: "/newsroom/references", icon: BookOpenIcon },
-  assignments: { label: "Assignments", detail: "Work queue", href: "/newsroom/assignments", icon: ClipboardListIcon },
-  messages: { label: "Messages", detail: "Team threads", href: "/newsroom/messages", icon: MessageSquareIcon },
-  topics: { label: "Topics", detail: "Taxonomy", href: "/newsroom/topics", icon: LayersIcon },
+const DESTINATION_ICONS: Record<DestinationKey, typeof BookOpenIcon> = {
+  articles: FileTextIcon,
+  assignments: ClipboardListIcon,
+  references: BookOpenIcon,
+  messages: MessageSquareIcon,
+  insights: LightbulbIcon,
+  topics: LayersIcon,
+  concepts: NetworkIcon,
+  administration: SettingsIcon,
+  search: SearchIcon,
 };
+
+const DESTINATIONS = NEWSROOM_OPS_NAV.filter((item) => item.id !== "overview").map((item) => ({
+  key: item.id as DestinationKey,
+  label: item.label,
+  detail: item.detail,
+  href: item.href,
+  icon: DESTINATION_ICONS[item.id as DestinationKey],
+}));
 
 function openAssignmentCount(assignments: AssignmentRecord[]): number {
   return assignments.filter((assignment) => {
@@ -85,11 +103,10 @@ export function NewsroomOpsOverview({
     [newsroomSections],
   );
 
-  const destinationCounts: Record<DestinationKey, number | null> = {
+  const destinationCounts: Partial<Record<DestinationKey, number | null>> = {
     references: referenceCounts.pending ?? 0,
     assignments: openAssignmentCount(assignments),
     messages: recentMessageCount(messages),
-    topics: null,
   };
 
   return (
@@ -102,8 +119,8 @@ export function NewsroomOpsOverview({
         <section aria-label="Destinations" className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Go to</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {(Object.keys(DESTINATION_META) as DestinationKey[]).map((key) => {
-              const meta = DESTINATION_META[key];
+            {DESTINATIONS.map((meta) => {
+              const key = meta.key;
               const Icon = meta.icon;
               const count = destinationCounts[key];
               const href = getNewsroomNavHref(meta.href, demo);

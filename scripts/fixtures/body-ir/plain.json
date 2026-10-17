@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "markus": {
+    "version": "0.5.1",
+    "irSchemaVersion": 1
+  },
+  "document": {
+    "type": "document",
+    "schema_version": 1,
+    "front_matter": {
+      "title": "Plain"
+    },
+    "children": [
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "First paragraph here."
+          }
+        ],
+        "line": 5
+      },
+      {
+        "type": "paragraph",
+        "inline": [
+          {
+            "type": "text",
+            "text": "Second paragraph"
+          },
+          {
+            "type": "soft_break"
+          },
+          {
+            "type": "text",
+            "text": "wraps a line."
+          }
+        ],
+        "line": 7
+      }
+    ]
+  },
+  "papyrus": {
+    "images": {},
+    "citations": {},
+    "citationLists": {},
+    "entries": {},
+    "bibliography": []
+  }
+}

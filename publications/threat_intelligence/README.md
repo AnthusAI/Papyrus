@@ -12,7 +12,7 @@ All publication-specific code, assets, and configuration for Anthus Threat Intel
 | `seed-art/videos/` | Rendered MP4 briefings (gitignored) |
 | `pictograms/` | React pictogram registry, art, and article figure component |
 | `blog-defense/` | Animated blog hero background graph |
-| `videoml/` | Video pipeline Python modules and browser bundle entry |
+| `videoml/` | Browser bundle entry (the video pipeline itself is `papyrus videos`, see `docs/video-pipeline.md`) |
 | `docs/` | Bootstrap and video pipeline runbooks |
 | `skills/produce-video/` | Agent skill for video production |
 | `tests/` | TI pictogram, blog-defense, and video pipeline tests |

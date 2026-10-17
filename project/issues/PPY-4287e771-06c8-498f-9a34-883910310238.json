@@ -1,0 +1,30 @@
+{
+  "id": "PPY-4287e771-06c8-498f-9a34-883910310238",
+  "title": "Pilobol.us P3-01: one-time byte-diff sanity script (import/export fidelity), not a gate",
+  "description": "## Goal\nOne cheap, one-time check that import then export is lossless: a script that byte-diffs two directory trees (and, optionally, a built site against https://pilobol.us). NOT a gate and NOT a harness; it is run by hand at the import step.\n\n## Context (FACT, 2026-10-06)\n- Scratch build of Pilobol.us@main = 94 files, byte-identical to the live site and between renderer pin d664fc7 and Papyrus develop; offline import/export of the 21 tracked files rebuilds the same 94 files.\n- Tracked content is 21 .md under web/content (10 articles, a-fungus-among-us, 3 drafts, 7 effects pages); two more (index.md, articles/index.md) are build-generated and gitignored: never import them.\n\n## Exact steps\n1. Pilobol.us repo, feature branch: bin/diff-trees.py (stdlib): diff-trees.py A B lists only-in-A, only-in-B, differing files, exits 1 on any; diff-trees.py --dist DIR --live https://pilobol.us fetches each file of DIR from the live site and compares bytes.\n2. Document the scratch recipe in a comment at the top: git clone to scratch, git archive origin/main web/content for the import source, build in scratch only.\n\n## Acceptance checks\n- Against a scratch build of main: --live reports 94/94 identical; flipping one character in one copy exits 1 naming the file.\n\n## Rollback\nDelete the branch.\n\n## Risks\nLive fetches during a deploy can mix old and new files: re-run once.\n\n## Needs Ryan\nNothing.\n\n## Common rules (Phase 3 Pilobol.us, simplified plan v2)\n- Plan: docs/migrations/pilobol-us.md (PR AnthusAI/Papyrus#128). Ryan 2026-10-06: Pilobol.us is PRE-PRODUCTION, Git history is the rollback, HARD CUTOVER: no soak, no Git freeze, no dual Git/CMS build path, no parity gate, brief downtime is fine. New Amplify apps are created from the template; the old apps and the old EMPTY backend are retired at the end.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan (or on his explicit yes).\n- Never build in /Users/home/Projects/Pilobol.us (its build rewrites content): use a fresh clone or a worktree.\n- Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. Pilobol.us repo: feature branch + PR, never push to its main. In /Users/home/Projects/Papyrus only run kbs.\n- Keep article text verbatim (the importer already does; narration hashes depend on it). The Auritus embed is origin-locked to the site key's origin; the production origin stays pilobol.us, so nothing changes there (narration will not play on temporary amplifyapp.com URLs: expected).\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f200be35-c4e7-498b-b2e3-5be1a3303ccd",
+      "author": "home",
+      "text": "Built in Pilobol.us (per ticket): branch feature/PPY-4287e7-byte-diff, PR https://github.com/AnthusAI/Pilobol.us/pull/44. bin/diff-trees.py (A B, and --dist DIR --live URL), tests/test_diff_trees.py passes. Live 94/94 run not done (needs scratch build).",
+      "created_at": "2026-10-06T13:00:14.189296Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T12:38:14.246812Z",
+  "updated_at": "2026-10-06T13:00:14.189316Z",
+  "closed_at": null,
+  "right_now_summary": "The byte-diff script and tests pass; the 94-file live comparison still needs a scratch build.",
+  "right_now_updated_at": "2026-10-06T13:00:16.289818Z",
+  "custom": {}
+}

@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .security import assert_argv_no_allow_html
+from .security import MARKUS_REQUIRED_VERSION, assert_argv_no_allow_html
 
 if TYPE_CHECKING:
     from .transforms import FragmentTransform
@@ -44,3 +44,21 @@ def convert_fragment(
     if transform is None:
         return result.stdout
     return transform.apply(result.stdout)
+
+
+def convert_text_in_process(text: str, *, theme: str | None = None) -> str:
+    """Convert Markus source to a fragment in this process, matching the CLI's bytes.
+
+    Same contract as :func:`convert_fragment` (fragment, no CSS, raw HTML never
+    allowed) without the subprocess, and the CLI's trailing newline.
+    """
+    import markusmd
+
+    if markusmd.__version__ != MARKUS_REQUIRED_VERSION:
+        raise RuntimeError(
+            f"Markus {MARKUS_REQUIRED_VERSION} required for static builds; got {markusmd.__version__!r}."
+        )
+    fragment = markusmd.convert(
+        text, allow_html=False, include_css=False, full_document=False, theme=theme
+    )
+    return fragment if fragment.endswith("\n") else fragment + "\n"

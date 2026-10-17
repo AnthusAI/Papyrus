@@ -115,6 +115,12 @@ def categories_sandbox_steering_config(flags: list[str]) -> None:
             for corpus in source["corpora"]
         ],
     }
+    cyclotron = source.get("relevanceCyclotron")
+    if isinstance(cyclotron, dict) and isinstance(cyclotron.get("store"), dict) and cyclotron["store"].get("s3Prefix"):
+        # The cyclotron's store snapshot lives in the same bucket as the corpora.
+        identifier = cyclotron.get("cyclotronId", "papyrus-relevance")
+        output["relevanceCyclotron"] = {**cyclotron, "store": {**cyclotron["store"],
+                                                               "s3Prefix": f"s3://{bucket}/cyclotrons/{identifier}/"}}
     output_path = Path(options["output"])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(yaml.safe_dump(output, sort_keys=False), encoding="utf-8")

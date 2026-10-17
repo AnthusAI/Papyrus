@@ -1,0 +1,70 @@
+{
+  "id": "PPY-65d13a20-eef2-40f7-a3d3-4fab8f595fce",
+  "title": "M5 Pilobol.us onto S3 projection (pre-production)",
+  "description": "## Outcome\npilobol.us is served from its S3 projection bucket through the existing papyrus-edge-pilobol-us distribution; publishing an edit updates the live site in seconds; the Amplify reader dpdg1mg84dlwb is no longer used.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 9 (Migration, Pilobol.us).\n\n## Checklist\n- [ ] Pilobol.us site config: backend.publication.kind = \"s3-projection\"; deploy CMS backend (create-only for the new resources)\n- [ ] renditions --all; project-all into the bucket\n- [ ] Parity: projected bucket vs today's reader output from the same export (byte-identical) and vs live (capture.py compare)\n- [ ] Swap the reader origin on papyrus-edge-pilobol-us to the bucket (OAC) and attach the function; rollback = swap back\n- [ ] Remove PAPYRUS_READER_AMPLIFY_APP_ID; time Save -> Live for a test edit\n- [ ] Hand the reader app to Ryan for deletion\n\n## Acceptance\n- curl https://pilobol.us/ and every sitemap URL: 200, same content-type, HTML sha256 equal to the projected bucket objects.\n- A test edit in newsroom.pilobol.us is visible on pilobol.us within 60 s; mutation response has live:true.\n\n## Out of scope\nAnth.us; deleting the reader app (Ryan).\n\n## Dependencies\nBlocked by M1, M2, M3, M4.\n\n## Risk\nLow (pre-production; move fast, brief downtime acceptable).\n\n## Estimate\n3-5 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-aebfcdf1-ccf7-41bb-933b-ded29a19f4ea",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-33c589f0-fad5-43bf-a23e-75e295962758",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3d905dde-4a01-467b-95b8-53abe6f9e1ef",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "433d829c-71bb-4ecc-8b3f-0d47341bb2d5",
+      "author": "home",
+      "text": "M5 evidence (agent). Pilobol.us PRs: #64 (projector web/projector.py, s3-projection config, next.48, media originals; merged db86b4f), #65 (drop Amplify reader id; open for merge). Papyrus #197 (media originals in renditions Lambda, in next.48). Parity: full-tree diff of old-library reader build vs project --all is empty (94 files); live 65-path check after the switch: all statuses equal, 41 byte-identical, HTML differs only by the cache-bust token (media not in the token on the Lambda path); content-type differs by charset and sitemap application/xml vs text/xml; /articles now 200 not 301. Edge stack papyrus-edge-pilobol-us changed via change set (only ReaderDistribution origin/OAC/function/error responses + new OAC; template /Users/home/Projects/edge-cloudfront/pilobol-us.yaml, not in git). Publish test through the real content-actions Lambda: page live in 9.8 s (about 8 s of it Amplify reader rebuild retries, removed by #65), unpublish gone in 8.2 s; Item/PublishedItem counts 21/18 before and after. Media upload test: object under media/ visible at pilobol.us in about 2 s. Issues for M7/M10: cache-bust token excludes media; edge template outside git; cache policy changed to CachingOptimized for the reader; legacy CMS app dv0pdx67fk80m config loses its reader trigger; AGENTS.md/README in Pilobol.us still describe the Amplify reader.",
+      "created_at": "2026-10-12T23:57:44.894473Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "59243ac2-ec11-4edb-a2de-9e4c96ede056",
+      "author": "home",
+      "text": "M5 evidence. Pilobol.us PRs: #64 (projector web/projector.py, s3-projection config, next.48, media originals; merged db86b4f), #65 (drop Amplify reader id; open, needs merge). Papyrus #197 (media originals in the renditions Lambda, in next.48). Parity: full-tree diff of the old-library reader build vs project --all is empty (94 files). Live 65-path check after the switch: all statuses equal, 41 byte-identical, HTML differs only by the cache-bust token (media not in the token on the Lambda path); content-type differs by charset, sitemap is application/xml not text/xml; /articles is 200 not 301. Edge stack papyrus-edge-pilobol-us changed by change set (only ReaderDistribution origin, OAC, function, error responses, plus a new OAC); template /Users/home/Projects/edge-cloudfront/pilobol-us.yaml is not in git. Publish test through the real content-actions Lambda: live in 9.8 s (about 8 s of it Amplify reader rebuild retries, removed by #65); unpublish gone in 8.2 s; Item/PublishedItem counts 21/18 before and after. Media: object under media/ visible at pilobol.us in about 2 s. Issues for M7/M10: token excludes media; edge template outside git; reader cache policy now CachingOptimized; legacy CMS app dv0pdx67fk80m loses its reader trigger; Pilobol.us AGENTS.md/README still describe the Amplify reader.\n",
+      "created_at": "2026-10-12T23:58:02.381293Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5"
+      }
+    },
+    {
+      "id": "bee5dc66-dea2-4780-a5b3-dd5fd9139f2b",
+      "author": "home",
+      "text": "CMS deploy + real publish test (2026-10-13). Builds on d1eiwl0gedkmnj main: job 11 (f11f6bc, PR65) SUCCEED 06:43-06:51, job 12 (09dc395, PR66) SUCCEED 06:51-06:59; backend stacks UPDATE/CREATE_COMPLETE, no rollback. newsroom.pilobol.us/newsroom 200 (via 307->/), Cognito domain papyrus-pilobol-us-cms ACTIVE on pool us-east-1_Fw8LBiG39 (unchanged). content-actions Lambda env: no PAPYRUS_READER_AMPLIFY_APP_ID/branch; role amplify:StartJob/ListJobs only on CMS app staging branch. Old reader dpdg1mg84dlwb untouched: latest job 16 (SUCCEED) before and after. Publish test, slug zz-publish-test-c90300: publishItem returned live:true, page 200 8.7s after call (projection ~8.3s in Lambda); unpublishItem -> 404 in 3.5s; no Amplify reader build. Deleted the Item; counts before=after: Item 21, PublishedItem 18, MediaAsset 13, PublishedMediaAsset 12; page 404. Image-via-media-bucket test skipped (not cheap). 65-path capture vs phase6 baseline: 65/65 paths, sizes equal, only diffs are ?v= token (56e0dc88fcb6 -> a675b4372af2; HTML hashes equal after normalizing), content-type charset, sitemap application/xml vs text/xml; /articles 200 (was 301). robots Allow, newsroom + staging.pilobol.us 200. Status left for Ryan.",
+      "created_at": "2026-10-13T11:19:45.643874Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-12T18:27:52.075260Z",
+  "updated_at": "2026-10-13T11:19:45.643901Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The S3 projection works, but PR #65 and documentation updates remain before the migration is complete.",
+  "right_now_updated_at": "2026-10-12T23:58:03.675027Z",
+  "custom": {}
+}

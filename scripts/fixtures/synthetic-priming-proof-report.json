@@ -1,0 +1,89 @@
+{
+  "version": "cyclotron-priming-proof/v1",
+  "proofId": "synthetic-fixture",
+  "publication": "Synthetic fixture (scripted model, not a real run)",
+  "cyclotronId": "papyrus-relevance",
+  "question": "Should this candidate source become a reference for this publication?",
+  "labels": [
+    "include",
+    "exclude"
+  ],
+  "positiveLabel": "include",
+  "decisionModel": "scripted-nearest-example",
+  "ranAt": "2026-10-17T00:00:00Z",
+  "heldOut": {
+    "size": 20,
+    "byLabel": {
+      "include": 10,
+      "exclude": 10
+    },
+    "fingerprint": "1a34c43d27153479cef1d69d20d3b4d12004c48987234edd5d57d1c6e0149030",
+    "frozenAt": "2026-10-17T00:00:00Z",
+    "source": "References editors reviewed in the Newsroom, labeled by the scope-training rule"
+  },
+  "priming": {
+    "acceptedExamples": 6,
+    "excludedBecauseInHeldOut": 0,
+    "fingerprint": null,
+    "order": "acceptance order"
+  },
+  "conditions": {
+    "freshStorePerPoint": true,
+    "rubric": "publication doctrine seed",
+    "optimizer": false,
+    "reviewProgram": false
+  },
+  "points": [
+    {
+      "labels": 0,
+      "labelsByClass": {
+        "include": 0,
+        "exclude": 0
+      },
+      "decided": 20,
+      "agreement": 0.5,
+      "precision": 0.5,
+      "recall": 1.0,
+      "confusion": {
+        "truePositives": 10,
+        "falsePositives": 10,
+        "trueNegatives": 0,
+        "falseNegatives": 0
+      }
+    },
+    {
+      "labels": 3,
+      "labelsByClass": {
+        "include": 1,
+        "exclude": 2
+      },
+      "decided": 20,
+      "agreement": 0.7,
+      "precision": 0.625,
+      "recall": 1.0,
+      "confusion": {
+        "truePositives": 10,
+        "falsePositives": 6,
+        "trueNegatives": 4,
+        "falseNegatives": 0
+      }
+    },
+    {
+      "labels": 6,
+      "labelsByClass": {
+        "include": 1,
+        "exclude": 5
+      },
+      "decided": 20,
+      "agreement": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "confusion": {
+        "truePositives": 10,
+        "falsePositives": 0,
+        "trueNegatives": 10,
+        "falseNegatives": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "id": "PPY-2ab62612-fd7b-4ce9-a0d2-453b2db50390",
+  "title": "Browse Papyrus record types without collapsing them into stories",
+  "description": "Feature: Type-aware Papyrus record browsing\nScenario: See all actual base record models\nGiven the current Papyrus schema\nWhen I browse records by domain, type, or text\nThen every persistent base model is discoverable with meaningful labels and actual schema fields\nAnd synthetic examples disclose that no live backend mapping is connected\nScenario: Reference curation lifecycle\nGiven a synthetic reference with an actual curation status\nWhen I change its curation status and reload\nThen the local preview store preserves the status and reason\nScenario: Non-workflow records\nGiven an attachment, relationship, identity, or publication copy\nWhen I open its list and detail\nThen no story stage controls or invented workflow is presented\nAnd the original story board and priming remain functional",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3edacbfc-75d5-440c-bbad-88f73571c9dc",
+      "author": "home",
+      "text": "Approved direction and compatibility checkpoint: Papyrus newsprint (not green/cobalt/Prospectus); distinct Story, Assignment and Reference boards, forum MessageThread/Message, all schema types discoverable as explicitly synthetic partial examples. Actual old ten-section nav inventoried; carry-forward action flows remain separate work, no full parity claim. Story→Article direction approved, but Kanbus validator fixes canonical hierarchy and non-hierarchy story cannot parent. Preserve Item revisions and Assignment identities; propose explicit typed cross-model links rather than false parentage; no hierarchy change/migration applied. See docs/unified-records-review.md.",
+      "created_at": "2026-10-15T01:55:47.156344Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "papyrus-unified-review"
+      }
+    },
+    {
+      "id": "6bf2d768-1104-4505-88b0-8597395f99e0",
+      "author": "home",
+      "text": "Local increment a26de81 is now served on the same 8899 URL. Actual Papyrus paper/ink/rule tokens and self-hosted Playfair/Jakarta replace green/retro styling. Three separate board-capable types (existing actual Kanbus stories, schema-shaped local Assignment and Reference adapters), persistent forum thread replies, and schema-type lists/linked details are verified. Seven Python tests, TypeScript, lint/build, original Kanbus+Cyclotron browser workflows and new 390/1440 light/dark type-aware browser suite pass. Existing ten-section directory is carried forward with explicit missing-action labels; this is NOT old-CMS feature parity or cloud implementation of 39 models. No production changes or hierarchy migration. See docs/unified-records-review.md.",
+      "created_at": "2026-10-15T01:57:03.023056Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "papyrus-unified-review"
+      }
+    }
+  ],
+  "created_at": "2026-10-15T01:38:36.856672Z",
+  "updated_at": "2026-10-15T01:57:03.023097Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "papyrus-unified-review"
+  },
+  "right_now_summary": "Type-aware Papyrus browsing is verified locally while old workflows remain unchanged.",
+  "right_now_updated_at": "2026-10-15T01:57:04.625052Z",
+  "custom": {}
+}

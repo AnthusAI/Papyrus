@@ -12,6 +12,9 @@ export type PictogramFigureProps = {
   credit: string;
   figureClassName: string;
   height: number;
+  /** Rhythm blog layout: solved frame size in CSS pixels; wins over `height`/`width` when set. */
+  frameHeight?: number;
+  frameWidth?: number;
   layout?: ArticleImageLayout;
   priority?: boolean;
   sizes: string;
@@ -34,6 +37,8 @@ export function PictogramFigure({
   caption,
   credit,
   figureClassName,
+  frameHeight,
+  frameWidth,
   height,
   priority = false,
   sizes,
@@ -41,6 +46,8 @@ export function PictogramFigure({
   themeVariants,
   width,
 }: PictogramFigureProps) {
+  const imageHeight = frameHeight ?? height;
+  const imageWidth = frameWidth ?? width;
   const resolvedTheme = useResolvedPapyrusTheme();
   const themedImageSrc = resolveThemedImageSrc(src, themeVariants, resolvedTheme);
 
@@ -53,8 +60,8 @@ export function PictogramFigure({
       <Image
         src={themedImageSrc}
         alt={alt}
-        width={width}
-        height={height}
+        width={imageWidth}
+        height={imageHeight}
         sizes={sizes}
         priority={priority}
         unoptimized={shouldBypassImageOptimization(themedImageSrc)}

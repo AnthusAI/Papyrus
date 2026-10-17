@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "3f4f8d4d-be13-45e8-8daf-15f0ab2eb7ed",
+  "issue_id": "PPY-29067fa8-4a89-4125-a08e-5c7839bf0c14",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T18:50:19.810Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Deployed lean schema lacks SemanticNode ranking fields the Python client selects",
+    "description": "The lean deployed schema (amplify/data/schema.ts) omits SemanticNode authorityScore, authorityRank, acceptedReferenceMentionCount, distinctSourceKindCount and relationCount, which amplify/data/resource.ts and graphql_authoring.SEMANTIC_NODE_FIELDS use. Any getSemanticNode call from the Python client fails validation (seen in the relevance sweep --apply on sandbox ppy-6b4094). Per AGENTS.md, fix the deployment, not the client.\n\n```gherkin\nFeature: Deployed schema matches the typed schema\n  Scenario: SemanticNode fields are deployed\n    Given the typed schema in amplify/data/resource.ts\n    When the schema parity check compares it with amplify/data/schema.ts\n    Then every SemanticNode field in the typed schema is in the deployed schema\n```",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

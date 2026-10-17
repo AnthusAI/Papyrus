@@ -1,0 +1,48 @@
+.papyrus-newsprint-board {
+  --background: var(--org-paper);
+  --card: var(--org-paper);
+  --frame: var(--org-paper);
+  --column: var(--org-paper);
+  --border: var(--org-line);
+  --text-foreground: var(--org-ink);
+  --text-muted: var(--org-muted);
+  --text-selected: var(--org-ink);
+  --font-body: Newsroom UI, system-ui, sans-serif;
+  --kb-column-width: 245px;
+  --kb-column-radius: 0;
+  --kb-card-radius: 0;
+  --kb-card-border-width: 0;
+  --kb-card-shadow: none;
+  --kb-card-selected-shadow: none;
+  --kb-board-gap: 18px;
+  color: var(--org-ink);
+  background: transparent;
+}
+.papyrus-newsprint-board .kb-grid { height: 100%; min-height: 0; scrollbar-width: thin; }
+.papyrus-newsprint-board .kb-column { border-left: 1px solid var(--org-line); padding-left: 10px; }
+.papyrus-newsprint-board .kb-column-header {
+  border-bottom: 2px solid var(--org-ink);
+  padding: 5px 0;
+  font: 700 12px Newsroom Display, Georgia, serif;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  min-height: 32px;
+}
+.papyrus-newsprint-board .issue-card {
+  --issue-accent: var(--org-paper) !important;
+  --issue-accent-muted: var(--muted) !important;
+  --issue-accent-foreground: var(--org-ink) !important;
+  --issue-priority-bg: var(--org-paper) !important;
+  background: transparent !important;
+  border-radius: 0;
+  border-bottom: 1px solid var(--org-line) !important;
+  box-shadow: none !important;
+}
+.papyrus-newsprint-board .issue-accent-bar { border-bottom: 1px solid var(--org-line); background: var(--org-paper) !important; color: var(--org-ink) !important; }
+.papyrus-newsprint-board .issue-accent-id { font: 400 9px Newsroom UI, system-ui, sans-serif; letter-spacing: .8px; white-space: nowrap; color: var(--org-ink) !important; }
+.papyrus-newsprint-board .issue-accent-priority { border-radius: 0; color: var(--org-muted) !important; background: transparent !important; font-size: 8px; }
+.papyrus-newsprint-board .issue-card h3 { font: 700 19px/1.2 Newsroom Display, Georgia, serif !important; letter-spacing: -.2px; }
+.papyrus-newsprint-board .issue-card[data-selected=true] { outline: 2px solid var(--org-ink); outline-offset: -2px; }
+.papyrus-newsprint-board .issue-card[data-selected=true] h3 { color: var(--org-ink) !important; }
+.papyrus-newsprint-board .kb-issue-detail { background: var(--org-paper); border: 1px solid var(--org-line); border-radius: 0; box-shadow: none; }
+.papyrus-newsprint-board .kb-issue-detail h2 { font: 700 28px/1.2 Newsroom Display, Georgia, serif; border-bottom: 3px double var(--org-ink); padding-bottom: 12px; }

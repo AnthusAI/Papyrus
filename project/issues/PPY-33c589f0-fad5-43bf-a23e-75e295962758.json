@@ -1,0 +1,44 @@
+{
+  "id": "PPY-33c589f0-fad5-43bf-a23e-75e295962758",
+  "title": "M2 Media renditions at upload time",
+  "description": "## Outcome\nImage renditions are made once, when media is uploaded, by an S3-triggered Lambda using the same Papyrus ImageBuilder code; item renders never decode or encode images. Existing media are back-filled.\n\n## Design\n/Users/home/Projects/markus-publication-architecture-v2.md section 3 (Images at upload time).\n\n## Checklist\n- [ ] renditions Lambda (Python, Pillow>=11.3 for AVIF, 3008 MB, 5 min) on S3 ObjectCreated media/* via EventBridge\n- [ ] Writes renditions at today's deterministic paths (/assets/responsive/<dir>/<stem>-<w>.<fmt>) plus <stem>.meta.json and the listing thumbnail (<=1600 px)\n- [ ] Renderer reads meta.json instead of opening images; inline fallback when renditions are missing\n- [ ] papyrus ops site renditions --all back-fill (one invoke per image)\n- [ ] Raise content-actions Pillow pin to >=11.3\n\n## Acceptance\n- Upload a test image in the newsroom; renditions and meta.json appear in the site bucket within 60 s.\n- Item render with images performs zero PIL.Image.open calls (instrumented test).\n- Back-fill on Anth.us media: rendition set (paths, dimensions) equals today's build; image bytes compared visually (AVIF bytes may differ on arm64).\n\n## Out of scope\nChanging rendition widths/formats; a CDN image service.\n\n## Dependencies\nBlocked by M1.\n\n## Risk\nAVIF determinism across x86/arm64; Lambda memory/time for 4096 px AVIF.\n\n## Estimate\n4-6 agent-hours.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-aebfcdf1-ccf7-41bb-933b-ded29a19f4ea",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-4467786c-39b2-4e05-9233-5d0a3ea2851e",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "502cd88b-bf2a-4c62-8516-a1d335df1b17",
+      "author": "home",
+      "text": "M2 report. Code: PR #192 (ba4dc80, merged, CI green), released as @anthusai/papyrus 1.0.0-next.45. What: papyrus_content.renditions (builds renditions with the same ImageBuilder code, writes assets/responsive/<dir>/<stem>-<w>.<fmt>, <stem>.meta.json last, optional listing copy assets/content/<src>); renditions Lambda (py3.12 arm64 3008 MB 5 min, EventBridge Object Created media/*) created only for s3-projection sites whose projection.json has an images section; default projector renders ::image from stored renditions (zero PIL.Image.open) and fails loudly with the fix command when a meta.json is missing; papyrus ops content renditions (--backfill | --source P) [--dry-run]; content-actions Pillow >=11.3 (pyproject.toml left alone to keep poetry.lock valid). Evidence: Gherkin features_backend/renditions.feature (10 scenarios, byte-identical to the full build in gatsby and legacy modes); 5 real Anth.us images byte-identical to the Anth.us full-build ImageBuilder + _copy_image (10 files each, incl. 4096x4096); site.json app-shell synth for Pilobol.us, p.apyr.us, Threat-Intelligence, Pretext, Anth.us byte-identical before/after. AWS proof (throwaway stack papyrus-m2-test in papyrus-production, deleted, buckets emptied, log groups and my CDK assets removed): upload to meta.json visible in 6.8 s cold (key with a space works); 246 uploads rendered, 0 errors; Lambda arm64 AVIF output byte-identical to the Mac build; cold start Init 242-288 ms (18 cold starts), rendition median 2.1 s, p95 14.3 s, max 80 s (4168x2953 RGBA PNG, same 80 s in isolation; 4096x4096 RGB 14 s); peak memory 1022 MB; this account caps Lambda memory at 3008 MB. Back-fill CLI: dry-run, apply, re-apply idempotent (2 would-render -> 2 rendered -> 246 skipped-existing). Anth.us projector (M1 AnthusProjector with the stored-rendition builder) vs a cold full build of the same export: all 117 article pages byte-identical, 0 image opens, 231 meta reads from S3 (8 parallel reads: 17 metas 275 ms vs 1163 ms sequential, from a Mac). Bug found by the proof and fixed in the same PR: renditions role needed s3:ListBucket on the site bucket (missing key read as 403). Left for M3/M4: the Anth.us projector still uses its own StoredMetadataImageBuilder (swap to papyrus_content.renditions.StoredRenditionImageBuilder, drop site-state images); a save right after an upload fails the projection until the rendition lands (seconds) and relies on the DLQ/reconcile; renditions are immutable-cached so replacing an image at the same path needs a new path or an invalidation; deleting media does not delete renditions; x86 vs arm64 AVIF not compared (reference builds were arm64 Mac).",
+      "created_at": "2026-10-12T21:58:22.508882Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-12T18:27:43.701393Z",
+  "updated_at": "2026-10-12T21:58:22.509179Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "markus-publication-architect"
+  },
+  "right_now_summary": "The rendition pipeline is built and tested; projector integration and upload-race handling still need work.",
+  "right_now_updated_at": "2026-10-12T21:58:25.120196Z",
+  "custom": {}
+}

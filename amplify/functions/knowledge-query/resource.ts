@@ -1,18 +1,21 @@
 import { defineFunction } from "@aws-amplify/backend";
 import { Duration } from "aws-cdk-lib";
-import { Architecture, Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
+import { Architecture, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isPackageMode, pythonLambdaCode } from "../shared/python-bundle";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+// Repo root in a checkout, package root when installed from npm.
 const projectRoot = path.resolve(dirname, "../../..");
 
 function storageBucketName(): string {
   if (process.env.PAPYRUS_STORAGE_BUCKET_NAME) return process.env.PAPYRUS_STORAGE_BUCKET_NAME;
 
-  const outputsPath = path.join(projectRoot, "amplify_outputs.json");
+  // Publication repo root (cwd) in package mode; repo root in a checkout.
+  const outputsPath = path.join(isPackageMode() ? process.cwd() : projectRoot, "amplify_outputs.json");
   if (!fs.existsSync(outputsPath)) return "";
 
   try {
@@ -23,18 +26,6 @@ function storageBucketName(): string {
   } catch {
     return "";
   }
-}
-
-function bundleKnowledgeQuery(outputDir: string): void {
-  const packageDir = path.join(outputDir, "papyrus_knowledge_query");
-  fs.mkdirSync(packageDir, { recursive: true });
-  fs.copyFileSync(
-    path.join(projectRoot, "amplify/functions/knowledge-query/handler.py"),
-    path.join(outputDir, "handler.py"),
-  );
-  fs.cpSync(path.join(projectRoot, "src/papyrus_knowledge_query"), packageDir, {
-    recursive: true,
-  });
 }
 
 export const knowledgeQuery = defineFunction(
@@ -48,27 +39,22 @@ export const knowledgeQuery = defineFunction(
       environment: {
         PAPYRUS_STORAGE_BUCKET_NAME: storageBucketName(),
       },
-      code: Code.fromAsset(projectRoot, {
-        bundling: {
-          image: Runtime.PYTHON_3_12.bundlingImage,
-          local: {
-            tryBundle(outputDir: string): boolean {
-              bundleKnowledgeQuery(outputDir);
-              return true;
-            },
-          },
-          command: [
-            "bash",
-            "-c",
-            [
-              "set -euo pipefail",
-              "mkdir -p /asset-output/papyrus_knowledge_query",
-              "cp amplify/functions/knowledge-query/handler.py /asset-output/handler.py",
-              "cp -R src/papyrus_knowledge_query/. /asset-output/papyrus_knowledge_query/",
-            ].join(" && "),
-          ],
+      code: pythonLambdaCode(
+        {
+          functionDir: "knowledge-query",
+          modules: ["papyrus_knowledge_query"],
         },
-      }),
+        [
+          "bash",
+          "-c",
+          [
+            "set -euo pipefail",
+            "mkdir -p /asset-output/papyrus_knowledge_query",
+            "cp amplify/functions/knowledge-query/handler.py /asset-output/handler.py",
+            "cp -R src/papyrus_knowledge_query/. /asset-output/papyrus_knowledge_query/",
+          ].join(" && "),
+        ],
+      ),
     });
   },
   { resourceGroupName: "data" },

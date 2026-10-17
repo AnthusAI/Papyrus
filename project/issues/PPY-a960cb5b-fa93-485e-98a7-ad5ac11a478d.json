@@ -1,0 +1,37 @@
+{
+  "id": "PPY-a960cb5b-fa93-485e-98a7-ad5ac11a478d",
+  "title": "New Pilobol.us reader app serves the homepage body for unknown paths instead of the custom 404 page",
+  "description": "",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+  "labels": [
+    "phase-3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "79a5b3f3-07bf-4cf9-856c-40aa9c2fa69e",
+      "author": "home",
+      "text": "Cause: the live reader app dssc97s4q5kgk has customRules `/<*>` -> `/index.html` (404-200) (old app d1od6t7lzbwanr has `/<*>` -> `/404.html` 404-200). The amplify-app-shell template sets NO customRules on the reader app (only on the CMS app, SPA-style index.html), and site.json has no reader.customRules key, so no site-level fix exists. Fix: template PR https://github.com/AnthusAI/Papyrus/pull/137 (branch feature/PPY-a960cb-reader-404-rule): reader catch-all `/<*>` -> `/404.html` 404-200, synth test, docs. CI: ts and python pass. NOT applied: needs release, papyrusVersion pin bump in Pilobol.us site.json, then reviewed cdk diff and update of amplify-app-shell-pilobol-us-cms. Live app unchanged.",
+      "created_at": "2026-10-06T20:50:55.936600Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "71091cd6-ec72-4cc4-a7ad-409df5872fd4",
+      "author": "home",
+      "text": "Pilobol.us PR https://github.com/AnthusAI/Pilobol.us/pull/51 (pins 1.0.0-next.15, not merged). Stack amplify-app-shell-pilobol-us-cms deployed: cdk diff showed only reader buildspec (papyrus-newsroom 1.0.0.dev12 -> dev15) and reader CustomRules `/<*>` -> `/404.html` 404-200. Reader app dssc97s4q5kgk now serves custom 404 body (2322 bytes) for unknown paths; real paths and /404.html byte-identical to pilobol.us.",
+      "created_at": "2026-10-06T21:59:56.864510Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-06T20:43:17.309717Z",
+  "updated_at": "2026-10-06T21:59:56.864861Z",
+  "closed_at": "2026-10-06T20:51:15.992278Z",
+  "right_now_summary": "The reader app now serves the custom 404 page for unknown paths after the fix was deployed.",
+  "right_now_updated_at": "2026-10-06T21:59:59.601415Z",
+  "custom": {}
+}

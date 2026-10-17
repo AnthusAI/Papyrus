@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2a9569b6-3be2-4671-a64b-509aed2ec5e8",
+  "issue_id": "PPY-f642a475-18de-4a58-aa94-84ea595fcc91",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-13T23:43:24.860Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "labels": {
+        "from": [],
+        "to": [
+          "canceled"
+        ]
+      }
+    }
+  }
+}

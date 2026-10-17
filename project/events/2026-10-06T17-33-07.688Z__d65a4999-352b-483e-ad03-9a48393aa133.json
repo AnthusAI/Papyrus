@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d65a4999-352b-483e-ad03-9a48393aa133",
+  "issue_id": "PPY-6cf34138-7f9a-4a4e-8e39-994093c89c32",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-06T17:33:07.688Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom sign-in is Google-redirect only: \"oauth param not configured\" on a backend with Google OAuth disabled; add email+password sign-in",
+    "description": "Newsroom LOGIN calls signInWithRedirect Google only (components/reader-auth-control.tsx). Backends without Google OAuth fail with \"oauth param not configured\". When OAuth is not configured, present email+password sign-in, sign-up with confirmation code, sign-out; keep Google when configured; staging gate must accept email+password sessions.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3367d3af-4a9a-4a65-8e74-0d80dc0758bd",
+    "labels": [
+      "phase-3"
+    ]
+  }
+}

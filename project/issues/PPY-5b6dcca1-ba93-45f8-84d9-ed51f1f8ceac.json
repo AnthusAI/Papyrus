@@ -1,0 +1,37 @@
+{
+  "id": "PPY-5b6dcca1-ba93-45f8-84d9-ed51f1f8ceac",
+  "title": "Staging serves no robots.txt (404): staging must serve Disallow: / ; production robots should be defined",
+  "description": "",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d7eb37ed-de2c-40a0-9fa2-fba181a178a5",
+      "author": "home",
+      "text": "Root cause: `packages/papyrus/scripts/stage.mjs` ROUTE_FILE regex omitted `robots`, so `routes.manifest.json` had no `app/robots.ts` and `papyrus-app sync` wrote no `/robots.txt` shim; consumers 404 in staging and production. Fix: PR #185 (squash a02f90e), released 1.0.0-next.39. `lib/robots-policy.ts`: staging/dev Disallow all, production Allow /, newsroom rootRoute hosts Disallow all always; site-owned app/robots.ts wins. Tests: test:robots-policy (in test:ci:ts), test:package-contents manifest assertion; verified in scratch p.apyr.us consumer. Sites must bump @anthusai/papyrus to 1.0.0-next.39 and run sync.",
+      "created_at": "2026-10-10T19:40:04.172894Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "97db67f7-0d21-4c69-9695-4f3cb4e0836c",
+      "author": "home",
+      "text": "Pin bumps to @anthusai/papyrus 1.0.0-next.39 done and verified (robots.txt: production Allow: /, staging Disallow: /). p.apyr.us PR #9 merged as 5c5fb9e (main job 12 and staging job 3 SUCCEED). Threat-Intelligence PR #19 merged as 5847655 (main job 14 and staging job 4 SUCCEED).",
+      "created_at": "2026-10-10T20:02:37.040910Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-10T19:23:20.998533Z",
+  "updated_at": "2026-10-10T20:02:37.040946Z",
+  "closed_at": "2026-10-10T19:40:14.417666Z",
+  "right_now_summary": "The fix is released, and staging and production now serve the correct robots.txt rules.",
+  "right_now_updated_at": "2026-10-10T20:02:38.911406Z",
+  "custom": {}
+}

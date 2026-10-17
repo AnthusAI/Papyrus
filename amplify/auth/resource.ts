@@ -1,9 +1,15 @@
 import { defineAuth, secret } from "@aws-amplify/backend";
 import { manageUserRole } from "../functions/manage-user-role/resource";
+import { Stack } from "aws-cdk-lib";
+import { CfnUserPoolDomain } from "aws-cdk-lib/aws-cognito";
+import type { PapyrusAuthConfig } from "../site-backend-config";
+import { expandNewsroomRedirectUrls } from "./redirect-urls";
 
-// Default OAuth redirect URLs for the p.apyr.us app. Other publications
-// override via the PAPYRUS_OAUTH_REDIRECT_URLS branch env var (comma-
-// separated). See docs/google-oauth-setup.md.
+// Default OAuth redirect URLs for the p.apyr.us app. Other publications pass
+// `auth.redirectUrls` to `defineSiteBackend` (or, for Papyrus's own backend,
+// the PAPYRUS_OAUTH_REDIRECT_URLS branch env var, comma-separated).
+// `defineSiteAuth` adds the newsroom and root variants of every origin listed.
+// See docs/google-oauth-setup.md.
 const DEFAULT_AUTH_REDIRECT_URLS = [
   "http://localhost:3001/",
   "http://localhost:3000/",
@@ -21,35 +27,61 @@ function resolveAuthRedirectUrls(): string[] {
     .filter((url) => url.length > 0);
 }
 
-const authRedirectUrls = resolveAuthRedirectUrls();
+/** Auth config from the environment (what Papyrus's own backend uses today). */
+export function authConfigFromEnv(): PapyrusAuthConfig {
+  return {
+    redirectUrls: resolveAuthRedirectUrls(),
+    disableGoogleOAuth: process.env.PAPYRUS_DISABLE_GOOGLE_OAUTH === "1",
+    cognitoDomainPrefix: (process.env.PAPYRUS_COGNITO_DOMAIN_PREFIX ?? "").trim(),
+    applyCognitoDomainPrefix: process.env.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX === "true",
+  };
+}
 
-const disableGoogleOAuth = process.env.PAPYRUS_DISABLE_GOOGLE_OAUTH === "1";
-
-// Stable Cognito hosted-UI domain prefix for Google OAuth redirect URIs.
-// Set per publication via CDK app-shell branch env. See docs/google-oauth-setup.md.
-const cognitoDomainPrefix = (process.env.PAPYRUS_COGNITO_DOMAIN_PREFIX ?? "").trim();
-
-export const auth = defineAuth({
-  loginWith: {
-    email: true,
-    ...(disableGoogleOAuth
-      ? {}
-      : {
-          externalProviders: {
-            google: {
-              clientId: secret("GOOGLE_CLIENT_ID"),
-              clientSecret: secret("GOOGLE_CLIENT_SECRET"),
-              scopes: ["email", "profile", "openid"],
+export function defineSiteAuth(config: PapyrusAuthConfig) {
+  const authRedirectUrls = expandNewsroomRedirectUrls(
+    config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS,
+    config.newsroomBasePath,
+  );
+  const disableGoogleOAuth = config.disableGoogleOAuth === true;
+  return defineAuth({
+    loginWith: {
+      email: true,
+      ...(disableGoogleOAuth
+        ? {}
+        : {
+            externalProviders: {
+              google: {
+                clientId: secret("GOOGLE_CLIENT_ID"),
+                clientSecret: secret("GOOGLE_CLIENT_SECRET"),
+                scopes: ["email", "profile", "openid"],
+              },
+              scopes: ["EMAIL", "PROFILE", "OPENID"],
+              callbackUrls: authRedirectUrls,
+              logoutUrls: authRedirectUrls,
             },
-            scopes: ["EMAIL", "PROFILE", "OPENID"],
-            callbackUrls: authRedirectUrls,
-            logoutUrls: authRedirectUrls,
-            ...(cognitoDomainPrefix ? { domainPrefix: cognitoDomainPrefix } : {}),
-          },
-        }),
-  },
-  groups: ["admin", "editor", "curator"],
-  access: (allow) => [
-    allow.resource(manageUserRole).to(["addUserToGroup", "removeUserFromGroup", "listUsers", "listGroupsForUser"]),
-  ],
-});
+          }),
+    },
+    groups: ["admin", "editor", "curator"],
+    access: (allow) => [
+      allow.resource(manageUserRole).to(["addUserToGroup", "removeUserFromGroup", "listUsers", "listGroupsForUser"]),
+    ],
+  });
+}
+
+// Amplify Gen2's auth factory overwrites `externalProviders.domainPrefix` with a
+// hash of the backend id, so the prefix cannot be passed through `defineAuth`.
+// This sets the user pool domain on the synthesized resource instead. Cognito
+// cannot rename a pool domain in place: CloudFormation replaces the domain,
+// which changes the hosted-UI URL and the Google redirect URI. Callers must
+// only use it when the site opted in (see docs/google-oauth-setup.md).
+export function applyCognitoDomainPrefix(authStack: Stack, cognitoDomainPrefix: string): void {
+  const domainResources = authStack.node
+    .findAll()
+    .filter((construct): construct is CfnUserPoolDomain => construct instanceof CfnUserPoolDomain);
+  if (domainResources.length !== 1) {
+    throw new Error(
+      `Expected exactly one Cognito user pool domain in the auth stack to apply cognitoDomainPrefix, found ${domainResources.length}`,
+    );
+  }
+  domainResources[0].domain = cognitoDomainPrefix;
+}

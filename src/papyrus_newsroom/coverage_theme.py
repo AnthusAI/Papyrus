@@ -12,6 +12,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.content_item_lifecycle import (
+    build_new_content_item_version,
+    content_item_lineage_id_for_first_work,
+)
+
 
 DEFAULT_SECTIONS = ["culture", "methods", "business", "law"]
 DEFAULT_SECTION_BUDGETS = {
@@ -95,7 +100,7 @@ slug title status editionDate publishedAt description layoutPlan metadata
 ASSIGNMENT_FIELDS = """
 id assignmentTypeKey queueKey queueStatusKey status priority title summary assigneeType assigneeId assigneeKey claimedAt claimExpiresAt
 completedAt canceledAt corpusId categorySetId classifierId sourceSnapshotId importRunId sectionId sectionKey sectionType sectionStatusKey
-sectionQueueStatusKey primaryFocusCategoryKey topicScopeCategoryKeys createdBy createdAt updatedAt newsroomFeedKey
+sectionQueueStatusKey primaryFocusCategoryKey topicScopeCategoryKeys createdBy createdAt updatedAt newsroomFeedKey itemLineageId
 """
 ASSIGNMENT_EVENT_FIELDS = """
 id assignmentId assignmentTypeKey queueKey eventType fromStatus toStatus actorSub actorLabel note createdAt
@@ -127,7 +132,7 @@ id ownerKind ownerId ownerLineageId ownerVersionNumber ownerVersionKey role sort
 importRunId createdAt updatedAt status
 """
 ITEM_FIELDS = """
-id lineageId versionNumber versionState type status typeStatus slug shortSlug section sectionStatus title headline deck byline dateline
+id lineageId versionNumber versionState type status typeStatus stage slug shortSlug section sectionStatus title headline deck byline dateline
 publishedAt editionDate sortTitle body editorial updatedAt
 """
 EDITION_ITEM_FIELDS = """
@@ -1398,6 +1403,7 @@ def _build_sections_dispatch_bundle(
                 priority=priority_base + rank,
             )
             reporting_assignments.append(reporting_assignment)
+            records.append(_record("Item", candidate_content_item_version(reporting_assignment, now)))
             records.extend(assignment_records(reporting_assignment, edition, coverage_node, section, category, category_set, now, signal=signal))
             records.append(_record("SemanticRelation", semantic_relation(
                 predicate="targets_lane",
@@ -5121,8 +5127,10 @@ def reporting_assignment_record(**kwargs: Any) -> dict[str, Any]:
         summary = f"Reporting candidate on {topic} for {section['title']}, angle: {angle['label']}."
         brief = f"Build a private reporting context packet. Angle: {angle['prompt']}."
     queue_key = f"coverage-theme:{date}:section:{section['id']}:lane:reporting"
+    assignment_id = f"assignment-coverage-theme-reporting-{_safe_id(run_id)}-{_safe_id(section['id'])}-{kwargs['candidate_rank']:02d}-{_safe_id(angle['key'])}"
     return {
-        "id": f"assignment-coverage-theme-reporting-{_safe_id(run_id)}-{_safe_id(section['id'])}-{kwargs['candidate_rank']:02d}-{_safe_id(angle['key'])}",
+        "id": assignment_id,
+        "itemLineageId": content_item_lineage_id_for_first_work(title=title, first_assignment_id=assignment_id),
         "assignmentTypeKey": "reporting.edition-candidate",
         "queueKey": queue_key,
         "queueStatusKey": f"{queue_key}#open",
@@ -5150,6 +5158,18 @@ def reporting_assignment_record(**kwargs: Any) -> dict[str, Any]:
         "updatedAt": now,
         "newsroomFeedKey": "assignment#open",
     }
+
+
+def candidate_content_item_version(reporting_assignment: dict[str, Any], now: str) -> dict[str, Any]:
+    return build_new_content_item_version(
+        lineage_id=reporting_assignment["itemLineageId"],
+        title=reporting_assignment["title"],
+        summary=reporting_assignment.get("summary"),
+        section_key=reporting_assignment.get("sectionKey"),
+        stage="report",
+        actor_label="papyrus",
+        now=now,
+    )
 
 
 def assignment_metadata(**kwargs: Any) -> dict[str, Any]:
@@ -6378,7 +6398,7 @@ def _download_attachment_json(attachment_id: str) -> dict[str, Any]:
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     from papyrus_content.graphql_http import execute_graphql
 
-    return execute_graphql(query, variables, timeout=90, allow_knowledge_fallback=True)
+    return execute_graphql(query, variables, timeout=90)
 
 
 def _resolve_section_keys(sections: list[str]) -> list[str]:

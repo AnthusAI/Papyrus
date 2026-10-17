@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "99eb41fe-10a2-4081-9ca9-003c8702a4f4",
+  "issue_id": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-10T17:12:56.604Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Phase 6: move Pilobol.us and Threat Intelligence into the new Papyrus accounts",
+    "description": "## Goal\nPilobol.us and Threat Intelligence, the two sites already on the new Papyrus template pattern in the LEGACY account (335163751677), run in papyrus-production (712236451410) with their own new backends, data copied across, Google sign-in working, hostnames switched with records written by hand in the legacy zones, and the legacy copies retired by Ryan. Papyrus has two environments only (papyrus-staging 494166748521, papyrus-production 712236451410); papyrus-development is being removed and is never used here.\n\n## Scope\n- Pilobol.us (Markus static): CMS app dv0pdx67fk80m + reader app dssc97s4q5kgk, stack amplify-app-shell-pilobol-us-cms, repo AnthusAI/Pilobol.us, hosts pilobol.us (reader), newsroom.pilobol.us (CMS, newsroom at /), staging.pilobol.us; zone Z09961547QX1VHIXOBD7 (legacy); Google project 472527967203.\n- Threat Intelligence (Pretext): app dzefa11i80jyq, stack amplify-app-shell-threat-intelligence-cms, repo AnthusAI/Threat-Intelligence, hosts threat-intelligence.anth.us and threat-intelligence-staging.anth.us on the SHARED root anth.us (zone Z02552332GG6AM25SFP73; Anth.us production d2hbn1ig6nqyhy shares it); Google project 778847915037. The OLD TI app d3on1y5vlrxmam is inert pending its two-week sign-off.\n- Out of scope: Anth.us (last, Ryan), the other anth.us apps, moving any DNS zone, papyrus-development, SCPs on legacy.\n\n## Decisions already made (Ryan, 2026-10-09/10)\nTwo environments only; all Papyrus-based sites leave legacy; DNS zones STAY in legacy so every cutover needs manual records in the legacy zones (recipe: PPY-52d455 plan comment cc25db); p.apyr.us (Phase 5, PPY-d1cc15) is the reference run; Ryan deletes retired resources; account creation needs Ryan's approval; never risk legacy access, no SCPs on legacy.\n\n## Order\nP6-01 first; then Pilobol.us (P6-02 to P6-07), Threat Intelligence (P6-08 to P6-13) can start its domain-free build once P6-02 has proven the pattern; DNS tickets P6-06 and P6-12 wait for the p.apyr.us cutover result (PPY-52d455, the cross-account association behaviour is unproven until then); P6-14 closes. Anth.us is a later phase.\n\n## Sub-tasks (label phase-6; estimates in agent-days)\nSee the assessment comment on this ticket for the recommendations, risks and what Ryan must decide. Total about 17 agent-days, critical path about 10, plus a 7-day soak (Pilobol.us) and the two-week sign-off (TI).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "phase-6"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "PPY-dcc32079-9fce-4d95-8ed9-0247b9c4c325",
+  "title": "Cognito prefix swap fails if the user pool already has a domain: delete the old domain first",
+  "description": "Found 2026-10-12. Applying cms.cognitoDomainPrefix (PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX=true) on a pool that already has a hosted-UI domain fails: Cognito allows one domain per pool and cannot rename it. The template should detect an existing different domain and delete it (briefly breaking hosted sign-in) before creating the new one in the same custom resource, or document the manual order (delete the domain, then deploy). Related: 72c01d.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "papyrus-improvement"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-12T17:19:18.313874Z",
+  "updated_at": "2026-10-12T17:19:18.313912Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5",
+    "name": "anthus-cms-parity"
+  },
+  "right_now_summary": "The template must delete the old Cognito domain before creating the new one.",
+  "right_now_updated_at": "2026-10-12T17:19:19.342614Z",
+  "custom": {}
+}

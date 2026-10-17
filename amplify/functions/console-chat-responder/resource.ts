@@ -12,7 +12,6 @@ export type ConsoleChatResponderStackProps = NestedStackProps & {
   threadTable: ITable;
   projectRoot: string;
   graphqlEndpoint: string;
-  amplifySsmEnvConfig?: string;
   responseTarget?: string;
   model?: string;
   prebuiltImageUri?: string;
@@ -36,11 +35,6 @@ export class ConsoleChatResponderStack extends NestedStack {
       PAPYRUS_CONSOLE_STATIC_CONTEXT_TTL_SECONDS: process.env.PAPYRUS_CONSOLE_STATIC_CONTEXT_TTL_SECONDS || "900",
       PAPYRUS_EXECUTE_TACTUS_RUNNER: process.env.PAPYRUS_EXECUTE_TACTUS_RUNNER || "/opt/papyrus/execute_tactus_runner.py",
       PAPYRUS_EXECUTE_TACTUS_TIMEOUT_SECONDS: process.env.PAPYRUS_EXECUTE_TACTUS_TIMEOUT_SECONDS || "30",
-      PAPYRUS_JWT_ISSUER: process.env.PAPYRUS_JWT_ISSUER || "papyrus-cli",
-      PAPYRUS_JWT_SUBJECT: process.env.PAPYRUS_JWT_SUBJECT || "papyrus-cli",
-      PAPYRUS_JWT_AUDIENCE: process.env.PAPYRUS_JWT_AUDIENCE || "papyrus-authoring",
-      PAPYRUS_JWT_GROUPS: process.env.PAPYRUS_JWT_GROUPS || "editor",
-      ...(props.amplifySsmEnvConfig ? { AMPLIFY_SSM_ENV_CONFIG: props.amplifySsmEnvConfig } : {}),
     };
 
     const imageUri = props.prebuiltImageUri?.trim() || process.env.PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI?.trim() || "";
@@ -109,8 +103,6 @@ export class ConsoleChatResponderStack extends NestedStack {
       ],
     }));
     const stack = Stack.of(this);
-    // execute_tactus_runner mints PAPYRUS_GRAPHQL_JWT via boto3 get_parameters; branch policies
-    // often grant GetParameters on path prefixes, not GetParameter per secret name.
     this.responderFunction.addToRolePolicy(new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ["ssm:GetParameter", "ssm:GetParameters"],

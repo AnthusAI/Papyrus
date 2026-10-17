@@ -17,6 +17,11 @@ export type ReferenceRejectionReasonCode = typeof REFERENCE_REJECTION_REASON_COD
 const REFERENCE_REJECTION_REASON_CODE_SET = new Set<string>(REFERENCE_REJECTION_REASON_CODES);
 const SCOPE_TRAINING_NEGATIVE_REASON_CODE_SET = new Set<string>(["out_of_scope", "policy_exclusion"]);
 
+/** Rejection reasons that say the source is not relevant (scope-training negatives). */
+export function isScopeTrainingNegativeReason(code: string): boolean {
+  return SCOPE_TRAINING_NEGATIVE_REASON_CODE_SET.has(code);
+}
+
 export function normalizeReferenceCurationStatus(value: unknown, defaultStatus: ReferenceCurationStatus = "pending"): ReferenceCurationStatus {
   const normalized = normalizePolicyToken(value ?? defaultStatus);
   if (normalized === "accepted" || normalized === "accept" || normalized === "ready" || normalized === "trusted") return "accepted";

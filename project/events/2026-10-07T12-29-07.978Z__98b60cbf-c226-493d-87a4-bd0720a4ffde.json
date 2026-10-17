@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "98b60cbf-c226-493d-87a4-bd0720a4ffde",
+  "issue_id": "PPY-80f2dca8-1106-4197-8751-0305858f1d48",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-07T12:29:07.978Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "TI P4-09: apply the copy, convert bodies to Markus, fidelity check against the baseline",
+        "to": "TI P4-10: staging site (Cognito-gated drafts) and dogfood the publish flow"
+      },
+      "priority": {
+        "from": 1,
+        "to": 2
+      }
+    }
+  }
+}

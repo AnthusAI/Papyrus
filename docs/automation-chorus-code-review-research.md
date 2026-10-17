@@ -6,19 +6,16 @@ starts two `research.tavily-deep` assignments:
 1. **Technology desk** — open-source and local-first tools comparable to Chorus
 2. **Science desk** — academic papers on multi-model / LLM code review
 
-## Required automation secrets
+## Required automation configuration
 
-Configure these in the Cursor automation secret list (in addition to
+Configure these in the automation environment (in addition to
 `OPENAI_API_KEY`):
 
-| Secret | Purpose |
+| Setting | Purpose |
 | --- | --- |
-| `PAPYRUS_JWT_SECRET` | Mint short-lived `PAPYRUS_GRAPHQL_JWT` without AWS CLI |
+| AWS credentials | Run under an OIDC role or an SSO profile that assumes the site's `<siteId>-papyrus-authoring` role (`AWS_PROFILE`); the CLI signs AppSync requests with SigV4. No token or shared secret is used |
 | `TAVILY_API_KEY` | Tavily deep research API (`research.tavily-deep`) |
 | `PAPYRUS_GRAPHQL_ENDPOINT` | Optional; defaults to production AppSync URL |
-
-Alternatively provide `PAPYRUS_GRAPHQL_JWT` directly, or
-`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_REGION` for SSM JWT minting.
 
 ## Command
 

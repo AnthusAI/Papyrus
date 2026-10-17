@@ -1,0 +1,30 @@
+{
+  "id": "PPY-7fd288e6-0b0b-401b-992d-fbe801af5710",
+  "title": "P4-14: port video-script loading in the GraphQL content repository (article/edition video scripts)",
+  "description": "P4-03 (Papyrus#150) moved the blog layout components and added the optional videoScripts field on EditionContent, passed through the rhythm renderers, but the fork video-script loading in the GraphQL content repository (how Threat Intelligence loads edition/article video scripts from the backend) is NOT ported. Threat Intelligence uses edition/article videos (baseline has a PLAY VIDEO button and edition video blocks). Port the loader generically (any brand with videoPlayer set), with tests against the content model, so a publication on the packages shows the same videos as the fork. Check what data the old backend holds (baseline: /Users/home/Projects/.baselines/threat-intelligence-20261007/) and that the P4-08/P4-09 copy tool carries the video-script fields. Also carry the figure.article-video margin-bottom 2em rule in the TI theme (P4-04).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d3df1f2c-9b87-48ca-b1f2-f8d1cb721f29",
+      "author": "home",
+      "text": "Merged Papyrus#154 (squash 6039c627). Fork loads scripts in lib/graphql-content-repository.ts (loadVideoScript, loadEditionVideoScripts) reading PublishedItem rows of type `videoml` with slug `<target>--videoml` and `editorial.videoScript.{dsl,target.kind}`; targets = `edition-overview` (if editionVideo) plus each item with a video; dev-only gate shouldFetchVideoScripts. Ported generically (gated on brand videoPlayer) with loadVideoScript on the repository contract, EditionContent.videoScripts, getCachedVideoScript, /articles/[slug] pass-through, collectVideoScriptTargets test in test:video-script. No schema change (Item/PublishedItem already have type string + editorial json). Old TI backend baseline holds 0 videoml items (Item: 18 article + 2 doctrine; PublishedItem 18 article), so TI videos are MediaAsset mp4 + editionVideo metadata; nothing extra to copy. Left open: the figure.article-video margin-bottom 2em rule in the TI theme belongs to the TI repo (P4-04).",
+      "created_at": "2026-10-07T16:21:05.347884Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T15:40:17.344870Z",
+  "updated_at": "2026-10-07T16:21:05.347912Z",
+  "closed_at": null,
+  "right_now_summary": "Video-script loading is ported and tested; only the TI theme’s video margin rule remains.",
+  "right_now_updated_at": "2026-10-07T16:21:06.632571Z",
+  "custom": {}
+}

@@ -12,6 +12,8 @@ import { ARCHIVE_PREVIEW_HEIGHT, ARCHIVE_PREVIEW_WIDTH } from "../lib/archive-ty
 import type { EditionContent, NewsDeskAppendix, NewsDeskCategoryTreeNode } from "../lib/content-types";
 import { shouldBypassImageOptimization } from "../lib/image-url";
 import type { PublicationItem } from "../lib/publication-items";
+import { clearPretextMeasurementCache } from "../lib/pretext-layout";
+import { toPublicReaderPath } from "../lib/reader-base-path";
 import { SITE_BRAND } from "../lib/site-brand";
 import { resolveThemedImageSrc, type ResolvedTheme } from "../lib/themed-image";
 import { loadEditorCategoryTreeState } from "./news-desk-taxonomy-client";
@@ -130,7 +132,9 @@ export function Newspaper({
     if (!fonts) return;
     let cancelled = false;
     const refreshAfterFontLoad = () => {
-      if (!cancelled) setFontRevision((revision) => revision + 1);
+      if (cancelled) return;
+      clearPretextMeasurementCache();
+      setFontRevision((revision) => revision + 1);
     };
     fonts.ready.then(refreshAfterFontLoad).catch(() => undefined);
     fonts.addEventListener("loadingdone", refreshAfterFontLoad);
@@ -1877,7 +1881,7 @@ function getPageHref(pageNumber: number, editionBasePath?: string): string {
 }
 
 function getArticleHref(articleSlug: string, editionBasePath?: string): string {
-  return editionBasePath ? `${normalizePath(editionBasePath)}/${encodeURIComponent(articleSlug)}` : `/articles/${articleSlug}`;
+  return editionBasePath ? `${normalizePath(editionBasePath)}/${encodeURIComponent(articleSlug)}` : toPublicReaderPath(`/articles/${articleSlug}`);
 }
 
 function getItemAnchorHref(articleSlug: string, pageNumber: number, editionBasePath?: string): string {

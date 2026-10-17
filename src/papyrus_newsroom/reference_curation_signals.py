@@ -37,10 +37,10 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
+from papyrus_content.env import BIBLICUS_ROOT
 
 
 PAPYRUS_ROOT = Path(__file__).resolve().parents[2]
-BIBLICUS_ROOT = PAPYRUS_ROOT.parent / "Biblicus"
 SUMMARY_TOKEN_BUDGETS = (100, 200, 500, 1000, 1800)
 SUMMARY_MESSAGE_KIND = "reference_summary"
 SUMMARY_MESSAGE_DOMAIN = "summarization"
@@ -3302,6 +3302,7 @@ def generate_subtitle_from_reference_text(
     extracted_text: str,
     original_title: str = "",
     original_subtitle: str = "",
+    generated_title: str = "",
     model: str = REFERENCE_METADATA_MODEL_DEFAULT,
 ) -> dict[str, Any]:
     context = resolve_reference_text_generation_context(
@@ -3311,6 +3312,7 @@ def generate_subtitle_from_reference_text(
     )
     if not context["ok"]:
         raise RuntimeError("Cannot generate subtitle without extracted text.")
+    context["generatedTitle"] = generated_title
     result = _run_metadata_map_reduce(
         output_kind="subtitle",
         reference=reference,
@@ -3373,6 +3375,7 @@ def reference_generate_metadata_from_extracted_text(
     apply: bool = False,
     refresh: bool = True,
     reference: dict[str, Any] | None = None,
+    metadata_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if isinstance(reference, dict) and str(reference.get("id") or "").strip():
         resolved_reference = reference
@@ -3410,6 +3413,7 @@ def reference_generate_metadata_from_extracted_text(
         extracted_text=context["extractedText"],
         original_title=context["originalTitle"],
         original_subtitle=context["originalSubtitle"],
+        generated_title=title_result["title"],
         model=model,
     )
     summary_result = generate_summary_from_reference_text(
@@ -3420,7 +3424,7 @@ def reference_generate_metadata_from_extracted_text(
         model=model,
     )
 
-    metadata_payload = _load_reference_metadata_payload(reference)
+    metadata_payload = _load_reference_metadata_payload(reference) if metadata_payload is None else metadata_payload
     next_metadata = dict(metadata_payload) if isinstance(metadata_payload, dict) else {}
     next_metadata["title"] = title_result["title"]
     next_metadata["subtitle"] = subtitle_result["subtitle"]
@@ -3560,8 +3564,12 @@ def _run_biblicus_summarize_map_reduce(
         "original_subtitle": context.get("originalSubtitle") or "",
         "reference_title": reference.get("title") or "",
         "source_uri": reference.get("sourceUri") or "",
+        "source_publication_date": str(reference["sourcePublishedAt"])[:10] if reference.get("sourcePublishedAt") else None,
+        "source_is_archived": reference.get("sourceIsArchived") if isinstance(reference.get("sourceIsArchived"), bool) else None,
+        "generated_title": context.get("generatedTitle") or "",
     }
-    env = dict(os.environ)
+    from papyrus_content.reference_url_text import _biblicus_env
+    env = _biblicus_env()
     biblicus_src = str(BIBLICUS_ROOT / "src")
     env["PYTHONPATH"] = (
         f"{biblicus_src}{os.pathsep}{env['PYTHONPATH']}"
@@ -4287,44 +4295,6 @@ def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     from papyrus_content.graphql_http import execute_graphql
 
     return execute_graphql(query, variables, timeout=60)
-
-
-def _lambda_auth_token(token: str) -> str:
-    sanitized = re.sub(r"^Bearer\\s+", "", token.strip(), flags=re.IGNORECASE)
-    return f"PapyrusJwt {sanitized}"
-
-
-def _iam_signed_graphql_headers(endpoint: str, body: bytes) -> dict[str, str]:
-    try:
-        from botocore.auth import SigV4Auth
-        from botocore.awsrequest import AWSRequest
-        from botocore.session import Session
-    except Exception as exc:  # pragma: no cover
-        raise RuntimeError("PAPYRUS_GRAPHQL_JWT is missing and botocore is unavailable for IAM AppSync signing.") from exc
-
-    parsed = urllib.parse.urlparse(endpoint)
-    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or _region_from_appsync_host(parsed.netloc)
-    session = Session()
-    credentials = session.get_credentials()
-    if credentials is None:
-        raise RuntimeError("PAPYRUS_GRAPHQL_JWT is missing and AWS credentials are unavailable for IAM AppSync signing.")
-    frozen = credentials.get_frozen_credentials()
-    request = AWSRequest(
-        method="POST",
-        url=endpoint,
-        data=body,
-        headers={
-            "content-type": "application/json",
-            "host": parsed.netloc,
-        },
-    )
-    SigV4Auth(frozen, "appsync", region).add_auth(request)
-    return {str(key): str(value) for key, value in request.headers.items()}
-
-
-def _region_from_appsync_host(host: str) -> str:
-    match = re.search(r"\.appsync-api\.([a-z0-9-]+)\.amazonaws\.com", host)
-    return match.group(1) if match else "us-east-1"
 
 
 def _extract_response_text(payload: dict[str, Any]) -> str:

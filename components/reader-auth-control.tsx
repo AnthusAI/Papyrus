@@ -2,7 +2,7 @@
 
 import { signInWithRedirect, signOut } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
 
@@ -12,6 +12,7 @@ type ReaderAuthControlProps = {
   postAuthPath?: string;
   showIdentity?: boolean;
   authState?: ReaderAuthSnapshot;
+  renderAction?: (action: { disabled: boolean; onClick: () => void; signedIn: boolean }) => ReactNode;
 };
 
 const POST_AUTH_PATH_KEY = "papyrus:reader-auth:post-auth-path";
@@ -22,6 +23,7 @@ export function ReaderAuthControl({
   postAuthPath,
   showIdentity = false,
   authState: externalAuthState,
+  renderAction,
 }: ReaderAuthControlProps) {
   const [authState, setAuthState] = useState<ReaderAuthSnapshot>(externalAuthState ?? { status: "loading", label: "Checking sign-in" });
   const [busy, setBusy] = useState(false);
@@ -124,19 +126,20 @@ export function ReaderAuthControl({
 
   const signedIn = authState.status === "signedIn";
   const actionLabel = signedIn ? "LOGOUT" : "LOGIN";
+  const Container = renderAction ? "div" : "span";
   return (
-    <span className={className ? `reader-auth ${className}` : "reader-auth"} aria-live="polite" data-footer-utility={dataFooterUtility}>
+    <Container className={className ? `reader-auth ${className}` : "reader-auth"} aria-live="polite" data-footer-utility={dataFooterUtility}>
       {signedIn && showIdentity ? <span className="reader-auth__identity">{authState.label}</span> : null}
       {error ? <span className="reader-auth__error">{error}</span> : null}
-      <button
+      {renderAction ? renderAction({ disabled: authState.status === "loading" || busy, onClick: signedIn ? signOutCurrentUser : signIn, signedIn }) : <button
         className="reader-auth__button"
         disabled={authState.status === "loading" || busy}
         onClick={signedIn ? signOutCurrentUser : signIn}
         type="button"
       >
         {actionLabel}
-      </button>
-    </span>
+      </button>}
+    </Container>
   );
 }
 

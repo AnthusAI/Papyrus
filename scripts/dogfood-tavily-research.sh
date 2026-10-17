@@ -21,11 +21,6 @@ if [[ -z "${TAVILY_API_KEY:-}" ]]; then
   exit 1
 fi
 
-echo "Refreshing GraphQL JWT (if SSM param configured)..."
-poetry run papyrus auth refresh-jwt --write-env .env \
-  --ssm-param "${PAPYRUS_JWT_SECRET_SSM_PARAM:-/amplify/papyrus/ryan-sandbox-adcd88a186/PAPYRUS_JWT_SECRET}" \
-  2>/dev/null || true
-
 echo "Creating research assignment: ${TITLE}"
 CREATE_OUT="$(poetry run papyrus assignments create-research \
   --title "$TITLE" \

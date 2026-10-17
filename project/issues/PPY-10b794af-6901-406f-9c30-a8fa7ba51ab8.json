@@ -1,0 +1,30 @@
+{
+  "id": "PPY-10b794af-6901-406f-9c30-a8fa7ba51ab8",
+  "title": "P5-03: Template: p.apyr.us subdomain, staging host and apex apyr.us redirect in site.json",
+  "description": "## Goal\n`infra/site.json` for a Pretext site can put the CMS app on the subdomain `p.apyr.us` (zone `apyr.us`, Z10285921B1G7MVRV06W9), add an explicit staging host, and redirect the apex `apyr.us` to `https://p.apyr.us` permanently with the path preserved, without touching the existing MX record for p.apyr.us.\n\n## Context (FACT)\n- Today `apyr.us` is a domain association on old app dbsyytcm9drqa with subdomains `p` (main) and the apex (main, unverified). Route 53 zone records: apex A alias to CloudFront, `p.apyr.us` A alias plus MX `10 inbound-smtp.us-east-1.amazonaws.com`, one ACM validation CNAME.\n- apex redirect is an Amplify app rule `https://apyr.us` -> `https://p.apyr.us` status 302 (path preserved: `apyr.us/2026/october/07` -> `p.apyr.us/2026/october/07`). `www.apyr.us` does not resolve.\n- Template (`infra/amplify-app-shell/lib/amplify-app-shell.ts`): `cms.domainName` -> one `CfnDomain` with `prefix \"\"` on `main`; `cms.stagingDomainName` exists; the only app `customRules` is `/<*>` -> `/index.html` 404-200. No redirect option. `newsroom.pilobol.us` proves a subdomain as `cms.domainName`.\n- TI P4-05 (PPY-4f2519) already plans \"host under a shared root domain and an explicit staging host\". Reuse it; do not duplicate.\n\n## Exact steps\n1. Gherkin: \"site.json with cms.redirects [{from: apyr.us, to: https://p.apyr.us, status: 301}] synthesizes the Amplify redirect rule and keeps the 404 catch-all last\", \"a subdomain domainName in a parent zone synthesizes\", \"unknown redirect keys are rejected\".\n2. Add `cms.redirects` (list of `{ source, target, status }`, 301 or 302) to `site-config.ts` validation and to `customRules` ahead of the 404-200 rule.\n3. Check with `cdk diff`/`synth` (no deploy) that no record named `p.apyr.us` of type MX is created or removed by the template.\n4. Document in docs/site-hosting.md (custom domains section).\n\n## Acceptance checks\n- `npm test` for the template green; `papyrus-infra synth` for a sample p.apyr.us `site.json` shows CfnDomain for `p.apyr.us`, the staging domain, and a rules list ordered `[apex redirect, 404-200 catch-all]`.\n- Sample `site.json` validates; invalid status rejected.\n\n## Rollback\nRevert; the field is optional.\n\n## Risks\nAmplify rule for an apex source on a branch-attached domain (the old app does it today, so supported); MX/alias interaction is verified at cutover (P5-11).\n\n## Needs Ryan\nPR merge.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+  "labels": [
+    "phase-5"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "180b1ed4-9c9b-4c8a-8dde-2f9a8ca81f90",
+      "author": "home",
+      "text": "Merged Papyrus#151. Added optional `cms.redirects` ([{source,status 301|302}], requires `cms.domainPrefix`) and `examples/p-apyr-us.site.json` (root apyr.us, prefix p, staging prefix p-staging, apex 301). Synth proves: one Domain for apyr.us with main/p, main/\"\" and staging/p-staging; app rules [apex redirect, 404-200]; no Route 53 records created (MX untouched). NOT provable by synth, left for P5-11: path+query preservation, apex+prefix association on the new app, old app dbsyytcm9drqa releasing apyr.us first. Leaving open for that.",
+      "created_at": "2026-10-07T15:51:48.761402Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:32:09.455542Z",
+  "updated_at": "2026-10-07T15:51:48.761437Z",
+  "closed_at": null,
+  "right_now_summary": "Papyrus#151 merged; synth passes, while cutover checks for redirects and domain association remain.",
+  "right_now_updated_at": "2026-10-07T15:51:50.050951Z",
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "5b83ad06-02d9-4c1d-8e72-708a1f466728",
+  "issue_id": "PPY-d26b1156-3070-459a-a043-2fcc2173dfdf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T16:09:17.566Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P4-15: Pretext width cache is not cleared after web fonts load, so some loads wrap with fallback widths",
+    "description": "Found by the Threat Intelligence scaffold (P4-04, Threat-Intelligence#10): with Google-loaded fonts (brand fonts slot, Papyrus#150) the Pretext text measurement races the font load. Papyrus never clears Pretext width cache once the fonts are ready, so some page loads wrap lines with fallback-font widths and clip lines (edition height 17328 px vs 17648 px baseline when fonts load in time). Fix in Papyrus (lib/pretext-layout.ts, hooks use-brand-fonts-ready.ts and the rhythm overlay/blog presentation): when document.fonts reports the brand fonts ready (or a font loads), clear Pretext measurement caches and re-run layout; make it deterministic (no race), with tests, and verify against the P4-01 baseline (/Users/home/Projects/.baselines/threat-intelligence-20261007/) at 390/768/1280 px: heights equal on every load.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+    "labels": [
+      "phase-4"
+    ]
+  }
+}

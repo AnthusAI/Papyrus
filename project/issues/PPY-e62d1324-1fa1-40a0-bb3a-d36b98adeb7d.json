@@ -3,7 +3,7 @@
   "title": "Reinvent ops IA as mobile app (not Pretext clone)",
   "description": "Ryan hard line: do not port Forum/edition tables/newsprint IA into Shadcn. Reinvent overview + primary flows; moss primary; then refs as mobile-app destination. Self-reject clones.",
   "type": "task",
-  "status": "in_progress",
+  "status": "open",
   "priority": 1,
   "assignee": "Papyrus",
   "creator": null,
@@ -12,7 +12,17 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-09-07T20:50:54.343218Z",
-  "updated_at": "2026-09-07T20:51:12.257512Z",
+  "updated_at": "2026-10-17T13:23:26.847033Z",
   "closed_at": null,
-  "custom": {}
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "cross-project-wip-reset"
+  },
+  "right_now_summary": "The team is reinventing the ops IA as a moss-first mobile app, not cloning the existing tables.",
+  "right_now_updated_at": "2026-10-17T13:23:28.411756Z",
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

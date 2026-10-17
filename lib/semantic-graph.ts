@@ -1,3 +1,4 @@
+import { toPublicNewsroomPath } from "./newsroom-base-path";
 import type {
   AssignmentRecord,
   CategorySteeringCategory,
@@ -31,6 +32,7 @@ export type SemanticObjectKind = typeof SEMANTIC_OBJECT_KINDS[number];
 export type SemanticPredicateId =
   | "classified_as"
   | "quality_rating_is"
+  | "relevance_decision_is"
   | "reference_summary_100_tokens"
   | "reference_summary_200_tokens"
   | "reference_summary_500_tokens"
@@ -79,6 +81,7 @@ export const SEMANTIC_PREDICATES: SemanticPredicateDefinition[] = [
   { id: "about", label: "about", group: "commentary", inverseLabel: "commentary" },
   { id: "comment", label: "comments on", group: "commentary", inverseLabel: "commented on by", contextPackTags: ["reference_curation", "editing", "research", "assignment_context"] },
   { id: "ingestion_rationale", label: "ingestion rationale for", group: "commentary", inverseLabel: "ingestion rationale", contextPackTags: ["reference_curation", "editing", "research", "assignment_context"] },
+  { id: "relevance_decision_is", label: "relevance decision is", group: "workflow", inverseLabel: "relevance decision for", contextPackTags: ["reference_curation"] },
   { id: "requests_work_on", label: "requests work on", group: "workflow", inverseLabel: "requested work", contextPackTags: ["assignment_context", "editing"] },
   { id: "uses_evidence", label: "uses evidence", group: "evidence", inverseLabel: "used as evidence by", contextPackTags: ["assignment_context", "research", "reference_graph"] },
   { id: "uses_signal", label: "uses signal", group: "evidence", inverseLabel: "signal for", contextPackTags: ["assignment_context", "research", "reference_graph"] },
@@ -175,6 +178,10 @@ export function predicateLabel(predicate: string, direction: "outgoing" | "incom
 }
 
 export function newsDeskHrefForSemanticObject(kind: string, lineageId: string): string {
+  return toPublicNewsroomPath(internalNewsDeskHrefForSemanticObject(kind, lineageId));
+}
+
+function internalNewsDeskHrefForSemanticObject(kind: string, lineageId: string): string {
   const encoded = encodeURIComponent(lineageId);
   if (kind === "reference") return `/newsroom/references/${encoded}`;
   if (kind === "category") return `/newsroom/topics?category=${encoded}`;

@@ -1,0 +1,60 @@
+{
+  "id": "PPY-80f2dca8-1106-4197-8751-0305858f1d48",
+  "title": "TI P4-10: staging site (Cognito-gated drafts) and dogfood the publish flow",
+  "description": "## Goal\nThe standard staging site (drafts rendered as if published, editors and admins only) on the new app, and a full dogfood pass of the backend CMS UX: create a draft, preview it on staging, publish it, see it on production. Mirrors Pilobol.us P3-07 (PPY-d0c5ad).\n\n## Context (FACT)\n- Template (lib/amplify-app-shell.ts): with cms.staging not false it creates branch staging (stage BETA) with its own build spec, env PAPYRUS_CONTENT_SOURCE=drafts, SITE_ENV=staging and NEXT_PUBLIC_PAPYRUS_STAGING_URL; for a Pretext site staging is a second Next build of the same app reading drafts through the production backend, behind the Cognito gate (middleware). A staging domain is created only when a staging host resolves; default derivation would be staging.anth.us (collision): set cms.stagingDomainName explicitly (see P4-05); until P4-11 staging runs on https://staging.<newAppId>.amplifyapp.com.\n- Console connect of the app deletes branches: connect the staging branch in the console after the first connect (docs/site-hosting.md).\n- Pretext pages use revalidate = 3600 (ISR). Without wiring, a publish becomes visible on production after up to one hour. On-demand revalidation exists (POST /api/revalidate with header x-papyrus-revalidate-secret; backend option revalidateBaseUrl and secret PAPYRUS_REVALIDATE_SECRET read by the publish Lambda), but the template has no secret-safe way to set PAPYRUS_REVALIDATE_SECRET on the frontend branches: the secret cannot go in the public site.json, and a console-entered branch variable is wiped by the next stack update. The old site stored it as a plain branch variable (its value was visible in get-app output: do not reuse it). Open question Q7.\n- Old pool has 1 admin, 2 editors; new pool users arrive through P4-07.\n\n## Exact steps\n1. site.json: cms.staging true, cms.stagingDomainName per Q8 (or none until P4-11); Ryan yes to the stack update; push git branch staging from main; connect the branch in the console; re-apply env vars by stack update if lost.\n2. Probes (adapt scripts/staging-auth-test.mjs from the Pilobol.us work): anonymous GET on staging redirects to sign-in without a loop; an editor sees a draft with the STAGING banner and the same URL is 404 on production; a non-editor is refused; robots Disallow and noindex on staging; main has no staging-only variables (names).\n3. Dogfood script with Ryan: in /newsroom create a draft article, edit it with the article editor, save, see it on staging, publish, see it on production (measure the delay), unpublish, see it removed; record friction points as Kanbus bugs under PPY-655994 or this phase.\n4. Implement the Q7 answer: either accept hourly ISR and document it, or add the smallest secret-safe path (build spec reads the secret from SSM with the service role into .env.production) as a Papyrus change.\n\n## Acceptance checks\n- All probes pass and are recorded; staging shows the draft, production does not.\n- Publish to visible-on-production delay measured and recorded; matches the Q7 decision.\n- Friction list filed.\n\n## Rollback\nSet cms.staging false and redeploy; delete the staging branch.\n\n## Risks\nBuild time 10 to 15 minutes per branch. Staging reads the production backend (accepted by Ryan: no second backend).\n\n## Needs Ryan\nYes: stack update, console branch connect, sign-in as editor and non-editor, answers Q7 and Q8, and the dogfood session itself.\n\n## Common rules (Phase 4 Threat Intelligence)\n- Plan and facts: the assessment comment on the Phase 4 ticket (PPY-332889). Pattern: docs/migrations/pilobol-us.md and docs/standard-site.md 3.2 on origin/develop.\n- Ryan: Threat Intelligence is PRE-PRODUCTION; goal is to dogfood the new backend CMS UX before converting anth.us (production). Treat as a hard cutover with brief downtime accepted unless Ryan says otherwise (open question Q1). The OLD app d3on1y5vlrxmam and its backend stay untouched and serving until the retire ticket.\n- Read AGENTS.local.md first. AWS_PROFILE=legacy, us-east-1 (SSO is Ryan's). Never print env var or secret VALUES (names only). Never run ampx pipeline-deploy locally. Creating, changing or deleting AWS resources needs Ryan's explicit yes in chat for that step; deleting data or stacks is done by Ryan or on his explicit yes. Read-only AWS calls are fine.\n- NEVER use /Users/home/Projects/Pilobol.us as a build dir. TI repo work: fresh clone under /Users/home/Projects/ (delete afterwards), feature branch + PR, never push to its main. Papyrus repo: worktree of origin/develop under /Users/home/Projects/Papyrus-worktrees/, branch feature/PPY-<id>-<slug>, PR into develop, never merge to main, never git stash, trailer Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>, PR body ends with the Claude Code generated-with line. In /Users/home/Projects/Papyrus (the board checkout) only run kbs; never git add or commit there.\n- Gherkin first for any Papyrus behavior change (AGENTS.md). Long clear names, no line-level comments.\n- Update this ticket with branch, PR link and command output when done.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-153434c6-db92-43b3-a0b7-23bec20f59a0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-301b12c4-c993-4835-80f2-163db57f136e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "b546310e-74d5-46f1-a874-8da14d74b7da",
+      "author": "home",
+      "text": "[2026-10-07 ~23:55Z] P4-11 EXECUTION PAUSED at A1 (cdk diff), nothing irreversible done. Pre-flight OK: sts account 335163751677; Anth.us hashes identical to plan section 4 (anth.us and www 95aa2bea..., /about/ c3b45f58..., /articles/ 3ac5c9d0...); prod cert serial 4011E199... notAfter 2027-04-20; old TI cert serial 0FE6E6DA...; old TI /2026/july/04 sha256 900ebf1dd60ce471b3eec080..., 283446 B, stable (matches the plan fragment). Before-state saved under /Users/home/Projects/.baselines/tI-cutover-20261007/ (assocs for 7 apps, zone, apps, hashes). Pushed new Git branch staging = main cf02d0e (AnthusAI/Threat-Intelligence, new ref only). Committed infra/site.json on main is already the full config (hostedZoneId, domainName anth.us, prefixes, next.30); used as is. cdk diff (full site.json): ADD Branch StagingBranch, ADD Domain, MODIFY Branch main PAPYRUS_OAUTH_REDIRECT_URLS (default-URL Fn::Join replaced by the literal list), ADD output StagingOrigin, CmsOrigin value changes. No replace/delete, nothing about d2hbn1ig6nqyhy, Route 53, MX, TXT. SURPRISE: also MODIFY IAM Role GithubCiRole (threat-intelligence-github-ci) trust policy: token.actions.githubusercontent.com:sub list gains repo:AnthusAI/Threat-Intelligence:ref:refs/heads/staging beside refs/heads/main. The plan said no role changes. Stopped for Ryan to accept or reject this widening. Diff saved as cdk-diff.txt in the baseline folder.",
+      "created_at": "2026-10-07T23:54:54.245570Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e284cc8d-7aff-4134-9031-3143440a179e",
+      "author": "home",
+      "text": "[2026-10-08 ~00:15Z] P4-11 CUTOVER EXECUTED (orchestrator accepted the GithubCiRole staging-ref trust addition; Ryan approval stands). Timeline UTC: 23:53:43 Git staging pushed (cf02d0e); 23:56:35 B1 old association d3on1y5vlrxmam anth.us deleted (Route 53 diff: ONLY threat-intelligence CNAME removed; Anth.us hashes unchanged); 23:56:48-23:57:24 stack deployed (27s; diff identical to the saved one); 00:01:19 Domain association dzefa11i80jyq AVAILABLE, both prefixes verified; Route 53: both CNAMEs now dsdc44yor9rfm.cloudfront.net. First 200 observed on new host 00:02:46 (probe via direct resolve; true first 200 between 00:01:19 and 00:02:46). DOWNTIME WINDOW about 6m11s measured upper bound (23:56:35 to 00:02:46), the old host had no association from 23:56:35. Verify: cert Amazon RSA 2048 S24 serial 43663B95... exp 2027-04-23 SAN anth.us and *.anth.us (not old 0FE6E6DA); / 307 -> /2026/july/04; edition 200; /newsroom 200; 18 of 18 articles 200; /robots.txt 404; missing path 404; videos 307 then 206 on presigned URL; Cognito pool us-east-1_t1A6sJX55 callbacks include both hosts + localhost + two amplifyapp URLs. Amplify app: WEB_COMPUTE, repository https://github.com/anthusai/threat-intelligence kept, service and compute roles intact, branches main (PRODUCTION, 12 env names) and staging (BETA, 12 names incl NEXT_PUBLIC_PAPYRUS_STAGING_URL); no repair needed. ANTH.US PROOF: hashes of anth.us, www, /about/, /articles/ IDENTICAL to baseline; cert serial 4011E199 exp 2027-04-20 identical; get-domain-association d2hbn1ig6nqyhy diff EMPTY; list-domain-associations of d2hbn1ig6nqyhy, apricity, babulus, tactus, primus identical; old app d3on1y5vlrxmam has no associations; Route 53: only added threat-intelligence-staging CNAME and changed threat-intelligence CNAME target. PROBLEM (staging): job 1 on staging (00:02:46-00:06:15) FAILED in next build: Failed to collect page data for /[year]/[month]/[day], cause `cookies` was called outside a request scope (GraphQLApiError, PAPYRUS_CONTENT_SOURCE=drafts reads Cognito cookies at build time). DEPLOY cancelled, so https://threat-intelligence-staging.anth.us serves Amplify placeholder (200, 1434 B). This is a Papyrus template/runtime defect for Pretext staging, not fixable here; staging gate unverified. Production unaffected. Rollback NOT executed (production checks pass).",
+      "created_at": "2026-10-08T00:08:55.513979Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0a21780b-6c90-45f9-8b8b-32c998592af1",
+      "author": "home",
+      "text": "[2026-10-08 ~00:35Z] P4-11/P4-10 VISUAL RE-RUN on https://threat-intelligence.anth.us (run folder /Users/home/Projects/.baselines/new-host-20261008/run1, scripts copied from new-site-20261007). 24 routes: status equal to the old baseline on all; visible text hash equal on all 20 public routes (/, edition, 18 articles) and on the 404 probes; rendered-DOM hash differs on edition and articles (known infrastructure differences from the fidelity gate); /newsroom intentionally differs (new shadcn CMS shell). 120 screenshots: median pixel diff ratio 0.0006; page heights equal on all public pages (edition 17648/21840/31691 at 1280/768/390); only newsroom heights differ (900 vs 964/916). Video: article page video readyState 4, duration 175 s, /api/media mp4 307 then 206 on presigned S3. Not run: scripts/check-staging-guards.mjs (staging has no successful build, so no gate to test). Rollback not executed; old app d3on1y5vlrxmam holds no anth.us association. Ryan by hand: sign in at https://threat-intelligence.anth.us/newsroom (editor and non-editor), Preview; decide on the staging build failure (cookies outside request scope with drafts source on a Pretext site). Tickets left open.",
+      "created_at": "2026-10-08T00:17:43.633248Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6202581d-1216-43bf-aae2-1e78006f5610",
+      "author": "home",
+      "text": "[2026-10-08T00:55Z] Staging build unblocked: see PPY-30b607. TI staging job 2 SUCCEED on 2670fa5 (Papyrus 1.0.0-next.31); gate verified anonymously (307 /newsroom, noindex). Pending Ryan: editor sign-in, Preview shows draft, non-editor 403. Open gap: /robots.txt 404 on TI.",
+      "created_at": "2026-10-08T00:55:29.330133Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T12:27:58.111236Z",
+  "updated_at": "2026-10-08T00:55:29.330165Z",
+  "closed_at": null,
+  "right_now_summary": "Staging now builds and passes anonymous guards; editor, non-editor, and robots checks still need Ryan.",
+  "right_now_updated_at": "2026-10-08T00:55:30.601702Z",
+  "custom": {}
+}

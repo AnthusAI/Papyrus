@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d10ca8ad-21cc-4861-8c9f-01d17ee3264a",
+  "issue_id": "PPY-aa93b334-e787-4603-81d5-28ccf10a8054",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-07T12:32:29.622Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "P5-07: Create the new CMS app and fresh backend from the template, GitHub App connect, first build, release gates",
+    "description": "## Goal\nA NEW CMS app (WEB_COMPUTE, newspaper at `/information` and `/newsroom` in one app) created from the template with a fresh backend, connected to `AnthusAI/p.apyr.us` with the Amplify GitHub App, first build green on its default `amplifyapp.com` URL, release gates passed. No custom domain yet. The old app dbsyytcm9drqa keeps serving p.apyr.us untouched.\n\n## Context (FACT)\n- Why a new app, not reconnecting dbsyytcm9drqa (this reverses the old plan in docs/standard-site.md 3.1): the old app has real backend data, and the console connect flow was observed on 2026-10-06 (Pilobol.us CMS) to delete the app's branches and their environment variables; for a Gen2 app, deleting the `main` branch can delete its backend stack and with it the data. A fresh app leaves the old one intact as the rollback. Same reasoning as docs/migrations/pilobol-us.md section 2.\n- Old app: WEB_COMPUTE, repo https://github.com/AnthusAI/Papyrus (token-based connection), branches `main` (PRODUCTION, last job 336 SUCCEED 2026-10-05) and `codex-rehydration-api-split` (DEVELOPMENT, last job FAILED 2026-05-23), no backend environments listed, service role AmplifySSRLoggingRole-... (no compute role).\n- Template needs (docs/site-hosting.md \"Verify and repair after connecting\"): check platform stays WEB_COMPUTE, service role not replaced, branches and env vars not lost; Python 3.12 provisioning.\n- New Cognito domain prefix: `papyrus-p-apyr-us` (must differ from the old pool us-east-1_40Uot7WSv, whose domain is the auto-generated `48215fcaaf4ddb708e9f`).\n- Stack name must not collide with an existing `amplify-app-shell-*` stack (use `stackName` in site.json).\n- Depends on the TI sub-tasks that fix template gaps shared with this site: PPY-4f2519 (domain/staging host) and PPY-153434 (first-build lessons). Do not repeat them.\n\n## Exact steps\n1. Ryan: `aws sso login --profile legacy`; yes to deploying the stack (synth, review `cdk diff`, `cdk deploy`, profile legacy). Record AppId. Flags `inboundEmail`, `slack`, `storageBackups`, `consoleResponder` all false until P5-11 (P5-04).\n2. Ryan, one console sitting: install the AWS Amplify GitHub App on `AnthusAI/p.apyr.us`, connect the new app to branch `main` with the template's service role, add the `staging` branch if missing. Compare `get-app` and `list-branches` before and after and apply the documented repairs.\n3. Start the first build; wait for backend `pipeline-deploy` and the frontend build.\n4. Gate checks: schema gate (`bodyMarkus`, `bodyIr`, `aliases` on Item and PublishedItem), brand gate (`PAPYRUS_SITE_BRAND` and `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` equal the brand id), probes on the default URL: `/` (marketing), `/information`, `/newsroom`, `/robots.txt`, a missing path returns the 404 page.\n5. Record names of env vars only.\n\n## Acceptance checks\n- `aws amplify get-app` shows platform WEB_COMPUTE, repository AnthusAI/p.apyr.us, the template role; `list-branches` shows `main` with the NAMES from site.json plus SITE_ENV, PAPYRUS_SITE_BRAND, PAPYRUS_CONTENT_SOURCE.\n- Job SUCCEED; new AppSync API and Cognito pool exist; the three gates pass; probes return the expected codes.\n\n## Rollback\nDelete the new stack (human-run) and redeploy; nothing public depends on it.\n\n## Risks\nConsole connect side effects (repairs documented); Python 3.12 on the Amplify image unproven; account-global names (S3 Vectors index, SES rule set, backup vault) must not collide with the old backend (P5-04).\n\n## Needs Ryan\nSSO login, deploy yes, GitHub App console sitting, repo access.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d1cc1586-3a40-46e5-8ac4-cff501e68789",
+    "labels": [
+      "phase-5"
+    ]
+  }
+}

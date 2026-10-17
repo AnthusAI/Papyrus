@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3874b964-386f-4d5d-9464-06560e06e577",
+  "title": "Public read-only GraphQL for live islands on static pages",
+  "description": "Pages stay static. Add a public, read-only, rate-limited surface on the CMS app's GraphQL API, scoped to published content only (latest items, search, item metadata), so static pages can host small live islands. M8's static JSON (_data/search-index.json, latest.json) and <papyrus-search> are the starting point. No drafts, no editorial data, nothing writable. Document the guest surface and add a test that unpublished items are invisible.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-13T23:09:20.080421Z",
+  "updated_at": "2026-10-13T23:09:20.080461Z",
+  "closed_at": null,
+  "right_now_summary": "The team is designing a public, rate-limited GraphQL API for published content on static pages.",
+  "right_now_updated_at": "2026-10-13T23:09:21.906463Z",
+  "custom": {}
+}

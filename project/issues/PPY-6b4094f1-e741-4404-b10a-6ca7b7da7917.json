@@ -110,5 +110,7 @@
   "created_at": "2026-09-06T13:26:03.034022Z",
   "updated_at": "2026-09-06T15:17:51.227635Z",
   "closed_at": "2026-09-06T15:17:51.227635Z",
+  "right_now_summary": "The sandbox is deployed and verified; PR #62 is merged, and only the worker worktree needs removal.",
+  "right_now_updated_at": "2026-10-12T16:43:22.847782Z",
   "custom": {}
 }

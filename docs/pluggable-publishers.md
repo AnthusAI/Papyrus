@@ -41,39 +41,47 @@ Grounded in `feature/renderer-architecture` after PPY-eca592, not the pre-union
 
 ### 2.1 Site brand is a compile-time TS registry with `rendererConfig`
 
-`lib/site-brand.ts` defines a closed `SiteBrandId` union and a `SITE_BRANDS`
-record resolved once at module load from `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` /
-`PAPYRUS_SITE_BRAND`:
+`lib/site-brand.ts` defines an open `SiteBrandId` (a string) and a brand
+registry resolved once at module load from `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` /
+`PAPYRUS_SITE_BRAND`. The registry holds the `papyrus` reference brand plus the
+brands the publication registers in its own `papyrus.config.ts`:
 
 ```ts
-export type SiteBrandId = "papyrus" | "threat-intelligence" | "pilobol-us";
+// papyrus.config.ts in a publication repo
+import { defineSite } from "@anthusai/papyrus/define-site";
+import { brand } from "./publication/brand";
 
+export default defineSite({ brands: [brand], defaultBrand: brand.id, backend: { brandId: brand.id } });
+```
+
+`withPapyrus()` aliases that file as `papyrus-site`; Papyrus's own repo does the
+same through `tsconfig.json` paths. Ids are matched exactly (no aliases, no case
+or `.`/`_` folding). If the environment names a brand that is not registered,
+startup throws `Unknown brand '<x>'. Registered: <list>`.
+
+A `SiteBrand` carries the renderer, hosting and theme configuration and two
+optional slots for brand-specific code, so core never imports a publication:
+
+- `components.PictogramFigure` and `components.BlogPageBackground` replace the
+  generic components in the Pretext renderer.
+- `demoEdition` supplies the default layout-lab scenario.
+
+```ts
 type RendererConfig =
   | { kind: "pretext"; layout: "newsprint" | "blog" | "magazine"; layoutPlan: EditionLayoutPlan }
   | { kind: "markus"; theme: string };
 
 // Sibling type only — not a required SiteBrand field (PPY-eca592)
 type HostingConfig = { kind: "amplify-ssr" } | { kind: "amplify-static" };
-
-const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
-  papyrus: {
-    rendererConfig: { kind: "pretext", layout: "newsprint", layoutPlan: /* empty-edition placeholder */ },
-    /* ... */
-  },
-  "threat-intelligence": {
-    rendererConfig: { kind: "pretext", layout: "blog", layoutPlan: /* ... */ },
-    /* ... */
-  },
-  "pilobol-us": {
-    rendererConfig: { kind: "markus", theme: "hackerman" },
-    /* ... */
-  },
-};
 ```
 
-`publications/*/brand.ts` exports per-publication `SiteBrand` records imported
-by `lib/site-brand.ts`. There is no plugin loader; adding a brand means editing
-the `SITE_BRANDS` map.
+The published `@anthusai/papyrus` package contains no publication code. Papyrus's
+own repo keeps `publications/*` registered through the repo-root
+`papyrus.config.ts` only, and their theme CSS reaches the app through the
+`papyrus-site-theme` alias (`app/dev-themes.css` here; the publication's
+`publication/theme.css`, or a shipped empty stylesheet, in a publication repo).
+There is no plugin loader; adding a brand means registering it in
+`papyrus.config.ts`, not editing Papyrus.
 
 `papyrus-config.example.yaml` / `.papyrus/config.yaml` is **backend-only**
 (steering paths, public site URL, OpenAI). It does **not** drive the reader or
@@ -314,7 +322,7 @@ edition JSON if GraphQL-less pods need it.
 
 ### 7.2 How Pilobol.us opts in (concrete)
 
-1. `publications/pilobol_us/brand.ts` is registered in `SITE_BRANDS` as
+1. `publications/pilobol_us/brand.ts` is registered in `papyrus.config.ts` as
    `pilobol-us` with `rendererConfig: { kind: "markus", theme: "hackerman" }`.
 2. Set `PAPYRUS_SITE_BRAND=pilobol-us` in the pod's deploy env.
 3. Author Markdown under `web/content/articles/<slug>.md`.
@@ -385,7 +393,7 @@ Ordered, smallest dependency first:
 - A second content model.
 - A Next.js Markus preview or render shell.
 - A runtime plugin loader / dynamic renderer registration. Renderers are a
-  compile-time TS registry, mirroring `SITE_BRANDS`.
+  compile-time TS registry, mirroring the brand registry.
 - Markus `site` command reuse (it is demo-specific).
 - A Markus npm package (Markus is Python; no JS surface to consume).
 

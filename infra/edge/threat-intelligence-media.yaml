@@ -1,0 +1,141 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: papyrus-edge-threat-intelligence CloudFront distributions in front of the Threat Intelligence Amplify app, with /api/media/media/* served from the media bucket through an origin access control
+Parameters:
+  CertificateArn:
+    Type: String
+  MediaBucketDomainName:
+    Type: String
+    Default: amplify-d12wnrx15qbcc2-ma-papyrusmediabucket0dab24-qr8gvsc26b09.s3.us-east-1.amazonaws.com
+Resources:
+  ForwardHostFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: threat-intelligence-forward-host
+      AutoPublish: true
+      FunctionConfig:
+        Comment: copy viewer Host to x-forwarded-host
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.headers['x-forwarded-host'] = { value: request.headers.host.value };
+          return request;
+        }
+  MediaPathRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: threat-intelligence-media-path-rewrite
+      AutoPublish: true
+      FunctionConfig:
+        Comment: map /api/media/media/<key> to the bucket key media/<key>
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.uri = request.uri.replace('/api/media/media/', '/media/');
+          return request;
+        }
+  MediaBucketOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-media-bucket'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  CmsMainDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: threat-intelligence.anth.us (main)
+        Aliases: [threat-intelligence.anth.us]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: main.d12wnrx15qbcc2.amplifyapp.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+          - Id: media-bucket
+            DomainName: !Ref MediaBucketDomainName
+            OriginAccessControlId: !GetAtt MediaBucketOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        CacheBehaviors:
+          - PathPattern: /api/media/media/*
+            TargetOriginId: media-bucket
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: false
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt MediaPathRewriteFunction.FunctionARN
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+  CmsStagingDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: threat-intelligence-staging.anth.us (staging)
+        Aliases: [threat-intelligence-staging.anth.us]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: staging.d12wnrx15qbcc2.amplifyapp.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+          - Id: media-bucket
+            DomainName: !Ref MediaBucketDomainName
+            OriginAccessControlId: !GetAtt MediaBucketOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        CacheBehaviors:
+          - PathPattern: /api/media/media/*
+            TargetOriginId: media-bucket
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: false
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt MediaPathRewriteFunction.FunctionARN
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+Outputs:
+  MainDistributionId: {Value: !Ref CmsMainDistribution}
+  MainDomain: {Value: !GetAtt CmsMainDistribution.DomainName}
+  StagingDistributionId: {Value: !Ref CmsStagingDistribution}
+  StagingDomain: {Value: !GetAtt CmsStagingDistribution.DomainName}
+

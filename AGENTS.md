@@ -124,9 +124,12 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   Read [`docs/site-hosting.md`](docs/site-hosting.md) before standing up or
   changing Amplify apps for a publication. Root `amplify.yml` here is **SSR /
   WEB_COMPUTE** for p.apyr.us only (`ampx pipeline-deploy`, `.next` artifacts).
-  Markus static pods use platform **`WEB`**, template
-  [`docs/hosting/amplify-static.yml.example`](docs/hosting/amplify-static.yml.example),
-  and their **own** Amplify app — do not cargo-cult this repo's SSR build spec.
+  Markus sites default to `backend.publication` `s3-projection` (S3 bucket
+  behind CloudFront, no reader app; edge templates in `infra/edge/`). A Markus
+  site that keeps an Amplify reader (app-shell `reader`, `backend.reader`) or sets `publication: false`
+  uses the static `WEB` reader app described by
+  [`docs/hosting/amplify-static.yml.example`](docs/hosting/amplify-static.yml.example)
+  — do not cargo-cult this repo's SSR build spec.
 - Before running any AWS-, Amplify-, sandbox-, or deployment-related command,
   read `AGENTS.local.md` and follow its local account/profile/env guidance.
   Treat `AGENTS.local.md` as required preflight context for cloud operations on
@@ -199,23 +202,30 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   `assignments story-cycle-output` for run-level research/reporting output.
 - Use an AWS profile for local Amplify/AWS access.
 - `.env` is for Papyrus runtime settings and the seed editor credentials used by
-  `npm run seed:amplify`. `.env*` must stay ignored, and `.env.example` is the
+  `npm run seed:amplify` (which seeds users, sections, doctrine and procedures;
+  articles are seeded with `poetry run papyrus ops content seed-edition`). `.env*` must stay ignored, and `.env.example` is the
   committed template.
 - **GraphQL auth split (do not mix):**
   - **CLI and other non-Lambda tools** use `PAPYRUS_GRAPHQL_ENDPOINT` plus
-    `PAPYRUS_GRAPHQL_JWT` (minted via `poetry run papyrus auth refresh-jwt`).
-    That JWT is sent to AppSync through the **Lambda JWT authorizer** lane only.
-    Do not add a Papyrus editor login flow or local auth-session cache for CLI publishing.
+    AWS credentials from the standard credential chain (SSO profile, assumed
+    role, OIDC role, Amplify build role). Every request is signed with SigV4
+    (IAM). Run locally with `AWS_PROFILE=<profile> papyrus ops content ...`
+    where the profile assumes the site's `<siteId>-papyrus-authoring` role.
+    **No long-lived token exists anywhere in the Papyrus design:** do not add a
+    JWT, API key, shared secret, custom Lambda authorizer, `refresh-jwt`
+    command, Papyrus editor login flow, or local auth-session cache for CLI
+    publishing.
   - **Deployed Lambda functions** call AppSync with **IAM only** (SigV4 /
-    `authMode: "iam"` on the Amplify data client). Do not mint JWTs, do not set
-    `PAPYRUS_JWT_SECRET` on Lambdas, and do not add alternate GraphQL auth paths
-    inside Lambda code. Grant access with `allow.resource(<function>)` on the
-    data schema and `appsync:GraphQL` on the function role.
+    `authMode: "iam"` on the Amplify data client). The same signing code serves
+    CLI and Lambdas. Do not set secrets on Lambdas for GraphQL access, and do
+    not add alternate GraphQL auth paths inside Lambda code. Grant access with
+    `allow.resource(<function>)` on the data schema and `appsync:GraphQL` on the
+    function role.
 - Production authoring uses the deployed production AppSync endpoint, not the
-  sandbox. Mint short-lived production JWTs from the Amplify SSM
-  `PAPYRUS_JWT_SECRET`; do not write production secrets or freshly minted
-  production JWTs into `.env`. Follow `skills/category-steering/SKILL.md` for
-  the exact token minting and category/graph steering import workflow.
+  sandbox. Authenticate with an AWS profile for the production account's
+  authoring role; do not write credentials into `.env`. Follow
+  `skills/category-steering/SKILL.md` for the category/graph steering import
+  workflow.
 - Category and graph steering imports must not mirror Biblicus corpus contents
   into Papyrus GraphQL. Papyrus stores steering state, artifact references,
   category copy, proposals, decisions, strict private `Reference` metadata,
@@ -236,7 +246,7 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   `PYTHONPATH=src python -m papyrus_newsroom knowledge-query` or
   `poetry run papyrus-newsroom knowledge-query` (not ad-hoc GraphQL). Use
   `--execution local` only when developing engine behavior; default remote
-  execution needs `PAPYRUS_GRAPHQL_ENDPOINT` and `PAPYRUS_GRAPHQL_JWT`.
+  execution needs `PAPYRUS_GRAPHQL_ENDPOINT` and AWS credentials (`AWS_PROFILE`).
   `knowledgeQuery` is the shared CLI/Lambda path; prefer local CLI iteration
   for context-pack content changes and deploy only when ready for AppSync.
 - Bounded exploratory researcher loops vs one-shot researchers are documented in
@@ -276,16 +286,26 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   `poetry run papyrus knowledge concepts import-types --config corpora/papyrus-semantic-relation-types.yml`
   after schema deploy, then `poetry run papyrus knowledge concepts backfill --config corpora/papyrus-semantic-relation-types.yml`
   to denormalize existing relation rows.
-- Assignment lifecycle changes use protected actions or the JWT authoring lane
+- Assignment lifecycle changes use protected actions or the IAM authoring CLI
   and append `AssignmentEvent` audit rows. The Newsroom `Assignments` tab
   should show claim/release/complete/cancel/reopen workflow actions, not
   edition-candidate culling.
+- **One content item, one lifecycle** (`docs/content-item-lifecycle.md`). A
+  piece of content is one `Item` lineage from the moment work on it starts
+  until publication. `Item.stage` carries the lifecycle (`idea`,
+  `assignment`, `research`, `report`, `editor_select`, `copywriting`,
+  `published`); `Item.versionState` still versions the copy. Research,
+  reporting and copywriting Assignments are work on that content item and
+  carry its `itemLineageId`; they never create a second piece of content. The
+  name editors see is `SiteBrand.contentItemName` (default Story). Do not
+  build Story-to-Article hierarchies.
 - Editorial selection is separate from assignment lifecycle. Reporting packet
   decisions use `AssignmentEvent.eventType` values
   `reporting_select`, `reporting_merge`, `reporting_brief`, `reporting_hold`,
   and `reporting_kill`, with structured metadata in a `ModelAttachment` owned by
-  the event. `select` and `brief` create child private copywriting Assignments
-  (`copywriting.article-draft` or `copywriting.brief-draft`), not `Item` rows.
+  the event. `select` and `brief` create private copywriting Assignments
+  (`copywriting.article-draft` or `copywriting.brief-draft`) on the same
+  content item, not new `Item` lineages.
   `hold` and `kill` create no Items; no reporting packet review creates
   `EditionItem` placement.
 - For dated edition setup, section slot planning, and surplus research
@@ -298,9 +318,10 @@ in `develop`, whether a `develop -> main` PR exists, and whether it has merged.
   by default). Link assignments to that edition, section, lane, topic, coverage
   node, lineage source, and evidence with `SemanticRelation` rows. Reporting
   agents produce private context packets first; explicit editor `select`/`brief`
-  decisions queue copywriting Assignments; copywriting is the first stage allowed
-  to create draft reader-facing `Item` records. Edition placement remains a
-  later copyediting/layout step.
+  decisions queue copywriting Assignments; copywriting is the first stage that
+  writes reader-facing copy, as the next version of the content item that
+  dispatch created at the `report` stage. Edition placement remains a later
+  copyediting/layout step.
 - EditionSlot orchestration guardrails:
   - planning/dispatch agents should start with
     `skills/edition-planning/SKILL.md`;
@@ -483,8 +504,9 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
 - Assignments are not `PublicationItem`s and should not appear in reader
   layout. Keep research and reporting output as private `Assignment` work
   products. Explicit editor selection queues private copywriting Assignments;
-  copywriting creates draft `article` or `brief` `Item` records for review.
-  Draft creation is not edition placement.
+  copywriting writes the draft copy as the next version of the same content
+  item, in `article` or `brief` format. Draft creation is not edition
+  placement.
 - `articleToPublicationItem` adapts legacy/fixture `Article` objects into
   generic items.
 - `publicationItemToArticle` adapts article items back to `Article` for direct
@@ -542,22 +564,23 @@ GraphQL (or `?scenario=<id>` fixture overrides for tests/debug only).
 - `amplify/seed/seed.ts` signs into Cognito as the seed editor using
   `PAPYRUS_SEED_USERNAME`, `PAPYRUS_SEED_PASSWORD`, and
   `PAPYRUS_SEED_EMAIL`. Those belong in `.env`, not in source control.
-- The data API supports public API-key reads, Cognito user-pool auth, **IAM for
-  registered Lambda functions** (`allow.resource(...)`), and a separate **JWT
-  authorizer lane for CLI/tools only**. Match the intended `../Primus/dashboard` shape:
-  public API-key access stays available, Cognito remains available, and CLI clients
-  send a direct JWT through the AppSync Lambda-authorizer auth scheme.
-- The JWT authorizer (`graphql-jwt-authorizer`) and Amplify secret
-  `PAPYRUS_JWT_SECRET` are for **CLI authoring only**, not for inbound email,
-  console chat, knowledge query, or other Lambdas.
+- The data API supports public API-key reads, Cognito user-pool auth (newsroom
+  editor sessions), the Cognito identity pool (guest reads, authenticated
+  reads/writes), and **IAM** for registered Lambda functions
+  (`allow.resource(...)`) and for the CLI and automation. AppSync IAM
+  authorization is enabled on the API (`enableIamAuthorizationMode`), so access
+  for IAM principals is controlled by IAM policy (`appsync:GraphQL`), not by
+  schema rules. The CLI's role is the `<siteId>-papyrus-authoring` role created
+  by `infra/amplify-app-shell`. There is no Lambda authorizer and no secret for
+  GraphQL access.
 
 `src/papyrus_content` owns the content authoring CLI:
 
 - `poetry run papyrus` is the canonical backend CLI surfaced by
   the `papyrus` command groups.
 - The CLI is GraphQL authoring and inspection.
-- `src/papyrus_content/graphql_authoring.py` owns GraphQL authoring calls: JWT
-  when run from the CLI; IAM automatically when `AWS_LAMBDA_FUNCTION_NAME` is set.
+- `src/papyrus_content/graphql_authoring.py` owns GraphQL authoring calls, always
+  signed with SigV4 from the standard AWS credential chain (CLI and Lambda alike).
 - `graphql_authoring.py` uses **fixed** query field lists and explicit input
   shaping. Do not add runtime schema introspection to adapt to undeployed fields.
   See [Schema and API alignment (no compatibility shims)](#schema-and-api-alignment-no-compatibility-shims).
@@ -587,8 +610,7 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 **local pod** and **cloud** backends.
 
 - **Same verbs, same flags.** Core operator commands include `papyrus references
-  list`, `papyrus references show <id>`, `papyrus assignments list`, and
-  `papyrus auth refresh`. Local pod and cloud must accept the same argv and
+  list`, `papyrus references show <id>`, and `papyrus assignments list`. Local pod and cloud must accept the same argv and
   return the same human-readable output shape (tabular list rows, detail blocks,
   exit codes). Executable specs live in `features/operator-cli.feature`.
 - **Backend is config, not a second command tree.** Select `local` or `cloud`
@@ -601,7 +623,7 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
   hosted corpus sync, editions, or the layout solver.
 - **Cloud backend** uses the existing GraphQL/AppSync newsroom (`Reference`,
   `Assignment`, editions, knowledge-query). Corpus key, publication, endpoint,
-  and JWT come from steering/config defaults (`threat-intelligence` today);
+  and credentials come from steering/config defaults (`threat-intelligence` today);
   operators should not need `--corpus-key` or `PYTHONPATH=src` for the common
   path.
 - **Object kinds are explicit.** Cloud `assignments list` rows are GraphQL
@@ -614,9 +636,9 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **`kbs` stays the board.** Kanbus owns issues, columns, screenshots, and
   workflow transitions. `papyrus` owns newsroom objects (references, assignments,
   editions, knowledge). Do not merge `kbs` into `papyrus`.
-- **Auth is operator UX.** Cloud authoring uses `papyrus auth refresh` (alias of
-  today's `refresh-jwt`) to mint `PAPYRUS_GRAPHQL_JWT`. Expired or missing JWT
-  must print recovery guidance, not a Python traceback.
+- **Auth is operator UX.** Cloud authoring signs with the AWS credential chain
+  (`AWS_PROFILE`); there is no `papyrus auth` group and no token to refresh.
+  Missing AWS credentials must print recovery guidance, not a Python traceback.
 - **Local pod references** live under `stories/<story-id>/references/*.json`.
   `papyrus references register --backend local` requires `--story <story-id>`
   or `local.defaultStory` in operator CLI config; never hard-code a story path.
@@ -876,6 +898,7 @@ Amplify checks when cloud content changes:
 ```bash
 npm run sandbox
 npm run seed:amplify
+poetry run papyrus ops content seed-edition
 npm run build
 ```
 

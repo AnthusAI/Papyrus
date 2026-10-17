@@ -1,0 +1,44 @@
+{
+  "id": "PPY-4243f76b-101e-494d-a435-83c7bfd80871",
+  "title": "Pretext main branch SSR bundle lacks amplify_outputs.json (front page 500)",
+  "description": "Root cause: the cms-production build spec wrote amplify_outputs.json only at the checkout root; the SSR compute bundle lacks it, so getLatestPublishedEdition threw. Fixed in Papyrus#156 (merge f0c0ee3, release 1.0.0-next.22): Pretext production spec copies it to .next/ and sets PAPYRUS_AMPLIFY_OUTPUTS. TI PR AnthusAI/Threat-Intelligence#12 picks it up.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33288959-e5b8-4287-8608-305cbf39a06d",
+  "labels": [
+    "phase-4"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "76c6c3a7-bf51-438f-acf8-fcb7b74d6976",
+      "author": "home",
+      "text": "P4-06 FOLLOW-UP (2026-10-07 UTC, ryan-authorized, dzefa11i80jyq only). 20:12Z cdk diff vs live stack: only app buildSpec (adds `cp amplify_outputs.json .next/amplify_outputs.json` and `echo PAPYRUS_AMPLIFY_OUTPUTS=.next/amplify_outputs.json >> .env.production`) and Branch PAPYRUS_OAUTH_REDIRECT_URLS (adds default-URL entries); no replace/delete. Deployed 20:15:09Z (17s). get-app: WEB_COMPUTE, service/compute roles unchanged, repository https://github.com/anthusai/threat-intelligence kept, main has 12 env names. Job 5 RELEASE 20:15:43Z-20:24:39Z SUCCEED; build log shows both new lines executed. RESULT: `/` STILL 500, /newsroom 200. CloudWatch: same `Papyrus requires amplify_outputs.json` from getLatestPublishedEdition. Likely cause: the echo of PAPYRUS_AMPLIFY_OUTPUTS runs AFTER `npm run build`, so the var is not in the runtime env (lib/amplify-outputs-path.ts reads process.env.PAPYRUS_AMPLIFY_OUTPUTS, else cwd/amplify_outputs.json). Probably the echo must precede the build. Needs a template fix. Old app d3on1y5vlrxmam untouched (job 71, auto-build false, site 200); Cognito callbacks include default-URL entries.",
+      "created_at": "2026-10-07T20:27:23.746816Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "0a3aa3cf-a3d6-4415-8702-4f8cfc736117",
+      "author": "home",
+      "text": "home: PPY-4243f7 attempt (2026-10-07 UTC). Cause found by experiment, not the suspected order: Papyrus#159 (next.25) put `PAPYRUS_AMPLIFY_OUTPUTS` in `.env.production` BEFORE `npm run build`; TI job 6 (20:48Z) then FAILED in `next build` page-data collection with `Papyrus requires amplify_outputs.json` (the build reads .next/amplify_outputs.json before the post-build cp creates it). So env-before-build is wrong; env-after-build (#156) leaves the runtime without the file. Fix Papyrus#161 (merged c4f3e28, release 1.0.0-next.27 / PyPI dev27): spec drops the env line (copy into .next stays after build); lib/amplify-outputs-path falls back to cwd/.next/amplify_outputs.json; unit test + synth order assertions. WARNING: develop at next.25/next.26 has the broken #159 spec; use next.27. Deployed to dzefa11i80jyq (domain-free copy, cdk diff = buildSpec only, 21:16:42-21:17:03Z). Job 7 RELEASE 21:17:05Z-21:25:47Z SUCCEED. HTTP: / still 500, /newsroom 200, because the app package pin in TI main is still next.22 so the runtime lib lacks the fallback. Pin-bump PR AnthusAI/Threat-Intelligence#13 (package.json, lock, infra/site.json to next.27) NOT merged: merging it (autoBuild true) builds and should fix /. Old app d3on1y5vlrxmam untouched: job 71, autoBuild false, live site 200. Ticket NOT closed.",
+      "created_at": "2026-10-07T21:28:15.000307Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b0696be0-a422-4708-9fb5-9e7f5ace886c",
+      "author": "home",
+      "text": "Fixed 2026-10-07: Papyrus#161 (next.27) + Threat-Intelligence#13 pin bump; CMS job 8 SUCCEED; / -> 307 /2026/july/04 -> 200; /newsroom 200; old app d3on1y5vlrxmam untouched (job 71, auto-build off, live 200). Note: next.25/next.26 contain a broken build spec (env line before build); use next.27.",
+      "created_at": "2026-10-07T21:39:47.303775Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-07T19:58:57.571069Z",
+  "updated_at": "2026-10-07T21:39:53.957488Z",
+  "closed_at": "2026-10-07T21:39:53.957090Z",
+  "right_now_summary": "The TI app now uses Papyrus next.27, and the front page loads normally with its SSR bundle.",
+  "right_now_updated_at": "2026-10-07T21:39:56.569268Z",
+  "custom": {}
+}

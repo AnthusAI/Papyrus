@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e172c8b7-1456-4399-a97f-dfd3f06dd4a1",
+  "issue_id": "PPY-54957abe-6388-461c-84e1-561cb68f5c17",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T14:52:56.281Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Record a Papyrus relevance run for the Cyclotron marketing demo",
+    "description": "Export a fixture of real Papyrus reviews changing the relevance cyclotron for the Cyclotron-web services page, in the editorial-run-v1 shape with source papyrus-live, using the engine export (decision-flywheel-de484ad0). Include only explanations whose review was marked shareable; redact others. Pick one review that led to a promoted version and record its before and after decisions. Ordering: last, after at least one promoted version in production.\n\nAcceptance criteria:\n- The fixture contains no non-shareable explanation, no editor email and no private corpus text beyond titles and public URLs.\n- It names the cyclotron versions and the review that preceded the promotion.\n- Ryan approves the fixture before it is copied into Cyclotron-web.,",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

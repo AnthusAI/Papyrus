@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "48cdf77c-bce9-4e54-9291-bbf622ab245f",
+  "issue_id": "PPY-bfa37253-c9fa-4fd1-a92a-4a207d74d944",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-09T19:51:22.858Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "next.34+ builds fail in consumers: Module parse failed on TypeScript source of node_modules/cyclotron (add to transpilePackages in withPapyrus)",
+    "description": "Evidence: Threat-Intelligence PR #16 (pin bump to @anthusai/papyrus 1.0.0-next.35, merged e41feb5) -> Amplify app dzefa11i80jyq main job 11 FAILED at BUILD: Module parse failed on TypeScript sources under node_modules/cyclotron/trace-ui/src/ (cyclotron-status.tsx, review-control.tsx, cyclotronStatus.ts), imported by components/newsroom-references-view.tsx and topic-steering-workspace.tsx (Papyrus#168-#170). next.31 had no cyclotron dependency. Planned fix: add cyclotron to default transpilePackages in withPapyrus (src/with-papyrus.mjs), regression test, verify-packages check, prove with real consumer build. Live TI deployment remains job 10 (next.31).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+    "labels": [
+      "papyrus-improvement"
+    ]
+  }
+}

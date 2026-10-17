@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import http.client
-import os
 import urllib.parse
-from typing import Any
+from typing import Any, Callable
 
-from .env import graphql_endpoint, graphql_jwt, graphql_timeout_seconds
-from .graphql_http import graphql_request_headers, graphql_use_iam, running_in_aws_lambda
+from .env import graphql_endpoint, graphql_timeout_seconds
+from .guest_auth import refuse_guest_auth
+from .graphql_http import iam_signed_graphql_headers
 
 VERSION_FIELDS = (
     "lineageId versionNumber previousVersionId versionState versionCreatedAt "
@@ -57,7 +57,7 @@ ASSIGNMENT_FIELDS = (
     "id assignmentTypeKey queueKey queueStatusKey status priority title assigneeType assigneeId assigneeKey "
     "claimedAt claimExpiresAt completedAt canceledAt corpusId categorySetId classifierId sourceSnapshotId "
     "importRunId sectionId sectionKey sectionType sectionStatusKey sectionQueueStatusKey primaryFocusCategoryKey "
-    "topicScopeCategoryKeys createdBy createdAt updatedAt summary newsroomFeedKey"
+    "topicScopeCategoryKeys createdBy createdAt updatedAt summary newsroomFeedKey itemLineageId"
 )
 ASSIGNMENT_EVENT_FIELDS = (
     "id assignmentId assignmentTypeKey queueKey eventType fromStatus toStatus actorSub actorLabel note createdAt"
@@ -119,12 +119,15 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
     "itemLineageId placementKey sortKey pageNumber priority metadata"
 )
 ITEM_FIELDS = (
-    f"{VERSION_FIELDS} id type status typeStatus slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt"
+    f"{VERSION_FIELDS} id type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
+    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
-    "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial"
+    "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
+)
+PUBLISHED_ITEM_SUMMARY_FIELDS = (
+    "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
 )
 MEDIA_ASSET_FIELDS = (
     "id itemId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
@@ -175,6 +178,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "PublishedEditionItem": {"field": "listPublishedEditionItems", "fields": PUBLISHED_EDITION_ITEM_FIELDS},
     "Item": {"field": "listItems", "fields": ITEM_FIELDS},
     "PublishedItem": {"field": "listPublishedItems", "fields": PUBLISHED_ITEM_FIELDS},
+    "PublishedItemSummary": {"field": "listPublishedItems", "fields": PUBLISHED_ITEM_SUMMARY_FIELDS},
     "MediaAsset": {"field": "listMediaAssets", "fields": MEDIA_ASSET_FIELDS},
     "PublishedMediaAsset": {"field": "listPublishedMediaAssets", "fields": PUBLISHED_MEDIA_ASSET_FIELDS},
     "ItemTag": {"field": "listItemTags", "fields": ITEM_TAG_FIELDS},
@@ -381,6 +385,29 @@ mutation CreateModelAttachmentDownload($attachmentId: ID!) {
 """
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
+    "itemsByLineageAndVersion": {
+        "field": "listItemsByLineageAndVersion",
+        "partitionKey": "lineageId",
+        "partitionType": "ID",
+        "fields": ITEM_FIELDS,
+    },
+    "assignmentsByItemLineageAndCreatedAt": {
+        "field": "listAssignmentsByItemLineageAndCreatedAt",
+        "partitionKey": "itemLineageId",
+        "partitionType": "ID",
+        "fields": ASSIGNMENT_FIELDS,
+    },
+    "mediaAssetsByItemAndSortKey": {
+        "field": "listMediaAssetsByItemAndSortKey",
+        "partitionKey": "itemId",
+        "fields": MEDIA_ASSET_FIELDS,
+    },
+    "publishedMediaAssetsByItemAndSortKey": {
+        "field": "listPublishedMediaAssetsByItemAndSortKey",
+        "partitionKey": "publishedItemId",
+        "fields": PUBLISHED_MEDIA_ASSET_FIELDS,
+    },
     "assignmentsByQueueStatusAndPriority": {
         "field": "listAssignmentsByQueueStatusAndPriority",
         "partitionKey": "queueStatusKey",
@@ -401,6 +428,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "assignmentId",
         "fields": ASSIGNMENT_EVENT_FIELDS,
         "partitionType": "ID",
+    },
+    "referencesByCurationStatusKey": {
+        "field": "listReferencesByCurationStatusKeyAndUpdatedAt",
+        "partitionKey": "curationStatusKey",
+        "fields": REFERENCE_FIELDS,
     },
     "semanticRelationsByObjectState": {
         "field": "listSemanticRelationsByObjectState",
@@ -536,15 +568,13 @@ MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 
 class PapyrusGraphQLAuthoringClient:
-    def __init__(self, endpoint: str | None = None, auth_token: str | None = None) -> None:
+    def __init__(
+        self,
+        endpoint: str | None = None,
+        header_factory: Callable[[bytes], dict[str, str]] | None = None,
+    ) -> None:
         self.endpoint = endpoint or graphql_endpoint()
-        self.use_iam = graphql_use_iam()
-        if self.use_iam:
-            self.auth_token = auth_token or ""
-        elif auth_token is not None:
-            self.auth_token = auth_token
-        else:
-            self.auth_token = graphql_jwt()
+        self.header_factory = header_factory
         self.timeout_seconds = graphql_timeout_seconds()
         self._parsed_endpoint = urllib.parse.urlparse(self.endpoint)
         if self._parsed_endpoint.scheme != "https":
@@ -555,13 +585,9 @@ class PapyrusGraphQLAuthoringClient:
         self._connection: http.client.HTTPSConnection | None = None
 
     def _request_headers(self, payload: bytes) -> dict[str, str]:
-        if self.use_iam:
-            from .graphql_http import iam_signed_graphql_headers
-
-            return iam_signed_graphql_headers(self.endpoint, payload)
-        headers = graphql_request_headers(endpoint=self.endpoint, body=payload, token=self.auth_token)
-        headers["Connection"] = "keep-alive"
-        return headers
+        if self.header_factory is not None:
+            return self.header_factory(payload)
+        return iam_signed_graphql_headers(self.endpoint, payload)
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
@@ -686,6 +712,9 @@ class PapyrusGraphQLAuthoringClient:
             if not next_token:
                 break
         return items
+
+    def list_published_item_summaries(self) -> list[dict[str, Any]]:
+        return self.list_records("PublishedItemSummary")
 
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]
@@ -855,12 +884,8 @@ class PapyrusGraphQLAuthoringClient:
 
 
 def create_authoring_client() -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
-    from .env import decode_jwt_claims
-
-    if graphql_use_iam():
-        return PapyrusGraphQLAuthoringClient(auth_token=""), {}
-    token = graphql_jwt()
-    return PapyrusGraphQLAuthoringClient(auth_token=token), decode_jwt_claims(token)
+    refuse_guest_auth("this command")
+    return PapyrusGraphQLAuthoringClient(), {}
 
 
 def model_attachment_upload_variables(attachment: dict[str, Any]) -> dict[str, Any]:

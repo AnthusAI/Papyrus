@@ -1,0 +1,35 @@
+{
+  "siteId": "anth-us",
+  "repository": "https://github.com/AnthusAI/Anth.us-Papyrus",
+  "brand": "anth-us",
+  "frontend": "markus-static",
+  "hostedZoneId": "Z02552332GG6AM25SFP73",
+  "papyrusVersion": "1.0.0-next.41",
+  "cms": {
+    "cognitoDomainPrefix": "papyrus-anth-us-cms",
+    "environment": {
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/"
+    }
+  },
+  "reader": {
+    "domainName": "anth.us",
+    "domainPrefixes": ["", "www"],
+    "preBuildCommands": [
+      "git submodule update --init --recursive",
+      "uv pip install --python .venv Pillow PyYAML citeproc-py"
+    ],
+    "skipContentExport": true,
+    "buildCommand": "python3 web/build_via_papyrus.py",
+    "baseDirectory": "web/dist-papyrus",
+    "redirects": [
+      { "source": "/blog/old-post", "target": "/articles/old-post/" }
+    ],
+    "customHeaders": [
+      {
+        "pattern": "**/*.html",
+        "headers": { "Cache-Control": "public, max-age=0, s-maxage=60, must-revalidate" }
+      }
+    ]
+  },
+  "github": { "owner": "AnthusAI", "repo": "Anth.us-Papyrus", "branches": ["main"] }
+}

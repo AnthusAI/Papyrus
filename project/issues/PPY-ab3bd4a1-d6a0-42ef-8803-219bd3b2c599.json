@@ -1,0 +1,52 @@
+{
+  "id": "PPY-ab3bd4a1-d6a0-42ef-8803-219bd3b2c599",
+  "title": "Prove plugin composition, authorization, and delivery",
+  "description": "Minimal test plugin with private resource and component using shared types/client; test multiple contributions, invalid config, auth separation, deterministic output and no-plugin parity. Review, lint/type/build/tests, commit/push, draft PR and evidence. Keep open until landing.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8bbd3c9-3d91-4627-8b58-1a4d3faf7caf",
+  "labels": [
+    "canceled"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "402ead10-ed49-464c-a6eb-8688b53aad95",
+      "author": "home",
+      "text": "Proof plugin specification: As a plugin author, I want two private related models and two newsroom components sharing native Amplify types/client so that multi-resource composition is demonstrably usable. Test-only opt-in; editor/admin only; no public operations. Executable Gherkin will cover opt-in validation, generated authorization contract, notebook/create/list workflow through an injected client, and typed misuse rejection. No cloud deployment or live API verification.",
+      "created_at": "2026-10-13T23:38:00.474728Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-proof-plugin"
+      }
+    },
+    {
+      "id": "1e515b63-08c4-49f7-9c23-24742cc7687d",
+      "author": "home",
+      "text": "CANCELED by Ryan on 2026-10-13: \"take back that initiative about creating plugins into Papyrus, cuz I think we just eliminated that entire problem\". Prospectus can use existing Kanbus/Virtuus issue storage as a separate application/subdomain with simple configured links/intake; the proposed plugin foundation is therefore no longer needed. All implementation agents stopped immediately. This is cancellation, not completed delivery. Partial work is preserved in the isolated feature/PPY-f8bbd3-plugin-build-foundation worktree and a local archive; no implementation was merged or deployed. No alternative CRM or baseline tables are being implemented. Supersedes this issue and its initiative plan.",
+      "created_at": "2026-10-13T23:42:46.685093Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-plugin-cancellation"
+      }
+    }
+  ],
+  "created_at": "2026-10-13T23:36:17.146144Z",
+  "updated_at": "2026-10-13T23:42:50.839813Z",
+  "closed_at": "2026-10-13T23:42:50.839758Z",
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-plugin-build"
+  },
+  "right_now_summary": "The plugin work was canceled after the team decided the proposed foundation was no longer needed.",
+  "right_now_updated_at": "2026-10-13T23:42:52.082291Z",
+  "custom": {}
+}

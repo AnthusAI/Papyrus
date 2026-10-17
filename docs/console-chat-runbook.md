@@ -124,7 +124,12 @@ Lambda image (see below). Python-only tactus changes take effect on the next
 ## Smoke test
 
 The preferred smoke test is to send a fresh message from the `/newsroom`
-console, then watch Lambda logs:
+console as a signed-in editor. Use a prompt that forces a tool call, such as
+`What are the 5 most recent references?`. A healthy turn answers with real
+reference rows, usually within 10 to 60 seconds. A turn that stays `PENDING`
+for minutes, or answers with `Could not resolve JWT signing secret`, is a
+failure (see [web-console-chat-iam-fix.md](web-console-chat-iam-fix.md) for
+that error). Then watch Lambda logs:
 
 ```bash
 AWS_PROFILE=Ryan AWS_REGION=us-east-1 \
@@ -237,13 +242,3 @@ Amplify `main` build: failed backend deploys skip the Next.js phase entirely.
   but `console.webUi` is missing: redeploy the frontend from a green Amplify
   `main` build; the responder is already running but never received location
   metadata on the trigger message.
-- **`Could not resolve JWT signing secret`** when using Papyrus tools
-  (`papyrus.reference.*`, `papyrus.knowledge.*`, etc.): the console-chat-responder
-  Lambda role needs **both** `ssm:GetParameter` and `ssm:GetParameters` permissions
-  on the Amplify SSM parameter paths. The `execute_tactus_runner.py` subprocess
-  uses boto3's `get_parameters` (plural) API to fetch `PAPYRUS_JWT_SECRET` from
-  SSM. **Fix**: PR #23 (commit `0c39cbb`) added the missing `ssm:GetParameters`
-  permission to `amplify/functions/console-chat-responder/resource.ts`. Verify
-  the Lambda's IAM role includes this action, or redeploy from the latest `main`
-  to pick up the updated CDK stack. See `docs/web-console-chat-iam-fix.md` for
-  verification steps.
