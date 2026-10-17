@@ -1,7 +1,7 @@
 {
   "id": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
   "title": "Merge is deploy: one CMS app publishes the site with no personal AWS credentials",
-  "description": "Ryan, 2026-10-13: deploying a Papyrus site must not need anyone's AWS access. Merging a PR to main is the deploy, through DevOps. This applies to every Papyrus site (Anth.us, Pilobol.us, p.apyr.us, Threat Intelligence), so it lives in the shared app-shell template and site hosting, not per site.\n\nToday on Anth.us (CMS app d7s858igkyct5), a site-code deploy is two manual steps run with a person's SSO:\n1. Start the CMS app's main RELEASE build (auto-build is off). It rebundles web/ into the content-actions Lambda.\n2. Run `papyrus ops content project --all` locally, then bin/fix_404_headers.py, check-guards, check-404 and `project --reconcile --dry-run`. `--all` deletes nothing; orphans need `--reconcile`.\nContent edits outside the newsroom went through `content import-markus`, and the import does not re-render.\n\nArchitecture (Ryan): ONE Amplify app per site, the CMS. Its backend owns the site bucket, the renderer Lambda and the renditions Lambda. The public site is static files on S3 behind CloudFront, with no reader app. Pages stay static (speed, cache, SEO, publish-to-live in seconds). Live islands read the CMS app's GraphQL API through a public read-only surface.\n\nDone when merging a site PR to main updates the live site with no human AWS step: on Anth.us first, then the other three sites.",
+  "description": "## Current agreed plan \u2014 verified 2026-10-17\n\nRyan's current destination supersedes older papyrus.anth.us/static-only and combined-host plans: p.apyr.us is the public-facing marketing website owned by PRIVATE AnthusAI/Papyrus-web; the open publication remains in PUBLIC AnthusAI/p.apyr.us and moves to read.p.apyr.us. Do not relocate its content, backend, auth or history as part of planning. Existing public marketing/pricing work, including merged PR19 at 30ba4d2 and footer PR18/main 5b29af6, remains intact until a reviewed transition.\n\nMarketing MUST actually use hosted Papyrus CMS/browser editing plus real Markus rendering to S3. Whether hosted editing is needed is resolved: it is required. The marketing CMS hostname is NOT chosen. Public publication reader path on read.p.apyr.us (/information versus /) is unresolved. Current p.apyr.us code still serves marketing /, reader /information and newsroom /newsroom together.\n\nPrivate marketing CI/CD runs in AWS without GitHub Actions minute dependency; reviewed main merges must deploy without a coding-agent or developer AWS login. Public projects may use GitHub Actions CI with AWS CD. main is default/production; retain develop integration/promotion where established (Papyrus product). No unrelated merge or production main push for this task.\n\nFresh AWS CLI reads: account 712236451410/us-east-1; marketing Amplify d2scc0rkxkbrhl main auto-build enabled, latest job6 SUCCEED at 35fa30923a9ca591ae97d8901b6447828a14e29a (2026-10-17 13:44:17\u201313:45:57 UTC). Old job4/18d035e remains historical renderer/S3 proof. Candidate CF E17ZRAI87DN065 is Deployed, S3 origin, no aliases. Publication Amplify ds6yswxui41yi job19 SUCCEED at 5b29af6dc51d15dabbdbeac5f892cb670b7cc143 (14:17:41\u201314:22:41 UTC). CF E2QW8WOFWQT0H4 and p.apyr.us A/AAAA still point to the combined publication app; no read.p.apyr.us record returned in inspected zone Z0630882HVOV46S7IPV7.\n\nCodePipeline/CodeConnections inventories are empty. Papyrus-web draft PR6, claude/codepipeline-deploy at 7bc8af0, is a separate unmerged/unprovisioned proposal with task papw-9b0d3c2c-68c0-4e4f-8c50-1368ae4e955c. Preserve it; do not mistake its deployment instructions for live infrastructure or approval. Select and prove exactly one publisher before an authorized transition.\n\nNext: choose CMS host/backend/auth binding; prove hosted save/reload/preview/explicit publish through actual Papyrus/Markus/S3 plus private-draft and unauthorized-write denial; decide publication path and inventory redirects/canonical/media links, callbacks/logout/revalidation, TLS/DNS and rollback; separately review delivery proposal; only then propose cutover. Hosted acceptance is not proven by committed-source builds or local mock clients.\n\nCanonical handoff and branch: https://github.com/AnthusAI/Papyrus-web/blob/chore/kanbus-reconciliation-20261016/docs/marketing-publication-handoff.md ; draft PR3 https://github.com/AnthusAI/Papyrus-web/pull/3 extends 25fc542. Its papw records are review-branch work, not main. Product-board plan corrections are Kanbus-only on develop; no develop-to-main promotion is requested. Publication README will expose current-versus-intended mapping in a docs PR.\n\nScope of this reconciliation: documentation and existing Kanbus records only. No implementation, deployment, DNS, IAM, credentials, deletion or migration. No AWS console browser. Existing local dirty trees and unrelated branches are preserved.\n\n## Earlier plan (historical; current host/ownership requirements above take precedence)\n\nRyan, 2026-10-13: deploying a Papyrus site must not need anyone's AWS access. Merging a PR to main is the deploy, through DevOps. This applies to every Papyrus site (Anth.us, Pilobol.us, p.apyr.us, Threat Intelligence), so it lives in the shared app-shell template and site hosting, not per site.\n\nToday on Anth.us (CMS app d7s858igkyct5), a site-code deploy is two manual steps run with a person's SSO:\n1. Start the CMS app's main RELEASE build (auto-build is off). It rebundles web/ into the content-actions Lambda.\n2. Run `papyrus ops content project --all` locally, then bin/fix_404_headers.py, check-guards, check-404 and `project --reconcile --dry-run`. `--all` deletes nothing; orphans need `--reconcile`.\nContent edits outside the newsroom went through `content import-markus`, and the import does not re-render.\n\nArchitecture (Ryan): ONE Amplify app per site, the CMS. Its backend owns the site bucket, the renderer Lambda and the renditions Lambda. The public site is static files on S3 behind CloudFront, with no reader app. Pages stay static (speed, cache, SEO, publish-to-live in seconds). Live islands read the CMS app's GraphQL API through a public read-only surface.\n\nDone when merging a site PR to main updates the live site with no human AWS step: on Anth.us first, then the other three sites.",
   "type": "epic",
   "status": "open",
   "priority": 1,
@@ -10,11 +10,49 @@
   "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4647584e-e2ff-481d-807a-d76671863e06",
+      "author": "home",
+      "text": "2026-10-17 documentation reconciliation: current agreement and fresh deployment evidence are recorded at the top of this description. Earlier decisions/comments are retained as history. Hosted CMS editing is required; CMS hostname remains unchosen. Review Papyrus-web PR3 and the canonical README handoff; PR6 is proposed, not deployed. Existing status/ownership is preserved; no live changes or release promotion performed.",
+      "created_at": "2026-10-17T14:48:01.659350Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "marketing-publication-handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "2ff3d29c-2b87-49a4-83c6-4aa6a947434a",
+      "author": "home",
+      "text": "Documentation delivery receipts: private handoff commit 03ec4e5 on chore/kanbus-reconciliation-20261016, existing draft https://github.com/AnthusAI/Papyrus-web/pull/3; public README commit c309d81 on chore/marketing-publication-handoff-20261017, draft https://github.com/AnthusAI/p.apyr.us/pull/20. Product-board changes use the repository's Kanbus-only develop exception; production main is untouched.\n\nVerification: git diff --check passes; Papyrus-web kanbus validate passes. Papyrus product kanbus validate reports 15 pre-existing missing dependency references in unrelated records; clean origin/develop baseline bfea1ee reports exactly the same 15 failures. No unrelated issue repair is included. This validates planning structure only, not hosted CMS acceptance. No implementation/runtime tests were needed or run for documentation-only changes.\n",
+      "created_at": "2026-10-17T14:49:06.698966Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "marketing-publication-handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:08:41.361433Z",
-  "updated_at": "2026-10-13T23:08:41.361464Z",
+  "updated_at": "2026-10-17T14:49:06.699082Z",
   "closed_at": null,
   "right_now_summary": "Merging to main now triggers automatic CMS builds without personal AWS credentials.",
   "right_now_updated_at": "2026-10-13T23:09:27.518903Z",
-  "custom": {}
+  "custom": {
+    "source": "shared",
+    "project_label": "PPY"
+  },
+  "agent": null,
+  "agent_assignment": null
 }
