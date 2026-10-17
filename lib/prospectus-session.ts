@@ -38,6 +38,7 @@ export interface ProspectusSignedInSession {
   personId: string;
   accessToken: string;
   accessTokenExpiresAt: number;
+  selectedAccountId?: string;
 }
 
 function sealingKeyForCookie(sealingSecret: string, cookieName: string): Buffer {

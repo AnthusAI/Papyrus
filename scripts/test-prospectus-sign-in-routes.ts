@@ -23,6 +23,8 @@ import {
   type ProspectusSignInRuntime,
 } from "../lib/prospectus-session";
 import {
+  currentProspectusPublishingSelection,
+  handleProspectusAccountSelection,
   handleProspectusSessionRead,
   handleProspectusSignInCallback,
   handleProspectusSignInStart,
@@ -68,6 +70,15 @@ function cognitoTokenEndpoint(tokenBody: Record<string, unknown>) {
 function browserRequest(path: string, cookies: Record<string, string> = {}, method = "GET"): NextRequest {
   const cookieHeader = Object.entries(cookies).map(([name, value]) => `${name}=${value}`).join("; ");
   return new NextRequest(new URL(path, siteOrigin), { method, headers: cookieHeader ? { cookie: cookieHeader } : {} });
+}
+
+function selectionRequest(cookies: Record<string, string>, body: unknown, origin: string | null = siteOrigin): NextRequest {
+  const cookieHeader = Object.entries(cookies).map(([name, value]) => `${name}=${value}`).join("; ");
+  return new NextRequest(new URL("/api/auth/prospectus/selection", siteOrigin), {
+    method: "POST",
+    headers: { cookie: cookieHeader, "content-type": "application/json", ...(origin ? { origin } : {}) },
+    body: JSON.stringify(body),
+  });
 }
 
 function setCookie(response: Response, cookieName: string): string | undefined {
@@ -277,6 +288,8 @@ async function signInRouteTests() {
   );
   assert.equal((await noLab.json()).cyclotronLabAccess, false, "a disabled cyclotron product grants no Lab access");
 
+  await accountSelectionTests(sessionCookie, person);
+
   const signOut = await handleProspectusSignOut(browserRequest("/api/auth/prospectus/sign-out", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, "POST"), routeOptions(runtime));
   assert.equal(signOut.status, 303);
   const logout = new URL(signOut.headers.get("location")!);
@@ -284,6 +297,76 @@ async function signInRouteTests() {
   assert.equal(logout.searchParams.get("client_id"), "googleonlyclient");
   assert.equal(logout.searchParams.get("logout_uri"), "https://p.apyr.us/");
   assertCleared(signOut, PROSPECTUS_SESSION_COOKIE, "sign-out");
+}
+
+async function accountSelectionTests(sessionCookie: string, person: { id: string; createdAt: string }) {
+  const directory = {
+    person,
+    accounts: [
+      { id: "account-1", name: "Anthus", role: "member", products: [{ product: "papyrus-p-apyr-us", status: "active" }] },
+      { id: "lab-only", name: "Lab", role: "owner", products: [{ product: "cyclotron", status: "active" }] },
+    ],
+  };
+  const authorization = { allowed: true, accountId: "account-1", personId: "person-1", product: "papyrus-p-apyr-us", role: "member", operation: "console:read", revision: 3 };
+  const { runtime, requests } = prospectusRuntime({
+    "GET /v1/account-directory": directory,
+    "GET /v1/identities/me": { person },
+    "POST /v1/accounts/account-1/authorize": authorization,
+  });
+  const options = routeOptions(runtime);
+
+  const crossOrigin = await handleProspectusAccountSelection(selectionRequest({ [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, { accountId: "account-1" }, "https://evil.example"), options);
+  assert.equal(crossOrigin.status, 403, "another origin cannot change the selection");
+  const noOrigin = await handleProspectusAccountSelection(selectionRequest({ [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, { accountId: "account-1" }, null), options);
+  assert.equal(noOrigin.status, 403, "a selection without an origin is refused");
+  const signedOut = await handleProspectusAccountSelection(selectionRequest({}, { accountId: "account-1" }), options);
+  assert.equal(signedOut.status, 401);
+  const missingAccount = await handleProspectusAccountSelection(selectionRequest({ [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, {}), options);
+  assert.equal(missingAccount.status, 400);
+  const notPublishing = await handleProspectusAccountSelection(selectionRequest({ [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, { accountId: "lab-only" }), options);
+  assert.equal(notPublishing.status, 403, "an account without this site's product cannot be selected");
+  assert.equal(setCookie(notPublishing, PROSPECTUS_SESSION_COOKIE), undefined);
+
+  const selected = await handleProspectusAccountSelection(selectionRequest({ [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, { accountId: "account-1" }), options);
+  assert.equal(selected.status, 200);
+  assert.deepEqual(await selected.json(), { selectedAccountId: "account-1", role: "member", publicationCapabilities: ["read", "review", "decide"] });
+  assert.deepEqual(requests.find((request) => request.path === "/v1/accounts/account-1/authorize")?.body, { operation: "console:read" }, "selection is authorized fresh by Prospectus");
+  const selectedHeader = setCookie(selected, PROSPECTUS_SESSION_COOKIE);
+  assert.match(selectedHeader!, /Max-Age=3600/, "selection keeps the session's original expiry");
+  const selectedCookie = cookieValue(selectedHeader);
+  assert.equal(openProspectusCookie<{ selectedAccountId: string }>(sealingSecret, PROSPECTUS_SESSION_COOKIE, selectedCookie, nowInSeconds)?.selectedAccountId, "account-1");
+
+  const sessionWithSelection = await handleProspectusSessionRead(browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: selectedCookie }), options);
+  assert.equal((await sessionWithSelection.json()).selectedAccountId, "account-1");
+
+  assert.deepEqual(
+    await currentProspectusPublishingSelection(browserRequest("/api/newsroom/curation", { [PROSPECTUS_SESSION_COOKIE]: selectedCookie }), options),
+    { personId: "person-1", accountId: "account-1", role: "member", publicationCapabilities: ["read", "review", "decide"] },
+    "server code gets the selection with capabilities from a fresh authorization",
+  );
+  assert.equal(await currentProspectusPublishingSelection(browserRequest("/api/newsroom/curation", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }), options), null, "no selection until one is chosen");
+
+  const { runtime: removedRuntime } = prospectusRuntime({
+    "GET /v1/account-directory": { person, accounts: [] },
+  });
+  const removedOptions = routeOptions(removedRuntime);
+  assert.equal(
+    await currentProspectusPublishingSelection(browserRequest("/api/newsroom/curation", { [PROSPECTUS_SESSION_COOKIE]: selectedCookie }), removedOptions),
+    null,
+    "a person removed from the account loses the selection immediately",
+  );
+  assert.equal((await (await handleProspectusSessionRead(browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: selectedCookie }), removedOptions)).json()).selectedAccountId, null);
+
+  const { runtime: deniedRuntime } = prospectusRuntime({
+    "GET /v1/account-directory": directory,
+    "GET /v1/identities/me": { person },
+    "POST /v1/accounts/account-1/authorize": new ProspectusAccountsError(403, "forbidden", "no"),
+  });
+  assert.equal(
+    await currentProspectusPublishingSelection(browserRequest("/api/newsroom/curation", { [PROSPECTUS_SESSION_COOKIE]: selectedCookie }), routeOptions(deniedRuntime)),
+    null,
+    "a Prospectus refusal clears access",
+  );
 }
 
 function publicationAccessTests() {

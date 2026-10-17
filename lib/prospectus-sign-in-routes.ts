@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   CYCLOTRON_LAB_PRODUCT,
   ProspectusAccountsError,
+  authorizeSignedInPersonForAccount,
   beginProspectusGoogleSignIn,
   completeProspectusGoogleSignIn,
   type CompleteProspectusGoogleSignInInput,
@@ -18,7 +19,12 @@ import {
   type ProspectusSignInRuntime,
   type ProspectusSignedInSession,
 } from "./prospectus-session";
-import { prospectusSiteProduct, publishingAccountsForSite } from "./prospectus-publication-access";
+import {
+  prospectusSiteProduct,
+  publicationCapabilitiesForProspectusRole,
+  publishingAccountsForSite,
+  type PublicationCapability,
+} from "./prospectus-publication-access";
 
 /**
  * The site's sign-in routes for Prospectus accounts: start (challenge, then the
@@ -35,6 +41,10 @@ export interface ProspectusSignInRouteOptions {
 }
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" };
+
+function siteProductFor(options: ProspectusSignInRouteOptions): string | null {
+  return options.siteProduct !== undefined ? options.siteProduct : prospectusSiteProduct();
+}
 
 function currentTimeInSeconds(options: ProspectusSignInRouteOptions): number {
   return options.nowInSeconds?.() ?? Math.floor(Date.now() / 1000);
@@ -158,6 +168,7 @@ export async function handleProspectusSessionRead(request: NextRequest, options:
       clearSealedCookie(response, PROSPECTUS_SESSION_COOKIE);
       return response;
     }
+    const publishingAccounts = publishingAccountsForSite(directory.accounts, siteProductFor(options));
     return NextResponse.json(
       {
         signedIn: true,
@@ -166,10 +177,10 @@ export async function handleProspectusSessionRead(request: NextRequest, options:
         cyclotronLabAccess: directory.accounts.some((account) =>
           account.products.some((product) => product.product === CYCLOTRON_LAB_PRODUCT && product.status === "active"),
         ),
-        publishingAccounts: publishingAccountsForSite(
-          directory.accounts,
-          options.siteProduct !== undefined ? options.siteProduct : prospectusSiteProduct(),
-        ),
+        publishingAccounts,
+        selectedAccountId: publishingAccounts.some((account) => account.accountId === session.selectedAccountId)
+          ? session.selectedAccountId
+          : null,
       },
       { headers: NO_STORE_HEADERS },
     );
@@ -198,4 +209,76 @@ export async function handleProspectusSignOut(request: NextRequest, options: Pro
   clearSealedCookie(response, PROSPECTUS_SESSION_COOKIE);
   clearSealedCookie(response, PROSPECTUS_PENDING_SIGN_IN_COOKIE);
   return response;
+}
+
+export interface ProspectusPublishingSelection {
+  personId: string;
+  accountId: string;
+  role: string;
+  publicationCapabilities: PublicationCapability[];
+}
+
+async function freshlyAuthorizedPublishingSelection(
+  runtime: ProspectusSignInRuntime,
+  session: ProspectusSignedInSession,
+  accountId: string,
+  siteProduct: string | null,
+): Promise<ProspectusPublishingSelection | null> {
+  const directory = await runtime.accounts.accountDirectory(session.accessToken);
+  if (!directory.person || directory.person.id !== session.personId) return null;
+  if (!publishingAccountsForSite(directory.accounts, siteProduct).some((account) => account.accountId === accountId)) return null;
+  const authorization = await authorizeSignedInPersonForAccount(runtime.accounts, session.accessToken, accountId, "console:read");
+  if (authorization.personId !== session.personId) return null;
+  const publicationCapabilities = publicationCapabilitiesForProspectusRole(authorization.role);
+  if (publicationCapabilities.length === 0) return null;
+  return { personId: session.personId, accountId, role: authorization.role, publicationCapabilities };
+}
+
+export async function currentProspectusPublishingSelection(
+  request: NextRequest,
+  options: ProspectusSignInRouteOptions = {},
+): Promise<ProspectusPublishingSelection | null> {
+  const runtime = await signInRuntimeFor(request, options);
+  if (!runtime) return null;
+  const session = signedInProspectusSession(request, runtime.sealingSecret, currentTimeInSeconds(options));
+  if (!session?.selectedAccountId) return null;
+  try {
+    return await freshlyAuthorizedPublishingSelection(runtime, session, session.selectedAccountId, siteProductFor(options));
+  } catch (error) {
+    if (error instanceof ProspectusAccountsError) return null;
+    throw error;
+  }
+}
+
+export async function handleProspectusAccountSelection(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  const runtime = await signInRuntimeFor(request, options);
+  if (!runtime) return signInUnavailableResponse();
+  if (request.headers.get("origin") !== request.nextUrl.origin) {
+    return signInFailedResponse(403, "cross_origin_selection", "Choose an account from this site.");
+  }
+  const nowInSeconds = currentTimeInSeconds(options);
+  const session = signedInProspectusSession(request, runtime.sealingSecret, nowInSeconds);
+  if (!session) return signInFailedResponse(401, "signed_out", "Sign in first.");
+  const body = await request.json().catch(() => null) as { accountId?: unknown } | null;
+  const accountId = typeof body?.accountId === "string" ? body.accountId.trim() : "";
+  if (!accountId) return signInFailedResponse(400, "account_required", "Choose an account.");
+  try {
+    const selection = await freshlyAuthorizedPublishingSelection(runtime, session, accountId, siteProductFor(options));
+    if (!selection) return signInFailedResponse(403, "not_a_publishing_account", "You cannot work on this site's publications in that account.");
+    const response = NextResponse.json(
+      { selectedAccountId: selection.accountId, role: selection.role, publicationCapabilities: selection.publicationCapabilities },
+      { headers: NO_STORE_HEADERS },
+    );
+    const selectedSession: ProspectusSignedInSession = { ...session, selectedAccountId: selection.accountId };
+    response.cookies.set(
+      PROSPECTUS_SESSION_COOKIE,
+      sealProspectusCookie(runtime.sealingSecret, PROSPECTUS_SESSION_COOKIE, selectedSession, session.accessTokenExpiresAt),
+      sealedCookieAttributes(session.accessTokenExpiresAt, nowInSeconds),
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof ProspectusAccountsError) return signInFailedResponse(error.status, error.code, error.message);
+    console.error(`Prospectus account selection failed (${error instanceof Error ? error.name : "error"}).`);
+    return signInFailedResponse(503, "prospectus_unavailable", "Prospectus could not be reached.");
+  }
 }
