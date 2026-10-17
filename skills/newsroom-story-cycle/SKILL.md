@@ -80,8 +80,8 @@ poetry run papyrus assignments run-story-cycle \
   --topic "AI in video games" \
   --category <corpus-key> \
   --coverage-key coverage.ai-in-video-games \
-  --sections culture,methods,business,law \
-  --section-budgets culture:2,methods:1,business:1,law:1 \
+  --sections <section-id>,<section-id> \
+  --section-budgets <section-id>:2,<section-id>:1 \
   --research-mode source_discovery \
   --max-parallel-research 2 \
   --max-parallel-reporting 3 \
@@ -96,7 +96,7 @@ not already chosen:
 poetry run papyrus knowledge signals trend-report \
   --corpus-key <corpus-key> \
   --topic "AI in video games" \
-  --sections culture,methods,business,law \
+  --sections <section-id>,<section-id> \
   --json
 ```
 
@@ -161,24 +161,14 @@ copywriting, or draft, with reporting candidates grouped by edition and section.
 
 ## Section Lenses
 
-The `culture` CLI alias maps to the configured `arts` desk, which is a
-**floating** optional desk in `corpora/papyrus-newsroom-sections.yml`. Use it for
-story-cycle smoke tests, but treat it as step-2 optional-desk material in
-edition forum kickoff messages—not as the edition theme decision in phase 1.
-
-The canonical smoke uses:
-
-- `culture`: creative workflows, game design, player experience, generative
-  media (alias for optional `arts` desk).
-- `methods`: implementation patterns, NPC behavior, procedural generation,
-  evaluation.
-- `business`: studios, tooling markets, labor, production economics.
-- `law`: copyright, likeness, licensing, liability, platform policy.
-
-If runtime section ids differ, use the configured `NewsroomSection` ids. The
-story-cycle code currently maps common operator aliases such as `culture` to the
-configured `arts` section and `law` to `law-policy` when those are the deployed
-section ids.
+Story-cycle commands take `--sections` as a comma-separated list of
+`NewsroomSection` ids; with no `--sections` they use every enabled section in
+`sortOrder`. An unknown id fails with the list of enabled ids. Each desk's
+research lens comes from its `NewsroomSection` row (`assignmentGuidance`, then
+`editorialMission`, then `title`), and its default slot count comes from
+`defaultPageBudget` unless `--section-budgets` overrides it. Floating and
+rotating desks are optional-desk material in edition forum kickoff messages,
+not the edition theme decision in phase 1.
 
 ## Reporting Assignment Shape
 

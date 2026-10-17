@@ -348,9 +348,9 @@ Phase 3 message bodies list reporting assignment candidates per desk only (no
 process copy about slot math or overassignment in the forum post). The pipeline
 still uses `ceil(slots * 1.5)` overassignment when materializing assignments.
 Do not post phase 3 until phase 2 confirms
-the optional desk when `culture`/Arts-style provisional desks are in the plan.
+the optional desk when floating or rotating provisional desks are in the plan.
 
-Typical new edition (e.g. `--sections culture,methods`):
+Typical new edition (e.g. `--sections <section-id>,<section-id>`):
 
 ```bash
 poetry run papyrus assignments run-story-cycle ... --through plan

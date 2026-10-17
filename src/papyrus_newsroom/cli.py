@@ -402,7 +402,7 @@ def _add_editions_parser(subparsers: argparse._SubParsersAction[argparse.Argumen
         help="Plan an edition story budget from signal reports and section budgets",
     )
     plan_parser.add_argument("--date", required=True)
-    plan_parser.add_argument("--sections", default=",".join(["culture", "methods", "business", "law"]))
+    plan_parser.add_argument("--sections", default="")
     plan_parser.add_argument("--section-budgets", default="")
     plan_parser.add_argument("--corpus-key", default="")
     plan_parser.add_argument("--category", "--category-key", dest="category_key", default="")
@@ -461,7 +461,7 @@ def _add_coverage_theme_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--category", "--category-key", dest="category_key", default="")
     parser.add_argument("--corpus-key", default="")
     parser.add_argument("--coverage-key", default="")
-    parser.add_argument("--sections", default="culture,methods,business,law")
+    parser.add_argument("--sections", default="")
     parser.add_argument("--section-budgets", default="")
     parser.add_argument("--run-id", default="")
     parser.add_argument("--through", choices=["plan", "rotating-desk", "research", "reporting"], default="reporting")
@@ -524,6 +524,7 @@ def _run_signals_command(args: argparse.Namespace) -> dict:
             run_id=args.run_id,
             references=fixture.get("references") if fixture else None,
             semantic_nodes=(fixture.get("semanticNodes") or fixture.get("semantic_nodes")) if fixture else None,
+            newsroom_sections=fixture.get("newsroomSections") if fixture else None,
             apply=not args.dry_run,
         )
     raise SystemExit("Missing or unsupported signals subcommand.")

@@ -142,7 +142,7 @@ Coverage Theme planning posts **three sequential messages** on the canonical
 | 3 | `Reporting dispatch (phase 3):` | Reporting assignment candidates per confirmed desk, with default `ceil(slots * 1.5)` overassignment. |
 
 Phase 3 is deferred until phase 2 completes when optional desks are still
-provisional (e.g. `culture` CLI alias → floating `arts`). Recent optional-desk
+provisional (floating or rotating `NewsroomSection` desks). Recent optional-desk
 history in phase 2 uses **confirmed** prior selections only (`selectedOptionalDeskKey`
 on past editions)—not provisional `sectionBudgets` rows.
 
@@ -240,8 +240,8 @@ poetry run papyrus assignments run-story-cycle \
   --topic "AI in video games" \
   --category AI-ML-research \
   --coverage-key coverage.ai-in-video-games \
-  --sections culture,methods,business,law \
-  --section-budgets culture:2,methods:1,business:1,law:1 \
+  --sections <section-id>,<section-id> \
+  --section-budgets <section-id>:2,<section-id>:1 \
   --research-mode source_discovery \
   --max-parallel-research 2 \
   --max-parallel-reporting 3 \
