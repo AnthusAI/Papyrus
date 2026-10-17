@@ -30,6 +30,7 @@ import {
   type ProspectusSignInRouteOptions,
 } from "../lib/prospectus-sign-in-routes";
 import { ProspectusAccountsError, ProspectusSiteAccounts, type ProspectusRequest } from "../lib/prospectus-site-identity";
+import { prospectusSiteProduct, publicationCapabilitiesForProspectusRole, publishingAccountsForSite } from "../lib/prospectus-publication-access";
 
 const sealingSecret = "synthetic-sealing-secret-0123456789abcdefghijklmnopqrstuvwxyz";
 const siteOrigin = "https://p.apyr.us";
@@ -57,7 +58,7 @@ function prospectusRuntime(responses: Record<string, unknown>) {
 }
 
 function routeOptions(runtime: ProspectusSignInRuntime | null, extra: Partial<ProspectusSignInRouteOptions> = {}): ProspectusSignInRouteOptions {
-  return { resolveRuntime: async () => runtime, nowInSeconds: () => nowInSeconds, ...extra };
+  return { resolveRuntime: async () => runtime, nowInSeconds: () => nowInSeconds, siteProduct: "papyrus-p-apyr-us", ...extra };
 }
 
 function cognitoTokenEndpoint(tokenBody: Record<string, unknown>) {
@@ -241,6 +242,15 @@ async function signInRouteTests() {
   assert.equal(sessionBody.person.id, "person-1");
   assert.equal(sessionBody.cyclotronLabAccess, true, "Cyclotron Lab access comes from an active cyclotron product on one of the person's accounts");
   assert.equal(requests.at(-1)?.humanAccessToken, "access-jwt");
+  assert.deepEqual(sessionBody.publishingAccounts, [
+    { accountId: "account-1", accountName: "Anthus", role: "owner", publicationCapabilities: ["read", "review", "decide", "steer"] },
+  ], "an account with this site's product gets its role's publication capabilities");
+
+  const unregisteredSite = await handleProspectusSessionRead(
+    browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }),
+    routeOptions(runtime, { siteProduct: null }),
+  );
+  assert.deepEqual((await unregisteredSite.json()).publishingAccounts, [], "without a site product nobody gets publication access");
 
   const { runtime: otherPersonRuntime } = prospectusRuntime({ "GET /v1/account-directory": { person: { id: "person-2", createdAt: "" }, accounts: [] } });
   const mismatched = await handleProspectusSessionRead(
@@ -274,6 +284,26 @@ async function signInRouteTests() {
   assert.equal(logout.searchParams.get("client_id"), "googleonlyclient");
   assert.equal(logout.searchParams.get("logout_uri"), "https://p.apyr.us/");
   assertCleared(signOut, PROSPECTUS_SESSION_COOKIE, "sign-out");
+}
+
+function publicationAccessTests() {
+  assert.deepEqual(publicationCapabilitiesForProspectusRole("viewer"), ["read"]);
+  assert.deepEqual(publicationCapabilitiesForProspectusRole("member"), ["read", "review", "decide"]);
+  assert.deepEqual(publicationCapabilitiesForProspectusRole("admin"), ["read", "review", "decide", "steer"]);
+  assert.deepEqual(publicationCapabilitiesForProspectusRole("owner"), ["read", "review", "decide", "steer"]);
+  assert.deepEqual(publicationCapabilitiesForProspectusRole("guest"), []);
+  assert.equal(prospectusSiteProduct({ PAPYRUS_PROSPECTUS_SITE_PRODUCT: "papyrus-p-apyr-us" }), "papyrus-p-apyr-us");
+  assert.equal(prospectusSiteProduct({ PAPYRUS_PROSPECTUS_SITE_PRODUCT: "cyclotron" }), null, "only papyrus- products name a site");
+  assert.equal(prospectusSiteProduct({}), null);
+  const accounts = [
+    { id: "publisher", name: "Publisher", role: "member" as const, products: [{ product: "papyrus-p-apyr-us", status: "active" as const }] },
+    { id: "lapsed", name: "Lapsed", role: "owner" as const, products: [{ product: "papyrus-p-apyr-us", status: "disabled" as const }] },
+    { id: "other-site", name: "Other", role: "owner" as const, products: [{ product: "papyrus-pilobol-us", status: "active" as const }] },
+    { id: "lab-only", name: "Lab", role: "admin" as const, products: [{ product: "cyclotron", status: "active" as const }] },
+  ];
+  assert.deepEqual(publishingAccountsForSite(accounts, "papyrus-p-apyr-us"), [
+    { accountId: "publisher", accountName: "Publisher", role: "member", publicationCapabilities: ["read", "review", "decide"] },
+  ], "only accounts with this site's active product publish here");
 }
 
 function googleOnlyClientTests() {
@@ -311,6 +341,7 @@ async function main() {
   returnPathTests();
   await configurationTests();
   await signInRouteTests();
+  publicationAccessTests();
   googleOnlyClientTests();
   console.log("prospectus sign-in routes: ok");
 }

@@ -108,6 +108,7 @@ export class AmplifyAppShellStack extends Stack {
       ? {
         PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn),
         PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN: prospectusSessionSealingSecret.secretArn,
+        PAPYRUS_PROSPECTUS_SITE_PRODUCT: `papyrus-${config.siteId}`,
       }
       : {};
     if (prospectusSessionSealingSecret) {

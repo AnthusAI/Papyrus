@@ -18,6 +18,7 @@ import {
   type ProspectusSignInRuntime,
   type ProspectusSignedInSession,
 } from "./prospectus-session";
+import { prospectusSiteProduct, publishingAccountsForSite } from "./prospectus-publication-access";
 
 /**
  * The site's sign-in routes for Prospectus accounts: start (challenge, then the
@@ -28,6 +29,7 @@ import {
  */
 export interface ProspectusSignInRouteOptions {
   resolveRuntime?: (siteOrigin: string) => Promise<ProspectusSignInRuntime | null>;
+  siteProduct?: string | null;
   completionOverrides?: Pick<CompleteProspectusGoogleSignInInput, "verifyCognitoTokens" | "fetcher">;
   nowInSeconds?: () => number;
 }
@@ -163,6 +165,10 @@ export async function handleProspectusSessionRead(request: NextRequest, options:
         accounts: directory.accounts,
         cyclotronLabAccess: directory.accounts.some((account) =>
           account.products.some((product) => product.product === CYCLOTRON_LAB_PRODUCT && product.status === "active"),
+        ),
+        publishingAccounts: publishingAccountsForSite(
+          directory.accounts,
+          options.siteProduct !== undefined ? options.siteProduct : prospectusSiteProduct(),
         ),
       },
       { headers: NO_STORE_HEADERS },

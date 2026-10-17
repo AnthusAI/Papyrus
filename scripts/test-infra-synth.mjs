@@ -316,6 +316,7 @@ try {
     const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
     assert.equal(variables.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT, "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/", `prospectus: ${branch.Properties.BranchName} endpoint`);
     assert.ok(variables.PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN?.Ref?.startsWith("ProspectusSessionSealingSecret"), `prospectus: ${branch.Properties.BranchName} session sealing secret`);
+    assert.equal(variables.PAPYRUS_PROSPECTUS_SITE_PRODUCT, "papyrus-p-apyr-us", `prospectus: ${branch.Properties.BranchName} site product`);
   }
   const sealingSecretKeys = Object.keys(prospectusTemplate.Resources).filter((key) => prospectusTemplate.Resources[key].Type === "AWS::SecretsManager::Secret");
   assert.deepEqual(sealingSecretKeys.length, 1, "prospectus: one generated session sealing secret");
