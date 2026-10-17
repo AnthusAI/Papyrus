@@ -10,9 +10,19 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7b29b820-53f8-40c9-a5b9-77f8f3954562",
+      "author": "unknown",
+      "text": "Scoping (2026-10-17): Cyclotron-web is not a thin marketing site. 28 client components, about 20 routes (home, how-it-works, developers, services, pricing, learn/[slug], use-cases/[slug], articles/[slug], editorial-evaluation, recordings and recordings/[id]) plus 11 development-only preview pages. Interactive pieces: run playback and recording charts (learning curve, confusion matrix, review effort, comparison) driven by components/recordings/* JSON fixtures, Framer Motion, and shared UI imported from the Cyclotron package. Four Markdown articles in content/articles. Production is the cyclotron-marketing CodePipeline in the cyclotron-production account (merge main -> CodeBuild -> cyclotron.anth.us); local-only CI via npm run ci.\n\nPlan in slices, each shippable on its own: (1) prose routes (how-it-works, developers, services, pricing, learn, use-cases, articles) to Markus with the Papyrus shell and the Cyclotron brand/theme; (2) recordings and playback charts as Papyrus islands following Prospectus-web web/island; (3) swap the pipeline build step from next build to the Papyrus projection build; the pipeline change goes through the existing CodePipeline owners/DevOps, not a local AWS deploy. Slice 1 must keep every current URL.",
+      "created_at": "2026-10-17T22:32:36.462798Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:25:40.105149Z",
-  "updated_at": "2026-10-17T22:25:40.105390Z",
+  "updated_at": "2026-10-17T22:32:36.462958Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
