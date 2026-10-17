@@ -396,6 +396,8 @@ class CoverageThemeCloudProcedureTests(unittest.TestCase):
                             "risk_flags": [],
                             "coverage_gaps": [],
                             "open_questions": [],
+                            "accepted_reference_ids": [],
+                            "proposed_references": [],
                             "copywriter_brief": "Use accepted references.",
                         }
                     },

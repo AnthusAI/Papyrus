@@ -118,6 +118,15 @@ environment. Apply mode may persist `Assignment`, `AssignmentEvent`, `Message`,
 Applied reruns reuse existing packet Messages by default so a Coverage Theme can
 resume downstream phases without re-running successful upstream agents. Pass
 `--refresh-packets` only when the intent is to regenerate those packet payloads.
+Reuse is decided per assignment by checking for the deterministic packet
+Message, so an applied rerun with every packet present makes zero agent calls.
+
+`--max-parallel-research` and `--max-parallel-reporting` bound how many agent
+runs execute at once in each phase (capped at 12); output order stays stable.
+Packets missing a required key, or carrying an `editor_recommendation` outside
+`select`, `merge`, `brief`, `hold`, `kill`, fail the run instead of being
+filled with defaults. Apply reports per-record `failures` and exits not-ok; a
+rerun resumes from what already persisted.
 
 In live apply smoke tests, pass `--require-agent-success` so degraded agent
 output fails instead of being masked by deterministic fallback packets. Pass

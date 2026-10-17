@@ -9,6 +9,8 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -740,6 +742,47 @@ def editions_plan(
     return output
 
 
+MAX_PARALLEL_PACKET_DISPATCH = 12
+
+
+def run_packet_dispatch(
+    assignments: list[dict[str, Any]],
+    produce_packet: Callable[[dict[str, Any]], dict[str, Any]],
+    max_parallel: int,
+) -> list[dict[str, Any]]:
+    worker_count = max(1, min(int(max_parallel or 1), MAX_PARALLEL_PACKET_DISPATCH, len(assignments) or 1))
+    if worker_count == 1:
+        results = []
+        for assignment in assignments:
+            result = produce_packet(assignment)
+            results.append(result)
+            if result.get("ok") is False:
+                break
+        return results
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        return list(executor.map(produce_packet, assignments))
+
+
+def _packet_message_already_persisted(assignment: dict[str, Any], packet_kind: str) -> bool:
+    return _record_exists("Message", story_cycle_packet_message_id(assignment, packet_kind))
+
+
+def build_reused_packet_plan(assignment: dict[str, Any], *, phase: str, packet_kind: str) -> dict[str, Any]:
+    return {
+        "degraded": False,
+        "records": [],
+        "run": {
+            "ok": True,
+            "phase": phase,
+            "assignmentId": assignment["id"],
+            "sectionKey": assignment.get("sectionKey"),
+            "messageId": story_cycle_packet_message_id(assignment, packet_kind),
+            "reusedPersistedPacket": True,
+            "degraded": False,
+        },
+    }
+
+
 def coverage_theme_run(
     *,
     date: str,
@@ -755,6 +798,8 @@ def coverage_theme_run(
     allow_fallback: bool = False,
     require_agent_success: bool = False,
     refresh_packets: bool = False,
+    max_parallel_research: int = 1,
+    max_parallel_reporting: int = 1,
     apply: bool = False,
     now: str = "",
     selected_optional_desk_key: str = "",
@@ -924,9 +969,12 @@ def coverage_theme_run(
                         "remediation": "Run poetry run papyrus procedures seed-required to preload standard procedures if the required cloud procedure is missing or stale.",
                     },
                 )
+    reuse_persisted_packets = apply and not refresh_packets
     if through in {"research", "reporting"}:
-        for assignment in plan["researchAssignments"]:
-            packet_plan = run_or_fallback_research_packet_records(
+        def produce_research_packet(assignment: dict[str, Any]) -> dict[str, Any]:
+            if reuse_persisted_packets and _packet_message_already_persisted(assignment, "research_packet"):
+                return build_reused_packet_plan(assignment, phase="research", packet_kind="research_packet")
+            return run_or_fallback_research_packet_records(
                 client=cloud_client,
                 run_id=plan["runId"],
                 assignment=assignment,
@@ -938,6 +986,8 @@ def coverage_theme_run(
                 allow_fallback=allow_fallback,
                 refresh_packets=refresh_packets,
             )
+
+        for packet_plan in run_packet_dispatch(plan["researchAssignments"], produce_research_packet, max_parallel_research):
             if packet_plan.get("ok") is False:
                 return _coverage_theme_cloud_error(plan, through, apply, packet_plan["error"])
             degraded = degraded or bool(packet_plan["degraded"])
@@ -946,8 +996,11 @@ def coverage_theme_run(
     if through == "reporting":
         research_by_section = {assignment["sectionKey"]: assignment for assignment in plan["researchAssignments"]}
         research_messages = {run["sectionKey"]: run.get("messageId") for run in packet_runs["research"]}
-        for assignment in plan["reportingAssignments"]:
-            packet_plan = run_or_fallback_reporting_packet_records(
+
+        def produce_reporting_packet(assignment: dict[str, Any]) -> dict[str, Any]:
+            if reuse_persisted_packets and _packet_message_already_persisted(assignment, "reporting_context_packet"):
+                return build_reused_packet_plan(assignment, phase="reporting", packet_kind="reporting_context_packet")
+            return run_or_fallback_reporting_packet_records(
                 client=cloud_client,
                 run_id=plan["runId"],
                 assignment=assignment,
@@ -960,6 +1013,8 @@ def coverage_theme_run(
                 allow_fallback=allow_fallback,
                 refresh_packets=refresh_packets,
             )
+
+        for packet_plan in run_packet_dispatch(plan["reportingAssignments"], produce_reporting_packet, max_parallel_reporting):
             if packet_plan.get("ok") is False:
                 return _coverage_theme_cloud_error(plan, through, apply, packet_plan["error"])
             degraded = degraded or bool(packet_plan["degraded"])
@@ -4461,6 +4516,7 @@ def normalize_story_cycle_research_packet(
     research_mode: str,
 ) -> dict[str, Any]:
     metadata = _metadata(assignment)
+    require_packet_keys(packet, RESEARCH_PACKET_REQUIRED_KEYS, packet_label="Research packet", assignment_id=assignment.get("id"))
     return {
         **packet,
         "summary": _packet_value(packet, "summary") or f"Research packet for {topic}.",
@@ -4481,6 +4537,44 @@ def normalize_story_cycle_research_packet(
     }
 
 
+RESEARCH_PACKET_REQUIRED_KEYS = (
+    ("summary", "summary"),
+    ("recommended_angle", "recommendedAngle"),
+    ("open_questions", "openQuestions"),
+    ("coverage_gaps", "coverageGaps"),
+)
+REPORTING_PACKET_REQUIRED_KEYS = (
+    ("summary", "summary"),
+    ("editor_recommendation", "editorRecommendation"),
+    ("recommended_angle", "recommendedAngle"),
+    ("risk_flags", "riskFlags"),
+    ("coverage_gaps", "coverageGaps"),
+    ("open_questions", "openQuestions"),
+    ("accepted_reference_ids", "acceptedReferenceIds"),
+    ("proposed_references", "proposedReferences"),
+    ("copywriter_brief", "copywriterBrief"),
+)
+EDITOR_RECOMMENDATIONS = ("select", "merge", "brief", "hold", "kill")
+
+
+def require_packet_keys(
+    packet: dict[str, Any],
+    required_keys: tuple[tuple[str, str], ...],
+    *,
+    packet_label: str,
+    assignment_id: Any,
+) -> None:
+    missing = [
+        snake_key
+        for snake_key, camel_key in required_keys
+        if packet.get(snake_key) is None and packet.get(camel_key) is None
+    ]
+    if missing:
+        raise ValueError(
+            f"{packet_label} for {assignment_id} is missing required keys: {', '.join(missing)}."
+        )
+
+
 def normalize_story_cycle_reporting_packet(
     packet: dict[str, Any],
     *,
@@ -4492,6 +4586,13 @@ def normalize_story_cycle_reporting_packet(
 ) -> dict[str, Any]:
     metadata = _metadata(assignment)
     angle = (metadata.get("angleDiversity") or {}).get("lensLabel") or "reader impact"
+    require_packet_keys(packet, REPORTING_PACKET_REQUIRED_KEYS, packet_label="Reporting packet", assignment_id=assignment.get("id"))
+    editor_recommendation = _packet_value(packet, "editor_recommendation", "editorRecommendation")
+    if editor_recommendation not in EDITOR_RECOMMENDATIONS:
+        raise ValueError(
+            f"Reporting packet for {assignment.get('id')} has editor_recommendation {editor_recommendation!r}; "
+            f"expected one of {', '.join(EDITOR_RECOMMENDATIONS)}."
+        )
     return {
         **packet,
         "summary": _packet_value(packet, "summary") or f"Reporting context packet for {topic}.",
@@ -4499,7 +4600,7 @@ def normalize_story_cycle_reporting_packet(
         "edition_id": _packet_value(packet, "edition_id", "editionId") or metadata.get("editionId"),
         "coverage_key": _packet_value(packet, "coverage_key", "coverageKey") or coverage_key,
         "recommended_angle": _packet_value(packet, "recommended_angle", "recommendedAngle") or angle,
-        "editor_recommendation": _packet_value(packet, "editor_recommendation", "editorRecommendation") or "hold",
+        "editor_recommendation": editor_recommendation,
         "risk_flags": _packet_list(packet, "risk_flags", "riskFlags"),
         "coverage_gaps": _packet_list(packet, "coverage_gaps", "coverageGaps"),
         "open_questions": _packet_list(packet, "open_questions", "openQuestions"),
@@ -5331,40 +5432,76 @@ def semantic_relation(
     return {key: value for key, value in relation.items() if value is not None}
 
 
+APPLY_DEPENDENCY_RANK = {"ModelAttachment": 1, "SemanticRelation": 2}
+
+
 def apply_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     applied = []
-    warnings = []
-    for record in records:
+    failures = []
+    failed_record_ids: set[str] = set()
+    ordered_records = sorted(records, key=lambda record: APPLY_DEPENDENCY_RANK.get(record["modelName"], 0))
+    for record in ordered_records:
         model_name = record["modelName"]
         action = record.get("action") or "upsert"
         input_payload = record.get("input") or {}
+        record_id = input_payload.get("id")
+        blocking_ids = failed_record_ids.intersection(_record_dependency_ids(model_name, input_payload))
+        if blocking_ids:
+            failures.append({
+                "modelName": model_name,
+                "id": record_id,
+                "error": f"skipped because dependency failed: {', '.join(sorted(blocking_ids))}",
+            })
+            failed_record_ids.add(str(record_id))
+            continue
         try:
             if action == "noop":
-                applied.append({"modelName": model_name, "action": "noop", "id": input_payload.get("id")})
-                continue
-            if model_name == "ModelAttachment":
+                applied.append({"modelName": model_name, "action": "noop", "id": record_id})
+            elif model_name == "ModelAttachment":
                 _upload_model_attachment(input_payload, str(record.get("body") or ""))
-                applied.append({"modelName": model_name, "action": "upload", "id": input_payload.get("id")})
-                continue
-            if action == "create":
-                _create_record(model_name, input_payload)
-                applied.append({"modelName": model_name, "action": "create", "id": input_payload.get("id")})
-            elif action == "update":
-                _update_record(model_name, input_payload)
-                applied.append({"modelName": model_name, "action": "update", "id": input_payload.get("id")})
-            elif action == "upsert":
-                if _record_exists(model_name, str(input_payload.get("id"))):
-                    _update_record(model_name, input_payload)
-                    applied.append({"modelName": model_name, "action": "update", "id": input_payload.get("id")})
+                applied.append({"modelName": model_name, "action": "upload", "id": record_id})
+            elif action == "create":
+                if _record_exists(model_name, str(record_id)):
+                    applied.append({"modelName": model_name, "action": "exists", "id": record_id})
                 else:
                     _create_record(model_name, input_payload)
-                    applied.append({"modelName": model_name, "action": "create", "id": input_payload.get("id")})
+                    applied.append({"modelName": model_name, "action": "create", "id": record_id})
+            elif action == "update":
+                _update_record(model_name, input_payload)
+                applied.append({"modelName": model_name, "action": "update", "id": record_id})
+            elif action == "upsert":
+                if _record_exists(model_name, str(record_id)):
+                    _update_record(model_name, input_payload)
+                    applied.append({"modelName": model_name, "action": "update", "id": record_id})
+                else:
+                    _create_record(model_name, input_payload)
+                    applied.append({"modelName": model_name, "action": "create", "id": record_id})
             else:
                 raise ValueError(f"Unsupported action {action}")
         except Exception as exc:  # pragma: no cover - live GraphQL behavior varies by deployment
-            warnings.append(f"{model_name} {input_payload.get('id')} failed: {exc}")
-            raise
-    return {"apply": True, "applied": applied, "warnings": warnings}
+            failures.append({"modelName": model_name, "id": record_id, "error": str(exc)})
+            failed_record_ids.add(str(record_id))
+    warnings = [f"{failure['modelName']} {failure['id']} failed: {failure['error']}" for failure in failures]
+    result: dict[str, Any] = {"apply": True, "applied": applied, "warnings": warnings, "failures": failures}
+    if failures:
+        result["ok"] = False
+        result["error"] = {
+            "code": "apply_records_failed",
+            "message": f"{len(failures)} record(s) failed to apply; rerun to resume.",
+        }
+    return result
+
+
+def _record_dependency_ids(model_name: str, input_payload: dict[str, Any]) -> set[str]:
+    if model_name == "ModelAttachment":
+        return {str(input_payload["ownerId"])} if input_payload.get("ownerId") else set()
+    if model_name == "SemanticRelation":
+        return {
+            str(input_payload[key])
+            for key in ("subjectId", "objectId")
+            if input_payload.get(key)
+        }
+    return set()
 
 
 def load_live_state(*, models: list[str] | None = None) -> dict[str, list[dict[str, Any]]]:
