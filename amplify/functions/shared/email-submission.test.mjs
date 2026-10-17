@@ -23,6 +23,9 @@ const {
   countInboundAttachments,
   classifyNewSubmissionIntake,
   extractDirectCitations,
+  isInboundSenderAuthenticated,
+  readInboundSenderAuthenticationFromRawMime,
+  readInboundSenderAuthenticationFromSesReceipt,
 } = mockModule.exports;
 
 function buildPdfOnlyMime() {
@@ -58,5 +61,64 @@ assert.equal(
   classifyNewSubmissionIntake(parsed.text, [], countInboundAttachments(pdfOnlyBytes)),
   "pdf_only_intake",
 );
+
+function mimeWithHeaders(headerLines, body = "hello") {
+  return new TextEncoder().encode([...headerLines, "", body].join("\r\n"));
+}
+
+const sesPassHeaders = [
+  "Authentication-Results: amazonses.com;",
+  " spf=pass (spfCheck: domain of example.com designates 1.2.3.4 as permitted sender) client-ip=1.2.3.4;",
+  " dkim=pass header.i=@example.com;",
+  " dmarc=pass header.from=example.com;",
+];
+const passing = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders([...sesPassHeaders, "From: a@example.com", "Subject: x"]),
+);
+assert.deepEqual(passing, { spf: "pass", dkim: "pass" });
+assert.equal(isInboundSenderAuthenticated(passing), true);
+
+const spfOnly = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders(["Authentication-Results: amazonses.com; spf=pass; dkim=none;", "From: a@example.com"]),
+);
+assert.equal(isInboundSenderAuthenticated(spfOnly), true);
+
+const dkimOnly = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders(["Authentication-Results: amazonses.com; spf=fail; dkim=pass;", "From: a@example.com"]),
+);
+assert.equal(isInboundSenderAuthenticated(dkimOnly), true);
+
+const bothFail = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders(["Authentication-Results: amazonses.com; spf=fail; dkim=fail;", "From: a@example.com"]),
+);
+assert.equal(isInboundSenderAuthenticated(bothFail), false);
+
+const noHeader = readInboundSenderAuthenticationFromRawMime(mimeWithHeaders(["From: a@example.com"]));
+assert.equal(isInboundSenderAuthenticated(noHeader), false);
+
+const forgedLowerHeader = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders([
+    "Authentication-Results: amazonses.com; spf=fail; dkim=fail;",
+    "From: a@example.com",
+    "Authentication-Results: amazonses.com; spf=pass; dkim=pass;",
+  ]),
+);
+assert.equal(isInboundSenderAuthenticated(forgedLowerHeader), false, "only the topmost header counts");
+
+const forgedByUntrustedServer = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders(["Authentication-Results: evil.example; spf=pass; dkim=pass;", "From: a@example.com"]),
+);
+assert.equal(isInboundSenderAuthenticated(forgedByUntrustedServer), false);
+
+const forgedInBody = readInboundSenderAuthenticationFromRawMime(
+  mimeWithHeaders(["From: a@example.com"], "Authentication-Results: amazonses.com; spf=pass; dkim=pass;"),
+);
+assert.equal(isInboundSenderAuthenticated(forgedInBody), false);
+
+assert.deepEqual(
+  readInboundSenderAuthenticationFromSesReceipt({ spfVerdict: { status: "PASS" }, dkimVerdict: { status: "FAIL" } }),
+  { spf: "pass", dkim: "fail" },
+);
+assert.equal(readInboundSenderAuthenticationFromSesReceipt({}), null);
 
 console.log("email-submission.test.mjs: ok");

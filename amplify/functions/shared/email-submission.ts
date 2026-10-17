@@ -11,6 +11,56 @@ export const REJECTION_KIND_UNREGISTERED_SENDER = "unregistered_sender";
 export const UNREGISTERED_SENDER_RESPONSE_ERROR =
   "This submission was not accepted because only registered Papyrus users may send reference submissions by email.";
 
+export const UNAUTHENTICATED_SENDER_RESPONSE_ERROR =
+  "This submission was not accepted because the sender could not be authenticated (SPF or DKIM must pass).";
+export const REJECTION_KIND_UNAUTHENTICATED_SENDER = "unauthenticated_sender";
+
+export type InboundSenderAuthentication = {
+  spf: string;
+  dkim: string;
+};
+
+const TRUSTED_AUTHENTICATION_RESULTS_SERVER_ID = "amazonses.com";
+
+export const UNVERIFIED_SENDER_AUTHENTICATION: InboundSenderAuthentication = { spf: "none", dkim: "none" };
+
+export function isInboundSenderAuthenticated(authentication: InboundSenderAuthentication): boolean {
+  return authentication.spf === "pass" || authentication.dkim === "pass";
+}
+
+export function readInboundSenderAuthenticationFromSesReceipt(
+  receipt: Record<string, unknown> | undefined,
+): InboundSenderAuthentication | null {
+  if (!receipt) return null;
+  const verdictStatus = (key: string): string | null => {
+    const verdict = receipt[key];
+    if (!verdict || typeof verdict !== "object") return null;
+    const status = (verdict as { status?: unknown }).status;
+    return typeof status === "string" ? status.trim().toLowerCase() : null;
+  };
+  const spf = verdictStatus("spfVerdict");
+  const dkim = verdictStatus("dkimVerdict");
+  if (spf === null && dkim === null) return null;
+  return { spf: spf ?? "none", dkim: dkim ?? "none" };
+}
+
+export function readInboundSenderAuthenticationFromRawMime(rawBytes: Uint8Array): InboundSenderAuthentication {
+  const raw = Buffer.from(rawBytes).toString("utf8");
+  const headerBlockEnd = raw.search(/\r?\n\r?\n/);
+  const headerBlock = headerBlockEnd === -1 ? raw : raw.slice(0, headerBlockEnd);
+  const unfoldedHeaders = headerBlock.replace(/\r?\n[ \t]+/g, " ").split(/\r?\n/);
+  const topmostResultsHeader = unfoldedHeaders.find((line) => /^Authentication-Results:/i.test(line));
+  if (!topmostResultsHeader) return UNVERIFIED_SENDER_AUTHENTICATION;
+  const value = topmostResultsHeader.replace(/^Authentication-Results:\s*/i, "");
+  const [serverId, ...methodResults] = value.split(";").map((part) => part.trim());
+  if (serverId.toLowerCase() !== TRUSTED_AUTHENTICATION_RESULTS_SERVER_ID) return UNVERIFIED_SENDER_AUTHENTICATION;
+  const resultFor = (method: string): string => {
+    const found = methodResults.find((part) => new RegExp(`^${method}\\s*=\\s*[a-z]+`, "i").test(part));
+    return found ? found.replace(new RegExp(`^${method}\\s*=\\s*`, "i"), "").split(/\s/)[0].toLowerCase() : "none";
+  };
+  return { spf: resultFor("spf"), dkim: resultFor("dkim") };
+}
+
 const URL_PATTERN = /https?:\/\/[^\s<>"')\]]+/gi;
 const DOI_PATTERN = /\b10\.\d{4,9}\/[-._;()/:A-Z0-9]+/gi;
 const RESEARCH_ASSIGNMENT_PHRASES = [
@@ -337,6 +387,7 @@ export function buildEmailSubmissionMessageInput(input: {
   s3Bucket: string | null;
   s3Key: string | null;
   authorized: boolean;
+  rejectionKind?: string;
   authorUserProfileId: string | null;
   authorLabel: string;
   citations: Array<Record<string, unknown>>;
@@ -378,7 +429,7 @@ export function buildEmailSubmissionMessageInput(input: {
       ...(input.authorized
         ? {}
         : {
-            rejectionKind: REJECTION_KIND_UNREGISTERED_SENDER,
+            rejectionKind: input.rejectionKind ?? REJECTION_KIND_UNREGISTERED_SENDER,
           }),
       directCitationCount: input.citations.length,
       directCitations: input.citations,

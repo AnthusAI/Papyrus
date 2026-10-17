@@ -2,6 +2,13 @@ import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import {
   buildEmailSubmissionMessageInput,
+  isInboundSenderAuthenticated,
+  readInboundSenderAuthenticationFromRawMime,
+  readInboundSenderAuthenticationFromSesReceipt,
+  REJECTION_KIND_UNAUTHENTICATED_SENDER,
+  UNAUTHENTICATED_SENDER_RESPONSE_ERROR,
+  UNVERIFIED_SENDER_AUTHENTICATION,
+  type InboundSenderAuthentication,
   classifyInboundEmailIntake,
   countInboundAttachments,
   extractDirectCitations,
@@ -49,6 +56,7 @@ type InboundPayload = {
   attachmentCount: number;
   userComposedText: string;
   parentSubmissionMessageId: string | null;
+  senderAuthentication: InboundSenderAuthentication;
 };
 
 type ExistingMessage = {
@@ -123,7 +131,8 @@ async function processInboundSubmission(inbound: InboundPayload): Promise<Record
   const resolvedMessageId = messageId ?? `message-email-submission-${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
   const dataClient = await getLambdaDataClient();
   const profileId = await lookupRegisteredUserProfileId(dataClient, inbound.senderEmail);
-  const authorized = Boolean(profileId);
+  const senderAuthenticated = isInboundSenderAuthenticated(inbound.senderAuthentication);
+  const authorized = Boolean(profileId) && senderAuthenticated;
   const citations = authorized
     ? (inbound.citations.length > 0
       ? inbound.citations
@@ -143,7 +152,9 @@ async function processInboundSubmission(inbound: InboundPayload): Promise<Record
 
   let status = authorized ? "received" : "rejected";
   let responseStatus = authorized ? "PENDING" : "REJECTED";
-  let responseError: string | null = authorized ? null : UNREGISTERED_SENDER_RESPONSE_ERROR;
+  let responseError: string | null = authorized
+    ? null
+    : (senderAuthenticated ? UNREGISTERED_SENDER_RESPONSE_ERROR : UNAUTHENTICATED_SENDER_RESPONSE_ERROR);
 
   if (authorized && looksLikeResearchAssignmentRequest(inbound.bodyText, citations.length)) {
     status = "rejected";
@@ -173,7 +184,8 @@ async function processInboundSubmission(inbound: InboundPayload): Promise<Record
     s3Bucket: inbound.s3Bucket,
     s3Key: inbound.s3Key,
     authorized,
-    authorUserProfileId: profileId,
+    rejectionKind: senderAuthenticated ? undefined : REJECTION_KIND_UNAUTHENTICATED_SENDER,
+    authorUserProfileId: authorized ? profileId : null,
     authorLabel: inbound.senderEmail || "unknown-sender",
     citations,
     status,
@@ -205,7 +217,7 @@ async function processInboundSubmission(inbound: InboundPayload): Promise<Record
 
   if (authorized && responseStatus === "PENDING" && PROCESSOR_FUNCTION_NAME) {
     await invokeEmailProcessor(resolvedMessageId);
-  } else if (responseStatus === "REJECTED" && PROCESSOR_FUNCTION_NAME) {
+  } else if (responseStatus === "REJECTED" && senderAuthenticated && PROCESSOR_FUNCTION_NAME) {
     await invokeEmailProcessor(resolvedMessageId, { sendFeedbackOnly: true });
   }
 
@@ -390,6 +402,7 @@ async function resolveFromSesMail(
       senderEmail: loaded.senderEmail || senderEmail,
       recipients: loaded.recipients.length > 0 ? loaded.recipients : recipients,
       subject: loaded.subject !== "(no subject)" ? loaded.subject : subject,
+      senderAuthentication: readInboundSenderAuthenticationFromSesReceipt(receipt) ?? loaded.senderAuthentication,
     };
   }
 
@@ -407,6 +420,7 @@ async function resolveFromSesMail(
     attachmentCount: 0,
     userComposedText: "",
     parentSubmissionMessageId: null,
+    senderAuthentication: readInboundSenderAuthenticationFromSesReceipt(receipt) ?? UNVERIFIED_SENDER_AUTHENTICATION,
   });
 }
 
@@ -433,6 +447,7 @@ async function loadInboundFromS3Object(
     attachmentCount: countInboundAttachments(rawBytes),
     userComposedText: extractUserComposedReplyText(intake.bodyText),
     parentSubmissionMessageId: null,
+    senderAuthentication: readInboundSenderAuthenticationFromRawMime(rawBytes),
   });
 }
 
