@@ -18,30 +18,9 @@ from papyrus_content.content_item_lifecycle import (
 )
 
 
-DEFAULT_SECTIONS = ["culture", "methods", "business", "law"]
-DEFAULT_SECTION_BUDGETS = {
-    "culture": 2,
-    "arts": 2,
-    "methods": 1,
-    "business": 1,
-    "law": 1,
-    "law-policy": 1,
-}
-SECTION_ALIASES = {
-    "culture": "arts",
-    "law": "law-policy",
-}
 OPTIONAL_DESK_SECTION_TYPES = frozenset({"floating", "rotating"})
 GENERIC_EDITION_FORUM_TITLES = frozenset({"", "edition forum", "upcoming edition"})
 DEFAULT_STEERING_WINDOW_HOURS = 48
-SECTION_RESEARCH_LENSES = {
-    "culture": "creative workflows, game design, player experience, generative media",
-    "arts": "creative workflows, game design, player experience, generative media",
-    "methods": "implementation patterns, NPC behavior, procedural generation, evaluation",
-    "business": "studios, tooling markets, labor, production economics",
-    "law": "copyright, likeness, licensing, liability, platform policy",
-    "law-policy": "copyright, likeness, licensing, liability, platform policy",
-}
 REPORTING_ANGLE_LENSES = [
     {"key": "accountability", "label": "accountability", "prompt": "who is responsible, who is affected, and what changed"},
     {"key": "reader-impact", "label": "reader impact", "prompt": "what a reader can use, decide, or watch next"},
@@ -255,15 +234,23 @@ def signals_trend_report(
     run_id: str = "",
     references: list[dict[str, Any]] | None = None,
     semantic_nodes: list[dict[str, Any]] | None = None,
+    newsroom_sections: list[dict[str, Any]] | None = None,
     apply: bool = False,
     now: str = "",
 ) -> dict[str, Any]:
     now = now or _now_iso()
-    sections = _resolve_section_keys(sections or [])
     if references is None:
-        state = load_live_state(models=["Reference", "SemanticNode"])
+        state = load_live_state(models=["Reference", "SemanticNode", "NewsroomSection"])
         references = state.get("references", [])
         semantic_nodes = state.get("semanticNodes", [])
+        newsroom_sections = state.get("newsroomSections", [])
+    newsroom_sections = newsroom_sections or []
+    section_lenses = (
+        section_research_lenses(resolve_sections(sections or [], newsroom_sections))
+        if sections or newsroom_sections
+        else {}
+    )
+    sections = list(section_lenses)
     semantic_nodes = semantic_nodes or []
     run_id = run_id or f"signal-report-{_safe_id(topic or category_key or corpus_key)}-{_timestamp_for_path(now)}"
     signals = build_trend_signals(
@@ -273,7 +260,7 @@ def signals_trend_report(
         category_key=category_key,
         topic=topic,
         coverage_key=coverage_key,
-        sections=sections,
+        section_lenses=section_lenses,
         since_days=since_days,
         limit=limit,
         now=now,
@@ -405,7 +392,7 @@ def build_trend_signals(
     category_key: str = "",
     topic: str = "",
     coverage_key: str = "",
-    sections: list[str] | None = None,
+    section_lenses: dict[str, str] | None = None,
     since_days: int = 30,
     limit: int = 10,
     now: str = "",
@@ -415,7 +402,8 @@ def build_trend_signals(
     if since_days > 0:
         cutoff = now_dt - dt.timedelta(days=since_days)
         accepted = [ref for ref in accepted if (_reference_datetime(ref) or now_dt) >= cutoff]
-    sections = sections or []
+    section_lenses = section_lenses or {}
+    sections = list(section_lenses)
     topics: dict[str, dict[str, Any]] = {}
     if topic:
         key = _safe_id(topic)
@@ -451,7 +439,7 @@ def build_trend_signals(
         freshness = round(sum(recency_values) / len(recency_values), 3) if recency_values else 0.0
         velocity = len(refs)
         diversity = round(min(1.0, len(domains) / max(len(refs), 1)), 3) if refs else 0.0
-        section_fit = _section_fit_scores(candidate["label"], refs, sections)
+        section_fit = _section_fit_scores(candidate["label"], refs, section_lenses)
         average_section_fit = round(sum(section_fit.values()) / len(section_fit), 3) if section_fit else 0.0
         evidence_quality = 1.0 if refs else 0.0
         coverage_gap_value = round(1.0 / (1 + max(len(refs) - 1, 0)), 3) if refs else 1.0
@@ -483,7 +471,7 @@ def build_trend_signals(
             "proposedSections": proposed_sections,
             "coverageGaps": _coverage_gaps(candidate["label"], refs),
             "openQuestions": _open_questions(candidate["label"], sections),
-            "suggestedAngles": _suggested_angles(candidate["label"], sections),
+            "suggestedAngles": _suggested_angles(candidate["label"], section_lenses),
         })
     return sorted(signals, key=lambda item: (-float(item["score"]), item["topic"]))[:limit]
 
@@ -697,7 +685,7 @@ def editions_plan(
             "openQuestions": [],
             "suggestedAngles": [],
         }]
-    state = load_live_state(models=["NewsroomSection", "Category", "CategorySet", "MessageThread", "Message"]) if apply else {}
+    state = load_live_state(models=["NewsroomSection", "Category", "CategorySet", "MessageThread", "Message"] if apply else ["NewsroomSection"])
     records: list[dict[str, Any]] = []
     plans = []
     for index, signal in enumerate(signals, start=1):
@@ -778,7 +766,7 @@ def coverage_theme_run(
     ]
     if apply:
         state_models.extend(["Assignment", "EditionSlot"])
-    state = load_live_state(models=state_models) if apply else {}
+    state = load_live_state(models=state_models if apply else ["NewsroomSection"])
     plan = build_coverage_theme_plan(
         date=date,
         topic=topic,
@@ -1371,7 +1359,7 @@ def _build_sections_dispatch_bundle(
         )
         research_assignments.append(research_assignment)
         records.extend(assignment_records(research_assignment, edition, coverage_node, section, category, category_set, now, signal=signal))
-        slots = max(1, int(section_budgets.get(section["id"], DEFAULT_SECTION_BUDGETS.get(section["id"], 1))))
+        slots = max(1, int(section_budgets.get(section["id"], 1)))
         section_slots = slots_by_section.get(section["id"], [])
         dispatch_count = math.ceil(slots * 1.5)
         concept_pool = list((signal or {}).get("conceptSnapshot", {}).get("rankedForDispatch") or [])
@@ -1508,7 +1496,11 @@ def build_coverage_theme_plan(
         run_id=run_id,
         state=state,
     )
-    resolved_sections = resolve_sections(sections or DEFAULT_SECTIONS, state.get("newsroomSections") or [])
+    resolved_sections = resolve_sections(sections or [], state.get("newsroomSections") or [])
+    section_budgets = {
+        **{str(section["id"]): section_slot_budget(section, {}) for section in resolved_sections},
+        **section_budgets,
+    }
     dispatch_sections, provisional_optional_sections = partition_sections_for_dispatch(
         resolved_sections,
         selected_optional_desk_key=selected_optional_desk_key,
@@ -1615,7 +1607,7 @@ def build_coverage_theme_plan(
         "edition": edition,
         "coverageNode": coverage_node,
         "sections": [
-            {"key": section["id"], "title": section["title"], "researchLens": section_research_lens(section["id"]), "slots": section_budgets.get(section["id"], DEFAULT_SECTION_BUDGETS.get(section["id"], 1))}
+            {"key": section["id"], "title": section["title"], "researchLens": section_research_lens(section), "slots": section_budgets.get(section["id"], 1)}
             for section in resolved_sections
         ],
         "dispatchSections": [
@@ -1689,7 +1681,7 @@ def build_edition_forum_kickoff_records(
     section_summary: list[dict[str, Any]] = []
     for section in sections:
         section_key = str(section.get("id") or "")
-        slots = max(1, int(section_budgets.get(section_key, DEFAULT_SECTION_BUDGETS.get(section_key, 1))))
+        slots = max(1, int(section_budgets.get(section_key, 1)))
         dispatch_count = math.ceil(slots * 1.5)
         section_type = _normalize_section_type(section.get("type"))
         planning_role = _section_planning_role(section)
@@ -1697,6 +1689,7 @@ def build_edition_forum_kickoff_records(
             "sectionId": section_key,
             "sectionKey": section_key,
             "sectionTitle": section.get("title") or section_key,
+            "researchLens": section_research_lens(section),
             "sectionType": section_type,
             "planningRole": planning_role,
             "slots": slots,
@@ -1708,14 +1701,13 @@ def build_edition_forum_kickoff_records(
         existing_editions or [],
         exclude_edition_id=edition_id,
     )
-    section_keys = [str(section.get("id") or "") for section in sections if section.get("id")]
     resolved_signal = resolve_edition_theme_signal(
         signal=signal,
         topic=topic,
         coverage_key=coverage_key,
         corpus_key=corpus_key,
         category_key=category_key,
-        sections=section_keys,
+        section_lenses=section_research_lenses(sections),
         state=state or {},
         now=now,
     )
@@ -2114,7 +2106,7 @@ def summarize_knowledge_base_for_planning(
     corpus_key: str,
     topic: str,
     category_key: str = "",
-    sections: list[str] | None = None,
+    section_lenses: dict[str, str] | None = None,
     since_days: int = DEFAULT_TREND_WINDOW_DAYS,
     now: str = "",
 ) -> dict[str, Any]:
@@ -2156,7 +2148,7 @@ def summarize_knowledge_base_for_planning(
             category_key=category_key,
             topic="",
             coverage_key="",
-            sections=sections or [],
+            section_lenses=section_lenses or {},
             since_days=since_days,
             limit=6,
             now=now,
@@ -2370,7 +2362,6 @@ def summarize_concepts_for_planning(
             semantic_nodes=semantic_nodes,
             corpus_key=corpus_key,
             topic="",
-            sections=[],
             since_days=DEFAULT_TREND_WINDOW_DAYS,
             limit=max(limit * 2, 8),
             now=now,
@@ -2536,10 +2527,11 @@ def resolve_edition_theme_signal(
     coverage_key: str,
     corpus_key: str,
     category_key: str,
-    sections: list[str],
+    section_lenses: dict[str, str],
     state: dict[str, list[dict[str, Any]]],
     now: str = "",
 ) -> dict[str, Any]:
+    sections = list(section_lenses)
     if signal:
         return signal
     references = state.get("references") or []
@@ -2551,7 +2543,7 @@ def resolve_edition_theme_signal(
         corpus_key=corpus_key,
         topic=topic,
         category_key=category_key,
-        sections=sections,
+        section_lenses=section_lenses,
         now=now,
     )
     concept_snapshot = summarize_concepts_for_planning(
@@ -2570,7 +2562,7 @@ def resolve_edition_theme_signal(
             category_key=category_key,
             topic=topic,
             coverage_key=coverage_key,
-            sections=sections,
+            section_lenses=section_lenses,
             now=now,
         )
         if ranked:
@@ -2598,7 +2590,7 @@ def resolve_edition_theme_signal(
         "proposedSections": sections,
         "coverageGaps": _coverage_gaps_from_knowledge_base_snapshot(topic=topic, snapshot=kb_snapshot),
         "openQuestions": _open_questions(topic, sections),
-        "suggestedAngles": _suggested_angles(topic, sections),
+        "suggestedAngles": _suggested_angles(topic, section_lenses),
         "knowledgeBaseSnapshot": kb_snapshot,
         "conceptSnapshot": concept_snapshot,
     }
@@ -2719,7 +2711,7 @@ def build_edition_theme_kickoff_draft(
             fit_score = section_fit.get(section_key)
             lines.append("")
             lines.append(f"### {section_title}")
-            desk_lens = section_research_lens(section_key)
+            desk_lens = str(section.get("researchLens") or "")
             fit_note = f" KB fit {fit_score:.2f}." if isinstance(fit_score, (int, float)) else ""
             lines.append(f"Target: {slots} slot(s). Desk lens: {desk_lens}.{fit_note}")
             section_angle = angles_by_section.get(section_key) or f"{desk_lens} applied to {primary_theme}"
@@ -2793,7 +2785,7 @@ def _edition_theme_forum_body(
             coverage_key=coverage_key,
             corpus_key="",
             category_key="",
-            sections=[str(section.get("sectionKey") or "") for section in core_sections],
+            section_lenses={str(section.get("sectionKey") or ""): str(section.get("researchLens") or "") for section in core_sections},
             state={},
         ),
         core_sections=core_sections,
@@ -3324,7 +3316,7 @@ def optional_desk_dispatch_exists(
     edition_id: str,
     section_budgets: dict[str, int],
 ) -> bool:
-    slots = max(1, int(section_budgets.get(section_key, DEFAULT_SECTION_BUDGETS.get(section_key, 1))))
+    slots = max(1, int(section_budgets.get(section_key, 1)))
     expected_slots = set(optional_desk_slot_ids(edition_id=edition_id, section_key=section_key, slots=slots))
     edition_slot_ids = {str(slot.get("id") or "") for slot in (state.get("editionSlots") or [])}
     if not expected_slots.intersection(edition_slot_ids):
@@ -3792,7 +3784,7 @@ def run_rotating_desk_planning_step(
         existing_threads=state.get("messageThreads") or [],
         existing_messages_by_thread=existing_messages_by_thread,
     )
-    slots = max(1, int(section_budgets.get(section_key, DEFAULT_SECTION_BUDGETS.get(section_key, 1))))
+    slots = max(1, int(section_budgets.get(section_key, 1)))
     dispatch_exists = optional_desk_dispatch_exists(
         state,
         run_id=run_id,
@@ -4869,7 +4861,7 @@ def build_edition_slots(
     slots: list[dict[str, Any]] = []
     for section in resolved_sections:
         section_key = section["id"]
-        slot_count = max(1, int(section_budgets.get(section_key, DEFAULT_SECTION_BUDGETS.get(section_key, 1))))
+        slot_count = max(1, int(section_budgets.get(section_key, 1)))
         for rank in range(1, slot_count + 1):
             slot_lineage_id = f"edition-slot-{_safe_id(edition['id'])}-{_safe_id(section_key)}-{rank:02d}"
             slots.append(
@@ -5024,7 +5016,7 @@ def research_assignment_record(**kwargs: Any) -> dict[str, Any]:
         context_profile="researcher",
         expected_output="Private research packet for section-shaped reporting context, not reader copy.",
         research_mode=research_mode,
-        research_lens=section_research_lens(section["id"]),
+        research_lens=section_research_lens(section),
         signal=kwargs.get("signal"),
     )
     queue_key = f"coverage-theme:{date}:section:{section['id']}:lane:research"
@@ -5037,7 +5029,7 @@ def research_assignment_record(**kwargs: Any) -> dict[str, Any]:
         "priority": kwargs["priority"],
         "title": f"Research {topic} for {section['title']}",
         "summary": f"Section-shaped research on {topic} for {section['title']}.",
-        "brief": f"{section['title']} research lens: {section_research_lens(section['id'])}.",
+        "brief": f"{section['title']} research lens: {section_research_lens(section)}.",
         "instructions": f"Research {topic} through the {section['title']} section lens. Produce a private research_packet only.",
         "metadata": metadata,
         "corpusId": (category_set or {}).get("corpusId") or f"knowledge-corpus-{_safe_id(corpus_key)}",
@@ -5089,7 +5081,7 @@ def reporting_assignment_record(**kwargs: Any) -> dict[str, Any]:
         context_profile="reporting",
         expected_output="Private reporting context packet for editor selection and copywriting, not reader copy.",
         research_mode=None,
-        research_lens=section_research_lens(section["id"]),
+        research_lens=section_research_lens(section),
         source_research_assignment_id=(kwargs.get("source_research_assignment") or {}).get("id"),
         slot_target={
             "slotId": (kwargs.get("assigned_slot") or {}).get("id"),
@@ -5423,38 +5415,27 @@ def load_story_budget_state(*, run_id: str = "") -> dict[str, list[dict[str, Any
 
 
 def resolve_sections(section_keys: list[str], newsroom_sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    by_id = {
-        str(section.get("id")): section
-        for section in newsroom_sections
-        if section.get("enabled") is not False and section.get("enabledStatus") != "disabled"
-    }
-    sections = []
-    for index, raw_key in enumerate(_resolve_section_keys(section_keys)):
-        key = SECTION_ALIASES.get(raw_key, raw_key)
-        section = by_id.get(key) or by_id.get(raw_key)
-        if not section:
-            section = synthetic_section(key, index)
-        sections.append(_decode_record(section))
-    return sections
-
-
-def synthetic_section(key: str, index: int) -> dict[str, Any]:
-    title = " ".join(part.capitalize() for part in re.split(r"[-_\s]+", key) if part) or key
-    return {
-        "id": key,
-        "title": title,
-        "shortTitle": title,
-        "type": "canonical",
-        "editorialMission": f"Cover {title}.",
-        "editorialPolicy": f"Use the {title} section lens.",
-        "assignmentGuidance": None,
-        "killCriteria": None,
-        "visualGuidance": None,
-        "enabled": True,
-        "sortOrder": index + 1,
-        "defaultArticleTypes": ["article"],
-        "defaultPageBudget": DEFAULT_SECTION_BUDGETS.get(key, 1),
-    }
+    enabled_sections = sorted(
+        (
+            section
+            for section in newsroom_sections
+            if section.get("enabled") is not False and section.get("enabledStatus") != "disabled"
+        ),
+        key=lambda section: (section.get("sortOrder") is None, section.get("sortOrder") or 0, str(section.get("id") or "")),
+    )
+    by_id = {str(section.get("id")): section for section in enabled_sections}
+    requested_keys = [key for key in (str(raw or "").strip() for raw in section_keys) if key]
+    if not requested_keys:
+        if not enabled_sections:
+            raise ValueError("No enabled NewsroomSection rows were found; create sections or pass --sections.")
+        return [_decode_record(section) for section in enabled_sections]
+    unknown_keys = [key for key in requested_keys if key not in by_id]
+    if unknown_keys:
+        raise ValueError(
+            f"Unknown NewsroomSection key(s): {', '.join(unknown_keys)}. "
+            f"Enabled sections: {', '.join(sorted(by_id)) or 'none'}."
+        )
+    return [_decode_record(by_id[key]) for key in requested_keys]
 
 
 def find_category(category_key: str, categories: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -5532,13 +5513,11 @@ def partition_sections_for_dispatch(
 
 def parse_section_budgets(value: str, sections: list[str] | None = None) -> dict[str, int]:
     result = {}
-    for section in _resolve_section_keys(sections or []):
-        result[SECTION_ALIASES.get(section, section)] = DEFAULT_SECTION_BUDGETS.get(section, 1)
     for part in str(value or "").split(","):
         if not part.strip():
             continue
         key, _, raw_slots = part.partition(":")
-        section_key = SECTION_ALIASES.get(key.strip(), key.strip())
+        section_key = key.strip()
         try:
             slots = max(1, int(raw_slots.strip()))
         except ValueError as exc:
@@ -6032,11 +6011,11 @@ def _matching_nodes(nodes: list[dict[str, Any]], topic: str, coverage_key: str) 
     return matches
 
 
-def _section_fit_scores(topic: str, refs: list[dict[str, Any]], sections: list[str]) -> dict[str, float]:
+def _section_fit_scores(topic: str, refs: list[dict[str, Any]], section_lenses: dict[str, str]) -> dict[str, float]:
     text = " ".join([topic, *[str(ref.get("title") or "") for ref in refs]]).lower()
     scores = {}
-    for section in sections:
-        lens_terms = _terms(section_research_lens(section))
+    for section, lens in section_lenses.items():
+        lens_terms = _terms(lens)
         if not lens_terms:
             scores[section] = 0.0
             continue
@@ -6065,12 +6044,12 @@ def _open_questions(topic: str, sections: list[str]) -> list[str]:
     return [f"What is the most reportable angle on {topic}?"]
 
 
-def _suggested_angles(topic: str, sections: list[str]) -> list[dict[str, str]]:
+def _suggested_angles(topic: str, section_lenses: dict[str, str]) -> list[dict[str, str]]:
     angles = []
-    for section in sections[:4]:
+    for section, lens in list(section_lenses.items())[:4]:
         angles.append({
             "sectionKey": section,
-            "angle": f"{section_research_lens(section)}: {topic}",
+            "angle": f"{lens}: {topic}",
         })
     return angles
 
@@ -6401,19 +6380,20 @@ def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     return execute_graphql(query, variables, timeout=90)
 
 
-def _resolve_section_keys(sections: list[str]) -> list[str]:
-    source = sections or DEFAULT_SECTIONS
-    result = []
-    for section in source:
-        key = str(section or "").strip()
-        if not key:
-            continue
-        result.append(SECTION_ALIASES.get(key, key))
-    return result
+def section_research_lens(section: dict[str, Any]) -> str:
+    for field_name in ("assignmentGuidance", "editorialMission", "title"):
+        value = str(section.get(field_name) or "").strip()
+        if value:
+            return value
+    raise ValueError(f"NewsroomSection {section.get('id')!r} has no assignmentGuidance, editorialMission or title.")
 
 
-def section_research_lens(section_key: str) -> str:
-    return SECTION_RESEARCH_LENSES.get(section_key, f"section-specific evidence, doctrine, and recent desk memory for {section_key}")
+def section_research_lenses(sections: list[dict[str, Any]]) -> dict[str, str]:
+    return {str(section["id"]): section_research_lens(section) for section in sections}
+
+
+def section_slot_budget(section: dict[str, Any], section_budgets: dict[str, int]) -> int:
+    return max(1, int(section_budgets.get(str(section["id"])) or section.get("defaultPageBudget") or 1))
 
 
 def semantic_state_key(kind: str, lineage_id: str) -> str:
