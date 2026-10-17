@@ -61,3 +61,76 @@ export const DEMO_CYCLOTRON_STATUS: CyclotronStatus = {
   lastChange: null,
   pending: { decisionsAwaitingReview: 1, staleSince: null },
 };
+
+/**
+ * What the Newsroom assumes until a decision names the cyclotron: the defaults
+ * of the steering config's relevanceCyclotron block (src/papyrus_content/relevance_cyclotron.py).
+ */
+export const DEFAULT_RELEVANCE_CYCLOTRON = { id: "papyrus-relevance", labels: ["include", "exclude"] } as const;
+
+/** The payload kind of a priming request; the sweep lists the cyclotron's payloads and filters on it. */
+export const PRIMING_REQUEST_KIND = "cyclotron-priming-request";
+
+/** The attachment role the sweep writes a request's outcome under. */
+export const PRIMING_OUTCOME_ROLE = "priming_outcome";
+
+/** The KnowledgeRawPayload an editor writes to ask the next sweep to prime the cyclotron with one URL. */
+export function primingRequestPayloadId(cyclotronId: string, requestId: string): string {
+  return `knowledge-raw-payload-cyclotron-priming-request-${safeId(cyclotronId)}-${safeId(requestId)}`;
+}
+
+export type PrimingRequest = {
+  requestId: string;
+  url: string;
+  label: string;
+  explanation: string;
+  requestedBy: string;
+  requestedAt: string;
+};
+
+export type PrimingOutcome =
+  | { state: "applied"; version: number; at: string; itemId?: string }
+  | { state: "failed"; message: string; at: string };
+
+/** A saved request with the sweep's outcome, once there is one. */
+export type PrimingRequestView = { request: PrimingRequest; outcome: PrimingOutcome | null };
+
+export function buildPrimingRequest(
+  input: { url: string; label: string; explanation?: string },
+  requestedBy: string,
+  labels: readonly string[],
+  now: Date = new Date(),
+  requestId: string = `${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+): PrimingRequest {
+  let parsed: URL | null = null;
+  try {
+    parsed = new URL(input.url.trim());
+  } catch {
+    parsed = null;
+  }
+  if (!parsed || parsed.protocol !== "https:") throw new Error("Paste an https URL.");
+  if (!labels.includes(input.label)) throw new Error(`Choose a label: ${labels.join(" or ")}.`);
+  return {
+    requestId,
+    url: parsed.toString(),
+    label: input.label,
+    explanation: (input.explanation ?? "").trim(),
+    requestedBy,
+    requestedAt: now.toISOString(),
+  };
+}
+
+export function isPrimingOutcome(value: unknown): value is PrimingOutcome {
+  if (!value || typeof value !== "object") return false;
+  const outcome = value as Record<string, unknown>;
+  return (outcome.state === "applied" && typeof outcome.version === "number")
+    || (outcome.state === "failed" && typeof outcome.message === "string");
+}
+
+/** In words: waiting for the next sweep, applied as version N, or failed with the reason. */
+export function primingStateText(view: PrimingRequestView): string {
+  if (!view.outcome) return "Waiting for the next sweep";
+  return view.outcome.state === "applied"
+    ? `Applied as version ${view.outcome.version}`
+    : `Failed: ${view.outcome.message}`;
+}

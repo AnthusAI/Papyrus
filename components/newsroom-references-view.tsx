@@ -49,7 +49,9 @@ import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceRelevanceReview } from "./reference-relevance-review";
+import { ReferenceCyclotronPriming, type PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
+import type { PrimingRequestView } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import type { RelevanceCuration, RelevanceDecisionView } from "../lib/relevance-decisions";
 import {
@@ -62,6 +64,12 @@ type NewsroomReferencesViewProps = {
   priming?: PrimingPanelProps;
   /** The relevance cyclotron's status snapshot, shown above the list. */
   cyclotronStatus?: CyclotronStatus | null;
+  /** Present for editors who may prime the running relevance cyclotron with a pasted URL. */
+  cyclotronPriming?: {
+    labels: readonly string[];
+    requests: PrimingRequestView[];
+    onRequest: (input: PrimingFormInput) => Promise<void> | void;
+  };
   /** Present for editors who may ask for a manual review rate. */
   onRequestReviewRate?: (choice: ReviewRateChoice) => Promise<void> | void;
   demo?: boolean;
@@ -399,6 +407,7 @@ function ReferenceDetailPanel({
 export function NewsroomReferencesView({
   priming,
   cyclotronStatus,
+  cyclotronPriming,
   decisions,
   onRequestReviewRate,
   demo = false,
@@ -516,6 +525,15 @@ export function NewsroomReferencesView({
         </div>
         <ReferenceCurationControls disabled={disabled} />
         {priming && !disabled ? <ReferencePriming {...priming} /> : null}
+        {cyclotronPriming && !disabled ? (
+          <div className="shrink-0">
+            <ReferenceCyclotronPriming
+              labels={cyclotronPriming.labels}
+              onRequestPriming={cyclotronPriming.onRequest}
+              requests={cyclotronPriming.requests}
+            />
+          </div>
+        ) : null}
         {cyclotronStatus ? (
           <div className="shrink-0">
             <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />

@@ -3769,3 +3769,72 @@ export async function requestCyclotronReviewRate(
     content: JSON.stringify(request),
   });
 }
+
+const LIST_PRIMING_REQUEST_PAYLOADS_QUERY = `
+  query ListKnowledgeRawPayloadsByOwnerAndKind($ownerId: ID!, $payloadKind: ModelStringKeyConditionInput, $limit: Int, $nextToken: String) {
+    listKnowledgeRawPayloadsByOwnerAndKind(ownerId: $ownerId, payloadKind: $payloadKind, limit: $limit, nextToken: $nextToken) {
+      items { id }
+      nextToken
+    }
+  }
+`;
+
+/** Ask the next decide-relevance sweep to prime the running cyclotron with one pasted URL. */
+export async function requestCyclotronPriming(
+  cyclotronId: string,
+  request: import("../lib/relevance-status").PrimingRequest,
+): Promise<void> {
+  const { primingRequestPayloadId, PRIMING_REQUEST_KIND, safeId } = await import("../lib/relevance-status");
+  const id = primingRequestPayloadId(cyclotronId, request.requestId);
+  await runGraphql(CREATE_KNOWLEDGE_RAW_PAYLOAD_MUTATION, {
+    input: {
+      id,
+      ownerType: "cyclotron",
+      ownerId: safeId(cyclotronId),
+      payloadKind: PRIMING_REQUEST_KIND,
+      createdAt: request.requestedAt,
+      updatedAt: request.requestedAt,
+    },
+  });
+  await uploadModelPayloadForOwner({
+    ownerKind: "knowledgeRawPayload",
+    ownerId: id,
+    ownerLineageId: id,
+    role: "raw_payload",
+    sortKey: "priming-request",
+    filename: "priming-request.json",
+    mediaType: "application/json",
+    content: JSON.stringify(request),
+  });
+}
+
+/** The saved priming requests of a cyclotron, newest first, each with the sweep's outcome once there is one. */
+export async function loadCyclotronPrimingRequests(
+  cyclotronId: string,
+): Promise<import("../lib/relevance-status").PrimingRequestView[]> {
+  const { PRIMING_OUTCOME_ROLE, PRIMING_REQUEST_KIND, isPrimingOutcome, safeId } = await import("../lib/relevance-status");
+  const ids: string[] = [];
+  let nextToken: string | null = null;
+  do {
+    const page: { listKnowledgeRawPayloadsByOwnerAndKind?: { items?: Array<{ id: string } | null>; nextToken?: string | null } | null } =
+      await runGraphql(LIST_PRIMING_REQUEST_PAYLOADS_QUERY, {
+        ownerId: safeId(cyclotronId), payloadKind: { eq: PRIMING_REQUEST_KIND }, limit: 100, nextToken,
+      });
+    const connection = page.listKnowledgeRawPayloadsByOwnerAndKind;
+    ids.push(...(connection?.items ?? []).filter((item): item is { id: string } => Boolean(item)).map((item) => item.id));
+    nextToken = connection?.nextToken ?? null;
+  } while (nextToken);
+  const views = await Promise.all(ids.map(async (id) => {
+    const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", id, ["raw_payload", PRIMING_OUTCOME_ROLE]);
+    const request = payloads.find((payload) => payload.attachment.role === "raw_payload")?.json;
+    const outcome = payloads.find((payload) => payload.attachment.role === PRIMING_OUTCOME_ROLE)?.json;
+    if (!request || typeof request !== "object") return null;
+    return {
+      request: request as import("../lib/relevance-status").PrimingRequest,
+      outcome: isPrimingOutcome(outcome) ? outcome : null,
+    };
+  }));
+  return views
+    .filter((view): view is import("../lib/relevance-status").PrimingRequestView => view !== null)
+    .sort((left, right) => right.request.requestedAt.localeCompare(left.request.requestedAt));
+}

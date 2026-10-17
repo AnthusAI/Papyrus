@@ -40,6 +40,7 @@
     "test:relevance-decisions": "tsx scripts/test-relevance-decisions.ts",
     "test:relevance-review-ui": "tsx scripts/test-relevance-review-ui.ts",
     "test:relevance-status-ui": "tsx scripts/test-relevance-status-ui.ts",
+    "test:relevance-priming-ui": "tsx scripts/test-relevance-priming-ui.ts",
     "test:priming-proof-page": "tsx scripts/test-priming-proof-page.ts",
     "test:newsroom-root-paths": "tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us SITE_ENV=staging tsx scripts/test-newsroom-root-middleware.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-provider.ts",
     "test:pilobol-sample-ast": "node scripts/check-pilobol-sample-ast-stale.mjs",
