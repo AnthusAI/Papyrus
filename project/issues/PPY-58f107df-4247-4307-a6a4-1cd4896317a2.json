@@ -180,10 +180,24 @@
         "name": "Papyrus owner (PPY-58f107)",
         "settings": {}
       }
+    },
+    {
+      "id": "f67d7813-ec44-445c-83c2-9958d5df406f",
+      "author": "unknown",
+      "text": "2026-10-17 decisions (Ryan): PR 218 approved and merged into develop (441f573): CmsComputeRoleArn output, cms.prospectusAccountsApiStageArn invoke grant on the eight Prospectus site routes, and lib/prospectus-site-identity.ts. First site to register with Prospectus is p.apyr.us (product papyrus-p-apyr-us). Papyrus mints and records both review IDs (federationReviewId, siteReviewId) for its own site registrations, with Ryan's approval recorded here. Next: Google-only Cognito app client and the Next.js login and callback route, then account and publication selection into PublicationBFF.",
+      "created_at": "2026-10-17T13:50:10.229254Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": null,
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-17T12:08:46.233524Z",
+  "updated_at": "2026-10-17T13:50:10.229433Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
