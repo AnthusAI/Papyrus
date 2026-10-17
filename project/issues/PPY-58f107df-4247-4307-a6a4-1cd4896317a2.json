@@ -1,6 +1,6 @@
 {
   "id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
-  "title": "Wire account-scoped Cyclotron publication BFF after CMS rollout",
+  "title": "Integrate the publication BFF with Prospectus accounts",
   "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.\n\n## Current next-step plan \u2014 2026-10-17\n\nPriority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
   "type": "task",
   "status": "in_progress",
@@ -143,10 +143,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "0f8ca1a6-2cfa-40ca-92fe-c907de11fe6f",
+      "author": "unknown",
+      "text": "2026-10-17 decision (Ryan): Prospectus is the single account service for the hosted Papyrus newsroom, Cyclotron Lab and the site cutovers. Each Papyrus site keeps its own Google project and OAuth client for sign-in; after sign-in every site asks Prospectus which SaaS accounts the user belongs to, their membership and role, and whether they have Cyclotron Lab access. No site keeps its own account or membership tables. This task is now 'integrate with Prospectus'; do not design a separate account/membership/grant store. Prospectus API gaps blocking this (read against Prospectus main 94f6d4a): (1) static 20-entry product registry with one issuer/client/role per product, no Papyrus registration; (2) only Cognito-issued Google-federated tokens accepted; (3) no cross-product entitlement query for Cyclotron Lab; (4) entitlements have no publication/site scope for publication grants; (5) no entitlement grant, invite or operator write API; (6) fixed owner/admin/member/viewer roles need a Papyrus mapping; (7) list scans all accounts, 503 above 256; (8) TypeScript-only client; (9) no central session revocation.",
+      "created_at": "2026-10-17T06:32:53.013081Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-17T06:31:20.904923Z",
+  "updated_at": "2026-10-17T06:33:06.436594Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

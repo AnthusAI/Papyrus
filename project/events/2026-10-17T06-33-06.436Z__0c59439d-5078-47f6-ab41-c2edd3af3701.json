@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "0c59439d-5078-47f6-ab41-c2edd3af3701",
+  "issue_id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-17T06:33:06.436Z",
+  "actor_id": "unknown",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Wire account-scoped Cyclotron publication BFF after CMS rollout",
+        "to": "Integrate the publication BFF with Prospectus accounts"
+      }
+    }
+  }
+}
