@@ -1,0 +1,24 @@
+{
+  "id": "PPY-95021996-f178-404e-ac04-760a38a29ef4",
+  "title": "Rename Anth.us repos: Anth.us-Papyrus to Anth.us-web (public), Anth.us to Anth.us-legacy-Gatsby, with Papyrus notice",
+  "description": "Ryan, 2026-10-17: pay off naming debt. (1) Rename AnthusAI/Anth.us-Papyrus to AnthusAI/Anth.us-web and make it public. (2) Rename AnthusAI/Anth.us to AnthusAI/Anth.us-legacy-Gatsby. (3) Add a clear notice to the legacy repo (README, AGENTS) that anth.us is powered by Papyrus and served from Anth.us-web. (4) Update old repo names in docs and Kanbus boards (PPY-736021, PPY-b488da, PPY-44a215 etc.). Blocker before going public: Anth.us-Papyrus history has no credentials but contains AWS account IDs (712236451410, 830955873957, 335163751677), a CloudFront ARN, a deploy-role ARN and an old AppSync/Amplify domain; Ryan to decide publish as-is vs scrub history. Also verify the Amplify app GitHub connection and CI (anthus-site-content, PPY-b488da) survive the rename; any AWS/Amplify change runs on Ryan's Mac. GitHub redirects old names, but git remotes and workflow references should be updated.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "anthus-move-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T16:50:47.592993Z",
+  "updated_at": "2026-10-17T16:50:47.593419Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
