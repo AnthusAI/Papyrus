@@ -13,6 +13,7 @@ if str(SRC_ROOT) not in sys.path:
 from papyrus_content.content_item_lifecycle import (
     CONTENT_ITEM_STAGES,
     content_item_lineage_for_new_assignment,
+    plan_content_item_backfill,
     require_assignment_content_item_lineage_id,
 )
 from papyrus_content.copywriting import build_copywriting_run_plan
@@ -146,6 +147,98 @@ class ContentItemLifecycleTests(unittest.TestCase):
         self.assertEqual(draft["versionNumber"], 2)
         self.assertEqual(draft["previousVersionId"], f"{CONTENT_ITEM_LINEAGE_ID}-v1")
         self.assertEqual(draft["stage"], "copywriting")
+
+
+class ContentItemBackfillTests(unittest.TestCase):
+    def plan(self, *, items=(), reporting_assignments=(), copywriting_work=()):
+        return plan_content_item_backfill(
+            items=list(items),
+            reporting_assignments=list(reporting_assignments),
+            copywriting_work=list(copywriting_work),
+            actor_label="tester",
+            now=NOW,
+        )
+
+    def expected_records(self, plan, model_name):
+        return {change["expected"]["id"]: change for change in plan["changes"] if change["modelName"] == model_name}
+
+    def test_items_without_a_stage_get_published_or_copywriting(self) -> None:
+        plan = self.plan(
+            items=[
+                {"id": "item-published-v3", "lineageId": "item-published", "status": "published"},
+                {"id": "item-draft-v1", "lineageId": "item-draft", "status": "draft"},
+                {"id": "item-staged-v1", "lineageId": "item-staged", "status": "draft", "stage": "report"},
+            ]
+        )
+        items = self.expected_records(plan, "Item")
+        self.assertEqual(items["item-published-v3"]["expected"]["stage"], "published")
+        self.assertEqual(items["item-draft-v1"]["expected"]["stage"], "copywriting")
+        self.assertNotIn("item-staged-v1", items)
+
+    def test_drafted_reporting_candidate_adopts_its_draft_lineage(self) -> None:
+        reporting = reporting_assignment(itemLineageId=None)
+        copywriting = {"id": "assignment-copywriting-1", "assignmentTypeKey": "copywriting.article-draft"}
+        plan = self.plan(
+            reporting_assignments=[reporting],
+            copywriting_work=[
+                {
+                    "assignment": copywriting,
+                    "sourceReportingAssignmentId": reporting["id"],
+                    "producedItemLineageIds": ["item-drafted-lineage"],
+                }
+            ],
+        )
+        assignments = self.expected_records(plan, "Assignment")
+        self.assertEqual(assignments[reporting["id"]]["expected"]["itemLineageId"], "item-drafted-lineage")
+        self.assertEqual(assignments[copywriting["id"]]["expected"]["itemLineageId"], "item-drafted-lineage")
+        self.assertEqual(self.expected_records(plan, "Item"), {})
+        self.assertEqual(plan["warnings"], [])
+
+    def test_undrafted_reporting_candidate_gets_a_new_content_item(self) -> None:
+        in_progress = reporting_assignment(id="assignment-reporting-open", status="open", itemLineageId=None)
+        completed = reporting_assignment(id="assignment-reporting-done", itemLineageId=None)
+        copywriting = {"id": "assignment-copywriting-2", "assignmentTypeKey": "copywriting.brief-draft"}
+        plan = self.plan(
+            reporting_assignments=[in_progress, completed],
+            copywriting_work=[
+                {"assignment": copywriting, "sourceReportingAssignmentId": completed["id"], "producedItemLineageIds": []}
+            ],
+        )
+        assignments = self.expected_records(plan, "Assignment")
+        stage_by_lineage = {
+            change["expected"]["lineageId"]: change["expected"]["stage"] for change in self.expected_records(plan, "Item").values()
+        }
+        self.assertEqual(stage_by_lineage[assignments[in_progress["id"]]["expected"]["itemLineageId"]], "report")
+        self.assertEqual(stage_by_lineage[assignments[completed["id"]]["expected"]["itemLineageId"]], "editor_select")
+        self.assertEqual(
+            assignments[copywriting["id"]]["expected"]["itemLineageId"],
+            assignments[completed["id"]]["expected"]["itemLineageId"],
+        )
+
+    def test_linked_work_is_left_alone_and_ambiguities_are_reported(self) -> None:
+        reporting = reporting_assignment(id="assignment-reporting-twice", itemLineageId=None)
+        plan = self.plan(
+            reporting_assignments=[reporting_assignment()],
+            copywriting_work=[
+                {
+                    "assignment": {"id": "assignment-copywriting-select", "itemLineageId": None},
+                    "sourceReportingAssignmentId": reporting["id"],
+                    "producedItemLineageIds": ["item-select"],
+                },
+                {
+                    "assignment": {"id": "assignment-copywriting-brief", "itemLineageId": None},
+                    "sourceReportingAssignmentId": reporting["id"],
+                    "producedItemLineageIds": ["item-brief"],
+                },
+                {"assignment": {"id": "assignment-copywriting-orphan"}, "sourceReportingAssignmentId": None},
+            ],
+        )
+        assignments = self.expected_records(plan, "Assignment")
+        self.assertNotIn("assignment-reporting-1", assignments)
+        self.assertNotIn("assignment-copywriting-orphan", assignments)
+        self.assertEqual(len(plan["warnings"]), 2)
+        self.assertIn("more than one draft lineage", plan["warnings"][0])
+        self.assertIn("left unlinked", plan["warnings"][1])
 
 
 if __name__ == "__main__":

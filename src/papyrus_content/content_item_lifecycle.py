@@ -111,3 +111,90 @@ def content_item_lineage_for_new_assignment(
         actor_label=actor_label,
         now=now,
     )
+
+
+def stage_for_existing_item_without_stage(item: dict[str, Any]) -> str:
+    return "published" if item.get("status") == "published" else "copywriting"
+
+
+def plan_content_item_backfill(
+    *,
+    items: list[dict[str, Any]],
+    reporting_assignments: list[dict[str, Any]],
+    copywriting_work: list[dict[str, Any]],
+    actor_label: str,
+    now: str,
+) -> dict[str, Any]:
+    """Plan the one-time move of existing records onto content item lineages.
+
+    copywriting_work rows are {"assignment", "sourceReportingAssignmentId", "producedItemLineageIds"}.
+    A reporting candidate whose copy was already drafted adopts that draft's lineage; any other reporting candidate
+    gets a new content item at the report or editor_select stage. Copywriting work follows its draft, or else its
+    reporting candidate.
+    """
+    changes: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    for item in items:
+        if not item.get("stage"):
+            changes.append(
+                {"modelName": "Item", "current": item, "expected": {**item, "stage": stage_for_existing_item_without_stage(item)}}
+            )
+
+    drafted_lineage_by_reporting_assignment: dict[str, str] = {}
+    for work in copywriting_work:
+        produced_lineage_ids = sorted(set(work.get("producedItemLineageIds") or []))
+        source_reporting_assignment_id = work.get("sourceReportingAssignmentId")
+        if not produced_lineage_ids or not source_reporting_assignment_id:
+            continue
+        adopted = drafted_lineage_by_reporting_assignment.setdefault(source_reporting_assignment_id, produced_lineage_ids[0])
+        if len(produced_lineage_ids) > 1 or adopted != produced_lineage_ids[0]:
+            warnings.append(
+                f"Reporting assignment {source_reporting_assignment_id} produced more than one draft lineage; "
+                f"{adopted} is the content item, merge or kill the others by hand."
+            )
+
+    lineage_by_reporting_assignment: dict[str, str] = {}
+    for assignment in reporting_assignments:
+        if assignment.get("itemLineageId"):
+            lineage_by_reporting_assignment[assignment["id"]] = assignment["itemLineageId"]
+            continue
+        lineage_id = drafted_lineage_by_reporting_assignment.get(assignment["id"])
+        if not lineage_id:
+            lineage_id = content_item_lineage_id_for_first_work(
+                title=assignment.get("title") or assignment["id"], first_assignment_id=assignment["id"]
+            )
+            changes.append(
+                {
+                    "modelName": "Item",
+                    "current": None,
+                    "expected": build_new_content_item_version(
+                        lineage_id=lineage_id,
+                        title=assignment.get("title") or assignment["id"],
+                        summary=assignment.get("summary"),
+                        section_key=assignment.get("sectionKey") or assignment.get("sectionId"),
+                        stage="editor_select" if assignment.get("status") == "completed" else "report",
+                        actor_label=actor_label,
+                        now=now,
+                    ),
+                }
+            )
+        lineage_by_reporting_assignment[assignment["id"]] = lineage_id
+        changes.append(
+            {"modelName": "Assignment", "current": assignment, "expected": {**assignment, "itemLineageId": lineage_id}}
+        )
+
+    for work in copywriting_work:
+        assignment = work["assignment"]
+        if assignment.get("itemLineageId"):
+            continue
+        produced_lineage_ids = sorted(set(work.get("producedItemLineageIds") or []))
+        lineage_id = (produced_lineage_ids[0] if produced_lineage_ids else None) or lineage_by_reporting_assignment.get(
+            work.get("sourceReportingAssignmentId") or ""
+        )
+        if not lineage_id:
+            warnings.append(f"Copywriting assignment {assignment['id']} has no draft and no reporting candidate; left unlinked.")
+            continue
+        changes.append(
+            {"modelName": "Assignment", "current": assignment, "expected": {**assignment, "itemLineageId": lineage_id}}
+        )
+    return {"changes": changes, "warnings": warnings}

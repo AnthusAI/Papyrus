@@ -5,6 +5,7 @@ import json
 from .assignments_workflow import (
     apply_reporting_packet,
     apply_research_packet,
+    backfill_content_items,
     backfill_section_indexes,
     build_assignment_context,
     copywriting_output,
@@ -163,6 +164,12 @@ def assignments_backfill_section_indexes(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
     backfill_section_indexes(client, options)
+
+
+def assignments_backfill_content_items(flags: list[str]) -> None:
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    backfill_content_items(client, options)
 
 
 def assignments_for_object(flags: list[str]) -> None:
