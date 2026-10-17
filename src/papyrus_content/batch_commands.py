@@ -18,6 +18,7 @@ from .options import (
 )
 from .steering import DEFAULT_STEERING_CONFIG, load_steering_config, require_corpus_config
 from .env import PAPYRUS_ROOT
+from .model_defaults import DEFAULT_LLM_MODEL
 
 DEFAULT_INGESTION_RATIONALE = (
     "bulk-registration: register curated catalog entries in controlled batches via papyrus."
@@ -143,7 +144,7 @@ def run_post_ingestion_enrichment_batches(flags: list[str]) -> None:
     max_batches = normalize_non_negative_integer(options.get("max-batches"), "--max-batches") or 0
     scan_limit = normalize_positive_integer(options.get("scan-limit"), "--scan-limit") or 5000
     summary_max_tokens = normalize_positive_integer(options.get("summary-max-tokens"), "--summary-max-tokens") or 100
-    model = normalize_string(options.get("model")) or "gpt-5.4-mini"
+    model = normalize_string(options.get("model")) or DEFAULT_LLM_MODEL
     curate_all = not bool(options.get("recent-only"))
 
     run_dir = _resolve_path(normalize_string(options.get("run-dir")) or _default_run_dir("post-ingestion-enrichment-bulk", corpus_key))

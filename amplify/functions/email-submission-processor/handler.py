@@ -30,8 +30,10 @@ def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
         event.get("corpusKey")
         or event.get("corpus_key")
         or os.environ.get("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY")
-        or "AI-ML-research"
+        or ""
     ).strip()
+    if not corpus_key:
+        raise ValueError("corpusKey or PAPYRUS_INBOUND_EMAIL_CORPUS_KEY is required.")
 
     from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
     from papyrus_newsroom.email_submissions import process_email_submission_message

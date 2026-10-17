@@ -24,6 +24,7 @@ from .newsroom_summary import read_json_model_payload
 from .reference_assignments import execute_reference_text_extraction_assignment
 from .relation_types import semantic_relation_type_fields_for_predicate
 from papyrus_newsroom.reference_curation_signals import reference_title_subtitle_resolve
+from .model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
 
 def execute_assignment_by_type(
@@ -326,7 +327,7 @@ def execute_reference_identifier_backfill_assignment(
     run_dir.mkdir(parents=True, exist_ok=True)
     max_count = int(options.get("max-count") or metadata.get("maxCount") or 200)
     scan_limit = int(options.get("scan-limit") or max(max_count * 4, 2000))
-    model = str(options.get("llm-model") or metadata.get("llmModel") or "gpt-5.4-mini")
+    model = str(options.get("llm-model") or metadata.get("llmModel") or DEFAULT_LLM_MODEL)
     started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     args = [
         "poetry",
@@ -573,7 +574,7 @@ def execute_reference_curation_refresh_assignment(
         try:
             title_result = reference_title_subtitle_resolve(
                 reference_id=str(reference["id"]),
-                model=str(options.get("model") or "gpt-5-nano"),
+                model=str(options.get("model") or DEFAULT_SMALL_LLM_MODEL),
                 apply=True,
                 refresh=True,
                 summary=bool(summary_stage_requested),
