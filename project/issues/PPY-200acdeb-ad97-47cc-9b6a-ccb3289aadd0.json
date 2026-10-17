@@ -1,0 +1,32 @@
+{
+  "id": "PPY-200acdeb-ad97-47cc-9b6a-ccb3289aadd0",
+  "title": "Prove priming with a held-out agreement number before and after N labels",
+  "description": "Feature: Priming proof\n  Scenario: Freeze a held-out set from editor reviews\n    Given reviewed References of the publication's canonical corpus\n    When the operator freezes a held-out set\n    Then a fixed, fingerprinted set of items and human labels is written and never regenerated under the same proof id\n  Scenario: Measure agreement before and after N priming labels\n    Given a frozen held-out set and accepted priming examples\n    When the proof runs at N = 0 and each scheduled N\n    Then each point opens a fresh cyclotron with only the first N examples and reports agreement, precision and recall on the held-out set\n  Scenario: Visitors see the number\n    Given an approved proof report\n    When a visitor opens the publication's Cyclotron proof page\n    Then they see agreement before and after N labels, the held-out size and the method, with no item text or explanations",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "718ab5d3-8b66-4ccb-be4a-05f6ce6c6600",
+      "author": "unknown",
+      "text": "Claude Code agent. Branch claude/cyclotron-priming-flow-ulslgn. Added papyrus_content.priming_proof (freeze-priming-held-out, prove-priming), /cyclotron proof page and /api/cyclotron/priming-proof, docs/priming-proof.md. Verified: priming_proof_test (6), priming_bootstrap_test, curation_host_test pass (19); test:priming-proof-page passes; tsc clean apart from the pre-existing missing papyrus-amplify-outputs; eslint clean on new files. No real run yet: needs the decision-model key on Ryan's Mac.",
+      "created_at": "2026-10-17T12:33:51.686913Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-17T12:14:24.730729Z",
+  "updated_at": "2026-10-17T12:33:51.687102Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

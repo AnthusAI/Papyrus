@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9525a9cb-254f-43c9-9009-6f468891f7aa",
+  "issue_id": "PPY-200acdeb-ad97-47cc-9b6a-ccb3289aadd0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T12:14:24.731Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Prove priming with a held-out agreement number before and after N labels",
+    "description": "Feature: Priming proof\n  Scenario: Freeze a held-out set from editor reviews\n    Given reviewed References of the publication's canonical corpus\n    When the operator freezes a held-out set\n    Then a fixed, fingerprinted set of items and human labels is written and never regenerated under the same proof id\n  Scenario: Measure agreement before and after N priming labels\n    Given a frozen held-out set and accepted priming examples\n    When the proof runs at N = 0 and each scheduled N\n    Then each point opens a fresh cyclotron with only the first N examples and reports agreement, precision and recall on the held-out set\n  Scenario: Visitors see the number\n    Given an approved proof report\n    When a visitor opens the publication's Cyclotron proof page\n    Then they see agreement before and after N labels, the held-out size and the method, with no item text or explanations",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": []
+  }
+}
