@@ -194,10 +194,24 @@
         "name": null,
         "settings": {}
       }
+    },
+    {
+      "id": "b6028c51-b051-4764-8bbd-7949adac494d",
+      "author": "unknown",
+      "text": "2026-10-17 Prospectus answers (kanbus-2755969c, Prospectus branch claude/project-thread-8m9yf5 e723de8): (1) The Google-only client may share the site's existing pool if the federation review attests that only that client is registered, that no trigger links profiles or rewrites identities, nonce, auth_time or origin_jti, that AdminLinkProviderForUser is never used on the pool, and that token revocation is on. Papyrus code has none of those triggers or linking calls (checked amplify, lib, src), and PR 220's client has revocation on. (3) Cyclotron Lab access = active membership on an account whose cyclotron product is active, read from GET /v1/account-directory; Prospectus PR 18 lets operators grant or disable products. (4) Publication-level grants live in Papyrus, keyed by Prospectus person and account IDs, and never exceed the Prospectus role. A new cross-app role (e.g. editor vs publisher) would be added to Prospectus, not invented in Papyrus. Until Papyrus has publication grants it denies publication actions.",
+      "created_at": "2026-10-17T14:10:12.108673Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": null,
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-17T13:50:10.229433Z",
+  "updated_at": "2026-10-17T14:10:12.108881Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
