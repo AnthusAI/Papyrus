@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7fb733d9-8b95-4615-9a6a-b4efaf4044f0",
+  "issue_id": "PPY-0f74b67c-de1f-48b2-941f-1ebf89255358",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T22:27:07.171Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Archive the superseded Gatsby AnthusAI/Anth.us repository",
+    "description": "Public anth.us is served by Anth.us-Papyrus. The renames (Anth.us-web / Anth.us-legacy-Gatsby) belong to the repository-renames thread; this issue only records that nothing in the Gatsby repo remains to migrate (content already lives in anthus-site-content).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 4,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": []
+  }
+}
