@@ -808,10 +808,12 @@ function NewsDeskDashboard({
   useEffect(() => {
     if (dashboard.isDemo) return;
     let cancelled = false;
-    loadCyclotronPrimingRequests(primingCyclotronId)
+    const refresh = () => loadCyclotronPrimingRequests(primingCyclotronId)
       .then((views) => { if (!cancelled) setPrimingRequests(views); })
       .catch(() => { if (!cancelled) setPrimingRequests([]); });
-    return () => { cancelled = true; };
+    void refresh();
+    const timer = window.setInterval(() => { void refresh(); }, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [dashboard.isDemo, primingCyclotronId]);
   const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
   useEffect(() => {

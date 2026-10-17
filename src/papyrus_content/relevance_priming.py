@@ -54,7 +54,7 @@ def priming_label(request: Mapping[str, Any], labels: Sequence[str]) -> str:
     return label
 
 
-def readable_engine_refusal(error: ValueError) -> str:
+def readable_engine_refusal(error: Exception) -> str:
     message = str(error)
     if "different content" in message:
         return "This URL already primed the cyclotron with a different label, explanation or page text."

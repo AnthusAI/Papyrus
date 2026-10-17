@@ -307,7 +307,11 @@ def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, ext
         if record.get("payloadKind") != PRIMING_REQUEST_KIND:
             continue
         request = _latest_payload(client, record)
-        if request and _latest_payload(client, record, PRIMING_OUTCOME_ROLE) is None:
+        if not isinstance(request, dict):
+            if request is not None:
+                result.warnings.append(f"priming request {record['id']} is not a JSON object and was skipped")
+            continue
+        if _latest_payload(client, record, PRIMING_OUTCOME_ROLE) is None:
             requests.append((str(request.get("requestedAt") or ""), record["id"], record, request))
     outcomes = []
     for _, _, record, request in sorted(requests, key=lambda entry: entry[:2]):
@@ -327,7 +331,7 @@ def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, ext
                 {classifier.id: [example]}, added_by=str(request.get("requestedBy") or "newsroom editor")))
             outcome.update(state="applied", version=added["versions"][classifier.id], itemId=example.item.id)
             result.primed += 1
-        except ValueError as error:
+        except Exception as error:
             outcome.update(state="failed", message=readable_engine_refusal(error))
             result.priming_failed += 1
             result.warnings.append(f"priming request {request.get('requestId')} failed: {outcome['message']}")
