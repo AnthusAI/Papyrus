@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e9b6eeaa-d7c9-45d7-a632-f9374d3ce090",
+  "issue_id": "PPY-b090c600-ad2f-47cf-9862-0adabaa43a41",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T12:11:29.587Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Clean repository root of console-chat fix notes",
+    "description": "Repository root carries six June 2026 console-chat incident notes (CONSOLE-CHAT-FIX-STATUS.md, README-WEB-CONSOLE-FIX.md, VERIFICATION-SUMMARY.md, WEB-CONSOLE-CHAT-FIX.md, WEB-CONSOLE-CHAT-FIX-VERIFICATION.md, MANUAL-TEST-GUIDE.md). Move anything still useful under docs/ and delete the rest. Requested by Ryan, portfolio review 2026-10-16.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
