@@ -18,6 +18,7 @@ from papyrus_newsroom.email_submissions import (
     REJECTION_KIND_UNREGISTERED_SENDER,
     UNREGISTERED_SENDER_RESPONSE_ERROR,
 )
+from papyrus_content.steering import default_corpus_key
 from papyrus_content.source_readiness import (
     select_extracted_text_attachment,
     select_reference_attachment_by_role,
@@ -978,7 +979,6 @@ def prepare_reference_entries_for_feedback(
 ) -> list[dict[str, Any]]:
     """Load references, optionally re-run enrichment, and build receipt-ready feedback rows."""
     from papyrus_newsroom.email_submissions import (
-        DEFAULT_INBOUND_CORPUS_KEY,
         DEFAULT_STEERING_CONFIG,
         _load_registered_reference_processing_records,
         run_registered_reference_enrichment,
@@ -990,7 +990,7 @@ def prepare_reference_entries_for_feedback(
     registered_reference_ids = _registered_reference_ids_from_processing(result)
     import_run_id = str(result.get("importRunId") or "").strip() or None
     resolved_corpus_key = (
-        str(corpus_key or os.environ.get("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY") or DEFAULT_INBOUND_CORPUS_KEY).strip()
+        str(corpus_key or os.environ.get("PAPYRUS_INBOUND_EMAIL_CORPUS_KEY") or default_corpus_key()).strip()
     )
     resolved_steering = steering_config_path or str(DEFAULT_STEERING_CONFIG)
     citations = metadata.get("directCitations") if isinstance(metadata.get("directCitations"), list) else []

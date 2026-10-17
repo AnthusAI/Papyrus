@@ -38,6 +38,7 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
 from papyrus_content.env import BIBLICUS_ROOT
+from papyrus_content.model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
 
 PAPYRUS_ROOT = Path(__file__).resolve().parents[2]
@@ -82,7 +83,7 @@ TITLE_SUBTITLE_SUMMARY_PROMPT_VERSION = "reference-title-subtitle-summary-v2-sou
 TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT = 1800
 TITLE_SUBTITLE_BATCH_WORKERS = 8
 SUMMARY_SOURCE_TEXT_MAX_CHARS = 12000
-REFERENCE_METADATA_MODEL_DEFAULT = "gpt-5.4-nano"
+REFERENCE_METADATA_MODEL_DEFAULT = DEFAULT_SMALL_LLM_MODEL
 BIBLICUS_SUMMARIZE_MAP_REDUCE_PROMPT_VERSION = "summarize-map-reduce-v2"
 BIBLICUS_CATALOG_ITEM_ROOT_FIELDS = frozenset(
     {
@@ -501,7 +502,7 @@ def build_reference_summary_plan(
     summary_resolution = _summary_resolution(
         summary=summary_text,
         summary_token_budget=max_tokens,
-        model=model or "gpt-5.4-mini",
+        model=model or DEFAULT_LLM_MODEL,
         source="llm_reference_summary" if model and model != "manual" else "manual_override",
         source_urls=[],
         run_id=run_id,
@@ -561,7 +562,7 @@ def resolve_reference_title_subtitle(
     sidecar: dict[str, Any] | None = None,
     source_text: str = "",
     web_search_enabled: bool = True,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     refresh: bool = False,
     include_summary: bool = False,
     summary_max_tokens: int = TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT,
@@ -871,7 +872,7 @@ def build_reference_title_subtitle_plan(
     sidecar: dict[str, Any] | None = None,
     source_text: str = "",
     web_search_enabled: bool = True,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     refresh: bool = False,
     include_summary: bool = False,
     summary_max_tokens: int = TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT,
@@ -1038,7 +1039,7 @@ def build_reference_title_subtitle_plan(
 def reference_title_subtitle_resolve(
     *,
     reference_id: str,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     apply: bool = False,
     refresh: bool = False,
     summary: bool = False,
@@ -1089,7 +1090,7 @@ def reference_title_subtitle_batch(
     corpus_key: str,
     max_count: int = 10,
     status: str = "all",
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     apply: bool = False,
     refresh: bool = False,
     summary: bool = False,
@@ -1257,7 +1258,7 @@ def enrich_reference_catalog_title_subtitle(
     *,
     catalog: dict[str, Any],
     web_search: bool = True,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     summary: bool = False,
     summary_max_tokens: int = TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT,
     refresh_summary: bool = False,
@@ -1353,7 +1354,7 @@ def reference_title_subtitle_enrich_catalog_file(
     catalog_path: str,
     output_path: str,
     web_search: bool = True,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     summary: bool = False,
     summary_max_tokens: int = TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT,
     refresh_summary: bool = False,
@@ -1419,7 +1420,7 @@ def reference_quality_set(
 def reference_quality_assess(
     *,
     reference_id: str,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     apply: bool = False,
     refresh: bool = False,
     persist_local_metadata: bool = True,
@@ -1494,7 +1495,7 @@ def reference_quality_assess_batch(
     corpus_key: str,
     max_count: int = 10,
     status: str = "accepted",
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     apply: bool = False,
     refresh: bool = False,
     only_missing: bool = True,
@@ -1794,7 +1795,7 @@ def reference_curate_recent(
     max_count: int = 0,
     scan_limit: int = 1000,
     max_parallel: int = 1,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     summary_max_tokens: int = TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT,
     refresh_summary: bool = False,
     refresh_quality: bool = False,
@@ -2527,7 +2528,7 @@ def reference_summarize(
     summary_text: str = "",
     source_text: str = "",
     source_text_file: str = "",
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     apply: bool = False,
     refresh: bool = False,
 ) -> dict[str, Any]:
@@ -2593,7 +2594,7 @@ def reference_summarize_batch(
     max_count: int = 0,
     max_parallel: int = 4,
     scan_limit: int = 5000,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     apply: bool = False,
     refresh: bool = False,
 ) -> dict[str, Any]:
@@ -2980,7 +2981,7 @@ def generate_outcome_summary(
     title: str,
     subtitle: str,
     max_tokens: int = TITLE_SUBTITLE_SUMMARY_TOKEN_BUDGET_DEFAULT,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     procedure_alias: str = SUMMARY_PROCEDURE_ALIAS_TITLE_SUBTITLE_RESOLVE,
 ) -> dict[str, str]:
     source_text = _required(source_text, "source_text").replace("\x00", "")
@@ -3002,7 +3003,7 @@ def reference_web_search(
     *,
     query: str,
     max_results: int = 20,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     return_token_budget: str = "default",
     provider: str | None = None,
 ) -> dict[str, Any]:
@@ -3022,7 +3023,7 @@ def _generate_title_subtitle_llm(
     source_text: str = "",
     known_title: str = "",
     known_subtitle: str = "",
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     web_search_enabled: bool,
 ) -> dict[str, Any]:
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -3129,7 +3130,7 @@ def generate_title_subtitle_without_web_search(
     source_text: str = "",
     known_title: str = "",
     known_subtitle: str = "",
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
 ) -> dict[str, Any]:
     return _generate_title_subtitle_llm(
         reference=reference,
@@ -3149,7 +3150,7 @@ def generate_title_subtitle_with_web_search(
     source_text: str = "",
     known_title: str = "",
     known_subtitle: str = "",
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
 ) -> dict[str, Any]:
     return _generate_title_subtitle_llm(
         reference=reference,
@@ -3614,7 +3615,7 @@ def estimate_tokens(text: str, *, model: str = "") -> int:
         return 0
     if tiktoken is not None:
         try:
-            encoding = tiktoken.encoding_for_model(model or "gpt-5.4-mini")
+            encoding = tiktoken.encoding_for_model(model or DEFAULT_LLM_MODEL)
         except Exception:
             encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))

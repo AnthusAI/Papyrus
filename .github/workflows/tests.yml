@@ -61,6 +61,8 @@ jobs:
           python-version: "3.12"
       - run: pip install poetry
       - run: poetry install --no-interaction --extras "newsroom markus priming"
+      - name: Pilot identifiers stay out of application logic
+        run: python procedures/guards/check_pilot_identifiers.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
       #   test_references_commands       PPY-c22e1c (stale assertions)
