@@ -17,6 +17,7 @@
       "text": "2026-10-16 reconciliation: Status describes remaining acceptance, not implementation authorization.",
       "created_at": "2026-10-16T20:46:43.150335Z",
       "comment_type": "default",
+      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6.1-sol",
@@ -25,11 +26,23 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "e105c1e1-7973-48f9-91b6-a44186944062",
+      "author": "unknown",
+      "text": "2026-10-17: Likely superseded by PPY-ad3da5 (one content item, one lifecycle). Once work and the content item are the same record, there is nothing separate to link. Revisit when that milestone lands.",
+      "created_at": "2026-10-17T12:40:30.692847Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-16T20:46:43.090467Z",
-  "updated_at": "2026-10-16T20:46:43.150363Z",
+  "updated_at": "2026-10-17T12:40:30.692987Z",
   "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
   "agent": {
     "platform": "codex",
     "model": "gpt-6.1-sol",
@@ -38,7 +51,5 @@
       "reasoning_effort": "medium"
     }
   },
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {}
+  "agent_assignment": null
 }

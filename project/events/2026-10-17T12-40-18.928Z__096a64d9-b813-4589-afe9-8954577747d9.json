@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "096a64d9-b813-4589-afe9-8954577747d9",
+  "issue_id": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T12:40:18.928Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Milestone: a content item goes from idea to published as one record",
+    "description": "Milestone: what done looks like.\n\nFeature: One content item from idea to publication\n  Scenario: A content item keeps its identity through the whole lifecycle\n    Given a publication that names its content item \"Story\"\n    When an editor creates a Story at the idea stage\n    And the Story moves through research, reporting, editor selection, copywriting and publication\n    Then it is the same record with the same id at every stage\n    And no separate Article, Brief or Story record is created for it\n    And research, reporting and copywriting work appears as work attached to that Story\n\n  Scenario: The content item name is configurable per publication\n    Given a publication that names its content item \"Post\"\n    When an editor views the Newsroom, the Board or the operator CLI\n    Then every label says \"Post\" for that item type\n    And the stored data and code paths are identical to a publication that says \"Story\"\n\n  Scenario: The Board shows one card per content item\n    Given content items at different lifecycle stages\n    When an editor opens the Board\n    Then each content item appears once, in the column for its lifecycle stage\n\n  Scenario: One idea becoming two pieces is an explicit split\n    Given a content item whose research supports two separate pieces\n    When an editor splits it\n    Then two content items exist, each with its own lifecycle, linked by a derived_from relation\n    And neither is a child \"Article\" of the other",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+    "labels": []
+  }
+}

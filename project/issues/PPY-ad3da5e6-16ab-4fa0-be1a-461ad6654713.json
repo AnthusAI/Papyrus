@@ -1,0 +1,22 @@
+{
+  "id": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+  "title": "One content item, one lifecycle",
+  "description": "Papyrus currently tracks one piece of content as several record types over its life: a Story while it is chartered and researched, Assignment and packet Message records while it is reported, and one or more Article (or Brief) Items once copywriting starts. A Story can produce more than one Article. Humans and agents both find this hard to follow.\n\nGoal: one content item with one lifecycle. The same record (same identity, same lineage) is created at idea time and carries research, reporting, editor selection, copywriting, copyediting and publication. Work done on it (research runs, reporting runs, copywriting jobs) attaches to the item as work, never as a second kind of content.\n\nThe display name of the content item is publication configuration, not code: a publication can call it a Story, an Article or a Post, and every surface (Newsroom, Board, CLI output, agent skills, pod board) uses that configured noun. Application logic uses one neutral internal name.\n\nDecided by Ryan on 2026-10-17. Board stays read-only for now; status transitions and drag-to-publish (PPY-caf6e5, PPY-86eda3) are deferred.",
+  "type": "initiative",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T12:40:06.772683Z",
+  "updated_at": "2026-10-17T12:40:19.618566Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
