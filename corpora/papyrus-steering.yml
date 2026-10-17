@@ -13,7 +13,7 @@ corpora:
     localClassifiers:
       - classifierId: "threat-intelligence"
         label: "Threat Intelligence Topics"
-# The relevance cyclotron (docs/relevance-cyclotron.md). Documented defaults;
+# The relevance cyclotron (docs/cyclotron-priming.md). Documented defaults;
 # the LLM optimizer is off (null) until a first run has exercised decisions
 # and records. The sandbox steering generator rewrites store.s3Prefix to the
 # sandbox bucket, like the corpus prefixes.
