@@ -12,9 +12,28 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "06757f68-9a0c-4969-b756-b4b0d8caf222",
+      "author": "unknown",
+      "text": "Branch claude/project-thread-q0omxw, PR https://github.com/AnthusAI/Papyrus/pull/224. Removed identityPool rules from Assignment and MessageThread in schema.ts (resource.ts has no such rules). Verified: test:schema-parity, new test:identity-pool-model-access, typecheck. Not yet verified: sandbox deploy and non-editor delete attempt (needs Ryan's Mac after the pipeline deploys).",
+      "created_at": "2026-10-17T16:57:34.517098Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "a06ab959-a5f6-49dc-87f8-322f041161e4",
+      "author": "unknown",
+      "text": "(accidental empty test comment, ignore)",
+      "created_at": "2026-10-17T16:58:08.084018Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:37:39.186661Z",
-  "updated_at": "2026-10-17T16:37:39.187283Z",
+  "updated_at": "2026-10-17T16:58:33.248739Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
