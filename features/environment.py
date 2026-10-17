@@ -29,8 +29,15 @@ def before_scenario(context, scenario):
     context.last_result = None
     context.content_store_reads: list[str] = []
     context.fixture_root_active = True
+    context.graphql_stub_endpoint = None
 
 
 def after_scenario(context, scenario):
+    graphql_stub_server = getattr(context, "graphql_stub_server", None)
+    if graphql_stub_server is not None:
+        graphql_stub_server.shutdown()
+        graphql_stub_server.server_close()
+        context.graphql_stub_server = None
+        context.graphql_stub_endpoint = None
     os.environ.clear()
     os.environ.update(context.env)

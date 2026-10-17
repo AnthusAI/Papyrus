@@ -7,7 +7,8 @@ from typing import Any, Callable
 
 from .env import graphql_endpoint, graphql_timeout_seconds
 from .guest_auth import refuse_guest_auth
-from .graphql_http import iam_signed_graphql_headers
+from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, iam_signed_graphql_headers
+from .operator_errors import GraphQLRequestError, credential_recovery_guidance
 
 VERSION_FIELDS = (
     "lineageId versionNumber previousVersionId versionState versionCreatedAt "
@@ -601,27 +602,30 @@ class PapyrusGraphQLAuthoringClient:
                 response = connection.getresponse()
                 response_body = response.read().decode("utf-8", errors="replace")
                 if response.status >= 400:
-                    raise RuntimeError(
-                        f"GraphQL request failed: {response.status} {response.reason}: {response_body}"
-                    )
+                    message = f"GraphQL request failed: {response.status} {response.reason}: {response_body}"
+                    if response.status in CREDENTIAL_REJECTION_STATUS_CODES:
+                        message = f"{message}\n{credential_recovery_guidance()}"
+                    raise GraphQLRequestError(message, status_code=response.status)
                 body = json.loads(response_body)
                 break
             except (TimeoutError, OSError, http.client.HTTPException, json.JSONDecodeError, RuntimeError) as error:
                 last_error = error
                 self._reset_connection()
                 if attempt == 1:
-                    raise RuntimeError(f"GraphQL request failed: {error}") from error
+                    if isinstance(error, GraphQLRequestError):
+                        raise
+                    raise GraphQLRequestError(f"GraphQL request failed: {error}") from error
                 continue
         if body is None:
-            raise RuntimeError(f"GraphQL request failed: {last_error}")
+            raise GraphQLRequestError(f"GraphQL request failed: {last_error}")
 
         errors = body.get("errors") or []
         if errors:
             messages = "; ".join(str(entry.get("message") or entry) for entry in errors)
-            raise RuntimeError(f"GraphQL request failed: {messages}")
+            raise GraphQLRequestError(f"GraphQL request failed: {messages}")
         data = body.get("data")
         if not isinstance(data, dict):
-            raise RuntimeError("GraphQL response did not include data.")
+            raise GraphQLRequestError("GraphQL response did not include data.")
         return data
 
     def _open_connection(self) -> http.client.HTTPSConnection:

@@ -430,7 +430,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
                 return {"createMessageThread": variables["input"]}
             return {}
 
-        with mock.patch.object(papyrus_newsroom, "_graphql", side_effect=fake_graphql):
+        with mock.patch.object(papyrus_newsroom, "execute_graphql", side_effect=fake_graphql):
             result = papyrus_newsroom.papyrus_create_section_forum_thread(
                 edition_id="edition-2026-06-05-v1",
                 section_id="culture",
