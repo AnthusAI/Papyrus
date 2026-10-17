@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import pathlib
 import sys
 import unittest
@@ -31,18 +30,18 @@ COMPLETE_REPORTING_PACKET = {
 }
 
 
-ARTS_SECTION_STATE = {
-    "newsroomSections": [
-        {
-            "id": "arts",
-            "title": "Arts",
-            "enabled": True,
-            "sortOrder": 1,
-            "assignmentGuidance": "Cover the arts through the story cycle test topic.",
-            "defaultPageBudget": 1,
-        }
-    ]
-}
+ARTS_NEWSROOM_SECTIONS = [
+    {
+        "id": "arts",
+        "title": "Arts",
+        "type": "canonical",
+        "enabled": True,
+        "sortOrder": 1,
+        "editorialMission": "Creative workflows and player experience.",
+        "assignmentGuidance": "creative workflows, game design, player experience",
+    },
+]
+LIVE_STATE_WITH_ARTS_SECTION = {"newsroomSections": ARTS_NEWSROOM_SECTIONS}
 
 
 def fake_cloud_run(research_packet: dict, reporting_packet: dict, calls: list[str]):
@@ -79,9 +78,7 @@ def run_theme(**overrides: object) -> dict:
         "now": "2026-05-23T10:00:00.000Z",
     }
     options.update(overrides)
-    with mock.patch.object(
-        coverage_theme, "load_live_state", side_effect=lambda **_: copy.deepcopy(ARTS_SECTION_STATE)
-    ):
+    with mock.patch.object(coverage_theme, "load_live_state", return_value=LIVE_STATE_WITH_ARTS_SECTION):
         return coverage_theme.coverage_theme_run(**options)
 
 
@@ -129,6 +126,7 @@ class PersistedPacketReuseTests(unittest.TestCase):
     def _run_applied(self, calls: list[str], *, packets_persisted: bool, **overrides: object) -> dict:
         with mock.patch.object(coverage_theme, "_create_cloud_procedure_client", return_value=object()), \
              mock.patch.object(coverage_theme, "_start_cloud_procedure_run", side_effect=fake_cloud_run(COMPLETE_RESEARCH_PACKET, COMPLETE_REPORTING_PACKET, calls)), \
+             mock.patch.object(coverage_theme, "load_live_state", return_value=LIVE_STATE_WITH_ARTS_SECTION), \
              mock.patch.object(coverage_theme, "_packet_message_already_persisted", return_value=packets_persisted), \
              mock.patch.object(coverage_theme, "apply_records", return_value={"apply": True, "applied": [], "warnings": [], "failures": []}):
             return run_theme(apply=True, **overrides)
