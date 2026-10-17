@@ -44,7 +44,7 @@ assert.deepEqual(
 assert(config.statuses.some(status => status.key === "assignment/waiting-for-review"), "unknown native stages stay visible");
 const lastContentItemColumnIndex = config.statuses.map(status => status.key).lastIndexOf(`${contentItemType}/published`);
 assert(config.statuses.slice(0, lastContentItemColumnIndex + 1).every(status => status.key.startsWith(`${contentItemType}/`)), "other record kinds come after the story columns");
-assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["idea", "assignment", "research", "report", "editor_select", "copywriting", "draft", "published"], "an unrecognized stage never lands to the right of the final stage");
+assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["idea", "assignment", "research", "report", "editor_select", "copywriting", "illustration", "typesetting", "draft", "published"], "an unrecognized stage never lands to the right of the final stage");
 assert.deepEqual(config.hierarchy, []);
 assert.equal(canReadNewsroomBoard("ready"), true);
 for (const phase of [undefined, "signedOut", "forbidden", "error", "checkingAccess", "loadingDesk", "refreshing"]) assert.equal(canReadNewsroomBoard(phase), false);
