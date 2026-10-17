@@ -71,14 +71,17 @@ export function projectNewsroomBoard(records: {
   ];
 }
 
-/** Content items always show every lifecycle stage in order; unknown native statuses of other records stay visible. */
+export function contentItemColumnOrder(stagesPresentOnBoard: readonly string[]): string[] {
+  const lastStage = CONTENT_ITEM_STAGES[CONTENT_ITEM_STAGES.length - 1];
+  const unrecognizedStages = [...new Set(stagesPresentOnBoard)].filter(stage => !(CONTENT_ITEM_STAGES as readonly string[]).includes(stage));
+  return [...CONTENT_ITEM_STAGES.filter(stage => stage !== lastStage), ...unrecognizedStages, lastStage];
+}
+
+/** Content items read left to right through the lifecycle with the final stage last; other record kinds follow it. */
 export function newsroomBoardConfig(issues: readonly NativeBoardIssue[]): KanbanConfig {
   const contentItemType = contentItemBoardType();
   const kinds: NativeBoardKind[] = ["contentItem", "reference", "assignment"];
-  const contentItemStatuses = [
-    ...CONTENT_ITEM_STAGES,
-    ...new Set(issues.filter(issue => issue.kind === "contentItem").map(issue => issue.nativeStatus)),
-  ].filter((stage, index, stages) => stages.indexOf(stage) === index)
+  const contentItemStatuses = contentItemColumnOrder(issues.filter(issue => issue.kind === "contentItem").map(issue => issue.nativeStatus))
     .map(stage => ({ key: `${contentItemType}/${stage}`, name: contentItemStageLabel(stage), category: "native" }));
   const otherStatuses = [...new Set(issues.filter(issue => issue.kind !== "contentItem").map(issue => issue.status))]
     .map(key => ({ key, name: key.replace("/", " · "), category: "native" }));

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { canReadNewsroomBoard, contentItemBoardType, newsroomBoardConfig, projectNewsroomBoard } from "../lib/newsroom-board";
+import { canReadNewsroomBoard, contentItemBoardType, contentItemColumnOrder, newsroomBoardConfig, projectNewsroomBoard } from "../lib/newsroom-board";
 import { CONTENT_ITEM_STAGES } from "../lib/content-item-lifecycle";
 import { getContentItemName } from "../lib/site-brand";
 
@@ -42,6 +42,9 @@ assert.deepEqual(
   "every lifecycle stage is a column, in order",
 );
 assert(config.statuses.some(status => status.key === "assignment/waiting-for-review"), "unknown native stages stay visible");
+const lastContentItemColumnIndex = config.statuses.map(status => status.key).lastIndexOf(`${contentItemType}/published`);
+assert(config.statuses.slice(0, lastContentItemColumnIndex + 1).every(status => status.key.startsWith(`${contentItemType}/`)), "other record kinds come after the story columns");
+assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["idea", "assignment", "research", "report", "editor_select", "copywriting", "draft", "published"], "an unrecognized stage never lands to the right of the final stage");
 assert.deepEqual(config.hierarchy, []);
 assert.equal(canReadNewsroomBoard("ready"), true);
 for (const phase of [undefined, "signedOut", "forbidden", "error", "checkingAccess", "loadingDesk", "refreshing"]) assert.equal(canReadNewsroomBoard(phase), false);
