@@ -39,24 +39,6 @@ this.responderFunction.addToRolePolicy(new PolicyStatement({
 
 ## How to Verify Production Deployment
 
-### Quick Check (30 seconds)
-
-```bash
-cd ~/Projects/Papyrus-production
-export AWS_PROFILE=Ryan
-export AWS_REGION=us-east-1
-
-# Run the verification script
-./scripts/test-console-chat-production.sh
-```
-
-This script will:
-1. ✅ Check AWS credentials
-2. ✅ Verify Lambda function exists
-3. ✅ **Check if IAM role has `ssm:GetParameters` permission** (THE CRITICAL FIX)
-4. ✅ Scan CloudWatch logs for JWT signing secret errors
-5. ✅ Query recent console chat messages for failures
-
 ### Manual Verification
 
 If you prefer to check manually:
