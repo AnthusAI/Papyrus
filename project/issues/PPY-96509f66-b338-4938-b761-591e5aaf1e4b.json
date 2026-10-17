@@ -12,9 +12,19 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "532dd1ab-e955-430b-a898-c0c31f4d97c0",
+      "author": "unknown",
+      "text": "Branch claude/project-thread-el72th, PR https://github.com/AnthusAI/Papyrus/pull/228 (both issues in one PR). Verified locally: new TS tests and typecheck pass, 18 new Python unit tests pass; CI pending. Close after merge.",
+      "created_at": "2026-10-17T17:21:39.924211Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:40:34.402706Z",
-  "updated_at": "2026-10-17T16:40:34.402979Z",
+  "updated_at": "2026-10-17T17:21:39.924462Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
