@@ -39,6 +39,7 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
+import { CONTENT_ITEM_STAGES, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
@@ -253,7 +254,7 @@ const UPDATE_MESSAGE_MUTATION = `
 const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
   query ListAssignmentsByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelAssignmentFilterInput) {
     listAssignmentsByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id assignmentTypeKey queueKey queueStatusKey status priority title summary assigneeType assigneeId assigneeKey claimedAt claimExpiresAt completedAt canceledAt corpusId categorySetId classifierId sectionId sectionKey sectionType sectionStatusKey sectionQueueStatusKey primaryFocusCategoryKey topicScopeCategoryKeys sourceSnapshotId importRunId createdBy createdAt updatedAt newsroomFeedKey }
+      items { id assignmentTypeKey queueKey queueStatusKey status priority title summary assigneeType assigneeId assigneeKey claimedAt claimExpiresAt completedAt canceledAt corpusId categorySetId classifierId sectionId sectionKey sectionType sectionStatusKey sectionQueueStatusKey primaryFocusCategoryKey topicScopeCategoryKeys sourceSnapshotId importRunId createdBy createdAt updatedAt newsroomFeedKey itemLineageId }
       nextToken
     }
   }
@@ -2155,6 +2156,41 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
       status: options.status,
     }),
   });
+}
+
+const CONTENT_ITEMS_BY_STAGE_QUERY = `
+  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { id lineageId versionNumber stage type status title headline slug section updatedAt }
+      nextToken
+    }
+  }
+`;
+
+export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
+  };
+  const field = "listItemsByStageAndUpdatedAt";
+  const versionsPerStage = await Promise.all(CONTENT_ITEM_STAGES.map(async (stage) => {
+    const versions: ContentItemVersionRecord[] = [];
+    let nextToken: string | null = null;
+    do {
+      const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+        query: CONTENT_ITEMS_BY_STAGE_QUERY,
+        variables: { stage, sortDirection: "DESC", limit: NEWSROOM_PAGE_LIMIT, nextToken },
+        authMode: USER_POOL_AUTH_MODE,
+      });
+      assertNoGraphQLErrors(response.errors);
+      const connection = response.data?.[field];
+      if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+      versions.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
+      nextToken = connection.nextToken ?? null;
+    } while (nextToken);
+    return versions;
+  }));
+  return versionsPerStage.flat();
 }
 
 export async function loadModelPayloadsForOwner(

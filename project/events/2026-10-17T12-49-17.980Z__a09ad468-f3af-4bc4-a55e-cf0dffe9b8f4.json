@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a09ad468-f3af-4bc4-a55e-cf0dffe9b8f4",
+  "issue_id": "PPY-a22aca79-a1e7-464e-ba76-2ac9d5f24524",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T12:49:17.980Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Configurable content item name and lifecycle design",
+    "description": "Add required SiteBrand.contentItemName (singular/plural), use it in Newsroom navigation, and record the one-content-item lifecycle design in docs/content-item-lifecycle.md. First slice of PPY-b73600.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+    "labels": []
+  }
+}

@@ -494,6 +494,7 @@ export type AssignmentRecord = {
   createdAt: string;
   updatedAt: string;
   newsroomFeedKey?: string | null;
+  itemLineageId?: string | null;
   metadata?: unknown;
 };
 

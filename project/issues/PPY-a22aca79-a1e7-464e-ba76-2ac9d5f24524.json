@@ -1,0 +1,32 @@
+{
+  "id": "PPY-a22aca79-a1e7-464e-ba76-2ac9d5f24524",
+  "title": "Configurable content item name and lifecycle design",
+  "description": "Add required SiteBrand.contentItemName (singular/plural), use it in Newsroom navigation, and record the one-content-item lifecycle design in docs/content-item-lifecycle.md. First slice of PPY-b73600.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a00e0014-e2e7-465a-b6fc-38f8144728b5",
+      "author": "unknown",
+      "text": "Branch claude/project-thread-1lfvo9. Verified: typecheck clean apart from the generated papyrus-amplify-outputs module absent in this checkout; test:newsroom-nav, test:newsroom-organizer, test:anth-us-brand, test:site-brand-registry pass; eslint clean on changed files; anth-us brand renders Stories in organizer nav.",
+      "created_at": "2026-10-17T12:49:19.394720Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-17T12:49:17.980187Z",
+  "updated_at": "2026-10-17T12:49:19.394870Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

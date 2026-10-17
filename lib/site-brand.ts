@@ -64,6 +64,19 @@ export type SiteBrandVideo = {
   rhythm?: Record<string, unknown>;
 };
 
+/**
+ * The publication's name for its one content item. A content item keeps one
+ * identity and one lifecycle from idea through research, reporting,
+ * copywriting and publication; only the word editors see changes per
+ * publication (for example Story, Article or Post).
+ */
+export type ContentItemName = {
+  singular: string;
+  plural: string;
+};
+
+export const DEFAULT_CONTENT_ITEM_NAME: ContentItemName = { singular: "Story", plural: "Stories" };
+
 export type SiteBrand = {
   id: SiteBrandId;
   appTitle: string;
@@ -77,6 +90,8 @@ export type SiteBrand = {
   mastheadTaglineLines?: SiteBrandTaglineLine[];
   backToHomeLabel: string;
   articleTitleSuffix: string;
+  /** Defaults to Story / Stories, the newsroom term. */
+  contentItemName?: ContentItemName;
   placeholderByline: string;
   defaultPresentation: EditionPresentationFormat;
   forcedPresentation?: EditionPresentationFormat;
@@ -203,6 +218,10 @@ export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand 
 }
 
 export const SITE_BRAND = getSiteBrand();
+
+export function getContentItemName(brand: SiteBrand = SITE_BRAND): ContentItemName {
+  return brand.contentItemName ?? DEFAULT_CONTENT_ITEM_NAME;
+}
 
 /** Root-route config for a brand, defaulting to `{ kind: "reader" }`. */
 export function getRootRoute(brand: SiteBrand = SITE_BRAND): RootRouteConfig {

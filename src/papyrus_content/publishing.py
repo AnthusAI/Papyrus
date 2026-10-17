@@ -216,6 +216,7 @@ def save_item(
             "versionCreatedAt": now,
             "versionCreatedBy": actor,
             "changeReason": "created",
+            "stage": "copywriting",
         }
         status = "draft"
         metadata = {}
@@ -366,6 +367,7 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
         {
             "id": item_id,
             "status": "published",
+            "stage": "published",
             **_status_keys(item.get("type") or "", item.get("section"), "published"),
             "versionNumber": version_number,
             "publishedAt": published["publishedAt"],
@@ -400,6 +402,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
         {
             "id": item_id,
             "status": "draft",
+            "stage": "copywriting",
             **_status_keys(item.get("type") or "", item.get("section"), "draft"),
             "versionCreatedAt": now,
             "versionCreatedBy": actor,

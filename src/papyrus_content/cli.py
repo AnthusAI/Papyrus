@@ -36,6 +36,7 @@ from .assignments import apply_assignment_action
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
+    assignments_backfill_content_items,
     assignments_backfill_section_indexes,
     assignments_build_context,
     assignments_cancel,
@@ -286,6 +287,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "assignments:backfill-content-items",
         "assignments:for-object",
         "assignments:build-context",
         "assignments:research-packets",
@@ -571,6 +573,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "assignments:backfill-content-items":
+        assignments_backfill_content_items(flags)
     elif route == "assignments:for-object":
         assignments_for_object(flags)
     elif route == "assignments:build-context":

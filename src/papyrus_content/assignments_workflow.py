@@ -10,6 +10,11 @@ from urllib.parse import urlparse, urlunparse
 from .accession import execute_reference_accession_assignment
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
+from .content_item_lifecycle import (
+    content_item_lineage_for_new_assignment,
+    plan_content_item_backfill,
+    require_assignment_content_item_lineage_id,
+)
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
@@ -141,6 +146,16 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-research-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
+    content_item_lineage_id, new_content_item_version = content_item_lineage_for_new_assignment(
+        requested_lineage_id=normalize_string(options.get("content-item")),
+        assignment_id=assignment_id,
+        title=title,
+        summary=summary,
+        section_key=section_key,
+        stage="research",
+        actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
+        now=now,
+    )
     assignment = {
         "id": assignment_id,
         "assignmentTypeKey": assignment_type_key,
@@ -187,6 +202,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         "createdAt": now,
         "updatedAt": now,
         "newsroomFeedKey": f"assignment#{status}",
+        "itemLineageId": content_item_lineage_id,
     }
     event = {
         "id": f"assignment-event-{assignment_id}-created",
@@ -205,10 +221,13 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         {"modelName": "Assignment", "expected": assignment},
         {"modelName": "AssignmentEvent", "expected": event},
     ]
+    if new_content_item_version:
+        records.append({"modelName": "Item", "expected": new_content_item_version})
     changes = build_record_changes(client, records)
     result = {
         "assignmentId": assignment_id,
         "assignmentTypeKey": assignment_type_key,
+        "contentItemLineageId": content_item_lineage_id,
         "status": status,
         "sectionKey": section_key,
         "queueKey": queue_key,
@@ -276,6 +295,16 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-reporting-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
+    content_item_lineage_id, new_content_item_version = content_item_lineage_for_new_assignment(
+        requested_lineage_id=normalize_string(options.get("content-item")),
+        assignment_id=assignment_id,
+        title=title,
+        summary=summary,
+        section_key=section_key,
+        stage="report",
+        actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
+        now=now,
+    )
     assignment = {
         "id": assignment_id,
         "assignmentTypeKey": assignment_type_key,
@@ -313,6 +342,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         "createdAt": now,
         "updatedAt": now,
         "newsroomFeedKey": f"assignment#{status}",
+        "itemLineageId": content_item_lineage_id,
     }
     event = {
         "id": f"assignment-event-{assignment_id}-created",
@@ -331,10 +361,13 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         {"modelName": "Assignment", "expected": assignment},
         {"modelName": "AssignmentEvent", "expected": event},
     ]
+    if new_content_item_version:
+        records.append({"modelName": "Item", "expected": new_content_item_version})
     changes = build_record_changes(client, records)
     result = {
         "assignmentId": assignment_id,
         "assignmentTypeKey": assignment_type_key,
+        "contentItemLineageId": content_item_lineage_id,
         "status": status,
         "sectionKey": section_key,
         "queueKey": queue_key,
@@ -2193,6 +2226,65 @@ def backfill_section_indexes(client: PapyrusGraphQLAuthoringClient, options: dic
     print("assignments\tbackfill-section-indexes\tnext\tpoetry run papyrus sections recount-summary")
 
 
+def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
+    apply = resolve_mutation_apply(options, "assignments backfill-content-items")
+    items = client.list_records("Item")
+    lineage_id_by_item_id = {item["id"]: item.get("lineageId") or item["id"] for item in items if item.get("id")}
+    assignments = client.list_records("Assignment")
+    reporting_assignments = [
+        assignment for assignment in assignments if str(assignment.get("assignmentTypeKey") or "").startswith("reporting.")
+    ]
+    copywriting_work = []
+    for assignment in assignments:
+        if assignment.get("assignmentTypeKey") not in COPYWRITING_ASSIGNMENT_TYPES or assignment.get("itemLineageId"):
+            continue
+        relations = client.list_semantic_relations_by_subject_state(semantic_state_key("assignment", assignment["id"]))
+        copywriting_work.append(
+            {
+                "assignment": assignment,
+                "sourceReportingAssignmentId": assignment_metadata(client, assignment).get("sourceReportingAssignmentId"),
+                "producedItemLineageIds": [
+                    lineage_id_by_item_id.get(item_id, item_id) for item_id in _produced_item_ids_from_relations(relations)
+                ],
+            }
+        )
+    plan = plan_content_item_backfill(
+        items=items,
+        reporting_assignments=reporting_assignments,
+        copywriting_work=copywriting_work,
+        actor_label=normalize_string(options.get("actor")) or "papyrus-content-item-backfill",
+        now=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    )
+    changes = plan["changes"]
+    print(f"assignments\tbackfill-content-items\tplanned\t{len(changes)}")
+    for warning in plan["warnings"]:
+        print(f"assignments\tbackfill-content-items\twarning\t{warning}")
+    for change in changes[:25]:
+        expected = change["expected"]
+        print(
+            "\t".join(
+                [
+                    "content-item-backfill",
+                    change["modelName"],
+                    "create" if change["current"] is None else "update",
+                    expected["id"],
+                    f"lineage={expected.get('itemLineageId') or expected.get('lineageId') or ''}",
+                    f"stage={expected.get('stage') or ''}",
+                ]
+            )
+        )
+    if len(changes) > 25:
+        print(f"assignments\tbackfill-content-items\tpreview-truncated\t{len(changes) - 25} more")
+    if not apply:
+        print("assignments\tbackfill-content-items\tapply\tskipped\tdry run; rerun without --dry-run to write")
+        return
+    for index, change in enumerate(changes, start=1):
+        client.upsert(change["modelName"], change["expected"])
+        if index == len(changes) or index % 100 == 0:
+            print(f"assignments\tbackfill-content-items\tprogress\t{index}/{len(changes)}", flush=True)
+    print(f"assignments\tbackfill-content-items\tupdated\t{len(changes)}")
+
+
 def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     kind = options.get("kind")
     lineage = options.get("lineage")
@@ -2360,8 +2452,9 @@ def run_copywriting_assignment(
         raise ValueError(f"Assignment {assignment_id} was not found.")
     meta = assignment_metadata(client, assignment)
     relations = client.list_semantic_relations_by_subject_state(semantic_state_key("assignment", assignment_id))
-    item_ids = _produced_item_ids_from_relations(relations)
-    items = list(client.get_records_by_id("Item", item_ids).values())
+    content_item_versions = client.list_by_index(
+        "itemsByLineageAndVersion", require_assignment_content_item_lineage_id(assignment)
+    )
     packet_message_id = (
         normalize_string(options.get("message"))
         or normalize_string(meta.get("sourceReportingPacketMessageId"))
@@ -2383,8 +2476,7 @@ def run_copywriting_assignment(
         assignment_metadata=meta,
         reporting_packet_message=reporting_message,
         reporting_packet_payload=load_message_metadata_payload(client, reporting_message),
-        semantic_relations=relations,
-        existing_items=items,
+        existing_items=content_item_versions,
         actor_label=actor_label,
         actor_sub=auth_claims.get("sub"),
     )

@@ -57,7 +57,7 @@ ASSIGNMENT_FIELDS = (
     "id assignmentTypeKey queueKey queueStatusKey status priority title assigneeType assigneeId assigneeKey "
     "claimedAt claimExpiresAt completedAt canceledAt corpusId categorySetId classifierId sourceSnapshotId "
     "importRunId sectionId sectionKey sectionType sectionStatusKey sectionQueueStatusKey primaryFocusCategoryKey "
-    "topicScopeCategoryKeys createdBy createdAt updatedAt summary newsroomFeedKey"
+    "topicScopeCategoryKeys createdBy createdAt updatedAt summary newsroomFeedKey itemLineageId"
 )
 ASSIGNMENT_EVENT_FIELDS = (
     "id assignmentId assignmentTypeKey queueKey eventType fromStatus toStatus actorSub actorLabel note createdAt"
@@ -119,7 +119,7 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
     "itemLineageId placementKey sortKey pageNumber priority metadata"
 )
 ITEM_FIELDS = (
-    f"{VERSION_FIELDS} id type status typeStatus slug shortSlug section sectionStatus title headline deck body "
+    f"{VERSION_FIELDS} id type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
     "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata"
 )
 PUBLISHED_ITEM_FIELDS = (
@@ -386,6 +386,18 @@ mutation CreateModelAttachmentDownload($attachmentId: ID!) {
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
+    "itemsByLineageAndVersion": {
+        "field": "listItemsByLineageAndVersion",
+        "partitionKey": "lineageId",
+        "partitionType": "ID",
+        "fields": ITEM_FIELDS,
+    },
+    "assignmentsByItemLineageAndCreatedAt": {
+        "field": "listAssignmentsByItemLineageAndCreatedAt",
+        "partitionKey": "itemLineageId",
+        "partitionType": "ID",
+        "fields": ASSIGNMENT_FIELDS,
+    },
     "mediaAssetsByItemAndSortKey": {
         "field": "listMediaAssetsByItemAndSortKey",
         "partitionKey": "itemId",

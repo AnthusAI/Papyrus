@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { getNewsroomNavHref, NEWSROOM_OPS_NAV } from "../lib/newsroom-nav";
 import { ORGANIZER_NAV_GROUPS, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
+import { getContentItemName } from "../lib/site-brand";
 
 const NEWSROOM_APP_DIRECTORY = path.join(__dirname, "..", "app", "newsroom");
 const OVERVIEW_SOURCE = readFileSync(path.join(__dirname, "..", "components", "newsroom-ops-overview.tsx"), "utf8");
@@ -39,6 +40,9 @@ function run() {
   assert.ok(articlesEntry, "Articles must be in the newsroom navigation");
   assert.ok(articlesEntry.href.endsWith("/articles") || articlesEntry.href === "/articles");
   assert.equal(getNewsroomNavHref("/newsroom/articles", true), "/newsroom/articles?demo=1");
+  assert.equal(articlesEntry.label, getContentItemName().plural, "the content item tab uses the publication's configured name");
+  const organizerContentItemEntry = ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.key === "articles");
+  assert.equal(organizerContentItemEntry?.label, getContentItemName().plural);
 
   for (const routeDirectory of staticRouteDirectories()) {
     assert.ok(
