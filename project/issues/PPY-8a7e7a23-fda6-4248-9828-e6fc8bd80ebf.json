@@ -21,10 +21,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "179fa1c2-f340-4c78-9098-f6e1138dee44",
+      "author": "unknown",
+      "text": "Handoff for the DevOps session (PPY-8a7e7a): parts 1 and 2 (PRs 227, 229) make these Python and .tac inputs required with no pilot fallback, so the deployed pipeline must supply them. Nothing in amplify/ was changed by the cleanup, so the current defaults still apply until DevOps decides to make them required in synth.\n\nAlready supplied by site-backend.ts to the inbound processor Lambda: PAPYRUS_INBOUND_EMAIL_DOMAIN (from the env default p.apyr.us). Must start being supplied explicitly: PAPYRUS_PUBLIC_SITE_BASE_URL is hard-coded to https://p.apyr.us at amplify/site-backend.ts:513 (works, but is a pilot literal), and PAPYRUS_INBOUND_EMAIL_CORPUS_KEY (default AI-ML-research at site-backend.ts:163, ses-inbound-receive/handler.ts:327).\n\nRemaining pilot defaults in amplify/ that should become required PapyrusSite.backend config (fail synth when missing): inbound email domain (site-backend.ts:158, ses-inbound-receive/handler.ts:32), inbound corpus key (site-backend.ts:163, handler.ts:327, assignment-action/handler.ts:885), Route 53 hosted zone id and name (site-backend.ts:164-165), public site base URL (site-backend.ts:513), and the per-app SSM parameter ARNs for Amplify app dbsyytcm9drqa in console-chat-responder/resource.ts:113-114. Also lib/site-brand.ts:172,176 reference brand corpusKey and publicationName. Python callers now read PAPYRUS_INBOUND_EMAIL_DOMAIN and PAPYRUS_PUBLIC_SITE_BASE_URL (or publicSite.baseUrl in the Papyrus config) and raise if absent.\n",
+      "created_at": "2026-10-17T17:41:47.142358Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T16:40:19.352880Z",
-  "updated_at": "2026-10-17T17:27:40.063600Z",
+  "updated_at": "2026-10-17T17:41:47.142569Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
