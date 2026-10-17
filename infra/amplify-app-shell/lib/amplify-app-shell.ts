@@ -2,6 +2,7 @@ import { Construct } from "constructs";
 import { ArnFormat, CfnOutput, Duration, Fn, Stack, StackProps } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveProspectusAccountsEndpoint, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
@@ -97,9 +98,28 @@ export class AmplifyAppShellStack extends Stack {
     }
 
     const prospectusAccountsApiStageArn = config.cms.prospectusAccountsApiStageArn;
-    const prospectusEnvironment = prospectusAccountsApiStageArn
-      ? { PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn) }
+    const prospectusSessionSealingSecret = prospectusAccountsApiStageArn
+      ? new secretsmanager.Secret(this, "ProspectusSessionSealingSecret", {
+        description: `Seals the Prospectus sign-in cookies of ${cmsAppName}; replacing it signs everyone out`,
+        generateSecretString: { passwordLength: 64, excludePunctuation: true },
+      })
+      : undefined;
+    const prospectusEnvironment = prospectusAccountsApiStageArn && prospectusSessionSealingSecret
+      ? {
+        PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn),
+        PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN: prospectusSessionSealingSecret.secretArn,
+        PAPYRUS_PROSPECTUS_SITE_PRODUCT: `papyrus-${config.siteId}`,
+      }
       : {};
+    if (prospectusSessionSealingSecret) {
+      computeRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: "ReadProspectusSessionSealingSecret",
+          actions: ["secretsmanager:GetSecretValue"],
+          resources: [prospectusSessionSealingSecret.secretArn],
+        }),
+      );
+    }
     if (prospectusAccountsApiStageArn) {
       computeRole.addToPolicy(
         new iam.PolicyStatement({

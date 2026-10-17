@@ -315,7 +315,17 @@ try {
   for (const branch of resourcesOfType(prospectusTemplate, "AWS::Amplify::Branch")) {
     const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
     assert.equal(variables.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT, "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/", `prospectus: ${branch.Properties.BranchName} endpoint`);
+    assert.ok(variables.PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN?.Ref?.startsWith("ProspectusSessionSealingSecret"), `prospectus: ${branch.Properties.BranchName} session sealing secret`);
+    assert.equal(variables.PAPYRUS_PROSPECTUS_SITE_PRODUCT, "papyrus-p-apyr-us", `prospectus: ${branch.Properties.BranchName} site product`);
   }
+  const sealingSecretKeys = Object.keys(prospectusTemplate.Resources).filter((key) => prospectusTemplate.Resources[key].Type === "AWS::SecretsManager::Secret");
+  assert.deepEqual(sealingSecretKeys.length, 1, "prospectus: one generated session sealing secret");
+  const sealingSecretReads = Object.values(prospectusTemplate.Resources)
+    .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === prospectusComputeRoleKey))
+    .flatMap((resource) => resource.Properties.PolicyDocument.Statement)
+    .filter((statement) => statement.Sid === "ReadProspectusSessionSealingSecret");
+  assert.equal(sealingSecretReads.length, 1, "prospectus: the compute role reads the sealing secret");
+  assert.deepEqual(sealingSecretReads[0].Resource, { Ref: sealingSecretKeys[0] }, "prospectus: sealing secret read is scoped to that secret");
 
   const synthVariant = (label, example, change) => {
     const config = JSON.parse(fs.readFileSync(path.join(shell, "examples", example), "utf8"));
