@@ -2276,7 +2276,7 @@ def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[
     if len(changes) > 25:
         print(f"assignments\tbackfill-content-items\tpreview-truncated\t{len(changes) - 25} more")
     if not apply:
-        print("assignments\tbackfill-content-items\tapply\tskipped\tuse --dry-run to preview without writes")
+        print("assignments\tbackfill-content-items\tapply\tskipped\tdry run; rerun without --dry-run to write")
         return
     for index, change in enumerate(changes, start=1):
         client.upsert(change["modelName"], change["expected"])
