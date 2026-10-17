@@ -9,7 +9,8 @@ from decision_flywheel.models import DecisionResult
 
 from features_backend.steps.cyclotron_relevance_sweep_steps import DOCTRINE, configure, reference
 from papyrus_content.priming_proof import (PROOF_REPORT_VERSION, agreement_metrics, freeze_held_out_set,
-                                           held_out_set_fingerprint, run_priming_proof, verify_held_out_set)
+                                           held_out_set_fingerprint, run_priming_proof, teaching_examples_from_reviews,
+                                           verify_held_out_set)
 from papyrus_content.relevance_cyclotron import build_relevance_cyclotron
 
 INCLUDED_TOPICS = ("prompt-injection", "model-theft", "jailbreak", "data-poisoning", "agent-hijack")
@@ -44,7 +45,8 @@ def relevance_plan(tmp_path):
 
 def reviewed_reference(topic, index, status):
     row = reference(f"{topic}-{index}", f"{topic} study {index}", status)
-    return {**row, "title": f"{topic} study {index}"}
+    return {**row, "title": f"{topic} study {index}", "curationStatusReason": f"Editor note: {status} {topic}",
+            "curationStatusUpdatedAt": f"2026-10-{10 + index:02d}T00:00:00Z"}
 
 
 def reviewed_pairs(per_topic=2):
@@ -124,3 +126,25 @@ def test_a_held_out_set_for_another_definition_is_refused(relevance_plan):
     with pytest.raises(ValueError, match="different relevance cyclotron definition"):
         run_priming_proof(held_out_set, plan=relevance_plan, priming_examples=[], model=NearestTrainingExampleModel(),
                           publication="Example")
+
+
+def test_held_out_items_never_carry_the_editor_note_and_the_rest_become_the_teaching_pool(relevance_plan):
+    held_out_set = freeze_held_out_set(reviewed_pairs(per_topic=3), plan=relevance_plan, proof_id="proof-a", size=10)
+    assert all("Editor note" not in json.dumps(item["values"]) for item in held_out_set["items"])
+    assert len(held_out_set["teachingPool"]) == 30 - 10
+    held_out_ids = {item["id"] for item in held_out_set["items"]}
+    assert not held_out_ids & {item["id"] for item in held_out_set["teachingPool"]}
+    review_times = [item["reviewedAt"] for item in held_out_set["teachingPool"]]
+    assert review_times == sorted(review_times)
+    examples = teaching_examples_from_reviews(held_out_set)
+    assert examples[0].context["human_feedback"].startswith("Editor note")
+    assert all("Editor note" not in json.dumps(dict(example.item.values)) for example in examples)
+
+
+def test_teaching_from_past_reviews_raises_agreement(relevance_plan):
+    held_out_set = freeze_held_out_set(reviewed_pairs(per_topic=4), plan=relevance_plan, proof_id="proof-a", size=20)
+    report = run_priming_proof(held_out_set, plan=relevance_plan, priming_examples=teaching_examples_from_reviews(held_out_set),
+                               model=NearestTrainingExampleModel(), label_schedule=[0, 20], publication="Example",
+                               teaching_source="editor reviews of References")
+    assert report["priming"]["source"] == "editor reviews of References"
+    assert report["points"][0]["agreement"] == 0.5 and report["points"][-1]["agreement"] > 0.5

@@ -17,7 +17,7 @@
       "include": 10,
       "exclude": 10
     },
-    "fingerprint": "1a34c43d27153479cef1d69d20d3b4d12004c48987234edd5d57d1c6e0149030",
+    "fingerprint": "708edc2e841533c6c7d7bd99e3be30912916654c96ad18abd351b3f613dc2aa8",
     "frozenAt": "2026-10-17T00:00:00Z",
     "source": "References editors reviewed in the Newsroom, labeled by the scope-training rule"
   },
@@ -25,7 +25,8 @@
     "acceptedExamples": 6,
     "excludedBecauseInHeldOut": 0,
     "fingerprint": null,
-    "order": "acceptance order"
+    "source": "accepted priming examples",
+    "order": "reviews in review order, then priming examples in acceptance order"
   },
   "conditions": {
     "freshStorePerPoint": true,
