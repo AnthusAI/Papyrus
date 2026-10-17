@@ -19,10 +19,24 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "54aed214-cb52-44b5-a4f8-4a4ff3a3d159",
+      "author": "unknown",
+      "text": "Slice 1 progress (2026-10-17): the article and Learn guide pages (11 pages) are now Markus content in AnthusAI/Cyclotron-web, merged to develop as PR 133 (not yet on main, so not deployed).\n\nWhat moved: /articles, the four /articles/<slug> pages and the six /learn/<slug> guides. Same URLs, same visible text, screenshots pixel-identical at 1280 and 390 px. The guide copy moved out of components/learn.ts into content/learn/*.md (the loader keeps the same shape). The shared header, footer and cards are rendered from the existing React components into a JSON model; Papyrus/Markus converts the Markdown and writes the pages into out/ after next build. The CodePipeline buildspec is unchanged (npm run build still produces out/); the script bootstraps Python 3.12 with uv and the pinned papyrus-newsroom[markus]==1.2.0 and anthus-markus==0.5.1.\n\nScope change for slice 2: how-it-works, developers, services, pricing, the Learn index, use-cases (list and detail) and recordings each embed animated pictograms or recorded runs, so they cannot be plain Markus pages. They move with the islands slice. The header logo animation is static on the Markus pages until the island work hydrates it.\n\nOpen risks: (1) the CodeBuild bootstrap of uv and Python 3.12 is untested on the real project; if it fails the build goes red and nothing deploys, the site stays as it is. (2) Promotion develop to main (the deploy) is waiting on Ryan's yes.\n",
+      "created_at": "2026-10-17T22:52:49.161898Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "Thread Claude",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-17T22:25:40.105149Z",
-  "updated_at": "2026-10-17T22:32:36.462958Z",
+  "updated_at": "2026-10-17T22:53:23.883762Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
