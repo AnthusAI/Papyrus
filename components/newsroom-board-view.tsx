@@ -6,10 +6,9 @@ import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
 import { canReadNewsroomBoard, newsroomBoardConfig, projectNewsroomBoard, type NativeBoardIssue } from "../lib/newsroom-board";
-import { resolveArticlesBackend } from "../lib/newsroom-articles";
-import { SITE_BRAND } from "../lib/site-brand";
+import { getContentItemName, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { loadNewsroomAssignmentPage, loadNewsroomReferencePage } from "./news-desk-taxonomy-client";
+import { loadNewsroomAssignmentPage, loadNewsroomContentItemVersions, loadNewsroomReferencePage } from "./news-desk-taxonomy-client";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
@@ -45,12 +44,12 @@ export function NewsroomBoardView() {
     if (!allowed) { setLoading(false); return; }
     setLoading(true); busy.current = true;
     Promise.all([
-      resolveArticlesBackend(false).listRows(),
+      loadNewsroomContentItemVersions(),
       loadNewsroomReferencePage({ limit: 50 }),
       loadNewsroomAssignmentPage({ limit: 50 }),
-    ]).then(([articles, references, assignments]) => {
+    ]).then(([contentItemVersions, references, assignments]) => {
       if (generation.current !== request) return;
-      setIssues(projectNewsroomBoard({ articles, references: references.items, assignments: assignments.items }));
+      setIssues(projectNewsroomBoard({ contentItemVersions, references: references.items, assignments: assignments.items }));
       setTokens({ reference: references.nextToken, assignment: assignments.nextToken });
     }).catch((reason: unknown) => {
       if (generation.current === request) setError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
@@ -81,7 +80,7 @@ export function NewsroomBoardView() {
         <IssueTypeFilter config={config} value={filter} onChange={value => { setFilter(value); setSelected(null); }} name="Record type" />
         <div role="group" aria-label="Record presentation"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button><button type="button" disabled={loading} onClick={() => setRevision(current => current + 1)}>Refresh records</button></div>
       </div>
-      <p className="organizer-board-note">Native CMS records and statuses. Open a record to use its existing editor or workflow controls. Story linking is not configured.</p>
+      <p className="organizer-board-note">{`Each ${getContentItemName().singular.toLowerCase()} appears once, in the column for its stage. Open a record to use its existing editor or workflow controls.`}</p>
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       <p role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded. References and assignments load in pages.`}</p>
       <div className="organizer-board-body" data-detail-open={Boolean(issue)}>
@@ -91,7 +90,7 @@ export function NewsroomBoardView() {
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel="Newsroom records"
           emptyMessage={loading ? "Loading records…" : error ? "Records could not be loaded." : "No records in this selection."} />
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[{ label: "CMS record ID", value: issue.nativeId }, { label: "Status", value: issue.nativeStatus }]}>
-          <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type} workspace</Link>
+          <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type}</Link>
         </IssueDetailPanel>}
       </div>
       <div className="organizer-board-pages">{tokens.reference && <button disabled={loading} type="button" onClick={() => void loadMore("reference")}>Load more references</button>}{tokens.assignment && <button disabled={loading} type="button" onClick={() => void loadMore("assignment")}>Load more assignments</button>}</div>

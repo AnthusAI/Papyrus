@@ -1,38 +1,67 @@
 import type { KanbanConfig, KanbanIssue } from "@kanbus/ui";
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
-import type { NewsroomArticleRow } from "./newsroom-articles";
+import {
+  CONTENT_ITEM_STAGES,
+  contentItemStageLabel,
+  latestVersionPerContentItem,
+  type ContentItemVersionRecord,
+} from "./content-item-lifecycle";
+import { getContentItemName } from "./site-brand";
 
-export type NativeBoardKind = "article" | "reference" | "assignment";
+export type NativeBoardKind = "contentItem" | "reference" | "assignment";
 export interface NativeBoardIssue extends KanbanIssue {
-  type: NativeBoardKind;
+  kind: NativeBoardKind;
   nativeId: string;
   nativeStatus: string;
   href: string;
 }
 
-/** Native records keep their own identity, status and mutation authority. No Story linkage is inferred. */
+export function contentItemBoardType(): string {
+  return getContentItemName().singular.toLowerCase();
+}
+
+function boardTypeForKind(kind: NativeBoardKind): string {
+  return kind === "contentItem" ? contentItemBoardType() : kind;
+}
+
+/**
+ * One card per content item, in the column for its lifecycle stage. Assignments that are work on a content item
+ * are counted on that item's card rather than shown as separate cards. References and other work keep their own
+ * identity and native status.
+ */
 export function projectNewsroomBoard(records: {
-  articles?: readonly NewsroomArticleRow[];
+  contentItemVersions?: readonly ContentItemVersionRecord[];
   references?: readonly ReferenceRecord[];
   assignments?: readonly AssignmentRecord[];
 }): NativeBoardIssue[] {
+  const assignmentCountByContentItem = new Map<string, number>();
+  for (const assignment of records.assignments ?? []) {
+    if (assignment.itemLineageId) {
+      assignmentCountByContentItem.set(assignment.itemLineageId, (assignmentCountByContentItem.get(assignment.itemLineageId) ?? 0) + 1);
+    }
+  }
+  const contentItemType = contentItemBoardType();
   return [
-    ...(records.articles ?? []).map(row => ({
-      id: `article:${row.id}`, nativeId: row.id, type: "article" as const,
-      title: row.title, nativeStatus: row.status, status: `article/${row.status}`,
-      priority: 2, description: row.pending ? "Published copy has pending draft changes." : undefined,
-      updated_at: row.updatedAt, href: `/newsroom/articles/${encodeURIComponent(row.id)}`,
-    })),
+    ...latestVersionPerContentItem(records.contentItemVersions ?? []).map(version => {
+      const stage = version.stage ?? "idea";
+      const workCount = assignmentCountByContentItem.get(version.lineageId) ?? 0;
+      return {
+        id: `contentItem:${version.lineageId}`, nativeId: version.lineageId, kind: "contentItem" as const, type: contentItemType,
+        title: version.headline || version.title || version.slug, nativeStatus: stage, status: `${contentItemType}/${stage}`,
+        priority: 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
+        updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
+      };
+    }),
     ...(records.references ?? []).filter(row => !row.versionState || row.versionState === "current").map(row => ({
-      id: `reference:${row.id}`, nativeId: row.id, type: "reference" as const,
+      id: `reference:${row.id}`, nativeId: row.id, kind: "reference" as const, type: "reference",
       title: row.title || row.externalItemId || row.id,
       nativeStatus: row.curationStatus || "pending", status: `reference/${row.curationStatus || "pending"}`,
       priority: 2, description: row.curationStatusReason || undefined,
       updated_at: row.updatedAt || row.importedAt || undefined,
       href: `/newsroom/references/${encodeURIComponent(row.lineageId || row.id)}`,
     })),
-    ...(records.assignments ?? []).map(row => ({
-      id: `assignment:${row.id}`, nativeId: row.id, type: "assignment" as const,
+    ...(records.assignments ?? []).filter(row => !row.itemLineageId).map(row => ({
+      id: `assignment:${row.id}`, nativeId: row.id, kind: "assignment" as const, type: "assignment",
       title: row.title, nativeStatus: row.status, status: `assignment/${row.status}`,
       priority: row.priority ?? 2, assignee: row.assigneeId || undefined,
       description: row.summary || row.brief || undefined,
@@ -42,16 +71,26 @@ export function projectNewsroomBoard(records: {
   ];
 }
 
-/** Unknown native statuses remain visible instead of being translated into invented stages. */
+/** Content items always show every lifecycle stage in order; unknown native statuses of other records stay visible. */
 export function newsroomBoardConfig(issues: readonly NativeBoardIssue[]): KanbanConfig {
-  const keys = [...new Set(issues.map(issue => issue.status))];
+  const contentItemType = contentItemBoardType();
+  const kinds: NativeBoardKind[] = ["contentItem", "reference", "assignment"];
+  const contentItemStatuses = [
+    ...CONTENT_ITEM_STAGES,
+    ...new Set(issues.filter(issue => issue.kind === "contentItem").map(issue => issue.nativeStatus)),
+  ].filter((stage, index, stages) => stages.indexOf(stage) === index)
+    .map(stage => ({ key: `${contentItemType}/${stage}`, name: contentItemStageLabel(stage), category: "native" }));
+  const otherStatuses = [...new Set(issues.filter(issue => issue.kind !== "contentItem").map(issue => issue.status))]
+    .map(key => ({ key, name: key.replace("/", " · "), category: "native" }));
+  const statuses = [...contentItemStatuses, ...otherStatuses];
   return {
-    hierarchy: [], types: ["article", "reference", "assignment"],
-    statuses: keys.map(key => ({ key, name: key.replace("/", " · "), category: "native" })),
+    hierarchy: [], types: kinds.map(boardTypeForKind),
+    statuses,
     categories: [{ name: "native" }], priorities: {}, type_colors: {},
-    workflows: Object.fromEntries(["article", "reference", "assignment"].map(kind => [kind,
-      Object.fromEntries(keys.filter(key => key.startsWith(`${kind}/`)).map(key => [key, []])),
-    ])),
+    workflows: Object.fromEntries(kinds.map(kind => {
+      const type = boardTypeForKind(kind);
+      return [type, Object.fromEntries(statuses.filter(status => status.key.startsWith(`${type}/`)).map(status => [status.key, []]))];
+    })),
   };
 }
 

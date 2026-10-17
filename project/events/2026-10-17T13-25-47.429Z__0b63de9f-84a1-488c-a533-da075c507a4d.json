@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0b63de9f-84a1-488c-a533-da075c507a4d",
+  "issue_id": "PPY-e7cda98f-0334-40f3-b05a-feaccc536ee8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T13:25:47.429Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Board shows one card per content item by stage",
+    "description": "Board loads content items by Item.stage, shows the latest version of each lineage once in its stage column (all stages in order), counts Assignments with itemLineageId on the card instead of separate cards, and names the type with the publication's content item name. Read-only.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+    "labels": []
+  }
+}
