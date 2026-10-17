@@ -50,7 +50,7 @@ are coordinated with the release owner, not performed by editing another tree.
 
 ## Evidence and dependencies
 
-`node --import tsx scripts/test-publication-cyclotron-ui.ts` renders the actual
+The publication Cyclotron UI contract renders the actual
 shared components for both mode labels and verifies optional explanations and required labels,
 publication scope, prediction pins, and unchanged payload identity on manual
 retry. These are SSR/payload contract checks, not a browser interaction or live
