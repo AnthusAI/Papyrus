@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveProspectusAccountsEndpoint, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -183,6 +183,17 @@ assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.redirects[0].source =
 assertRejects(mutated("p-apyr-us.site.json", (c) => c.cms.redirects.push({ source: "apyr.us" })), "must not repeat");
 assertRejects(mutated("pretext.site.json", (c) => (c.cms.redirects = [{ source: "newsroom.example.test" }])), "cms.redirects");
 assertRejects("not an object", "site");
+
+const prospectusAccountsApiStageArn = "arn:aws:execute-api:us-east-1:712236451410:abc123defg/api";
+assert.equal(apexRedirectConfig.cms.prospectusAccountsApiStageArn, undefined);
+assert.equal(
+  parseCmsSite(mutated("p-apyr-us.site.json", (c) => (c.cms.prospectusAccountsApiStageArn = prospectusAccountsApiStageArn))).cms.prospectusAccountsApiStageArn,
+  prospectusAccountsApiStageArn,
+);
+assert.equal(resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn), "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.prospectusAccountsApiStageArn = "arn:aws:execute-api:us-east-1:712236451410:abc123defg/*")), "cms.prospectusAccountsApiStageArn");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.prospectusAccountsApiStageArn = "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/")), "cms.prospectusAccountsApiStageArn");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.environment.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT = "https://example.test/")), "cms.environment.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT");
 
 assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", () => {}))), "amplify-app-shell-pretext-example");
 assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", (c) => (c.stackName = "pretext-new")))), "pretext-new");
