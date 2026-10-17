@@ -25,7 +25,6 @@ from .analysis_profiles import (
     parse_analysis_overrides,
     print_analysis_reindex_plan,
 )
-from .corpus_storage_paths import corpus_storage_segment, legacy_mixed_case_corpus_segment
 from .corpora import maybe_sync_corpus_from_cloud_before_analysis
 from .env import PAPYRUS_ROOT, load_dotenv
 from .graphql_authoring import create_authoring_client
@@ -79,12 +78,6 @@ def analysis_entity_graph_preflight(flags: list[str]) -> None:
 
     corpus_path = Path(default_corpus_path(corpus))
     biblicus_workdir = Path(options.get("biblicus-workdir") or plan.get("biblicusWorkdir") or DEFAULT_BIBLICUS_WORKDIR).resolve()
-    try:
-        _preflight_biblicus_catalog_compatibility(biblicus_workdir, corpus_path)
-        checks.append({"name": "catalog_compatibility", "status": "ok", "detail": str((biblicus_workdir / corpus_path).resolve())})
-    except Exception as error:
-        checks.append({"name": "catalog_compatibility", "status": "error", "detail": str(error)})
-        blockers.append("malformed_catalog")
     payload: dict[str, Any] | None = None
     if snapshot_resolved and snapshot_ref:
         snapshot_manifest = _resolve_snapshot_manifest_path(biblicus_workdir, corpus_path, snapshot_ref)
@@ -846,9 +839,6 @@ def _analysis_publish_graph_snapshot_internal(
             f"Missing graph snapshot manifest for {snapshot_ref}: {snapshot_manifest}. "
             "Run graph extract before publish."
         )
-    print("analysis-publish\tphase\tpreflight\tstart", flush=True)
-    _preflight_biblicus_catalog_compatibility(biblicus_workdir, corpus_path)
-    print("analysis-publish\tphase\tpreflight\tcomplete", flush=True)
     print("analysis-publish\tphase\texport\tstart", flush=True)
     payload = _export_graph_snapshot_payload(
         biblicus_workdir=biblicus_workdir,
@@ -1124,7 +1114,10 @@ def _extract_last_json_from_file(path: Path) -> dict[str, Any]:
 
 def _resolve_snapshot_manifest_path(biblicus_workdir: Path, corpus_path: Path, snapshot_ref: str) -> Path:
     extractor, snapshot_id = _parse_snapshot_ref(snapshot_ref)
-    return (biblicus_workdir / corpus_path / "graph" / extractor / snapshot_id / "manifest.json").resolve()
+    from biblicus.corpus import Corpus
+
+    corpus = Corpus.open(_resolve_biblicus_corpus_dir(biblicus_workdir, corpus_path))
+    return corpus.graph_snapshot_manifest_path(extractor, snapshot_id).resolve()
 
 
 def _parse_snapshot_ref(snapshot_ref: str) -> tuple[str, str]:
@@ -1137,58 +1130,10 @@ def _parse_snapshot_ref(snapshot_ref: str) -> tuple[str, str]:
     return extractor, snapshot_id
 
 
-def _preflight_biblicus_catalog_compatibility(biblicus_workdir: Path, corpus_path: Path) -> None:
-    catalog_path = (biblicus_workdir / corpus_path / "metadata" / "catalog.json").resolve()
-    if not catalog_path.exists():
-        raise ValueError(f"Missing Biblicus corpus catalog: {catalog_path}")
-    try:
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ValueError(f"Malformed Biblicus corpus catalog JSON: {catalog_path}: {error}") from error
-    items = catalog.get("items")
-    if not isinstance(items, dict):
-        raise ValueError(f"Biblicus catalog items must be an object map: {catalog_path}")
-    allowed_item_keys = {
-        "id",
-        "relpath",
-        "sha256",
-        "bytes",
-        "media_type",
-        "title",
-        "tags",
-        "metadata",
-        "dates",
-        "created_at",
-        "source_uri",
-    }
-    extras: list[tuple[str, list[str]]] = []
-    for item_id, item in items.items():
-        if not isinstance(item, dict):
-            continue
-        unexpected = sorted(key for key in item.keys() if key not in allowed_item_keys)
-        if unexpected:
-            extras.append((str(item_id), unexpected))
-        if len(extras) >= 5:
-            break
-    if extras:
-        preview = "; ".join(f"{item_id}: {','.join(keys)}" for item_id, keys in extras)
-        raise ValueError(
-            "Biblicus catalog contains unsupported top-level item fields for graph extraction. "
-            f"sample={preview}"
-        )
-
-
 def _resolve_biblicus_corpus_dir(biblicus_workdir: Path, corpus_path: str | Path) -> Path:
     relative = Path(str(corpus_path))
     if relative.is_absolute():
         return relative
-    parts = relative.as_posix().split("/")
-    if len(parts) >= 2 and parts[0] == "corpora":
-        segment = parts[1]
-        legacy = legacy_mixed_case_corpus_segment(corpus_storage_segment(segment))
-        candidate = biblicus_workdir / "corpora" / legacy
-        if candidate.exists():
-            return candidate.resolve()
     return (biblicus_workdir / relative).resolve()
 
 
