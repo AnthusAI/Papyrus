@@ -14,6 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+priming = ["fastapi >=0.115,<1", "uvicorn >=0.30,<1", "strawberry-graphql[fastapi] >=0.280,<1"]
 markus = [
     "anthus-markus >=0.5.1,<1.0.0",
     "Pillow >=10,<12",
@@ -51,7 +52,7 @@ packages = [
 optional = true
 
 [tool.poetry.group.cyclotron.dependencies]
-decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "9874b710c47d7396017e26c625f68286c413d52e", extras = ["jev", "optimizer"] }
+decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "a565dafb1f6953e1eb4d2efb1069396303afe0c6", extras = ["jev", "optimizer", "web"] }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

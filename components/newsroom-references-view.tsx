@@ -1,5 +1,9 @@
 "use client";
 
+import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
+import { ReferencePriming } from "./reference-priming";
+import { ReferenceCurationControls } from "./reference-curation-controls";
+
 import {
   ArchiveIcon,
   ChevronLeftIcon,
@@ -54,6 +58,8 @@ import {
 } from "./news-desk-taxonomy-client";
 
 type NewsroomReferencesViewProps = {
+  /** Present only when the host has configured optional example priming. */
+  priming?: PrimingPanelProps;
   /** The relevance cyclotron's status snapshot, shown above the list. */
   cyclotronStatus?: CyclotronStatus | null;
   /** Present for editors who may ask for a manual review rate. */
@@ -391,6 +397,7 @@ function ReferenceDetailPanel({
 }
 
 export function NewsroomReferencesView({
+  priming,
   cyclotronStatus,
   decisions,
   onRequestReviewRate,
@@ -507,6 +514,8 @@ export function NewsroomReferencesView({
             Review source intake before it becomes accepted evidence.
           </p>
         </div>
+        <ReferenceCurationControls disabled={disabled} />
+        {priming && !disabled ? <ReferencePriming {...priming} /> : null}
         {cyclotronStatus ? (
           <div className="shrink-0">
             <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />

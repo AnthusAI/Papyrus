@@ -2032,14 +2032,9 @@ def _run_biblicus_url_text(payload: dict[str, Any], *, grobid_url: str | None = 
         )
     command = [
         str(_biblicus_python_executable()),
-        "-m",
-        "biblicus",
-        "extract",
-        "url-text",
-        "--input-json",
-        "-",
-        "--format",
-        "json",
+        "-c",
+        "import json,sys; from biblicus.url_text import extract_url_text; "
+        "print(json.dumps(extract_url_text(**json.load(sys.stdin))))",
     ]
     env = _biblicus_env(grobid_url=grobid_url)
     completed = subprocess.run(
@@ -2054,32 +2049,6 @@ def _run_biblicus_url_text(payload: dict[str, Any], *, grobid_url: str | None = 
     stdout = (completed.stdout or "").strip()
     stderr = (completed.stderr or "").strip()
     parsed_stdout = _json_object_or_none(stdout)
-    if completed.returncode != 0 and _is_missing_markitdown_error(parsed_stdout) and shutil.which("uv"):
-        uv_command = [
-            "uv",
-            "run",
-            "--extra",
-            "markitdown",
-            "biblicus",
-            "extract",
-            "url-text",
-            "--input-json",
-            "-",
-            "--format",
-            "json",
-        ]
-        completed = subprocess.run(
-            uv_command,
-            cwd=BIBLICUS_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-            input=json.dumps(payload),
-            env=env,
-        )
-        stdout = (completed.stdout or "").strip()
-        stderr = (completed.stderr or "").strip()
-        parsed_stdout = _json_object_or_none(stdout)
     if completed.returncode != 0:
         reason = (
             parsed_stdout.get("error")
@@ -2133,7 +2102,8 @@ def _run_biblicus_article_text(payload: dict[str, Any]) -> dict[str, Any]:
     stdout = (completed.stdout or "").strip()
     stderr = (completed.stderr or "").strip()
     parsed_stdout = _json_object_or_none(stdout)
-    if _is_missing_dspy_error(parsed_stdout) and shutil.which("uv"):
+    from .priming_provider_budget import worker_environment
+    if worker_environment() is None and _is_missing_dspy_error(parsed_stdout) and shutil.which("uv"):
         uv_command = [
             "uv",
             "run",
@@ -2179,6 +2149,11 @@ def _run_biblicus_article_text(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _biblicus_env(*, grobid_url: str | None = None) -> dict[str, str]:
     env = dict(os.environ)
+    from .priming_provider_budget import worker_environment
+    scoped = worker_environment()
+    if scoped is not None:
+        env = {name:value for name,value in env.items() if name in {'PATH','PYTHONPATH','HOME','LANG','LC_ALL','TMPDIR','SYSTEMROOT','OPENBLAS_NUM_THREADS','OMP_NUM_THREADS','BIBLICUS_WORKDIR'}}
+        env.update(scoped)
     biblicus_src = str(BIBLICUS_ROOT / "src")
     env["PYTHONPATH"] = (
         f"{biblicus_src}{os.pathsep}{env['PYTHONPATH']}"

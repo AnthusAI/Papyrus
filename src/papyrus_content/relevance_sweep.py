@@ -141,10 +141,11 @@ def ensure_sweep_assignment(client, plan: RelevanceCyclotronPlan, corpus_id: str
     return assignment_id
 
 
-def reference_item(reference: Mapping[str, Any]):
+def reference_item(reference: Mapping[str, Any], *, source_content: Mapping[str, str] | None = None):
     """The cyclotron item for a candidate reference: what an editor sees when deciding."""
     from decision_flywheel import Item
 
+    reference = {**reference, **({"title": source_content["title"]} if source_content else {})}
     source = reference.get("sourceUri") or ""
     domain = source.split("//", 1)[-1].split("/", 1)[0] if "//" in source else ""
     lines = [reference.get("title") or reference.get("externalItemId") or reference["lineageId"]]
@@ -152,21 +153,36 @@ def reference_item(reference: Mapping[str, Any]):
         lines.append(f"Source: {domain}")
     if reference.get("sourcePublishedAt"):
         lines.append(f"Published: {str(reference['sourcePublishedAt'])[:10]}")
-    if reference.get("curationStatusReason"):
+    elif source_content:
+        lines.append("Source publication date: unknown")
+        if reference.get("importedAt"):
+            lines.append(f"Reference intake date: {str(reference['importedAt'])[:10]}")
+    # The intake reason describes the staged catalog row, before extraction.
+    # Keep it in raw provenance, not in the completed priming model projection.
+    if not source_content and reference.get("curationStatusReason"):
         lines.append(f"Why it was proposed: {reference['curationStatusReason']}")
+    if source_content:
+        lines.append(source_content["abstract"])
     values = {"text": "\n".join(str(line) for line in lines), "title": reference.get("title"),
               "source_uri": source or None, "domain": domain or None,
               "published_at": reference.get("sourcePublishedAt"),
-              "ingestion_rationale": reference.get("curationStatusReason")}
+              "ingestion_rationale": reference.get("curationStatusReason") if not source_content else None}
+    if source_content:
+        values["abstract"] = source_content["abstract"]
     return Item(reference.get("lineageId") or reference["id"], {key: value for key, value in values.items() if value})
 
 
 def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *, apply: bool, worker: str,
                          max_count: int | None = None, model=None, optimizer=None, snapshots=None,
-                         now: Callable[[], str] | None = None) -> SweepResult:
-    """Run one sweep. ``model``, ``optimizer`` and ``snapshots`` default to the configured providers."""
+                         now: Callable[[], str] | None = None, priming_snapshot=None) -> SweepResult:
+    """Run one sweep; an explicit accepted priming snapshot seeds a new store only.
+
+    Omitting priming_snapshot preserves normal operation. Models/optimizers and
+    snapshot transport still default to the configured providers.
+    """
     now = now or (lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
     plan = build_relevance_cyclotron(steering_config, doctrine)
+    priming_examples = priming_snapshot.for_definition(plan.definition) if priming_snapshot is not None else None
     corpus = require_corpus_config(dict(steering_config), steering_config["canonicalTopicSet"]["corpusKey"],
                                    "canonicalTopicSet.corpusKey")
     corpus_id = knowledge_corpus_id(corpus)
@@ -174,6 +190,10 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     pending.sort(key=lambda reference: str(reference.get("importedAt") or reference.get("createdAt") or ""))
     if max_count is not None:
         pending = pending[:max_count]
+    if priming_examples is not None:
+        example_ids = {row.item.id for rows in priming_examples.values() for row in rows}
+        if any(reference_item(reference).id in example_ids for reference in pending):
+            raise ValueError("priming and operational reference identities must be disjoint")
     result = SweepResult(applied=apply, pending=[reference["lineageId"] for reference in pending])
     if not apply:
         return result
@@ -196,7 +216,8 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
         optimizer = optimizer if optimizer is not None else optimizer_from_environment(plan)
         cyclotron = Cyclotron.open(local, plan.definition, model, optimizer, lease=_HeldLease(),
                                    max_requests=plan.max_requests, review_program=plan.review_program,
-                                   seed_rubrics=plan.seed_rubrics)
+                                   seed_rubrics=plan.seed_rubrics,
+                                   **({'priming_examples':priming_examples} if priming_examples is not None else {}))
         try:
             _apply_review_rate_request(client, cyclotron, plan, result.warnings)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
