@@ -9,7 +9,6 @@ export const pilobolUsBrand: SiteBrand = {
   mastheadSubtitle: "Field notes",
   backToHomeLabel: "Back to Pilobolus",
   articleTitleSuffix: "Pilobolus",
-  contentItemName: { singular: "Article", plural: "Articles" },
   placeholderByline: "Pilobolus",
   defaultPresentation: "magazine",
   textFont: 'ui-sans-serif, system-ui, "Plus Jakarta Sans", sans-serif',

@@ -66,13 +66,18 @@ and cloud backends describe the same thing.
 
 ## The configurable name
 
-Editors see one noun for the content item, set per publication:
+Editors see one noun for the content item. The default is **Story**, the word
+a newspaper newsroom uses for a piece it researches and publishes. A
+publication overrides it in its `SiteBrand`, for example a marketing operation
+that publishes posts:
 
 ```ts
-contentItemName: { singular: "Story", plural: "Stories" }
+contentItemName: { singular: "Post", plural: "Posts" }
 ```
 
-It is a required `SiteBrand` field. Every surface that names the content item
+`getContentItemName(brand)` returns the configured name or the Story default.
+This Story is the newsroom content item, not a Kanbus behavior story; nothing
+in Papyrus ties the two together. Every surface that names the content item
 reads it: Newsroom navigation, the Board, Assignment views, operator CLI
 output and agent skills. Stored data, GraphQL models and code paths are
 identical whatever the noun is. Code uses the neutral term *content item*.
@@ -83,7 +88,7 @@ item name.
 
 ## Delivery order
 
-1. **Name and design.** `SiteBrand.contentItemName`, Newsroom navigation reads
+1. **Name and design.** `SiteBrand.contentItemName` with a Story default, Newsroom navigation reads
    it, this document. (First PR.)
 2. **Lineage at creation.** Add `Item.stage` and `Assignment.itemLineageId`
    with indexes. Edition planning, Coverage Theme dispatch and

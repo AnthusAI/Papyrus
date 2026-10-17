@@ -1,5 +1,5 @@
 import { newsroomHref, toPublicNewsroomPath } from "./newsroom-base-path";
-import { SITE_BRAND } from "./site-brand";
+import { getContentItemName } from "./site-brand";
 
 export type NewsroomNavTabId =
   | "overview"
@@ -24,7 +24,7 @@ export type NewsroomNavItem = {
 
 export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
   { id: "overview", label: "Overview", detail: "Desk home", href: newsroomHref(), mobilePrimary: true },
-  { id: "articles", label: SITE_BRAND.contentItemName.plural, detail: "Drafts & published", href: newsroomHref("articles"), mobilePrimary: true },
+  { id: "articles", label: getContentItemName().plural, detail: "Drafts & published", href: newsroomHref("articles"), mobilePrimary: true },
   { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments"), mobilePrimary: true },
   { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references"), mobilePrimary: true },
   { id: "messages", label: "Messages", detail: "Forum", href: newsroomHref("messages") },

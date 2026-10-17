@@ -19,6 +19,7 @@ require("./register-papyrus-aliases.cjs");
 registerTypeScriptRequire();
 
 const {
+  getContentItemName,
   getSiteBrand,
   getRootRoute,
   normalizeSiteBrandId,
@@ -44,7 +45,11 @@ assert.equal(anthus.appTitle, "Anthus");
 assert.equal(anthus.publicationName, "Anthus");
 assert.equal(anthus.mastheadTitle, "Anthus");
 assert.equal(anthus.articleTitleSuffix, "Anthus");
-assert.deepEqual(anthus.contentItemName, { singular: "Story", plural: "Stories" });
+assert.deepEqual(getContentItemName(anthus), { singular: "Story", plural: "Stories" });
+assert.deepEqual(
+  getContentItemName({ ...anthus, contentItemName: { singular: "Post", plural: "Posts" } }),
+  { singular: "Post", plural: "Posts" },
+);
 assert.equal(anthus.placeholderByline, "Ryan Porter");
 assert.match(anthus.appDescription, /self-aligning AI systems/);
 assert.match(anthus.textFont, /Montserrat/);

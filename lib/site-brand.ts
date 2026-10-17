@@ -75,6 +75,8 @@ export type ContentItemName = {
   plural: string;
 };
 
+export const DEFAULT_CONTENT_ITEM_NAME: ContentItemName = { singular: "Story", plural: "Stories" };
+
 export type SiteBrand = {
   id: SiteBrandId;
   appTitle: string;
@@ -88,7 +90,8 @@ export type SiteBrand = {
   mastheadTaglineLines?: SiteBrandTaglineLine[];
   backToHomeLabel: string;
   articleTitleSuffix: string;
-  contentItemName: ContentItemName;
+  /** Defaults to Story / Stories, the newsroom term. */
+  contentItemName?: ContentItemName;
   placeholderByline: string;
   defaultPresentation: EditionPresentationFormat;
   forcedPresentation?: EditionPresentationFormat;
@@ -154,7 +157,6 @@ const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     mastheadSubtitle: "Inside Papyrus",
     backToHomeLabel: "Back to Papyrus",
     articleTitleSuffix: "Papyrus",
-    contentItemName: { singular: "Article", plural: "Articles" },
     placeholderByline: "Papyrus",
     defaultPresentation: "newsprint",
     textFont: SERIF_TEXT_FONT,
@@ -216,6 +218,10 @@ export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand 
 }
 
 export const SITE_BRAND = getSiteBrand();
+
+export function getContentItemName(brand: SiteBrand = SITE_BRAND): ContentItemName {
+  return brand.contentItemName ?? DEFAULT_CONTENT_ITEM_NAME;
+}
 
 /** Root-route config for a brand, defaulting to `{ kind: "reader" }`. */
 export function getRootRoute(brand: SiteBrand = SITE_BRAND): RootRouteConfig {

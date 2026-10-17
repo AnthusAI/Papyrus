@@ -14,7 +14,6 @@ export const threatIntelligenceBrand: SiteBrand = {
   mastheadTagline: "Practical advice for staying secure as the threat landscape shifts.",
   backToHomeLabel: "Back to Threat Intelligence",
   articleTitleSuffix: "Threat Intelligence",
-  contentItemName: { singular: "Article", plural: "Articles" },
   placeholderByline: "Anthus AI Solutions",
   defaultPresentation: "blog",
   forcedPresentation: "blog",
