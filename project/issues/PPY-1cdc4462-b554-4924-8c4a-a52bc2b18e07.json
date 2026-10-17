@@ -1,0 +1,27 @@
+{
+  "id": "PPY-1cdc4462-b554-4924-8c4a-a52bc2b18e07",
+  "title": "Reconcile existing short dependency references so the board validates",
+  "description": "Baseline origin/develop and reconciled board have identical kbs validate failures: missing short dependency target references. Preserve issue identity/history and resolve references through Kanbus in a separately scoped fix. No runtime release blocker is implied. Current reconciliation adds no new validation errors.",
+  "type": "chore",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-16T20:48:13.611637Z",
+  "updated_at": "2026-10-16T20:48:13.611665Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

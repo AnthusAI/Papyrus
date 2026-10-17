@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "e08f11b6-9b0c-428b-adf2-e4ecc8a90c4a",
+  "issue_id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-16T16:16:13.544Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "6a087ddf-fe0f-4921-b09b-172832d84115",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6.1-Sol",
+      "name": "CurationIntegration",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}
