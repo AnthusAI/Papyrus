@@ -589,6 +589,8 @@ def _run_coverage_theme_run(args: argparse.Namespace) -> dict:
         allow_fallback=args.allow_fallback,
         require_agent_success=args.require_agent_success,
         refresh_packets=args.refresh_packets,
+        max_parallel_research=args.max_parallel_research,
+        max_parallel_reporting=args.max_parallel_reporting,
         apply=not args.dry_run,
         selected_optional_desk_key=str(args.selected_optional_desk or "").strip(),
         include_optional_desks=bool(args.include_optional_desks),

@@ -2703,22 +2703,31 @@ def reference_summarize_batch(
     }
 
 
-def list_references_by_corpus(corpus_id: str, limit: int = 1000) -> list[dict[str, Any]]:
+REFERENCE_LIST_PAGE_SIZE = 100
+
+
+def list_references_by_corpus(corpus_id: str, limit: int | None = None) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
-        data = _graphql(LIST_REFERENCES_BY_CORPUS_QUERY, {"corpusId": corpus_id, "limit": min(max(limit - len(records), 1), 100), "nextToken": next_token})
+        data = _graphql(LIST_REFERENCES_BY_CORPUS_QUERY, {"corpusId": corpus_id, "limit": _page_size(limit, len(records)), "nextToken": next_token})
         connection = data.get("listReferencesByCorpusAndExternalItem") or {}
         records.extend(connection.get("items") or [])
         next_token = connection.get("nextToken")
-        if not next_token or len(records) >= limit:
+        if not next_token or (limit is not None and len(records) >= limit):
             break
     return [record for record in records if record.get("versionState") == "current"]
 
 
+def _page_size(limit: int | None, fetched_count: int) -> int:
+    if limit is None:
+        return REFERENCE_LIST_PAGE_SIZE
+    return min(max(limit - fetched_count, 1), REFERENCE_LIST_PAGE_SIZE)
+
+
 def list_references_by_newsroom_feed_imported(
     *,
-    limit: int = 1000,
+    limit: int | None = None,
     corpus_id: str | None = None,
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
@@ -2736,7 +2745,7 @@ def list_references_by_newsroom_feed_imported(
                 {
                     "newsroomFeedKey": "references",
                     "sortDirection": "DESC",
-                    "limit": min(max(limit - len(records), 1), 100),
+                    "limit": _page_size(limit, len(records)),
                     "nextToken": next_token,
                     "filter": filter_input,
                 },
@@ -2744,7 +2753,7 @@ def list_references_by_newsroom_feed_imported(
             connection = data.get("listReferencesByNewsroomFeedAndImportedAt") or {}
             records.extend(connection.get("items") or [])
             next_token = connection.get("nextToken")
-            if not next_token or len(records) >= limit:
+            if not next_token or (limit is not None and len(records) >= limit):
                 break
     except Exception as exc:
         message = str(exc)
