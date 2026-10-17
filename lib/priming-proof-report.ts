@@ -41,6 +41,7 @@ export const primingProofReportSchema = z.object({
     acceptedExamples: z.number().int().min(0),
     excludedBecauseInHeldOut: z.number().int().min(0),
     fingerprint: z.string().nullable(),
+    source: z.string().min(1),
     order: z.string().min(1),
   }),
   conditions: z.object({

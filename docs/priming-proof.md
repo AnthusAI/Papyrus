@@ -18,10 +18,16 @@ positive label (`include`, shown to editors as publish) are reported beside it.
   answer scores 50%. Selection is deterministic: references are ranked by
   `sha256(proofId, lineageId)`. The set is frozen once per proof id, carries a
   fingerprint over its items and labels, and is never regenerated. A new set
-  needs a new proof id. Default size 40, at least 5 per label.
-- **Labels (N).** Accepted priming examples from the priming catalog: a source
-  URL an editor pasted, reviewed after Papyrus curated it, and labeled publish
-  or reject with an optional explanation. They are used in acceptance order.
+  needs a new proof id. Default size 40, at least 5 per label. Held-out items
+  use the operational projection without the editor's review note, which would
+  otherwise give the label away.
+- **Labels (N).** `--teach-from` picks the source. `reviews` is the teaching
+  pool frozen with the held-out set: every other labeled review, in review
+  order, with the editor's note as its explanation. `catalog` is the accepted
+  priming examples: a source URL an editor pasted, reviewed after Papyrus
+  curated it, and labeled with an optional explanation, in acceptance order.
+  `both` uses reviews first, then the catalog. The catalog's classifier must
+  match `relevanceCyclotron` exactly (id, question, include/exclude labels).
   An example whose item id or source URL is in the held-out set is dropped and
   counted in the report (`excludedBecauseInHeldOut`), so a held-out source can
   never teach the classifier.
@@ -46,14 +52,18 @@ The run calls the decision model, so it runs where the provider key is
 poetry run papyrus references freeze-priming-held-out --proof-id ti-2026-10 \
   --output .papyrus-runs/proofs/ti-2026-10.held-out.json --size 40
 
-# After editors have accepted priming examples. One decision-model call per held-out source per point.
+# One decision-model call per held-out source per point.
 poetry run papyrus references prove-priming --held-out .papyrus-runs/proofs/ti-2026-10.held-out.json \
-  --catalog <priming examples.sqlite3> --list-id <list id> \
+  --teach-from reviews --output .papyrus-runs/proofs/ti-2026-10.reviews.report.json
+
+# With pasted examples too (--teach-from catalog for pasted examples alone).
+poetry run papyrus references prove-priming --held-out .papyrus-runs/proofs/ti-2026-10.held-out.json \
+  --teach-from both --catalog <priming examples.sqlite3> --list-id <list id> \
   --classifiers '[{"id":"relevant","revision":1}]' \
   --output .papyrus-runs/proofs/ti-2026-10.report.json
 ```
 
-Keep the held-out file private: it holds source titles and URLs. Cost is
+Keep the held-out file private: it holds source titles, URLs and editor notes. Cost is
 `held-out size x number of points` decision calls (200 for the defaults).
 
 ## Where visitors see it

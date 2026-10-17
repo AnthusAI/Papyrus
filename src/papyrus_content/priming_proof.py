@@ -8,9 +8,11 @@ A proof has two fixed parts and one variable:
   50% agreement. It is frozen once per proof id and never regenerated.
 - The conditions are fixed: the configured decision model, the publication
   doctrine as the only rubric, no optimizer and no review program.
-- The variable is N, the number of accepted priming examples (pasted URLs an
-  editor labeled publish or reject) the classifier sees as training context, in
-  acceptance order.
+- The variable is N, the number of editor labels the classifier sees as
+  training context. Labels come from the teaching pool (the reviewed References
+  not in the held-out set, in review order), from accepted priming examples
+  (pasted URLs an editor labeled, in acceptance order), or from both, reviews
+  first.
 
 Each point of the curve opens a fresh store with only the first N examples and
 decides every held-out item once. The report holds aggregate numbers only: no
@@ -45,7 +47,7 @@ def held_out_selection_rank(proof_id: str, lineage_id: str) -> str:
 def held_out_set_fingerprint(held_out_set: Mapping[str, Any]) -> str:
     fingerprinted_fields = {key: held_out_set[key] for key in
                             ("version", "proofId", "cyclotronId", "classifierId", "question", "labels",
-                             "positiveLabel", "items")}
+                             "positiveLabel", "items", "teachingPool")}
     return hashlib.sha256(canonical_json(fingerprinted_fields).encode()).hexdigest()
 
 
@@ -59,9 +61,7 @@ def verify_held_out_set(held_out_set: Mapping[str, Any]) -> None:
 def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[str, Any], str]], *, plan,
                         proof_id: str, size: int = DEFAULT_HELD_OUT_SIZE,
                         frozen_at: str | None = None) -> dict[str, Any]:
-    """A balanced, deterministic held-out set from (reference, editor label) pairs."""
-    from .relevance_sweep import reference_item
-
+    """A balanced, deterministic held-out set and the teaching pool of every other labeled review."""
     classifier = plan.definition.classifiers[0]
     if size < 2 * MINIMUM_HELD_OUT_ITEMS_PER_LABEL or size % 2:
         raise ValueError(f"The held-out size must be an even number of at least {2 * MINIMUM_HELD_OUT_ITEMS_PER_LABEL}.")
@@ -70,9 +70,11 @@ def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[
     for reference, label in reviewed_references_with_labels:
         if label not in candidates_by_label:
             continue
-        item = reference_item(reference)
+        item = reviewed_reference_item_without_the_editor_note(reference)
         candidates_by_label[label].append((held_out_selection_rank(proof_id, item.id),
-                                           {"id": item.id, "label": label, "values": dict(item.values)}))
+                                           {"id": item.id, "label": label, "values": dict(item.values),
+                                            "reviewedAt": str(reference.get("curationStatusUpdatedAt") or ""),
+                                            "explanation": str(reference.get("curationStatusReason") or "").strip()}))
     shortfalls = {label: len(candidates) for label, candidates in candidates_by_label.items()
                   if len(candidates) < items_per_label}
     if shortfalls:
@@ -82,6 +84,10 @@ def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[
     selected_items = [item for label in classifier.labels
                       for _, item in sorted(candidates_by_label[label], key=lambda pair: pair[0])[:items_per_label]]
     selected_items.sort(key=lambda item: held_out_selection_rank(proof_id, item["id"]))
+    selected_ids = {item["id"] for item in selected_items}
+    teaching_pool = sorted((item for candidates in candidates_by_label.values() for _, item in candidates
+                            if item["id"] not in selected_ids),
+                           key=lambda item: (item["reviewedAt"], held_out_selection_rank(proof_id, item["id"])))
     held_out_set = {
         "version": HELD_OUT_SET_VERSION,
         "proofId": proof_id,
@@ -92,10 +98,27 @@ def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[
         "positiveLabel": classifier.positive_label,
         "frozenAt": frozen_at or _now(),
         "selection": "balanced; editor-reviewed References ranked by sha256(proofId, lineageId)",
-        "items": selected_items,
+        "items": [{key: item[key] for key in ("id", "label", "values")} for item in selected_items],
+        "teachingPool": teaching_pool,
     }
     held_out_set["fingerprint"] = held_out_set_fingerprint(held_out_set)
     return held_out_set
+
+
+def reviewed_reference_item_without_the_editor_note(reference: Mapping[str, Any]):
+    """The operational projection of a reviewed Reference, without the review note that would leak its label."""
+    from .relevance_sweep import reference_item
+
+    return reference_item({**reference, "curationStatusReason": None})
+
+
+def teaching_examples_from_reviews(held_out_set: Mapping[str, Any]) -> list[Any]:
+    """The teaching pool as priming examples, in review order, each with the editor's note when there is one."""
+    from decision_flywheel import Item, LabeledItem
+
+    return [LabeledItem(Item(item["id"], item["values"]), item["label"],
+                        context={"human_feedback": item["explanation"]} if item["explanation"] else {})
+            for item in held_out_set["teachingPool"]]
 
 
 def reviewed_references_with_editor_labels(client, steering_config: Mapping[str, Any], plan) -> list[tuple[dict, str]]:
@@ -149,6 +172,7 @@ def priming_examples_outside_held_out_set(priming_examples: Sequence[Any],
 def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples: Sequence[Any], model,
                       label_schedule: Sequence[int] = DEFAULT_LABEL_SCHEDULE, publication: str,
                       priming_fingerprint: str | None = None, model_identity: str | None = None,
+                      teaching_source: str = "accepted priming examples",
                       ran_at: str | None = None,
                       on_point: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
     """Decide the held-out set once per scheduled N in a fresh store primed with the first N examples."""
@@ -207,7 +231,8 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
             "acceptedExamples": len(priming_examples),
             "excludedBecauseInHeldOut": examples_overlapping_held_out,
             "fingerprint": priming_fingerprint,
-            "order": "acceptance order",
+            "source": teaching_source,
+            "order": "reviews in review order, then priming examples in acceptance order",
         },
         "conditions": {
             "freshStorePerPoint": True,
@@ -259,33 +284,65 @@ def references_freeze_priming_held_out(flags: list[str]) -> None:
           f"{held_out_set['fingerprint']}")
 
 
+TEACHING_SOURCES = {"reviews": "editor reviews of References", "catalog": "accepted priming examples",
+                    "both": "editor reviews of References, then accepted priming examples"}
+
+
 def references_prove_priming(flags: list[str]) -> None:
-    """papyrus references prove-priming --held-out <held-out.json> --catalog <examples.sqlite3>
-    --list-id <id> --classifiers '<json>' --output <report.json> [--schedule 0,5,10,20,40]
-    [--config <steering.yml>] [--doctrine <doctrine.yml>]
+    """papyrus references prove-priming --held-out <held-out.json> --teach-from reviews|catalog|both
+    --output <report.json> [--catalog <examples.sqlite3> --list-id <id> --classifiers '<json>']
+    [--schedule 0,5,10,20,40] [--config <steering.yml>] [--doctrine <doctrine.yml>]
 
-    Calls the configured decision model once per held-out item per scheduled N
-    (the key comes from the environment). Writes the aggregate report only.
+    ``reviews`` teaches from the frozen teaching pool; ``catalog`` from the
+    accepted priming examples; ``both`` from reviews first. Calls the configured
+    decision model once per held-out item per scheduled N (the key comes from
+    the environment). Writes the aggregate report only.
     """
-    from decision_flywheel.priming import PrimingService
-    from decision_flywheel.web_store import WebStore
-
     from .newsroom_doctrine import load_publication_doctrine_seed
     from .options import parse_options
-    from .priming_bootstrap import AcceptedPrimingSnapshot
     from .relevance_cyclotron import build_relevance_cyclotron, decision_model_from_environment, decision_model_identity
     from .steering import require_steering_config
 
     options = parse_options(flags)
-    required_options = ("held-out", "catalog", "list-id", "classifiers", "output")
+    teaching_source = options.get("teach-from")
+    if teaching_source not in TEACHING_SOURCES:
+        raise ValueError("references prove-priming requires --teach-from reviews, catalog or both.")
+    required_options = ["held-out", "output"] + (["catalog", "list-id", "classifiers"] if teaching_source != "reviews" else [])
     missing_options = [name for name in required_options if not isinstance(options.get(name), str)]
     if missing_options:
         raise ValueError("references prove-priming requires " + ", ".join(f"--{name}" for name in missing_options) + ".")
     steering_config = require_steering_config(options.get("config"))
     plan = build_relevance_cyclotron(steering_config, load_publication_doctrine_seed(options.get("doctrine"))["doctrine"])
     held_out_set = json.loads(Path(options["held-out"]).read_text(encoding="utf-8"))
+    verify_held_out_set(held_out_set)
     label_schedule = ([int(part) for part in options["schedule"].split(",")] if isinstance(options.get("schedule"), str)
                       else list(DEFAULT_LABEL_SCHEDULE))
+    teaching_examples = teaching_examples_from_reviews(held_out_set) if teaching_source != "catalog" else []
+    catalog_fingerprint = None
+    if teaching_source != "reviews":
+        catalog_examples, catalog_fingerprint = accepted_catalog_examples(options, plan)
+        teaching_examples += catalog_examples
+
+    def print_point(point: dict[str, Any]) -> None:
+        print(f"references\tprove-priming\tlabels\t{point['labels']}\tagreement\t{point['agreement']}\t"
+              f"precision\t{point['precision']}\trecall\t{point['recall']}")
+
+    report = run_priming_proof(held_out_set, plan=plan, priming_examples=teaching_examples,
+                               model=decision_model_from_environment(plan), label_schedule=label_schedule,
+                               publication=steering_config["publication"]["name"],
+                               priming_fingerprint=catalog_fingerprint, teaching_source=TEACHING_SOURCES[teaching_source],
+                               model_identity=decision_model_identity(plan), on_point=print_point)
+    Path(options["output"]).parent.mkdir(parents=True, exist_ok=True)
+    Path(options["output"]).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"references\tprove-priming\t{options['output']}")
+
+
+def accepted_catalog_examples(options: Mapping[str, Any], plan) -> tuple[list[Any], str]:
+    from decision_flywheel.priming import PrimingService
+    from decision_flywheel.web_store import WebStore
+
+    from .priming_bootstrap import AcceptedPrimingSnapshot
+
     priming_service = PrimingService(WebStore(options["catalog"]))
     try:
         snapshot = AcceptedPrimingSnapshot.capture(priming_service, list_id=options["list-id"],
@@ -293,17 +350,4 @@ def references_prove_priming(flags: list[str]) -> None:
                                                    definition=plan.definition)
     finally:
         priming_service.close()
-    priming_examples = snapshot.for_definition(plan.definition)[plan.definition.classifiers[0].id]
-
-    def print_point(point: dict[str, Any]) -> None:
-        print(f"references\tprove-priming\tlabels\t{point['labels']}\tagreement\t{point['agreement']}\t"
-              f"precision\t{point['precision']}\trecall\t{point['recall']}")
-
-    report = run_priming_proof(held_out_set, plan=plan, priming_examples=priming_examples,
-                               model=decision_model_from_environment(plan), label_schedule=label_schedule,
-                               publication=steering_config["publication"]["name"],
-                               priming_fingerprint=snapshot.fingerprint,
-                               model_identity=decision_model_identity(plan), on_point=print_point)
-    Path(options["output"]).parent.mkdir(parents=True, exist_ok=True)
-    Path(options["output"]).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"references\tprove-priming\t{options['output']}")
+    return list(snapshot.for_definition(plan.definition)[plan.definition.classifiers[0].id]), snapshot.fingerprint
