@@ -1,12 +1,12 @@
 import type { KanbanConfig, KanbanIssue } from "@kanbus/ui";
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
 import {
-  CONTENT_ITEM_STAGES,
+  contentItemStageKeys,
   contentItemStageLabel,
   latestVersionPerContentItem,
   type ContentItemVersionRecord,
 } from "./content-item-lifecycle";
-import { getContentItemName } from "./site-brand";
+import { getContentItemName, getContentItemStageDefinitions } from "./site-brand";
 
 export type NativeBoardKind = "contentItem" | "reference" | "assignment";
 export interface NativeBoardIssue extends KanbanIssue {
@@ -71,10 +71,13 @@ export function projectNewsroomBoard(records: {
   ];
 }
 
-export function contentItemColumnOrder(stagesPresentOnBoard: readonly string[]): string[] {
-  const lastStage = CONTENT_ITEM_STAGES[CONTENT_ITEM_STAGES.length - 1];
-  const unrecognizedStages = [...new Set(stagesPresentOnBoard)].filter(stage => !(CONTENT_ITEM_STAGES as readonly string[]).includes(stage));
-  return [...CONTENT_ITEM_STAGES.filter(stage => stage !== lastStage), ...unrecognizedStages, lastStage];
+export function contentItemColumnOrder(
+  stagesPresentOnBoard: readonly string[],
+  stageKeys: readonly string[] = contentItemStageKeys(getContentItemStageDefinitions()),
+): string[] {
+  const lastStage = stageKeys[stageKeys.length - 1];
+  const unrecognizedStages = [...new Set(stagesPresentOnBoard)].filter(stage => !stageKeys.includes(stage));
+  return [...stageKeys.filter(stage => stage !== lastStage), ...unrecognizedStages, lastStage];
 }
 
 /** Content items read left to right through the lifecycle with the final stage last; other record kinds follow it. */
@@ -82,7 +85,7 @@ export function newsroomBoardConfig(issues: readonly NativeBoardIssue[]): Kanban
   const contentItemType = contentItemBoardType();
   const kinds: NativeBoardKind[] = ["contentItem", "reference", "assignment"];
   const contentItemStatuses = contentItemColumnOrder(issues.filter(issue => issue.kind === "contentItem").map(issue => issue.nativeStatus))
-    .map(stage => ({ key: `${contentItemType}/${stage}`, name: contentItemStageLabel(stage), category: "native" }));
+    .map(stage => ({ key: `${contentItemType}/${stage}`, name: contentItemStageLabel(stage, getContentItemStageDefinitions()), category: "native" }));
   const otherStatuses = [...new Set(issues.filter(issue => issue.kind !== "contentItem").map(issue => issue.status))]
     .map(key => ({ key, name: key.replace("/", " · "), category: "native" }));
   const statuses = [...contentItemStatuses, ...otherStatuses];

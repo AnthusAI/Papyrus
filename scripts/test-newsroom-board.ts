@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { canReadNewsroomBoard, contentItemBoardType, contentItemColumnOrder, newsroomBoardConfig, projectNewsroomBoard } from "../lib/newsroom-board";
-import { CONTENT_ITEM_STAGES } from "../lib/content-item-lifecycle";
+import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS, contentItemStageKeys } from "../lib/content-item-lifecycle";
 import { getContentItemName } from "../lib/site-brand";
 
 const contentItemType = contentItemBoardType();
@@ -38,13 +38,14 @@ assert.equal(issues.find(issue => issue.kind === "assignment")?.nativeStatus, "w
 const config = newsroomBoardConfig(issues);
 assert.deepEqual(
   config.statuses.filter(status => status.key.startsWith(`${contentItemType}/`)).map(status => status.key),
-  CONTENT_ITEM_STAGES.map(stage => `${contentItemType}/${stage}`),
+  contentItemStageKeys(DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS).map(stage => `${contentItemType}/${stage}`),
   "every lifecycle stage is a column, in order",
 );
 assert(config.statuses.some(status => status.key === "assignment/waiting-for-review"), "unknown native stages stay visible");
 const lastContentItemColumnIndex = config.statuses.map(status => status.key).lastIndexOf(`${contentItemType}/published`);
 assert(config.statuses.slice(0, lastContentItemColumnIndex + 1).every(status => status.key.startsWith(`${contentItemType}/`)), "other record kinds come after the story columns");
 assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["idea", "assignment", "research", "report", "editor_select", "copywriting", "illustration", "typesetting", "draft", "published"], "an unrecognized stage never lands to the right of the final stage");
+assert.deepEqual(contentItemColumnOrder(["draft", "done"], ["pitch", "write", "done"]), ["pitch", "write", "draft", "done"], "a publication can define its own stages and the last one stays rightmost");
 assert.deepEqual(config.hierarchy, []);
 assert.equal(canReadNewsroomBoard("ready"), true);
 for (const phase of [undefined, "signedOut", "forbidden", "error", "checkingAccess", "loadingDesk", "refreshing"]) assert.equal(canReadNewsroomBoard(phase), false);
