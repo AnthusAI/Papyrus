@@ -1,0 +1,321 @@
+import assert from "node:assert/strict";
+import { App, SecretValue, Stack } from "aws-cdk-lib";
+import { Template } from "aws-cdk-lib/assertions";
+import { UserPool, UserPoolIdentityProviderGoogle } from "aws-cdk-lib/aws-cognito";
+import { NextRequest } from "next/server";
+import {
+  PROSPECTUS_SIGN_IN_CALLBACK_PATH,
+  addProspectusGoogleOnlyClient,
+  prospectusSignInCallbackUrls,
+  prospectusSignInLogoutUrls,
+} from "../amplify/auth/prospectus-google-client";
+import {
+  PROSPECTUS_PENDING_SIGN_IN_COOKIE,
+  PROSPECTUS_SESSION_COOKIE,
+  googleOnlyCognitoClientFromOutputs,
+  loadProspectusSessionSealingSecret,
+  openProspectusCookie,
+  regionOfProspectusAccountsEndpoint,
+  resetProspectusSessionSecretCache,
+  resolveProspectusSignInRuntime,
+  sameSiteReturnPath,
+  sealProspectusCookie,
+  type ProspectusSignInRuntime,
+} from "../lib/prospectus-session";
+import {
+  handleProspectusSessionRead,
+  handleProspectusSignInCallback,
+  handleProspectusSignInStart,
+  handleProspectusSignOut,
+  type ProspectusSignInRouteOptions,
+} from "../lib/prospectus-sign-in-routes";
+import { ProspectusAccountsError, ProspectusSiteAccounts, type ProspectusRequest } from "../lib/prospectus-site-identity";
+
+const sealingSecret = "synthetic-sealing-secret-0123456789abcdefghijklmnopqrstuvwxyz";
+const siteOrigin = "https://p.apyr.us";
+const amplifyOutputs = {
+  auth: { user_pool_id: "us-east-1_Synthetic", oauth: { domain: "papyrus-p-apyr-us.auth.us-east-1.amazoncognito.com" } },
+  custom: { prospectusSignIn: { clientId: "googleonlyclient", callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH } },
+};
+const cognitoClient = googleOnlyCognitoClientFromOutputs(amplifyOutputs, siteOrigin)!;
+const nowInSeconds = 1_000;
+
+function prospectusRuntime(responses: Record<string, unknown>) {
+  const requests: ProspectusRequest[] = [];
+  const runtime: ProspectusSignInRuntime = {
+    accounts: new ProspectusSiteAccounts(async (request) => {
+      requests.push(request);
+      const response = responses[`${request.method} ${request.path}`];
+      if (response instanceof Error) throw response;
+      if (response === undefined) throw new Error(`unexpected ${request.method} ${request.path}`);
+      return response;
+    }),
+    cognitoClient,
+    sealingSecret,
+  };
+  return { runtime, requests };
+}
+
+function routeOptions(runtime: ProspectusSignInRuntime | null, extra: Partial<ProspectusSignInRouteOptions> = {}): ProspectusSignInRouteOptions {
+  return { resolveRuntime: async () => runtime, nowInSeconds: () => nowInSeconds, ...extra };
+}
+
+function cognitoTokenEndpoint(tokenBody: Record<string, unknown>) {
+  return (async () => new Response(JSON.stringify(tokenBody), { status: 200 })) as unknown as typeof fetch;
+}
+
+function browserRequest(path: string, cookies: Record<string, string> = {}, method = "GET"): NextRequest {
+  const cookieHeader = Object.entries(cookies).map(([name, value]) => `${name}=${value}`).join("; ");
+  return new NextRequest(new URL(path, siteOrigin), { method, headers: cookieHeader ? { cookie: cookieHeader } : {} });
+}
+
+function setCookie(response: Response, cookieName: string): string | undefined {
+  return response.headers.getSetCookie().find((header) => header.startsWith(`${cookieName}=`));
+}
+
+function cookieValue(setCookieHeader: string | undefined): string {
+  return decodeURIComponent((setCookieHeader ?? "").split(";")[0].split("=").slice(1).join("="));
+}
+
+function assertCleared(response: Response, cookieName: string, label: string) {
+  const header = setCookie(response, cookieName);
+  assert.ok(header, `${label}: ${cookieName} is cleared`);
+  assert.match(header!, /Max-Age=0/, `${label}: cleared immediately`);
+  assert.match(header!, /Secure/, `${label}: __Host- cookies are cleared with Secure`);
+  assert.match(header!, /Path=\//, `${label}: __Host- cookies are cleared at Path=/`);
+}
+
+function sealedCookieTests() {
+  const sealed = sealProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, { personId: "person-1" }, 2_000);
+  assert.deepEqual(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, sealed, nowInSeconds), { personId: "person-1" });
+  assert.equal(openProspectusCookie(sealingSecret, PROSPECTUS_PENDING_SIGN_IN_COOKIE, sealed, nowInSeconds), null, "a session cookie never opens as a pending sign-in");
+  assert.equal(openProspectusCookie(`${sealingSecret}-other`, PROSPECTUS_SESSION_COOKIE, sealed, nowInSeconds), null, "another site's secret cannot open it");
+  assert.equal(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, sealed, 2_000), null, "expired cookies do not open");
+  const tampered = `${sealed.slice(0, -4)}${sealed.slice(-4) === "AAAA" ? "BBBB" : "AAAA"}`;
+  assert.equal(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, tampered, nowInSeconds), null, "tampered cookies do not open");
+  assert.equal(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, "garbage", nowInSeconds), null);
+  assert.equal(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, undefined, nowInSeconds), null);
+  assert.throws(() => sealProspectusCookie("short", PROSPECTUS_SESSION_COOKIE, {}, 2_000), /too short/);
+}
+
+function returnPathTests() {
+  assert.equal(sameSiteReturnPath("/newsroom/board?view=week#top"), "/newsroom/board?view=week#top");
+  for (const offSite of [null, "", "https://evil.example/", "//evil.example/", "/\\evil.example", "newsroom", "/\tnewsroom"]) {
+    assert.equal(sameSiteReturnPath(offSite), "/", `off-site return path ${JSON.stringify(offSite)} falls back to /`);
+  }
+}
+
+async function configurationTests() {
+  assert.equal(regionOfProspectusAccountsEndpoint("https://abc123defg.execute-api.us-east-1.amazonaws.com/api/"), "us-east-1");
+  assert.throws(() => regionOfProspectusAccountsEndpoint("https://example.com/api/"), /execute-api/);
+  assert.deepEqual(cognitoClient, {
+    hostedUiOrigin: "https://papyrus-p-apyr-us.auth.us-east-1.amazoncognito.com",
+    userPoolId: "us-east-1_Synthetic",
+    clientId: "googleonlyclient",
+    redirectUri: "https://p.apyr.us/api/auth/prospectus/callback",
+  });
+  assert.equal(googleOnlyCognitoClientFromOutputs({ ...amplifyOutputs, custom: { prospectusSignIn: null } }, siteOrigin), null, "no client output means no sign-in");
+  assert.equal(googleOnlyCognitoClientFromOutputs({ custom: amplifyOutputs.custom }, siteOrigin), null, "no hosted UI means no sign-in");
+
+  const configuredEnvironment = {
+    PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/",
+    PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN: "arn:aws:secretsmanager:us-east-1:111111111111:secret:sealing",
+  };
+  const readSecret = async () => sealingSecret;
+  const unusedTransport = async () => ({});
+  resetProspectusSessionSecretCache();
+  assert.ok(await resolveProspectusSignInRuntime(siteOrigin, { environment: configuredEnvironment, amplifyOutputs, readSecret, transport: unusedTransport }));
+  for (const missing of ["PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN"] as const) {
+    resetProspectusSessionSecretCache();
+    const environment = { ...configuredEnvironment, [missing]: "" };
+    assert.equal(await resolveProspectusSignInRuntime(siteOrigin, { environment, amplifyOutputs, readSecret, transport: unusedTransport }), null, `${missing} unset means no sign-in`);
+  }
+  resetProspectusSessionSecretCache();
+  assert.equal(await loadProspectusSessionSealingSecret({ environment: configuredEnvironment, readSecret: async () => "too-short" }), null, "a short secret is refused");
+  resetProspectusSessionSecretCache();
+  assert.equal(
+    await loadProspectusSessionSealingSecret({ environment: configuredEnvironment, readSecret: async () => { throw new Error("AccessDenied"); } }),
+    null,
+    "an unreadable secret means no sign-in",
+  );
+  resetProspectusSessionSecretCache();
+}
+
+async function signInRouteTests() {
+  const unconfiguredStart = await handleProspectusSignInStart(browserRequest("/api/auth/prospectus/sign-in"), routeOptions(null));
+  assert.equal(unconfiguredStart.status, 503);
+  assert.equal(setCookie(unconfiguredStart, PROSPECTUS_PENDING_SIGN_IN_COOKIE), undefined, "an unconfigured site starts nothing");
+
+  const person = { id: "person-1", createdAt: "2026-10-17T00:00:00Z" };
+  const { runtime, requests } = prospectusRuntime({
+    "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 },
+    "POST /v1/identities/google/resolve": { person },
+    "GET /v1/account-directory": {
+      person,
+      accounts: [
+        { id: "account-1", name: "Anthus", role: "owner", products: [{ product: "cyclotron", status: "active" }, { product: "papyrus-p-apyr-us", status: "active" }] },
+      ],
+    },
+  });
+
+  const start = await handleProspectusSignInStart(browserRequest("/api/auth/prospectus/sign-in?returnTo=%2Fnewsroom%2Fboard"), routeOptions(runtime));
+  assert.equal(start.status, 303);
+  const authorization = new URL(start.headers.get("location")!);
+  assert.equal(`${authorization.origin}${authorization.pathname}`, `${cognitoClient.hostedUiOrigin}/oauth2/authorize`);
+  assert.equal(authorization.searchParams.get("identity_provider"), "Google");
+  assert.equal(authorization.searchParams.get("nonce"), "prospectus-nonce");
+  assert.equal(authorization.searchParams.get("redirect_uri"), "https://p.apyr.us/api/auth/prospectus/callback");
+  const pendingHeader = setCookie(start, PROSPECTUS_PENDING_SIGN_IN_COOKIE);
+  assert.ok(pendingHeader, "start seals the pending sign-in into a cookie");
+  for (const attribute of [/HttpOnly/, /Secure/, /SameSite=lax/i, /Path=\//, /Max-Age=300/]) assert.match(pendingHeader!, attribute);
+  const pendingCookie = cookieValue(pendingHeader);
+  assert.equal(pendingCookie.includes("prospectus-nonce"), false, "the pending cookie is sealed, not readable");
+  const state = authorization.searchParams.get("state")!;
+
+  const tokenBody = { access_token: "access-jwt", id_token: "id-jwt", refresh_token: "refresh-jwt", expires_in: 3600 };
+  const verifiedNonces: string[] = [];
+  const completionOverrides = {
+    fetcher: cognitoTokenEndpoint(tokenBody),
+    verifyCognitoTokens: async (_tokens: unknown, expectedNonce: string) => { verifiedNonces.push(expectedNonce); },
+  };
+
+  const forged = await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?code=code-1&state=forged`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
+    routeOptions(runtime, { completionOverrides }),
+  );
+  assert.equal(forged.status, 401);
+  assert.equal((await forged.json()).error, "state_mismatch");
+  assert.equal(setCookie(forged, PROSPECTUS_SESSION_COOKIE), undefined, "a forged state signs no one in");
+  assertCleared(forged, PROSPECTUS_PENDING_SIGN_IN_COOKIE, "forged callback");
+
+  const withoutPending = await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${state}`),
+    routeOptions(runtime, { completionOverrides }),
+  );
+  assert.equal(withoutPending.status, 401);
+  assert.equal((await withoutPending.json()).error, "sign_in_expired", "a callback in another browser is refused");
+
+  const lateCallback = await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${state}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
+    routeOptions(runtime, { completionOverrides, nowInSeconds: () => 1_300 }),
+  );
+  assert.equal((await lateCallback.json()).error, "sign_in_expired", "a callback after the challenge expires is refused");
+
+  const declined = await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?error=access_denied&state=${state}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
+    routeOptions(runtime, { completionOverrides }),
+  );
+  assert.equal((await declined.json()).error, "sign_in_declined");
+
+  const callback = await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${state}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
+    routeOptions(runtime, { completionOverrides }),
+  );
+  assert.equal(callback.status, 303);
+  assert.equal(callback.headers.get("location"), "https://p.apyr.us/newsroom/board", "the person lands where they started");
+  assert.deepEqual(verifiedNonces, ["prospectus-nonce"], "tokens are verified against the challenge nonce");
+  const resolve = requests.find((request) => request.path === "/v1/identities/google/resolve")!;
+  assert.deepEqual(resolve.body, { challengeId: "challenge-1" });
+  assertCleared(callback, PROSPECTUS_PENDING_SIGN_IN_COOKIE, "completed callback");
+  const sessionHeader = setCookie(callback, PROSPECTUS_SESSION_COOKIE);
+  assert.ok(sessionHeader);
+  for (const attribute of [/HttpOnly/, /Secure/, /SameSite=lax/i, /Path=\//, /Max-Age=3600/]) assert.match(sessionHeader!, attribute);
+  const sessionCookie = cookieValue(sessionHeader);
+  for (const secret of ["access-jwt", "id-jwt", "refresh-jwt"]) assert.equal(sessionCookie.includes(secret), false, `${secret} is not readable in the cookie`);
+  assert.deepEqual(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, sessionCookie, nowInSeconds), {
+    personId: "person-1",
+    accessToken: "access-jwt",
+    accessTokenExpiresAt: 4_600,
+  }, "only the access token is kept; the identity and refresh tokens are discarded");
+
+  const signedOutRead = await handleProspectusSessionRead(browserRequest("/api/auth/prospectus/session"), routeOptions(runtime));
+  assert.deepEqual(await signedOutRead.json(), { signedIn: false });
+
+  const sessionRead = await handleProspectusSessionRead(
+    browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }),
+    routeOptions(runtime),
+  );
+  assert.equal(sessionRead.headers.get("cache-control"), "no-store");
+  const sessionBody = await sessionRead.json();
+  assert.equal(sessionBody.signedIn, true);
+  assert.equal(sessionBody.person.id, "person-1");
+  assert.equal(sessionBody.cyclotronLabAccess, true, "Cyclotron Lab access comes from an active cyclotron product on one of the person's accounts");
+  assert.equal(requests.at(-1)?.humanAccessToken, "access-jwt");
+
+  const { runtime: otherPersonRuntime } = prospectusRuntime({ "GET /v1/account-directory": { person: { id: "person-2", createdAt: "" }, accounts: [] } });
+  const mismatched = await handleProspectusSessionRead(
+    browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }),
+    routeOptions(otherPersonRuntime),
+  );
+  assert.deepEqual(await mismatched.json(), { signedIn: false }, "a session Prospectus maps to someone else is dropped");
+  assertCleared(mismatched, PROSPECTUS_SESSION_COOKIE, "mismatched session");
+
+  const { runtime: revokedRuntime } = prospectusRuntime({ "GET /v1/account-directory": new ProspectusAccountsError(401, "invalid_session", "expired") });
+  const revoked = await handleProspectusSessionRead(
+    browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }),
+    routeOptions(revokedRuntime),
+  );
+  assert.deepEqual(await revoked.json(), { signedIn: false });
+  assertCleared(revoked, PROSPECTUS_SESSION_COOKIE, "revoked session");
+
+  const { runtime: noCyclotronRuntime } = prospectusRuntime({
+    "GET /v1/account-directory": { person, accounts: [{ id: "account-2", name: "Reader", role: "member", products: [{ product: "cyclotron", status: "disabled" }] }] },
+  });
+  const noLab = await handleProspectusSessionRead(
+    browserRequest("/api/auth/prospectus/session", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }),
+    routeOptions(noCyclotronRuntime),
+  );
+  assert.equal((await noLab.json()).cyclotronLabAccess, false, "a disabled cyclotron product grants no Lab access");
+
+  const signOut = await handleProspectusSignOut(browserRequest("/api/auth/prospectus/sign-out", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, "POST"), routeOptions(runtime));
+  assert.equal(signOut.status, 303);
+  const logout = new URL(signOut.headers.get("location")!);
+  assert.equal(`${logout.origin}${logout.pathname}`, `${cognitoClient.hostedUiOrigin}/logout`);
+  assert.equal(logout.searchParams.get("client_id"), "googleonlyclient");
+  assert.equal(logout.searchParams.get("logout_uri"), "https://p.apyr.us/");
+  assertCleared(signOut, PROSPECTUS_SESSION_COOKIE, "sign-out");
+}
+
+function googleOnlyClientTests() {
+  const redirectUrls = ["http://localhost:3000/", "https://p.apyr.us/", "https://p.apyr.us/newsroom", "not a url"];
+  assert.deepEqual(prospectusSignInCallbackUrls(redirectUrls), [
+    "http://localhost:3000/api/auth/prospectus/callback",
+    "https://p.apyr.us/api/auth/prospectus/callback",
+  ]);
+  assert.deepEqual(prospectusSignInLogoutUrls(redirectUrls), ["http://localhost:3000/", "https://p.apyr.us/"]);
+
+  const app = new App();
+  const authStack = new Stack(app, "Auth", { env: { account: "111111111111", region: "us-east-1" } });
+  const userPool = new UserPool(authStack, "UserPool");
+  new UserPoolIdentityProviderGoogle(authStack, "Google", { userPool, clientId: "google-client", clientSecretValue: SecretValue.unsafePlainText("google-secret") });
+  addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls);
+  const template = Template.fromStack(authStack);
+  const clients = template.findResources("AWS::Cognito::UserPoolClient");
+  const [clientKey, client] = Object.entries(clients)[0];
+  assert.equal(Object.keys(clients).length, 1);
+  assert.deepEqual(client.Properties.SupportedIdentityProviders, ["Google"], "Google is the only provider");
+  assert.deepEqual(client.Properties.AllowedOAuthFlows, ["code"], "code flow only");
+  assert.deepEqual(client.Properties.ExplicitAuthFlows, ["ALLOW_REFRESH_TOKEN_AUTH"], "no password, SRP or custom auth");
+  assert.equal(client.Properties.GenerateSecret, false);
+  assert.equal(client.Properties.EnableTokenRevocation, true);
+  assert.deepEqual(client.Properties.CallbackURLs, prospectusSignInCallbackUrls(redirectUrls));
+  const googleProviderKey = Object.keys(template.findResources("AWS::Cognito::UserPoolIdentityProvider"))[0];
+  assert.ok(client.DependsOn?.includes(googleProviderKey), "the client waits for the Google provider");
+  assert.deepEqual(template.toJSON().Outputs.ProspectusGoogleOnlyClientId.Value, { Ref: clientKey });
+  assert.ok(template.toJSON().Outputs.ProspectusGoogleOnlyIssuer, "the issuer is published for registration");
+  assert.throws(() => addProspectusGoogleOnlyClient(new Stack(app, "Empty"), userPool, ["not a url"]), /at least one site origin/);
+}
+
+async function main() {
+  sealedCookieTests();
+  returnPathTests();
+  await configurationTests();
+  await signInRouteTests();
+  googleOnlyClientTests();
+  console.log("prospectus sign-in routes: ok");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
