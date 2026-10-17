@@ -1496,7 +1496,7 @@ function solveArticleFrameBlock(
   if (blockSpec.startCursor === "beginning") resetArticleFlow(flow);
   const startCursor = blockSpec.startCursor === "beginning" ? { ...EMPTY_CURSOR } : { ...flow.currentCursor };
   const blockWidth = getBlockWidth(config, blockSpec.span);
-  const label = getArticleFrameLabel(blockSpec, item);
+  const label = getArticleFrameLabel(blockSpec, item, flow);
   const headlineScale = blockSpec.typography?.headlineScale ?? "standard";
   const title = getContinuationTitleMetrics(
     config,
@@ -1663,6 +1663,11 @@ function solveArticleFrameCandidates({
               item,
               article: item,
               pageNumber: pageSpec.pageNumber,
+              jumpTargetPage: textResult.hasMore ? blockSpec.cutPolicy?.jumpTargetPage : undefined,
+              jumpLabel:
+                textResult.hasMore && blockSpec.cutPolicy?.jumpTargetPage
+                  ? formatContinuationJumpLabel(item, blockSpec.cutPolicy.jumpTargetPage)
+                  : undefined,
               label,
               title: item.headline,
               deck: item.deck,
@@ -3432,8 +3437,15 @@ function formatContinuationJumpLabel(article: ArticlePublicationItem, pageNumber
   return `SEE ${getShortSlug(article) ?? "MORE"} ON ${formatSectionPage(pageNumber)}`;
 }
 
-function getArticleFrameLabel(blockSpec: ArticleFrameBlockSpec, article: ArticlePublicationItem): string {
-  return blockSpec.startCursor === "current" ? formatContinuationSourceLabel(article, 1) : article.section;
+function getArticleFrameLabel(blockSpec: ArticleFrameBlockSpec, article: ArticlePublicationItem, flow: ArticleFlow): string {
+  if (blockSpec.startCursor !== "current") return article.section;
+  const previousRange = flow.placedRanges[flow.placedRanges.length - 1];
+  if (!previousRange) throw new Error(`Continuation block ${blockSpec.id} has no earlier text range to continue from`);
+  return formatContinuationSourceLabel(article, getPageNumberFromPageId(previousRange.pageId));
+}
+
+function getPageNumberFromPageId(pageId: string): number {
+  return Number(pageId.replace(/^page-/, ""));
 }
 
 function formatContinuationSourceLabel(article: ArticlePublicationItem, sourcePageNumber: number): string {

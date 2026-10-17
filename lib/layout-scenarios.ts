@@ -1,7 +1,7 @@
 import { type Article, type ArticleVideoAsset, articles, editionDate } from "./articles";
 import type { EditionContent, NewsDeskAppendix } from "./content-types";
 import { createEditionSectionPlan } from "./edition-sections";
-import { createDefaultEditionLayoutPlan, type EditionLayoutPlan } from "./layout-plan";
+import { createDefaultEditionLayoutPlan, type ArticleCutPolicy, type EditionLayoutPlan } from "./layout-plan";
 import { articleToPublicationItem, cloneArticle } from "./publication-items";
 import { PILOBOL_SAMPLE_SCENARIO_ID, createPilobolSampleEditionContent } from "./pilobol-sample";
 import { SITE_BRAND } from "./site-brand";
@@ -17,6 +17,16 @@ type RawLayoutScenario = Omit<LayoutScenario, "sections"> & {
   sections?: LayoutScenario["sections"];
 };
 
+const fixtureCutPoliciesByItemId: Record<string, ArticleCutPolicy> = {
+  "agent-procedure-patterns": { maxBodyLines: 22, jumpTargetPage: 2 },
+  "schools-reading-lab": { maxBodyLines: 16, jumpTargetPage: 3 },
+  "market-hall": { maxBodyLines: 14, jumpTargetPage: 3 },
+};
+
+export function createFixtureEditionLayoutPlan(itemIds: string[]): EditionLayoutPlan {
+  return createDefaultEditionLayoutPlan(itemIds, fixtureCutPoliciesByItemId);
+}
+
 const defaultScenarioSeed = getDefaultScenarioSeed();
 
 const rawLayoutScenarios: RawLayoutScenario[] = [
@@ -27,7 +37,7 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
     editionDate: defaultScenarioSeed.editionDate,
     scenarioId: DEFAULT_LAYOUT_SCENARIO_ID,
     description: defaultScenarioSeed.description,
-    layoutPlan: createDefaultEditionLayoutPlan(defaultScenarioSeed.articles.map((article) => article.slug)),
+    layoutPlan: createFixtureEditionLayoutPlan(defaultScenarioSeed.articles.map((article) => article.slug)),
     items: cloneArticles(defaultScenarioSeed.articles).map(articleToPublicationItem),
     suppressNewsDeskAppendix: defaultScenarioSeed.suppressNewsDeskAppendix,
     editionVideo: defaultScenarioSeed.editionVideo,
@@ -40,7 +50,7 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
     editionDate,
     scenarioId: "blank-edition-title",
     description: "A fixture edition with a blank title used to verify masthead fallback labeling.",
-    layoutPlan: createDefaultEditionLayoutPlan(articles.map((article) => article.slug)),
+    layoutPlan: createFixtureEditionLayoutPlan(articles.map((article) => article.slug)),
     items: cloneArticles(articles).map(articleToPublicationItem),
   },
   {
@@ -51,7 +61,7 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
     scenarioId: "shared-blank-column-pressure",
     description:
       "Shorter shared continuation tails with images and pull quotes, used to prove that empty columns are repaired with solved furniture.",
-    layoutPlan: createDefaultEditionLayoutPlan(articles.map((article) => article.slug)),
+    layoutPlan: createFixtureEditionLayoutPlan(articles.map((article) => article.slug)),
     items: createSharedBlankColumnPressureArticles().map(articleToPublicationItem),
   },
   {
@@ -62,7 +72,7 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
     scenarioId: "shared-continuation-no-pull-quotes",
     description:
       "The shared continuation page with editorial pull quotes removed, used to prove pull quotes are optional display furniture.",
-    layoutPlan: createDefaultEditionLayoutPlan(articles.map((article) => article.slug)),
+    layoutPlan: createFixtureEditionLayoutPlan(articles.map((article) => article.slug)),
     items: createNoPullQuoteArticles().map(articleToPublicationItem),
   },
   {
@@ -106,7 +116,7 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
     scenarioId: "long-image-caption",
     description:
       "A continuation image with a long caption proves image furniture reserves enough rhythm rows for complete caption text.",
-    layoutPlan: createDefaultEditionLayoutPlan(articles.map((article) => article.slug)),
+    layoutPlan: createFixtureEditionLayoutPlan(articles.map((article) => article.slug)),
     items: createLongImageCaptionArticles().map(articleToPublicationItem),
   },
   {
@@ -116,7 +126,7 @@ const rawLayoutScenarios: RawLayoutScenario[] = [
     editionDate,
     scenarioId: "themed-ink-study",
     description: "A raster fixture verifies dark-mode image variant switching in solved newspaper image furniture.",
-    layoutPlan: createDefaultEditionLayoutPlan(articles.map((article) => article.slug)),
+    layoutPlan: createFixtureEditionLayoutPlan(articles.map((article) => article.slug)),
     items: createThemedInkStudyArticles().map(articleToPublicationItem),
   },
   {
@@ -377,7 +387,7 @@ function createHeightPolicyLayoutPlan({
   defaultRows?: number;
   blockShrinkToContent?: boolean;
 }): EditionLayoutPlan {
-  const plan = cloneLayoutPlan(createDefaultEditionLayoutPlan(articles.map((article) => article.slug)));
+  const plan = cloneLayoutPlan(createFixtureEditionLayoutPlan(articles.map((article) => article.slug)));
   const region = findPlanRegion(plan, "harbor-continuation");
   if (region) {
     if (regionShrinkToContent === undefined) {
@@ -472,7 +482,7 @@ function cloneArticles(source: Article[]): Article[] {
 }
 
 function createCompactChromeLayoutPlan(): EditionLayoutPlan {
-  const plan = cloneLayoutPlan(createDefaultEditionLayoutPlan(articles.map((article) => article.slug)));
+  const plan = cloneLayoutPlan(createFixtureEditionLayoutPlan(articles.map((article) => article.slug)));
   const frontPage = plan.pages.find((page) => page.pageNumber === 1);
   const frontBlocks = frontPage?.regions.flatMap((region) => region.blocks) ?? [];
   for (const block of frontBlocks) {
@@ -498,7 +508,7 @@ function createCompactChromeLayoutPlan(): EditionLayoutPlan {
 }
 
 function createFrontBodyDepthLayoutPlan(): EditionLayoutPlan {
-  const plan = cloneLayoutPlan(createDefaultEditionLayoutPlan(articles.map((article) => article.slug)));
+  const plan = cloneLayoutPlan(createFixtureEditionLayoutPlan(articles.map((article) => article.slug)));
   for (const blockId of ["front-agent-procedure-patterns", "front-schools-reading-lab", "front-market-hall"]) {
     const block = findPlanBlock(plan, blockId);
     if (block?.type !== "articleFrame") continue;
@@ -511,7 +521,7 @@ function createFrontBodyDepthLayoutPlan(): EditionLayoutPlan {
 }
 
 function createFurnitureSufficiencyLayoutPlan(): EditionLayoutPlan {
-  const plan = cloneLayoutPlan(createDefaultEditionLayoutPlan(articles.map((article) => article.slug)));
+  const plan = cloneLayoutPlan(createFixtureEditionLayoutPlan(articles.map((article) => article.slug)));
   const frontSchoolsBlock = findPlanBlock(plan, "front-schools-reading-lab");
   if (frontSchoolsBlock?.type === "articleFrame") {
     frontSchoolsBlock.cutPolicy = { maxBodyLines: 4, jumpTargetPage: 3 };

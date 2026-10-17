@@ -11,14 +11,13 @@ class FixedWidthOffscreenCanvas {
 (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas = FixedWidthOffscreenCanvas;
 
 import { articles } from "../lib/articles";
-import { createDefaultEditionLayoutPlan, normalizeEditionLayoutPlan, type EditionLayoutPlan } from "../lib/layout-plan";
-import { layoutScenarios } from "../lib/layout-scenarios";
+import { normalizeEditionLayoutPlan, validateEditionLayoutPlanForItems, type EditionLayoutPlan } from "../lib/layout-plan";
+import { createFixtureEditionLayoutPlan, layoutScenarios } from "../lib/layout-scenarios";
 import { buildNewspaperLayout, type NewspaperLayout, type PlacedTextRange } from "../lib/newspaper-layout";
 import { articleToPublicationItem, type PublicationItem } from "../lib/publication-items";
 
 const PAGE_WIDTHS = [1280, 640, 390];
 const VIEWPORT_HEIGHT = 900;
-const TWO_HOP_LABEL_ISSUE = "PPY-be0edc";
 const UNTERMINATED_TEASER_ISSUE = "PPY-dfaabb";
 const KNOWN_UNTERMINATED_ARTICLE_IDS = new Set(["river-court", "night-trains", "climate-ledger"]);
 
@@ -136,7 +135,7 @@ function createFixtureItems(): PublicationItem[] {
 }
 
 function createFixturePlan(): EditionLayoutPlan {
-  return normalizeEditionLayoutPlan(cloneJson(createDefaultEditionLayoutPlan(articles.map((article) => article.slug))));
+  return normalizeEditionLayoutPlan(cloneJson(createFixtureEditionLayoutPlan(articles.map((article) => article.slug))));
 }
 
 function createTwoHopPlan(): EditionLayoutPlan {
@@ -216,25 +215,29 @@ for (const knownId of KNOWN_UNTERMINATED_ARTICLE_IDS) {
 }
 console.log(`known unterminated teasers until ${UNTERMINATED_TEASER_ISSUE} lands: ${[...observedUnterminatedIds].join(", ")}`);
 
-let twoHopFailure: Error | undefined;
 for (const pageWidth of PAGE_WIDTHS) {
   const items = createFixtureItems();
   const plan = createTwoHopPlan();
   const context = `two-hop@${pageWidth}`;
   const layout = buildNewspaperLayout(items, pageWidth, VIEWPORT_HEIGHT, plan);
   assertCursorContinuity(context, layout, plan.pages.length);
-  try {
-    assertContinuationHeading(context, layout, items, "agent-procedure-patterns", "agent-procedure-patterns-page-2");
-    assertContinuationHeading(context, layout, items, "agent-procedure-patterns", "agent-procedure-patterns-page-3");
-  } catch (error) {
-    twoHopFailure = error as Error;
-  }
+  assertContinuationHeading(context, layout, items, "agent-procedure-patterns", "agent-procedure-patterns-page-2");
+  assertContinuationHeading(context, layout, items, "agent-procedure-patterns", "agent-procedure-patterns-page-3");
 }
 
-if (twoHopFailure) {
-  console.log(`known failure until ${TWO_HOP_LABEL_ISSUE} lands: ${twoHopFailure.message}`);
-} else {
-  assert.fail(`two-hop continuation headings now pass; remove the known-failure guard for ${TWO_HOP_LABEL_ISSUE}`);
+{
+  const items = createFixtureItems();
+  validateEditionLayoutPlanForItems(createFixturePlan(), items);
+  const planAdvertisingPageWithoutContinuation = createFixturePlan();
+  const frontBlock = planAdvertisingPageWithoutContinuation.pages[0].regions
+    .flatMap((region) => region.blocks)
+    .find((block) => block.id === "front-river-court");
+  assert.ok(frontBlock?.type === "articleFrame");
+  frontBlock.cutPolicy = { maxBodyLines: 8, jumpTargetPage: 2 };
+  assert.throws(
+    () => validateEditionLayoutPlanForItems(planAdvertisingPageWithoutContinuation, items),
+    /advertises page 2 but that page has no startCursor "current" frame for flow river-court/,
+  );
 }
 
 console.log("newspaper layout cursor continuity ok");
