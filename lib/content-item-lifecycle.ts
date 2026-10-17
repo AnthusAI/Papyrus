@@ -1,36 +1,35 @@
 /**
  * One content item, one lifecycle: the stages an Item lineage moves through.
- * Mirrors CONTENT_ITEM_STAGES in src/papyrus_content/content_item_lifecycle.py.
+ * The default stages mirror CONTENT_ITEM_STAGES in src/papyrus_content/content_item_lifecycle.py;
+ * a publication overrides them with SiteBrand.contentItemStages.
  * See docs/content-item-lifecycle.md.
  */
-export const CONTENT_ITEM_STAGES = [
-  "idea",
-  "assignment",
-  "research",
-  "report",
-  "editor_select",
-  "copywriting",
-  "illustration",
-  "typesetting",
-  "published",
-] as const;
-
-export type ContentItemStage = (typeof CONTENT_ITEM_STAGES)[number];
-
-const CONTENT_ITEM_STAGE_LABELS: Record<ContentItemStage, string> = {
-  idea: "Idea",
-  assignment: "Assignment",
-  research: "Research",
-  report: "Report",
-  editor_select: "Editor select",
-  copywriting: "Copywriting",
-  illustration: "Illustration",
-  typesetting: "Typesetting",
-  published: "Published",
+export type ContentItemStageDefinition = {
+  key: string;
+  label: string;
 };
 
-export function contentItemStageLabel(stage: string): string {
-  return (CONTENT_ITEM_STAGE_LABELS as Record<string, string>)[stage] ?? stage;
+export const DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS: readonly ContentItemStageDefinition[] = [
+  { key: "idea", label: "Idea" },
+  { key: "assignment", label: "Assignment" },
+  { key: "research", label: "Research" },
+  { key: "report", label: "Report" },
+  { key: "editor_select", label: "Editor select" },
+  { key: "copywriting", label: "Copywriting" },
+  { key: "illustration", label: "Illustration" },
+  { key: "typesetting", label: "Typesetting" },
+  { key: "published", label: "Published" },
+];
+
+export function contentItemStageKeys(stageDefinitions: readonly ContentItemStageDefinition[]): string[] {
+  return stageDefinitions.map(definition => definition.key);
+}
+
+export function contentItemStageLabel(
+  stage: string,
+  stageDefinitions: readonly ContentItemStageDefinition[] = DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS,
+): string {
+  return stageDefinitions.find(definition => definition.key === stage)?.label ?? stage;
 }
 
 export type ContentItemVersionRecord = {

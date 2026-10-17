@@ -39,7 +39,8 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
-import { CONTENT_ITEM_STAGES, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { contentItemStageKeys, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
@@ -2173,7 +2174,7 @@ export async function loadNewsroomContentItemVersions(): Promise<ContentItemVers
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const versionsPerStage = await Promise.all(CONTENT_ITEM_STAGES.map(async (stage) => {
+  const versionsPerStage = await Promise.all(contentItemStageKeys(getContentItemStageDefinitions()).map(async (stage) => {
     const versions: ContentItemVersionRecord[] = [];
     let nextToken: string | null = null;
     do {

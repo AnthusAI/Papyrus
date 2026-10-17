@@ -5,6 +5,7 @@ import type { BlogPageBackgroundProps } from "../components/blog-page-background
 import type { SiteBrandFont } from "./brand-fonts";
 import type { PictogramFigureProps } from "../components/pictogram-figure";
 import papyrusSite from "papyrus-site";
+import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS, type ContentItemStageDefinition } from "./content-item-lifecycle";
 import {
   DEFAULT_THEME_PACK_TOKENS,
   type HostingConfig,
@@ -92,6 +93,8 @@ export type SiteBrand = {
   articleTitleSuffix: string;
   /** Defaults to Story / Stories, the newsroom term. */
   contentItemName?: ContentItemName;
+  /** The lifecycle stages in board order, last one being publication. Defaults to the standard newsroom lifecycle. */
+  contentItemStages?: readonly ContentItemStageDefinition[];
   placeholderByline: string;
   defaultPresentation: EditionPresentationFormat;
   forcedPresentation?: EditionPresentationFormat;
@@ -221,6 +224,10 @@ export const SITE_BRAND = getSiteBrand();
 
 export function getContentItemName(brand: SiteBrand = SITE_BRAND): ContentItemName {
   return brand.contentItemName ?? DEFAULT_CONTENT_ITEM_NAME;
+}
+
+export function getContentItemStageDefinitions(brand: SiteBrand = SITE_BRAND): readonly ContentItemStageDefinition[] {
+  return brand.contentItemStages?.length ? brand.contentItemStages : DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS;
 }
 
 /** Root-route config for a brand, defaulting to `{ kind: "reader" }`. */
