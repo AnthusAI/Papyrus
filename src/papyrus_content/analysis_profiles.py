@@ -9,14 +9,14 @@ from typing import Any
 import yaml
 
 from .categories_steering import semantic_state_key
-from .env import PAPYRUS_ROOT
+from .env import BIBLICUS_ROOT, PAPYRUS_ROOT
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .options import normalize_string, parse_options
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .steering import require_corpus_config
 
+DEFAULT_BIBLICUS_WORKDIR = BIBLICUS_ROOT
 DEFAULT_ANALYSIS_PROFILES_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-analysis-profiles.yml"
-DEFAULT_BIBLICUS_WORKDIR = Path("/Users/ryan/Projects/Biblicus")
 
 VALID_SCOPES = frozenset(
     {

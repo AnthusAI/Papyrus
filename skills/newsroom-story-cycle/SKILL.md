@@ -19,9 +19,9 @@ private context for editors and copywriters.
 
 | Need | Start here |
 | --- | --- |
-| Planning run | [`skills/edition-planning/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/edition-planning/SKILL.md) |
+| Planning run | [`skills/edition-planning/SKILL.md`](../edition-planning/SKILL.md) |
 | Run/review cycle | This skill |
-| Data contract truth | [`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md) |
+| Data contract truth | [`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md) |
 
 ## Domain Model
 
@@ -49,7 +49,7 @@ Forum context defaults for assignment execution:
 - include edition forum threads first when `assignment.editionId` is present;
 - include only same-section forum threads for `(edition, section)` lineage when
   those threads exist (planning no longer creates section-forum kickoffs by
-  default—see [`skills/edition-planning/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/edition-planning/SKILL.md));
+  default—see [`skills/edition-planning/SKILL.md`](../edition-planning/SKILL.md));
 - never leak other sections' threads into the assignment context.
 
 ## Edition forum planning messages
@@ -78,7 +78,7 @@ one shared topic worked through multiple section lenses. The Python
 poetry run papyrus assignments run-story-cycle \
   --date 2026-05-21 \
   --topic "AI in video games" \
-  --category AI-ML-research \
+  --category <corpus-key> \
   --coverage-key coverage.ai-in-video-games \
   --sections culture,methods,business,law \
   --section-budgets culture:2,methods:1,business:1,law:1 \
@@ -94,7 +94,7 @@ not already chosen:
 
 ```bash
 poetry run papyrus knowledge signals trend-report \
-  --corpus-key AI-ML-research \
+  --corpus-key <corpus-key> \
   --topic "AI in video games" \
   --sections culture,methods,business,law \
   --json

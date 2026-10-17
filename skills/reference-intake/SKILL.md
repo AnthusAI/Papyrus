@@ -10,10 +10,10 @@ knowledge-base references, or when debugging why newly processed corpus material
 are not visible in the Newsroom.
 
 After references exist and need budgeted summaries or quality ratings, use
-[`skills/reference-curation-signals/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/reference-curation-signals/SKILL.md).
+[`skills/reference-curation-signals/SKILL.md`](../reference-curation-signals/SKILL.md).
 
 If the source material came from a research agent packet, first use
-[`skills/newsroom-research-workflow/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/newsroom-research-workflow/SKILL.md)
+[`skills/newsroom-research-workflow/SKILL.md`](../newsroom-research-workflow/SKILL.md)
 to inspect the assignment packet. Use `assignments process-proposals` or
 `assignments process-research-now` to turn `proposedReferences` into pending
 reference-intake work; manual catalog construction is now the fallback.
@@ -21,7 +21,7 @@ reference-intake work; manual catalog construction is now the fallback.
 Papyrus owns newsroom visibility, reference metadata, assignments, comments,
 semantic links, and editorial steering state. Biblicus owns corpus ingestion,
 source files, extraction artifacts, classifier artifacts, graph artifacts, and
-reproducible worker commands. Do not edit `/Users/ryan/Projects/Biblicus`
+reproducible worker commands. Do not edit `$BIBLICUS_WORKDIR`
 source from Papyrus.
 
 ## Terminology Contract
@@ -371,7 +371,7 @@ Prefer the full repeatable cycle when the goal is category/reference visibility
 after new corpus work:
 
 ```bash
-export BIBLICUS_WORKDIR="/Users/ryan/Projects/Biblicus"
+export BIBLICUS_WORKDIR="<path-to-biblicus-checkout>"
 poetry run papyrus ops categories run-curation-cycle --config corpora/papyrus-steering.yml
 ```
 

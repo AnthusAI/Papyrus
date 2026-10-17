@@ -12,7 +12,7 @@ should apply editorial doctrine.
 For coding-agent execution details, CLI inspection commands, Message-backed
 research packets, reporting-packet follow-up, and reference-intake work, also
 use
-[`skills/newsroom-research-workflow/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/newsroom-research-workflow/SKILL.md).
+[`skills/newsroom-research-workflow/SKILL.md`](../newsroom-research-workflow/SKILL.md).
 
 Doctrine is private operating guidance. It is not reader-facing content and it
 is not a replacement for evidence.
@@ -136,7 +136,7 @@ flattening them into reader-facing prose. For the current automated-publication
 workflow, include `comparison_findings` and `rubric_assessments` alongside the
 normal packet fields, but derive them from live doctrine plus the current
 section/topic-scope context rather than a hard-coded rubric file. See
-[`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md)
+[`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md)
 for the current section-context contract.
 
 If a packet could become reader-facing later, keep private doctrine and private
