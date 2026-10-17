@@ -2375,12 +2375,7 @@ function getFrontArticleRowHeight(placement: FrontArticlePlacement, config: Layo
 }
 
 function shouldGrowFrontArticleToContent(blockSpec: ArticleFrameBlockSpec): boolean {
-  return Boolean(
-    blockSpec.size?.shrinkToContent &&
-      !blockSpec.cutPolicy?.bodyDepthRows &&
-      !blockSpec.cutPolicy?.maxBodyLines &&
-      !blockSpec.cutPolicy?.jumpTargetPage,
-  );
+  return !blockSpec.cutPolicy?.bodyDepthRows && !blockSpec.cutPolicy?.maxBodyLines && !blockSpec.cutPolicy?.jumpTargetPage;
 }
 
 function getFrontTeaserTextLimit(

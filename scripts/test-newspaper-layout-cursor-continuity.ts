@@ -18,8 +18,6 @@ import { articleToPublicationItem, type PublicationItem } from "../lib/publicati
 
 const PAGE_WIDTHS = [1280, 640, 390];
 const VIEWPORT_HEIGHT = 900;
-const UNTERMINATED_TEASER_ISSUE = "PPY-dfaabb";
-const KNOWN_UNTERMINATED_ARTICLE_IDS = new Set(["river-court", "night-trains", "climate-ledger"]);
 
 const unterminatedArticles: { context: string; articleId: string; message: string }[] = [];
 
@@ -200,20 +198,11 @@ for (const pageWidth of PAGE_WIDTHS) {
   assert.equal(unsluggedBlocks.get("schools-reading-lab-page-3")?.label, "FROM A1", `${context} no shortSlug`);
 }
 
-const unexpectedUnterminated = unterminatedArticles.filter((entry) => !KNOWN_UNTERMINATED_ARTICLE_IDS.has(entry.articleId));
 assert.deepEqual(
-  unexpectedUnterminated.map((entry) => entry.message),
+  unterminatedArticles.map((entry) => entry.message),
   [],
   "articles must end exhausted or with a planned jump",
 );
-const observedUnterminatedIds = new Set(unterminatedArticles.map((entry) => entry.articleId));
-for (const knownId of KNOWN_UNTERMINATED_ARTICLE_IDS) {
-  assert.ok(
-    observedUnterminatedIds.has(knownId),
-    `${knownId} now terminates correctly; remove it from KNOWN_UNTERMINATED_ARTICLE_IDS (${UNTERMINATED_TEASER_ISSUE})`,
-  );
-}
-console.log(`known unterminated teasers until ${UNTERMINATED_TEASER_ISSUE} lands: ${[...observedUnterminatedIds].join(", ")}`);
 
 for (const pageWidth of PAGE_WIDTHS) {
   const items = createFixtureItems();
