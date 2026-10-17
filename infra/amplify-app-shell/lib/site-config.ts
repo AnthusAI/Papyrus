@@ -41,6 +41,7 @@ export type CmsConfig = {
   stagingDomainName?: string;
   stagingDomainPrefix?: string;
   redirects?: CmsRedirect[];
+  prospectusAccountsApiStageArn?: string;
 };
 
 export type AmplifyAppShellSiteConfig = {
@@ -95,7 +96,26 @@ const GITHUB_OWNER_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER"];
+const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT"];
+
+/** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
+export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
+  "GET/v1/identities/me",
+  "POST/v1/identities/google/challenge",
+  "POST/v1/identities/google/resolve",
+  "GET/v1/accounts",
+  "GET/v1/accounts/*",
+  "POST/v1/accounts/*/authorize",
+  "GET/v1/account-directory",
+  "GET/v1/account-directory/*",
+];
+
+export function resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn: string): string {
+  const [, , , region, , apiPath] = prospectusAccountsApiStageArn.split(":");
+  const [apiId, stageName] = apiPath.split("/");
+  return `https://${apiId}.execute-api.${region}.amazonaws.com/${stageName}/`;
+}
 function originOfRedirectUrl(value: string): string {
   try {
     return new URL(value).origin;
@@ -259,7 +279,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects", "stagingPreview"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -288,6 +308,12 @@ function parseCms(value: unknown): CmsConfig {
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     redirects: parseRedirects(cmsRecord.redirects),
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
+    prospectusAccountsApiStageArn: optionalString(
+      cmsRecord.prospectusAccountsApiStageArn,
+      "cms.prospectusAccountsApiStageArn",
+      PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN,
+      "arn:aws:execute-api:<region>:<account>:<api id>/api",
+    ),
   };
 
   const reservedWord = COGNITO_RESERVED_WORDS.find((word) => cms.cognitoDomainPrefix.includes(word));
@@ -296,7 +322,7 @@ function parseCms(value: unknown): CmsConfig {
   }
   for (const key of TEMPLATE_MANAGED_ENVIRONMENT_KEYS) {
     if (key in cms.environment) {
-      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix and the revalidation secret parameter is derived from siteId");
+      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn");
     }
   }
 

@@ -18,7 +18,7 @@ build.
 | Reader app `<siteId>-reader` (`WEB`), `markus-static` only; such a site may omit the `cms` section to get this app alone (no CMS app, roles or `github` section) | Branch `main`; static build from the published content export; catch-all rule `/<*>` -> `/404.html` with status `404-200` (real 404 with the site's `404.html`) |
 | Domains (optional) | CMS `newsroom.<domain>` to `main`, `staging.<domain>` to `staging`, reader apex. Omit `cms.domainName` / `reader.domainName` / `hostedZoneId` to create no `AWS::Amplify::Domain` and use the default `amplifyapp.com` URLs |
 | CMS service role | `AdministratorAccess` (needed by `ampx pipeline-deploy`; documented risk) |
-| Compute role | SSR rendering role for the CMS app |
+| Compute role | SSR rendering role for the CMS app. Its ARN is the `CmsComputeRoleArn` output, which is the `roleArn` of the site's Prospectus registration |
 | Authoring role `<siteId>-papyrus-authoring` | What the Papyrus CLI signs AppSync requests (SigV4) with: `appsync:GraphQL` on Query/Mutation fields, `media/*` and preview object access in the site's storage bucket, Amplify jobs on the site's apps. Trust is the account root. No token exists. See [Authoring role and the CLI](../../docs/site-hosting.md#authoring-role-and-the-cli) |
 | GitHub CI role `<siteId>-github-ci` (when `github` is set) | Assumed by GitHub Actions through OIDC for the listed branches only; the same statements as the authoring role, optional `cloudformation:*` on this stack (`ciCanDeployInfra`). See [CI access without keys](../../docs/site-hosting.md#ci-access-without-keys) |
 | Reader service role | Least privilege: `s3:GetObject` on `amplify-*/media/*` |
@@ -54,6 +54,13 @@ change (see `docs/google-oauth-setup.md`). Google is always on:
 and `https://<staging domain>/` when staging is enabled and has a domain. Without
 a domain the stack appends the app's default `https://main.<app>.amplifyapp.com/`
 (and `https://staging.<app>.amplifyapp.com/`) to the branch variable itself.
+
+Prospectus accounts (optional): set `cms.prospectusAccountsApiStageArn` to the
+Prospectus accounts API stage, `arn:aws:execute-api:<region>:<account>:<api id>/api`,
+once the site is registered in Prospectus `accounts/papyrus-sites.json`. The stack
+grants the compute role `execute-api:Invoke` on exactly the site routes Prospectus
+admits and sets `PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT` on the CMS branches, which is
+therefore rejected in `cms.environment`.
 
 Host under a shared root domain: when the root domain (for example `anth.us`) is
 also associated with another Amplify app, set `cms.domainName` to the ROOT domain,

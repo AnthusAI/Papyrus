@@ -169,6 +169,9 @@ try {
     assert.equal(productionVariables.PAPYRUS_REVALIDATE_SECRET_PARAMETER, isPretext ? `/papyrus/${siteId}/revalidate-secret` : undefined, `${example}: revalidate parameter variable`);
     assert.equal(templateText.includes("PAPYRUS_REVALIDATE_SECRET\""), false, `${example}: template carries a secret variable`);
     specsSeen.push(stagingSpec, ...apps.map(buildSpecOf));
+    assert.ok(template.Outputs.CmsComputeRoleArn, `${example}: compute role ARN is published for Prospectus registration`);
+    assert.equal(templateText.includes("execute-api:Invoke"), false, `${example}: no Prospectus grant without cms.prospectusAccountsApiStageArn`);
+    assert.equal(templateText.includes("PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT"), false, `${example}: no Prospectus endpoint without cms.prospectusAccountsApiStageArn`);
 
     const siteCms = JSON.parse(fs.readFileSync(site, "utf8")).cms;
     const expectedPrefix = siteCms.cognitoDomainPrefix;
@@ -290,6 +293,28 @@ try {
     assert.ok(outputs.includes("CmsAppId"), `${example}: CmsAppId output`);
     assert.equal(outputs.includes("ReaderAppId"), expectedApps === 2, `${example}: ReaderAppId output`);
     assert.ok(outputs.includes("StagingOrigin"));
+  }
+
+  const prospectusSite = JSON.parse(fs.readFileSync(path.join(shell, "examples/p-apyr-us.site.json"), "utf8"));
+  prospectusSite.cms.prospectusAccountsApiStageArn = "arn:aws:execute-api:us-east-1:712236451410:abc123defg/api";
+  const prospectusSitePath = path.join(work, "p-apyr-us-prospectus.site.json");
+  fs.writeFileSync(prospectusSitePath, JSON.stringify(prospectusSite));
+  const prospectusOut = path.join(infraApp, "cdk.out.p-apyr-us-prospectus");
+  run("node", [cli, "synth", "--site", prospectusSitePath, "--out", prospectusOut], { cwd: infraApp });
+  const prospectusTemplate = JSON.parse(fs.readFileSync(path.join(prospectusOut, fs.readdirSync(prospectusOut).find((name) => name.endsWith(".template.json"))), "utf8"));
+  const prospectusComputeRoleKey = Object.keys(prospectusTemplate.Resources).find((key) => key.startsWith("AmplifyComputeRole") && prospectusTemplate.Resources[key].Type === "AWS::IAM::Role");
+  const prospectusInvokeStatements = Object.values(prospectusTemplate.Resources)
+    .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === prospectusComputeRoleKey))
+    .flatMap((resource) => resource.Properties.PolicyDocument.Statement)
+    .filter((statement) => statement.Action === "execute-api:Invoke");
+  assert.equal(prospectusInvokeStatements.length, 1, "prospectus: the compute role holds one invoke grant");
+  assert.deepEqual(prospectusInvokeStatements[0].Resource, [
+    "GET/v1/identities/me", "POST/v1/identities/google/challenge", "POST/v1/identities/google/resolve", "GET/v1/accounts",
+    "GET/v1/accounts/*", "POST/v1/accounts/*/authorize", "GET/v1/account-directory", "GET/v1/account-directory/*",
+  ].map((route) => `arn:aws:execute-api:us-east-1:712236451410:abc123defg/api/${route}`), "prospectus: grant covers exactly the registered site routes");
+  for (const branch of resourcesOfType(prospectusTemplate, "AWS::Amplify::Branch")) {
+    const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
+    assert.equal(variables.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT, "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/", `prospectus: ${branch.Properties.BranchName} endpoint`);
   }
 
   const synthVariant = (label, example, change) => {
