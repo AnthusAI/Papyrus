@@ -134,3 +134,7 @@ The explicit accepted-example snapshot and optional relevance-sweep bootstrap ar
 implemented in `papyrus_content.priming_bootstrap` and `run_decide_relevance`.
 See [the acceptance flow](priming-acceptance.md) for exact host calls, local proof,
 structured import paths, real-versus-synthetic evidence and remaining inputs.
+
+Whether the accepted examples improve decisions is measured by the
+[priming proof](priming-proof.md): agreement with editors on a frozen held-out
+set before and after N labels.
