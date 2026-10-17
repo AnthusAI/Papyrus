@@ -67,7 +67,7 @@ class ContentItemLifecycleTests(unittest.TestCase):
     def test_stages_follow_the_newsroom_story_workflow(self) -> None:
         self.assertEqual(
             CONTENT_ITEM_STAGES,
-            ("idea", "assignment", "research", "report", "editor_select", "copywriting", "published"),
+            ("idea", "assignment", "research", "report", "editor_select", "copywriting", "illustration", "typesetting", "published"),
         )
 
     def test_new_work_mints_one_content_item_version_at_its_stage(self) -> None:

@@ -10,6 +10,8 @@ export const CONTENT_ITEM_STAGES = [
   "report",
   "editor_select",
   "copywriting",
+  "illustration",
+  "typesetting",
   "published",
 ] as const;
 
@@ -22,6 +24,8 @@ const CONTENT_ITEM_STAGE_LABELS: Record<ContentItemStage, string> = {
   report: "Report",
   editor_select: "Editor select",
   copywriting: "Copywriting",
+  illustration: "Illustration",
+  typesetting: "Typesetting",
   published: "Published",
 };
 
