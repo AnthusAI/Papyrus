@@ -28,10 +28,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "f695cd0c-70ce-4a27-a225-0602f2db39e8",
+      "author": "unknown",
+      "text": "Claude Code agent. Preflight on Ryan's Mac: real priming catalog has 0 accepted examples and uses publish/not publish, so it can't teach yet. Adding --teach-from reviews|catalog|both with a frozen teaching pool of past reviews, and removing the editor's review note from held-out item text (it leaked the label).",
+      "created_at": "2026-10-17T13:55:24.819887Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T12:14:24.730729Z",
-  "updated_at": "2026-10-17T13:37:11.193115Z",
+  "updated_at": "2026-10-17T13:55:24.820054Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "3d8d06be-a170-4be5-8aba-5cd2a9daf166",
+  "issue_id": "PPY-54721b4d-2286-46d2-b0d6-a934f766f897",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:38:10.474Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Repo hygiene: delete production debug scripts, uv.lock, dead deps and orphan test scripts",
+    "description": "Delete the August production-debugging scripts at the repo root (test-production-console-chat.sh, verify-console-chat-fix.sh, test_production_iam.py) and scripts/test-console-chat-production.sh; they hard-code AWS_PROFILE=Ryan, a production Lambda name and a DynamoDB table name. Delete uv.lock (last touched 2026-08-29, nothing references uv; poetry.lock is current). Remove dependencies with zero importers: ai, streamdown and @streamdown/* (4), katex from dependencies; d3, three, framer-motion from devDependencies (framer-motion duplicates motion). Delete components/ai-elements/message.tsx and conversation.tsx if nothing imports them after the removal. Delete the seven scripts/test-* files referenced by nothing (test-console-chat-production.{py,sh}, test-console-web-context.cjs, test-curation-client.ts, test-inbound-email-production.sh, test-publication-cyclotron-ui.ts, test-reference-source-preview.cjs). Extend .gitignore with .next-3001/, cdk.out/, infra/amplify-app-shell/node_modules/, infra/amplify-app-shell/cdk.out/, .pytest_cache/, .venv/, .ruff_cache/, .mypy_cache/, playwright-report/, test-results/. Delete CONTRIBUTING_AGENT.template.md if CONTRIBUTING_AGENT.md is the live copy.\n\nDone when: npm run typecheck and npm run build pass, and git status shows none of the listed files.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

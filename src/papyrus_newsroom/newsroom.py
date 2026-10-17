@@ -24,6 +24,8 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
+from papyrus_content.steering import default_corpus_key
+from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
 
 try:
     import yaml
@@ -1248,7 +1250,7 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"Invalid reference URL: {raw_url}")
 
     title = str(payload.get("title") or "").strip() or normalized_url
-    corpus_key = str(payload.get("corpusKey") or payload.get("corpus_key") or "AI-ML-research").strip()
+    corpus_key = str(payload.get("corpusKey") or payload.get("corpus_key") or default_corpus_key()).strip()
     config_path = str(payload.get("configPath") or payload.get("config_path") or "").strip()
     actor_label = str(payload.get("actorLabel") or payload.get("actor_label") or "papyrus-console-agent").strip()
     ingestion_rationale = str(
@@ -1506,7 +1508,7 @@ def _assignment_type_key_for_resource_type(resource_type: str) -> str:
 def _build_research_assignment_resource_plan(payload: dict[str, Any], title: str) -> dict[str, Any]:
     now = _now_iso()
     section_key = str(payload.get("sectionKey") or payload.get("section_key") or "").strip()
-    corpus_key = str(payload.get("corpusKey") or payload.get("corpus_key") or "AI-ML-research").strip()
+    corpus_key = str(payload.get("corpusKey") or payload.get("corpus_key") or default_corpus_key()).strip()
     research_mode = str(payload.get("researchMode") or payload.get("research_mode") or "source_discovery").strip()
     status = str(payload.get("status") or "open").strip()
     priority = int(payload.get("priority") or 50)
@@ -1996,7 +1998,7 @@ def papyrus_find_reference(corpus_id: str, external_item_id: str) -> dict[str, A
 def papyrus_email_submission_process(
     *,
     message_id: str,
-    corpus_key: str = "AI-ML-research",
+    corpus_key: str = "",
     apply: bool = True,
 ) -> dict[str, Any]:
     """
@@ -2012,7 +2014,7 @@ def papyrus_email_submission_process(
     return process_email_submission_message(
         client,
         message_id=str(message_id).strip(),
-        corpus_key=corpus_key or "AI-ML-research",
+        corpus_key=corpus_key or default_corpus_key(),
         apply=apply,
     )
 
@@ -2157,7 +2159,7 @@ def papyrus_reference_curation_status(*, assignment_id: str) -> dict[str, Any]:
 
 
 def papyrus_doi_backfill_plan(
-    corpus_key: str = "AI-ML-research",
+    corpus_key: str = "",
     max_count: int = 0,
     use_llm: bool = False,
     llm_model: str = "",
@@ -2227,7 +2229,7 @@ def papyrus_doi_backfill_plan(
 
 
 def papyrus_doi_backfill_run(
-    corpus_key: str = "AI-ML-research",
+    corpus_key: str = "",
     max_count: int = 0,
     use_llm: bool = False,
     llm_model: str = "",
@@ -2304,7 +2306,7 @@ def papyrus_reference_fetch_url_text(
     *,
     reference_id: str = "",
     external_item_id: str = "",
-    corpus_key: str = "AI-ML-research",
+    corpus_key: str = "",
     apply: bool = True,
     force: bool = False,
     config_path: str = "",
@@ -2376,14 +2378,14 @@ def papyrus_reference_filter_extracted_text(
     *,
     reference_id: str = "",
     external_item_id: str = "",
-    corpus_key: str = "AI-ML-research",
+    corpus_key: str = "",
     apply: bool = True,
     force: bool = True,
     config_path: str = "",
     max_count: int = 0,
-    model: str = "gpt-5.4-nano",
+    model: str = DEFAULT_SMALL_LLM_MODEL,
     metadata_from_text: bool = True,
-    metadata_model: str = "gpt-5.4-nano",
+    metadata_model: str = DEFAULT_SMALL_LLM_MODEL,
 ) -> dict[str, Any]:
     """
     Re-filter existing extracted text attachments and refresh canonical extracted_text.
@@ -2460,11 +2462,11 @@ def papyrus_reference_generate_metadata_from_text(
     *,
     reference_id: str = "",
     external_item_id: str = "",
-    corpus_key: str = "AI-ML-research",
+    corpus_key: str = "",
     apply: bool = True,
     config_path: str = "",
     max_count: int = 0,
-    model: str = "gpt-5.4-nano",
+    model: str = DEFAULT_SMALL_LLM_MODEL,
 ) -> dict[str, Any]:
     """
     Generate title/subtitle/summary from extracted reference text only.
@@ -2645,7 +2647,7 @@ def biblicus_topic_context(
     topic_modeling_snapshot: str = "",
     max_topics: int = 20,
     examples_per_topic: int = 3,
-    summary_model: str = "gpt-5.4-nano",
+    summary_model: str = DEFAULT_SMALL_LLM_MODEL,
     config_path: str = "",
 ) -> dict[str, Any]:
     """

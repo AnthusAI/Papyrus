@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "3bcd1e99-1a7c-417f-b8c9-7ff1e5efcc33",
+  "issue_id": "PPY-96509f66-b338-4938-b761-591e5aaf1e4b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:40:34.402Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Story cycle: make --refresh-packets and --max-parallel-* real, validate packets, make apply_records idempotent",
+    "description": "src/papyrus_newsroom/coverage_theme.py:757 declares refresh_packets but the only uses write it into relation metadata (:4196, :4249, :4333, :4403); no 'if refresh_packets' exists, and apply_records (:5355) upserts the deterministic packet id, so applied reruns always re-run agents and overwrite packets, contradicting AGENTS.md and skills/newsroom-story-cycle/SKILL.md. papyrus_newsroom/cli.py:467-468 accept --max-parallel-research and --max-parallel-reporting that nothing reads. coverage_theme.py:4493-4515 fills missing packet keys with defaults (editor_recommendation -> 'hold', copywriter_brief -> '', lists -> [], degraded forced False), so an agent returning {} passes --require-agent-success. apply_records (:5333-5367) creates Message, two ModelAttachments and a SemanticRelation sequentially and raises on first failure, leaving partial packets, and the warnings list is never returned. list_references_by_corpus and list_references_by_newsroom_feed_imported (reference_curation_signals.py:2706,2719) silently stop at 1000 rows.\n\nFix: check _record_exists('Message', story_cycle_packet_message_id(assignment, kind)) before dispatch and skip unless refresh_packets; implement bounded ThreadPoolExecutor dispatch for the parallel flags or remove them and the skill text; raise when any skill-required packet key is absent; make apply_records resume idempotently in dependency order and return the failure list; paginate to exhaustion or return truncated: true. Add unit tests under procedures/newsroom/tests for each.\n\nDone when: a second applied run with existing packets makes zero agent calls unless --refresh-packets is passed, and an empty packet fails --require-agent-success.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

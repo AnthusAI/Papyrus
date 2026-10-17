@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "85755627-eca1-47aa-8596-6573873fd1b2",
+  "issue_id": "PPY-51cf3db4-6568-45c0-a1d4-12cc2595722b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:38:59.261Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Convert scripts/test-* to node:test and run them with one runner",
+    "description": "84 scripts/test-* files (58 .ts, 11 .cjs, 13 .mjs) each import node:assert/strict and print 'passed'; they are chained with && in package.json test:ci:ts. No isolation, no reporting, no parallelism, first failure hides the rest. About 65 need only a three-line node:test wrapper with zero behaviour change (sampled: test-inline-excerpt.ts, test-site-env.ts, test-robots-policy.ts, test-blog-feature-solver.ts). The hard class is the .cjs scripts, six of which carry a private copy of a hand-rolled TypeScript require hook (registerTypeScriptRequire in scripts/register-papyrus-aliases.cjs, test-theme-packs.cjs and others); convert them to .ts under tsx, which already honours tsconfig paths.\n\nFix: wrap each script in import { test } from 'node:test'; move them to tests/unit/**/*.test.ts (or keep the path, but use one glob); replace the && chain with node --import tsx --test --test-reporter=spec --test-concurrency=4 'tests/**/*.test.ts'; delete the six require-hook copies. Also move features/operator-cli.feature to features_backend/ (its steps exist only in Python, so cucumber-js hits undefined steps) and collapse the three byte-identical cucumber profiles in cucumber.js to one.\n\nDone when: npm test runs every former test:* target through the runner with per-test reporting, and CI calls that one command.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

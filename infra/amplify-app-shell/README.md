@@ -59,8 +59,13 @@ Prospectus accounts (optional): set `cms.prospectusAccountsApiStageArn` to the
 Prospectus accounts API stage, `arn:aws:execute-api:<region>:<account>:<api id>/api`,
 once the site is registered in Prospectus `accounts/papyrus-sites.json`. The stack
 grants the compute role `execute-api:Invoke` on exactly the site routes Prospectus
-admits and sets `PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT` on the CMS branches, which is
-therefore rejected in `cms.environment`.
+admits, generates a Secrets Manager secret that seals the sign-in cookies (readable
+only by the compute role; replacing it signs everyone out), and sets
+`PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT` and `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN` on
+the CMS branches, which are therefore rejected in `cms.environment`. The site's
+Google-only Cognito client for that registration comes from the Amplify backend
+(`custom.prospectusSignIn.clientId` in `amplify_outputs.json`); the sign-in routes
+are under `/api/auth/prospectus/`.
 
 Host under a shared root domain: when the root domain (for example `anth.us`) is
 also associated with another Amplify app, set `cms.domainName` to the ROOT domain,

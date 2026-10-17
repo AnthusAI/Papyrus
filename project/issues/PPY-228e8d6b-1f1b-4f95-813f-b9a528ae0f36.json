@@ -1,7 +1,7 @@
 {
   "id": "PPY-228e8d6b-1f1b-4f95-813f-b9a528ae0f36",
   "title": "Establish the standalone Papyrus marketing site",
-  "description": "## Intent\n\nAs a prospective Papyrus adopter, I want a standalone Papyrus marketing site at papyrus.anth.us, so that I can understand the product separately from the demo publication at p.apyr.us.\n\n## Initial scope\n\n- Establish a simple, normal marketing-site application separate from the Papyrus CMS reader.\n- Provide a reliable local development command and foundation for static deployment.\n- Reserve the existing Papyrus plant pictogram as the initial brand anchor.\n- Do not add CMS, publication-reader, or wiki behavior.\n\n## Definition of Done\n\n- The marketing app has an executable behavior specification.\n- A local dev server starts and serves the app.\n- The work is ready for later visual design.",
+  "description": "## Current agreed plan \u2014 verified 2026-10-17\n\nRyan's current destination supersedes older papyrus.anth.us/static-only and combined-host plans: p.apyr.us is the public-facing marketing website owned by PRIVATE AnthusAI/Papyrus-web; the open publication remains in PUBLIC AnthusAI/p.apyr.us and moves to read.p.apyr.us. Do not relocate its content, backend, auth or history as part of planning. Existing public marketing/pricing work, including merged PR19 at 30ba4d2 and footer PR18/main 5b29af6, remains intact until a reviewed transition.\n\nMarketing MUST actually use hosted Papyrus CMS/browser editing plus real Markus rendering to S3. Whether hosted editing is needed is resolved: it is required. The marketing CMS hostname is NOT chosen. Public publication reader path on read.p.apyr.us (/information versus /) is unresolved. Current p.apyr.us code still serves marketing /, reader /information and newsroom /newsroom together.\n\nPrivate marketing CI/CD runs in AWS without GitHub Actions minute dependency; reviewed main merges must deploy without a coding-agent or developer AWS login. Public projects may use GitHub Actions CI with AWS CD. main is default/production; retain develop integration/promotion where established (Papyrus product). No unrelated merge or production main push for this task.\n\nFresh AWS CLI reads: account 712236451410/us-east-1; marketing Amplify d2scc0rkxkbrhl main auto-build enabled, latest job6 SUCCEED at 35fa30923a9ca591ae97d8901b6447828a14e29a (2026-10-17 13:44:17\u201313:45:57 UTC). Old job4/18d035e remains historical renderer/S3 proof. Candidate CF E17ZRAI87DN065 is Deployed, S3 origin, no aliases. Publication Amplify ds6yswxui41yi job19 SUCCEED at 5b29af6dc51d15dabbdbeac5f892cb670b7cc143 (14:17:41\u201314:22:41 UTC). CF E2QW8WOFWQT0H4 and p.apyr.us A/AAAA still point to the combined publication app; no read.p.apyr.us record returned in inspected zone Z0630882HVOV46S7IPV7.\n\nCodePipeline/CodeConnections inventories are empty. Papyrus-web draft PR6, claude/codepipeline-deploy at 7bc8af0, is a separate unmerged/unprovisioned proposal with task papw-9b0d3c2c-68c0-4e4f-8c50-1368ae4e955c. Preserve it; do not mistake its deployment instructions for live infrastructure or approval. Select and prove exactly one publisher before an authorized transition.\n\nNext: choose CMS host/backend/auth binding; prove hosted save/reload/preview/explicit publish through actual Papyrus/Markus/S3 plus private-draft and unauthorized-write denial; decide publication path and inventory redirects/canonical/media links, callbacks/logout/revalidation, TLS/DNS and rollback; separately review delivery proposal; only then propose cutover. Hosted acceptance is not proven by committed-source builds or local mock clients.\n\nCanonical handoff and branch: https://github.com/AnthusAI/Papyrus-web/blob/chore/kanbus-reconciliation-20261016/docs/marketing-publication-handoff.md ; draft PR3 https://github.com/AnthusAI/Papyrus-web/pull/3 extends 25fc542. Its papw records are review-branch work, not main. Product-board plan corrections are Kanbus-only on develop; no develop-to-main promotion is requested. Publication README will expose current-versus-intended mapping in a docs PR.\n\nScope of this reconciliation: documentation and existing Kanbus records only. No implementation, deployment, DNS, IAM, credentials, deletion or migration. No AWS console browser. Existing local dirty trees and unrelated branches are preserved.\n\n## Earlier plan (historical; current host/ownership requirements above take precedence)\n\n## Intent\n\nAs a prospective Papyrus adopter, I want a standalone Papyrus marketing site at papyrus.anth.us, so that I can understand the product separately from the demo publication at p.apyr.us.\n\n## Initial scope\n\n- Establish a simple, normal marketing-site application separate from the Papyrus CMS reader.\n- Provide a reliable local development command and foundation for static deployment.\n- Reserve the existing Papyrus plant pictogram as the initial brand anchor.\n- Do not add CMS, publication-reader, or wiki behavior.\n\n## Definition of Done\n\n- The marketing app has an executable behavior specification.\n- A local dev server starts and serves the app.\n- The work is ready for later visual design.",
   "type": "story",
   "status": "open",
   "priority": 2,
@@ -16,35 +16,75 @@
       "author": "home",
       "text": "Starting discovery and implementation. The standalone marketing app will use the existing Papyrus-plant pictogram, avoid the CMS reader, and start with a static-site foundation.",
       "created_at": "2026-09-08T14:51:10.318904Z",
-      "comment_type": "default"
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     },
     {
       "id": "76b88dc8-7bd5-4b70-ae82-495222f102ac",
       "author": "home",
       "text": "Implemented the standalone marketing Next.js static-export foundation. It reuses the existing Papyrus plant pictogram, identifies papyrus.anth.us as the public home, and distinguishes the demo reader at p.apyr.us. Verification passed: focused BDD, typecheck, lint, build, and local HTTP smoke test on port 3002.",
       "created_at": "2026-09-08T15:00:09.061349Z",
-      "comment_type": "default"
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     },
     {
       "id": "06d30844-392b-424d-b4cb-0508a1d661a3",
       "author": "home",
       "text": "Implementation branch feature/PPY-228e8d-papyrus-marketing-site is ready for review in PR #74: https://github.com/AnthusAI/Papyrus/pull/74. Verification passed: marketing BDD profile, typecheck, lint, static build, and a local HTTP smoke test at http://127.0.0.1:3002.",
       "created_at": "2026-09-08T15:01:40.512135Z",
-      "comment_type": "default"
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "202d91c7-2545-4547-9208-479a0d2b5b47",
+      "author": "home",
+      "text": "2026-10-17 documentation reconciliation: current agreement and fresh deployment evidence are recorded at the top of this description. Earlier decisions/comments are retained as history. Hosted CMS editing is required; CMS hostname remains unchosen. Review Papyrus-web PR3 and the canonical README handoff; PR6 is proposed, not deployed. Existing status/ownership is preserved; no live changes or release promotion performed.",
+      "created_at": "2026-10-17T14:47:50.896637Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "marketing-publication-handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "abd28ca6-a4c4-4d32-aa3f-1edf864cafa5",
+      "author": "home",
+      "text": "Documentation delivery receipts: private handoff commit 03ec4e5 on chore/kanbus-reconciliation-20261016, existing draft https://github.com/AnthusAI/Papyrus-web/pull/3; public README commit c309d81 on chore/marketing-publication-handoff-20261017, draft https://github.com/AnthusAI/p.apyr.us/pull/20. Product-board changes use the repository's Kanbus-only develop exception; production main is untouched.\n\nVerification: git diff --check passes; Papyrus-web kanbus validate passes. Papyrus product kanbus validate reports 15 pre-existing missing dependency references in unrelated records; clean origin/develop baseline bfea1ee reports exactly the same 15 failures. No unrelated issue repair is included. This validates planning structure only, not hosted CMS acceptance. No implementation/runtime tests were needed or run for documentation-only changes.\n",
+      "created_at": "2026-10-17T14:49:05.538031Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "marketing-publication-handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-09-08T14:50:56.413084Z",
-  "updated_at": "2026-10-17T13:23:17.054467Z",
+  "updated_at": "2026-10-17T14:49:05.538135Z",
   "closed_at": null,
-  "agent": {
-    "platform": "claude-code",
-    "model": "claude-opus-5-5",
-    "name": "cross-project-wip-reset"
-  },
   "right_now_summary": "The standalone Papyrus marketing site is implemented and ready for review.",
   "right_now_updated_at": "2026-10-17T13:23:19.053470Z",
   "custom": {
     "project_label": "PPY",
     "source": "shared"
-  }
+  },
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "cross-project-wip-reset",
+    "settings": {}
+  },
+  "agent_assignment": null
 }

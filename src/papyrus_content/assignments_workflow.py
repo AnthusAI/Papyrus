@@ -40,6 +40,7 @@ from .reference_policy import normalize_reference_curation_status
 from .reference_url_text import run_reference_url_text_extraction
 from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text
 from .reporting_packet_review import build_reporting_packet_review_plan
+from .steering import default_corpus_key
 
 RESEARCH_MODES = frozenset({"internal_brief", "source_discovery", "full_research"})
 REPORTING_RECOMMENDATIONS = frozenset({"select", "merge", "brief", "hold", "kill"})
@@ -122,7 +123,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     if not title:
         raise ValueError("assignments create-research requires --title <text>.")
     section_key = normalize_string(options.get("section"))
-    corpus_key = normalize_string(options.get("corpus-key")) or "AI-ML-research"
+    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     research_mode = normalize_research_mode(options.get("research-mode") or options.get("researchMode"))
     now = _utc_now()
     assignment_type_key = normalize_string(options.get("type")) or "research.edition-candidate"
@@ -271,7 +272,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     if not title:
         raise ValueError("assignments create-reporting requires --title <text>.")
     section_key = normalize_string(options.get("section"))
-    corpus_key = normalize_string(options.get("corpus-key")) or "AI-ML-research"
+    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     now = _utc_now()
     assignment_type_key = normalize_string(options.get("type")) or "reporting.edition-candidate"
     if assignment_type_key != "reporting.edition-candidate":
@@ -408,7 +409,7 @@ def run_research_assignment(flags: list[str]) -> None:
     assignment_id = normalize_string(options.get("assignment"))
     if not assignment_id:
         raise ValueError("assignments run-research requires --assignment <id>.")
-    corpus_key = normalize_string(options.get("corpus-key")) or "AI-ML-research"
+    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     research_mode = normalize_research_mode(
         options.get("research-mode") or options.get("researchMode") or "source_discovery"
     )
@@ -599,7 +600,7 @@ def run_reporting_assignment(flags: list[str]) -> None:
     assignment_id = normalize_string(options.get("assignment"))
     if not assignment_id:
         raise ValueError("assignments run-reporting requires --assignment <id>.")
-    corpus_key = normalize_string(options.get("corpus-key")) or "AI-ML-research"
+    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     run_id = normalize_string(options.get("run-id")) or (
         f"reporting-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )

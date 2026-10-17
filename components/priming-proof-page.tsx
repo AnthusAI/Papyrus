@@ -4,7 +4,7 @@ import {
   type PrimingProofReport,
 } from "../lib/priming-proof-report";
 
-function ProofMethod({ heldOutSize }: { heldOutSize: number | null }) {
+function ProofMethod({ heldOutSize, teachingSource }: { heldOutSize: number | null; teachingSource: string | null }) {
   return (
     <section aria-labelledby="priming-proof-method" className="space-y-2 text-sm leading-relaxed">
       <h2 id="priming-proof-method" className="text-base font-semibold uppercase tracking-wide">How the number is made</h2>
@@ -14,8 +14,10 @@ function ProofMethod({ heldOutSize }: { heldOutSize: number | null }) {
         for teaching. A classifier that always gives the same answer agrees on half of it.
       </p>
       <p>
-        Editors teach the classifier by pasting a source URL, reviewing what Papyrus extracted, and choosing publish or
-        reject. Each point below starts a fresh classifier that sees only the first N of those labels, then decides
+        Editors teach the classifier with labels: their other reviews of candidate sources, and sources they paste,
+        check after Papyrus extracts them, and mark publish or reject.
+        {teachingSource === null ? "" : ` This run taught from ${teachingSource}.`} Each point below starts a fresh
+        classifier that sees only the first N of those labels, then decides
         every held-out source once. Nothing else changes between points: the same decision model, the publication&apos;s
         mission and policies as the only rubric, and no automatic rubric rewriting.
       </p>
@@ -31,7 +33,7 @@ export function PrimingProofPage({ report }: { report: PrimingProofReport | null
           <h1 className="text-3xl font-bold">Does teaching the classifier work?</h1>
           <p className="text-muted-foreground">No approved proof run has been published for this publication yet.</p>
         </header>
-        <ProofMethod heldOutSize={null} />
+        <ProofMethod heldOutSize={null} teachingSource={null} />
       </main>
     );
   }
@@ -82,7 +84,7 @@ export function PrimingProofPage({ report }: { report: PrimingProofReport | null
           </table>
         </div>
       </section>
-      <ProofMethod heldOutSize={report.heldOut.size} />
+      <ProofMethod heldOutSize={report.heldOut.size} teachingSource={report.priming.source} />
       <p className="break-all text-xs text-muted-foreground">
         Held-out fingerprint {report.heldOut.fingerprint}
         {report.priming.fingerprint ? ` · labels fingerprint ${report.priming.fingerprint}` : ""}

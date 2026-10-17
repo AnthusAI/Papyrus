@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "c96faa0d-8518-4e1f-abce-518767121476",
+  "issue_id": "PPY-0f641fe9-d9b9-4f55-b157-bb8518d8def0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:42:42.201Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Release and branch state: back-merge main hotfixes, cut one stable release, align version strings, npm ci in Amplify",
+    "description": "main carried five commits develop did not have (hotfixes and #215's docs/archive move) before #222 promoted develop; check what remains unmerged and back-merge it. 62 next.* prereleases have shipped and no stable release has ever been cut: npm @anthusai/papyrus latest is a 0.0.0 placeholder. Three version strings disagree: package.json 1.0.0, pyproject.toml 0.1.0, releases 1.0.0-next.62 (packages/stage.mjs:35-36 stamps the staged copy only). amplify.yml:6 uses npm install rather than npm ci, so the production tree can differ from the lockfile. release.yml:39 installs an unpinned npm on every run. PR #138 has been open since 2026-10-06 against a base that has moved 100+ commits.\n\nFix: back-merge main into develop; set both committed versions to 0.0.0-development and document that stage.mjs is the source of truth; switch amplify.yml to npm ci; pin npm or use the bundled one; confirm with Ryan that PUBLISH_ENABLED is set and let the main push publish 1.0.0; rebase or close #138.\n\nDone when: main and develop share history, one stable tag exists on main, and a fresh clone's package.json version is not a lie.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

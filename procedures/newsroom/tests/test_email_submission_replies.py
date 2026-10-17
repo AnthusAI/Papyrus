@@ -1,8 +1,22 @@
 from __future__ import annotations
 
+import os
 import unittest
+from unittest import mock
 
 from papyrus_newsroom import email_submission_replies
+
+
+def setUpModule():
+    environment_patch = mock.patch.dict(
+        os.environ,
+        {
+            "PAPYRUS_INBOUND_EMAIL_DOMAIN": "p.apyr.us",
+            "PAPYRUS_PUBLIC_SITE_BASE_URL": "https://p.apyr.us",
+        },
+    )
+    environment_patch.start()
+    unittest.addModuleCleanup(environment_patch.stop)
 
 
 class EmailSubmissionReplyTests(unittest.TestCase):

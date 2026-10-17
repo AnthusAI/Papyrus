@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "746910bf-0f5d-4240-8c47-1bbef9b80c4f",
+  "issue_id": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-17T16:42:42.921Z",
+  "actor_id": "unknown",
+  "payload": {
+    "comment_id": "6379f2a8-4cb5-4d6a-b0dc-ac5fd9448291",
+    "comment_author": "unknown",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ecc28bf2-b27e-4ca7-88eb-182d7b081fef",
+  "issue_id": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-17T14:49:06.699Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "2ff3d29c-2b87-49a4-83c6-4aa6a947434a",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "marketing-publication-handoff",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}

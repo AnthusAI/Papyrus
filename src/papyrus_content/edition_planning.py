@@ -10,6 +10,7 @@ from papyrus_newsroom.coverage_theme import editions_plan as newsroom_editions_p
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .options import normalize_string, parse_comma_list
+from .steering import default_corpus_key
 
 RESEARCH_EDITION_ASSIGNMENT_TYPE = "research.edition-candidate"
 REPORTING_EDITION_ASSIGNMENT_TYPE = "reporting.edition-candidate"
@@ -42,7 +43,7 @@ def build_edition_planning_plan(state: dict[str, Any], options: dict[str, Any]) 
     if not section_budgets:
         default_slots = int(options.get("publicationSlots") or 1)
         section_budgets = {section: default_slots for section in sections}
-    corpus_key = normalize_string(options.get("corpusKey")) or "AI-ML-research"
+    corpus_key = normalize_string(options.get("corpusKey")) or default_corpus_key()
     signal_topic = normalize_string(options.get("topic")) or normalize_string(options.get("focusCategories")) or corpus_key
     coverage_key = normalize_string(options.get("coverageKey")) or f"coverage.{signal_topic.replace(' ', '-').lower()}"
 

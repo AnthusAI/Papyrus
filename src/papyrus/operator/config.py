@@ -44,9 +44,10 @@ def _resolve_path(value: str | None, *, base: Path) -> Path | None:
 
 def _default_corpus_from_steering() -> str:
   steering = load_steering_config()
-  if steering:
-    return str(steering.get("canonicalTopicSet", {}).get("corpusKey") or "threat-intelligence")
-  return "threat-intelligence"
+  corpus_key = str((steering or {}).get("canonicalTopicSet", {}).get("corpusKey") or "").strip()
+  if not corpus_key:
+    raise ValueError("canonicalTopicSet.corpusKey is required in the steering config.")
+  return corpus_key
 
 
 def _load_yaml_config(path: Path) -> dict[str, Any]:

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "e028acb9-8607-4b67-ac03-171c46838b5a",
+  "issue_id": "PPY-23f5022a-413f-4f1a-88f1-1d55c818de70",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-17T16:40:42.093Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "27890f7c-b267-4166-8b28-e177410a93eb",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "claude-sonnet"
+    }
+  }
+}

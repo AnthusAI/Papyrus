@@ -16,6 +16,8 @@ from typing import Any
 from . import newsroom, reference_curation_signals
 from papyrus_knowledge_query.engine import run_knowledge_query
 from papyrus_knowledge_query.services import build_environment_services
+from papyrus_content.steering import default_corpus_key
+from papyrus_content.model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
 
 def _jsonable(value: Any) -> Any:
@@ -317,7 +319,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         reason_code=args.get("reason_code") or args.get("reasonCode") or "",
     ),
     ("reference", "list"): lambda args: reference_curation_signals.reference_list(
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         limit=args.get("limit") or 25,
         status=args.get("status") or "",
         order=args.get("order") or "newest",
@@ -349,12 +351,12 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
     ("reference", "web_search"): lambda args: reference_curation_signals.reference_web_search(
         query=args.get("query") or args.get("q") or "",
         max_results=args.get("max_results") or args.get("maxResults") or args.get("limit") or 20,
-        model=args.get("model") or "gpt-5.4-mini",
+        model=args.get("model") or DEFAULT_LLM_MODEL,
         return_token_budget=args.get("return_token_budget") or args.get("returnTokenBudget") or "default",
         provider=args.get("provider") or args.get("web_search_provider") or args.get("webSearchProvider"),
     ),
     ("reference", "doi_backfill_plan"): lambda args: newsroom.papyrus_doi_backfill_plan(
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         max_count=args.get("max_count") or args.get("maxCount") or 0,
         use_llm=bool(args.get("use_llm") or args.get("useLlm") or False),
         llm_model=args.get("llm_model") or args.get("llmModel") or "",
@@ -362,7 +364,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         config_path=args.get("config_path") or args.get("configPath") or "",
     ),
     ("reference", "doi_backfill_run"): lambda args: newsroom.papyrus_doi_backfill_run(
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         max_count=args.get("max_count") or args.get("maxCount") or 0,
         use_llm=bool(args.get("use_llm") or args.get("useLlm") or False),
         llm_model=args.get("llm_model") or args.get("llmModel") or "",
@@ -376,7 +378,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
     ("reference", "fetch_url_text"): lambda args: newsroom.papyrus_reference_fetch_url_text(
         reference_id=args.get("reference_id") or args.get("referenceId") or args.get("id") or "",
         external_item_id=args.get("external_item_id") or args.get("externalItemId") or "",
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         apply=not (args.get("apply") is False),
         force=bool(args.get("force") or False),
         config_path=args.get("config_path") or args.get("configPath") or "",
@@ -385,23 +387,23 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
     ("reference", "filter_extracted_text"): lambda args: newsroom.papyrus_reference_filter_extracted_text(
         reference_id=args.get("reference_id") or args.get("referenceId") or args.get("id") or "",
         external_item_id=args.get("external_item_id") or args.get("externalItemId") or "",
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         apply=not (args.get("apply") is False),
         force=not (args.get("force") is False),
         config_path=args.get("config_path") or args.get("configPath") or "",
         max_count=args.get("max_count") or args.get("maxCount") or 0,
-        model=args.get("model") or "gpt-5.4-nano",
+        model=args.get("model") or DEFAULT_SMALL_LLM_MODEL,
         metadata_from_text=not (args.get("metadata_from_text") is False or args.get("metadataFromText") is False),
-        metadata_model=args.get("metadata_model") or args.get("metadataModel") or "gpt-5.4-nano",
+        metadata_model=args.get("metadata_model") or args.get("metadataModel") or DEFAULT_SMALL_LLM_MODEL,
     ),
     ("reference", "generate_metadata_from_text"): lambda args: newsroom.papyrus_reference_generate_metadata_from_text(
         reference_id=args.get("reference_id") or args.get("referenceId") or args.get("id") or "",
         external_item_id=args.get("external_item_id") or args.get("externalItemId") or "",
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         apply=not (args.get("apply") is False),
         config_path=args.get("config_path") or args.get("configPath") or "",
         max_count=args.get("max_count") or args.get("maxCount") or 0,
-        model=args.get("model") or "gpt-5.4-nano",
+        model=args.get("model") or DEFAULT_SMALL_LLM_MODEL,
     ),
     ("reference", "quality_get"): lambda args: reference_curation_signals.reference_quality_get(
         reference_id=args.get("reference") or args.get("reference_id") or args.get("referenceId") or args.get("id"),
@@ -414,7 +416,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
     ),
     ("reference", "quality_assess"): lambda args: reference_curation_signals.reference_quality_assess(
         reference_id=args.get("reference") or args.get("reference_id") or args.get("referenceId") or args.get("id"),
-        model=args.get("model") or "gpt-5.4-mini",
+        model=args.get("model") or DEFAULT_LLM_MODEL,
         apply=bool(args.get("apply") or False),
         refresh=bool(args.get("refresh") or False),
         persist_local_metadata=not (args.get("persist_local_metadata") is False or args.get("persistLocalMetadata") is False),
@@ -427,7 +429,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         summary_text=args.get("summary_text") or args.get("summaryText") or "",
         source_text=args.get("source_text") or args.get("sourceText") or "",
         source_text_file=args.get("source_text_file") or args.get("sourceTextFile") or "",
-        model=args.get("model") or "gpt-5.4-mini",
+        model=args.get("model") or DEFAULT_LLM_MODEL,
         apply=bool(args.get("apply") or False),
         refresh=bool(args.get("refresh") or False),
     ),
@@ -461,7 +463,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
     ("plan", "draft_update"): lambda args: newsroom.build_draft_update_plan(**args),
     ("email_submission", "process"): lambda args: newsroom.papyrus_email_submission_process(
         message_id=args.get("message_id") or args.get("messageId") or args.get("id") or "",
-        corpus_key=args.get("corpus_key") or args.get("corpusKey") or "AI-ML-research",
+        corpus_key=args.get("corpus_key") or args.get("corpusKey") or default_corpus_key(),
         apply=bool(args.get("apply", True)),
     ),
 }
@@ -469,7 +471,7 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
 
 def _reference_list_resource(args: dict[str, Any]) -> Any:
     result = reference_curation_signals.reference_list(
-        corpus_key=args.get("corpusKey") or args.get("corpus_key") or "AI-ML-research",
+        corpus_key=args.get("corpusKey") or args.get("corpus_key") or default_corpus_key(),
         limit=args.get("limit") or 25,
         status=args.get("status") or "",
         order=args.get("order") or "newest",
@@ -715,7 +717,7 @@ DOCS: dict[str, dict[str, Any]] = {
             "reference prospect (same catalog path as inbound email citation intake), creates "
             "curation intake wiring, and by default runs URL text extraction plus metadata "
             "generation when apply = true.\n\n"
-            "Required: url (http/https). Optional: title, corpusKey (default AI-ML-research), "
+            "Required: url (http/https). Optional: title, corpusKey (default: the publication's canonical corpus), "
             "ingestionRationale, actorLabel, apply (default false dry-run), enrich (default true "
             "when apply), skipExisting (default true), createCurationAssignment (default true), "
             "note.\n\n"
@@ -1605,7 +1607,7 @@ end
             return papyrus.reference.web_search{{
                 query = attempt_query,
                 max_results = max_evidence_items,
-                model = "gpt-5.4-mini",
+                model = DEFAULT_LLM_MODEL,
                 return_token_budget = "default",
             }}
         end)

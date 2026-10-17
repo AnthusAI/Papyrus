@@ -1,0 +1,29 @@
+{
+  "id": "PPY-99738c29-4bfc-4a28-9262-a059a252a319",
+  "title": "Remove the four compatibility shims the no-shims rule forbids",
+  "description": "AGENTS.md forbids runtime schema introspection that filters queries, legacy fallbacks and dual-shape paths. Four exist: (1) lib/console-chat-client.ts:104-121 runs __type introspection on Query, Message and CreateMessageInput, addDynamicAttempt skips fields the remote lacks, and CONSOLE_MESSAGE_FIELDS_LEGACY, LIST_CONSOLE_MESSAGES_LEGACY, CREATE_CONSOLE_MESSAGE_LEGACY plus a userPool-to-apiKey retry (:303-325) remain; (2) lib/graphql-content-repository.ts:558-563 probes typeof editionModel.listPublishedEditionsByStatusAndPublishedAt === 'function' and falls back to the editionDate index, though the index is deployed (schema.ts:1863); (3) src/papyrus_newsroom/reference_curation_signals.py:2749-2756 catches FieldUndefined for listReferencesByNewsroomFeedAndImportedAt and falls back to list_references_by_corpus; (4) components/topic-steering-workspace.tsx:1321-1330 probes typeof referenceModel.onCreate !== 'function' and degrades to 'model unavailable'. Also lib/graphql-content-repository.ts:456-492 pruneLayoutPlanUnavailableItems silently drops plan blocks whose items did not load and only warns.\n\nFix: delete each shim and use the fixed typed query; let a mismatch fail loudly. Make pruneLayoutPlanUnavailableItems throw (a missing plan item is a publishing error per AGENTS.md). Depends on the one-schema issue for (4) only if the subscription fields differ.\n\nDone when: no __type, _LEGACY, 'FieldUndefined' fallback, or typeof model.<query> === 'function' probe remains in lib/, components/ or src/.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T16:40:02.779032Z",
+  "updated_at": "2026-10-17T16:40:02.779468Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

@@ -1,0 +1,29 @@
+{
+  "id": "PPY-d77f29d4-1525-4863-827a-d9685422c7a7",
+  "title": "Instruction diet: AGENTS.md as an index, docs/README.md, merge priming docs, archive one-off logs",
+  "description": "AGENTS.md is 962 lines and README.md is 994; they overlap heavily and README holds operational runbooks (Local Dev 431 Troubleshooting, Production Content Operations, Newsroom Cloud Procedures Runbook) that belong in docs/. docs/ has 53 files: five cover priming and Cyclotron from different angles (priming-acceptance, priming-proof, reference-priming, relevance-cyclotron, publication-cyclotron-controls); console-chat fix notes now exist in both docs/ and docs/archive on main; several are one-off verification logs. skills/ has machine-specific paths (fixed in the home-path issue).\n\nFix: rewrite AGENTS.md to about 150 lines of hard rules, each stated once with a link to the test or lint that enforces it (or 'unenforced' where none exists), plus an index into docs/; move runbooks out of README to docs/ and cut README to about 200 lines; add docs/README.md with one line per page; merge the five priming pages into one with a status section; archive verification logs under docs/archive/; delete the docs/ copies of the console-chat notes that main already archived.\n\nDone when: a new agent session can read AGENTS.md in one screen and find every rule's enforcement or its 'unenforced' marker.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "chore",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T16:41:39.853165Z",
+  "updated_at": "2026-10-17T16:41:39.853608Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

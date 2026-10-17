@@ -34,6 +34,10 @@ def load_steering_config(config_path: str | None = None) -> dict[str, Any] | Non
     return normalize_steering_config(parsed, str(resolved))
 
 
+def default_corpus_key(config_path: str | None = None) -> str:
+    return require_steering_config(config_path)["canonicalTopicSet"]["corpusKey"]
+
+
 def require_steering_config(config_path: str | None = None) -> dict[str, Any]:
     config = load_steering_config(config_path)
     if config is None:

@@ -37,10 +37,13 @@ jobs:
       - run: npm run test:sync-middleware-shim
       - run: npm run test:brand-fonts
       - run: npm run test:rhythm-blog-layout
+      - run: npm run test:pretext-layout
+      - run: npm run test:newspaper-layout-cursor-continuity
       - run: npm run test:brand-render-snapshots
       - run: npm run test:root-route-redirect
       - run: npm run test:infra-site-config
       - run: npm run test:prospectus-site-identity
+      - run: npm run test:prospectus-sign-in-routes
       - run: npm run test:s3-projection-publication
       - run: npm run test:renditions-function
       - run: npm run test:redirect-and-index-function
@@ -60,6 +63,8 @@ jobs:
           python-version: "3.12"
       - run: pip install poetry
       - run: poetry install --no-interaction --extras "newsroom markus priming"
+      - name: Pilot identifiers stay out of application logic
+        run: python procedures/guards/check_pilot_identifiers.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
       #   test_references_commands       PPY-c22e1c (stale assertions)
