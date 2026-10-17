@@ -273,23 +273,9 @@ updates, MIME archive copy/delete behavior, and scoped GraphQL loads (no full-ta
 GitHub Actions workflow `.github/workflows/inbound-email-tests.yml` runs the same
 suite on pushes/PRs that touch inbound email code.
 
-### Production smoke script
+### Production checks
 
-After deploy, from the repo (with `amplify_outputs.json` or `PAPYRUS_MEDIA_BUCKET_NAME`):
-
-```bash
-chmod +x scripts/test-inbound-email-production.sh
-AWS_PROFILE=Ryan ./scripts/test-inbound-email-production.sh
-```
-
-Optional: re-run the processor for one message (slow; corpus find/process can take minutes):
-
-```bash
-MESSAGE_ID=message-email-submission-XXXXXXXX \
-  AWS_PROFILE=Ryan ./scripts/test-inbound-email-production.sh
-```
-
-**Pass criteria:**
+After deploy, verify the following with the AWS CLI (the site's authoring role):
 
 | Check | Expected |
 |-------|----------|

@@ -41,6 +41,7 @@ from .assignments_workflow import (
     update_newsroom_summary_after_research_packet_creates,
 )
 from .insight_forum import derive_insight_forum_title, derive_insight_packet_lede
+from .steering import default_corpus_key
 
 TAVILY_DEEP_ASSIGNMENT_TYPE = "research.tavily-deep"
 TAVILY_TASK_MESSAGE_KIND = "tavily_research_task"
@@ -524,7 +525,7 @@ def finalize_tavily_deep_research(
     research_mode = normalize_research_mode(
         options.get("research-mode") or assignment_meta.get("researchMode") or "source_discovery"
     )
-    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(assignment_meta.get("corpusKey")) or "AI-ML-research"
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(assignment_meta.get("corpusKey")) or default_corpus_key()
     actor_label = normalize_string(options.get("actor-label")) or "Papyrus content CLI"
     assignment_id = str(assignment["id"])
     now = _utc_now()

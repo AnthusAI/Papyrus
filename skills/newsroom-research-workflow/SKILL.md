@@ -12,7 +12,7 @@ and the Newsroom UI.
 
 For multi-section Coverage Theme runs that dispatch research and parallel
 reporting agents together, also use
-[`skills/newsroom-story-cycle/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/newsroom-story-cycle/SKILL.md).
+[`skills/newsroom-story-cycle/SKILL.md`](../newsroom-story-cycle/SKILL.md).
 The Python operator surface for that loop is
 `poetry run papyrus knowledge signals trend-report`,
 `poetry run papyrus editions plan`,
@@ -22,7 +22,7 @@ run-story-cycle` remains a compatibility alias.
 
 For reusable Reference summaries and quality ratings that feed ranking or
 context packs, use
-[`skills/reference-curation-signals/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/reference-curation-signals/SKILL.md).
+[`skills/reference-curation-signals/SKILL.md`](../reference-curation-signals/SKILL.md).
 
 For **internal knowledge base search** before web search, use
 [`docs/internal-knowledge-research.md`](../../docs/internal-knowledge-research.md)

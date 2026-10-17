@@ -79,7 +79,7 @@ Procedure {
     input = {
         assignment_item_id = field.string{default = "", description = "Papyrus Assignment.id or legacy assignment Item.id"},
         assignment_json = field.string{default = "", description = "Inline Assignment or assignment Item JSON for deterministic tests or offline runs"},
-        corpus_key = field.string{default = "AI-ML-research", description = "Papyrus steering corpus key"},
+        corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "", description = "Optional live context profile override"},
         max_evidence_items = field.integer{default = 5, description = "Maximum Biblicus evidence items to use"},
         knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and insight retrieval defaults"},

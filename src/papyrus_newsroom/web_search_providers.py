@@ -9,6 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Literal
+from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
 
 WebSearchProviderName = Literal["tavily", "openai"]
 WEB_SEARCH_PROVIDER_ENV = "WEB_SEARCH_PROVIDER"
@@ -35,7 +36,7 @@ def reference_web_search(
     *,
     query: str,
     max_results: int = 20,
-    model: str = "gpt-5.4-mini",
+    model: str = DEFAULT_LLM_MODEL,
     return_token_budget: str = "default",
     provider: str | None = None,
 ) -> dict[str, Any]:

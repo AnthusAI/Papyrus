@@ -918,7 +918,7 @@ def references_register_catalog_split(flags: list[str]) -> None:
         raise ValueError("references create-from-catalog-split requires --catalog <catalog.json>.")
     steering_config = require_steering_config(options.get("config"))
     research_key = options.get("research-corpus-key") or steering_config["canonicalTopicSet"]["corpusKey"]
-    news_key = options.get("news-corpus-key") or "AI-ML-journalism"
+    news_key = options.get("news-corpus-key")
     catalog = maybe_enrich_reference_catalog_title_subtitle(load_json_file(options["catalog"]), options)
     items = catalog_items(catalog)
     buckets = {"research": [], "news": []}
@@ -932,6 +932,8 @@ def references_register_catalog_split(flags: list[str]) -> None:
     ):
         if not bucket_items:
             continue
+        if not corpus_key:
+            raise ValueError(f"--{bucket_name}-corpus-key is required because the catalog has {bucket_name} items.")
         bucket_options = {**options, "__apply": apply}
         bucket_options["corpus-key"] = corpus_key
         bucket_catalog = {**catalog, "items": bucket_items}
