@@ -612,7 +612,7 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **Same verbs, same flags.** Core operator commands include `papyrus references
   list`, `papyrus references show <id>`, and `papyrus assignments list`. Local pod and cloud must accept the same argv and
   return the same human-readable output shape (tabular list rows, detail blocks,
-  exit codes). Executable specs live in `features/operator-cli.feature`.
+  exit codes). Executable specs live in `features_backend/operator-cli.feature`.
 - **Backend is config, not a second command tree.** Select `local` or `cloud`
   from project config (`backend`, `local.podPath`, `cloud.graphqlEndpoint`) or
   with `--backend local|cloud`. Do not fork the noun vocabulary per backend.

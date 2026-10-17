@@ -62,7 +62,8 @@ kanbus = ">=0.18.3"
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
-testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests"]
+testpaths = ["procedures/newsroom/tests", "publications/threat_intelligence/tests", "src"]
+python_files = ["test_*.py", "*_test.py"]
 
 [build-system]
 requires = ["poetry-core>=1.9.0"]
