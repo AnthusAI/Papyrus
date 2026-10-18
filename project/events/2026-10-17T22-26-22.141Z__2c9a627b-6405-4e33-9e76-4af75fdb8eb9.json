@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2c9a627b-6405-4e33-9e76-4af75fdb8eb9",
+  "issue_id": "PPY-217d9fa2-19a6-4edd-ab8b-e9170de19c4e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T22:26:22.141Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Migrate Tactus-web (Gatsby) to a Papyrus Markus publication",
+    "description": "Gatsby + MDX site with @anthus/tactus-hitl-components embedded in pages, Amplify Gen 2 backend, and videos. Hardest web migration: MDX components need Markus directives or islands, and the backend extension resources need a plan.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": []
+  }
+}

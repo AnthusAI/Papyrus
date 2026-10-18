@@ -1,14 +1,14 @@
 import type { KanbanConfig, KanbanIssue } from "@kanbus/ui";
-import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
+import type { AssignmentRecord } from "./category-repository";
 import {
-  CONTENT_ITEM_STAGES,
+  contentItemStageKeys,
   contentItemStageLabel,
   latestVersionPerContentItem,
   type ContentItemVersionRecord,
 } from "./content-item-lifecycle";
-import { getContentItemName } from "./site-brand";
+import { getContentItemName, getContentItemStageDefinitions } from "./site-brand";
 
-export type NativeBoardKind = "contentItem" | "reference" | "assignment";
+export type NativeBoardKind = "contentItem" | "assignment";
 export interface NativeBoardIssue extends KanbanIssue {
   kind: NativeBoardKind;
   nativeId: string;
@@ -26,12 +26,11 @@ function boardTypeForKind(kind: NativeBoardKind): string {
 
 /**
  * One card per content item, in the column for its lifecycle stage. Assignments that are work on a content item
- * are counted on that item's card rather than shown as separate cards. References and other work keep their own
- * identity and native status.
+ * are counted on that item's card rather than shown as separate cards. Other assignments keep their own identity and
+ * native status. References are not shown on the board.
  */
 export function projectNewsroomBoard(records: {
   contentItemVersions?: readonly ContentItemVersionRecord[];
-  references?: readonly ReferenceRecord[];
   assignments?: readonly AssignmentRecord[];
 }): NativeBoardIssue[] {
   const assignmentCountByContentItem = new Map<string, number>();
@@ -52,14 +51,6 @@ export function projectNewsroomBoard(records: {
         updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
       };
     }),
-    ...(records.references ?? []).filter(row => !row.versionState || row.versionState === "current").map(row => ({
-      id: `reference:${row.id}`, nativeId: row.id, kind: "reference" as const, type: "reference",
-      title: row.title || row.externalItemId || row.id,
-      nativeStatus: row.curationStatus || "pending", status: `reference/${row.curationStatus || "pending"}`,
-      priority: 2, description: row.curationStatusReason || undefined,
-      updated_at: row.updatedAt || row.importedAt || undefined,
-      href: `/newsroom/references/${encodeURIComponent(row.lineageId || row.id)}`,
-    })),
     ...(records.assignments ?? []).filter(row => !row.itemLineageId).map(row => ({
       id: `assignment:${row.id}`, nativeId: row.id, kind: "assignment" as const, type: "assignment",
       title: row.title, nativeStatus: row.status, status: `assignment/${row.status}`,
@@ -71,18 +62,21 @@ export function projectNewsroomBoard(records: {
   ];
 }
 
-export function contentItemColumnOrder(stagesPresentOnBoard: readonly string[]): string[] {
-  const lastStage = CONTENT_ITEM_STAGES[CONTENT_ITEM_STAGES.length - 1];
-  const unrecognizedStages = [...new Set(stagesPresentOnBoard)].filter(stage => !(CONTENT_ITEM_STAGES as readonly string[]).includes(stage));
-  return [...CONTENT_ITEM_STAGES.filter(stage => stage !== lastStage), ...unrecognizedStages, lastStage];
+export function contentItemColumnOrder(
+  stagesPresentOnBoard: readonly string[],
+  stageKeys: readonly string[] = contentItemStageKeys(getContentItemStageDefinitions()),
+): string[] {
+  const lastStage = stageKeys[stageKeys.length - 1];
+  const unrecognizedStages = [...new Set(stagesPresentOnBoard)].filter(stage => !stageKeys.includes(stage));
+  return [...stageKeys.filter(stage => stage !== lastStage), ...unrecognizedStages, lastStage];
 }
 
 /** Content items read left to right through the lifecycle with the final stage last; other record kinds follow it. */
 export function newsroomBoardConfig(issues: readonly NativeBoardIssue[]): KanbanConfig {
   const contentItemType = contentItemBoardType();
-  const kinds: NativeBoardKind[] = ["contentItem", "reference", "assignment"];
+  const kinds: NativeBoardKind[] = ["contentItem", "assignment"];
   const contentItemStatuses = contentItemColumnOrder(issues.filter(issue => issue.kind === "contentItem").map(issue => issue.nativeStatus))
-    .map(stage => ({ key: `${contentItemType}/${stage}`, name: contentItemStageLabel(stage), category: "native" }));
+    .map(stage => ({ key: `${contentItemType}/${stage}`, name: contentItemStageLabel(stage, getContentItemStageDefinitions()), category: "native" }));
   const otherStatuses = [...new Set(issues.filter(issue => issue.kind !== "contentItem").map(issue => issue.status))]
     .map(key => ({ key, name: key.replace("/", " · "), category: "native" }));
   const statuses = [...contentItemStatuses, ...otherStatuses];

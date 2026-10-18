@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cfd57b6f-7d9c-4df5-89f9-3ac5f85d5fe8",
+  "issue_id": "PPY-34b9074f-a13a-409b-ba26-571ecd3a7dd4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T22:26:07.495Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Move docs sites (Kanbus mkdocs, Tactus, Biblicus, Cyclotron docs) to Papyrus Markus publications",
+    "description": "Kanbus uses mkdocs; Tactus, Biblicus and Cyclotron keep docs/ trees. Decide one docs pattern (a docs-flavored Markus publication with sidebar nav) then convert each. Needs Markus directive coverage for admonitions, code tabs and API reference first.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-c4e05a47-e296-41bb-9bb2-0222582255e3",
+  "title": "Configure content item lifecycle stages per publication",
+  "description": "Feature: Per-publication lifecycle stages\n  Scenario: A publication defines its own stages\n    Given a site brand that lists its own stages with keys, labels and order\n    When the newsroom Board and the Python workflow load the lifecycle\n    Then columns follow that publication's stages in order with its labels\n    And a site that configures nothing gets the default: idea, assignment, research, report, editor_select, copywriting, illustration, typesetting, published\n    And the last stage is the published stage and always the rightmost column",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T22:13:18.197952Z",
+  "updated_at": "2026-10-17T22:13:18.198743Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
