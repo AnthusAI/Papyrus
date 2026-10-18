@@ -40,7 +40,8 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
         raise ValueError(f"{FIELD} must be an object.")
     _refuse_secrets(raw, FIELD)
     known = {"cyclotronId", "classifierId", "question", "labels", "positiveLabel", "decisionModel",
-             "optimizer", "store", "maxRequestsPerSweep", "reviewProgram", "reviewControl"}
+             "optimizer", "store", "maxRequestsPerSweep", "reviewProgram", "reviewControl", "enabled",
+             "maxDecisionsPerDay"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ValueError(f"{FIELD} has unknown fields: {', '.join(unknown)}.")
@@ -86,6 +87,12 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     max_requests = raw.get("maxRequestsPerSweep", 200)
     if type(max_requests) is not int or max_requests < 1:
         raise ValueError(f"{FIELD}.maxRequestsPerSweep must be a positive integer.")
+    enabled = raw.get("enabled", True)
+    if type(enabled) is not bool:
+        raise ValueError(f"{FIELD}.enabled must be true or false.")
+    max_decisions_per_day = raw.get("maxDecisionsPerDay")
+    if max_decisions_per_day is not None and (type(max_decisions_per_day) is not int or max_decisions_per_day < 1):
+        raise ValueError(f"{FIELD}.maxDecisionsPerDay must be a positive integer.")
     program = raw.get("reviewProgram") or {}
     if not isinstance(program, dict) or set(program) - set(REVIEW_PROGRAM_FIELDS):
         raise ValueError(f"{FIELD}.reviewProgram fields are {', '.join(REVIEW_PROGRAM_FIELDS)}.")
@@ -102,6 +109,8 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
         "maxRequestsPerSweep": max_requests,
         "reviewProgram": dict(program),
         "reviewControl": review_control,
+        "enabled": enabled,
+        "maxDecisionsPerDay": max_decisions_per_day,
     }
 
 
@@ -131,6 +140,8 @@ class RelevanceCyclotronPlan:
     s3_prefix: str | None
     max_requests: int
     review_control: str = "labels"
+    enabled: bool = True
+    max_decisions_per_day: int | None = None
 
 
 def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
@@ -148,7 +159,7 @@ def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequ
     return RelevanceCyclotronPlan(definition, {classifier.id: doctrine_seed_rubric(doctrine)}, program,
                                   dict(block["decisionModel"]), dict(block["optimizer"]) if block["optimizer"] else None,
                                   block["store"]["localPath"], block["store"]["s3Prefix"], block["maxRequestsPerSweep"],
-                                  block["reviewControl"])
+                                  block["reviewControl"], block.get("enabled", True), block.get("maxDecisionsPerDay"))
 
 
 def decision_model_identity(plan: RelevanceCyclotronPlan) -> str:

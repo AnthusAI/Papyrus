@@ -71,3 +71,38 @@ papyrus stories show --story <lineage>
 ```
 
 prints the latest version, how many versions exist, and every attached reference with its role.
+
+## Approving a Reference on a person's behalf
+
+Status: designed, not yet available. Until it ships, an agent that runs
+`papyrus references review-curation` changes a Reference's admission status, but
+the curation is recorded as made by a service and never teaches a classifier.
+Do not tell a person their approval was recorded as a label.
+
+When a person tells you, in a live session, that a Reference is approved or
+rejected, the system can record that as the person's own label, but only if the
+person gave you a delegation. You cannot assert it yourself, and your own
+judgment never becomes a label this way.
+
+1. The person signs in to the Newsroom and creates a delegation: who it is for
+   (your agent name), which publication, approve and reject, and how long it
+   lasts (eight hours by default). They hand you the token it shows once.
+2. Record their decision with the token:
+
+   ```bash
+   papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
+     --delegation-token <token> --note "<their reason, in their words>"
+   papyrus references reject --reference <record id> --on-behalf-of <person's sign-in email> \
+     --delegation-token <token> --reason-code out_of_scope --note "<their reason>"
+   ```
+
+3. The Lambda checks the token (unexpired, unrevoked, scoped to this
+   publication and your agent), then records the curation as the person's:
+   `actorKind: human`, `actorSub` the person's, `attestation: delegated`,
+   `relayedBy` your agent label and `delegationId`. The Newsroom shows it as
+   "approved by <person> through <agent>", and the person can revoke the
+   delegation at any time.
+
+Only relay what the person actually said. If you are unsure, quote their words
+in `--note` and ask. A delegation lets you record a human decision; it does not
+let you decide.
