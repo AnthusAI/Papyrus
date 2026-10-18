@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "642c64d1-57c3-4de9-8351-8d696c36e699",
+  "issue_id": "PPY-d49d6f99-9a1d-4bf0-b5d7-663656ae4bf7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T12:58:48.094Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Cyclotron-web slice 2: pictograms, playback and recording charts as Papyrus islands",
+    "description": "Follow Prospectus-web web/island (client.tsx, server.tsx, data.ts). Covers RunPlayback, EditorialPlayback, LearningCurveChart, ConfusionMatrix, ReviewEffortChart, RecordingComparison and the pictograms. Recordings JSON stays the source of truth.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+    "labels": []
+  }
+}

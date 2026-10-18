@@ -9,7 +9,7 @@ import { ANTH_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
  * **editorial identity** (`style-profile.yml`, `editorial-rewrite-skill.yml`,
  * `reference-samples/`) and is not touched by this file.
  *
- * Every string below is read off the live Gatsby site at `AnthusAI/Anth.us`:
+ * Every string below is read off the live Gatsby site at `AnthusAI/Anth.us-legacy-Gatsby`:
  * `gatsby-config.mjs` `siteMetadata` for the title/description/author,
  * `src/components/header.js` for the wordmark, `gatsby-plugin-manifest` for
  * "Anth.us AI Solutions", and `src/components/seo.js` for the
@@ -42,7 +42,7 @@ export const anthUsBrand: SiteBrand = {
   hosting: { kind: "amplify-ssr" },
   readerDeployment: {
     kind: "amplify-static",
-    repository: "https://github.com/AnthusAI/Anth.us-Papyrus",
+    repository: "https://github.com/AnthusAI/Anth.us-web",
     // `domain` and `amplifyAppId` are deliberately unset.
     //
     // This reader is a **staging** port of a live marketing site. Production

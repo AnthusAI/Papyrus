@@ -2236,6 +2236,7 @@ type PublishedItemBoardRow = {
 };
 
 export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return [];
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;

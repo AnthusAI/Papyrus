@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0ab84d83-1f39-4f8b-aacb-a0b88dbc7256",
+  "title": "Cyclotron-web slice 1: prose pages to a Markus publication (Papyrus-web pattern)",
+  "description": "Follow Papyrus-web/Prospectus-web: Git-authored Markus plus web/projector.py. Prose routes (how-it-works, developers, services, pricing, learn, use-cases, articles) become Markus with directives; the copy-claims, glossary and use-case tests in components/*.test.ts keep guarding wording and must run against the Markus source. Keep every URL. Pictograms and recording charts are islands (slice 2).",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T12:58:29.097390Z",
+  "updated_at": "2026-10-18T12:58:29.098157Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

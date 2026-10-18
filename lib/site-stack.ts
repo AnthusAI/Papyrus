@@ -149,7 +149,7 @@ export const PILOBOL_US_THEME_PACK_TOKENS: ThemePackTokens = {
 };
 
 /**
- * Anthus palette, read off the live Gatsby site at `AnthusAI/Anth.us`
+ * Anthus palette, read off the live Gatsby site at `AnthusAI/Anth.us-legacy-Gatsby`
  * (`src/styles/variables.scss` `:root`). Colors only — Shadcn owns typography.
  * Mapping from that file's names to the pack's slots:
  *

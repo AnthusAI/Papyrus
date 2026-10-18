@@ -3,7 +3,7 @@
 Status: **Approved design (2026-10-05); packaging spike done (PPY-82be6c, verdict:
 works with changes, section 5).** Phase 3 migration issues reference this doc.
 The package skeletons exist (PR #100) but nothing is published. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
-verified against `origin/develop` (7cb1b7e), `AnthusAI/Anth.us-Papyrus@main`,
+verified against `origin/develop` (7cb1b7e), `AnthusAI/Anth.us-web@main`,
 `AnthusAI/Pilobol.us@main` and `AnthusAI/Threat-Intelligence@main` on
 2026-10-05. Existing docs are linked, not repeated:
 [site-hosting.md](site-hosting.md), [pluggable-publishers.md](pluggable-publishers.md),
@@ -290,7 +290,7 @@ knows one site, hardcoded (C4). Standard:
 
 | Need | Mechanism |
 | --- | --- |
-| Amplify to pull from the repo | **Amplify GitHub App**, installed per publication repo. The connection handshake is a one-time console step (Amplify offers no API for it; Anth.us-Papyrus documents this). The runbook records it per site. The CDK shell no longer takes an access token or a Secrets Manager PAT |
+| Amplify to pull from the repo | **Amplify GitHub App**, installed per publication repo. The connection handshake is a one-time console step (Amplify offers no API for it; Anth.us-web documents this). The runbook records it per site. The CDK shell no longer takes an access token or a Secrets Manager PAT |
 | CI to call AWS (infra deploy on `infra/` changes, `aws amplify start-job`, content CLI jobs) | **GitHub OIDC**: one account-level `AWS::IAM::OidcProvider`, plus per repo a role whose trust is `repo:AnthusAI/<repo>:ref:refs/heads/<branch>`, least privilege (no AdministratorAccess), created by the shell |
 | Amplify builds to reach AWS | The Amplify service role (no keys) |
 | Staging build to read drafts | The Amplify build role's credentials sign AppSync requests with SigV4 (IAM). No token, no secret |
@@ -448,7 +448,7 @@ Alternatives rejected: Amplify branch access control (one shared password,
 which Ryan ruled out); CloudFront + Lambda@Edge Cognito gate (new moving parts
 outside Amplify); WAF IP allowlists (not per-person).
 
-**`SITE_ENV` and production.** Adopt the Anth.us-Papyrus `web/site_env.py`
+**`SITE_ENV` and production.** Adopt the Anth.us-web `web/site_env.py`
 pattern as a Papyrus-provided helper (build prints the mode first; guarded
 unless `SITE_ENV=production` **and** branch `main`; the build fails if any page
 contradicts the mode). `customHttp.yml` stays app-wide and never carries
@@ -508,7 +508,7 @@ drafts behind Cognito.
 
 | | p.apyr.us | Threat Intelligence | Pilobol.us | Anth.us |
 | --- | --- | --- | --- | --- |
-| Repo today | the Papyrus repo (`main`) | fork, 81 ahead / 210 behind develop | `Pilobol.us` (reader) + Papyrus `main` (CMS) | `Anth.us-Papyrus` (reader), no CMS |
+| Repo today | the Papyrus repo (`main`) | fork, 81 ahead / 210 behind develop | `Pilobol.us` (reader) + Papyrus `main` (CMS) | `Anth.us-web` (reader), no CMS |
 | (a) packages | n/a: is the product repo | no: fork | reader: SHA clone; CMS: floats on `main` | reader: SHA clone; no CMS |
 | (b) brand | in Papyrus | in fork | in Papyrus | in Papyrus |
 | (c) backend IaC | hand-made app | hand-made app | **yes** (CDK) | none |

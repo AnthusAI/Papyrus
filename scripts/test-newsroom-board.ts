@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
+import type { AssignmentRecord } from "../lib/category-repository";
 import {
+  deskBoardConfig,
+  deskContainsAssignment,
+  deskContainsContentItem,
   contentItemBoardPathSegment, assignmentBoardConfig, canReadNewsroomBoard, contentItemBoardConfig, contentItemBoardType, contentItemColumnOrder, projectAssignmentBoard, projectContentItemBoard } from "../lib/newsroom-board";
 import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS, contentItemStageKeys } from "../lib/content-item-lifecycle";
 import { getContentItemName } from "../lib/site-brand";
@@ -62,4 +66,17 @@ assert.deepEqual(legacyBoard.map(issue => issue.status), [`${contentItemType}/re
 const spikedStatus = contentItemBoardConfig([]).statuses.find(status => status.key === `${contentItemType}/spiked`);
 assert.equal(spikedStatus?.collapsed, true, "the spiked column starts collapsed");
 assert.equal(contentItemBoardConfig([]).statuses.filter(status => status.collapsed).length, 1, "only spiked starts collapsed");
+const newsDeskStory = { id: "desk-story-v1", lineageId: "desk-story", versionNumber: 1, stage: "copywriting", type: "article", status: "draft", title: "News story", slug: "news-story", section: "news", updatedAt: "2026-10-14" };
+assert.equal(deskContainsContentItem(newsDeskStory, "news"), true);
+assert.equal(deskContainsContentItem(newsDeskStory, "News"), true, "desk matching ignores case");
+assert.equal(deskContainsContentItem(newsDeskStory, "features"), false);
+const newsDeskAssignment = { id: "desk-assignment", sectionKey: "news", status: "open", title: "News assignment" } as AssignmentRecord;
+assert.equal(deskContainsAssignment(newsDeskAssignment, "news"), true);
+assert.equal(deskContainsAssignment({ ...newsDeskAssignment, sectionKey: "features" }, "news"), false);
+const deskIssues = [...projectContentItemBoard({ contentItemVersions: [newsDeskStory] }), ...projectAssignmentBoard([newsDeskAssignment])];
+const deskConfig = deskBoardConfig(deskIssues);
+assert.deepEqual(deskConfig.types, [contentItemType, "assignment"], "a desk board offers both record types to filter by");
+assert.deepEqual(Object.keys(deskConfig.workflows ?? {}), [contentItemType, "assignment"]);
+assert.ok(Object.keys(deskConfig.workflows?.assignment ?? {}).every(key => key.startsWith("assignment/")), "assignment columns stay separate from story columns");
+assert.ok(Object.keys(deskConfig.workflows?.[contentItemType] ?? {}).every(key => key.startsWith(`${contentItemType}/`)));
 console.log("PASS separate story and assignment boards, one card per record by stage or status, and board access gate");

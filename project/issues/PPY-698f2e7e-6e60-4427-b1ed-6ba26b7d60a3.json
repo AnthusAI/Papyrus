@@ -1,0 +1,22 @@
+{
+  "id": "PPY-698f2e7e-6e60-4427-b1ed-6ba26b7d60a3",
+  "title": "Cyclotron-web slice 3: switch the cyclotron-marketing pipeline build to the Papyrus projection",
+  "description": "The cyclotron-marketing CodePipeline (cyclotron-production account) builds next build today. Replace the build step with the projection build and S3 publish, keeping the CloudFront alias and certificate context. DevOps pipeline owners do the deploy; no local AWS.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T12:59:06.734626Z",
+  "updated_at": "2026-10-18T12:59:06.734849Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
