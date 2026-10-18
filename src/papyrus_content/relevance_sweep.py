@@ -25,8 +25,9 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
+from .auto_decision_gate import auto_decision_gate, load_approved_proof
 from .assignments import active_claim_held_by_different_assignee, apply_assignment_action
 from .ids import knowledge_corpus_id, safe_id
 from .model_attachments import download_attachment_buffer, expand_private_payload_records, parse_jsonish
@@ -62,6 +63,7 @@ class SweepResult:
     priming_failed: int = 0
     reviews: int = 0
     primed_from_human_reviews: int = 0
+    retired_labels: int = 0
     stopped_because: str | None = None
     live_agreement: dict[str, Any] | None = None
     status: dict[str, Any] | None = None
@@ -69,7 +71,7 @@ class SweepResult:
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
-                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "stoppedBecause": self.stopped_because,
+                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "stoppedBecause": self.stopped_because,
                 "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings}
 
 
@@ -255,6 +257,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
             result.primed_from_human_reviews = _prime_from_human_reviews(
                 client, cyclotron, plan, corpus_id, result.warnings)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
+            result.retired_labels = _retire_withdrawn_labels(client, cyclotron, plan, corpus_id, result.warnings)
             provenance = reproducibility_provenance(plan, cyclotron)
             for reference in pending:
                 if decisions_allowed is not None and result.decided >= decisions_allowed:
@@ -412,8 +415,21 @@ def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: s
             if comparison is not None:
                 comparisons.append(comparison)
     return {**live_agreement(comparisons, positive_label=classifier.positive_label, now=now),
+            "autoDecision": auto_decision_gate(load_approved_proof(plan.approved_proof_path),
+                                               human_label_count=_human_label_count(client, classifier.labels, corpus_id),
+                                               now=now),
             "loop": {"enabled": plan.enabled, "stoppedBecause": stopped_because, "lastSweepAt": now,
                      "maxDecisionsPerDay": plan.max_decisions_per_day}}
+
+
+def _human_label_count(client, labels: Sequence[str], corpus_id: str) -> int:
+    count = 0
+    for status in REVIEWED_STATUSES:
+        for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
+            messages = _curation_messages(client, reference["lineageId"])
+            if human_label_for_review(reference, messages, labels=labels) is not None:
+                count += 1
+    return count
 
 
 def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str,
@@ -451,6 +467,51 @@ def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, c
                 continue
             added += 1
     return added
+
+
+def _retire_withdrawn_labels(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str,
+                             warnings: list[str]) -> int:
+    """Retract the cyclotron's label for a decided reference whose latest curation no longer gives a human label.
+
+    A person who sets a reviewed reference back to pending, or a later curation
+    by anyone else that is not an explicit human label, withdraws the label the
+    cyclotron learned from. The cyclotron's history keeps the retraction.
+    """
+    labels = plan.definition.classifiers[0].labels
+    retired = 0
+    for status in ("pending", *REVIEWED_STATUSES):
+        for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
+            decision_relation = current_relevance_decision(_decision_relations(client, reference["lineageId"]),
+                                                           reference["lineageId"])
+            messages = _curation_messages(client, reference["lineageId"])
+            if not messages or human_label_for_review(reference, messages, labels=labels) is not None:
+                continue
+            if decision_relation is None:
+                retired += _retract_priming_example(cyclotron, plan, reference, warnings)
+                continue
+            decision_id = json.loads(decision_relation.get("metadata") or "{}").get("decisionId")
+            if not decision_id:
+                continue
+            try:
+                asyncio.run(cyclotron.undo_review(decision_id, review_id=f"retire:{messages[-1]['id']}"))
+            except ValueError as error:
+                if "no label to undo" not in str(error):
+                    warnings.append(f"{reference['lineageId']}: {error}")
+                continue
+            retired += 1
+    return retired
+
+
+def _retract_priming_example(cyclotron, plan: RelevanceCyclotronPlan, reference: Mapping[str, Any],
+                             warnings: list[str]) -> int:
+    classifier_id = plan.definition.classifiers[0].id
+    try:
+        outcome = asyncio.run(cyclotron.retract_priming_examples(
+            {classifier_id: [reference_item(reference).id]}, retracted_by="papyrus: human review withdrawn"))
+    except ValueError as error:
+        warnings.append(f"{reference['lineageId']}: {error}")
+        return 0
+    return len(outcome["retracted"].get(classifier_id, ()))
 
 
 def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str, warnings: list[str]) -> int:
