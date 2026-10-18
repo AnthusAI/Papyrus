@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -1863,6 +1865,7 @@ export function normalizeNewsroomReferencePageOrder(value?: string | null): News
 }
 
 export async function loadNewsroomReferencePage(options: NewsroomReferencePageOptions = {}): Promise<NewsroomRecordPage<ReferenceRecord>> {
+  if (isLocalPreviewEnabled()) return { items: createLocalPreviewReferences(), nextToken: null, hasMore: false };
   configureAmplifyClient();
   const order = normalizeNewsroomReferencePageOrder(options.order);
   if (order === "imported") {
@@ -2146,6 +2149,7 @@ export async function loadEditorOverviewEditionData(): Promise<{
 }
 
 export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPageOptions = {}): Promise<NewsroomRecordPage<AssignmentRecord>> {
+  if (isLocalPreviewEnabled()) return { items: createLocalPreviewAssignments(), nextToken: null, hasMore: false };
   return loadNewsroomFeedPage<AssignmentRecord>({
     query: NEWSROOM_ASSIGNMENT_FEED_QUERY,
     field: "listAssignmentsByNewsroomFeedAndCreatedAt",
@@ -2169,6 +2173,7 @@ const CONTENT_ITEMS_BY_STAGE_QUERY = `
 `;
 
 export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewContentItemVersions();
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
