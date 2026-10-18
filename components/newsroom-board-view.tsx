@@ -6,8 +6,6 @@ import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
 import { PlusIcon } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "../lib/utils";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
   ASSIGNMENT_BOARD_TYPE,
@@ -143,10 +141,10 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
     headerActions={<>
       <span role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</span>
-      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
+      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
       {showsContentItems && (
-        <Link className={cn(buttonVariants({ size: "sm" }))} data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
-          <PlusIcon aria-hidden="true" />
+        <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
+          <PlusIcon size={14} aria-hidden="true" />
           {`New ${getContentItemName().singular.toLowerCase()}`}
         </Link>
       )}
