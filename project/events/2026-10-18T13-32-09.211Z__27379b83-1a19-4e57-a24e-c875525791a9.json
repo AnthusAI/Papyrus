@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "27379b83-1a19-4e57-a24e-c875525791a9",
+  "issue_id": "PPY-9175780c-9e31-46c8-b1b7-5b85953014ad",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-18T13:32:09.211Z",
+  "actor_id": "unknown",
+  "payload": {
+    "comment_id": "3ef41f69-56bd-4ada-b80d-1eceae93ae2a",
+    "comment_author": "unknown",
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Thread Claude"
+    }
+  }
+}

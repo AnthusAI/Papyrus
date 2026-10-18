@@ -24,10 +24,24 @@
         "name": "Thread Claude",
         "settings": {}
       }
+    },
+    {
+      "id": "3ef41f69-56bd-4ada-b80d-1eceae93ae2a",
+      "author": "unknown",
+      "text": "Index pages landed: AnthusAI/Chattic.us-web PR 31 squash-merged to main (e4b3c34). /wiki, /updates, /agent-zoo and /thoughts are now built by the same Papyrus publication step from each app/<section>/page-content.ts; page text matches the previous build. Local checks: build, typecheck, npm test, 81 behave scenarios, editorial copy checks. The repo's GitHub Actions CI has failed within seconds on every run since 2026-10-13 (including main), so it does not gate this. Still unverified: the chattic.us CodePipeline run for PRs 30 and 31.",
+      "created_at": "2026-10-18T13:32:09.211160Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Sonnet 5.5",
+        "name": "Thread Claude",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-18T12:59:26.842355Z",
-  "updated_at": "2026-10-18T13:24:15.389383Z",
+  "updated_at": "2026-10-18T13:32:09.211481Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
