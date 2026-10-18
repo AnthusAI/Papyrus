@@ -9,6 +9,7 @@ import yaml
 from .env import PAPYRUS_ROOT
 from .papyrus_config import DEFAULT_STEERING_CONFIG_PATH, resolve_topics_steering_config_path
 from .relevance_cyclotron import normalize_relevance_cyclotron_config
+from .site_cyclotron import normalize_site_cyclotron_config
 
 DEFAULT_STEERING_CONFIG = DEFAULT_STEERING_CONFIG_PATH
 VALID_CORPUS_ROLES = frozenset({"canonical", "source", "supporting", "archive"})
@@ -69,6 +70,7 @@ def normalize_steering_config(raw_config: Any, config_path: str) -> dict[str, An
         raise ValueError(f"canonicalTopicSet.corpusKey does not match a configured corpus: {canonical_corpus_key}")
 
     publication = raw_config.get("publication") or {}
+    relevance_cyclotron = normalize_relevance_cyclotron_config(raw_config.get("relevanceCyclotron"))
     return {
         "configPath": config_path,
         "schemaVersion": 1,
@@ -78,7 +80,8 @@ def normalize_steering_config(raw_config: Any, config_path: str) -> dict[str, An
             "classifierId": canonical_classifier_id,
         },
         "corpora": normalized_corpora,
-        "relevanceCyclotron": normalize_relevance_cyclotron_config(raw_config.get("relevanceCyclotron")),
+        "relevanceCyclotron": relevance_cyclotron,
+        "siteCyclotron": normalize_site_cyclotron_config(raw_config.get("siteCyclotron"), relevance_cyclotron),
     }
 
 

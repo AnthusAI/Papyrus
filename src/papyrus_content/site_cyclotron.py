@@ -1,0 +1,135 @@
+"""The site cyclotron: one shared cyclotron with a classifier per Section and a Section selector.
+
+Each enabled newsroom Section has a binary classifier that answers whether a
+Reference fits that Section, and one multi-class classifier chooses the
+Section for a Reference. The classifier set is derived from the Section list,
+never configured by hand, so Section curation stays the single place the list
+is maintained. The model, optimizer and review program come from the
+publication's ``relevanceCyclotron`` block, and the Section classifiers learn
+only from the explicit Section decisions of people.
+"""
+from __future__ import annotations
+
+from typing import Any, Mapping, Sequence
+
+from .ids import safe_id
+from .relevance_cyclotron import FIELD as RELEVANCE_FIELD
+from .relevance_cyclotron import RelevanceCyclotronPlan, _refuse_secrets, _string
+
+FIELD = "siteCyclotron"
+SECTION_FIT_LABELS = ("fits", "does-not-fit")
+SECTION_FIT_POSITIVE_LABEL = "fits"
+SECTION_SELECTOR_CLASSIFIER_ID = "section-selector"
+SECTION_FIT_CLASSIFIER_PREFIX = "section-fit-"
+SECTION_SELECTOR_QUESTION = "Which newsroom Section is the best home for this candidate source?"
+SITE_CYCLOTRON_FIELDS = {"cyclotronId", "enabled", "maxDecisionsPerDay", "approvedProofPath", "store"}
+
+
+def normalize_site_cyclotron_config(raw: Any, relevance_block: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Validate the steering config's ``siteCyclotron`` block; None when absent."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"{FIELD} must be an object.")
+    if relevance_block is None:
+        raise ValueError(f"{FIELD} needs a {RELEVANCE_FIELD} block: it reuses its decision model, optimizer and review program.")
+    _refuse_secrets(raw, FIELD)
+    unknown = sorted(set(raw) - SITE_CYCLOTRON_FIELDS)
+    if unknown:
+        raise ValueError(f"{FIELD} has unknown fields: {', '.join(unknown)}.")
+    cyclotron_id = _string(raw.get("cyclotronId", f"{relevance_block['cyclotronId']}-sections"), f"{FIELD}.cyclotronId")
+    if cyclotron_id == relevance_block["cyclotronId"]:
+        raise ValueError(f"{FIELD}.cyclotronId must differ from {RELEVANCE_FIELD}.cyclotronId.")
+    enabled = raw.get("enabled", True)
+    if type(enabled) is not bool:
+        raise ValueError(f"{FIELD}.enabled must be true or false.")
+    maximum_per_day = raw.get("maxDecisionsPerDay")
+    if maximum_per_day is not None and (type(maximum_per_day) is not int or maximum_per_day < 1):
+        raise ValueError(f"{FIELD}.maxDecisionsPerDay must be a positive integer.")
+    approved_proof_path = raw.get("approvedProofPath")
+    if approved_proof_path is not None and (not isinstance(approved_proof_path, str) or not approved_proof_path.strip()):
+        raise ValueError(f"{FIELD}.approvedProofPath must be a file path.")
+    store = raw.get("store") or {}
+    if not isinstance(store, dict) or set(store) - {"localPath", "s3Prefix"}:
+        raise ValueError(f"{FIELD}.store fields are localPath and s3Prefix.")
+    s3_prefix = store.get("s3Prefix")
+    if s3_prefix is not None and (not isinstance(s3_prefix, str) or not s3_prefix.startswith("s3://")):
+        raise ValueError(f"{FIELD}.store.s3Prefix must be an s3:// prefix in the private media bucket.")
+    return {
+        "cyclotronId": cyclotron_id,
+        "enabled": enabled,
+        "maxDecisionsPerDay": maximum_per_day,
+        "approvedProofPath": approved_proof_path,
+        "store": {"localPath": _string(store.get("localPath", f"var/cyclotrons/{cyclotron_id}"), f"{FIELD}.store.localPath"),
+                  "s3Prefix": s3_prefix},
+    }
+
+
+def enabled_sections_in_order(sections: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    enabled = [section for section in sections if section.get("enabled", True)]
+    return sorted(enabled, key=lambda section: (int(section.get("sortOrder") or 0), str(section["id"])))
+
+
+def section_fit_classifier_id(section_id: str) -> str:
+    return f"{SECTION_FIT_CLASSIFIER_PREFIX}{safe_id(section_id)}"
+
+
+def section_fit_question(section: Mapping[str, Any]) -> str:
+    return f"Does this candidate source belong in the {section['title']} section?"
+
+
+def section_seed_rubric(section: Mapping[str, Any]) -> str:
+    lines = [f"Section: {section['title']}", f"Mission: {section['editorialMission']}",
+             f"Policy: {section['editorialPolicy']}"]
+    if section.get("assignmentGuidance"):
+        lines.append(f"Assignment guidance: {section['assignmentGuidance']}")
+    if section.get("killCriteria"):
+        lines.append(f"Reject when: {section['killCriteria']}")
+    return "\n".join(lines)
+
+
+def selector_seed_rubric(sections: Sequence[Mapping[str, Any]]) -> str:
+    descriptions = [f"- {section['id']}: {section['title']}. {section['editorialMission']}" for section in sections]
+    return "Choose the one Section whose mission fits best:\n" + "\n".join(descriptions)
+
+
+def site_classifier_specs(sections: Sequence[Mapping[str, Any]]) -> list[Any]:
+    from decision_flywheel import ClassifierSpec
+
+    ordered = enabled_sections_in_order(sections)
+    if not ordered:
+        raise ValueError("The site cyclotron needs at least one enabled Section.")
+    specs = [ClassifierSpec(section_fit_classifier_id(section["id"]), SECTION_FIT_LABELS, section_fit_question(section),
+                            positive_label=SECTION_FIT_POSITIVE_LABEL) for section in ordered]
+    if len(ordered) >= 2:
+        specs.append(ClassifierSpec(SECTION_SELECTOR_CLASSIFIER_ID, tuple(section["id"] for section in ordered),
+                                    SECTION_SELECTOR_QUESTION))
+    return specs
+
+
+def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
+    """Build the site cyclotron's plan from the steering config and the current Section list. No model call."""
+    from decision_flywheel import CyclotronDefinition, ReviewProgram
+
+    from .relevance_cyclotron import REVIEW_PROGRAM_FIELDS
+
+    site_block = steering_config.get(FIELD)
+    relevance_block = steering_config.get(RELEVANCE_FIELD)
+    if not site_block:
+        raise ValueError(f"This publication's steering config has no {FIELD} block.")
+    if not relevance_block:
+        raise ValueError(f"This publication's steering config has no {RELEVANCE_FIELD} block.")
+    ordered = enabled_sections_in_order(sections)
+    specs = site_classifier_specs(sections)
+    seed_rubrics = {section_fit_classifier_id(section["id"]): section_seed_rubric(section) for section in ordered}
+    if len(ordered) >= 2:
+        seed_rubrics[SECTION_SELECTOR_CLASSIFIER_ID] = selector_seed_rubric(ordered)
+    definition = CyclotronDefinition(site_block["cyclotronId"], tuple(specs), seed=f"{site_block['cyclotronId']}-v1")
+    program = ReviewProgram(**{REVIEW_PROGRAM_FIELDS[key]: (tuple(value) if key == "rates" else value)
+                               for key, value in relevance_block["reviewProgram"].items()})
+    return RelevanceCyclotronPlan(definition, seed_rubrics, program, dict(relevance_block["decisionModel"]),
+                                  dict(relevance_block["optimizer"]) if relevance_block["optimizer"] else None,
+                                  site_block["store"]["localPath"], site_block["store"]["s3Prefix"],
+                                  relevance_block["maxRequestsPerSweep"], relevance_block["reviewControl"],
+                                  site_block["enabled"], site_block["maxDecisionsPerDay"],
+                                  site_block["approvedProofPath"])
