@@ -4,6 +4,8 @@
  *   PAPYRUS_SITE_BRAND=pilobol-us SITE_ENV=staging npx tsx scripts/test-newsroom-root-middleware.ts
  */
 import assert from "node:assert/strict";
+process.env.PAPYRUS_SITE_BRAND = "pilobol-us";
+process.env.SITE_ENV = "staging";
 import { NextRequest } from "next/server";
 
 async function run() {

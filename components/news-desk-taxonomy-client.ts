@@ -41,7 +41,7 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
-import { contentItemStageKeys, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -2172,31 +2172,45 @@ const CONTENT_ITEMS_BY_STAGE_QUERY = `
   }
 `;
 
-export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewContentItemVersions();
+export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
+
+export type ContentItemStagePage = {
+  versions: ContentItemVersionRecord[];
+  nextToken: string | null;
+};
+
+/** One newest-updated-first page of the content items in one stage, so a board column can load as it is scrolled. */
+export async function loadNewsroomContentItemStagePage(
+  stage: string,
+  nextToken: string | null = null,
+  limit: number = CONTENT_ITEM_COLUMN_PAGE_LIMIT,
+): Promise<ContentItemStagePage> {
+  if (isLocalPreviewEnabled()) {
+    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage);
+    const offset = nextToken ? Number(nextToken) : 0;
+    const followingOffset = offset + limit;
+    return {
+      versions: versionsInStage.slice(offset, followingOffset),
+      nextToken: followingOffset < versionsInStage.length ? String(followingOffset) : null,
+    };
+  }
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const versionsPerStage = await Promise.all(contentItemStageKeys(getContentItemStageDefinitions()).map(async (stage) => {
-    const versions: ContentItemVersionRecord[] = [];
-    let nextToken: string | null = null;
-    do {
-      const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-        query: CONTENT_ITEMS_BY_STAGE_QUERY,
-        variables: { stage, sortDirection: "DESC", limit: NEWSROOM_PAGE_LIMIT, nextToken },
-        authMode: USER_POOL_AUTH_MODE,
-      });
-      assertNoGraphQLErrors(response.errors);
-      const connection = response.data?.[field];
-      if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-      versions.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
-      nextToken = connection.nextToken ?? null;
-    } while (nextToken);
-    return versions;
-  }));
-  return versionsPerStage.flat();
+  const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+    query: CONTENT_ITEMS_BY_STAGE_QUERY,
+    variables: { stage, sortDirection: "DESC", limit, nextToken },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  assertNoGraphQLErrors(response.errors);
+  const connection = response.data?.[field];
+  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+  return {
+    versions: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[],
+    nextToken: connection.nextToken ?? null,
+  };
 }
 
 const PUBLISHED_ITEMS_QUERY = `

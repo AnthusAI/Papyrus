@@ -6,15 +6,13 @@ const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
 
 const SEED_CONTENT_ITEM_HEADLINES_BY_POSITION: readonly (readonly string[])[] = [
-  ["Readers ask what the newsroom should chase next", "A tip from the field: harbor dredging schedule"],
-  ["City council budget vote draws a crowd", "Interview request: regional transit director"],
-  ["Mapping every permit filed since January", "What the county audit left out"],
   ["Three sources confirm the zoning reversal", "Reporting packet: school board redistricting"],
-  ["Editor shortlist: the week's lead candidates", "Editor shortlist: the weekend long read"],
   ["Draft in progress: the last ferry crossing", "Draft in progress: neighborhood bakery profile"],
   ["Illustration brief: flooded streets, aerial view", "Illustration brief: the market at dawn"],
   ["Layout pass: front page lead and rail", "Layout pass: the Saturday supplement"],
   ["Published: harbor safety review", "Published: the lighthouse keepers' archive"],
+  ["Held for the winter issue: the lighthouse keepers' archive", "Evergreen: how the harbor dredging works"],
+  ["Spiked: the unconfirmed council rumor", "Spiked: the recycled press release"],
 ];
 
 function isoTimestampHoursBeforeBase(hours: number): string {

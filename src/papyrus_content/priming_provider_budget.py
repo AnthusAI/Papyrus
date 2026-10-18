@@ -16,6 +16,7 @@ import time
 from urllib.parse import urlsplit
 
 MODEL='gpt-5.4-mini-2026-03-17'
+TOKENIZER_ENCODING='o200k_base'
 MAX_REQUESTS=7
 MAX_INPUT_TOKENS=12000
 MAX_OUTPUT_TOKENS=2000
@@ -147,8 +148,8 @@ class PrimingProviderBudget:
                 elif not isinstance(content,str):raise BudgetDenied('Only text messages are allowed.')
         elif not isinstance(value,str) or not value:raise BudgetDenied('Text input is required.')
         import tiktoken
-        try:encoding=tiktoken.encoding_for_model(MODEL)
-        except Exception:raise BudgetDenied('The pinned model tokenizer is unavailable; no provider call was made.') from None
+        try:encoding=tiktoken.get_encoding(TOKENIZER_ENCODING)
+        except Exception:raise BudgetDenied('The pinned tokenizer encoding is unavailable; no provider call was made.') from None
         # Count the entire serialized request, with a conservative allowance for
         # provider framing. Oversized source is rejected, never silently clipped.
         tokens=len(encoding.encode(json.dumps(payload,ensure_ascii=False),disallowed_special=()))+1024

@@ -8,6 +8,7 @@ from .assignments_workflow import (
     backfill_content_items,
     backfill_section_indexes,
     demote_undrafted_content_items,
+    migrate_content_item_stages,
     build_assignment_context,
     copywriting_output,
     create_reporting_assignment,
@@ -177,6 +178,12 @@ def assignments_demote_undrafted_content_items(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
     demote_undrafted_content_items(client, options)
+
+
+def assignments_migrate_content_item_stages(flags: list[str]) -> None:
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    migrate_content_item_stages(client, options)
 
 
 def assignments_for_object(flags: list[str]) -> None:

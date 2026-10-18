@@ -1,0 +1,22 @@
+{
+  "id": "PPY-a1867df0-6005-4f97-b8f5-ffa413c0be90",
+  "title": "Fix publication_modes_test: it loads scripts/priming-preview/fixtures.py which was never committed",
+  "description": "src/papyrus_content/publication_modes_test.py:35 loads scripts/priming-preview/fixtures.py, which does not exist in any commit. test_existing_papyrus_curation_can_be_vetted_with_explicit_publication_feedback_in_both_modes (4 params) fails with FileNotFoundError once pytest collects *_test.py files (found by PPY-c4e950). CI deselects it until the fixtures are committed or the test is rewritten.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T18:05:41.276362Z",
+  "updated_at": "2026-10-17T18:05:41.276837Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

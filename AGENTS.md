@@ -67,7 +67,7 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 | Cloud content stays behind `ContentRepository`; Amplify, GraphQL and Storage types never reach `lib/newspaper-layout.ts`. | `npm run check:reader-route-content-source` (routes only); the solver import boundary is unenforced. |
 | No local Markdown content store (`content/articles/`). Edition content comes from GraphQL; `?scenario=<id>` fixtures are for tests only. | `npm run test:content-source` (reader reads published models only), `npm run check:reader-route-content-source`. The `content/articles/` ban itself is unenforced. |
 | Keep the S3 bucket private. Reader media uses Storage access rules and signed URLs. | `npm run test:guest-read-auth`, `npm run test:identity-pool-model-access`. |
-| GraphQL auth: CLI and Lambdas call AppSync with IAM (SigV4) only. No JWT, API key, shared secret, custom authorizer or login flow for authoring. | `refuse_guest_auth` in `src/papyrus_content/guest_auth.py` stops authoring on guest auth; `features/operator-cli.feature` covers missing-credential guidance. No-token and no-secret rules are unenforced. |
+| GraphQL auth: CLI and Lambdas call AppSync with IAM (SigV4) only. No JWT, API key, shared secret, custom authorizer or login flow for authoring. | `refuse_guest_auth` in `src/papyrus_content/guest_auth.py` stops authoring on guest auth; `features_backend/operator-cli.feature` covers missing-credential guidance. No-token and no-secret rules are unenforced. |
 | Schema drift is fixed by deploying, never by shims: no runtime introspection, reduced-field fallbacks or dual-shape normalizers. | `npm run test:schema-parity` covers `schema.ts` vs `resource.ts`; shims are unenforced. See [docs/schema-and-api-alignment.md](docs/schema-and-api-alignment.md). |
 | No backward-compatibility fallbacks for old schema, GraphQL, content, plan or CLI shapes unless the user asks. Clean breaks. | Unenforced. |
 | Published editions set `status`, `editionDate` and `publishedAt`; archive listing depends on `publishedAt`. | Unenforced. Check `curl "$PAPYRUS_BASE_URL/api/archive/editions?limit=1"`; see [docs/production-content-operations.md](docs/production-content-operations.md). |
@@ -103,9 +103,9 @@ Workflows for agents live in `skills/`: `edition-planning`, `newsroom-story-cycl
 
 | Rule | Enforced by |
 | --- | --- |
-| One `papyrus` command; local pod and cloud accept the same argv and return the same output shape. Backend is config or `--backend`, not a second command tree. | `features/operator-cli.feature` (`npm run test:bdd:operator-cli`). |
-| No traceback on expected failures; operator errors exit 2; the shell environment wins over `.env`. | `features/operator-cli.feature`, `procedures/newsroom/tests/test_operator_errors.py`. |
-| `kbs` owns the board; `papyrus` owns newsroom objects. Do not merge them. | `features/operator-cli.feature` (help text). |
+| One `papyrus` command; local pod and cloud accept the same argv and return the same output shape. Backend is config or `--backend`, not a second command tree. | `features_backend/operator-cli.feature` (`npm run test:bdd:operator-cli`). |
+| No traceback on expected failures; operator errors exit 2; the shell environment wins over `.env`. | `features_backend/operator-cli.feature`, `procedures/newsroom/tests/test_operator_errors.py`. |
+| `kbs` owns the board; `papyrus` owns newsroom objects. Do not merge them. | `features_backend/operator-cli.feature` (help text). |
 
 Details: [docs/operator-cli.md](docs/operator-cli.md).
 
