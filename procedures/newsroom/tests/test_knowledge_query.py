@@ -209,8 +209,8 @@ class SummaryMessageSemanticProvider:
         ][:limit]
 
 
-class InsightMessageSemanticProvider:
-    name = "insight-message-semantic"
+class NoteMessageSemanticProvider:
+    name = "note-message-semantic"
 
     def search(self, query, scope, limit):
         return [
@@ -218,22 +218,22 @@ class InsightMessageSemanticProvider:
                 "rank": 1,
                 "distance": 0.06,
                 "kind": "message",
-                "id": "message-insight-semantic",
-                "lineageId": "message-insight-semantic",
-                "messageKind": "insight",
+                "id": "message-note-semantic",
+                "lineageId": "message-note-semantic",
+                "messageKind": "note",
                 "messageDomain": "knowledge",
-                "summary": "Insight: production reliability depends on routine human spot checks and clear failure taxonomies.",
+                "summary": "Note: production reliability depends on routine human spot checks and clear failure taxonomies.",
                 "metadata": {
                     "kind": "message",
-                    "id": "message-insight-semantic",
-                    "lineageId": "message-insight-semantic",
-                    "messageKind": "insight",
+                    "id": "message-note-semantic",
+                    "lineageId": "message-note-semantic",
+                    "messageKind": "note",
                     "messageDomain": "knowledge",
-                    "relationTypeKey": "insight_about",
+                    "relationTypeKey": "note_about",
                     "aboutKind": "reference",
                     "aboutId": "reference-1-v1",
                     "aboutLineageId": "reference-1",
-                    "text": "Insight: production reliability depends on routine human spot checks and clear failure taxonomies.",
+                    "text": "Note: production reliability depends on routine human spot checks and clear failure taxonomies.",
                 },
             },
             {
@@ -374,21 +374,21 @@ class FakeGraphProvider:
                     "It connects measurement choices to production risk, repeatability, and the need to understand failures before agents are trusted."
                 ),
                 "message-summary-semantic": "Semantic-hit summary: model evaluation requires reliability checks and human review.",
-                "message-insight-semantic": (
-                    "Insight: production reliability depends on routine human spot checks and clear failure taxonomies."
+                "message-note-semantic": (
+                    "Note: production reliability depends on routine human spot checks and clear failure taxonomies."
                 ),
             }
             message_id = anchor["id"]
-            if message_id.startswith("message-insight"):
+            if message_id.startswith("message-note"):
                 return {
                     "kind": "message",
                     "id": message_id,
                     "lineageId": anchor.get("lineageId", message_id),
-                    "messageKind": "insight",
+                    "messageKind": "note",
                     "messageDomain": "knowledge",
                     "status": "active",
-                    "summary": summaries.get(message_id, "Insight message."),
-                    "source": "papyrus-insight-agent",
+                    "summary": summaries.get(message_id, "Note message."),
+                    "source": "papyrus-note-agent",
                     "createdAt": "2026-05-19T12:10:00Z",
                 }
             return {
@@ -517,17 +517,17 @@ class FakeGraphProvider:
                     "importedAt": "2026-05-19T12:30:00Z",
                 }
             ]
-        if obj.get("kind") == "message" and obj.get("lineageId") == "message-insight-semantic":
+        if obj.get("kind") == "message" and obj.get("lineageId") == "message-note-semantic":
             return [
                 {
-                    "id": "insight-about-reference-1",
+                    "id": "note-about-reference-1",
                     "relationState": "current",
-                    "predicate": "insight_about",
-                    "relationTypeKey": "insight_about",
+                    "predicate": "note_about",
+                    "relationTypeKey": "note_about",
                     "relationDomain": "knowledge",
                     "subjectKind": "message",
-                    "subjectId": "message-insight-semantic",
-                    "subjectLineageId": "message-insight-semantic",
+                    "subjectId": "message-note-semantic",
+                    "subjectLineageId": "message-note-semantic",
                     "objectKind": "reference",
                     "objectId": "reference-1-v1",
                     "objectLineageId": "reference-1",
@@ -644,12 +644,12 @@ class FakeVectorIndexGraphProvider:
         ]
         self.messages = [
             {
-                "id": "message-insight-1",
-                "lineageId": "message-insight-1",
-                "messageKind": "insight",
+                "id": "message-note-1",
+                "lineageId": "message-note-1",
+                "messageKind": "note",
                 "messageDomain": "knowledge",
                 "status": "active",
-                "summary": "Insight summary: reliability work needs repeatable scorecards and routine human checks.",
+                "summary": "Note summary: reliability work needs repeatable scorecards and routine human checks.",
             },
             {
                 "id": "message-comment-1",
@@ -657,7 +657,7 @@ class FakeVectorIndexGraphProvider:
                 "messageKind": "comment",
                 "messageDomain": "commentary",
                 "status": "active",
-                "summary": "Comment summary: this is a curation note and should not be indexed as insight.",
+                "summary": "Comment summary: this is a curation note and should not be indexed as note.",
             },
         ]
 
@@ -761,17 +761,17 @@ class FakeVectorIndexGraphProvider:
         if obj.get("kind") != "message":
             return []
         lineage_id = obj.get("lineageId") or obj.get("id")
-        if lineage_id == "message-insight-1":
+        if lineage_id == "message-note-1":
             return [
                 {
-                    "id": "relation-insight-1",
+                    "id": "relation-note-1",
                     "relationState": "current",
-                    "predicate": "insight_about",
-                    "relationTypeKey": "insight_about",
+                    "predicate": "note_about",
+                    "relationTypeKey": "note_about",
                     "relationDomain": "knowledge",
                     "subjectKind": "message",
-                    "subjectId": "message-insight-1",
-                    "subjectLineageId": "message-insight-1",
+                    "subjectId": "message-note-1",
+                    "subjectLineageId": "message-note-1",
                     "objectKind": "reference",
                     "objectId": "reference-1-v1",
                     "objectLineageId": "reference-1",
@@ -782,11 +782,11 @@ class FakeVectorIndexGraphProvider:
 
 class FakeVectorIndexTextProvider:
     def read_text(self, storage_path):
-        if "message-insight-1" in storage_path:
+        if "message-note-1" in storage_path:
             return (
-                "Insight body: teams should inspect reliability evidence across many production runs, "
+                "Note body: teams should inspect reliability evidence across many production runs, "
                 "watch for evaluator drift, and keep human review notes close to deployment decisions. "
-                "Insight body detail repeats for passage chunk creation."
+                "Note body detail repeats for passage chunk creation."
             )
         return (
             (
@@ -799,7 +799,7 @@ class FakeVectorIndexTextProvider:
 
 class ShortFakeVectorIndexTextProvider(FakeVectorIndexTextProvider):
     def read_text(self, storage_path):
-        if "message-insight-1" in storage_path:
+        if "message-note-1" in storage_path:
             return super().read_text(storage_path)
         return "Tiny source text."
 
@@ -894,7 +894,7 @@ class KnowledgeQueryTests(unittest.TestCase):
         self.assertEqual([match["lineageId"] for match in diversified], ["ref-a", "ref-b", "ref-c"])
         self.assertEqual([match["rank"] for match in diversified], [1, 2, 3])
 
-    def test_broad_s3_vector_search_queries_new_and_legacy_insight_vector_kinds(self):
+    def test_broad_s3_vector_search_queries_new_and_legacy_note_vector_kinds(self):
         provider = S3VectorsProvider(vector_index_arn="arn:test:index")
         queried_kinds = []
 
@@ -907,9 +907,9 @@ class KnowledgeQueryTests(unittest.TestCase):
             provider.search("evaluation", {"rankingDiversity": "broad"}, 5)
 
         self.assertIn("reference_summary", queried_kinds)
-        self.assertIn("insight_source", queried_kinds)
-        self.assertIn("insight_summary", queried_kinds)
-        self.assertIn("insight_passage", queried_kinds)
+        self.assertIn("note_source", queried_kinds)
+        self.assertIn("note_summary", queried_kinds)
+        self.assertIn("note_passage", queried_kinds)
 
     def test_s3_vector_filter_can_target_explicit_chat_detail(self):
         provider = S3VectorsProvider(vector_index_arn="arn:test:index")
@@ -1517,10 +1517,10 @@ class KnowledgeQueryTests(unittest.TestCase):
         self.assertEqual(result["structured"]["evidencePassages"][0]["selectionReason"], "reference_summary")
         self.assertNotIn("papyrus://message/message-summary-semantic", result["context"]["text"])
 
-    def test_semantic_insight_message_hit_maps_to_insight_evidence(self):
+    def test_semantic_note_message_hit_maps_to_note_evidence(self):
         services = KnowledgeQueryServices(
             graph=FakeGraphProvider(),
-            semantic=InsightMessageSemanticProvider(),
+            semantic=NoteMessageSemanticProvider(),
             corpus_text=LongFakeCorpusTextProvider(),
         )
         result = run_knowledge_query(
@@ -1532,16 +1532,16 @@ class KnowledgeQueryTests(unittest.TestCase):
         )
 
         self.assertEqual(result["structured"]["semanticMatches"][0]["kind"], "reference")
-        self.assertEqual(result["structured"]["semanticMatches"][0]["semanticHitKind"], "insight_message")
-        self.assertEqual(result["structured"]["insightMessages"][0]["messageKind"], "insight")
-        self.assertEqual(result["structured"]["insightMessages"][0]["relationTypeKey"], "insight_about")
-        insight_passages = [
+        self.assertEqual(result["structured"]["semanticMatches"][0]["semanticHitKind"], "note_message")
+        self.assertEqual(result["structured"]["noteMessages"][0]["messageKind"], "note")
+        self.assertEqual(result["structured"]["noteMessages"][0]["relationTypeKey"], "note_about")
+        note_passages = [
             passage for passage in result["structured"]["evidencePassages"]
-            if passage.get("selectionReason") == "insight_message"
+            if passage.get("selectionReason") == "note_message"
         ]
-        self.assertGreaterEqual(len(insight_passages), 1)
-        self.assertEqual(insight_passages[0]["insightMessageId"], "message-insight-semantic")
-        self.assertNotIn("papyrus://message/message-insight-semantic", result["context"]["text"])
+        self.assertGreaterEqual(len(note_passages), 1)
+        self.assertEqual(note_passages[0]["noteMessageId"], "message-note-semantic")
+        self.assertNotIn("papyrus://message/message-note-semantic", result["context"]["text"])
 
     def test_semantic_only_query_promotes_matches_to_related_records_and_graph_seed(self):
         services = KnowledgeQueryServices(
@@ -1878,10 +1878,10 @@ class KnowledgeQueryTests(unittest.TestCase):
         self.assertIn("AWS_PROFILE", stderr.getvalue())
         self.assertNotIn("Traceback", stderr.getvalue())
 
-    def test_semantic_relation_seed_includes_insight_about(self):
+    def test_semantic_relation_seed_includes_note_about(self):
         relation_types = (REPO_ROOT / "corpora" / "papyrus-semantic-relation-types.yml").read_text(encoding="utf-8")
-        self.assertIn("- key: insight_about", relation_types)
-        self.assertRegex(relation_types, r"key: insight_about[\s\S]*allowedObjectKinds: \[reference, item, category, semanticNode, assignment, newsroomSection\]")
+        self.assertIn("- key: note_about", relation_types)
+        self.assertRegex(relation_types, r"key: note_about[\s\S]*allowedObjectKinds: \[reference, item, category, semanticNode, assignment, newsroomSection\]")
         self.assertIn("domain: knowledge", relation_types)
 
     def test_vector_index_audit_reports_missing_references(self):
@@ -1905,12 +1905,12 @@ class KnowledgeQueryTests(unittest.TestCase):
         self.assertEqual(result["existingIndexedReferences"], 1)
         self.assertEqual(result["missingIndexedReferences"], 1)
         self.assertEqual(result["missingIndexedReferenceSample"], ["reference-2"])
-        self.assertEqual(result["eligibleInsightMessages"], 1)
-        self.assertEqual(result["insightMessagesMissingBody"], 0)
-        self.assertEqual(result["missingIndexedInsightMessages"], 1)
-        self.assertEqual(result["missingIndexedInsightMessageSample"], ["message-insight-1"])
+        self.assertEqual(result["eligibleNoteMessages"], 1)
+        self.assertEqual(result["noteMessagesMissingBody"], 0)
+        self.assertEqual(result["missingIndexedNoteMessages"], 1)
+        self.assertEqual(result["missingIndexedNoteMessageSample"], ["message-note-1"])
 
-    def test_vector_index_skips_insight_without_message_body(self):
+    def test_vector_index_skips_note_without_message_body(self):
         services = KnowledgeQueryServices(graph=FakeVectorIndexGraphProviderWithoutMessageBody(), corpus_text=FakeVectorIndexTextProvider())
         written_batches = []
 
@@ -1924,11 +1924,11 @@ class KnowledgeQueryTests(unittest.TestCase):
             )
 
         written = [vector for batch in written_batches for vector in batch]
-        self.assertEqual(result["eligibleInsightMessages"], 0)
-        self.assertEqual(result["insightMessagesMissingBody"], 1)
-        self.assertFalse(any(vector["metadata"]["vectorKind"].startswith("insight_") for vector in written))
-        insight_result = next(entry for entry in result["insightResults"] if entry["messageId"] == "message-insight-1")
-        self.assertEqual(insight_result["status"], "missing_message_body")
+        self.assertEqual(result["eligibleNoteMessages"], 0)
+        self.assertEqual(result["noteMessagesMissingBody"], 1)
+        self.assertFalse(any(vector["metadata"]["vectorKind"].startswith("note_") for vector in written))
+        note_result = next(entry for entry in result["noteResults"] if entry["messageId"] == "message-note-1")
+        self.assertEqual(note_result["status"], "missing_message_body")
 
     def test_vector_index_sync_writes_source_and_passage_vectors_once(self):
         services = KnowledgeQueryServices(graph=FakeVectorIndexGraphProvider(), corpus_text=FakeVectorIndexTextProvider())
@@ -1958,15 +1958,15 @@ class KnowledgeQueryTests(unittest.TestCase):
 
         written = [vector for batch in written_batches for vector in batch]
         self.assertEqual(result["acceptedReferences"], 2)
-        self.assertEqual(result["eligibleInsightMessages"], 1)
+        self.assertEqual(result["eligibleNoteMessages"], 1)
         self.assertEqual(result["sourceVectorsPrepared"], 2)
         self.assertEqual(result["passageVectorsPrepared"], 4)
-        self.assertEqual(result["insightSourceVectorsPrepared"], 1)
-        self.assertEqual(result["insightPassageVectorsPrepared"], 1)
+        self.assertEqual(result["noteSourceVectorsPrepared"], 1)
+        self.assertEqual(result["notePassageVectorsPrepared"], 1)
         self.assertEqual(result["vectorsWritten"], 8)
         self.assertEqual(
             {vector["metadata"]["vectorKind"] for vector in written},
-            {"reference_summary", "reference_passage", "insight_source", "insight_passage"},
+            {"reference_summary", "reference_passage", "note_source", "note_passage"},
         )
         self.assertTrue(
             all(
@@ -1983,16 +1983,16 @@ class KnowledgeQueryTests(unittest.TestCase):
         self.assertIn("referenceSummary", source_vector["metadata"])
         self.assertIn("Long summary: production readiness", source_vector["metadata"]["referenceSummary"])
         self.assertIn("Long summary: production readiness", source_vector["metadata"]["text"])
-        insight_vector = next(vector for vector in written if vector["metadata"]["vectorKind"] == "insight_source")
-        self.assertEqual(insight_vector["metadata"]["messageKind"], "insight")
-        self.assertEqual(insight_vector["metadata"]["relationTypeKey"], "insight_about")
-        self.assertIn("Insight summary: reliability work", insight_vector["metadata"]["summary"])
-        self.assertIn("Insight body: teams should inspect reliability evidence", insight_vector["metadata"]["text"])
-        self.assertNotIn("Insight summary: reliability work", insight_vector["metadata"]["text"])
-        self.assertTrue(any("Insight body: teams should inspect reliability evidence" in text for text in embedded_texts))
-        self.assertFalse(any("Insight summary: reliability work" in text for text in embedded_texts))
-        insight_passage = next(vector for vector in written if vector["metadata"]["vectorKind"] == "insight_passage")
-        self.assertIn("Insight body: teams should inspect reliability evidence", insight_passage["metadata"]["text"])
+        note_vector = next(vector for vector in written if vector["metadata"]["vectorKind"] == "note_source")
+        self.assertEqual(note_vector["metadata"]["messageKind"], "note")
+        self.assertEqual(note_vector["metadata"]["relationTypeKey"], "note_about")
+        self.assertIn("Note summary: reliability work", note_vector["metadata"]["summary"])
+        self.assertIn("Note body: teams should inspect reliability evidence", note_vector["metadata"]["text"])
+        self.assertNotIn("Note summary: reliability work", note_vector["metadata"]["text"])
+        self.assertTrue(any("Note body: teams should inspect reliability evidence" in text for text in embedded_texts))
+        self.assertFalse(any("Note summary: reliability work" in text for text in embedded_texts))
+        note_passage = next(vector for vector in written if vector["metadata"]["vectorKind"] == "note_passage")
+        self.assertIn("Note body: teams should inspect reliability evidence", note_passage["metadata"]["text"])
 
     def test_vector_index_sync_skips_existing_keys(self):
         services = KnowledgeQueryServices(graph=FakeVectorIndexGraphProvider(), corpus_text=FakeVectorIndexTextProvider())

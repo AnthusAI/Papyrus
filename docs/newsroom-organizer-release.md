@@ -12,7 +12,7 @@ shell until their own configuration explicitly opts in.
 - Original NewsDeskClientProvider access lifecycle and ReaderAuthControl
   signin/signout. Account menu uses its actual session snapshot; Settings uses
   the original local/cloud preference implementation.
-- Native CMS Articles, Assignments, References/curation, Messages, Insights,
+- Native CMS Articles, Assignments, References/curation, Messages (including notes),
   Taxonomy, Topic proposals, Concepts, Knowledge search, Policies, Sections,
   Procedures and Users/identity merging remain original components/commands.
   Existing server permissions remain authoritative. Desks routing restores the

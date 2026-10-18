@@ -325,13 +325,13 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         order=args.get("order") or "newest",
         scan_limit=args.get("scan_limit") or args.get("scanLimit") or 1000,
     ),
-    ("reference", "insight_create"): lambda args: newsroom.papyrus_reference_insight_create(
+    ("reference", "note_create"): lambda args: newsroom.papyrus_reference_note_create(
         reference_id=args.get("reference_id") or args.get("referenceId") or args.get("id"),
         summary=args.get("summary") or "",
         body=args.get("body") or "",
         actor_label=args.get("actor_label") or args.get("actorLabel") or "",
     ),
-    ("reference", "insight_list"): lambda args: newsroom.papyrus_reference_insight_list(
+    ("reference", "note_list"): lambda args: newsroom.papyrus_reference_note_list(
         args.get("reference_lineage_id") or args.get("referenceLineageId") or args.get("lineage_id") or args.get("lineageId") or ""
     ),
     ("reference", "move_corpus"): lambda args: newsroom.papyrus_reference_move_corpus(
@@ -1321,7 +1321,7 @@ local function parse_requested_knowledge_scope()
         "assignment",
         "message",
     }}
-    local include_default_message_kinds = {{ "insight" }}
+    local include_default_message_kinds = {{ "note" }}
     local include_default_assignment_types = {{ "research.*", "reporting.*" }}
     local include_kinds = normalize_string_list(scope.includeObjectKinds or scope.include_object_kinds or include_default_kinds)
     if include_kinds[1] == nil then include_kinds = include_default_kinds end

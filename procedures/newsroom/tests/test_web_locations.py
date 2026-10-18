@@ -79,10 +79,10 @@ class WebLocationTests(unittest.TestCase):
         reviewed_imported = web_path_to_papyrus_location("/newsroom/references?order=imported&status=exclude-pending")
         self.assertEqual(reviewed_imported["indexFilters"]["status"], "exclude-pending")
 
-        mapped = papyrus_uri_to_web_path("papyrus://newsroom/messages/index/kind/insight")
-        self.assertEqual(mapped["webPath"], "/newsroom/messages?kind=insight")
+        mapped = papyrus_uri_to_web_path("papyrus://newsroom/messages/index/kind/note")
+        self.assertEqual(mapped["webPath"], "/newsroom/messages?kind=note")
         self.assertEqual(mapped["viewMode"], "index")
-        self.assertEqual(mapped["indexFilters"]["kind"], "insight")
+        self.assertEqual(mapped["indexFilters"]["kind"], "note")
 
     def test_execute_tactus_set_index_filters_navigates_to_filtered_index(self):
         result = tactus_runtime.execute_tactus(

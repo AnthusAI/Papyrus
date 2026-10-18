@@ -82,7 +82,7 @@ Procedure {
         corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "", description = "Optional live context profile override"},
         max_evidence_items = field.integer{default = 5, description = "Maximum Biblicus evidence items to use"},
-        knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and insight retrieval defaults"},
+        knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and note retrieval defaults"},
         source_research_assignment_id = field.string{default = "", description = "Optional source research Assignment.id for packet lineage"},
         source_research_packet_id = field.string{default = "", description = "Optional source research packet Message.id for packet lineage"},
         source_research_packet_path = field.string{default = "", description = "Optional dry-run source research packet path for operator traceability"}
@@ -147,7 +147,7 @@ Inline reporting Assignment JSON is available for fallback use:
 
         local scope_defaults = {
             includeObjectKinds = {"reference", "item", "category", "semanticNode", "newsroomSection", "assignment", "message"},
-            includeMessageKinds = {"insight"},
+            includeMessageKinds = {"note"},
             includeAssignmentTypeKeys = {"research.*", "reporting.*"},
         }
         local requested_scope = input.knowledge_query_scope
@@ -196,7 +196,7 @@ Required tool flow:
 4. For live Assignment queue work, run one broad knowledge_query seeded from
    assignment target/brief before deciding optional web checks. Include
    knowledge trace in source_trail and related metadata fields.
-   For assignment-oriented retrieval, include assignment + insight scope
+   For assignment-oriented retrieval, include assignment + note scope
    filters in that broad knowledge_query call, for example:
    local knowledge = knowledge_query{
        query = "broad assignment-focused query",

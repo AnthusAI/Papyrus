@@ -9,7 +9,7 @@ import { referenceCurationMetadata } from "../shared/reference-curation-metadata
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
-type ReferenceInsightHandler = Schema["createReferenceInsight"]["functionHandler"];
+type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
 type StartReferenceCurationHandler = Schema["startReferenceCuration"]["functionHandler"];
 type GetReferenceCurationStatusHandler = Schema["getReferenceCurationStatus"]["functionHandler"];
@@ -24,7 +24,7 @@ type CategoryActionEvent =
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
-  | Parameters<ReferenceInsightHandler>[0]
+  | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
   | Parameters<StartReferenceCurationHandler>[0]
   | Parameters<GetReferenceCurationStatusHandler>[0]
@@ -89,7 +89,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
-  if (fieldName === "createReferenceInsight") return createReferenceInsight(event as Parameters<ReferenceInsightHandler>[0]);
+  if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
   if (fieldName === "startReferenceCuration") return startReferenceCuration(event as Parameters<StartReferenceCurationHandler>[0]);
   if (fieldName === "getReferenceCurationStatus") return getReferenceCurationStatus(event as Parameters<GetReferenceCurationStatusHandler>[0]);
@@ -403,7 +403,7 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
   };
 }
 
-async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>[0]) {
+async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const summary = normalizeRequiredString(event.arguments.summary, "summary");
@@ -414,10 +414,10 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
   const actor = actorLabel ?? actorSub ?? "Papyrus newsroom";
   const referenceLineageId = normalizeOptionalString(reference.lineageId) ?? referenceId;
-  const messageId = `message-reference-insight-${safeId(referenceLineageId)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
+  const messageId = `message-reference-note-${safeId(referenceLineageId)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
   const relationId = `semantic-relation-${hashStable([
     `message#${messageId}`,
-    "insight_about",
+    "note_about",
     `reference#${referenceId}`,
   ]).slice(0, 24)}`;
 
@@ -425,7 +425,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
     client.models.Message.create({
       ...buildCanonicalMessageInput({
         id: messageId,
-        messageKind: "insight",
+        messageKind: "note",
         messageDomain: "knowledge",
         summary,
         source: "newsroom",
@@ -436,7 +436,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       threadId: messageId,
       sequenceNumber: 1,
     }),
-    "create insight Message",
+    "create note Message",
   );
   await putTextModelPayload(
     client as any,
@@ -452,7 +452,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
     "metadata",
     "metadata",
     {
-      kind: "reference.insight.created",
+      kind: "reference.note.created",
       targetKind: "reference",
       targetId: referenceId,
       targetLineageId: referenceLineageId,
@@ -463,8 +463,8 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
     client.models.SemanticRelation.create({
       id: relationId,
       relationState: "current",
-      predicate: "insight_about",
-      ...semanticRelationTypeFieldsForPredicate("insight_about"),
+      predicate: "note_about",
+      ...semanticRelationTypeFieldsForPredicate("note_about"),
       subjectKind: "message",
       subjectId: messageId,
       subjectLineageId: messageId,
@@ -476,7 +476,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       subjectStateKey: semanticStateKey("message", messageId),
       objectStateKey: semanticStateKey("reference", referenceLineageId),
       objectSubjectStateKey: `${semanticStateKey("reference", referenceLineageId)}#message`,
-      predicateObjectStateKey: `insight_about#${semanticStateKey("reference", referenceLineageId)}`,
+      predicateObjectStateKey: `note_about#${semanticStateKey("reference", referenceLineageId)}`,
       subjectVersionKey: semanticVersionKey("message", messageId),
       objectVersionKey: semanticVersionKey("reference", referenceId),
       score: 1,
@@ -492,17 +492,17 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       updatedAt: now,
       newsroomFeedKey: "semanticRelations",
       metadata: JSON.stringify({
-        kind: "reference.insight",
+        kind: "reference.note",
         summary,
         actor,
       }),
     }),
-    "create insight_about relation",
+    "create note_about relation",
   );
   await updateNewsroomSummaryForSemanticRelationDelta(
     client,
     {
-      relationTypeKey: "insight_about",
+      relationTypeKey: "note_about",
       relationDomain: "commentary",
       subjectKind: "message",
       objectKind: "reference",
@@ -1497,10 +1497,10 @@ function semanticRelationTypeFieldsForPredicate(predicate: string): {
       relationDomain: "curation",
     };
   }
-  if (predicate === "insight_about") {
+  if (predicate === "note_about") {
     return {
-      relationTypeId: "semantic-relation-type-insight-about",
-      relationTypeKey: "insight_about",
+      relationTypeId: "semantic-relation-type-note-about",
+      relationTypeKey: "note_about",
       relationDomain: "knowledge",
     };
   }
