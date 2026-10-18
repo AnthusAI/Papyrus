@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { newsroomDeskOptions } from "../lib/newsroom-sections";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -555,15 +555,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                     value={deskOptions.some(option => option.value === editor.section) ? editor.section : NO_DESK_VALUE}
                   >
                     <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-article-section>
-                      <SelectValue>{deskOptions.find(option => option.value === editor.section)?.label ?? (editor.section.trim() ? `${editor.section.trim()} (not a desk)` : "No desk")}</SelectValue>
+                      <SelectValue>{deskOptions.find(option => option.value === editor.section)?.label ?? "No desk"}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>
-                      {deskOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
+                      {(["core", "rotating"] as const).map((kind) => deskOptions.some(option => option.kind === kind) ? (
+                        <SelectGroup key={kind}>
+                          <SelectLabel>{kind === "core" ? "Core desks" : "Rotating desks"}</SelectLabel>
+                          {deskOptions.filter(option => option.kind === kind).map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ) : null)}
                     </SelectContent>
                   </Select>
+                  {editor.section.trim() && !deskOptions.some(option => option.value === editor.section) ? <small className="newsroom-desk-legacy-value">Old section value: {editor.section.trim()}</small> : null}
                 </label>
                 <label className="space-y-1 text-sm font-medium">
                   <span>Slug</span>

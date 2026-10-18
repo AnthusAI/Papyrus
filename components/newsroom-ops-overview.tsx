@@ -30,6 +30,7 @@ import {
   buildNewsroomSectionHref,
   displayNewsroomSectionShortTitle,
   isEnabledNewsroomSection,
+  newsroomDeskKind,
   sortNewsroomSections,
 } from "../lib/newsroom-sections";
 import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
@@ -102,6 +103,8 @@ export function NewsroomOpsOverview({
     () => sortNewsroomSections(newsroomSections).filter(isEnabledNewsroomSection),
     [newsroomSections],
   );
+  const coreDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "core"), [desks]);
+  const rotatingDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "rotating"), [desks]);
 
   const destinationCounts: Partial<Record<DestinationKey, number | null>> = {
     references: referenceCounts.pending ?? 0,
@@ -216,8 +219,9 @@ export function NewsroomOpsOverview({
         {desks.length ? (
           <section aria-label="Desks" className="space-y-3" data-newsroom-ops-desks>
             <h2 className="text-sm font-medium text-muted-foreground">Desks</h2>
+            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core desks</h3> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {desks.map((section) => (
+              {coreDesks.map((section) => (
                 <Link
                   className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-newsroom-ops-desk={section.id}
@@ -235,6 +239,26 @@ export function NewsroomOpsOverview({
                 </Link>
               ))}
             </div>
+            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating desks <small>appear for a while, then rotate out</small></h3> : null}
+            {rotatingDesks.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {rotatingDesks.map((section) => (
+                <Link
+                  className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-newsroom-ops-desk={section.id}
+                  href={buildNewsroomSectionHref(section.id, demo)}
+                  key={section.id}
+                >
+                  <Card className="h-full transition-colors hover:border-primary/30">
+                    <CardHeader className="p-4">
+                      <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
+                      <CardDescription className="uppercase tracking-wide text-[0.65rem]">
+                        {displayNewsroomSectionShortTitle(section)}
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+                </Link>
+              ))}
+            </div> : null}
           </section>
         ) : null}
       </div>

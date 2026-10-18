@@ -12,7 +12,7 @@ import {
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
-import { createLocalPreviewEditableArticle } from "./local-preview-seed";
+import { createLocalPreviewEditableArticle, recordLocalPreviewDesk } from "./local-preview-seed";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -120,6 +120,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           updatedAt: new Date().toISOString(),
         };
         records.set(id, record);
+        recordLocalPreviewDesk(id, record.section);
         return {
           ok: true,
           item: {
@@ -172,8 +173,19 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     },
     async loadArticle(id: string): Promise<EditableArticle> {
-      const previewRecord = records.get(id) ? null : createLocalPreviewEditableArticle(id);
-      if (previewRecord) return previewRecord;
+      if (!records.has(id)) {
+        const previewRecord = createLocalPreviewEditableArticle(id);
+        if (previewRecord) {
+          records.set(id, {
+            ...previewRecord,
+            title: titleFromYaml(previewRecord.frontMatterYaml, previewRecord.slug),
+            status: previewRecord.status === "published" ? "published" : "draft",
+            contentHash: demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus),
+            publishedContentHash: previewRecord.status === "published" ? demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus) : null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
       const record = requireRecord(id);
       return {
         id: record.id,

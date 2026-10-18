@@ -113,3 +113,8 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     everPublished: version.status === "published",
   };
 }
+
+export function recordLocalPreviewDesk(articleId: string, deskId: string | null): void {
+  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === articleId);
+  if (version) version.section = deskId;
+}

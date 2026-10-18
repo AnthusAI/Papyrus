@@ -51,9 +51,14 @@ export function buildNewsroomSectionHref(sectionId: string, demo?: boolean): str
   return getNewsroomNavHref(`/newsroom/sections/${encodeURIComponent(sectionId)}`, demo);
 }
 
-export type NewsroomDeskOption = { value: string; label: string };
+export type NewsroomDeskKind = "core" | "rotating";
+export type NewsroomDeskOption = { value: string; label: string; kind: NewsroomDeskKind };
+
+export function newsroomDeskKind(section: NewsroomSectionRecord): NewsroomDeskKind {
+  return normalizeNewsroomSectionType(section.type) === "canonical" ? "core" : "rotating";
+}
 
 /** The desks a story or assignment can be placed on: the same enabled, ordered desks the Overview page lists. */
 export function newsroomDeskOptions(sections: NewsroomSectionRecord[]): NewsroomDeskOption[] {
-  return sortNewsroomSections(sections).filter(isEnabledNewsroomSection).map(section => ({ value: section.id, label: section.title }));
+  return sortNewsroomSections(sections).filter(isEnabledNewsroomSection).map(section => ({ value: section.id, label: section.title, kind: newsroomDeskKind(section) }));
 }

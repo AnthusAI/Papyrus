@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
@@ -36,6 +37,8 @@ import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell"
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
+/** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
+const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
 const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
 const COLUMN_LOAD_MORE_DISTANCE_PIXELS = 240;
@@ -63,7 +66,16 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
   const [view, setView] = useState<"board" | "list">("board");
-  const [selected, setSelected] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selected = searchParams.get(SELECTED_ISSUE_PARAMETER);
+  const setSelected = useCallback((issueId: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (issueId) next.set(SELECTED_ISSUE_PARAMETER, issueId); else next.delete(SELECTED_ISSUE_PARAMETER);
+    const query = next.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
   const [supportingRecordsLoading, setSupportingRecordsLoading] = useState(false);
   const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
@@ -88,7 +100,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   }, []);
   useEffect(() => {
     const request = ++generation.current;
-    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSelected(null); setSupportingRecordsError(null);
+    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSupportingRecordsError(null);
     if (!allowed) { setSupportingRecordsLoading(false); return; }
     const loadSupportingRecords = () => subject !== "assignment"
       ? Promise.all([loadNewsroomPublishedContentItemVersions(), loadEveryNewsroomAssignment()]).then(([published, everyAssignment]) => {

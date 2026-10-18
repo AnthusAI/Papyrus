@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { AssignmentRecord } from "../lib/category-repository";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export type AssignmentDeskOption = { value: string; label: string };
+export type AssignmentDeskOption = { value: string; label: string; kind: "core" | "rotating" };
 const NO_DESK_VALUE = "__no-desk__";
 
 const assignmentDateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -61,13 +61,14 @@ export function NewsroomAssignmentDetail({ assignment, deskOptions = [], onDeskC
       <span>Desk</span>
       <Select onValueChange={(value) => { if (typeof value === "string") changeDesk(value); }} value={deskChoices.some(option => option.value === currentDesk) ? currentDesk : NO_DESK_VALUE} disabled={savingDesk}>
         <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-assignment-desk>
-          <SelectValue>{deskChoices.find(option => option.value === currentDesk)?.label ?? (currentDesk ? `${currentDesk} (not a desk)` : "No desk")}</SelectValue>
+          <SelectValue>{deskChoices.find(option => option.value === currentDesk)?.label ?? "No desk"}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>
-          {deskChoices.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+          {(["core", "rotating"] as const).map(kind => deskChoices.some(option => option.kind === kind) ? <SelectGroup key={kind}><SelectLabel>{kind === "core" ? "Core desks" : "Rotating desks"}</SelectLabel>{deskChoices.filter(option => option.kind === kind).map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectGroup> : null)}
         </SelectContent>
       </Select>
+      {currentDesk && !deskChoices.some(option => option.value === currentDesk) ? <small className="newsroom-desk-legacy-value">Old section value: {currentDesk}</small> : null}
       {deskError && <p role="alert" className="newsroom-assignment-detail-error">{deskError}</p>}
     </label>}
     <div className="newsroom-assignment-detail-prose">

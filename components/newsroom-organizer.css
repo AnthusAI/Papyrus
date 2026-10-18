@@ -169,3 +169,6 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-assignment-detail-desk{display:grid;gap:4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--org-muted)}
 .newsroom-assignment-detail-error{margin:0;text-transform:none;letter-spacing:0;color:var(--org-ink);font-weight:700}
 [data-slot=select-content],[data-slot=select-item],[data-slot=dropdown-menu-item],[data-slot=dropdown-menu-content],[role=option],[role=menuitem],[role=listbox],[role=menu]{border-radius:0 !important}
+.newsroom-desk-group-heading{margin:16px 0 8px;font:700 12px Newsroom Display,Georgia,serif;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--org-ink);padding-bottom:4px}
+.newsroom-desk-group-heading small{font:400 11px Newsroom UI,system-ui;text-transform:none;letter-spacing:0;color:var(--org-muted);margin-left:8px}
+.newsroom-desk-legacy-value{display:block;font-size:11px;color:var(--org-muted);overflow-wrap:anywhere}
