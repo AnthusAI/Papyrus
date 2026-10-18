@@ -203,30 +203,29 @@ def test_central_lab_access_serves_roles_through_the_publication_contract(tmp_pa
 
 def test_central_lab_client_sends_the_account_credential_the_lab_reverifies(tmp_path):
     import httpx
-    from decision_flywheel.publication_lab import create_publication_host
-    from decision_flywheel.site_credentials import VerifiedSiteCredential, site_credential_access
+    from decision_flywheel.publication_lab import PublicationAccess, PublicationActor, create_publication_host
     from papyrus_content.prospectus_publication_access import ProspectusCentralPublicationAccess, central_lab_http_client_factory
 
     async def scenario():
         with Cyclotron.open(tmp_path / 'engine', DEFINITION, OfflineModel()) as engine:
             lab = PublicationLab(engine, account_id='account-a', bindings=BINDINGS)
-            live_credentials = {'credential-1': VerifiedSiteCredential('account-a', 'person-a', 'member')}
+            live_credentials = {'credential-1': ('account-a', 'person-a', 'member')}
             verifications = []
 
-            def verify_credential(token, pinned_account_id):
+            def lab_that_reverifies_the_bearer_credential(request, publication, capability):
+                scheme, _, token = request.headers.get('authorization', '').partition(' ')
+                pinned_account_id = request.headers.get('x-cyclotron-account')
                 verifications.append((token, pinned_account_id))
-                return live_credentials.get(token)
-
-            def lab_grants(credential, publication_ids):
-                return role_based_publication_grants(
-                    ProspectusAccountAuthorization(credential.account_id, credential.subject_id, credential.role, 'console:write'),
-                    publication_ids,
+                verified = live_credentials.get(token) if scheme.lower() == 'bearer' else None
+                if verified is None or verified[0] != pinned_account_id:
+                    raise PublicationError('site credential refused', 403)
+                grants = role_based_publication_grants(
+                    ProspectusAccountAuthorization(verified[0], verified[1], verified[2], 'console:write'),
+                    tuple(lab.bindings),
                 )
+                return PublicationAccess(lab, PublicationActor(verified[0], verified[1], grants))
 
-            central_host = create_publication_host(
-                site_credential_access(verify_credential, lambda _account: lab, lab_grants),
-                require_execution_guard=False,
-            )
+            central_host = create_publication_host(lab_that_reverifies_the_bearer_credential, require_execution_guard=False)
             issued = {'credential': 'credential-1'}
             http_factory = central_lab_http_client_factory(
                 endpoint='http://central.test',
