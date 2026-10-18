@@ -32,7 +32,7 @@ export function NewsroomAssignmentDetail({ assignment, deskOptions = [], onDeskC
   const [deskError, setDeskError] = useState<string | null>(null);
   const [savingDesk, setSavingDesk] = useState(false);
   const currentDesk = assignment.sectionId || assignment.sectionKey || "";
-  const deskChoices = currentDesk && !deskOptions.some(option => option.value === currentDesk) ? [{ value: currentDesk, label: currentDesk }, ...deskOptions] : deskOptions;
+  const deskChoices = deskOptions;
   const changeDesk = (value: string) => {
     if (!onDeskChange) return;
     setSavingDesk(true); setDeskError(null);
@@ -59,9 +59,9 @@ export function NewsroomAssignmentDetail({ assignment, deskOptions = [], onDeskC
     </dl>
     {onDeskChange && <label className="newsroom-assignment-detail-desk">
       <span>Desk</span>
-      <Select onValueChange={(value) => { if (typeof value === "string") changeDesk(value); }} value={currentDesk || NO_DESK_VALUE} disabled={savingDesk}>
+      <Select onValueChange={(value) => { if (typeof value === "string") changeDesk(value); }} value={deskChoices.some(option => option.value === currentDesk) ? currentDesk : NO_DESK_VALUE} disabled={savingDesk}>
         <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-assignment-desk>
-          <SelectValue>{deskChoices.find(option => option.value === currentDesk)?.label ?? "No desk"}</SelectValue>
+          <SelectValue>{deskChoices.find(option => option.value === currentDesk)?.label ?? (currentDesk ? `${currentDesk} (not a desk)` : "No desk")}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>

@@ -50,3 +50,10 @@ export function displayNewsroomSectionShortTitle(section: NewsroomSectionRecord)
 export function buildNewsroomSectionHref(sectionId: string, demo?: boolean): string {
   return getNewsroomNavHref(`/newsroom/sections/${encodeURIComponent(sectionId)}`, demo);
 }
+
+export type NewsroomDeskOption = { value: string; label: string };
+
+/** The desks a story or assignment can be placed on: the same enabled, ordered desks the Overview page lists. */
+export function newsroomDeskOptions(sections: NewsroomSectionRecord[]): NewsroomDeskOption[] {
+  return sortNewsroomSections(sections).filter(isEnabledNewsroomSection).map(section => ({ value: section.id, label: section.title }));
+}
