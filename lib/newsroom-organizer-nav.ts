@@ -17,7 +17,7 @@ export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly Org
     { key: "references", label: "References", description: "Inspect sources and make editorial inclusion decisions.", path: "/newsroom/references", primary: true },
     { key: "desks", label: "Taxonomy", description: "Maintain topic sets and category versions.", path: "/newsroom/desks" },
     { key: "topics", label: "Topic proposals", description: "Review suggested changes to coverage.", path: "/newsroom/topics" },
-    { key: "concepts", label: "Concepts", description: "Explore knowledge entities and relationships.", path: "/newsroom/concepts" },
+    { key: "concepts", label: "Concept wiki", description: "Browse the knowledge graph as wiki pages.", path: "/newsroom/concepts" },
     { key: "search", label: "Knowledge search", description: "Find evidence across the knowledge base.", path: "/newsroom/search" },
   ] },
   { title: "Administration", items: [

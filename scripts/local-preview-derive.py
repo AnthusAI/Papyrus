@@ -2,6 +2,9 @@
 deriveMarkus query returns, so the local preview renders real Markus (figures, directives, citations)."""
 import json
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from papyrus_content.markus_renderer.derive import derive_body
 

@@ -192,3 +192,22 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-article-link-button{background:none;border:0;padding:0;font:inherit;text-decoration:underline;cursor:pointer;color:inherit}
 .story-trail-list>li[data-story-reference-focused]{border-left:3px solid var(--org-ink);padding-left:10px}
 .story-trail-list>li[data-story-trail-feed-reference]{border-left:1px solid var(--org-line);padding-left:10px}
+.wiki{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr);gap:24px;align-items:start}
+.wiki-sidebar{display:grid;gap:8px;position:sticky;top:0;max-height:100vh;overflow:auto;border-right:1px solid var(--org-line);padding-right:16px}
+.wiki-home{text-align:left;background:none;border:0;border-bottom:1px solid var(--org-ink);padding:4px 0;font:inherit;font-weight:600;cursor:pointer;color:var(--org-ink)}
+.wiki-home[aria-current="page"]{text-decoration:underline;text-underline-offset:4px}
+.wiki-search,.wiki-kind{font:inherit;border:1px solid var(--org-ink);border-radius:0;padding:4px 8px;background:transparent;color:var(--org-ink)}
+.wiki-sidebar-list,.wiki-concept-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wiki-sidebar-list a{color:var(--org-ink);text-decoration:none}
+.wiki-sidebar-list a[aria-current="page"]{font-weight:700;text-decoration:underline;text-underline-offset:4px}
+.wiki-main{min-width:0;max-width:820px}
+.wiki-page h1{margin:0 0 6px}
+.wiki-page h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--org-ink);padding-bottom:4px;margin:24px 0 8px}
+.wiki-page h3{font-size:13px;margin:12px 0 4px}
+.wiki-page-tools{display:flex;justify-content:flex-end;margin-bottom:8px}
+.wiki-tool-link{background:none;border:0;padding:0;font:inherit;color:var(--org-ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.wiki-link,.wiki-concept-list a{color:var(--org-ink);text-decoration:underline;text-underline-offset:3px}
+.wiki-concept-list li{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.wiki-chip{font-size:11px;border:1px solid var(--org-ink);padding:0 6px;text-transform:uppercase;letter-spacing:.04em}
+.wiki-meta,.wiki-empty{font-size:12px;color:var(--org-muted);margin:0}
+@media (max-width:760px){.wiki{grid-template-columns:minmax(0,1fr)}.wiki-sidebar{position:static;max-height:240px;border-right:0;padding-right:0}}

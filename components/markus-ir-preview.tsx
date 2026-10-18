@@ -21,6 +21,8 @@ type PreviewContext = {
   sidecar: PreviewSidecar;
   citationNumbers: Map<string, number>;
   imageUrls: Record<string, string>;
+  dynamicDirectives: Record<string, (attributes: Record<string, unknown>) => ReactNode>;
+  renderLink?: (href: string, children: ReactNode) => ReactNode | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,7 +114,9 @@ function renderInlines(inlines: MarkusInline[], context: PreviewContext): ReactN
         return <s key={index}>{renderInlines(node.children, context)}</s>;
       case "code_span":
         return <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]" key={index}>{node.code}</code>;
-      case "link":
+      case "link": {
+        const custom = node.href ? context.renderLink?.(node.href, renderInlines(node.children, context)) : null;
+        if (custom) return <span key={index}>{custom}</span>;
         return node.href ? (
           <a className="text-primary underline" href={node.href} key={index} rel="noopener noreferrer" target="_blank">
             {renderInlines(node.children, context)}
@@ -120,6 +124,7 @@ function renderInlines(inlines: MarkusInline[], context: PreviewContext): ReactN
         ) : (
           <span key={index}>{renderInlines(node.children, context)}</span>
         );
+      }
       case "image":
         return (
           <span className="rounded border border-dashed border-border px-1 text-xs text-muted-foreground" key={index}>
@@ -275,6 +280,8 @@ function renderDirective(directive: MarkusDirective, index: number, context: Pre
     );
   }
   if (directive.name === "figure") return renderFigure(directive, index, context);
+  const dynamicRenderer = context.dynamicDirectives[directive.name];
+  if (dynamicRenderer) return <div data-markus-preview-directive={directive.name} key={index}>{dynamicRenderer(directive.attributes)}</div>;
   const attributeEntries = Object.entries(directive.attributes).filter(([, value]) => value !== null && value !== "");
   return (
     <section
@@ -306,9 +313,14 @@ function renderBlocks(nodes: MarkusNode[], context: PreviewContext): ReactNode[]
 export function MarkusIrPreview({
   bodyIr,
   imageUrls = {},
+  dynamicDirectives = {},
+  renderLink,
 }: {
   bodyIr: unknown;
   imageUrls?: Record<string, string>;
+  /** Live components for leaf directives whose content the host app computes, keyed by directive name. */
+  dynamicDirectives?: PreviewContext["dynamicDirectives"];
+  renderLink?: PreviewContext["renderLink"];
 }) {
   try {
     const envelope = typeof bodyIr === "string" ? JSON.parse(bodyIr) : bodyIr;
@@ -319,6 +331,8 @@ export function MarkusIrPreview({
       sidecar,
       citationNumbers: numberCitationsByFirstAppearance(envelope.document, sidecar),
       imageUrls,
+      dynamicDirectives,
+      renderLink,
     };
     return <div data-markus-preview>{renderBlocks(document.children, context)}</div>;
   } catch (error) {

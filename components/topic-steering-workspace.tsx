@@ -1,5 +1,6 @@
 "use client";
 
+import { WikiConceptsView } from "./wiki-concepts-view";
 import { Hub } from "aws-amplify/utils";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { gsap } from "gsap";
@@ -3186,14 +3187,10 @@ function NewsDeskDashboard({
         ) : null}
         {!isSectionPage && activeTab === "concepts" ? (
           <ConceptsDeskView
-            categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
-            disabled={controlsDisabled}
             graph={graph}
-            initialCategoryLineageId={initialSelection.category}
             initialNodeLineageId={initialSelection.node}
-            onCreateNote={createNote}
+            isDemo={Boolean(dashboard.isDemo)}
             semanticNodes={semanticNodes}
-            summary={summary}
           />
         ) : null}
         {!isSectionPage && activeTab === "references" ? (
@@ -6353,148 +6350,27 @@ function TopicProposalEditModal({
 }
 
 function ConceptsDeskView({
-  categories,
-  disabled,
   graph,
-  initialCategoryLineageId,
   initialNodeLineageId,
-  onCreateNote,
+  isDemo,
   semanticNodes,
-  summary,
 }: {
-  categories: CategorySteeringCategory[];
-  disabled: boolean;
   graph: SemanticGraph;
-  initialCategoryLineageId?: string | null;
   initialNodeLineageId?: string | null;
-  onCreateNote: (target: NoteTarget, summary: string, body: string) => Promise<void>;
+  isDemo: boolean;
   semanticNodes: SemanticNodeRecord[];
-  summary?: NewsroomSummaryRecord | null;
 }) {
-  const [nodeKindFilter, setNodeKindFilter] = useState("");
-  const [nodeStatusFilter, setNodeStatusFilter] = useState("");
-  const [selectedNodeLineageId, setSelectedNodeLineageId] = useState(initialNodeLineageId ?? "");
-  const [isConceptDetailOpen, setIsConceptDetailOpen] = useState(Boolean(initialNodeLineageId));
-  const categoryContext = useMemo(() => buildCategoryDrilldownContext(categories, initialCategoryLineageId), [categories, initialCategoryLineageId]);
   const feed = useNewsroomPagedRows({
     initialItems: semanticNodes,
-    enabled: !categoryContext?.primary,
-    resetKey: `semanticNodes:${nodeKindFilter}:${nodeStatusFilter}`,
-    loadPage: (nextToken) => loadNewsroomSemanticNodePage({
-      nodeKind: nodeKindFilter,
-      status: nodeStatusFilter,
-      nextToken,
-    }),
+    enabled: true,
+    resetKey: "semanticNodes:wiki",
+    loadPage: (nextToken) => loadNewsroomSemanticNodePage({ nodeKind: "", status: "", nextToken }),
   });
-  const categoryFilter = categoryContext.primary ? graph.resolve("category", categoryLineageId(categoryContext.primary)) : null;
-  const categoryConceptLineages = useMemo(() => (
-    categoryContext.primary
-      ? new Set(semanticNodesForCategoryContext(graph, categoryContext).map((node) => node.lineageId))
-      : null
-  ), [categoryContext, graph]);
-  const feedNodes = useMemo(() => (
-    feed.items.length
-      ? feed.items
-      : (feed.isLoading || Boolean(feed.error))
-        ? semanticNodes
-        : feed.items
-  ), [feed.error, feed.isLoading, feed.items, semanticNodes]);
-  const visibleNodes = useMemo(() => (
-    categoryConceptLineages
-      ? semanticNodes.filter((node) => categoryConceptLineages.has(node.lineageId ?? node.id))
-      : feedNodes
-  ), [categoryConceptLineages, feedNodes, semanticNodes]);
-  const fallbackConceptCategories = useMemo(() => (
-    visibleNodes.length
-      ? []
-      : categories.filter((category) => category.status !== "deprecated" && category.status !== "archived")
-  ), [categories, visibleNodes.length]);
-  const requestedNodeLineageId = selectedNodeLineageId || initialNodeLineageId || "";
-  const selected = selectSemanticNodeSummary(graph, visibleNodes, requestedNodeLineageId)
-    ?? (requestedNodeLineageId ? selectSemanticNodeSummary(graph, semanticNodes, requestedNodeLineageId) : null)
-    ?? (requestedNodeLineageId ? selectCategorySummary(graph, categories, requestedNodeLineageId) : null)
-    ?? categoryFilter
-    ?? selectSemanticNodeSummary(graph, visibleNodes)
-    ?? selectCategorySummary(graph, fallbackConceptCategories);
-  const conceptKnowledgeQuery = useNewsroomKnowledgeContext(selected ? {
-    anchor: {
-      kind: selected.kind === "category" ? "category" : "semanticNode",
-      id: selected.id ?? selected.lineageId,
-      lineageId: selected.lineageId,
-    },
-    title: selected.label,
-    subtitle: selected.subtitle,
-  } : null);
-  const conceptNote = useNewsroomNoteComposer(
-    selected && (selected.kind === "category" || selected.kind === "semanticNode") ? noteTargetForSemanticObject(selected) : null,
-    disabled,
-    onCreateNote,
-  );
-  const detail = categoryFilter
-    ? `${visibleNodes.length} graph nodes associated with ${categoryFilter.label}`
-    : visibleNodes.length
-      ? `${summaryCountFromRecord(summary, "semanticNodes") || visibleNodes.length} graph nodes`
-      : `${fallbackConceptCategories.length} taxonomy concepts`;
-  const nodeKindCounts = categoryFilter ? countSemanticNodesByKind(visibleNodes) : summary?.facets?.semanticNodes?.byNodeKind ?? countSemanticNodesByKind(visibleNodes);
-  const nodeStatusCounts = categoryFilter ? countSemanticNodesByStatus(visibleNodes) : summary?.facets?.semanticNodes?.byStatus ?? countSemanticNodesByStatus(visibleNodes);
-  const nodeKinds = sortedCountOptions(nodeKindCounts).slice(0, 8);
-  const cards = visibleNodes.length
-    ? visibleNodes.map((node, index) => semanticNodeToNewsroomCard(node, index))
-    : fallbackConceptCategories.map((category, index) => categoryToConceptNewsroomCard(category, index));
-  const cardIds = useMemo(() => new Set(cards.map((card) => card.id)), [cards]);
-  const selectedLineageId = selected && cardIds.has(selected.lineageId) ? selected.lineageId : null;
-  const selectNode = (lineageId: string) => {
-    setSelectedNodeLineageId(lineageId);
-    setIsConceptDetailOpen(true);
-    pushNewsroomDetailUrl("concepts", lineageId, false);
-  };
-  return (
-    <>
-      <NewsroomListDetailShell
-        animatedDetail
-        sectionKey="concepts"
-        canExpandDetail={Boolean(selected)}
-        detailOpen={isConceptDetailOpen}
-        selectionScrollKey={selectedLineageId}
-        actions={[conceptNote.action]}
-        utilityActions={[conceptKnowledgeQuery.action]}
-        lede={(
-          <NewsroomDeskSectionLede headingId="semantic-concepts-title" section="concepts" />
-        )}
-        list={(
-          <section className="category-steering-section category-steering-section--lead" aria-label={detail}>
-            <NewsroomCardGrid
-              cards={cards}
-              emptyLabel={feed.isLoading ? "Loading semantic concepts" : feed.error ?? "No semantic nodes imported"}
-              filterLabel="Concept kind"
-              filterOptions={[
-                { key: "", label: "All concept kinds", count: summaryCountFromRecord(summary, "semanticNodes") || visibleNodes.length },
-                ...nodeKinds.map((option) => ({ key: option.key, label: formatAssignmentTypeLabel(option.key), count: option.count })),
-              ]}
-              filterValue={nodeKindFilter}
-              footerLabel={feed.error ?? undefined}
-              hasMore={!categoryFilter && feed.hasMore}
-              isLoadingMore={feed.isLoadingMore}
-              metricValue={nodeStatusFilter}
-              metrics={[
-                { key: "", label: "All", count: summaryCountFromRecord(summary, "semanticNodes") || visibleNodes.length },
-                ...sortedCountOptions(nodeStatusCounts).map((option) => ({ key: option.key, label: option.key, count: option.count })),
-              ]}
-              onFilterChange={setNodeKindFilter}
-              onLoadMore={feed.loadMore}
-              onMetricChange={setNodeStatusFilter}
-              onSelect={selectNode}
-              selectedId={selectedLineageId}
-            />
-          </section>
-        )}
-        onCloseDetail={() => setIsConceptDetailOpen(false)}
-        detail={<SemanticDetailPanel graph={graph} selected={selected} knowledgeQuery={conceptKnowledgeQuery} />}
-      />
-      {conceptKnowledgeQuery.dialog}
-      {conceptNote.dialog}
-    </>
-  );
+  useEffect(() => {
+    if (feed.hasMore && !feed.isLoadingMore) feed.loadMore();
+  }, [feed]);
+  const nodes = feed.items.length ? feed.items : semanticNodes;
+  return <WikiConceptsView demo={isDemo} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} />;
 }
 
 function ReferencesDeskView({
