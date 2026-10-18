@@ -10,9 +10,24 @@
   "parent": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c54206b2-bf39-4d26-8825-eab28adaa4e8",
+      "author": "home",
+      "text": "Resolver/CLI implemented in draft PR311. Publication, section, story, assignment and local Git paths carry provenance/hash; strict missing/ambiguous/denied paths and budget refusal tested. Required assignment attachment read failures propagate. Await review; no hosted write or seed fallback.",
+      "created_at": "2026-10-18T19:16:26.379588Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    }
+  ],
   "created_at": "2026-10-18T19:00:31.364608Z",
-  "updated_at": "2026-10-18T19:10:04.408980Z",
+  "updated_at": "2026-10-18T19:16:26.379710Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

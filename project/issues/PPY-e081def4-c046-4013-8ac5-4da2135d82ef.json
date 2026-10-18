@@ -10,9 +10,24 @@
   "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "cc3ffdc4-f53e-4323-b0be-27f87fa530e1",
+      "author": "home",
+      "text": "Implementation review: draft PR https://github.com/AnthusAI/Papyrus/pull/311 on feature/PPY-e081de-editorial-context; commits a75b54e4 and f98be004. 41 focused Python tests, six Behave scenarios/19 steps, Node assignment API checks, all three Tactus DSL validations, both skill validators, and changed-file ESLint pass. Full newsroom run 160 pass/9 fail in out-of-slice corpus/tokenizer checks; current CI already excludes that environment-dependent suite. Full typecheck lacks existing UI/generated modules, with no errors in changed TS files. Generated-text GraphQL operation and approved ProcedureVersion synchronization remain explicit follow-up; direct copywriter callers must provide resolved context. No merge, deploy, infrastructure, credentials or Cyclotron label changes. Keep epic/stories in_progress pending review and remaining acceptance.",
+      "created_at": "2026-10-18T19:16:25.040022Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    }
+  ],
   "created_at": "2026-10-18T18:59:27.140198Z",
-  "updated_at": "2026-10-18T19:10:02.988746Z",
+  "updated_at": "2026-10-18T19:16:25.040172Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
