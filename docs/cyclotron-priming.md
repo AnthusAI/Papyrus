@@ -572,3 +572,6 @@ an explicit human label, the next sweep retracts the label the cyclotron learned
 from it (`undo_review`, counted as `retiredLabels`). Priming examples added for
 References no one decided have no retraction in the engine yet; that needs a
 Cyclotron change.
+
+Withdrawing a person's review of a Reference the cyclotron never decided now
+retracts its priming example too (`retract_priming_examples`, Cyclotron PR 49).

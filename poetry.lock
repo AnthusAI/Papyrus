@@ -1310,8 +1310,8 @@ web = ["decision-flywheel[priming]", "fastapi (>=0.115,<1)", "httpx (>=0.27,<1)"
 [package.source]
 type = "git"
 url = "https://github.com/AnthusAI/Cyclotron.git"
-reference = "18df06512423a1a8c30d42a6b881029f5de93bb8"
-resolved_reference = "18df06512423a1a8c30d42a6b881029f5de93bb8"
+reference = "6c9978ea5690bcdc3b77a6801b19721790401779"
+resolved_reference = "6c9978ea5690bcdc3b77a6801b19721790401779"
 
 [[package]]
 name = "defusedxml"
@@ -6839,4 +6839,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "74344178b97e5b1f87b412e2a54c7fa5edb4f1bd60655a188c4d561d1acba32e"
+content-hash = "adb9ff674c46fa1420537fd8f4d0e051eefad941e30fb7b81735ad27418a453a"
