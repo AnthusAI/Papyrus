@@ -483,10 +483,11 @@ def _retire_withdrawn_labels(client, cyclotron, plan: RelevanceCyclotronPlan, co
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
             decision_relation = current_relevance_decision(_decision_relations(client, reference["lineageId"]),
                                                            reference["lineageId"])
-            if decision_relation is None:
-                continue
             messages = _curation_messages(client, reference["lineageId"])
             if not messages or human_label_for_review(reference, messages, labels=labels) is not None:
+                continue
+            if decision_relation is None:
+                retired += _retract_priming_example(cyclotron, plan, reference, warnings)
                 continue
             decision_id = json.loads(decision_relation.get("metadata") or "{}").get("decisionId")
             if not decision_id:
@@ -499,6 +500,18 @@ def _retire_withdrawn_labels(client, cyclotron, plan: RelevanceCyclotronPlan, co
                 continue
             retired += 1
     return retired
+
+
+def _retract_priming_example(cyclotron, plan: RelevanceCyclotronPlan, reference: Mapping[str, Any],
+                             warnings: list[str]) -> int:
+    classifier_id = plan.definition.classifiers[0].id
+    try:
+        outcome = asyncio.run(cyclotron.retract_priming_examples(
+            {classifier_id: [reference_item(reference).id]}, retracted_by="papyrus: human review withdrawn"))
+    except ValueError as error:
+        warnings.append(f"{reference['lineageId']}: {error}")
+        return 0
+    return len(outcome["retracted"].get(classifier_id, ()))
 
 
 def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str, warnings: list[str]) -> int:
