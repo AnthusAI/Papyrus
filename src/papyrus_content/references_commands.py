@@ -91,6 +91,13 @@ DOCKER_CANDIDATE_PATHS = (
 )
 
 
+def _section_option(options: dict[str, Any]) -> str:
+    section = options.get("section") or options.get("section-id")
+    if section is True:
+        raise ValueError("--section requires a newsroom section id.")
+    return str(section or "")
+
+
 def references_review_curation(flags: list[str]) -> None:
     options = parse_options(flags)
     reference_id = options.get("reference") or options.get("reference-id")
@@ -110,6 +117,7 @@ def references_review_curation(flags: list[str]) -> None:
         note=str(options.get("note") or ""),
         actor_label=str(options.get("actor") or "Papyrus content CLI"),
         reason_code=reason_code or "",
+        section_id=_section_option(options),
     )
     print(
         f"references\treview-curation\t{review.get('referenceId')}\t{review.get('action')}\t"
@@ -119,7 +127,7 @@ def references_review_curation(flags: list[str]) -> None:
 
 def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
     """papyrus references approve|reject --reference <id> --on-behalf-of <person's sign-in email>
-    --agent <your name> --instruction "<the person's words>" [--delegation-token <token> or PAPYRUS_DELEGATION_TOKEN] [--reason-code ...] [--note ...]
+    --agent <your name> --instruction "<the person's words>" [--delegation-token <token> or PAPYRUS_DELEGATION_TOKEN] [--reason-code ...] [--note ...] [--section <newsroom section id>, accept only]
 
     Records a decision a person made, using the delegation they granted this agent.
     The cyclotron counts it as the person's label. Never use it for your own judgment.
@@ -143,7 +151,7 @@ def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
         client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
         agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
         instruction=str(options["instruction"]), note=str(options.get("note") or ""),
-        reason_code=reason_code or "")
+        reason_code=reason_code or "", section_id=_section_option(options))
     print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
           f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
 

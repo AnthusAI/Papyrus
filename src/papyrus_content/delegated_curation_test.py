@@ -31,7 +31,7 @@ def test_a_relayed_approval_sends_the_token_the_agent_and_the_named_person():
     assert variables == {"referenceId": "reference-1", "action": "accept", "delegationId": "curation-delegation-1",
                          "delegationToken": TOKEN, "agentLabel": "ChatGPT", "onBehalfOf": "editor@example.org",
                          "instruction": "Approve that one, it is core.",
-                         "note": "Core topic.", "reasonCode": None}
+                         "note": "Core topic.", "reasonCode": None, "sectionId": None}
 
 
 def test_a_delegation_never_records_anything_but_accept_or_reject():
@@ -39,3 +39,12 @@ def test_a_delegation_never_records_anything_but_accept_or_reject():
         with pytest.raises(ValueError, match="only accept or reject"):
             record_delegated_curation(recording_graphql([]), reference_id="r", action=action, delegation_token=TOKEN,
                                       agent_label="ChatGPT", on_behalf_of="editor@example.org", instruction="x")
+
+
+def test_a_relayed_approval_can_name_the_newsroom_section():
+    sent = []
+    record_delegated_curation(recording_graphql(sent), reference_id="reference-1", action="accept",
+                              delegation_token=TOKEN, agent_label="ChatGPT", on_behalf_of="editor@example.org",
+                              instruction="Approve it for Research.", section_id="newsroom-section-research")
+    (_, variables), = sent
+    assert variables["sectionId"] == "newsroom-section-research"
