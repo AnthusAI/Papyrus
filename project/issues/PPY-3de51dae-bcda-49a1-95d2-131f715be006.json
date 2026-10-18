@@ -10,9 +10,19 @@
   "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6cfbd2ce-f528-4f9e-bea1-d4c43edbeb4e",
+      "author": "unknown",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/317 merged to develop: site_sweep.py, references decide-site-sections, site_sweep_test.py (11 tests), docs. Parity for Section changes still PPY-f579a2.",
+      "created_at": "2026-10-18T20:36:01.059152Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T20:13:50.606517Z",
-  "updated_at": "2026-10-18T20:13:50.606822Z",
+  "updated_at": "2026-10-18T20:36:01.059342Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
