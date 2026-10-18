@@ -1494,8 +1494,10 @@
   letter-spacing: 0.1em;
 }
 :root[data-site-brand="threat-intelligence"] .newsroom-organizer .papyrus-newsprint-board .issue-card {
-  border-top: 2px solid var(--org-ink);
   background: var(--sand-1);
+}
+:root[data-site-brand="threat-intelligence"] .newsroom-organizer .papyrus-newsprint-board .issue-card + .issue-card {
+  border-top: 1px solid var(--org-ink) !important;
 }
 :root[data-site-brand="threat-intelligence"] .newsroom-organizer .papyrus-newsprint-board .issue-card h3 {
   font-size: 17px;

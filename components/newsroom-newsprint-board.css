@@ -36,10 +36,11 @@
   --issue-priority-bg: var(--org-paper) !important;
   background: transparent !important;
   border-radius: 0;
-  border-bottom: 1px solid var(--org-line) !important;
+  border: 0 !important;
   box-shadow: none !important;
 }
-.papyrus-newsprint-board .issue-accent-bar { border-bottom: 1px solid var(--org-line); background: var(--org-paper) !important; color: var(--org-ink) !important; }
+.papyrus-newsprint-board .issue-card + .issue-card { border-top: 1px solid var(--org-line) !important; }
+.papyrus-newsprint-board .issue-accent-bar { border-bottom: 0; background: var(--org-paper) !important; color: var(--org-ink) !important; }
 .papyrus-newsprint-board .issue-accent-id { font: 400 9px Newsroom UI, system-ui, sans-serif; letter-spacing: .8px; white-space: nowrap; color: var(--org-ink) !important; }
 .papyrus-newsprint-board .issue-accent-priority { border-radius: 0; color: var(--org-muted) !important; background: transparent !important; font-size: 8px; }
 .papyrus-newsprint-board .issue-card h3 { font: 700 19px/1.2 Newsroom Display, Georgia, serif !important; letter-spacing: -.2px; }
