@@ -18,7 +18,13 @@ PRECEDENCE = ['publication', 'section', 'assignment']
 
 
 def _digest(value: Any) -> str:
-    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()).hexdigest()
+
+
+def _check_tenant(client, record: dict) -> None:
+    # Absence of tenant configuration must not mean permission to mix tenants.
+    if (record.get('tenantId') or None) != (getattr(client, 'tenant_id', None) or None):
+        raise ValueError('Editorial record tenant does not match the configured authoring scope.')
 
 
 def current_record(rows: list[dict], label: str) -> dict:
@@ -69,6 +75,13 @@ def resolve_editorial_context(client, *, publication: dict, endpoint: str,
                               assignment_id: str | None = None, max_characters: int = 0) -> dict:
     if not publication.get('key') or not endpoint:
         raise ValueError('Explicit publication identity and endpoint are required for hosted editorial context.')
+    from .ids import knowledge_corpus_id
+    corpora = client.list_by_index('knowledgeCorporaByRoleAndName', 'canonical')
+    if (len(corpora) != 1 or corpora[0].get('id') != knowledge_corpus_id(publication)
+            or corpora[0].get('role') != 'canonical' or not str(corpora[0].get('name') or '').strip()):
+        raise ValueError('Requested publication does not match the hosted canonical corpus; missing or ambiguous publication binding.')
+    publication = {'key': corpora[0]['id'].removeprefix('knowledge-corpus-'), 'name': corpora[0]['name'],
+                   'corpusId': corpora[0]['id'], 'tenantId': getattr(client, 'tenant_id', None)}
     entries = []
     warnings = []
     assignment = None
@@ -90,6 +103,7 @@ def resolve_editorial_context(client, *, publication: dict, endpoint: str,
         if not versions:
             raise ValueError(f'Story not found: {story_lineage_id}')
         story = max(versions, key=lambda row: int(row.get('versionNumber') or 0))
+        _check_tenant(client, story)
         if section_id and story.get('section') and section_id != story['section']:
             raise ValueError('Requested section conflicts with story section.')
         section_id = section_id or story.get('section')
@@ -97,6 +111,7 @@ def resolve_editorial_context(client, *, publication: dict, endpoint: str,
         rows = client.list_by_index('itemBySlug', definition['slug'])
         rows = [row for row in rows if row.get('type') == 'doctrine' and row.get('status') == 'private']
         record = current_record(rows, f'Publication {kind}')
+        _check_tenant(client, record)
         text = _body(record)
         if not text:
             raise ValueError(f'Required publication {kind} is empty.')
@@ -105,8 +120,11 @@ def resolve_editorial_context(client, *, publication: dict, endpoint: str,
         section = client.get_record('NewsroomSection', section_id)
         if not section:
             raise ValueError(f'Requested section not found: {section_id}')
+        _check_tenant(client, section)
         _section_entries(entries, warnings, section)
     if assignment:
+        if getattr(client, 'tenant_id', None) and not (story_lineage_id or section_id):
+            raise ValueError('A tenant assignment needs a scoped story or section to establish its publication.')
         from .model_attachments import download_attachment_buffer
         attachments = client.list_by_index('modelAttachmentsByOwnerRoleAndSortKey', assignment['id'])
         found_brief = False
@@ -115,7 +133,12 @@ def resolve_editorial_context(client, *, publication: dict, endpoint: str,
             if len(matching) > 1:
                 raise ValueError(f'Ambiguous assignment {kind} attachments.')
             if matching:
-                text = download_attachment_buffer(client, matching[0]).decode('utf-8').strip()
+                if matching[0].get('ownerKind') != 'assignment' or matching[0].get('ownerId') != assignment['id']:
+                    raise ValueError('Assignment attachment owner does not match the requested scope.')
+                content = download_attachment_buffer(client, matching[0])
+                if content is None:
+                    raise ValueError(f'Assignment {kind} attachment has no storage path.')
+                text = content.decode('utf-8').strip()
                 if not text:
                     raise ValueError(f'Assignment {kind} attachment is empty.')
                 entries.append(_entry('assignment', kind, text, matching[0]))

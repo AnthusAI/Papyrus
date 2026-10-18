@@ -24,10 +24,52 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "6011afc5-3062-4ce7-8483-013429cc4ee7",
+      "author": "home",
+      "text": "Baseline c42aeeac reproduces the same nine broader Python failures (144 passing); baseline and PR TypeScript diagnostics are byte-identical. Review continuation adds generated context through the existing private assignment API source, publication/tenant binding and contract tests. No deployment, permissions, credentials, procedure sync or live content writes.",
+      "created_at": "2026-10-18T19:25:33.456615Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "5b71edfa-3792-4ab0-8fa2-2849eda90e3e",
+      "author": "home",
+      "text": "Review corrections ready on feature/PPY-e081de-editorial-context, draft PR https://github.com/AnthusAI/Papyrus/pull/311. Source now exposes getEditorialContext and AssignmentContext.editorialContext through the existing private assignment handler/groups; no grants, resources, deployments or credentials changed. Canonical corpus binding rejects wrong/ambiguous backends; configured tenant checks cover doctrine/story/section, with strict Assignment attachment ownership and failures. Python and TS verify one synthetic generated contract including Unicode counts and hashes. Local focused Python 46 pass; targeted context/worker selection 36 pass; Behave 8 scenarios/27 steps pass; Node adapter/schema parity and changed TS lint pass. Full local tsc diagnostics remain byte-identical to fork c42aeeac (missing shared modules/generated outputs). All nine broader failures reproduce at fork: 144 baseline passes versus 160 earlier PR passes; zero new failures. CI exact final head is to be inspected after push. Stays in_progress until review/landing; stored ProcedureVersions and live Lambda/model acceptance remain separate approved release work.",
+      "created_at": "2026-10-18T19:30:44.772155Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "660d2aee-b7de-49cb-9d08-52b910994303",
+      "author": "home",
+      "text": "Final local comparison: baseline c42aeeac0e148602636f876bcf5e5d94ddba85ae has 144 pass/9 fail; reviewed source has 165 pass/the identical 9 failure IDs (JUnit comparison). No regression added. All three checks on previous PR head 8308089fa8b6863dd0fe4d2d8c29eaaa6edd7476 completed SUCCESS: ts, python, package smoke. Pushing these review corrections will require fresh exact-head checks; no CI success is yet claimed for that new head.",
+      "created_at": "2026-10-18T19:31:20.435389Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-18T19:07:13.752008Z",
-  "updated_at": "2026-10-18T19:16:27.591105Z",
+  "updated_at": "2026-10-18T19:31:20.435538Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

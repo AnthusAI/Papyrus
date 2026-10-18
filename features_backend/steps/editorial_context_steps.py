@@ -17,6 +17,16 @@ def editorial_missing(context):
     context.editorial_records.records['Item']['editorial-doctrine-policy'] = []
 
 
+@given('the hosted canonical corpus belongs to another publication')
+def editorial_other_publication(context):
+    context.editorial_records.corpora = [{'id':'knowledge-corpus-other', 'name':'Other', 'role':'canonical'}]
+
+
+@given('the publication policy belongs to a tenant outside the configured scope')
+def editorial_other_tenant(context):
+    context.editorial_records.records['Item']['editorial-doctrine-policy'][-1]['tenantId'] = 'another'
+
+
 @given('editorial records whose reads are denied')
 def editorial_denied(context):
     class Denied(Records):

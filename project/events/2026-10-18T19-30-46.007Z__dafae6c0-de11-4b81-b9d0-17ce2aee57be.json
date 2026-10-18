@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "dafae6c0-de11-4b81-b9d0-17ce2aee57be",
+  "issue_id": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-18T19:30:46.007Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "4cdcff0d-c1ec-46e5-958e-056eff51eab6",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "ChatGPT"
+    }
+  }
+}

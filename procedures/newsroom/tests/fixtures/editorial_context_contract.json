@@ -1,0 +1,267 @@
+{
+  "records": {
+    "Item": {
+      "editorial-doctrine-mission": [
+        {
+          "id": "mission-v2",
+          "lineageId": "mission",
+          "versionNumber": 2,
+          "versionState": "current",
+          "type": "doctrine",
+          "status": "private",
+          "body": [
+            "Current mission"
+          ]
+        }
+      ],
+      "editorial-doctrine-policy": [
+        {
+          "id": "policy-v1",
+          "lineageId": "policy",
+          "versionNumber": 1,
+          "versionState": "superseded",
+          "type": "doctrine",
+          "status": "private",
+          "body": [
+            "Old policy"
+          ]
+        },
+        {
+          "id": "policy-v2",
+          "lineageId": "policy",
+          "versionNumber": 2,
+          "versionState": "current",
+          "type": "doctrine",
+          "status": "private",
+          "body": [
+            "Distinguish evidence and inference 🚀"
+          ]
+        }
+      ]
+    },
+    "NewsroomSection": {
+      "science": {
+        "id": "science",
+        "updatedAt": "2026-10-18",
+        "editorialMission": "Explain research",
+        "editorialPolicy": "Use primary sources",
+        "assignmentGuidance": "Check replication",
+        "killCriteria": "Unsupported claims"
+      }
+    },
+    "Assignment": {
+      "a1": {
+        "id": "a1",
+        "sectionKey": "science",
+        "itemLineageId": "story",
+        "summary": "Investigate",
+        "metadata": "{\"sectionPolicies\": [\"Old snapshot\"]}"
+      }
+    }
+  },
+  "stories": [
+    {
+      "id": "story-v2",
+      "lineageId": "story",
+      "versionNumber": 2,
+      "versionState": "current",
+      "section": "science"
+    }
+  ],
+  "corpora": [
+    {
+      "id": "knowledge-corpus-example",
+      "name": "Example",
+      "role": "canonical"
+    }
+  ],
+  "attachments": [
+    {
+      "id": "brief-v1",
+      "ownerKind": "assignment",
+      "ownerId": "a1",
+      "role": "assignment_brief",
+      "status": "ready",
+      "storagePath": "private/test"
+    }
+  ],
+  "pack": {
+    "schemaVersion": 1,
+    "rendererVersion": "editorial-context/v1",
+    "publication": {
+      "key": "example",
+      "name": "Example",
+      "corpusId": "knowledge-corpus-example",
+      "tenantId": null,
+      "endpoint": "https://example.invalid/graphql"
+    },
+    "scope": {
+      "sectionId": "science",
+      "storyLineageId": "story",
+      "assignmentId": "a1"
+    },
+    "sourceMode": "cloud",
+    "precedence": [
+      "publication",
+      "section",
+      "assignment"
+    ],
+    "entries": [
+      {
+        "scope": "publication",
+        "kind": "mission",
+        "text": "Current mission",
+        "source": {
+          "id": "mission-v2",
+          "lineageId": "mission",
+          "versionNumber": 2,
+          "updatedAt": null,
+          "contentHash": null,
+          "sha256": "0b1ba315f70e24d01f519320604f983666b76575fa6d1931d2220b2bdf3b8bb7"
+        }
+      },
+      {
+        "scope": "publication",
+        "kind": "policy",
+        "text": "Distinguish evidence and inference 🚀",
+        "source": {
+          "id": "policy-v2",
+          "lineageId": "policy",
+          "versionNumber": 2,
+          "updatedAt": null,
+          "contentHash": null,
+          "sha256": "371b8aed92fc6e4fbc1234b60606d992b4c64e548a6addba4677edcabb6fd214"
+        }
+      },
+      {
+        "scope": "section",
+        "kind": "mission",
+        "text": "Explain research",
+        "source": {
+          "id": "science",
+          "lineageId": null,
+          "versionNumber": null,
+          "updatedAt": "2026-10-18",
+          "contentHash": null,
+          "sha256": "e29241dd830b41df14c315a48645a85462154bff8160e597b0083063d2d682d0"
+        }
+      },
+      {
+        "scope": "section",
+        "kind": "policy",
+        "text": "Use primary sources",
+        "source": {
+          "id": "science",
+          "lineageId": null,
+          "versionNumber": null,
+          "updatedAt": "2026-10-18",
+          "contentHash": null,
+          "sha256": "fbc598ddae26587f93cbe8df2d6cdf6e801bfbeb2a28d6dcd04dc7d2a3961fc5"
+        }
+      },
+      {
+        "scope": "section",
+        "kind": "guidance",
+        "text": "Check replication",
+        "source": {
+          "id": "science",
+          "lineageId": null,
+          "versionNumber": null,
+          "updatedAt": "2026-10-18",
+          "contentHash": null,
+          "sha256": "7ffdd262f3f246ab5d0b14f79bfe4ba0053200065661b7bb327d7e879d350f27"
+        }
+      },
+      {
+        "scope": "section",
+        "kind": "kill criteria",
+        "text": "Unsupported claims",
+        "source": {
+          "id": "science",
+          "lineageId": null,
+          "versionNumber": null,
+          "updatedAt": "2026-10-18",
+          "contentHash": null,
+          "sha256": "64084b7dd905cb25a4b1cc137c70ac1df6d08e8fdc72b9093a4f9388b6556e73"
+        }
+      },
+      {
+        "scope": "assignment",
+        "kind": "brief",
+        "text": "Investigate primary evidence",
+        "source": {
+          "id": "brief-v1",
+          "lineageId": null,
+          "versionNumber": null,
+          "updatedAt": null,
+          "contentHash": null,
+          "sha256": "aee9604c54065819d7f7490916a45bfb3296609730ca4d51bbe6934ccdd7190a"
+        }
+      }
+    ],
+    "sources": [
+      {
+        "id": "mission-v2",
+        "lineageId": "mission",
+        "versionNumber": 2,
+        "updatedAt": null,
+        "contentHash": null,
+        "sha256": "0b1ba315f70e24d01f519320604f983666b76575fa6d1931d2220b2bdf3b8bb7"
+      },
+      {
+        "id": "policy-v2",
+        "lineageId": "policy",
+        "versionNumber": 2,
+        "updatedAt": null,
+        "contentHash": null,
+        "sha256": "371b8aed92fc6e4fbc1234b60606d992b4c64e548a6addba4677edcabb6fd214"
+      },
+      {
+        "id": "science",
+        "lineageId": null,
+        "versionNumber": null,
+        "updatedAt": "2026-10-18",
+        "contentHash": null,
+        "sha256": "e29241dd830b41df14c315a48645a85462154bff8160e597b0083063d2d682d0"
+      },
+      {
+        "id": "science",
+        "lineageId": null,
+        "versionNumber": null,
+        "updatedAt": "2026-10-18",
+        "contentHash": null,
+        "sha256": "fbc598ddae26587f93cbe8df2d6cdf6e801bfbeb2a28d6dcd04dc7d2a3961fc5"
+      },
+      {
+        "id": "science",
+        "lineageId": null,
+        "versionNumber": null,
+        "updatedAt": "2026-10-18",
+        "contentHash": null,
+        "sha256": "7ffdd262f3f246ab5d0b14f79bfe4ba0053200065661b7bb327d7e879d350f27"
+      },
+      {
+        "id": "science",
+        "lineageId": null,
+        "versionNumber": null,
+        "updatedAt": "2026-10-18",
+        "contentHash": null,
+        "sha256": "64084b7dd905cb25a4b1cc137c70ac1df6d08e8fdc72b9093a4f9388b6556e73"
+      },
+      {
+        "id": "brief-v1",
+        "lineageId": null,
+        "versionNumber": null,
+        "updatedAt": null,
+        "contentHash": null,
+        "sha256": "aee9604c54065819d7f7490916a45bfb3296609730ca4d51bbe6934ccdd7190a"
+      }
+    ],
+    "warnings": [
+      "Assignment policy snapshots are ignored; current publication and section records govern. Surface any conflicting assignment instructions."
+    ],
+    "text": "Editorial context: example\nSource: cloud\nPrecedence: publication > section > assignment. Surface conflicts; narrower instructions do not silently override publication policy.\nPrivate operating guidance; not evidence or reader-facing copy.\n\n## publication: mission\nCurrent mission\n\n## publication: policy\nDistinguish evidence and inference 🚀\n\n## section: mission\nExplain research\n\n## section: policy\nUse primary sources\n\n## section: guidance\nCheck replication\n\n## section: kill criteria\nUnsupported claims\n\n## assignment: brief\nInvestigate primary evidence\n",
+    "totalCharacters": 556,
+    "contextHash": "1383f986baf1ec65c5ddcd833d0dde15f54b36548548d28a861a57f18e44dd85"
+  }
+}

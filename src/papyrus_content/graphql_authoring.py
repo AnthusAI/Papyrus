@@ -397,6 +397,7 @@ mutation CreateModelAttachmentDownload($attachmentId: ID!) {
 """
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "knowledgeCorporaByRoleAndName": {"field": "listKnowledgeCorporaByRoleAndName", "partitionKey": "role", "fields": KNOWLEDGE_CORPUS_FIELDS},
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
     "itemByTenantSlug": {"field": "itemByTenantSlug", "partitionKey": "tenantSlug", "fields": ITEM_FIELDS},
     "itemsByLineageAndVersion": {

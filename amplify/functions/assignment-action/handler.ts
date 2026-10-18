@@ -1,4 +1,5 @@
-import { resolveAssignmentDoctrine } from "../shared/editorial-context";
+import { assignmentDoctrine, resolveEditorialContext, type EditorialClient } from "../shared/editorial-context";
+import { tenantIdFromEnvironment } from "../../../lib/tenant-keys";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -8,7 +9,7 @@ import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtim
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
-import { putJsonModelPayload, readJsonModelPayload } from "../shared/model-payloads";
+import { putJsonModelPayload, readJsonModelPayload, readEditorialAttachment } from "../shared/model-payloads";
 
 type AssignmentHandler =
   | Schema["claimAssignment"]["functionHandler"]
@@ -18,6 +19,7 @@ type AssignmentHandler =
   | Schema["reopenAssignment"]["functionHandler"]
   | Schema["retryImmediateAssignment"]["functionHandler"]
   | Schema["getAssignmentContext"]["functionHandler"]
+  | Schema["getEditorialContext"]["functionHandler"]
   | Schema["listAssignmentQueue"]["functionHandler"]
   | Schema["listAssignmentsForObject"]["functionHandler"];
 type DataClient = ReturnType<typeof generateClient<Schema>>;
@@ -34,9 +36,11 @@ const NEWSROOM_SUMMARY_PAYLOAD_ID = "knowledge-raw-payload-newsroom-summary-curr
 const NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND = "knowledgeRawPayload";
 const SUMMARY_STALE_AFTER_MS = 15 * 60 * 1000;
 let clientPromise: Promise<DataClient> | null = null;
+let editorialEndpoint: string | undefined;
 
 export const handler = async (event: any): Promise<any> => {
   const fieldName = normalizeRequiredString(event.info?.fieldName ?? event.fieldName, "fieldName");
+  if (fieldName === "getEditorialContext") return getEditorialContext(event as Parameters<Schema["getEditorialContext"]["functionHandler"]>[0]);
   if (fieldName === "getAssignmentContext") return getAssignmentContext(event as Parameters<Schema["getAssignmentContext"]["functionHandler"]>[0]);
   if (fieldName === "listAssignmentQueue") return listAssignmentQueue(event as Parameters<Schema["listAssignmentQueue"]["functionHandler"]>[0]);
   if (fieldName === "listAssignmentsForObject") return listAssignmentsForObject(event as Parameters<Schema["listAssignmentsForObject"]["functionHandler"]>[0]);
@@ -312,6 +316,20 @@ async function listAssignmentsForObject(event: Parameters<Schema["listAssignment
   return contexts;
 }
 
+async function editorialContext(client: DataClient, scope: { publicationKey?: string; sectionId?: string | null; storyLineageId?: string | null; assignmentId?: string | null; maxCharacters?: number | null }) {
+  if (!editorialEndpoint) throw new Error("Editorial context requires the configured backend endpoint.");
+  return resolveEditorialContext(client as unknown as EditorialClient, {
+    ...scope, endpoint: editorialEndpoint, tenantId: tenantIdFromEnvironment(), readAttachment: readEditorialAttachment,
+  });
+}
+
+async function getEditorialContext(event: Parameters<Schema["getEditorialContext"]["functionHandler"]>[0]) {
+  const client = await getDataClient();
+  return JSON.stringify(await editorialContext(client, {
+    ...event.arguments, publicationKey: normalizeRequiredString(event.arguments.publicationKey, "publicationKey"),
+  }));
+}
+
 async function buildAssignmentContext(client: DataClient, assignment: any) {
   const [relations, events] = await Promise.all([
     listRelationPages(client, "listSemanticRelationsBySubjectState", { subjectStateKey: semanticStateKey("assignment", assignment.id) }),
@@ -326,9 +344,11 @@ async function buildAssignmentContext(client: DataClient, assignment: any) {
       label: targetLabelFromRelation(relation),
       detail: relation.predicate,
     }));
-  const doctrine = await resolveAssignmentDoctrine(client as unknown as Parameters<typeof resolveAssignmentDoctrine>[0], assignment);
+  const pack = await editorialContext(client, { assignmentId: assignment.id });
+  const doctrine = assignmentDoctrine(pack);
   return {
     assignment,
+    editorialContext: JSON.stringify(pack),
     doctrine,
     targets,
     events,
@@ -999,6 +1019,7 @@ async function getDataClient(): Promise<DataClient> {
     clientPromise = (async () => {
       const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as never);
       Amplify.configure(resourceConfig, libraryOptions);
+      editorialEndpoint = resourceConfig.API?.GraphQL?.endpoint;
       return generateClient<Schema>();
     })();
   }

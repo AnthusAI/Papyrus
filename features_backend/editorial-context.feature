@@ -31,3 +31,15 @@ Feature: Current editorial context for newsroom agents
     Given editorial records with current publication and section policies
     When the research worker is prepared with caller-supplied policy text
     Then the worker receives the current resolved policy before dispatch
+
+  Scenario: Publication configuration points at another publication
+    Given editorial records with current publication and section policies
+    And the hosted canonical corpus belongs to another publication
+    When the agent resolves editorial context for assignment "a1"
+    Then editorial context fails with "publication"
+
+  Scenario: Unscoped access cannot consume tenant policy
+    Given editorial records with current publication and section policies
+    And the publication policy belongs to a tenant outside the configured scope
+    When the agent resolves editorial context for assignment "a1"
+    Then editorial context fails with "tenant"

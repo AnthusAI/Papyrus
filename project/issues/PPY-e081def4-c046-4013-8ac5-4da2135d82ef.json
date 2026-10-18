@@ -24,10 +24,24 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "4cdcff0d-c1ec-46e5-958e-056eff51eab6",
+      "author": "home",
+      "text": "Review boundaries: source-only CLI, workers, static skills and private GraphQL contract are implemented in draft PR311. No hosted content writes, publication, Cyclotron work, infrastructure deployment, IAM changes, installs, merge or release. Current corpus ownership model supports one canonical corpus per backend; multiple canonical corpora fail explicitly. Assignments without tenant fields require a scoped linked story/section under tenant configuration. Local broad suite/typecheck failures were reproduced at the exact fork; release and live acceptance remain outstanding.",
+      "created_at": "2026-10-18T19:30:46.007620Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-18T18:59:27.140198Z",
-  "updated_at": "2026-10-18T19:16:25.040172Z",
+  "updated_at": "2026-10-18T19:30:46.007758Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
