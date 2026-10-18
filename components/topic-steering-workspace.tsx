@@ -1,5 +1,6 @@
 "use client";
 
+import { AdministrationDelegationsPanel } from "./administration-delegations-panel";
 import { WikiConceptsView } from "./wiki-concepts-view";
 import { Hub } from "aws-amplify/utils";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -238,7 +239,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "signups";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4463,6 +4464,15 @@ function AdministrationDeskView({
                 <strong>Procedures</strong>
                 <span>Procedure registry and versioned Tactus code</span>
               </Link>
+              <Link
+                href={administrationPanelHref("delegations", isDemo)}
+                data-news-desk-admin-nav="delegations"
+                data-active={administrationPanel === "delegations" || undefined}
+                onClick={() => onPanelChange("delegations")}
+              >
+                <strong>Agent delegations</strong>
+                <span>Let an agent curate References for you</span>
+              </Link>
               {signupPluginEnabled() ? (
                 <Link
                   href={administrationPanelHref("signups", isDemo)}
@@ -4477,6 +4487,7 @@ function AdministrationDeskView({
             </nav>}
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
+              {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
               {administrationPanel === "users" ? (
                 <AdministrationUsersPanel
                   canManageUsers={canManageUsers}
@@ -13181,7 +13192,7 @@ function signupPluginEnabled(): boolean {
 }
 
 function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
   return "users";
 }
