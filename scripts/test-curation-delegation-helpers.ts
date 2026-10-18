@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import {
-  buildDelegatedCommandLine,
   delegationExpiryText,
   describeDelegationError,
   isDelegationActive,
-  validateDelegationInput,
+  delegationStateText,
+  isPendingDelegation,
+  pendingCountdownText,
+  requestedHoursText,
 } from "../lib/curation-delegation-helpers";
 
 const now = Date.parse("2026-10-18T12:00:00.000Z");
@@ -21,18 +23,22 @@ assert.equal(isDelegationActive(record, now), true);
 assert.equal(isDelegationActive({ ...record, revokedAt: "x" }, now), false);
 assert.equal(isDelegationActive({ ...record, expiresAt: inHours(-1) }, now), false);
 
-assert.deepEqual(validateDelegationInput(" curator ", "8"), { ok: true, agentLabel: "curator", hours: 8 });
-assert.equal(validateDelegationInput("", "8").ok, false);
-assert.equal(validateDelegationInput("two words", "8").ok, false);
-for (const bad of ["0", "73", "1.5", "abc", "", "-2"]) assert.equal(validateDelegationInput("a", bad).ok, false, bad);
-assert.equal(validateDelegationInput("a", "72").ok, true);
-assert.equal(validateDelegationInput("a", "1").ok, true);
-
-assert.equal(
-  buildDelegatedCommandLine({ email: "ryan@example.com", agentLabel: "curator", token: "t~abc", action: "reject" }),
-  `papyrus references reject <reference-id> --on-behalf-of ryan@example.com --agent curator --instruction "<the person's own words>" --delegation-token t~abc`,
-);
-assert.match(buildDelegatedCommandLine({ email: "", agentLabel: "c", token: "t" }), /--on-behalf-of <your-email>/);
+const pending = { ...record, state: "pending" as const, userCode: "WDJB-MJHT", requestedHours: 1, pendingExpiresAt: new Date(now + 9 * 60_000 + 30_000).toISOString(), expiresAt: new Date(now + 9 * 60_000 + 30_000).toISOString() };
+assert.equal(isPendingDelegation(pending, now), true);
+assert.equal(isPendingDelegation({ ...pending, userCode: null }, now), false, "a pending request without a code cannot be approved");
+assert.equal(isPendingDelegation({ ...pending, state: "approved" }, now), false);
+assert.equal(isPendingDelegation(pending, now + 10 * 60_000), false, "a lapsed request is not listed as pending");
+assert.equal(pendingCountdownText(pending.pendingExpiresAt, now), "9:30 left");
+assert.equal(pendingCountdownText(pending.pendingExpiresAt, now + 9 * 60_000 + 25_000), "0:05 left");
+assert.equal(pendingCountdownText(pending.pendingExpiresAt, now + 10 * 60_000), "Expired");
+assert.equal(pendingCountdownText(null, now), "Expired");
+assert.equal(requestedHoursText(1), "Asks for 1 hour");
+assert.equal(requestedHoursText(8), "Asks for 8 hours");
+assert.equal(requestedHoursText(null), "Duration not stated");
+assert.equal(delegationStateText({ ...record, state: "denied" }, now), "Denied");
+assert.equal(delegationStateText({ ...record, state: "approved" }, now), "Expires in 2 hours");
+assert.equal(delegationStateText({ ...record, state: "revoked", revokedAt: "x" }, now), "Revoked");
+assert.equal(delegationStateText({ ...pending, pendingExpiresAt: inHours(-1), expiresAt: inHours(-1) }, now), "Request expired");
 
 assert.match(describeDelegationError(new Error("Not Authorized to access")), /Only editors and administrators/);
 assert.match(describeDelegationError(new Error("A delegation lasts between 1 and 72 hours.")), /server refused/);

@@ -1,0 +1,32 @@
+{
+  "id": "PPY-e2b52273-8ca9-46de-9b2d-3a06c885ef30",
+  "title": "Scope Markus import per tenant account",
+  "description": "Follow-up from PR 299. content import-markus must import into the selected tenant: items, slugs, media and sections get the tenant's keys and nothing it writes can overwrite or read another tenant's rows. Gherkin: Given tenant a and tenant b with an article of the same slug, when tenant a imports Markus content, then tenant b's article is unchanged.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9ae932fa-cd5b-464e-b276-95d255e8ffd3",
+      "author": "unknown",
+      "text": "Merged in PR 327: tenant-scoped Section ids, Markus import and site cyclotron.",
+      "created_at": "2026-10-18T21:26:29.551558Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T21:13:23.418801Z",
+  "updated_at": "2026-10-18T21:26:30.325830Z",
+  "closed_at": "2026-10-18T21:26:30.325611Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

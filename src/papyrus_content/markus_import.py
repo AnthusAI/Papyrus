@@ -31,6 +31,8 @@ from .publishing import (
     save_item,
 )
 from .record_helpers import to_aws_json
+from .tenancy import tenant_media_path, tenant_scoped_item_id
+from .tenant_adoption import adopt_legacy_item_family
 
 IMPORT_ACTOR = "papyrus-import"
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
@@ -60,6 +62,7 @@ class ImportOptions:
     publish: bool = True
     force: bool = False
     image_source_dir: Path | None = None
+    tenant_id: str | None = None
 
 
 class MediaStore(Protocol):
@@ -117,10 +120,19 @@ class SourceFile:
     status: str
     front_matter_yaml: str
     body_markus: str
+    tenant_id: str | None = None
+    adopted_legacy_item_id: str | None = None
+    legacy_row: dict[str, Any] | None = None
 
     @property
     def item_id(self) -> str:
-        return item_id_for(self.section, self.slug)
+        if self.adopted_legacy_item_id:
+            return self.adopted_legacy_item_id
+        return tenant_scoped_item_id(self.tenant_id, item_id_for(self.section, self.slug))
+
+    @property
+    def legacy_row_needs_adoption(self) -> bool:
+        return bool(self.legacy_row) and not self.legacy_row.get("tenantId")
 
     @property
     def canonical_path(self) -> str:
@@ -221,6 +233,7 @@ def discover(options: ImportOptions) -> list[SourceFile]:
                     status="draft" if draft_section is not None else "published",
                     front_matter_yaml=front_matter_yaml.lstrip("\n"),
                     body_markus=body_markus,
+                    tenant_id=options.tenant_id,
                 )
             )
     return sources
@@ -282,6 +295,10 @@ def _resolve_image(image_root: Path, source_path: str) -> Path | None:
     return candidate
 
 
+def tenant_stored_media_path(tenant_id: str | None, storage_path: str) -> str:
+    return tenant_media_path(tenant_id, storage_path) if tenant_id else storage_path
+
+
 def media_id_for(item_id: str, source_path: str) -> str:
     return f"media-{item_id}-{hashlib.sha256(source_path.encode('utf-8')).hexdigest()[:10]}"
 
@@ -314,7 +331,7 @@ def _plan_media(
             "type": "image",
             "role": role,
             "sortKey": f"{len(planned) + 1:03d}#{source_path}",
-            "storagePath": f"media/{source_path}",
+            "storagePath": tenant_stored_media_path(source.tenant_id, f"media/{source_path}"),
             "alt": Path(source_path).name,
             "metadata": to_aws_json(
                 {"srcPath": source_path, "sha256": sha256, "bytes": len(content), "contentType": content_type}
@@ -398,6 +415,8 @@ def _media_differs(client, item_id: str, planned: list[PlannedMedia]) -> bool:
 def plan_import(options: ImportOptions, client, store: MediaStore) -> ImportPlan:
     errors: list[str] = []
     sources = discover(options)
+    for source in sources:
+        _adopt_legacy_item_id(source, client)
     image_root = Path(options.image_source_dir or options.content_dir)
 
     seen: dict[str, SourceFile] = {}
@@ -474,8 +493,21 @@ def plan_import(options: ImportOptions, client, store: MediaStore) -> ImportPlan
     return ImportPlan(planned_items, errors, _count_reader_owned_assets(options.content_dir, planned_items), not_in_source, options)
 
 
+def _adopt_legacy_item_id(source: SourceFile, client) -> None:
+    if not source.tenant_id or not source.slug or client.get_record("Item", source.item_id) is not None:
+        return
+    legacy_id = item_id_for(source.section, source.slug)
+    legacy = client.get_record_unscoped("Item", legacy_id)
+    if legacy is None:
+        return
+    owner = legacy.get("tenantId")
+    if owner == source.tenant_id or (not owner and legacy.get("slug") == source.slug):
+        source.adopted_legacy_item_id = legacy_id
+        source.legacy_row = legacy
+
+
 def _classify(planned: PlannedItem, options: ImportOptions, client) -> None:
-    existing = client.get_record("Item", planned.source.item_id)
+    existing = client.get_record("Item", planned.source.item_id) or planned.source.legacy_row
     planned.existing = existing
     desired_published = planned.source.status == "published" and options.publish
     if existing is None:
@@ -532,6 +564,8 @@ def run_import(plan: ImportPlan, client, store: MediaStore, *, apply: bool) -> I
             report.media_unchanged += 1
 
     for planned in plan.items:
+        if apply and planned.source.legacy_row_needs_adoption:
+            adopt_legacy_item_family(client, planned.source.tenant_id, planned.source.item_id)
         if planned.action == "skip-edited":
             report.skipped_edited_in_cms.append(planned.source.item_id)
             continue

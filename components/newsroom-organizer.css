@@ -274,6 +274,14 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-account-chooser li button small,.organizer-account-chooser-note{font-size:12px;color:var(--org-ink);margin:0}
 .organizer-account-chooser-heading{margin:0;font:600 11px/1.4 Newsroom UI,system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase}
 .organizer-account-chooser-link{color:var(--org-ink);text-decoration:underline;text-underline-offset:3px}
+.organizer-account-create-start,.organizer-account-create button{background:none;border:1px solid var(--org-ink);border-radius:0;color:var(--org-ink);font:600 12px/1.4 Newsroom UI,system-ui,sans-serif;padding:4px 10px;cursor:pointer;text-underline-offset:3px}
+.organizer-account-create-start:hover,.organizer-account-create button:hover{text-decoration:underline}
+.organizer-account-create-start:focus-visible,.organizer-account-create button:focus-visible,.organizer-account-create input:focus-visible{outline:2px solid var(--org-ink);outline-offset:1px}
+.organizer-account-create button:disabled{cursor:default;text-decoration:line-through}
+.organizer-account-create{display:grid;gap:6px}
+.organizer-account-create label{display:grid;gap:2px;font:600 11px/1.4 Newsroom UI,system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase}
+.organizer-account-create input{background:transparent;border:0;border-bottom:2px solid var(--org-ink);border-radius:0;color:var(--org-ink);font:400 14px/1.4 Newsroom UI,system-ui,sans-serif;padding:4px 0;text-transform:none;letter-spacing:0}
+.organizer-account-create span{display:flex;gap:8px}
 [data-reference-cyclotron-status] .cyclotron-status[data-variant]{border-radius:0;background:transparent;border-top:1px solid var(--org-ink);border-bottom:1px solid var(--org-ink);padding-left:0;padding-right:0}
 [data-reference-cyclotron-status] :is(.cyclotron-status-note,.cyclotron-status-definition,.cyclotron-status-header p,.cyclotron-status-override){color:var(--org-ink)}
 [data-reference-cyclotron-status] .cyclotron-status[data-variant="strip"]>span+span::before{color:var(--org-ink)}
@@ -295,4 +303,17 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .news-desk-columns--administration .news-desk-delegation-list li[data-delegation-live=true] .news-desk-delegation-state{font-weight:700;text-decoration:underline;text-underline-offset:4px}
 .news-desk-columns--administration .news-desk-delegation-state{font:600 12px/1.4 Newsroom UI,system-ui,sans-serif;color:var(--administration-strong)}
 .news-desk-columns--administration .news-desk-delegation-confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.news-desk-columns--administration .news-desk-delegation-pending-list{list-style:none;margin:0;padding:0;display:grid}
+.news-desk-columns--administration .news-desk-delegation-pending-list li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px 24px;align-items:center;padding:16px 0 16px 12px;border-top:1px solid var(--org-line);border-left:3px solid var(--org-ink)}
+.news-desk-columns--administration .news-desk-delegation-pending-list li>div{display:grid;gap:2px}
+.news-desk-columns--administration .news-desk-delegation-pending-list li>div>strong{font:700 18px/1.2 Newsroom Display,Georgia,serif}
+.news-desk-columns--administration .news-desk-delegation-pending-list li>div>span{font:400 13px/1.4 Newsroom UI,system-ui,sans-serif}
+.news-desk-columns--administration .news-desk-delegation-countdown{font-weight:600!important;font-variant-numeric:tabular-nums}
+.news-desk-columns--administration .news-desk-delegation-code{font:700 34px/1.1 ui-monospace,Menlo,monospace;letter-spacing:.14em;color:var(--org-ink);padding:6px 0;border-top:2px solid var(--org-ink);border-bottom:2px solid var(--org-ink)}
+.news-desk-columns--administration .news-desk-delegation-decision{display:flex;gap:8px}
+.news-desk-columns--administration .news-desk-delegation-decision button{min-height:40px;padding:4px 18px;border:1px solid var(--org-ink);border-radius:0;background:transparent;color:var(--org-ink);font:700 12px/1.2 Newsroom UI,system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase;cursor:pointer}
+.news-desk-columns--administration .news-desk-delegation-decision button:hover:not(:disabled){text-decoration:underline;text-underline-offset:4px}
+.news-desk-columns--administration .news-desk-delegation-decision button:disabled{cursor:default;text-decoration:line-through}
+.news-desk-columns--administration .news-desk-delegation-decision button:focus-visible{outline:2px solid var(--org-ink);outline-offset:2px}
+@container (max-width:640px){.news-desk-columns--administration .news-desk-delegation-pending-list li{grid-template-columns:minmax(0,1fr)}.news-desk-columns--administration .news-desk-delegation-code{font-size:28px}}
 @container (max-width:640px){.news-desk-columns--administration .news-desk-delegation-form{grid-template-columns:minmax(0,1fr)}.news-desk-columns--administration .news-desk-delegation-list li{grid-template-columns:minmax(0,1fr)}}

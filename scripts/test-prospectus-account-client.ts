@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { loadProspectusAccountState, prospectusSignInUrl, selectProspectusAccount } from "../lib/prospectus-account-client";
+import { createProspectusAccount, loadProspectusAccountState, prospectusSignInUrl, selectProspectusAccount } from "../lib/prospectus-account-client";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -40,6 +40,26 @@ async function main() {
   assert.deepEqual(
     await selectProspectusAccount("a2", async () => jsonResponse({ error: "not_a_publishing_account", message: "You cannot work on this site's publications in that account." }, 403)),
     { error: "You cannot work on this site's publications in that account." },
+  );
+  const created: Array<{ input: string; init?: RequestInit }> = [];
+  assert.deepEqual(
+    await createProspectusAccount("  Ryan's desk ", async (input, init) => {
+      created.push({ input, init });
+      return jsonResponse({ selectedAccountId: "new-account", role: "owner" }, 201);
+    }, "key-1"),
+    { selectedAccountId: "new-account", role: "owner" },
+  );
+  assert.equal(created[0].input, "/api/auth/prospectus/accounts");
+  assert.equal(created[0].init?.method, "POST");
+  assert.equal(created[0].init?.body, JSON.stringify({ name: "Ryan's desk", idempotencyKey: "key-1" }));
+  assert.equal(JSON.parse(String((await (async () => { const sent: string[] = []; await createProspectusAccount("", async (_input, init) => { sent.push(String(init?.body)); return jsonResponse({ selectedAccountId: "x" }); }); return sent; })())[0])).name, undefined, "a blank name is not sent");
+  assert.deepEqual(
+    await createProspectusAccount("x", async () => jsonResponse({ message: "You already have a publishing account." }, 409)),
+    { error: "You already have a publishing account." },
+  );
+  assert.deepEqual(
+    await createProspectusAccount("x", async () => { throw new Error("offline"); }),
+    { error: "The publishing account could not be created. Check your connection and try again." },
   );
   console.log("prospectus account client tests passed");
 }
