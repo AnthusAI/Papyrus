@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { assignmentBoardConfig, canReadNewsroomBoard, contentItemBoardConfig, contentItemBoardType, contentItemColumnOrder, projectAssignmentBoard, projectContentItemBoard } from "../lib/newsroom-board";
+import {
+  contentItemBoardPathSegment, assignmentBoardConfig, canReadNewsroomBoard, contentItemBoardConfig, contentItemBoardType, contentItemColumnOrder, projectAssignmentBoard, projectContentItemBoard } from "../lib/newsroom-board";
 import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS, contentItemStageKeys } from "../lib/content-item-lifecycle";
 import { getContentItemName } from "../lib/site-brand";
 
@@ -50,4 +51,5 @@ assert.deepEqual(contentItemColumnOrder(["draft", "done"], ["pitch", "write", "d
 assert.deepEqual(storyConfig.hierarchy, []);
 assert.equal(canReadNewsroomBoard("ready"), true);
 for (const phase of [undefined, "signedOut", "forbidden", "error", "checkingAccess", "loadingDesk", "refreshing"]) assert.equal(canReadNewsroomBoard(phase), false);
+assert.equal(contentItemBoardPathSegment(), getContentItemName().plural.toLowerCase(), "the board path follows the configured content item name");
 console.log("PASS separate story and assignment boards, one card per record by stage or status, and board access gate");
