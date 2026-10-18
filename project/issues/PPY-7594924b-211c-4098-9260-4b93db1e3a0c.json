@@ -3,7 +3,7 @@
   "title": "Priming provider budget always denies: tiktoken cannot map pinned model gpt-5.4-mini-2026-03-17",
   "description": "priming_provider_budget.validate calls tiktoken.encoding_for_model(MODEL); tiktoken 0.12.0 raises KeyError for gpt-5.4-mini-2026-03-17, which is turned into BudgetDenied 'pinned model tokenizer is unavailable', so every provider request is denied. Found by PPY-c4e950 when CI began running pytest-style modules (10 failures in test_priming_provider_budget.py; they never ran under unittest). Fix: pick the encoding explicitly (get_encoding) or upgrade tiktoken, then remove the ignore in tests.yml.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -19,11 +19,20 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "0f0f8899-4370-4d01-9b05-cff84e32dd97",
+      "author": "unknown",
+      "text": "Landed in develop via PR 266 (https://github.com/AnthusAI/Papyrus/pull/266), merge fe2470f. CI green on 05036e6 including test_priming_provider_budget, which is no longer ignored.",
+      "created_at": "2026-10-18T12:54:43.094173Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-18T11:52:04.768489Z",
-  "updated_at": "2026-10-18T12:46:45.624140Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T12:54:44.050130Z",
+  "closed_at": "2026-10-18T12:54:44.049815Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
