@@ -9,7 +9,7 @@ function CardExcerpt({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   return <div className="board-card-excerpt" data-board-card-excerpt data-expanded={expanded}>
     <p>{text}</p>
-    {text.length > 90 && <button aria-expanded={expanded} onClick={event => { event.stopPropagation(); setExpanded(open => !open); }} onKeyDown={event => event.stopPropagation()} type="button">{expanded ? "Less" : "More"}</button>}
+    {text.length > 130 && <button aria-expanded={expanded} onClick={event => { event.stopPropagation(); setExpanded(open => !open); }} onKeyDown={event => event.stopPropagation()} type="button">{expanded ? "Less" : "More"}</button>}
   </div>;
 }
 
