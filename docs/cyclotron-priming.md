@@ -597,3 +597,48 @@ The block holds only the cyclotron id, `enabled`, `maxDecisionsPerDay`,
 `approvedProofPath` and `store`; the model, optimizer and review program come
 from `relevanceCyclotron`. Training uses only the Section a person explicitly
 chose (PPY-1b1788). Epic PPY-0a285b.
+
+### The site sweep: `references decide-site-sections`
+
+`papyrus_content.site_sweep` runs the site cyclotron the way the relevance sweep
+runs the relevance cyclotron: one writer through the `cyclotron.site` Assignment
+claim, the store restored from and saved to the private bucket, the same
+`enabled` and `maxDecisionsPerDay` controls (a Reference counts once however
+many classifiers answer) and the same `approvedProofPath` gate verdict.
+
+```bash
+poetry run papyrus references decide-site-sections            # dry run: lists pending references, no model call
+poetry run papyrus references decide-site-sections --apply    # decide, teach, record agreement, save the store
+```
+
+`--sections-file` defaults to `corpora/<publication>-newsroom-sections.yml`, the
+publication named by the `--config` file (`papyrus-steering.yml` gives
+`papyrus-newsroom-sections.yml`).
+
+- One `decide` per pending Reference answers every classifier. Each answer is
+  its own current `SemanticRelation` with predicate `site_decision_is` and
+  `classifierId` `<cyclotronId>/<classifier>`, carrying the decision id, label,
+  probabilities, version, fingerprint and provenance, and superseding that
+  Reference's previous current relation for the same classifier. Every one is a
+  suggestion; curation status is never changed.
+- Teaching comes only from an explicit human or delegated accept that names a
+  Section (`human_section_for_review`). For a Reference placed in Section S the
+  selector learns S, `section-fit-S` learns `fits`, and every other
+  `section-fit-*` learns `does-not-fit`. This assumes a Reference belongs to a
+  single Section. Agents, unknown actors, rejections and accepts without a
+  Section never teach. A Reference the cyclotron never decided teaches as a
+  priming example for each classifier; a decided one teaches through one
+  checklist review, with the curation Message id as the review id, so a repeat
+  sweep changes nothing.
+- The `cyclotron-shadow-agreement/v1` payload for the site cyclotron holds, per
+  classifier under `classifiers`, the agreement metrics of suggestions against
+  later explicit human Section decisions (selector: comparisons, correct,
+  accuracy; fit classifiers: agreement, precision, recall, confusion), the
+  overall `selectorAccuracy`, and the same `autoDecision` and `loop` entries as
+  the relevance payload. A decision made after the human's review does not count.
+- The Section list is not maintained in parity yet. A Section added, removed or
+  disabled changes the definition fingerprint, which the engine refuses on an
+  existing store; the sweep stops with an error naming the Sections that
+  changed instead of a stack trace. Adding and retiring classifiers on an
+  existing store is tracked as PPY-f579a2. Withdrawn Section labels are not yet
+  retracted.
