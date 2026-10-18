@@ -3,7 +3,7 @@
   "title": "Cyclotron-web: migrate the use-cases pages and home page to Markus",
   "description": "Left over from slice 1 (PR 135): app/use-cases and app/page.tsx still render from TSX. Convert to Markus keeping every URL and the use-case-evidence and home-composition tests green. Recordings pages and the real island bundle belong to PPY-d49d6f.",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -19,11 +19,20 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "1ee4a0a6-fbd0-42b9-a413-ff650fa2c690",
+      "author": "unknown",
+      "text": "Slice 2 landed: AnthusAI/Cyclotron-web PR 136 merged to develop (2026-10-18): home page, use-cases and recordings indexes, and the named islands. Standalone island bundle (dropping Next) is tracked as slice 3.",
+      "created_at": "2026-10-18T13:25:22.759510Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-18T13:19:34.219130Z",
-  "updated_at": "2026-10-18T13:19:49.511433Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T13:25:23.512914Z",
+  "closed_at": "2026-10-18T13:25:23.512696Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
