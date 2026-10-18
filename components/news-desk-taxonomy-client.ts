@@ -3621,6 +3621,13 @@ export async function loadCyclotronStatus(cyclotronId: string): Promise<import("
   return latestCyclotronStatus(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
 }
 
+/** The relevance cyclotron's latest cyclotron-shadow-agreement/v1 payload: suggestions compared with later human decisions. */
+export async function loadCyclotronShadowAgreement(cyclotronId: string): Promise<import("../lib/cyclotron-suggestions").ShadowAgreement | null> {
+  const { latestShadowAgreement, shadowAgreementPayloadId } = await import("../lib/cyclotron-suggestions");
+  const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", shadowAgreementPayloadId(cyclotronId), ["raw_payload"]);
+  return latestShadowAgreement(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
+}
+
 /** Ask the next decide-relevance sweep to set or clear a manual review rate. */
 export async function requestCyclotronReviewRate(
   cyclotronId: string,

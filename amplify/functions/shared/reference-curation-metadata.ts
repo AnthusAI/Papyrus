@@ -12,6 +12,21 @@ export type ReferenceCurationMetadataInput = {
   referenceLineageId: string
   decisionRelationId?: string | null
   shareable?: boolean | null
+  actorKind?: CurationActorKind | null
+  delegation?: { delegationId: string; relayedBy: string; instruction: string } | null
+}
+
+export type CurationActorKind = "human" | "service"
+
+/**
+ * A curation is human only when the caller signed in through the user pool, so
+ * AppSync supplied a verified subject claim. Request arguments never decide it;
+ * IAM-signed service callers and agents have no such claim.
+ */
+export function curationActorKind(identity: unknown): CurationActorKind {
+  const claims = (identity as {claims?: Record<string, unknown>} | null | undefined)?.claims
+  const subject = claims?.sub
+  return typeof subject === "string" && subject.trim() !== "" ? "human" : "service"
 }
 
 export function referenceCurationMetadata(input: ReferenceCurationMetadataInput): Record<string, unknown> {
@@ -23,6 +38,11 @@ export function referenceCurationMetadata(input: ReferenceCurationMetadataInput)
     curationReasonCode: input.reasonCode,
     referenceId: input.referenceId,
     referenceLineageId: input.referenceLineageId,
+    ...(input.actorKind ? {actorKind: input.actorKind} : {}),
+    ...(input.delegation
+      ? {attestation: "delegated", relayedBy: input.delegation.relayedBy, delegationId: input.delegation.delegationId,
+         instruction: input.delegation.instruction}
+      : {}),
     ...(decisionRelationId ? {decisionRelationId} : {}),
     ...(decisionRelationId ? {shareable: input.shareable === true} : {}),
   }

@@ -1,14 +1,16 @@
-import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
+import type { AssignmentRecord, MessageRecord, ReferenceRecord, SemanticRelationRecord } from "./category-repository";
+import { SHADOW_AGREEMENT_SCHEMA, type ShadowAgreement } from "./cyclotron-suggestions";
 import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
 import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
+import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
 const ONE_HOUR_IN_MILLISECONDS = 60 * 60 * 1000;
 
-const SEED_CONTENT_ITEM_HEADLINES_BY_POSITION: readonly (readonly string[])[] = [
+const SEED_CONTENT_ITEM_HEADLINES_BY_POSITION_FOR_TENANT_ZERO: readonly (readonly string[])[] = [
   ["Three sources confirm the zoning reversal", "Reporting packet: school board redistricting"],
   ["Draft in progress: the last ferry crossing", "Draft in progress: neighborhood bakery profile"],
   ["Illustration brief: flooded streets, aerial view", "Illustration brief: the market at dawn"],
@@ -17,6 +19,24 @@ const SEED_CONTENT_ITEM_HEADLINES_BY_POSITION: readonly (readonly string[])[] = 
   ["Held for the winter issue: the lighthouse keepers' archive", "Evergreen: how the harbor dredging works"],
   ["Spiked: the unconfirmed council rumor", "Spiked: the recycled press release"],
 ];
+
+const SEED_CONTENT_ITEM_HEADLINES_BY_POSITION_FOR_TENANT_ONE: readonly (readonly string[])[] = [
+  ["Field note: spore dispersal on a damp morning", "Field note: the dung beetle census"],
+  ["Draft in progress: why fungi throw their caps", "Draft in progress: the compost experiment"],
+  ["Illustration brief: a cap in flight, close up", "Illustration brief: the mycelium network"],
+  ["Layout pass: the monthly field guide", "Layout pass: the reader mailbag"],
+  ["Published: a season of mushroom sightings", "Published: how the forest floor recycles"],
+  ["Held for spring: the truffle hunt", "Evergreen: a beginner's guide to identification"],
+  ["Spiked: the unverified foraging claim", "Spiked: the duplicate field report"],
+];
+
+const SEED_CONTENT_ITEM_HEADLINES_BY_TENANT = [SEED_CONTENT_ITEM_HEADLINES_BY_POSITION_FOR_TENANT_ZERO, SEED_CONTENT_ITEM_HEADLINES_BY_POSITION_FOR_TENANT_ONE] as const;
+
+function headlinesForSelectedTenant(): readonly (readonly string[])[] {
+  const tenantId = getLocalPreviewTenantId();
+  const tenant = LOCAL_PREVIEW_TENANTS.find(candidate => candidate.accountId === tenantId) ?? LOCAL_PREVIEW_TENANTS[0];
+  return SEED_CONTENT_ITEM_HEADLINES_BY_TENANT[tenant.fixtureHeadlineSet] ?? SEED_CONTENT_ITEM_HEADLINES_BY_TENANT[0];
+}
 
 function isoTimestampHoursBeforeBase(hours: number): string {
   return new Date(SEED_TIMESTAMP_BASE - hours * ONE_HOUR_IN_MILLISECONDS).toISOString();
@@ -29,7 +49,8 @@ function slugFromHeadline(headline: string): string {
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
-    const headlines = SEED_CONTENT_ITEM_HEADLINES_BY_POSITION[stageIndex % SEED_CONTENT_ITEM_HEADLINES_BY_POSITION.length];
+    const tenantHeadlines = headlinesForSelectedTenant();
+    const headlines = tenantHeadlines[stageIndex % tenantHeadlines.length];
     return headlines.map((headline, headlineIndex) => {
       const slug = slugFromHeadline(headline);
       return {
@@ -145,4 +166,121 @@ export function createLocalPreviewReportingTrail(lineageId: string): StoryReport
 
 export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord[] {
   return [];
+}
+
+type PreviewSuggestionPlan = {
+  label: "include" | "exclude";
+  confidence: number;
+  curation: "none" | "human" | "service" | "delegated";
+  provenance: boolean;
+};
+
+const PREVIEW_SUGGESTION_PLANS: readonly PreviewSuggestionPlan[] = [
+  { label: "include", confidence: 0.91, curation: "none", provenance: true },
+  { label: "include", confidence: 0.86, curation: "human", provenance: true },
+  { label: "exclude", confidence: 0.72, curation: "service", provenance: true },
+  { label: "exclude", confidence: 0.88, curation: "delegated", provenance: true },
+  { label: "exclude", confidence: 0.64, curation: "none", provenance: false },
+];
+
+const PREVIEW_CYCLOTRON_ID = "papyrus-relevance";
+
+/**
+ * Fixture data for reviewing the cyclotron suggestion UI without a backend:
+ * suggestions with provenance on the first references, a mix of human and
+ * non-human curation messages, and a live-agreement payload.
+ */
+export function createLocalPreviewCyclotronFixtures(references: ReferenceRecord[]): {
+  relations: SemanticRelationRecord[];
+  messages: MessageRecord[];
+  shadowAgreement: ShadowAgreement;
+} {
+  const relations: SemanticRelationRecord[] = [];
+  const messages: MessageRecord[] = [];
+  references.slice(0, PREVIEW_SUGGESTION_PLANS.length).forEach((reference, index) => {
+    const plan = PREVIEW_SUGGESTION_PLANS[index];
+    const lineageId = reference.lineageId ?? reference.id;
+    const decidedAt = isoTimestampHoursBeforeBase(40 - index);
+    relations.push({
+      id: `preview-relevance-relation-${index}`,
+      relationState: "current",
+      predicate: "relevance_decision_is",
+      subjectKind: "reference",
+      subjectId: reference.id,
+      subjectLineageId: lineageId,
+      objectKind: "semanticNode",
+      objectId: `semantic-node-relevance-${plan.label}-v1`,
+      objectLineageId: `semantic-node-relevance-${plan.label}`,
+      subjectStateKey: `reference#${lineageId}#current`,
+      objectStateKey: `semanticNode#semantic-node-relevance-${plan.label}#current`,
+      objectSubjectStateKey: `semanticNode#semantic-node-relevance-${plan.label}#current#reference`,
+      predicateObjectStateKey: `relevance_decision_is#semanticNode#semantic-node-relevance-${plan.label}#current`,
+      subjectVersionKey: `reference#${reference.id}`,
+      objectVersionKey: `semanticNode#semantic-node-relevance-${plan.label}-v1`,
+      confidence: plan.confidence,
+      modelVersion: "4",
+      reviewRecommended: false,
+      metadata: JSON.stringify({
+        decisionId: `preview-decision-${index}`,
+        label: plan.label,
+        probabilities: { include: plan.label === "include" ? plan.confidence : 1 - plan.confidence, exclude: plan.label === "exclude" ? plan.confidence : 1 - plan.confidence },
+        version: 4,
+        decidedAt,
+        labels: ["include", "exclude"],
+        positiveLabel: "include",
+        question: "Should this source be used as evidence for the publication?",
+        cyclotronId: PREVIEW_CYCLOTRON_ID,
+        ...(plan.provenance ? {
+          provenance: {
+            labelSet: ["include", "exclude"],
+            doctrineFingerprint: "3f9c2a71d80b46e5",
+            teachingFingerprint: "b71e04c9aa5d2f13",
+            teachingLabels: 37,
+            primingExamples: 6,
+          },
+        } : {}),
+      }),
+    } as SemanticRelationRecord);
+    if (plan.curation !== "none") {
+      const createdAt = isoTimestampHoursBeforeBase(30 - index);
+      messages.push({
+        id: `preview-curation-message-${index}`,
+        messageKind: "reference_curation",
+        messageDomain: "commentary",
+        status: "active",
+        summary: `${reference.title ?? lineageId}: curated`,
+        authorLabel: plan.curation === "delegated" ? "Maya Okafor" : null,
+        source: "newsroom",
+        createdAt,
+        updatedAt: createdAt,
+        metadata: JSON.stringify({
+          action: reference.curationStatus === "rejected" ? "reject" : "accept",
+          curationStatus: reference.curationStatus,
+          referenceLineageId: lineageId,
+          actorKind: plan.curation === "service" ? "service" : "human",
+          ...(plan.curation === "delegated" ? {
+            attestation: "delegated",
+            relayedBy: "newsroom-reporter",
+            delegationId: "curation-delegation-9b1f6c24-5d0e-4a7b-8c31-2e6f0a1d7b45",
+            instruction: "Reject that one, it duplicates the filing from Tuesday.",
+          } : {}),
+        }),
+      });
+    }
+  });
+  return {
+    relations,
+    messages,
+    shadowAgreement: {
+      schema: SHADOW_AGREEMENT_SCHEMA,
+      comparisons: 23,
+      agreement: 0.87,
+      precision: 0.9,
+      recall: 0.82,
+      confusion: { truePositive: 9, falsePositive: 1, falseNegative: 2, trueNegative: 11 },
+      computedAt: isoTimestampHoursBeforeBase(3),
+      positiveLabel: "include",
+      loop: { enabled: true, stoppedBecause: "daily decision cap", lastSweepAt: isoTimestampHoursBeforeBase(3), maxDecisionsPerDay: 50 },
+    },
+  };
 }

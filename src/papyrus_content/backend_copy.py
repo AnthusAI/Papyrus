@@ -16,6 +16,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol
 
+from .tenancy import (
+    TENANT_MODELS,
+    TENANT_SLUG_FIELD,
+    tenant_media_prefix,
+    tenant_stamped_payload,
+    validate_tenant_id,
+)
+
 IDENTITY_MODELS = frozenset({"UserProfile", "UserIdentity", "UserRoleAssignment"})
 DEFAULT_MODELS = (
     "NewsroomSection",
@@ -31,6 +39,8 @@ DEFAULT_MODELS = (
     "PublishedEditionItem",
 )
 DEFAULT_S3_PREFIXES = ("media/",)
+TENANT_STAMP_FIELDS = ("tenantId", TENANT_SLUG_FIELD)
+SOURCE_MEDIA_PREFIX = "media/"
 BUILTIN_KEY_FIELD_DEFAULTS = {"Message.responseStatus": "COMPLETED"}
 SYSTEM_TIMESTAMP_FIELDS = frozenset({"createdAt", "updatedAt"})
 JSON_SCALAR_NAME = "AWSJSON"
@@ -347,13 +357,27 @@ def unresolved_composite_sort_keys(target_schema: ModelSchema, row: dict[str, An
     ]
 
 
+def tenant_stamp_field_names(model: str, target_schema: ModelSchema, tenant_id: str | None) -> list[str]:
+    if not tenant_id or model not in TENANT_MODELS:
+        return []
+    return [name for name in TENANT_STAMP_FIELDS if name in target_schema.writable]
+
+
 def plan_selected_model(
-    model: str, source: RowBackend, target: RowBackend, key_field_defaults: dict[str, str]
+    model: str,
+    source: RowBackend,
+    target: RowBackend,
+    key_field_defaults: dict[str, str],
+    tenant_id: str | None = None,
 ) -> ModelPlan:
     source_schema = source.schema(model)
     target_schema = target.schema(model)
     plan = ModelPlan(model=model, selected=True, reason="selected")
-    shared = shared_field_names(source_schema, target_schema)
+    stamp_fields = tenant_stamp_field_names(model, target_schema, tenant_id)
+    if tenant_id and model in TENANT_MODELS and "tenantId" not in stamp_fields:
+        plan.errors.append(f"The target {model} schema has no tenantId field; deploy the tenant schema first.")
+        return plan
+    shared = list(dict.fromkeys([*shared_field_names(source_schema, target_schema), *stamp_fields]))
     fetch_fields = list(dict.fromkeys([*source_schema.key_fields, *shared]))
     target_fetch_fields = list(dict.fromkeys([*target_schema.key_fields, *shared]))
     plan.dropped_fields = sorted(
@@ -374,7 +398,8 @@ def plan_selected_model(
     plan.target_rows = len(target_by_key)
     seen_keys: set[str] = set()
 
-    for row in source.iterate_rows(model, fetch_fields):
+    for row in source.iterate_rows(model, [name for name in fetch_fields if name not in stamp_fields]):
+        row = tenant_stamped_payload(model, tenant_id, row)
         plan.source_rows += 1
         key = row_key(source_schema, row)
         seen_keys.add(key)
@@ -385,6 +410,8 @@ def plan_selected_model(
         source_projection = row_projection(source_schema.readable, row, hash_fields)
         plan.source_hashes[key] = row_hash(source_projection)
         problems = validate_row(target_schema, row)
+        if tenant_id and existing is not None and existing.get("tenantId") != tenant_id:
+            problems.append(f"id already belongs to tenant {existing.get('tenantId') or '(none)'}")
         if existing is None:
             problems += unresolved_composite_sort_keys(target_schema, row)
         if problems:
@@ -450,6 +477,37 @@ def normalize_prefix(prefix: str) -> str:
     return prefix if prefix.endswith("/") else f"{prefix}/"
 
 
+class KeyRewritingObjectStore:
+    def __init__(self, inner: Any, source_prefix: str, target_prefix: str) -> None:
+        self.inner = inner
+        self.source_prefix = source_prefix
+        self.target_prefix = target_prefix
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+    def rewritten_key(self, key: str) -> str:
+        if key.startswith(self.source_prefix):
+            return self.target_prefix + key[len(self.source_prefix):]
+        return key
+
+    def original_key(self, key: str) -> str:
+        if key.startswith(self.target_prefix):
+            return self.source_prefix + key[len(self.target_prefix):]
+        return key
+
+    def list_objects(self) -> list[ObjectInfo]:
+        return [
+            ObjectInfo(self.rewritten_key(entry.key), entry.size, entry.etag)
+            for entry in self.inner.list_objects()
+            if entry.key.startswith(self.source_prefix)
+        ]
+
+
+def tenant_media_source_store(source_store: Any, tenant_id: str) -> KeyRewritingObjectStore:
+    return KeyRewritingObjectStore(source_store, SOURCE_MEDIA_PREFIX, tenant_media_prefix(tenant_id))
+
+
 def plan_objects(
     source_objects: list[ObjectInfo],
     target_objects: list[ObjectInfo],
@@ -500,7 +558,10 @@ def build_plan(
     key_field_defaults: dict[str, str] | None = None,
     source_account: str | None = None,
     target_account: str | None = None,
+    tenant_id: str | None = None,
 ) -> CopyPlan:
+    if tenant_id:
+        validate_tenant_id(tenant_id)
     defaults = {**BUILTIN_KEY_FIELD_DEFAULTS, **(key_field_defaults or {})}
     source_models = source.model_names()
     target_models = target.model_names()
@@ -509,7 +570,7 @@ def build_plan(
     ordered = [*selected, *[name for name in sorted(source_models) if name not in selected]]
     for model in ordered:
         if model in selected:
-            plans.append(plan_selected_model(model, source, target, defaults))
+            plans.append(plan_selected_model(model, source, target, defaults, tenant_id))
         else:
             reason = IDENTITY_REASON if model in IDENTITY_MODELS else NOT_SELECTED_REASON
             plans.append(plan_skipped_model(model, reason, source, target, target_models))

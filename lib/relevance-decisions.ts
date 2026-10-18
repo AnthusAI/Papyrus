@@ -2,6 +2,15 @@ import type { SemanticRelationRecord } from "./category-repository";
 
 export const RELEVANCE_RELATION = "relevance_decision_is";
 
+/** What produced a suggestion beyond the model version, as the sweep recorded it. */
+export type RelevanceProvenance = {
+  labelSet: string[];
+  doctrineFingerprint: string | null;
+  teachingFingerprint: string | null;
+  teachingLabels: number;
+  primingExamples: number;
+};
+
 /** The relevance cyclotron's current decision about one reference, as the References tab shows it. */
 export type RelevanceDecisionView = {
   decisionRelationId: string;
@@ -19,6 +28,10 @@ export type RelevanceDecisionView = {
   /** Thumbs for a two-class decision with a positive label; per-class buttons otherwise. */
   reviewControl: "thumbs" | "labels";
   cyclotronId: string | null;
+  /** When the cyclotron made the suggestion, if the decision recorded it. */
+  decidedAt: string | null;
+  /** Null for decisions made before provenance was recorded. */
+  provenance: RelevanceProvenance | null;
 };
 
 /** What an editor submits from the review control. */
@@ -49,6 +62,20 @@ function parseMetadata(value: unknown): Record<string, unknown> {
   }
 }
 
+function parseProvenance(value: unknown): RelevanceProvenance | null {
+  const record = parseMetadata(value);
+  if (!Object.keys(record).length) return null;
+  const count = (entry: unknown) => (Number.isFinite(Number(entry)) ? Number(entry) : 0);
+  const text = (entry: unknown) => (typeof entry === "string" && entry ? entry : null);
+  return {
+    labelSet: Array.isArray(record.labelSet) ? record.labelSet.map(String) : [],
+    doctrineFingerprint: text(record.doctrineFingerprint),
+    teachingFingerprint: text(record.teachingFingerprint),
+    teachingLabels: count(record.teachingLabels),
+    primingExamples: count(record.primingExamples),
+  };
+}
+
 /**
  * Current decisions keyed by reference lineage, from relations the Newsroom
  * already loads: no extra request per row.
@@ -77,6 +104,8 @@ export function currentRelevanceDecisions(relations: SemanticRelationRecord[]): 
       question: typeof metadata.question === "string" ? metadata.question : null,
       reviewControl: metadata.reviewControl === "thumbs" ? "thumbs" : "labels",
       cyclotronId: typeof metadata.cyclotronId === "string" ? metadata.cyclotronId : null,
+      decidedAt: typeof metadata.decidedAt === "string" ? metadata.decidedAt : null,
+      provenance: parseProvenance(metadata.provenance),
     });
   }
   return decisions;

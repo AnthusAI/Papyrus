@@ -228,6 +228,16 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(categoryAction)),
 
+  CurationDelegationResult: a.customType({
+    ok: a.boolean().required(),
+    delegationId: a.id().required(),
+    token: a.string(),
+    agentLabel: a.string().required(),
+    grantorLabel: a.string(),
+    expiresAt: a.datetime().required(),
+    revokedAt: a.datetime(),
+  }),
+
   ReferenceCurationActionResult: a.customType({
     ok: a.boolean().required(),
     action: a.string().required(),
@@ -318,6 +328,58 @@ const schema = a.schema({
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  createCurationDelegation: a
+    .mutation()
+    .arguments({
+      agentLabel: a.string().required(),
+      hours: a.integer(),
+    })
+    .returns(a.ref("CurationDelegationResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  revokeCurationDelegation: a
+    .mutation()
+    .arguments({
+      delegationId: a.id().required(),
+    })
+    .returns(a.ref("CurationDelegationResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  listCurationDelegations: a
+    .query()
+    .returns(a.ref("CurationDelegationResult").array())
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  recordDelegatedCuration: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      action: a.string().required(),
+      delegationId: a.id().required(),
+      delegationToken: a.string().required(),
+      agentLabel: a.string().required(),
+      onBehalfOf: a.string().required(),
+      instruction: a.string().required(),
+      note: a.string(),
+      reasonCode: a.string(),
+      decisionRelationId: a.id(),
+      shareable: a.boolean(),
+    })
+    .returns(a.ref("ReferenceCurationActionResult"))
+    .authorization((allow) => [
+      allow.authenticated("identityPool"),
     ])
     .handler(a.handler.function(categoryAction)),
 
@@ -1100,6 +1162,7 @@ const schema = a.schema({
   NewsroomSection: a
     .model({
       id: a.id().required(),
+      tenantId: a.string(),
       title: a.string().required(),
       type: a.string().required(),
       editorialMission: a.string().required(),
@@ -1118,6 +1181,7 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index("sortOrder").sortKeys(["id"]).queryField("listNewsroomSectionsBySortOrder"),
+      index("tenantId").sortKeys(["sortOrder"]).queryField("listNewsroomSectionsByTenantAndSortOrder"),
       index("type").sortKeys(["sortOrder"]).queryField("listNewsroomSectionsByTypeAndSortOrder"),
       index("enabledStatus").sortKeys(["sortOrder"]).queryField("listNewsroomSectionsByEnabledStatusAndSortOrder"),
     ])
@@ -1725,6 +1789,7 @@ const schema = a.schema({
     .model({
       id: a.id().required(),
       lineageId: a.id().required(),
+      tenantId: a.string(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
       versionState: a.string().required(),
@@ -1737,6 +1802,7 @@ const schema = a.schema({
       typeStatus: a.string().required(),
       stage: a.string(),
       slug: a.string().required(),
+      tenantSlug: a.string(),
       shortSlug: a.string(),
       section: a.string(),
       sectionStatus: a.string(),
@@ -1764,6 +1830,7 @@ const schema = a.schema({
     .secondaryIndexes((index) => [
       index("lineageId").sortKeys(["versionNumber"]).queryField("listItemsByLineageAndVersion"),
       index("slug").queryField("itemBySlug"),
+      index("tenantSlug").queryField("itemByTenantSlug"),
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
@@ -1814,6 +1881,7 @@ const schema = a.schema({
     .model({
       id: a.id().required(),
       itemId: a.id().required(),
+      tenantId: a.string(),
       type: a.string().required(),
       role: a.string().required(),
       sortKey: a.string().required(),
@@ -1930,11 +1998,13 @@ const schema = a.schema({
       id: a.id().required(),
       sourceItemId: a.id().required(),
       itemLineageId: a.id().required(),
+      tenantId: a.string(),
       versionNumber: a.integer().required(),
       type: a.string().required(),
       status: a.string().required(),
       typeStatus: a.string().required(),
       slug: a.string().required(),
+      tenantSlug: a.string(),
       shortSlug: a.string(),
       section: a.string(),
       sectionStatus: a.string(),
@@ -1957,6 +2027,7 @@ const schema = a.schema({
     })
     .secondaryIndexes((index) => [
       index("slug").queryField("publishedItemBySlug"),
+      index("tenantSlug").queryField("publishedItemByTenantSlug"),
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsBySectionStatusAndPublishedAt"),
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
@@ -1970,6 +2041,7 @@ const schema = a.schema({
     .model({
       id: a.id().required(),
       sourceMediaAssetId: a.id().required(),
+      tenantId: a.string(),
       publishedItemId: a.id().required(),
       sourceItemId: a.id().required(),
       itemLineageId: a.id().required(),

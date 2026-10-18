@@ -37,8 +37,11 @@ from .relevance_cyclotron import (RelevanceCyclotronPlan, build_relevance_cyclot
 from .relevance_priming import (PRIMING_OUTCOME_ROLE, PRIMING_REQUEST_KIND, ExtractUrl, default_url_extractor,
                                 normalize_priming_url, priming_item_id, priming_label, priming_outcome_record,
                                 readable_engine_refusal)
-from .relevance_decisions import (RELEVANCE_RELATION, current_relevance_decision, relevance_decision_records,
-                                  relevance_label_for_review, review_rate_request_id, status_snapshot_record)
+from .relevance_decisions import (RELEVANCE_RELATION, curation_was_made_by_a_human, current_relevance_decision, relevance_decision_records,
+                                  human_label_for_review, relevance_label_for_review, review_rate_request_id, status_snapshot_record)
+from .relevance_shadow import (USAGE_PAYLOAD_KIND, comparison_of_suggestion_with_human_decision,
+                               decisions_remaining_today, live_agreement, reproducibility_provenance,
+                               shadow_agreement_record, usage_record, utc_day)
 from .steering import require_corpus_config
 
 SWEEP_ASSIGNMENT_TYPE = "cyclotron.relevance"
@@ -58,12 +61,16 @@ class SweepResult:
     primed: int = 0
     priming_failed: int = 0
     reviews: int = 0
+    primed_from_human_reviews: int = 0
+    stopped_because: str | None = None
+    live_agreement: dict[str, Any] | None = None
     status: dict[str, Any] | None = None
     warnings: list[str] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
-                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "status": self.status, "warnings": self.warnings}
+                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "stoppedBecause": self.stopped_because,
+                "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings}
 
 
 class S3SnapshotStore:
@@ -206,7 +213,18 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
         example_ids = {row.item.id for rows in priming_examples.values() for row in rows}
         if any(reference_item(reference).id in example_ids for reference in pending):
             raise ValueError("priming and operational reference identities must be disjoint")
-    result = SweepResult(applied=apply, pending=[reference["lineageId"] for reference in pending])
+    result = SweepResult(applied=apply)
+    if not plan.enabled:
+        result.stopped_because = "disabled"
+        result.warnings.append(f"{plan.definition.id} is switched off in the steering config; nothing was decided.")
+        if apply:
+            result.live_agreement = _live_agreement(client, plan, corpus_id, now(), result.stopped_because)
+            _apply(client, [shadow_agreement_record(plan.definition.id, result.live_agreement, now=now())])
+        return result
+    today = utc_day(now())
+    recorded_usage = _recorded_usage(client, plan.definition.id)
+    decisions_allowed = decisions_remaining_today(recorded_usage, maximum_per_day=plan.max_decisions_per_day, today=today)
+    result.pending = [reference["lineageId"] for reference in pending]
     if not apply:
         return result
 
@@ -234,8 +252,16 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
             _apply_review_rate_request(client, cyclotron, plan, result.warnings)
             records = _apply_priming_requests(
                 client, cyclotron, plan, extract_url or default_url_extractor(steering_config, corpus), now, result)
+            result.primed_from_human_reviews = _prime_from_human_reviews(
+                client, cyclotron, plan, corpus_id, result.warnings)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
+            provenance = reproducibility_provenance(plan, cyclotron)
             for reference in pending:
+                if decisions_allowed is not None and result.decided >= decisions_allowed:
+                    result.stopped_because = "daily decision cap"
+                    result.warnings.append(
+                        f"{plan.definition.id} reached its cap of {plan.max_decisions_per_day} decisions today.")
+                    break
                 decision = asyncio.run(cyclotron.decide(reference_item(reference)))
                 current = _decision_relations(client, reference["lineageId"])
                 existing = current_relevance_decision(current, reference["lineageId"])
@@ -245,11 +271,17 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                     reference, decision.to_json(), cyclotron_id=plan.definition.id,
                     positive_label=plan.definition.classifiers[0].positive_label, now=now(), current_relations=current,
                     question=plan.definition.classifiers[0].question, labels=plan.definition.classifiers[0].labels,
-                    review_control=plan.review_control))
+                    review_control=plan.review_control, provenance=provenance))
                 result.decided += 1
             classifier = plan.definition.classifiers[0].id
             result.status = cyclotron.status(classifier).to_json()
             records.append(status_snapshot_record(plan.definition.id, result.status, now=now()))
+            result.live_agreement = _live_agreement(client, plan, corpus_id, now(), result.stopped_because)
+            records.append(shadow_agreement_record(plan.definition.id, result.live_agreement, now=now()))
+            if plan.max_decisions_per_day is not None:
+                already_decided_today = recorded_usage["decisions"] if recorded_usage and recorded_usage.get("day") == today else 0
+                records.append(usage_record(plan.definition.id, day=today,
+                                            decisions=already_decided_today + result.decided, now=now()))
             _apply(client, records)
             if snapshots and snapshot_uri:
                 with tempfile.TemporaryDirectory() as scratch:
@@ -356,6 +388,71 @@ def _latest_payload(client, record: Mapping[str, Any], role: str = "raw_payload"
     return None
 
 
+def _recorded_usage(client, cyclotron_id: str) -> dict[str, Any] | None:
+    for record in client.list_by_index("knowledgeRawPayloadsByOwner", safe_id(cyclotron_id)):
+        if record.get("payloadKind") == USAGE_PAYLOAD_KIND:
+            return _latest_payload(client, record)
+    return None
+
+
+def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: str,
+                    stopped_because: str | None = None) -> dict[str, Any]:
+    """Agreement of the cyclotron's earlier suggestions with what people then decided."""
+    classifier = plan.definition.classifiers[0]
+    comparisons = []
+    for status in REVIEWED_STATUSES:
+        for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
+            decision_relation = current_relevance_decision(_decision_relations(client, reference["lineageId"]),
+                                                           reference["lineageId"])
+            if decision_relation is None:
+                continue
+            comparison = comparison_of_suggestion_with_human_decision(
+                reference, decision_relation, _curation_messages(client, reference["lineageId"]),
+                labels=classifier.labels)
+            if comparison is not None:
+                comparisons.append(comparison)
+    return {**live_agreement(comparisons, positive_label=classifier.positive_label, now=now),
+            "loop": {"enabled": plan.enabled, "stoppedBecause": stopped_because, "lastSweepAt": now,
+                     "maxDecisionsPerDay": plan.max_decisions_per_day}}
+
+
+def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str,
+                              warnings: list[str]) -> int:
+    """Teach the cyclotron from every explicit human review of a Reference it has not decided itself.
+
+    A decided Reference already teaches through its review. A Reference no one
+    decided (imported, or reviewed before the cyclotron existed) can only teach
+    as a priming example, and only when a person explicitly accepted or rejected
+    it. The editor's note travels as human feedback, never inside the item.
+    Idempotent: examples the store already holds change nothing.
+    """
+    from decision_flywheel import Item, LabeledItem
+
+    classifier = plan.definition.classifiers[0]
+    added = 0
+    for status in REVIEWED_STATUSES:
+        for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
+            if current_relevance_decision(_decision_relations(client, reference["lineageId"]),
+                                          reference["lineageId"]) is not None:
+                continue
+            messages = _curation_messages(client, reference["lineageId"])
+            label = human_label_for_review(reference, messages, labels=classifier.labels)
+            if label is None:
+                continue
+            note = str(reference.get("curationStatusReason") or "").strip()
+            item = reference_item({**reference, "curationStatusReason": None})
+            example = LabeledItem(Item(item.id, item.values), label, "trusted",
+                                  {"human_feedback": note} if note else {})
+            try:
+                asyncio.run(cyclotron.add_priming_examples(
+                    {classifier.id: [example]}, added_by=str(messages[-1].get("authorLabel") or "newsroom editor")))
+            except ValueError as error:
+                warnings.append(f"{reference['lineageId']}: {error}")
+                continue
+            added += 1
+    return added
+
+
 def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str, warnings: list[str]) -> int:
     """Send each decided, reviewed reference's curation to the cyclotron. Idempotent by message id."""
     labels = plan.definition.classifiers[0].labels
@@ -372,6 +469,8 @@ def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: st
                 continue
             latest = messages[-1]
             metadata = latest.get("metadata") or {}
+            if not curation_was_made_by_a_human(messages):
+                continue
             label = relevance_label_for_review(reference, messages, labels=labels)
             try:
                 asyncio.run(cyclotron.review(
@@ -403,7 +502,8 @@ def _curation_messages(client, lineage_id: str) -> list[dict[str, Any]]:
         message = client.get_record("Message", relation["subjectId"])
         if not message or message.get("messageKind") != "reference_curation":
             continue
-        messages.append({**message, "metadata": _owner_metadata(client, message)})
+        messages.append({**message, "metadata": _owner_metadata(client, message),
+                         "hasInlineMetadata": bool(parse_jsonish(message.get("metadata")))})
     messages.sort(key=lambda message: str(message.get("createdAt") or ""))
     return messages
 

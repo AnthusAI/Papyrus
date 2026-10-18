@@ -6,11 +6,14 @@ const SCHEMA_FILES = ["amplify/data/schema.ts", "amplify/data/resource.ts"];
 // for every model the Python authoring client reads with a fixed field list.
 const MODEL_NAMES = [
   "Item", "PublishedItem", "SemanticNode", "SemanticRelation", "Reference", "Message",
-  "Assignment", "KnowledgeRawPayload", "ModelAttachment",
+  "Assignment", "KnowledgeRawPayload", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
-  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata"],
-  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata"],
+  Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  MediaAsset: ["tenantId"],
+  PublishedMediaAsset: ["tenantId"],
+  NewsroomSection: ["tenantId"],
 };
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
