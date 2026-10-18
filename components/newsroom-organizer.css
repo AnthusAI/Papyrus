@@ -172,3 +172,6 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-desk-group-heading{margin:16px 0 8px;font:700 12px Newsroom Display,Georgia,serif;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--org-ink);padding-bottom:4px}
 .newsroom-desk-group-heading small{font:400 11px Newsroom UI,system-ui;text-transform:none;letter-spacing:0;color:var(--org-muted);margin-left:8px}
 .newsroom-desk-legacy-value{display:block;font-size:11px;color:var(--org-muted);overflow-wrap:anywhere}
+.newsroom-article-view-toggle{display:inline-flex}
+.newsroom-article-front-matter>summary{cursor:pointer;font-size:14px;font-weight:600;padding:6px 0;list-style-position:inside}
+.newsroom-article-front-matter[open]>summary{margin-bottom:6px}

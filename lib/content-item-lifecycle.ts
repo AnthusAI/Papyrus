@@ -28,9 +28,9 @@ export const DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS: readonly ContentItemStageDe
   { key: "copywriting", label: "Copywriting" },
   { key: "illustration", label: "Illustration" },
   { key: "typesetting", label: "Typesetting" },
-  { key: "published", label: "Published" },
-  { key: "held", label: "Held" },
   { key: "spiked", label: "Spiked", collapsedUntilOpened: true },
+  { key: "held", label: "Held" },
+  { key: "published", label: "Published" },
 ];
 
 export function contentItemStageKeys(stageDefinitions: readonly ContentItemStageDefinition[]): string[] {

@@ -111,7 +111,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [notice, setNotice] = useState<Notice | null>(null);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
   const [sections, setSections] = useState<string[]>([]);
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
@@ -239,7 +239,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   };
 
   const goToLine = (location: ErrorLocation) => {
-    setMobileTab("edit");
+    setMobileTab("preview");
     window.setTimeout(() => {
       const target = location.field === "frontMatterYaml" ? frontMatterRef.current : bodyRef.current;
       if (!target) return;
@@ -515,16 +515,14 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             </div>
           ) : null}
 
-          <Tabs className="lg:hidden" defaultValue="edit" onValueChange={(value) => setMobileTab(value as MobileTab)} value={mobileTab}>
-            <TabsList>
-              <TabsTrigger className="min-w-[6rem]" value="edit">Edit</TabsTrigger>
-              <TabsTrigger className="min-w-[6rem]" value="preview">Preview</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
+            <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
+            <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Raw code</button>
+          </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6">
             <div
-              className={cn("min-w-0 space-y-4", mobileTab === "edit" ? "block" : "hidden", "lg:block")}
+              className="min-w-0 space-y-4"
               data-newsroom-article-edit-column
             >
               <div className="grid gap-3 sm:grid-cols-3">
@@ -586,8 +584,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 </label>
               </div>
 
+              <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
+              <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>
+                <summary>Front matter (YAML)</summary>
               <label className="block space-y-1 text-sm font-medium">
-                <span>Front matter (YAML)</span>
+                <span className="sr-only">Front matter (YAML)</span>
                 <Textarea
                   className={TEXTAREA_CLASS}
                   data-newsroom-article-front-matter
@@ -598,6 +599,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                   value={editor.frontMatterYaml}
                 />
               </label>
+              </details>
 
               <div className="space-y-1 text-sm font-medium">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -679,10 +681,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                   })}
                 </ul>
               ) : null}
+              </div>
             </div>
 
             <div
-              className={cn("min-w-0", mobileTab === "preview" ? "block" : "hidden", "lg:block")}
+              className={cn("min-w-0", mobileTab === "preview" ? "block" : "hidden")}
               data-newsroom-article-preview-column
             >
               <div className="rounded-xl border border-border bg-card p-4" data-newsroom-article-preview>

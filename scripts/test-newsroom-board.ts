@@ -51,7 +51,7 @@ assert.deepEqual(
   "assignment statuses read left to right with unknown statuses between claimed and completed",
 );
 assert.deepEqual(assignmentConfig.types, ["assignment"]);
-assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["reporting", "copywriting", "illustration", "typesetting", "draft", "published", "held", "spiked"], "an unrecognized stage lands just before the published column");
+assert.deepEqual(contentItemColumnOrder(["draft", "published", "copywriting", "draft"]), ["reporting", "copywriting", "illustration", "typesetting", "spiked", "held", "draft", "published"], "an unrecognized stage lands just before the published column");
 assert.deepEqual(contentItemColumnOrder(["draft", "done"], ["pitch", "write", "done"]), ["pitch", "write", "draft", "done"], "a publication can define its own stages and the last one stays rightmost");
 assert.deepEqual(storyConfig.hierarchy, []);
 assert.equal(canReadNewsroomBoard("ready"), true);
