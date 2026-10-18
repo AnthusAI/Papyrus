@@ -1,0 +1,32 @@
+{
+  "id": "PPY-dd0ceb28-0467-4128-b849-467d408e2ae2",
+  "title": "Cyclotron-web: migrate the use-cases pages and home page to Markus",
+  "description": "Left over from slice 1 (PR 135): app/use-cases and app/page.tsx still render from TSX. Convert to Markus keeping every URL and the use-case-evidence and home-composition tests green. Recordings pages and the real island bundle belong to PPY-d49d6f.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a179d2b1-4a68-4146-af9d-59b4dd29a871",
+      "author": "unknown",
+      "text": "Assigned to the Cyclotron-web slice 2 thread together with PPY-d49d6f (coordinator, 2026-10-18).",
+      "created_at": "2026-10-18T13:19:49.511169Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T13:19:34.219130Z",
+  "updated_at": "2026-10-18T13:19:49.511433Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

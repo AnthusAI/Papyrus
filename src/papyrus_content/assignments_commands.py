@@ -28,6 +28,10 @@ from .assignments_workflow import (
     story_cycle_output,
 )
 from .tavily_deep_research import poll_tavily_deep_research_command, run_tavily_deep_research
+from .automatic_assignments import (
+    apply_automatic_assignment_cleanup,
+    plan_automatic_assignment_cleanup,
+)
 from .graphql_authoring import create_authoring_client
 from .options import parse_options, resolve_mutation_apply
 
@@ -250,3 +254,25 @@ def assignments_cancel(flags: list[str]) -> None:
 
 def assignments_reopen(flags: list[str]) -> None:
     mutate_assignment(*create_authoring_client(), "reopen", parse_options(flags))
+
+
+def assignments_cleanup_automatic(flags: list[str]) -> None:
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "assignments cleanup-automatic")
+    client, _ = create_authoring_client()
+    deletions = plan_automatic_assignment_cleanup(
+        assignments=client.list_records("Assignment"),
+        assignment_events=client.safe_list_records("AssignmentEvent"),
+        semantic_relations=client.safe_list_records("SemanticRelation"),
+    )
+    for model_name in ("Assignment", "AssignmentEvent", "SemanticRelation"):
+        count = sum(1 for deletion in deletions if deletion["modelName"] == model_name)
+        print(f"assignments\tcleanup-automatic\tplanned\t{model_name}\t{count}")
+    for deletion in deletions:
+        if deletion["modelName"] == "Assignment":
+            print(f"assignment\t{deletion['id']}\t{deletion['assignmentTypeKey']}\t{deletion['status']}\t{deletion['title']}")
+    if not apply:
+        print("assignments\tcleanup-automatic\tapply\tskipped\tdry run; rerun without --dry-run to delete")
+        return
+    apply_automatic_assignment_cleanup(client, deletions, actor_label=options.get("actor") or "papyrus-cli")
+    print(f"assignments\tcleanup-automatic\tdeleted\t{len(deletions)}")

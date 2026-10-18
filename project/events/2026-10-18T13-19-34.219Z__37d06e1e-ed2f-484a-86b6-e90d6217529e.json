@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "37d06e1e-ed2f-484a-86b6-e90d6217529e",
+  "issue_id": "PPY-dd0ceb28-0467-4128-b849-467d408e2ae2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T13:19:34.219Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Cyclotron-web: migrate the use-cases pages and home page to Markus",
+    "description": "Left over from slice 1 (PR 135): app/use-cases and app/page.tsx still render from TSX. Convert to Markus keeping every URL and the use-case-evidence and home-composition tests green. Recordings pages and the real island bundle belong to PPY-d49d6f.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+    "labels": []
+  }
+}

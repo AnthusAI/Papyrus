@@ -223,7 +223,6 @@ def build_reference_catalog_registration_records(catalog: dict[str, Any], option
                 "importRunId": import_run_id,
                 "now": now,
                 "actor": options.get("actor") or "Papyrus content CLI",
-                "createCurationAssignment": status == "pending" or bool(options.get("createCurationAssignment")),
                 "createIngestionRationaleMessage": bool(
                     options.get("createIngestionRationaleMessage")
                     or options.get("create_ingestion_rationale_message")
@@ -329,8 +328,6 @@ def reference_records(item: dict[str, Any], context: dict[str, Any]) -> list[dic
     ]
     if context.get("createIngestionRationaleMessage"):
         records.extend(reference_message_records(item, reference["expected"], context))
-    if context.get("createCurationAssignment", True):
-        records.extend(reference_curation_assignment_records(item, reference["expected"], context))
     return records
 
 
@@ -468,74 +465,6 @@ def reference_message_records(item: dict[str, Any], reference: dict[str, Any], c
             }
         ),
     ]
-
-
-def reference_curation_assignment_records(item: dict[str, Any], reference: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
-    assignment_type_key = "curation.reference-intake"
-    queue_key = f"{assignment_type_key}#{context['corpusId']}"
-    assignment_id = f"assignment-{safe_id(assignment_type_key)}-{hash_short([context['corpusId'], reference['lineageId']])}"
-    title = (
-        f"Curate reference: {reference['title']}"
-        if reference.get("title")
-        else f"Curate reference {reference.get('externalItemId')}"
-    )
-    assignment = _record(
-        "Assignment",
-        {
-            "id": assignment_id,
-            "assignmentTypeKey": assignment_type_key,
-            "queueKey": queue_key,
-            "queueStatusKey": f"{queue_key}#open",
-            "status": "open",
-            "priority": 50,
-            "title": title,
-            "brief": "Review this knowledge-base reference and add any useful curation notes.",
-            "instructions": "Inspect linked Reference metadata and private corpus attachments.",
-            "corpusId": context["corpusId"],
-            "categorySetId": context.get("categorySetId"),
-            "classifierId": context.get("classifierId"),
-            "sourceSnapshotId": context.get("sourceSnapshotId"),
-            "importRunId": context["importRunId"],
-            "createdBy": context.get("actor") or "biblicus-import",
-            "createdAt": context["now"],
-            "updatedAt": context["now"],
-            "newsroomFeedKey": "assignments",
-            "metadata": json.dumps(
-                {
-                    "referenceLineageId": reference["lineageId"],
-                    "referenceId": reference["id"],
-                    "externalItemId": reference.get("externalItemId"),
-                    "sourceUri": reference.get("sourceUri"),
-                    "storagePath": reference.get("storagePath"),
-                    "contentHash": reference.get("contentHash"),
-                }
-            ),
-        },
-    )
-    relation = semantic_relation_record(
-        {
-            "predicate": "requests_work_on",
-            "subjectKind": "assignment",
-            "subjectId": assignment["expected"]["id"],
-            "subjectLineageId": assignment["expected"]["id"],
-            "subjectVersionNumber": None,
-            "objectKind": "reference",
-            "objectId": reference["id"],
-            "objectLineageId": reference["lineageId"],
-            "objectVersionNumber": reference.get("versionNumber"),
-            "rank": 1,
-            "classifierId": context.get("classifierId"),
-            "importRunId": context["importRunId"],
-            "importedAt": context["now"],
-            "metadata": {
-                "assignmentTypeKey": assignment_type_key,
-                "queueKey": queue_key,
-                "externalItemId": reference.get("externalItemId"),
-                "title": reference.get("title") or item.get("title"),
-            },
-        }
-    )
-    return [assignment, relation]
 
 
 def reference_curation_message_records(
