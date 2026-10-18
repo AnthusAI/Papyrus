@@ -170,11 +170,11 @@ query GetReferenceCurationStatus($assignmentId: ID!) {
 RECORD_DELEGATED_CURATION_MUTATION = """
 mutation RecordDelegatedCuration(
   $referenceId: ID!, $action: String!, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
-  $onBehalfOf: String!, $note: String, $reasonCode: String, $decisionRelationId: ID, $shareable: Boolean
+  $onBehalfOf: String!, $instruction: String!, $note: String, $reasonCode: String, $decisionRelationId: ID, $shareable: Boolean
 ) {
   recordDelegatedCuration(
     referenceId: $referenceId, action: $action, delegationId: $delegationId, delegationToken: $delegationToken,
-    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, note: $note, reasonCode: $reasonCode,
+    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, instruction: $instruction, note: $note, reasonCode: $reasonCode,
     decisionRelationId: $decisionRelationId, shareable: $shareable
   ) {
     ok
@@ -204,6 +204,7 @@ def record_delegated_curation(
     delegation_token: str,
     agent_label: str,
     on_behalf_of: str,
+    instruction: str,
     note: str = "",
     reason_code: str = "",
 ) -> dict[str, Any]:
@@ -222,6 +223,7 @@ def record_delegated_curation(
             "delegationToken": delegation_token,
             "agentLabel": _required(agent_label, "agent_label"),
             "onBehalfOf": _required(on_behalf_of, "on_behalf_of"),
+            "instruction": _required(instruction, "instruction"),
             "note": _optional(note) or None,
             "reasonCode": _optional(reason_code) or None,
         },

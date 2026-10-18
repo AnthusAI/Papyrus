@@ -94,15 +94,17 @@ judgment never becomes a label this way.
 
    ```bash
    papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
-     --agent <your name> --note "<their reason, in their words>"
+     --agent <your name> --instruction "<the person's exact words>" --note "<their reason>"
    papyrus references reject --reference <record id> --on-behalf-of <person's sign-in email> \
-     --agent <your name> --reason-code out_of_scope --note "<their reason>"
+     --agent <your name> --instruction "<the person's exact words>" --reason-code out_of_scope --note "<their reason>"
    ```
 
 3. The `recordDelegatedCuration` mutation checks the token (unexpired,
    unrevoked, granted to your agent name, granted by the person you named), then
    records the curation as the person's: `actorKind: human`, `attestation:
-   delegated`, `relayedBy` your agent name and `delegationId`.
+   delegated`, `relayedBy` your agent name, `delegationId` and `instruction`, the person's
+   words as you quoted them. The token proves the person let you relay decisions,
+   not that they made this one, so the quote is what makes each label auditable.
 
 Only relay what the person actually said. If you are unsure, quote their words in
 `--note` and ask. A delegation lets you record a human decision; it does not let

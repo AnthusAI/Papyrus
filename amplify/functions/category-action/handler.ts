@@ -185,7 +185,7 @@ async function reviewSteeringProposal(event: Parameters<ReviewHandler>[0]) {
 
 async function reviewReferenceCuration(
   event: Parameters<ReferenceCurationHandler>[0],
-  delegation: { delegationId: string; relayedBy: string } | null = null,
+  delegation: { delegationId: string; relayedBy: string; instruction: string } | null = null,
 ) {
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
@@ -449,6 +449,7 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
   if (!verdict.ok || !delegation) {
     throw new Error(delegationRefusalMessage(verdict.ok ? "unknown-token" : verdict.reason));
   }
+  const instruction = normalizeRequiredString(event.arguments.instruction, "instruction").slice(0, 2000);
   const namedPerson = normalizeRequiredString(event.arguments.onBehalfOf, "onBehalfOf");
   if (namedPerson.toLowerCase() !== delegation.grantorLabel.toLowerCase()) {
     throw new Error(`That delegation was granted by ${delegation.grantorLabel}, not ${namedPerson}.`);
@@ -466,7 +467,7 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
       actorLabel: delegation.grantorLabel,
     },
   } as unknown as Parameters<ReferenceCurationHandler>[0];
-  return reviewReferenceCuration(onBehalfOfPerson, { delegationId, relayedBy: agentLabel });
+  return reviewReferenceCuration(onBehalfOfPerson, { delegationId, relayedBy: agentLabel, instruction });
 }
 
 async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandler>[0]) {

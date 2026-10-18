@@ -371,6 +371,7 @@ const schema = a.schema({
       delegationToken: a.string().required(),
       agentLabel: a.string().required(),
       onBehalfOf: a.string().required(),
+      instruction: a.string().required(),
       note: a.string(),
       reasonCode: a.string(),
       decisionRelationId: a.id(),
