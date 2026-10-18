@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "119ae9e4-6ff8-4671-8dff-06687d57970d",
+  "issue_id": "PPY-cd62ae11-a926-45df-bb58-db5a91c0d392",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:30:07.784Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Record reusable Papyrus reporting skill",
+    "description": "Document the authorized lineage-based reporting workflow in .agents/skills/reporting/SKILL.md. Verify current CLI syntax, publication binding, reference ids versus lineages, immutable drafts, messages, and fallback command inputs. Editorial PwnEscape records belong only in Threat Intelligence. No runtime, infrastructure or deployment changes.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6"
+    }
+  }
+}
