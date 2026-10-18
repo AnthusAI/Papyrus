@@ -1,6 +1,6 @@
 {
   "siteId": "anth-us",
-  "repository": "https://github.com/AnthusAI/Anth.us-Papyrus",
+  "repository": "https://github.com/AnthusAI/Anth.us-web",
   "brand": "anth-us",
   "frontend": "markus-static",
   "hostedZoneId": "Z02552332GG6AM25SFP73",
@@ -31,5 +31,5 @@
       }
     ]
   },
-  "github": { "owner": "AnthusAI", "repo": "Anth.us-Papyrus", "branches": ["main"] }
+  "github": { "owner": "AnthusAI", "repo": "Anth.us-web", "branches": ["main"] }
 }
