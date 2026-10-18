@@ -274,6 +274,7 @@ PORTED_COMMANDS = frozenset(
         "references:export-analysis-manifest",
         "references:export-scope-training",
         "references:decide-relevance",
+        "references:decide-site-sections",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
@@ -550,6 +551,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-relevance":
         from .relevance_sweep import references_decide_relevance
         references_decide_relevance(flags)
+    elif route == "references:decide-site-sections":
+        from .site_sweep import references_decide_site_sections
+        references_decide_site_sections(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
