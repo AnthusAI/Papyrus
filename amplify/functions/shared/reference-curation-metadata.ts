@@ -13,6 +13,7 @@ export type ReferenceCurationMetadataInput = {
   decisionRelationId?: string | null
   shareable?: boolean | null
   actorKind?: CurationActorKind | null
+  delegation?: { delegationId: string; relayedBy: string; instruction: string } | null
 }
 
 export type CurationActorKind = "human" | "service"
@@ -38,6 +39,10 @@ export function referenceCurationMetadata(input: ReferenceCurationMetadataInput)
     referenceId: input.referenceId,
     referenceLineageId: input.referenceLineageId,
     ...(input.actorKind ? {actorKind: input.actorKind} : {}),
+    ...(input.delegation
+      ? {attestation: "delegated", relayedBy: input.delegation.relayedBy, delegationId: input.delegation.delegationId,
+         instruction: input.delegation.instruction}
+      : {}),
     ...(decisionRelationId ? {decisionRelationId} : {}),
     ...(decisionRelationId ? {shareable: input.shareable === true} : {}),
   }

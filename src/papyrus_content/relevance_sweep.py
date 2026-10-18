@@ -217,6 +217,9 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     if not plan.enabled:
         result.stopped_because = "disabled"
         result.warnings.append(f"{plan.definition.id} is switched off in the steering config; nothing was decided.")
+        if apply:
+            result.live_agreement = _live_agreement(client, plan, corpus_id, now(), result.stopped_because)
+            _apply(client, [shadow_agreement_record(plan.definition.id, result.live_agreement, now=now())])
         return result
     today = utc_day(now())
     recorded_usage = _recorded_usage(client, plan.definition.id)
@@ -273,7 +276,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
             classifier = plan.definition.classifiers[0].id
             result.status = cyclotron.status(classifier).to_json()
             records.append(status_snapshot_record(plan.definition.id, result.status, now=now()))
-            result.live_agreement = _live_agreement(client, plan, corpus_id, now())
+            result.live_agreement = _live_agreement(client, plan, corpus_id, now(), result.stopped_because)
             records.append(shadow_agreement_record(plan.definition.id, result.live_agreement, now=now()))
             if plan.max_decisions_per_day is not None:
                 already_decided_today = recorded_usage["decisions"] if recorded_usage and recorded_usage.get("day") == today else 0
@@ -392,7 +395,8 @@ def _recorded_usage(client, cyclotron_id: str) -> dict[str, Any] | None:
     return None
 
 
-def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: str) -> dict[str, Any]:
+def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: str,
+                    stopped_because: str | None = None) -> dict[str, Any]:
     """Agreement of the cyclotron's earlier suggestions with what people then decided."""
     classifier = plan.definition.classifiers[0]
     comparisons = []
@@ -407,7 +411,9 @@ def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: s
                 labels=classifier.labels)
             if comparison is not None:
                 comparisons.append(comparison)
-    return live_agreement(comparisons, positive_label=classifier.positive_label, now=now)
+    return {**live_agreement(comparisons, positive_label=classifier.positive_label, now=now),
+            "loop": {"enabled": plan.enabled, "stoppedBecause": stopped_because, "lastSweepAt": now,
+                     "maxDecisionsPerDay": plan.max_decisions_per_day}}
 
 
 def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str,

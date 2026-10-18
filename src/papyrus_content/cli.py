@@ -245,6 +245,8 @@ PORTED_COMMANDS = frozenset(
         "references:process-create-accession-assignments",
         "references:process-accession-now",
         "references:review-curation",
+        "references:approve",
+        "references:reject",
         "references:list-predictions",
         "references:review-classification",
         "references:label",
@@ -477,6 +479,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:process-accession-now":
         require_reference_process_runtime("references process-accession-now")
         references_accession_now(flags)
+    elif route in ("references:approve", "references:reject"):
+        from .references_commands import references_record_on_behalf_of
+        references_record_on_behalf_of(flags, action=command)
     elif route == "references:review-curation":
         references_review_curation(flags)
     elif route == "references:list-predictions":
