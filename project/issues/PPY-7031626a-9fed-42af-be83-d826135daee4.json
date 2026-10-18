@@ -55,10 +55,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "2b53564e-ce26-4647-b317-c1cfc2f7e1ff",
+      "author": "unknown",
+      "text": "2026-10-18 Papyrus-web cutover redo LIVE on Ryan's typed approval. E17ZRAI87DN065 has aliases p.apyr.us and apyr.us (cert 6b83eeb4), default origin marketing S3, CMS Amplify origin for /newsroom*, /_next/*, /api/*. Functions papyrus-legacy-reader-redirect (no /newsroom rule) and papyrus-reader-edge (E2EM0JLBC2W9WW: / to /information, /newsroom* to p.apyr.us). Both Cognito clients got p.apyr.us/newsroom and read.p.apyr.us callbacks. Curl verified: p.apyr.us/ 200 newsprint, /newsroom 200, /newsroom/stories 200, read.p.apyr.us/ 302 /information. Pending: Ryan browser sign-in test. Rollback: E2QW8WOFWQT0H4, cert d84994ac, d1tkckmrakzztv.cloudfront.net.",
+      "created_at": "2026-10-18T15:10:10.416007Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:26:51.436172Z",
-  "updated_at": "2026-10-18T13:51:34.398790Z",
+  "updated_at": "2026-10-18T15:10:10.416263Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
