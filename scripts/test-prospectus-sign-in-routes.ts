@@ -343,7 +343,7 @@ async function publishingAccountCreationTests(sessionCookie: string, person: { i
 
   const created = await handleProspectusPublishingAccountCreation(creationRequest(cookies, { name: " Papyrus ", idempotencyKey }), options);
   assert.equal(created.status, 201);
-  assert.deepEqual(await created.json(), { selectedAccountId: "new-account", role: "owner", publicationCapabilities: ["read", "review", "decide"] });
+  assert.deepEqual(await created.json(), { selectedAccountId: "new-account", role: "owner", publicationCapabilities: ["read", "review", "decide", "steer"] });
   const creationCall = requests.find((request) => request.method === "POST" && request.path === "/v1/accounts")!;
   assert.deepEqual(creationCall.body, { name: "Papyrus" });
   assert.equal(creationCall.idempotencyKey, idempotencyKey, "the caller's key reaches Prospectus so retries are idempotent");
