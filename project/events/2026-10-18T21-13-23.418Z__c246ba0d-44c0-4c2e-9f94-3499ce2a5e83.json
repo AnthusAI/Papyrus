@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c246ba0d-44c0-4c2e-9f94-3499ce2a5e83",
+  "issue_id": "PPY-e2b52273-8ca9-46de-9b2d-3a06c885ef30",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T21:13:23.418Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Scope Markus import per tenant account",
+    "description": "Follow-up from PR 299. content import-markus must import into the selected tenant: items, slugs, media and sections get the tenant's keys and nothing it writes can overwrite or read another tenant's rows. Gherkin: Given tenant a and tenant b with an article of the same slug, when tenant a imports Markus content, then tenant b's article is unchanged.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-c6f867f5-6266-4184-83fe-57de2b301a1d",
+  "title": "Per-tenant site Section cyclotron",
+  "description": "The site cyclotron derives its classifiers from Section ids, so with per-tenant Sections it must be per tenant: the cyclotron id, store path, Assignment and decision records are scoped by tenant, and the Section list comes from that tenant's NewsroomSections. Gherkin: Given two tenants with different Sections, when each runs the site sweep, then each has its own cyclotron with only its own Sections.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T21:13:41.650805Z",
+  "updated_at": "2026-10-18T21:13:41.651053Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
