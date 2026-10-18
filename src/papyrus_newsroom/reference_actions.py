@@ -170,12 +170,12 @@ query GetReferenceCurationStatus($assignmentId: ID!) {
 RECORD_DELEGATED_CURATION_MUTATION = """
 mutation RecordDelegatedCuration(
   $referenceId: ID!, $action: String!, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
-  $onBehalfOf: String!, $instruction: String!, $note: String, $reasonCode: String, $decisionRelationId: ID, $shareable: Boolean
+  $onBehalfOf: String!, $instruction: String!, $note: String, $reasonCode: String, $decisionRelationId: ID, $shareable: Boolean, $sectionId: ID
 ) {
   recordDelegatedCuration(
     referenceId: $referenceId, action: $action, delegationId: $delegationId, delegationToken: $delegationToken,
     agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, instruction: $instruction, note: $note, reasonCode: $reasonCode,
-    decisionRelationId: $decisionRelationId, shareable: $shareable
+    decisionRelationId: $decisionRelationId, shareable: $shareable, sectionId: $sectionId
   ) {
     ok
     action
@@ -184,6 +184,17 @@ mutation RecordDelegatedCuration(
     reasonCode
     messageId
     relationId
+  }
+}
+"""
+
+
+GET_NEWSROOM_SECTION_QUERY = """
+query GetNewsroomSection($id: ID!) {
+  getNewsroomSection(id: $id) {
+    id
+    enabled
+    enabledStatus
   }
 }
 """
@@ -207,6 +218,7 @@ def record_delegated_curation(
     instruction: str,
     note: str = "",
     reason_code: str = "",
+    section_id: str = "",
 ) -> dict[str, Any]:
     """Record a person's decision, relayed by an agent, with the delegation the person granted it."""
     resolved_action = _normalize_curation_action(action)
@@ -226,6 +238,7 @@ def record_delegated_curation(
             "instruction": _required(instruction, "instruction"),
             "note": _optional(note) or None,
             "reasonCode": _optional(reason_code) or None,
+            "sectionId": _optional(section_id) or None,
         },
     )
 
@@ -238,6 +251,7 @@ def review_reference_curation(
     actor_label: str = "",
     note: str = "",
     reason_code: str = "",
+    section_id: str = "",
 ) -> dict[str, Any]:
     resolved_reference_id = _required(reference_id, "reference_id")
     resolved_action = _normalize_curation_action(action)
@@ -246,6 +260,7 @@ def review_reference_curation(
     user_note = _optional(note)
     now = _now_iso()
     reference = _get_required_reference(graphql, resolved_reference_id)
+    resolved_section_id = _validated_section_id(graphql, section_id, resolved_action)
     reference_lineage_id = _optional(reference.get("lineageId")) or resolved_reference_id
     reference_title = _reference_title(reference)
     message_id = (
@@ -293,6 +308,7 @@ def review_reference_curation(
             "reasonCode": _optional(reason_code),
             "referenceId": resolved_reference_id,
             "referenceLineageId": reference_lineage_id,
+            **({"sectionId": resolved_section_id} if resolved_section_id else {}),
         },
     )
     _create_semantic_relation(
@@ -321,9 +337,24 @@ def review_reference_curation(
         "referenceId": resolved_reference_id,
         "status": next_status,
         "reasonCode": _optional(reason_code),
+        "sectionId": resolved_section_id,
         "messageId": message_id,
         "relationId": relation_id,
     }
+
+
+def _validated_section_id(graphql: GraphqlInvoker, section_id: str, action: str) -> str | None:
+    requested_section_id = _optional(section_id)
+    if not requested_section_id:
+        return None
+    if action != "accept":
+        raise ValueError("A section can be recorded only when accepting a reference.")
+    section = _call(graphql, GET_NEWSROOM_SECTION_QUERY, "getNewsroomSection", {"id": requested_section_id})
+    if not section:
+        raise ValueError(f"Newsroom section {requested_section_id} was not found.")
+    if section.get("enabled") is False or section.get("enabledStatus") == "disabled":
+        raise ValueError(f"Newsroom section {requested_section_id} is disabled.")
+    return requested_section_id
 
 
 def set_reference_quality_rating(

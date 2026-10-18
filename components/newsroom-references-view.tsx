@@ -57,6 +57,11 @@ import {
   ReferenceSuggestionRowLine,
 } from "./reference-cyclotron-suggestion";
 import { ReferenceLiveAgreement } from "./reference-live-agreement";
+import { SectionPicker, SectionSuggestionBlock, type SectionChoice } from "./reference-section-suggestion";
+import type { SectionSuggestion, SiteSectionAgreement } from "../lib/site-section-suggestions";
+
+/** What an editor adds to an accept: the Section the reference belongs in, which becomes a training label. */
+export type ReferenceReviewOptions = { sectionId?: string | null };
 import type { DelegatedCuration, ShadowAgreement } from "../lib/cyclotron-suggestions";
 import { ReferenceCyclotronPriming, type PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
@@ -91,9 +96,15 @@ type NewsroomReferencesViewProps = {
   /** The live-agreement payload; the strip is hidden without it. */
   shadowAgreement?: ShadowAgreement | null;
   disabled?: boolean;
+  /** The enabled newsroom Sections an accepted reference can be placed in. */
+  sections?: SectionChoice[];
+  /** The site cyclotron's suggested Section per reference lineage. Advisory. */
+  sectionSuggestions?: Map<string, SectionSuggestion>;
+  /** How often the Section suggestions matched later editor decisions. */
+  sectionAgreement?: SiteSectionAgreement | null;
   onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => void;
   initialReferenceLineageId?: string | null;
-  onReview: (reference: ReferenceRecord, action: ReferenceCurationAction) => void;
+  onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => void;
   referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
 };
@@ -243,6 +254,9 @@ function ReferenceDetailPanel({
   previewAttachments,
   reference,
   onClose,
+  sectionAgreement = null,
+  sectionSuggestion,
+  sections = [],
 }: {
   countsAsTrainingLabel?: boolean;
   delegated?: DelegatedCuration;
@@ -250,12 +264,17 @@ function ReferenceDetailPanel({
   demo?: boolean;
   disabled?: boolean;
   onRelevanceReview?: (curation: RelevanceCuration) => void;
-  onReview: (action: ReferenceCurationAction) => void;
+  onReview: (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => void;
+  sectionAgreement?: SiteSectionAgreement | null;
+  sectionSuggestion?: SectionSuggestion;
+  sections?: SectionChoice[];
   previewAttachments: ReferenceAttachmentRecord[];
   reference: ReferenceRecord;
   onClose?: () => void;
 }) {
   const lineageId = referenceLineageId(reference);
+  const [chosenSectionId, setChosenSectionId] = useState<string | null>(null);
+  useEffect(() => { setChosenSectionId(null); }, [lineageId]);
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
   const url = referenceUrl(reference);
   const acceptDisabled = disabled || status === "accepted";
@@ -307,6 +326,20 @@ function ReferenceDetailPanel({
             ) : null}
           </div>
         ) : null}
+        {status === "pending" && sectionSuggestion ? (
+          <SectionSuggestionBlock agreement={sectionAgreement} referenceLineageId={lineageId} sections={sections} suggestion={sectionSuggestion} />
+        ) : null}
+        {status === "pending" && sections.length ? (
+          <SectionPicker
+            agreement={sectionAgreement}
+            chosenSectionId={chosenSectionId}
+            disabled={disabled}
+            onChoose={setChosenSectionId}
+            referenceLineageId={lineageId}
+            sections={sections}
+            suggestedSectionId={sectionSuggestion?.sectionId ?? null}
+          />
+        ) : null}
         {delegated ? <DelegatedCurationNote delegated={delegated} referenceLineageId={lineageId} /> : countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
 
         <div
@@ -319,7 +352,7 @@ function ReferenceDetailPanel({
             aria-pressed={status === "accepted"}
             data-news-desk-reference-accept
             disabled={acceptDisabled}
-            onClick={() => onReview("accept")}
+            onClick={() => onReview("accept", chosenSectionId ? { sectionId: chosenSectionId } : undefined)}
             size="sm"
             type="button"
             variant={status === "accepted" ? "default" : "outline"}
@@ -443,6 +476,9 @@ export function NewsroomReferencesView({
   demo = false,
   disabled = false,
   onRelevanceReview,
+  sections = [],
+  sectionSuggestions,
+  sectionAgreement = null,
   initialReferenceLineageId = null,
   onReview,
   referenceAttachments = [],
@@ -531,9 +567,9 @@ export function NewsroomReferencesView({
     }
   };
 
-  const runReview = (action: ReferenceCurationAction) => {
+  const runReview = (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => {
     if (!selectedReference) return;
-    onReview(selectedReference, action);
+    onReview(selectedReference, action, options);
   };
 
   const emptyLabel = canonicalReferences.length
@@ -688,6 +724,9 @@ export function NewsroomReferencesView({
               disabled={disabled}
               onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
               onReview={runReview}
+              sectionAgreement={sectionAgreement}
+              sectionSuggestion={sectionSuggestions?.get(referenceLineageId(selectedReference))}
+              sections={sections}
               previewAttachments={previewAttachments}
               reference={selectedReference}
             />
@@ -722,6 +761,9 @@ export function NewsroomReferencesView({
                   onClose={closeDetail}
                   onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
                   onReview={runReview}
+                  sectionAgreement={sectionAgreement}
+                  sectionSuggestion={sectionSuggestions?.get(referenceLineageId(selectedReference))}
+                  sections={sections}
                   previewAttachments={previewAttachments}
                   reference={selectedReference}
                 />

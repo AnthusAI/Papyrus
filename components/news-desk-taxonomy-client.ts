@@ -3628,6 +3628,18 @@ export async function loadCyclotronShadowAgreement(cyclotronId: string): Promise
   return latestShadowAgreement(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
 }
 
+/** The site cyclotron's latest per-Section agreement payload, as the Section sweep recorded it. */
+export async function loadSiteSectionAgreement(cyclotronId: string): Promise<import("../lib/site-section-suggestions").SiteSectionAgreement | null> {
+  const { shadowAgreementPayloadId } = await import("../lib/cyclotron-suggestions");
+  const { parseSiteSectionAgreement } = await import("../lib/site-section-suggestions");
+  const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", shadowAgreementPayloadId(cyclotronId), ["raw_payload"]);
+  const parsed = payloads
+    .map((payload) => ({ agreement: parseSiteSectionAgreement(payload.json), updatedAt: payload.attachment.updatedAt }))
+    .filter((entry) => entry.agreement !== null)
+    .sort((left, right) => String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")));
+  return parsed.length ? parsed[0].agreement : null;
+}
+
 /** Ask the next decide-relevance sweep to set or clear a manual review rate. */
 export async function requestCyclotronReviewRate(
   cyclotronId: string,

@@ -274,12 +274,14 @@ PORTED_COMMANDS = frozenset(
         "references:export-analysis-manifest",
         "references:export-scope-training",
         "references:decide-relevance",
+        "references:decide-site-sections",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
         "references:freeze-priming-cross-validation",
         "references:stamp-curation-actor-kind",
         "references:prove-priming-cross-validated",
+        "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -550,6 +552,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-relevance":
         from .relevance_sweep import references_decide_relevance
         references_decide_relevance(flags)
+    elif route == "references:decide-site-sections":
+        from .site_sweep import references_decide_site_sections
+        references_decide_site_sections(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
@@ -568,6 +573,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:prove-priming-cross-validated":
         from .priming_proof import references_prove_priming_cross_validated
         references_prove_priming_cross_validated(flags)
+    elif route == "references:prove-site-sections":
+        from .section_proof import references_prove_site_sections
+        references_prove_site_sections(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-corpus-storage-paths":

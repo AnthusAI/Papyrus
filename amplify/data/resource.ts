@@ -324,6 +324,7 @@ const schema = a.schema({
       reasonCode: a.string(),
       decisionRelationId: a.id(),
       shareable: a.boolean(),
+      sectionId: a.id(),
     })
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
@@ -376,6 +377,7 @@ const schema = a.schema({
       reasonCode: a.string(),
       decisionRelationId: a.id(),
       shareable: a.boolean(),
+      sectionId: a.id(),
     })
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [

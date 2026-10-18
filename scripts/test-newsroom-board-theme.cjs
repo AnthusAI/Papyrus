@@ -22,11 +22,12 @@ async function main() {
       import {createRoot} from 'react-dom/client';
       import {IssueCollection,IssueDetailPanel} from '@kanbus/ui';
       import '@kanbus/ui/styles/kanban.css';
+      import '@kanbus/ui/styles/newsprint.css';
       import './components/newsroom-organizer.css';
       import './components/newsroom-newsprint-board.css';
       const issues=[{id:'article:fixture',title:'A clearer view of the newsroom',type:'article',status:'draft',priority:2,description:'Synthetic component test. No CMS data.'},{id:'reference:fixture',title:'Sources worth a closer look',type:'reference',status:'review',priority:2}];
       const config={hierarchy:[],types:['article','reference'],statuses:[{key:'draft',name:'Draft',category:'native'},{key:'review',name:'Review',category:'native'}],categories:[{name:'native'}],priorities:{},type_colors:{},workflows:{}};
-      function Fixture(){const [selected,setSelected]=useState(null);const issue=issues.find(i=>i.id===selected);return <main className="newsroom-organizer" style={{display:'block',padding:16}}><p>Synthetic shared-component theme regression fixture</p><section className="papyrus-newsprint-board organizer-native-board" style={{height:'calc(100% - 60px)'}}><div className="organizer-board-body" data-detail-open={!!issue}><IssueCollection issues={issues} config={config} view="board" query={{}} initialScroll="start" selectedIssueId={selected} detailOpen={!!issue} onSelectIssue={i=>setSelected(i.id)} motion={{mode:'static'}}/>{issue&&<IssueDetailPanel issue={issue} onClose={()=>setSelected(null)}/>}</div></section></main>};
+      function Fixture(){const [selected,setSelected]=useState(null);const issue=issues.find(i=>i.id===selected);return <main className="newsroom-organizer" style={{display:'block',padding:16}}><p>Synthetic shared-component theme regression fixture</p><section className="papyrus-newsprint-board organizer-native-board" data-kanbus-theme="newsprint" style={{height:'calc(100% - 60px)'}}><div className="organizer-board-body" data-detail-open={!!issue}><IssueCollection issues={issues} config={config} view="board" query={{}} initialScroll="start" selectedIssueId={selected} detailOpen={!!issue} onSelectIssue={i=>setSelected(i.id)} motion={{mode:'static'}}/>{issue&&<IssueDetailPanel issue={issue} onClose={()=>setSelected(null)}/>}</div></section></main>};
       createRoot(document.getElementById('app')).render(<Fixture/>);
     ` },
   });
@@ -53,7 +54,7 @@ async function main() {
         const c=getComputedStyle(card),t=getComputedStyle(title),h=getComputedStyle(header);
         return {radius:c.borderRadius,shadow:c.boxShadow,font:t.fontFamily,size:t.fontSize,weight:t.fontWeight,clip:h.clipPath,paper:getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),background:getComputedStyle(document.querySelector('.newsroom-organizer')).backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth+1};
       });
-      assert.equal(styles.radius,'0px');assert.equal(styles.shadow,'none');assert.equal(styles.clip,'none');assert(styles.font.includes('Newsroom Display'));assert.equal(styles.size,'19px');assert.equal(styles.weight,'700');assert.equal(styles.overflow,false);
+      assert.equal(styles.radius,'0px');assert.equal(styles.shadow,'none');assert.equal(styles.clip,'none');assert(styles.font.includes('Newsroom Display'));assert.equal(styles.size,'19px');assert.equal(styles.weight,'600');assert.equal(styles.overflow,false);
       assert.equal(styles.paper,colorScheme==='light'?'#f9f9fb':'#17191b');assert.equal(styles.background,colorScheme==='light'?'rgb(249, 249, 251)':'rgb(23, 25, 27)');
       const overlays=await page.evaluate(()=>['organizer-menu','organizer-account-popup'].map(className=>{
         const probe=document.createElement('div');probe.className=className;probe.style.cssText='position:fixed;visibility:hidden;animation:motion-probe 1s linear infinite;transition:transform 1s';document.body.append(probe);

@@ -238,8 +238,14 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
                       priming_fingerprint: str | None = None, model_identity: str | None = None,
                       teaching_source: str = "accepted priming examples",
                       ran_at: str | None = None,
-                      on_point: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
-    """Decide the held-out set once per scheduled N in a fresh store primed with the first N examples."""
+                      on_point: Callable[[dict[str, Any]], None] | None = None,
+                      outcome_sink: list[tuple[int, list[tuple[str, str]]]] | None = None) -> dict[str, Any]:
+    """Decide the held-out set once per scheduled N in a fresh store primed with the first N examples.
+
+    When an outcome sink is given, each point also appends its label count and
+    its (editor label, classifier label) pairs, for callers that need more than
+    the binary agreement metrics.
+    """
     from decision_flywheel import Cyclotron, Item
 
     from .relevance_sweep import _HeldLease
@@ -271,6 +277,8 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
                                    for label in classifier.labels},
                  **agreement_metrics(outcomes, positive_label=classifier.positive_label)}
         points.append(point)
+        if outcome_sink is not None:
+            outcome_sink.append((label_count, list(outcomes)))
         if on_point:
             on_point(point)
     return {

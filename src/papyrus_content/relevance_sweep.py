@@ -68,11 +68,13 @@ class SweepResult:
     live_agreement: dict[str, Any] | None = None
     status: dict[str, Any] | None = None
     warnings: list[str] = field(default_factory=list)
+    classifier_set: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
                 "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "stoppedBecause": self.stopped_because,
-                "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings}
+                "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings,
+                **({"classifierSet": self.classifier_set} if self.classifier_set is not None else {})}
 
 
 class S3SnapshotStore:

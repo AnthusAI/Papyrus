@@ -4,7 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
-import { curationActorKind, referenceCurationMetadata } from "../shared/reference-curation-metadata";
+import { curationActorKind, referenceCurationMetadata, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
   CURATION_DELEGATION_OWNER_TYPE,
   CURATION_DELEGATION_PAYLOAD_KIND,
@@ -193,6 +193,11 @@ async function reviewReferenceCuration(
   const nextStatus = referenceCurationStatusForAction(action);
   const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode, action === "reject");
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const sectionRecord = requestedSectionId
+    ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
+    : null;
+  const sectionId = validatedCurationSectionId(requestedSectionId, action, sectionRecord);
   const now = new Date().toISOString();
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
@@ -259,6 +264,7 @@ async function reviewReferenceCuration(
       decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
       shareable: event.arguments.shareable ?? null,
       actorKind: delegation ? "human" : curationActorKind(event.identity),
+      sectionId,
       delegation,
     }),
     { filename: "metadata.json", now },
@@ -463,6 +469,7 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
       reasonCode: event.arguments.reasonCode,
       decisionRelationId: event.arguments.decisionRelationId,
       shareable: event.arguments.shareable,
+      sectionId: event.arguments.sectionId,
       actorSub: delegation.grantorSub,
       actorLabel: delegation.grantorLabel,
     },

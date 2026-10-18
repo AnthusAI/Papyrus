@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "86bffcdb-550f-4c40-86ef-548e9ed430cf",
+  "issue_id": "PPY-3de51dae-bcda-49a1-95d2-131f715be006",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:13:50.606Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Decide per Section and select the Section in shadow mode",
+    "description": "Backend. The sweep decides, for each pending Reference, the section selector and each Section's relevance as suggestions only, never changing curation status. Store them beside the existing relevance decision with provenance (priming set and doctrine hashes), a shared daily cap and the off switch. Live agreement is reported per Section and for the selector, comparing suggestions with later human decisions.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}
