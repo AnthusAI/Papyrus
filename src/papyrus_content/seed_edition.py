@@ -245,6 +245,7 @@ def seed_article_records(article: dict[str, Any], index: int, edition_config: di
             "id": item_id,
             "type": "article",
             "status": "published",
+            "stage": "published",
             "typeStatus": "article#published",
             "slug": article["slug"],
             "shortSlug": article.get("shortSlug"),

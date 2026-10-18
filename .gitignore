@@ -54,3 +54,5 @@ infra/amplify-app-shell/cdk.out/
 .mypy_cache/
 playwright-report/
 test-results/
+amplify_outputs.json.stashed-by-local-preview
+preview-screenshots/

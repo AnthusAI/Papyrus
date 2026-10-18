@@ -63,3 +63,40 @@ Feature: The candidate pipeline asks the relevance cyclotron about pending refer
     And the editor then asked to clear the manual rate
     When the decide-relevance sweep runs with apply
     Then the cyclotron status snapshot reports no manual rate
+
+  Scenario: An editor primes the running cyclotron with a pasted URL
+    Given an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "exclude" saying "Marketing, not research."
+    When the decide-relevance sweep runs with apply
+    Then the cyclotron status snapshot reports 1 primed example
+    And the cyclotron status snapshot reports the change "Added 1 primed example to the example list."
+    And the priming request for "https://example.org/vendor-launch" is applied as version 2
+    And each pending reference was decided by version 2
+
+  Scenario: Running the sweep again does not prime the same URL twice
+    Given an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "exclude" saying "Marketing, not research."
+    And the decide-relevance sweep has run with apply
+    When the decide-relevance sweep runs with apply
+    Then the cyclotron status snapshot reports 1 primed example
+    And the page text of "https://example.org/vendor-launch" was extracted once
+
+  Scenario: A request with a label the cyclotron does not have is marked failed
+    Given an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "maybe" saying "Not sure."
+    When the decide-relevance sweep runs with apply
+    Then the priming request for "https://example.org/vendor-launch" failed saying "include, exclude"
+    And the cyclotron status snapshot reports 0 primed examples
+    And each pending reference has a current relevance decision
+
+  Scenario: A URL that cannot be extracted is marked failed and the sweep continues
+    Given the page text of "https://example.org/paywalled" cannot be extracted
+    And an editor "managing-editor" asked to prime the cyclotron with "https://example.org/paywalled" as "include" saying "A good source."
+    When the decide-relevance sweep runs with apply
+    Then the priming request for "https://example.org/paywalled" failed saying "could not be read"
+    And each pending reference has a current relevance decision
+
+  Scenario: A second request for the same URL with a different label is refused
+    Given an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "exclude" saying "Marketing, not research."
+    And the decide-relevance sweep has run with apply
+    And an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "include" saying "On second thought."
+    When the decide-relevance sweep runs with apply
+    Then the priming request for "https://example.org/vendor-launch" failed saying "different"
+    And the cyclotron status snapshot reports 1 primed example

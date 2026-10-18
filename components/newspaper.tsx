@@ -1139,10 +1139,10 @@ function FrontStoryBlock({
           <div className="jump-line">
             {block.jumpTargetPage ? (
               disableLinks ? (
-                <span>{block.jumpLabel ?? `SEE MORE ON A${block.jumpTargetPage}`}</span>
+                <span>{block.jumpLabel}</span>
               ) : (
                 <Link href={getPageHref(block.jumpTargetPage, editionBasePath)} onClick={(event) => handleJumpClick(event, block.jumpTargetPage ?? 1, scrollToPage)}>
-                  {block.jumpLabel ?? `SEE MORE ON A${block.jumpTargetPage}`}
+                  {block.jumpLabel}
                 </Link>
               )
             ) : (
@@ -1178,10 +1178,10 @@ function FrontStoryBlock({
         <div className="jump-line">
           {block.jumpTargetPage ? (
             disableLinks ? (
-              <span>{block.jumpLabel ?? `SEE MORE ON A${block.jumpTargetPage}`}</span>
+              <span>{block.jumpLabel}</span>
             ) : (
               <Link href={getPageHref(block.jumpTargetPage, editionBasePath)} onClick={(event) => handleJumpClick(event, block.jumpTargetPage ?? 1, scrollToPage)}>
-                {block.jumpLabel ?? `SEE MORE ON A${block.jumpTargetPage}`}
+                {block.jumpLabel}
               </Link>
             )
           ) : (

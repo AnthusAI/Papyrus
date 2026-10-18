@@ -3,7 +3,7 @@
   "title": "Front teasers without a continuation end mid-article in every layout scenario",
   "description": "Found by the PPY-9bcfec cursor-continuity test. In every scenario in lib/layout-scenarios.ts at 1280, 640 and 390, the front-page blocks for river-court, night-trains and climate-ledger have no cutPolicy and no jumpTargetPage, yet their placed range ends with exhausted false, so article text after the endCursor is silently dropped. Decide per case whether the plan needs a continuation page and jumpTargetPage or the solver must grow the block until the text is exhausted, then remove KNOWN_UNTERMINATED_ARTICLE_IDS from scripts/test-newspaper-layout-cursor-continuity.ts.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,29 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a020d1ed-05e4-4a76-a3c3-7ddb89213eb5",
+      "author": "unknown",
+      "text": "Branch claude/project-thread-o9xkql, PR https://github.com/AnthusAI/Papyrus/pull/234. Verified: test:newspaper-layout-cursor-continuity passes with known-failure guards removed; solved-layout hash identical before/after perf and split for 14 scenarios x 3 widths; typecheck, eslint lib, pretext-layout test pass. Build and browser BDD not run.",
+      "created_at": "2026-10-17T18:29:11.333845Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "9742c845-7434-4abd-9a2e-07a10160b36c",
+      "author": "unknown",
+      "text": "Merged in PR 234 (4e2c823).",
+      "created_at": "2026-10-18T11:49:28.639050Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T17:05:13.509795Z",
-  "updated_at": "2026-10-17T17:05:13.510217Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T11:50:50.431408Z",
+  "closed_at": "2026-10-18T11:50:50.431042Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
