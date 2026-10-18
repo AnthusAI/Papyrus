@@ -604,7 +604,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
 
               <div className="space-y-1 text-sm font-medium">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label htmlFor="newsroom-article-body">Body (Markus)</label>
+                  <label className="sr-only" htmlFor="newsroom-article-body">Story body</label>
                   <Button
                     data-newsroom-article-insert-image
                     disabled={editor.id === null || imageUploading || busy !== null}

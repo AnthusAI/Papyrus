@@ -1,4 +1,5 @@
 import { ContentActionFailure } from "./content-actions-client";
+import { isLocalPreviewEnabled } from "./local-preview";
 import type {
   DeriveMarkusInput,
   DeriveMarkusResult,
@@ -28,6 +29,18 @@ const DEMO_IMAGE_DIRECTIVE = /^::image\{([^}]*)\}$/;
 function demoAttribute(attributes: string, name: string): string {
   const match = new RegExp(`${name}="([^"]*)"`).exec(attributes);
   return match ? match[1] : "";
+}
+
+async function deriveThroughPreviewMarkusEngine(input: DeriveMarkusInput): Promise<DeriveMarkusResult | null> {
+  try {
+    const response = await fetch("/api/local-preview/derive", { method: "POST", body: JSON.stringify({ frontMatterYaml: input.frontMatterYaml, bodyMarkus: input.bodyMarkus }) });
+    if (!response.ok) return null;
+    const result = await response.json() as DeriveMarkusResult & { error?: string };
+    if (result.error) return null;
+    return input.includeIr ? result : { ...result, bodyIr: undefined };
+  } catch {
+    return null;
+  }
 }
 
 function demoEnvelope(bodyMarkus: string) {
@@ -74,6 +87,10 @@ export function createDemoArticlesBackend(): ArticlesBackend {
   return {
     actions: {
       async deriveMarkus(input: DeriveMarkusInput): Promise<DeriveMarkusResult> {
+        if (isLocalPreviewEnabled()) {
+          const derived = await deriveThroughPreviewMarkusEngine(input);
+          if (derived) return derived;
+        }
         const lines = input.bodyMarkus.split("\n");
         const invalidIndex = lines.findIndex((line) => line.includes(":::nope"));
         if (invalidIndex >= 0) {
