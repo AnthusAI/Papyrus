@@ -22,9 +22,9 @@ for (const assignment of createLocalPreviewAssignments()) {
   if (assignment.itemLineageId) assert.ok(lineageIds.has(assignment.itemLineageId), "assignments point at seeded items");
 }
 
-const previewAssignments = createLocalPreviewAssignments();
-const contentItemBoardIssues = projectContentItemBoard({ contentItemVersions, assignments: previewAssignments });
-assert.equal(contentItemBoardIssues.length, lineageIds.size, "content item board projects every seeded item");
-assert.equal(projectAssignmentBoard(previewAssignments).length, previewAssignments.length, "assignment board projects every seeded assignment");
+const assignments = createLocalPreviewAssignments();
+const storyBoardIssues = projectContentItemBoard({ contentItemVersions, assignments });
+assert.equal(storyBoardIssues.length, contentItemVersions.length, "story board projects every seeded item");
+assert.equal(projectAssignmentBoard(assignments).length, assignments.length, "assignment board projects every seeded assignment");
 
 console.log("local preview seed ok");
