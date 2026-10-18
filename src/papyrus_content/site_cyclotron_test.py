@@ -1,7 +1,7 @@
 import pytest
 
 from papyrus_content.relevance_cyclotron import normalize_relevance_cyclotron_config
-from papyrus_content.site_cyclotron import (SECTION_SELECTOR_CLASSIFIER_ID, build_site_cyclotron, normalize_site_cyclotron_config,
+from papyrus_content.site_cyclotron import (build_site_cyclotron, section_selector_classifier_id, normalize_site_cyclotron_config,
                                             section_fit_classifier_id)
 
 RELEVANCE_BLOCK = normalize_relevance_cyclotron_config({
@@ -24,9 +24,9 @@ def test_the_site_cyclotron_has_a_fit_classifier_per_enabled_section_and_one_sel
     sections = [section("cloud", order=2), section("mission", order=1), section("retired", order=3, enabled=False)]
     plan = build_site_cyclotron(steering(), sections)
     ids = [spec.id for spec in plan.definition.classifiers]
-    assert ids == [section_fit_classifier_id("mission"), section_fit_classifier_id("cloud"), SECTION_SELECTOR_CLASSIFIER_ID]
+    assert ids == [section_fit_classifier_id("mission"), section_fit_classifier_id("cloud"), section_selector_classifier_id(["mission", "cloud"])]
     selector = plan.definition.classifiers[-1]
-    assert selector.labels == ("mission", "cloud")
+    assert selector.labels == ("cloud", "mission")
     assert selector.positive_label is None
     assert plan.definition.classifiers[0].positive_label == "fits"
 
@@ -35,13 +35,13 @@ def test_each_classifier_is_seeded_from_the_section_curation_text():
     plan = build_site_cyclotron(steering(), [section("cloud", order=1), section("mission", order=2)])
     assert "Mission of cloud" in plan.seed_rubrics[section_fit_classifier_id("cloud")]
     assert "Reject when: Reject filler for cloud" in plan.seed_rubrics[section_fit_classifier_id("cloud")]
-    assert "- mission: Mission. Mission of mission" in plan.seed_rubrics[SECTION_SELECTOR_CLASSIFIER_ID]
+    assert "- mission: Mission. Mission of mission" in plan.seed_rubrics[section_selector_classifier_id(["mission", "cloud"])]
 
 
 def test_a_single_enabled_section_has_a_fit_classifier_and_no_selector():
     plan = build_site_cyclotron(steering(), [section("mission", order=1)])
     assert [spec.id for spec in plan.definition.classifiers] == [section_fit_classifier_id("mission")]
-    assert SECTION_SELECTOR_CLASSIFIER_ID not in plan.seed_rubrics
+    assert section_selector_classifier_id(["mission", "cloud"]) not in plan.seed_rubrics
 
 
 def test_adding_or_disabling_a_section_changes_the_definition_fingerprint():
