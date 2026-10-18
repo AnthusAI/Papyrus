@@ -30,7 +30,7 @@ class MarkusDeriveTests(unittest.TestCase):
         self.assertEqual(document["children"][0]["type"], "paragraph")
         self.assertEqual(document["schema_version"], 1)
         self.assertEqual(result.body_ir["schemaVersion"], 1)
-        self.assertEqual(result.body_ir["markus"]["version"], "0.5.1")
+        self.assertEqual(result.body_ir["markus"]["version"], "0.6.0")
 
     def test_plain_paragraphs_match_the_source(self) -> None:
         result = derive_fixture("plain.md")

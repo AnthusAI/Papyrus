@@ -22,7 +22,7 @@ import {
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(dirname, "../..");
 
-export const renditionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.5.1", "Pillow>=11.3,<12"];
+export const renditionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.6.0", "Pillow>=11.3,<12"];
 
 export type RenditionsFunctionProps = {
   siteBucket: s3.IBucket;
