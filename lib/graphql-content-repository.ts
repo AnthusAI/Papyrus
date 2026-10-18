@@ -20,6 +20,7 @@ import { BodyIrError, matchBodyImages, projectBodyIr, type BodyProjection, type 
 import { SITE_BRAND } from "./site-brand";
 import { shouldFetchVideoScripts } from "./video-mode";
 import { collectVideoScriptTargets, parseVideoScriptRef, videomlItemSlug, type VideoScriptRef } from "./video-script";
+import { selectedTenantIdFromCookies } from "./prospectus-tenant";
 import { currentContentSource, currentRequestClient, currentTenantId, runWithContentSource } from "./content-source-context";
 import { rowBelongsToTenant, tenantScopedValue } from "./tenant-keys";
 import { withRateLimitRetry } from "./rate-limit-retry";
@@ -154,9 +155,10 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
     // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
     // kept in the request's async context (never a module global) so one visitor's session cannot serve another.
     const { cookies } = await import("next/headers");
-    await cookies();
+    const cookieStore = await cookies();
     const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
-    return runWithContentSource(source, operation, client);
+    const selectedTenantId = await selectedTenantIdFromCookies(cookieStore);
+    return runWithContentSource(source, operation, client, selectedTenantId);
   }
   return withRateLimitRetry(() =>
     runWithGuestAmplifyContext(() =>

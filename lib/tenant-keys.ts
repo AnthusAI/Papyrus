@@ -24,3 +24,9 @@ export function rowBelongsToTenant(tenantId: string | undefined, row: { tenantId
   if (!tenantId || !row) return true;
   return row.tenantId === tenantId;
 }
+
+/** The tenant a Prospectus publishing account maps to: its id as lowercase letters, digits and hyphens. */
+export function tenantIdForProspectusAccount(accountId: string | null | undefined): string | undefined {
+  const normalized = (accountId ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 63);
+  return normalized ? validateTenantId(normalized) : undefined;
+}
