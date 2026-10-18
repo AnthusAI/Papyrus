@@ -10,9 +10,19 @@
   "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7da53795-b42e-457a-a634-d8071761d947",
+      "author": "unknown",
+      "text": "Fix on branch fix/PPY-759492-budget-tokenizer: pin the o200k_base encoding via tiktoken.get_encoding instead of encoding_for_model (tiktoken 0.12.0 has no mapping for gpt-5.4-mini-2026-03-17). Still fails closed if the encoding is unavailable. Re-enables test_priming_provider_budget in CI.",
+      "created_at": "2026-10-18T12:46:45.623868Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T11:52:04.768489Z",
-  "updated_at": "2026-10-18T11:52:04.769020Z",
+  "updated_at": "2026-10-18T12:46:45.624140Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
