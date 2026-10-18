@@ -19,10 +19,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "cd7e2e0b-b552-48c7-9432-8d8b8941019a",
+      "author": "unknown",
+      "text": "Link check on the 27 content files: front matter is complete and relatedPosts resolve against content/blog. Five internal wiki links have no matching page in content/wiki: cost-vs-sla, computer-manifold, product (two posts), design-challenges, messaging. Slice 1 needs a decision per link: write the page, point elsewhere, or drop the link.",
+      "created_at": "2026-10-18T23:38:06.832206Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:25:53.576750Z",
-  "updated_at": "2026-10-18T23:37:32.336306Z",
+  "updated_at": "2026-10-18T23:38:06.832386Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
