@@ -4431,9 +4431,9 @@ function AdministrationDeskView({
     <div className="news-desk-columns news-desk-columns--administration" data-news-desk-section="administration">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-administration-title">
-          <SectionHeader title="Administration" detail="Settings for users, policies, sections, and procedures" />
-          <div className="news-desk-settings-shell">
-            <nav className="news-desk-settings-nav" aria-label="Administration settings">
+          <SectionHeader title={administrationPanel === "sections" ? "Sections" : "Administration"} detail={administrationPanel === "sections" ? "Canonical and floating newspaper sections, and the publication ontology" : "Settings for users, policies, and procedures"} />
+          <div className="news-desk-settings-shell" data-settings-nav={administrationPanel === "sections" ? "hidden" : undefined}>
+            {administrationPanel === "sections" ? null : <nav className="news-desk-settings-nav" aria-label="Administration settings">
               <Link
                 href={administrationPanelHref("users", isDemo)}
                 data-news-desk-admin-nav="users"
@@ -4451,15 +4451,6 @@ function AdministrationDeskView({
               >
                 <strong>Policies</strong>
                 <span>Publication and category doctrine</span>
-              </Link>
-              <Link
-                href={administrationPanelHref("sections", isDemo)}
-                data-news-desk-admin-nav="sections"
-                data-active={administrationPanel === "sections" || undefined}
-                onClick={() => onPanelChange("sections")}
-              >
-                <strong>Sections</strong>
-                <span>Canonical and floating newspaper sections</span>
               </Link>
               <Link
                 href={administrationPanelHref("procedures", isDemo)}
@@ -4481,7 +4472,7 @@ function AdministrationDeskView({
                   <span>Addresses from the site&apos;s signup forms</span>
                 </Link>
               ) : null}
-            </nav>
+            </nav>}
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
               {administrationPanel === "users" ? (

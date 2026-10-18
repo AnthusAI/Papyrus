@@ -224,3 +224,4 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .taxonomy-view-switch{display:flex;gap:20px;border-bottom:1px solid var(--org-line);margin-bottom:12px}
 .taxonomy-view-switch a{color:var(--org-ink);text-decoration:none;padding:4px 0;border-bottom:2px solid transparent}
 .taxonomy-view-switch a[aria-current="page"]{font-weight:700;border-bottom-color:var(--org-ink)}
+.news-desk-settings-shell[data-settings-nav="hidden"]{display:block}
