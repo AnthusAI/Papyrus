@@ -17,6 +17,22 @@ const PREVIEW_ACCOUNT_STATE: ProspectusAccountState = {
 
 const roleLabel = (role: string) => role.replace(/_/g, " ");
 
+/** The signed-in person's current publishing account as "Name · role", or null when the site has no Prospectus accounts. */
+export function useProspectusAccountSummary(): string | null {
+  const [summary, setSummary] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const returnPath = `${window.location.pathname}${window.location.search}`;
+    (isLocalPreviewEnabled() ? Promise.resolve(PREVIEW_ACCOUNT_STATE) : loadProspectusAccountState(returnPath)).then(loaded => {
+      if (cancelled || loaded.status !== "signedIn") return;
+      const selected = loaded.publishingAccounts.find(account => account.accountId === loaded.selectedAccountId);
+      setSummary(selected ? `${selected.name ?? selected.accountId} · ${roleLabel(selected.role)}` : "Choose an account");
+    });
+    return () => { cancelled = true; };
+  }, []);
+  return summary;
+}
+
 /**
  * The publishing account the signed-in person is acting as. It appears only on sites that have Prospectus
  * accounts configured; a site with its own user pool never shows it. Choosing an account records the choice

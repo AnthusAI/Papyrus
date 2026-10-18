@@ -10,7 +10,7 @@ import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReaderAuthControl } from "./reader-auth-control";
-import { ProspectusAccountChooser } from "./prospectus-account-chooser";
+import { ProspectusAccountChooser, useProspectusAccountSummary } from "./prospectus-account-chooser";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "./ui/sheet";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu";
 import type { NewsroomOpsShellProps } from "./newsroom-ops-shell";
@@ -55,6 +55,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
   const session = useOptionalNewsDeskClient();
   const auth = session?.shell.auth ?? { status: "loading" as const, label: "Checking sign-in" };
   const [open, setOpen] = useState(false);
+  const accountSummary = useProspectusAccountSummary();
   useEffect(() => {
     const media = matchMedia("(max-width: 900px)");
     const close = () => setOpen(false);
@@ -63,7 +64,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
   }, []);
   return <DropdownMenu open={open} onOpenChange={setOpen}>
     <DropdownMenuTrigger id={`organizer-account-trigger-${placement}`} className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
-      <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session"}</small></span>
+      <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{accountSummary ?? (auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session")}</small></span>
     </DropdownMenuTrigger>
     <DropdownMenuContent className="organizer-account-popup" side={placement === "sidebar" ? "top" : "bottom"} align="end">
       <DropdownMenuGroup>
