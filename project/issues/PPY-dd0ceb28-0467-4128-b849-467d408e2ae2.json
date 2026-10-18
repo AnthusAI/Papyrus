@@ -10,9 +10,19 @@
   "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a179d2b1-4a68-4146-af9d-59b4dd29a871",
+      "author": "unknown",
+      "text": "Assigned to the Cyclotron-web slice 2 thread together with PPY-d49d6f (coordinator, 2026-10-18).",
+      "created_at": "2026-10-18T13:19:49.511169Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T13:19:34.219130Z",
-  "updated_at": "2026-10-18T13:19:34.219529Z",
+  "updated_at": "2026-10-18T13:19:49.511433Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
