@@ -20,9 +20,11 @@ def resolve_papyrus_root() -> Path:
 
 PAPYRUS_ROOT = resolve_papyrus_root()
 BIBLICUS_ROOT = Path(os.environ.get("BIBLICUS_WORKDIR", str(PAPYRUS_ROOT.parent / "Biblicus")))
-_DOTENV_OVERRIDE_KEYS = frozenset({
-    "PAPYRUS_GRAPHQL_ENDPOINT",
-})
+def required_environment_value(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ValueError(f"{name} is required.")
+    return value
 
 
 def load_dotenv() -> None:
@@ -38,7 +40,7 @@ def load_dotenv() -> None:
             key = key.strip()
             if not key:
                 continue
-            if key in os.environ and key not in _DOTENV_OVERRIDE_KEYS:
+            if key in os.environ:
                 continue
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:

@@ -4,9 +4,12 @@ import json
 import os
 import shlex
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import yaml
@@ -38,6 +41,14 @@ def _run_papyrus(context, command: str, *, clean_env: bool = False) -> None:
         env["AWS_EC2_METADATA_DISABLED"] = "true"
         env["AWS_CONFIG_FILE"] = os.devnull
         env["AWS_SHARED_CREDENTIALS_FILE"] = os.devnull
+
+    graphql_stub_endpoint = getattr(context, "graphql_stub_endpoint", None)
+    if graphql_stub_endpoint:
+        env["PAPYRUS_GRAPHQL_ENDPOINT"] = graphql_stub_endpoint
+        env["SSL_CERT_FILE"] = str(context.graphql_stub_certificate_path)
+        env["AWS_ACCESS_KEY_ID"] = "AKIDEXAMPLE"
+        env["AWS_SECRET_ACCESS_KEY"] = "secret-example"
+        env.pop("AWS_PROFILE", None)
 
     argv = shlex.split(command)
     if argv and argv[0] == "papyrus":
@@ -96,6 +107,47 @@ def step_no_fixtures(context):
 @given("no AWS credentials are available")
 def step_no_aws_credentials(context):
     context.no_aws_credentials = True
+
+
+class _RejectingGraphQLHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = b'{"message":"The security token included in the request is expired"}'
+        self.send_response(self.server.rejection_status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        return
+
+
+@given("a GraphQL endpoint that rejects credentials with status {status_code:d}")
+def step_graphql_endpoint_rejecting_credentials(context, status_code):
+    certificate_directory = Path(tempfile.mkdtemp(prefix="operator-cli-tls-"))
+    context.tmp_dirs.append(certificate_directory)
+    certificate_path = certificate_directory / "certificate.pem"
+    private_key_path = certificate_directory / "key.pem"
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+            "-keyout", str(private_key_path), "-out", str(certificate_path),
+            "-days", "1", "-subj", "/CN=localhost",
+            "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    server = HTTPServer(("127.0.0.1", 0), _RejectingGraphQLHandler)
+    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    tls_context.load_cert_chain(certificate_path, private_key_path)
+    server.socket = tls_context.wrap_socket(server.socket, server_side=True)
+    server.rejection_status_code = status_code
+    context.graphql_stub_certificate_path = certificate_path
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    context.graphql_stub_endpoint = f"https://127.0.0.1:{server.server_port}/graphql"
+    context.graphql_stub_server = server
 
 
 @when("I run `{command}`")

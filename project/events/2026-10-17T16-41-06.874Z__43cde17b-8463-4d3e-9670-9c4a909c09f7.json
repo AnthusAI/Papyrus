@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "43cde17b-8463-4d3e-9670-9c4a909c09f7",
+  "issue_id": "PPY-609c945b-83a0-43e7-a47d-ac6f47e9cd06",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T16:41:06.874Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Split components/topic-steering-workspace.tsx (18k lines): pure helpers, hooks, chrome, views",
+    "description": "components/topic-steering-workspace.tsx is 18,077 lines and 765 KB with about 110 components, 310 helpers, 202 useState and 118 effects, three generateClient<Schema>() instances, a 400-line Markdown parser and a Biblicus command-plan builder. lib/newsroom-section-routing.ts:1 and two route files import NewsDeskTab from it, inverting the dependency.\n\nDo this in five PRs, in order of risk: (1) pure helpers to lib/ with unit tests: Markdown parser (:10542-10951, or delete it in favour of Streamdown if that dependency is kept), analysis command plan (:13132-13640), reference normalisers (:14012-14560, :16408-17200), section model (:13664-13860), category tree (:16668-16860); move NewsDeskTab and NewsDeskSelection to lib/newsroom-nav.ts; (2) hooks: dashboard state (:760-1310) as one reducer hydrated once, replacing the 40 useState slots and the ~12 copy-props-to-state effects at :1040-1110; reference realtime subscription (:1315-1470); useReferenceMetadataFields (:14335); fix useMediaQuery (:546-558) with useSyncExternalStore so SSR does not flip layouts after hydration; (3) shared chrome: list-detail shell with the gsap split pane (:8473-9060), data and card grids (:9062-9453), expander (:3994-4160), and replace the bespoke action menu (:8689-8760) with the base-ui DropdownMenu already imported; (4) one file per desk view (Overview :3295, Administration :4329, Desks :5752, Topics :6019, Concepts :6343, References :6488, Insights :6980, Messages :7339, Search :10287, Assignments :12478, proposal/category-tree :15473-16400, corpus panels :17576-17914); (5) detail rails (semantic :9453, reference :10995-11854, message :11638). While in there: mark loaded sections only in .then and keep a loading/loaded/error tri-state (:1186-1231); create the two Amplify clients once in news-desk-taxonomy-client.ts.\n\nDone when: the composition root is under ~700 lines, each extracted lib module has a unit test, and no route or lib file imports from a client component.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+    "labels": [
+      "code-review-2026-10"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus full review thread"
+    }
+  }
+}

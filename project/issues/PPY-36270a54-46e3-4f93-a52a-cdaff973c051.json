@@ -1,0 +1,44 @@
+{
+  "id": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "title": "Full code review follow-ups (2026-10-17)",
+  "description": "Follow-up work from the full code review of develop @ e9b1923 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). The review covered the layout solver and renderer, the content boundary and Amplify backend, the Python newsroom CLI and agents, tests and CI, the newsroom UI, and docs and process. Each child issue is one PR-sized unit of work with file:line pointers and a done-when. Priority order is recorded in the epic's first comment. Done when every child issue is closed.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6379f2a8-4cb5-4d6a-b0dc-ac5fd9448291",
+      "author": "unknown",
+      "text": "Priority order for implementation (one PR each; security first, then the checks that stop regressions, then the structural work):\n1. PPY-7ac874 identity-pool CRUD off Assignment and MessageThread (P0)\n2. PPY-ee67c6 SPF/DKIM gate on inbound email (P0)\n3. PPY-54721b repo hygiene sweep\n4. PPY-92dc64 remove developer home path from the browser bundle and skills\n5. PPY-c4e950 CI: lint, build, one entry point, pytest, caches\n6. PPY-51cf3d node:test runner for scripts/test-*\n7. PPY-9bcfec headless solver cursor-continuity test (land before any solver change)\n8. PPY-be0edc continuation labels from the plan\n9. PPY-37ce1c one GraphQL schema (needs a sandbox deploy on Ryan's Mac)\n10. PPY-99738c remove the four compatibility shims (after PPY-37ce1c)\n11. PPY-8a7e7a purge pilot identifiers and add the CI grep\n12. PPY-96509f story-cycle flags, packet validation, idempotent apply\n13. PPY-d081c1 operator CLI error handling and exit codes\n14. PPY-da6243 priming proof: collect the test and produce the first number\n15. PPY-609c94 split the 18k-line steering workspace (five PRs)\n16. PPY-a4eaaf solver performance and newspaper-layout.ts split (after PPY-9bcfec)\n17. PPY-d77f29 instruction diet: AGENTS.md index, docs/README.md\n18. PPY-e5ff3a data model: indexes, Published* generation, N+1 reads (after PPY-37ce1c)\n19. PPY-e002e0 reader app shell hardening\n20. PPY-0f641f release and branch state\n\nFull write-up: https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed",
+      "created_at": "2026-10-17T16:42:42.921037Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-fable-5-1",
+        "name": "Papyrus full review thread",
+        "settings": {}
+      }
+    }
+  ],
+  "created_at": "2026-10-17T16:37:24.264781Z",
+  "updated_at": "2026-10-17T16:42:42.921192Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

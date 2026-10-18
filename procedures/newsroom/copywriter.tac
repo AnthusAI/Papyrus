@@ -53,7 +53,7 @@ Rules:
 Procedure {
     input = {
         assignment_item_id = field.string{default = "", description = "Papyrus copywriting Assignment.id"},
-        corpus_key = field.string{default = "AI-ML-research", description = "Papyrus steering corpus key"},
+        corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "copywriting", description = "Context profile for copywriting"},
         source_reporting_packet_id = field.string{default = "", description = "Optional reporting_context_packet Message.id override"}
     },

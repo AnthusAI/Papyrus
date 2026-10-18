@@ -271,7 +271,6 @@ type TopicProposalEditState = {
 };
 type AnalysisCommandPlanEntry = {
   label: string;
-  cwd: string;
   executable: string;
   args: string[];
   metadata?: Record<string, unknown>;
@@ -13641,7 +13640,6 @@ function buildAnalysisDestructivePreview({
 function analysisCommand(label: string, args: string[], mode: AnalysisReindexMode): AnalysisCommandPlanEntry {
   return {
     label,
-    cwd: "/Users/ryan/Projects/Biblicus",
     executable: "uv",
     args: ["run", "--extra", "topic-modeling", "biblicus", ...args],
     metadata: { mode },

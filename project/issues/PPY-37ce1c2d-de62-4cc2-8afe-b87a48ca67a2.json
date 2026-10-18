@@ -1,0 +1,29 @@
+{
+  "id": "PPY-37ce1c2d-de62-4cc2-8afe-b87a48ca67a2",
+  "title": "One GraphQL schema: make resource.ts re-export schema.ts, add EditionSlot, diff everything in the parity script",
+  "description": "amplify/data/resource.ts (2147 lines) defines a full a.schema({...}) whose only live use is the Schema type export; the deployed API comes from amplify/data/schema.ts (1977 lines) via defineSiteData (resource.ts:2140-2145). Every TypeScript client (lib/graphql-content-repository.ts, lib/console-chat-client.ts, all Lambdas via shared/lambda-data-client.ts) types against the undeployed copy. Drift already exists: EditionSlot has 6 references in resource.ts and 49 in Python (graphql_authoring.py:177) but zero in schema.ts, so the slot-binding contract fails against AppSync; Message auth differs (resource.ts:1572 grants identityPool read/create/update, schema.ts:1451 grants only group append-only). scripts/test-schema-parity.ts checks field lists for nine models only. The deployed allow.resource list (schema.ts:1957-1962) names six functions while site-backend.ts compensates with appsync:GraphQL on resources ['*']; readerSettings, assignmentAction and knowledgeQuery appear in neither list though they use the data client.\n\nFix: add EditionSlot to schema.ts; make resource.ts export type Schema = ClientSchema<typeof schema> from schema.ts and delete the duplicate literal; list every data-client Lambda in allow.resource and remove the wildcard appsync:GraphQL role statements in site-backend.ts; remove apiKeyAuthorizationMode (no model uses publicApiKey). Extend the parity script to fail on any difference in models, fields, auth rules and indexes until the duplicate is gone, then retire it. Needs a sandbox schema deploy on Ryan's Mac to verify.\n\nDone when: one schema definition exists, EditionSlot queries succeed against the sandbox, and typecheck passes.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T16:39:47.329207Z",
+  "updated_at": "2026-10-17T16:39:47.329555Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

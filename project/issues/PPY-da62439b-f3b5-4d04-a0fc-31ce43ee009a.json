@@ -1,0 +1,29 @@
+{
+  "id": "PPY-da62439b-f3b5-4d04-a0fc-31ce43ee009a",
+  "title": "Priming proof: collect priming_proof_test.py in CI and produce the first before/after agreement number",
+  "description": "docs/priming-proof.md specifies the number (agreement with editors on a frozen held-out set at N=0 and after N priming labels) and src/papyrus_content/priming_proof.py:187-262 implements run_priming_proof with the freeze-priming-held-out and prove-priming commands, but no number exists yet. src/papyrus_content/priming_proof_test.py contains a deterministic stub (NearestTrainingExampleModel at :19) and is one of five src/*_test.py files that nothing collects (pyproject.toml:65 testpaths excludes src). The hosted S3 priming-catalog adapter is documented as 'not built, fails closed'.\n\nFix: move or collect priming_proof_test.py (and the other four src/*_test.py files) so pytest runs them in CI; build the minimum catalog adapter needed to read accepted priming examples; then, on Ryan's Mac by Remote Control (the run needs the decision-model provider key, never a cloud agent), run freeze-priming-held-out --size 40 and prove-priming with --schedule 0,5,10,20,40 for the Threat Intelligence publication, and commit the report JSON where docs/priming-proof.md says visitors see it.\n\nDone when: the test runs green in CI and a published report shows agreement at N=0 and at the largest N.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T16:42:26.603939Z",
+  "updated_at": "2026-10-17T16:42:26.604202Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

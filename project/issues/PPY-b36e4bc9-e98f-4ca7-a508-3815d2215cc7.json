@@ -1,0 +1,22 @@
+{
+  "id": "PPY-b36e4bc9-e98f-4ca7-a508-3815d2215cc7",
+  "title": "Migrate the Markus site to Papyrus (dogfood first site)",
+  "description": "Markus site/ (index, gallery, gfm) is already pure Markus and builds with the standalone converter on GitHub Pages. Rebuild it through Papyrus build_markus_site + SiteChrome as in Apricity-web, keep the catppuccin theme and URLs, replace pages.yml. Easiest site, proves the pattern for repos that are not Papyrus pods.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T22:25:25.060815Z",
+  "updated_at": "2026-10-17T22:25:25.061050Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

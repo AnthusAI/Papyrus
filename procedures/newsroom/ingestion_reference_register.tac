@@ -9,7 +9,7 @@ Procedure {
         externalItemId = field.string{required = true, description = "Stable external identifier for the reference source"},
         sourceUri = field.string{required = true, description = "Canonical source URI"},
         title = field.string{default = "", description = "Optional source title"},
-        corpusKey = field.string{default = "AI-ML-research", description = "Papyrus steering corpus key"}
+        corpusKey = field.string{required = true, description = "Papyrus steering corpus key"}
     },
     output = {
         result = field.object{required = true}
@@ -26,7 +26,7 @@ Procedure {
                 external_item_id = input.externalItemId,
                 source_uri = input.sourceUri,
                 title = title,
-                corpus_key = input.corpusKey or "AI-ML-research",
+                corpus_key = input.corpusKey,
                 status = "accepted"
             }
         }

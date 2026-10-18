@@ -1,0 +1,39 @@
+{
+  "id": "PPY-92dc64da-7a70-4fc0-a575-6528aa3f982e",
+  "title": "Remove the developer home path shipped to the browser in the steering workspace",
+  "description": "components/topic-steering-workspace.tsx:13610 hard-codes cwd: \"/Users/ryan/Projects/Biblicus\" inside analysisCommand() in a \"use client\" file, so a developer's home path ships to every browser and the generated analysis plan is wrong on every other machine. Also fix the three /Users/ryan/Projects/Papyrus/... links in skills/newsroom-story-cycle/SKILL.md and skills/edition-planning/SKILL.md (make them repo-relative) and replace --corpus-key AI-ML-research in their smoke commands with a <corpus-key> placeholder.\n\nFix: move the executable and cwd into the analysis-profile config (corpora/papyrus-analysis-profiles.yml) or resolve them in the Lambda that runs the plan; the UI emits only args.\n\nDone when: grep -rn '/Users/' components lib app skills returns nothing.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b987d1de-42e9-4ec3-8cc4-f31132a78920",
+      "author": "unknown",
+      "text": "Branch fix/PPY-92dc64-home-path, PR https://github.com/AnthusAI/Papyrus/pull/226 (open against develop). CI green. grep -rn '/Users/' components lib app skills src returns nothing. UI emits only executable and args; assignment_executors defaults cwd to BIBLICUS_ROOT (BIBLICUS_WORKDIR).",
+      "created_at": "2026-10-17T17:27:39.442635Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-17T16:38:25.946691Z",
+  "updated_at": "2026-10-17T18:24:10.031521Z",
+  "closed_at": "2026-10-17T18:24:10.031332Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

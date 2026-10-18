@@ -37,9 +37,13 @@ export function authConfigFromEnv(): PapyrusAuthConfig {
   };
 }
 
+export function siteAuthRedirectUrls(config: PapyrusAuthConfig): string[] {
+  return config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS;
+}
+
 export function defineSiteAuth(config: PapyrusAuthConfig) {
   const authRedirectUrls = expandNewsroomRedirectUrls(
-    config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS,
+    siteAuthRedirectUrls(config),
     config.newsroomBasePath,
   );
   const disableGoogleOAuth = config.disableGoogleOAuth === true;

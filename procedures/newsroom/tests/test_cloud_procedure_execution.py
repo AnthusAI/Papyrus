@@ -357,7 +357,16 @@ class CoverageThemeCloudProcedureTests(unittest.TestCase):
             "now": "2026-05-23T10:00:00.000Z",
         }
         options.update(overrides)
-        return coverage_theme.coverage_theme_run(**options)
+        arts_section = {
+            "id": "arts",
+            "title": "Arts",
+            "type": "canonical",
+            "enabled": True,
+            "sortOrder": 1,
+            "editorialMission": "Creative workflows and player experience.",
+        }
+        with mock.patch.object(coverage_theme, "load_live_state", return_value={"newsroomSections": [arts_section]}):
+            return coverage_theme.coverage_theme_run(**options)
 
     def test_coverage_theme_uses_cloud_procedure_aliases_by_default(self) -> None:
         calls: list[dict] = []
@@ -396,6 +405,8 @@ class CoverageThemeCloudProcedureTests(unittest.TestCase):
                             "risk_flags": [],
                             "coverage_gaps": [],
                             "open_questions": [],
+                            "accepted_reference_ids": [],
+                            "proposed_references": [],
                             "copywriter_brief": "Use accepted references.",
                         }
                     },

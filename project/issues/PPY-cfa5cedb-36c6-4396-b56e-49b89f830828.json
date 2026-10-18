@@ -10,9 +10,19 @@
   "parent": "PPY-b736003f-cda9-46ff-8cf0-28edbbaf3f30",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "eb6d80e3-ac9a-474f-a0e1-6f6aef7b2eee",
+      "author": "unknown",
+      "text": "Backfill command merged to develop and main (PR #217, PR #222). Still to do: dry run and real run on each site after its schema deploy.",
+      "created_at": "2026-10-17T14:35:37.864647Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T13:31:14.425531Z",
-  "updated_at": "2026-10-17T13:31:22.590237Z",
+  "updated_at": "2026-10-17T14:35:37.864784Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

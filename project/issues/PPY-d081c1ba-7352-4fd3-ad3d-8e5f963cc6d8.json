@@ -1,0 +1,39 @@
+{
+  "id": "PPY-d081c1ba-7352-4fd3-ad3d-8e5f963cc6d8",
+  "title": "Operator CLI: no tracebacks on expected failures, consistent exit codes, shell wins over .env",
+  "description": "src/papyrus/cli.py:60-62 raises IndexError when --backend is the last token. src/papyrus/operator/runtime.py:79-82 suppresses tracebacks only for OperatorError and ValueError, so an expired SSO session (RuntimeError from src/papyrus_content/graphql_http.py:70, 'GraphQL request failed: 401') prints a full traceback, which AGENTS.md says must print recovery guidance instead. src/papyrus_newsroom/cli.py has no except at all, so run-story-cycle tracebacks on every failure. Exit codes are 1 (papyrus_content/cli.py:396), 2 (runtime.py:52) or 2-only-if-the-message-contains-'unknown backend' (papyrus/cli.py:349). src/papyrus_content/env.py:25-27 makes .env override an already-exported PAPYRUS_GRAPHQL_ENDPOINT. Three thin _graphql wrappers set three different timeouts (coverage_theme.py:6398 90s, reference_curation_signals.py:4294 60s, newsroom.py:4022 30s) while PAPYRUS_GRAPHQL_TIMEOUT_SECONDS already exists in env.py:71.\n\nFix: one OperatorError type with an explicit exit_code raised everywhere; treat RuntimeError from the GraphQL layer as operator-facing (print the status and 'run aws sso login for profile X'); shell-wins precedence for env; delete the three wrappers. Add behave scenarios to features/operator-cli.feature for expired credentials and the dangling --backend.\n\nDone when: no expected failure prints a Python traceback and every entry point exits 2 on operator error.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
+  "labels": [
+    "code-review-2026-10"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8eddf3d6-9481-4c9d-83ed-b45224800f01",
+      "author": "unknown",
+      "text": "Landed on develop via PR #235 (branch fix/PPY-d081c1-operator-cli-errors, merge c0e2900). One OperatorError/GraphQLRequestError pair handled by papyrus, content and newsroom CLIs: operator errors exit 2 with no traceback, 401/403 prints aws sso login guidance, dangling --backend is an operator error, shell env wins over .env, three _graphql wrappers replaced by execute_graphql (PAPYRUS_GRAPHQL_TIMEOUT_SECONDS is the only timeout). Verification: behave features/operator-cli.feature 29 scenarios pass (2 new), new unit tests test_operator_errors and test_graphql_http, CI green (ts, python, smoke, unit). Not yet on main.",
+      "created_at": "2026-10-17T20:11:26.835791Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-17T16:40:50.225570Z",
+  "updated_at": "2026-10-17T20:11:28.202297Z",
+  "closed_at": "2026-10-17T20:11:28.202091Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus full review thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

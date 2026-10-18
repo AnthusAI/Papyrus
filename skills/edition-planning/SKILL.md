@@ -18,8 +18,8 @@ publication slots.
 | Need | Start here |
 | --- | --- |
 | Planning run | This skill |
-| Run/review cycle | [`skills/newsroom-story-cycle/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/newsroom-story-cycle/SKILL.md) |
-| Data contract truth | [`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md) |
+| Run/review cycle | [`skills/newsroom-story-cycle/SKILL.md`](../newsroom-story-cycle/SKILL.md) |
+| Data contract truth | [`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md) |
 
 ## Read First
 
@@ -279,7 +279,7 @@ Legacy topic aliases such as `deskCategoryKey`, `focusCategoryKey`,
 but sections are the desk identity. Topics are knowledge scope.
 
 The current automated-publication desk workflow is documented in
-[`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md).
+[`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md).
 
 ## Semantic Links
 
@@ -348,9 +348,9 @@ Phase 3 message bodies list reporting assignment candidates per desk only (no
 process copy about slot math or overassignment in the forum post). The pipeline
 still uses `ceil(slots * 1.5)` overassignment when materializing assignments.
 Do not post phase 3 until phase 2 confirms
-the optional desk when `culture`/Arts-style provisional desks are in the plan.
+the optional desk when floating or rotating provisional desks are in the plan.
 
-Typical new edition (e.g. `--sections culture,methods`):
+Typical new edition (e.g. `--sections <section-id>,<section-id>`):
 
 ```bash
 poetry run papyrus assignments run-story-cycle ... --through plan

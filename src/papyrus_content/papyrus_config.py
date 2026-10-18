@@ -13,7 +13,6 @@ from .env import PAPYRUS_ROOT
 DEFAULT_PAPYRUS_CONFIG = ".papyrus/config.yaml"
 DEFAULT_OPENAI_TTS_MODEL = "gpt-4o-mini-tts"
 DEFAULT_OPENAI_TTS_VOICE = "alloy"
-DEFAULT_PUBLIC_SITE_BASE_URL = "https://p.apyr.us"
 DEFAULT_NEWSROOM_REFERENCE_WEB_PATH_PREFIX = "/newsroom/references"
 DEFAULT_STEERING_CONFIG_PATH = "corpora/papyrus-steering.yml"
 DEFAULT_LEXICAL_STEERING_PATH = "corpora/papyrus-lexical-steering.yml"
@@ -141,7 +140,7 @@ def resolve_public_site_base_url() -> str:
         configured = str((config.get("publicSite") or {}).get("baseUrl") or "").strip()
         if configured:
             return configured
-    return DEFAULT_PUBLIC_SITE_BASE_URL
+    raise ValueError("PAPYRUS_PUBLIC_SITE_BASE_URL or publicSite.baseUrl in the Papyrus config is required.")
 
 
 def resolve_reader_cache_revalidate_secret() -> str | None:

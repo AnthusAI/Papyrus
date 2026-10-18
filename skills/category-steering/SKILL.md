@@ -11,7 +11,7 @@ imports, or curation-cycle operations.
 
 Papyrus is the human steering and publication system. Biblicus is the corpus
 artifact producer. Papyrus may invoke Biblicus CLI commands, but do not edit
-`/Users/ryan/Projects/Biblicus` source from this repo. If Biblicus needs a new
+`$BIBLICUS_WORKDIR` source from this repo. If Biblicus needs a new
 contract or command, relay the request to the Biblicus agent.
 
 The AI/ML corpora are pilot data only. Papyrus must remain a generalized
@@ -39,7 +39,7 @@ from configuration and steering state, not application logic.
 - `amplify/data/resource.ts`: GraphQL data model and auth rules.
 - `AGENTS.md`: current Papyrus operating constraints.
 
-Read `/Users/ryan/Projects/Biblicus/docs/` only for Biblicus command contracts.
+Read `$BIBLICUS_WORKDIR/docs/` only for Biblicus command contracts.
 Do not modify Biblicus files.
 
 ## Auth Setup
@@ -299,7 +299,7 @@ poetry run papyrus knowledge topics draft-promote \
 Prefer the repeatable cycle command over hand-running every step:
 
 ```bash
-export BIBLICUS_WORKDIR="/Users/ryan/Projects/Biblicus"
+export BIBLICUS_WORKDIR="<path-to-biblicus-checkout>"
 poetry run papyrus ops categories run-curation-cycle --config corpora/papyrus-steering.yml
 ```
 
@@ -382,7 +382,7 @@ cycles.
 Typical Biblicus loop from the Biblicus checkout:
 
 ```bash
-cd /Users/ryan/Projects/Biblicus
+cd $BIBLICUS_WORKDIR
 
 uv run biblicus taxonomy record \
   --corpus corpora/AI-ML-research \
@@ -417,7 +417,7 @@ uv run --extra topic-modeling biblicus topic-classifier project \
 Import a projection with config-derived corpus ids:
 
 ```bash
-cd /Users/ryan/Projects/Papyrus
+cd <papyrus-checkout>
 poetry run papyrus ops categories import-projection \
   --config corpora/papyrus-steering.yml \
   --target-corpus-key AI-ML-history \

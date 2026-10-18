@@ -16,6 +16,7 @@ from .reference_attachments import build_extracted_text_attachment_plans
 from .records import apply_record_changes, build_record_changes, build_record_changes_targeted_by_id
 from .source_readiness import build_extraction_index
 from .steering import load_steering_config, require_corpus_config, require_steering_config
+from .model_defaults import DEFAULT_LLM_MODEL
 
 
 IDENTIFIER_TYPES = frozenset({"doi", "arxiv_id", "isbn13", "publisher_item"})
@@ -156,7 +157,7 @@ def build_reference_identifier_backfill_assignment_plan(
         "scope": {"versionState": "current", "curationStatus": "all"},
         "resolverMode": "deterministic-first",
         "useLlm": use_llm,
-        "llmModel": options.get("llm-model") or "gpt-5.4-mini",
+        "llmModel": options.get("llm-model") or DEFAULT_LLM_MODEL,
         "llmReasoningEffort": options.get("llm-reasoning-effort") or "low",
         "sidecarPersistenceMode": "enabled"
         if parse_boolean_option(options.get("persist-sidecars"), True, "--persist-sidecars")

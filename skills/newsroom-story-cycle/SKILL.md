@@ -19,9 +19,9 @@ private context for editors and copywriters.
 
 | Need | Start here |
 | --- | --- |
-| Planning run | [`skills/edition-planning/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/edition-planning/SKILL.md) |
+| Planning run | [`skills/edition-planning/SKILL.md`](../edition-planning/SKILL.md) |
 | Run/review cycle | This skill |
-| Data contract truth | [`docs/automated-publication-research-workflow.md`](/Users/ryan/Projects/Papyrus/docs/automated-publication-research-workflow.md) |
+| Data contract truth | [`docs/automated-publication-research-workflow.md`](../../docs/automated-publication-research-workflow.md) |
 
 ## Domain Model
 
@@ -49,7 +49,7 @@ Forum context defaults for assignment execution:
 - include edition forum threads first when `assignment.editionId` is present;
 - include only same-section forum threads for `(edition, section)` lineage when
   those threads exist (planning no longer creates section-forum kickoffs by
-  default—see [`skills/edition-planning/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/edition-planning/SKILL.md));
+  default—see [`skills/edition-planning/SKILL.md`](../edition-planning/SKILL.md));
 - never leak other sections' threads into the assignment context.
 
 ## Edition forum planning messages
@@ -78,10 +78,10 @@ one shared topic worked through multiple section lenses. The Python
 poetry run papyrus assignments run-story-cycle \
   --date 2026-05-21 \
   --topic "AI in video games" \
-  --category AI-ML-research \
+  --category <corpus-key> \
   --coverage-key coverage.ai-in-video-games \
-  --sections culture,methods,business,law \
-  --section-budgets culture:2,methods:1,business:1,law:1 \
+  --sections <section-id>,<section-id> \
+  --section-budgets <section-id>:2,<section-id>:1 \
   --research-mode source_discovery \
   --max-parallel-research 2 \
   --max-parallel-reporting 3 \
@@ -94,9 +94,9 @@ not already chosen:
 
 ```bash
 poetry run papyrus knowledge signals trend-report \
-  --corpus-key AI-ML-research \
+  --corpus-key <corpus-key> \
   --topic "AI in video games" \
-  --sections culture,methods,business,law \
+  --sections <section-id>,<section-id> \
   --json
 ```
 
@@ -118,6 +118,15 @@ environment. Apply mode may persist `Assignment`, `AssignmentEvent`, `Message`,
 Applied reruns reuse existing packet Messages by default so a Coverage Theme can
 resume downstream phases without re-running successful upstream agents. Pass
 `--refresh-packets` only when the intent is to regenerate those packet payloads.
+Reuse is decided per assignment by checking for the deterministic packet
+Message, so an applied rerun with every packet present makes zero agent calls.
+
+`--max-parallel-research` and `--max-parallel-reporting` bound how many agent
+runs execute at once in each phase (capped at 12); output order stays stable.
+Packets missing a required key, or carrying an `editor_recommendation` outside
+`select`, `merge`, `brief`, `hold`, `kill`, fail the run instead of being
+filled with defaults. Apply reports per-record `failures` and exits not-ok; a
+rerun resumes from what already persisted.
 
 In live apply smoke tests, pass `--require-agent-success` so degraded agent
 output fails instead of being masked by deterministic fallback packets. Pass
@@ -152,24 +161,14 @@ copywriting, or draft, with reporting candidates grouped by edition and section.
 
 ## Section Lenses
 
-The `culture` CLI alias maps to the configured `arts` desk, which is a
-**floating** optional desk in `corpora/papyrus-newsroom-sections.yml`. Use it for
-story-cycle smoke tests, but treat it as step-2 optional-desk material in
-edition forum kickoff messages—not as the edition theme decision in phase 1.
-
-The canonical smoke uses:
-
-- `culture`: creative workflows, game design, player experience, generative
-  media (alias for optional `arts` desk).
-- `methods`: implementation patterns, NPC behavior, procedural generation,
-  evaluation.
-- `business`: studios, tooling markets, labor, production economics.
-- `law`: copyright, likeness, licensing, liability, platform policy.
-
-If runtime section ids differ, use the configured `NewsroomSection` ids. The
-story-cycle code currently maps common operator aliases such as `culture` to the
-configured `arts` section and `law` to `law-policy` when those are the deployed
-section ids.
+Story-cycle commands take `--sections` as a comma-separated list of
+`NewsroomSection` ids; with no `--sections` they use every enabled section in
+`sortOrder`. An unknown id fails with the list of enabled ids. Each desk's
+research lens comes from its `NewsroomSection` row (`assignmentGuidance`, then
+`editorialMission`, then `title`), and its default slot count comes from
+`defaultPageBudget` unless `--section-budgets` overrides it. Floating and
+rotating desks are optional-desk material in edition forum kickoff messages,
+not the edition theme decision in phase 1.
 
 ## Reporting Assignment Shape
 

@@ -37,11 +37,12 @@ and keeps its `lineageId` through publication. Every stage below is a value of
 one lifecycle field on that lineage, not a new record type:
 
 ```
-idea → assignment → research → report → editor_select → copywriting → published
+idea → assignment → research → report → editor_select → copywriting → illustration → typesetting → published
 ```
 
-This is the stage vocabulary the pod story workflow already uses, so the local
-and cloud backends describe the same thing.
+Illustration and typesetting follow copywriting so the board shows the whole
+production line up to publication. Nothing moves an item into them yet; editors
+place items there by hand until those agents exist.
 
 - **Lifecycle stage is separate from version state.** `Item.versionState`
   (`draft`, `current`, `superseded`) and `PublishedItem` keep their meaning:
