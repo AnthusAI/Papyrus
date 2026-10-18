@@ -9,6 +9,16 @@ Work on the assigned topic and publication. Inspect repository instructions and 
 
 A story is an Item lineage. All drafts, Reference links and Messages hang off that lineage. Never overwrite historical article text: every article change is a new version. The supported save operation marks the previous version superseded without replacing its text. Attribute agent work accurately (use `ChatGPT` for this agent); do not invent human authorship.
 
+## Current editorial context
+
+Before research, fetch current guidance from the selected publication:
+
+```bash
+papyrus editorial context --backend cloud --publication PUBLICATION_KEY --story STORY_LINEAGE --format json
+```
+
+Apply its `text` and precedence, surface conflicts/warnings, and record `contextHash` plus source revisions in a story Message. Stop on unavailable required policy, scope mismatch or authorization errors. For explicitly offline work use `--backend local --publication PUBLICATION_KEY [--section SECTION_ID]`; this is Git configuration, not proof of current hosted edits. Never silently replace hosted policy with local seeds. Keep evolving policy out of this static skill and private doctrine out of reader copy.
+
 ## Preflight and source registration
 
 Use the installed `papyrus` CLI or the project's existing Python environment (`poetry run papyrus` where configured). Inspect current help/source before execution; mutations currently write by default, with `--dry-run` for preview and no `--apply`. Do not repair deployment/schema/authentication problems or bypass the supported CLI to make a write succeed. If unavailable or blocked, provide each unexecuted command and the complete contents of every input file, clearly identifying what actually ran.

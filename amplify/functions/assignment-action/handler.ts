@@ -1,3 +1,4 @@
+import { resolveAssignmentDoctrine } from "../shared/editorial-context";
 import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -32,10 +33,6 @@ const IMMEDIATE_ASSIGNMENT_TYPES = new Set(["procedure.run"]);
 const NEWSROOM_SUMMARY_PAYLOAD_ID = "knowledge-raw-payload-newsroom-summary-current";
 const NEWSROOM_SUMMARY_PAYLOAD_OWNER_KIND = "knowledgeRawPayload";
 const SUMMARY_STALE_AFTER_MS = 15 * 60 * 1000;
-const PUBLICATION_DOCTRINE_DEFINITIONS = [
-  { scope: "publication", kind: "mission", label: "Editorial Mission", slug: "editorial-doctrine-mission" },
-  { scope: "publication", kind: "policy", label: "Editorial Policy", slug: "editorial-doctrine-policy" },
-] as const;
 let clientPromise: Promise<DataClient> | null = null;
 
 export const handler = async (event: any): Promise<any> => {
@@ -329,8 +326,7 @@ async function buildAssignmentContext(client: DataClient, assignment: any) {
       label: targetLabelFromRelation(relation),
       detail: relation.predicate,
     }));
-  const rootDeskCategory = await resolveRootDeskCategory(client, assignment, relations);
-  const doctrine = await buildAssignmentDoctrineContext(client, rootDeskCategory);
+  const doctrine = await resolveAssignmentDoctrine(client as unknown as Parameters<typeof resolveAssignmentDoctrine>[0], assignment);
   return {
     assignment,
     doctrine,
@@ -339,162 +335,6 @@ async function buildAssignmentContext(client: DataClient, assignment: any) {
   };
 }
 
-async function buildAssignmentDoctrineContext(client: DataClient, rootDeskCategory: any | null): Promise<any[]> {
-  const definitions = [
-    ...PUBLICATION_DOCTRINE_DEFINITIONS,
-    ...(rootDeskCategory ? [
-      {
-        scope: "desk",
-        kind: "mission",
-        label: "Desk Mission",
-        slug: deskDoctrineSlug(rootDeskCategory.categoryKey, "mission"),
-        categoryKey: rootDeskCategory.categoryKey,
-        categoryLineageId: rootDeskCategory.lineageId ?? rootDeskCategory.id,
-      },
-      {
-        scope: "desk",
-        kind: "policy",
-        label: "Desk Policies",
-        slug: deskDoctrineSlug(rootDeskCategory.categoryKey, "policy"),
-        categoryKey: rootDeskCategory.categoryKey,
-        categoryLineageId: rootDeskCategory.lineageId ?? rootDeskCategory.id,
-      },
-    ] : []),
-  ];
-
-  const context = [];
-  for (const definition of definitions) {
-    const record = await getDoctrineRecordBySlug(client, definition.slug);
-    if (!record) continue;
-    context.push({
-      scope: definition.scope,
-      kind: definition.kind,
-      label: definition.label,
-      slug: definition.slug,
-      body: compactStringArray(record.body),
-      categoryKey: "categoryKey" in definition ? definition.categoryKey : null,
-      categoryLineageId: "categoryLineageId" in definition ? definition.categoryLineageId : null,
-    });
-  }
-  return context;
-}
-
-async function resolveRootDeskCategory(client: DataClient, assignment: any, relations: any[]): Promise<any | null> {
-  const categoryLineageId = assignmentCategoryLineageIdFromRelations(relations);
-  if (categoryLineageId) {
-    const category = await getCurrentCategoryByLineage(client, categoryLineageId);
-    return category ? resolveRootCategory(client, category) : null;
-  }
-
-  const categoryKey = normalizeOptionalString(assignment.primaryFocusCategoryKey);
-  if (categoryKey && assignment.categorySetId) {
-    const category = await getCurrentCategoryBySetAndKey(client, assignment.categorySetId, categoryKey);
-    return category ? resolveRootCategory(client, category) : null;
-  }
-
-  return null;
-}
-
-function assignmentCategoryLineageIdFromRelations(relations: any[]): string | null {
-  const direct = relations.find((relation) => (
-    relation.relationState === "current"
-    && relation.objectKind === "category"
-    && relation.predicate === "requests_work_on"
-  )) ?? relations.find((relation) => (
-    relation.relationState === "current"
-    && relation.objectKind === "category"
-  ));
-  return normalizeOptionalString(direct?.objectLineageId);
-}
-
-async function resolveRootCategory(client: DataClient, category: any): Promise<any | null> {
-  let current = category;
-  for (let depth = 0; depth < 10; depth += 1) {
-    const parentCategoryKey = normalizeOptionalString(current?.parentCategoryKey);
-    if (!parentCategoryKey) return current;
-    const parent = await getCurrentCategoryBySetAndKey(client, current.categorySetId, parentCategoryKey);
-    if (!parent) return current;
-    current = parent;
-  }
-  return current;
-}
-
-async function getCurrentCategoryByLineage(client: DataClient, lineageId: string): Promise<any | null> {
-  const model = client.models.Category as any;
-  const query = model.listCategoriesByLineageAndVersion;
-  if (typeof query !== "function") return null;
-  const categories: any[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const response: DataClientResult<any[]> = await query({ lineageId }, { limit: 100, nextToken });
-    assertNoDataErrors(response.errors, "list Category lineage");
-    categories.push(...(response.data ?? []));
-    nextToken = response.nextToken;
-  } while (nextToken);
-  return selectCurrentVersion(categories);
-}
-
-async function getCurrentCategoryBySetAndKey(client: DataClient, categorySetId: string, categoryKey: string): Promise<any | null> {
-  const model = client.models.Category as any;
-  const query = model.listCategoriesBySetAndKey;
-  if (typeof query !== "function") return null;
-  const categories: any[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const response: DataClientResult<any[]> = await query({ categorySetId, categoryKey }, { limit: 100, nextToken });
-    assertNoDataErrors(response.errors, "list Category set/key");
-    categories.push(...(response.data ?? []));
-    nextToken = response.nextToken;
-  } while (nextToken);
-  return selectCurrentVersion(categories);
-}
-
-async function getDoctrineRecordBySlug(client: DataClient, slug: string): Promise<any | null> {
-  const model = client.models.Item as any;
-  const query = model.itemBySlug;
-  if (typeof query !== "function") return null;
-  const records: any[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const response: DataClientResult<any[]> = await query({ slug }, { limit: 100, nextToken });
-    assertNoDataErrors(response.errors, "query Item by slug");
-    records.push(...(response.data ?? []));
-    nextToken = response.nextToken;
-  } while (nextToken);
-  return records.find((record) => record.type === "doctrine" && record.status === "private")
-    ?? records.find((record) => record.type === "doctrine")
-    ?? null;
-}
-
-function selectCurrentVersion(records: any[]): any | null {
-  return [...records]
-    .filter((record) => record && record.status !== "deprecated")
-    .sort((left, right) => {
-      const stateDiff = versionStateRank(left.versionState) - versionStateRank(right.versionState);
-      if (stateDiff !== 0) return stateDiff;
-      return Number(right.versionNumber ?? 0) - Number(left.versionNumber ?? 0);
-    })[0] ?? null;
-}
-
-function versionStateRank(versionState: unknown): number {
-  if (versionState === "current") return 0;
-  if (versionState === "draft") return 1;
-  if (versionState === "superseded") return 8;
-  return 5;
-}
-
-function deskDoctrineSlug(categoryKey: string, kind: "mission" | "policy"): string {
-  return `desk-doctrine-${safeDoctrineKey(categoryKey)}-${kind}`;
-}
-
-function safeDoctrineKey(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    || "topic";
-}
 
 function compactStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
