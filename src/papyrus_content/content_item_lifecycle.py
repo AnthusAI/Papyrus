@@ -119,6 +119,40 @@ def stage_for_existing_item_without_stage(item: dict[str, Any]) -> str:
     return "published" if item.get("status") == "published" else "copywriting"
 
 
+UNDRAFTED_BACKFILL_STAGES = ("report", "editor_select")
+
+
+def plan_undrafted_backfill_story_demotion(
+    *,
+    items: list[dict[str, Any]],
+    reporting_assignments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Plan moving backfill-made placeholders from the story stages back to the assignment stage.
+
+    An earlier backfill gave every undrafted reporting assignment its own content item at the report or
+    editor_select stage. Such a placeholder is the first version of its lineage, still has an empty body, and carries
+    the title of a reporting assignment that works on that lineage. Anything else is a real story and is left alone.
+    """
+    reporting_titles_by_lineage: dict[str, set[str]] = {}
+    for assignment in reporting_assignments:
+        lineage_id = assignment.get("itemLineageId")
+        if lineage_id and assignment.get("title"):
+            reporting_titles_by_lineage.setdefault(lineage_id, set()).add(assignment["title"])
+    changes: list[dict[str, Any]] = []
+    for item in items:
+        lineage_id = item.get("lineageId") or item.get("id")
+        is_unedited_placeholder = (
+            item.get("stage") in UNDRAFTED_BACKFILL_STAGES
+            and item.get("versionNumber") == 1
+            and item.get("changeReason") == "content-item-created"
+            and not item.get("body")
+            and item.get("title") in reporting_titles_by_lineage.get(lineage_id, set())
+        )
+        if is_unedited_placeholder:
+            changes.append({"modelName": "Item", "current": item, "expected": {**item, "stage": "assignment"}})
+    return changes
+
+
 def plan_content_item_backfill(
     *,
     items: list[dict[str, Any]],
@@ -131,7 +165,7 @@ def plan_content_item_backfill(
 
     copywriting_work rows are {"assignment", "sourceReportingAssignmentId", "producedItemLineageIds"}.
     A reporting candidate whose copy was already drafted adopts that draft's lineage; any other reporting candidate
-    gets a new content item at the report or editor_select stage. Copywriting work follows its draft, or else its
+    gets a content item at the assignment stage, because no story exists yet. Copywriting work follows its draft, or else its
     reporting candidate.
     """
     changes: list[dict[str, Any]] = []
@@ -174,7 +208,7 @@ def plan_content_item_backfill(
                         title=assignment.get("title") or assignment["id"],
                         summary=assignment.get("summary"),
                         section_key=assignment.get("sectionKey") or assignment.get("sectionId"),
-                        stage="editor_select" if assignment.get("status") == "completed" else "report",
+                        stage="assignment",
                         actor_label=actor_label,
                         now=now,
                     ),

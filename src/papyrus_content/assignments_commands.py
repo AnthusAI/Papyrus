@@ -7,6 +7,7 @@ from .assignments_workflow import (
     apply_research_packet,
     backfill_content_items,
     backfill_section_indexes,
+    demote_undrafted_content_items,
     build_assignment_context,
     copywriting_output,
     create_reporting_assignment,
@@ -170,6 +171,12 @@ def assignments_backfill_content_items(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
     backfill_content_items(client, options)
+
+
+def assignments_demote_undrafted_content_items(flags: list[str]) -> None:
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    demote_undrafted_content_items(client, options)
 
 
 def assignments_for_object(flags: list[str]) -> None:
