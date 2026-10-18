@@ -167,7 +167,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1045.0",
     "@base-ui/react": "^1.5.0",
     "@chenglou/pretext": "^0.0.7",
-    "@kanbus/ui": "https://github.com/AnthusAI/Kanbus/releases/download/ui-v0.2.0/kanbus-ui-0.2.0.tgz",
+    "@kanbus/ui": "https://github.com/AnthusAI/Kanbus/releases/download/ui-v0.3.0/kanbus-ui-0.3.0.tgz",
     "@radix-ui/colors": "3.0.0",
     "@smithy/protocol-http": "5.4.1",
     "@smithy/signature-v4": "5.7.4",
