@@ -994,6 +994,7 @@ const baseDefinitions = {
 
   NewsroomSection: modelWithoutSubscriptions({
       id: a.id().required(),
+      tenantId: a.string(),
       title: a.string().required(),
       type: a.string().required(),
       editorialMission: a.string().required(),
@@ -1012,6 +1013,7 @@ const baseDefinitions = {
     })
     .secondaryIndexes((index) => [
       index("sortOrder").sortKeys(["id"]).queryField("listNewsroomSectionsBySortOrder"),
+      index("tenantId").sortKeys(["sortOrder"]).queryField("listNewsroomSectionsByTenantAndSortOrder"),
       index("type").sortKeys(["sortOrder"]).queryField("listNewsroomSectionsByTypeAndSortOrder"),
       index("enabledStatus").sortKeys(["sortOrder"]).queryField("listNewsroomSectionsByEnabledStatusAndSortOrder"),
     ])
@@ -1598,6 +1600,7 @@ const baseDefinitions = {
   Item: modelWithoutSubscriptions({
       id: a.id().required(),
       lineageId: a.id().required(),
+      tenantId: a.string(),
       versionNumber: a.integer().required(),
       previousVersionId: a.id(),
       versionState: a.string().required(),
@@ -1610,6 +1613,7 @@ const baseDefinitions = {
       status: a.string().required(),
       typeStatus: a.string().required(),
       slug: a.string().required(),
+      tenantSlug: a.string(),
       shortSlug: a.string(),
       section: a.string(),
       sectionStatus: a.string(),
@@ -1637,6 +1641,7 @@ const baseDefinitions = {
     .secondaryIndexes((index) => [
       index("lineageId").sortKeys(["versionNumber"]).queryField("listItemsByLineageAndVersion"),
       index("slug").queryField("itemBySlug"),
+      index("tenantSlug").queryField("itemByTenantSlug"),
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
@@ -1684,6 +1689,7 @@ const baseDefinitions = {
   MediaAsset: modelWithoutSubscriptions({
       id: a.id().required(),
       itemId: a.id().required(),
+      tenantId: a.string(),
       type: a.string().required(),
       role: a.string().required(),
       sortKey: a.string().required(),
@@ -1770,11 +1776,13 @@ const baseDefinitions = {
       id: a.id().required(),
       sourceItemId: a.id().required(),
       itemLineageId: a.id().required(),
+      tenantId: a.string(),
       versionNumber: a.integer().required(),
       type: a.string().required(),
       status: a.string().required(),
       typeStatus: a.string().required(),
       slug: a.string().required(),
+      tenantSlug: a.string(),
       shortSlug: a.string(),
       section: a.string(),
       sectionStatus: a.string(),
@@ -1797,6 +1805,7 @@ const baseDefinitions = {
     })
     .secondaryIndexes((index) => [
       index("slug").queryField("publishedItemBySlug"),
+      index("tenantSlug").queryField("publishedItemByTenantSlug"),
       index("typeStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsByTypeStatusAndPublishedAt"),
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listPublishedItemsBySectionStatusAndPublishedAt"),
       index("itemLineageId").sortKeys(["versionNumber"]).queryField("listPublishedItemsByLineageAndVersion"),
@@ -1809,6 +1818,7 @@ const baseDefinitions = {
   PublishedMediaAsset: modelWithoutSubscriptions({
       id: a.id().required(),
       sourceMediaAssetId: a.id().required(),
+      tenantId: a.string(),
       publishedItemId: a.id().required(),
       sourceItemId: a.id().required(),
       itemLineageId: a.id().required(),

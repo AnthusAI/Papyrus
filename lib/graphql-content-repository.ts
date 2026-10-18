@@ -20,7 +20,9 @@ import { BodyIrError, matchBodyImages, projectBodyIr, type BodyProjection, type 
 import { SITE_BRAND } from "./site-brand";
 import { shouldFetchVideoScripts } from "./video-mode";
 import { collectVideoScriptTargets, parseVideoScriptRef, videomlItemSlug, type VideoScriptRef } from "./video-script";
-import { currentContentSource, currentRequestClient, runWithContentSource } from "./content-source-context";
+import { selectedTenantIdFromCookies } from "./prospectus-tenant";
+import { currentContentSource, currentRequestClient, currentTenantId, runWithContentSource } from "./content-source-context";
+import { rowBelongsToTenant, tenantScopedValue } from "./tenant-keys";
 import { withRateLimitRetry } from "./rate-limit-retry";
 import { getContentSource } from "./site-env";
 
@@ -70,6 +72,7 @@ type GraphQLEditionItem = {
 
 type GraphQLItem = {
   id: string;
+  tenantId?: string | null;
   versionNumber?: number | null;
   type: string;
   status: string;
@@ -152,9 +155,10 @@ async function withReaderGraphQLContext<T>(operation: () => Promise<T>): Promise
     // Drafts are read as the signed-in visitor: the client reads the session from the request cookies, and it is
     // kept in the request's async context (never a module global) so one visitor's session cannot serve another.
     const { cookies } = await import("next/headers");
-    await cookies();
+    const cookieStore = await cookies();
     const client = generateServerClientUsingCookies<Schema>({ config, cookies, authMode: "userPool" });
-    return runWithContentSource(source, operation, client);
+    const selectedTenantId = await selectedTenantIdFromCookies(cookieStore);
+    return runWithContentSource(source, operation, client, selectedTenantId);
   }
   return withRateLimitRetry(() =>
     runWithGuestAmplifyContext(() =>
@@ -587,6 +591,10 @@ type ItemSourceModel = {
   listPublishedItemsByTypeStatusAndPublishedAt: (input: { typeStatus: string }, options: ListOptions) => ListResponse<GraphQLItem>;
 };
 
+type TenantSlugSourceModel = {
+  publishedItemByTenantSlug: (input: { tenantSlug: string }, options: ListOptions) => ListResponse<GraphQLItem>;
+};
+
 type MediaAssetSourceModel = {
   listPublishedMediaAssetsByItemAndSortKey: (
     input: { publishedItemId: string },
@@ -671,20 +679,33 @@ function getPublishedEditionItemModel(): EditionItemSourceModel {
   return model as unknown as EditionItemSourceModel;
 }
 
+async function getItemWithinTenant(
+  tenantId: string | undefined,
+  lookup: Promise<GraphQLGetResponse<GraphQLItem>>,
+): Promise<GraphQLGetResponse<GraphQLItem>> {
+  const response = await lookup;
+  return rowBelongsToTenant(tenantId, response.data) ? response : { ...response, data: null };
+}
+
 function getPublishedItemModel(): ItemSourceModel {
+  const tenantId = currentTenantId();
   if (currentContentSource() === "drafts") {
     const model = getClient().models.Item;
     if (!model) throw missingProjectionModelError("Item");
     return {
-      get: (input, options) => model.get(input, options) as Promise<GraphQLGetResponse<GraphQLItem>>,
-      publishedItemBySlug: (input, options) => model.itemBySlug(input, options) as ListResponse<GraphQLItem>,
+      get: (input, options) =>
+        getItemWithinTenant(tenantId, model.get(input, options) as Promise<GraphQLGetResponse<GraphQLItem>>),
+      publishedItemBySlug: ({ slug }, options) =>
+        (tenantId
+          ? model.itemByTenantSlug({ tenantSlug: tenantScopedValue(tenantId, slug) }, options)
+          : model.itemBySlug({ slug }, options)) as ListResponse<GraphQLItem>,
       listPublishedItemsByTypeStatusAndPublishedAt: ({ typeStatus }, options) => {
         const itemType = typeStatus.split("#")[0];
         return listMergedAcrossStatuses<GraphQLItem>(
           [DRAFT_STATUS, PUBLISHED_STATUS],
           (status, pageOptions) =>
             model.listItemsByTypeStatusAndPublishedAt(
-              { typeStatus: `${itemType}#${status}` },
+              { typeStatus: tenantScopedValue(tenantId, `${itemType}#${status}`) },
               pageOptions,
             ) as ListResponse<GraphQLItem>,
           (item) => item.publishedAt ?? "",
@@ -695,7 +716,21 @@ function getPublishedItemModel(): ItemSourceModel {
   }
   const model = getClient().models.PublishedItem;
   if (!model) throw missingProjectionModelError("PublishedItem");
-  return model as unknown as ItemSourceModel;
+  const publishedModel = model as unknown as ItemSourceModel;
+  if (!tenantId) return publishedModel;
+  return {
+    get: (input, options) => getItemWithinTenant(tenantId, publishedModel.get(input, options)),
+    publishedItemBySlug: ({ slug }, options) =>
+      (model as unknown as TenantSlugSourceModel).publishedItemByTenantSlug(
+        { tenantSlug: tenantScopedValue(tenantId, slug) },
+        options,
+      ),
+    listPublishedItemsByTypeStatusAndPublishedAt: ({ typeStatus }, options) =>
+      publishedModel.listPublishedItemsByTypeStatusAndPublishedAt(
+        { typeStatus: tenantScopedValue(tenantId, typeStatus) },
+        options,
+      ),
+  };
 }
 
 function getPublishedMediaAssetModel(): MediaAssetSourceModel {
