@@ -20,8 +20,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .build import BuildResult, build_markus_site
+from .docs_markdown import convert_markdown_dialects
 from .shell import SiteChrome
 
+DIRECTORY_LINK_PATTERN = re.compile(r"\]\(((?!https?:|mailto:|#|/)[^)\s#]*/)(#[^)\s]*)?\)")
+IMAGE_REFERENCE_PATTERN = re.compile(r"(!\[[^\]]*\]\()([^)\s]+)((?:\s+\"[^\"]*\")?\))")
+DIRECTORY_INDEX_NAMES = ("README.md", "readme.md", "index.md", "INDEX.md")
+LIGHT_THEME_FOR_DARK_THEME = {"catppuccin": "catppuccin-latte"}
 RELATIVE_LINK_PATTERN = re.compile(r"\]\((?!https?:|mailto:|#|/)([^)\s#]+)(#[^)\s]*)?\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"\]\(([^)\s#]+\.(?:md|html))(#[^)\s]*)?\)")
 IMAGE_DIRECTORY_NAME = "images"
@@ -90,7 +95,50 @@ def rewrite_links_between_pages(
         relative_target = posixpath.relpath(published_target, published_directory or ".")
         return f"]({relative_target}{match.group(2) or ''})"
 
-    return MARKDOWN_LINK_PATTERN.sub(rewrite, page_text)
+    def rewrite_directory(match: re.Match[str]) -> str:
+        directory_path = posixpath.normpath(posixpath.join(source_directory, match.group(1)))
+        for index_name in DIRECTORY_INDEX_NAMES:
+            candidate = posixpath.join(directory_path, index_name)
+            if candidate in known_pages:
+                published_target = published_page_path(candidate).removesuffix(".md") + ".html"
+                relative_target = posixpath.relpath(published_target, published_directory or ".")
+                return f"]({relative_target}{match.group(2) or ''})"
+        return match.group(0)
+
+    page_text = MARKDOWN_LINK_PATTERN.sub(rewrite, page_text)
+    return DIRECTORY_LINK_PATTERN.sub(rewrite_directory, page_text)
+
+
+def asset_path_for_documentation_file(documentation_relative_path: str) -> str:
+    """Where a documentation file lands under the published ``assets/`` directory (the ``images/`` folder is flattened)."""
+    prefix = f"{IMAGE_DIRECTORY_NAME}/"
+    return documentation_relative_path.removeprefix(prefix)
+
+
+def rewrite_image_references(
+    page_text: str, documentation_relative_path: str, documentation_directory: Path
+) -> tuple[str, set[str]]:
+    """Point Markdown images at the published ``assets/`` copy of the file they name, wherever the page sits.
+
+    Returns the rewritten text and the documentation-relative paths of the image files it now needs copied.
+    """
+    source_directory = posixpath.dirname(documentation_relative_path)
+    published_directory = posixpath.dirname(published_page_path(documentation_relative_path))
+    needed_files: set[str] = set()
+
+    def rewrite(match: re.Match[str]) -> str:
+        target = match.group(2)
+        if re.match(r"(?:[a-z][a-z0-9+.-]*:|//|/|#)", target, re.IGNORECASE):
+            return match.group(0)
+        resolved = posixpath.normpath(posixpath.join(source_directory, target))
+        if resolved.startswith("..") or not (documentation_directory / resolved).is_file():
+            return match.group(0)
+        needed_files.add(resolved)
+        published = posixpath.join(PUBLISHED_ASSET_DIRECTORY_NAME, asset_path_for_documentation_file(resolved))
+        relative = posixpath.relpath(published, published_directory or ".")
+        return f"{match.group(1)}{relative}{match.group(3)}"
+
+    return IMAGE_REFERENCE_PATTERN.sub(rewrite, page_text), needed_files
 
 
 def rewrite_repository_links(page_text: str, documentation_relative_path: str, config: DocsSiteConfig) -> str:
@@ -123,14 +171,15 @@ def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
     known_pages = {
         page.relative_to(config.documentation_directory).as_posix() for page in source_pages
     }
+    needed_image_files: set[str] = set()
     for source_page in source_pages:
         relative_path = source_page.relative_to(config.documentation_directory).as_posix()
-        page_text = rewrite_links_between_pages(
-            source_page.read_text(encoding="utf-8"), relative_path, known_pages
+        page_text = convert_markdown_dialects(source_page.read_text(encoding="utf-8"))
+        page_text = rewrite_links_between_pages(page_text, relative_path, known_pages)
+        page_text, needed_files = rewrite_image_references(
+            page_text, relative_path, config.documentation_directory
         )
-        page_text = page_text.replace(
-            f"]({IMAGE_DIRECTORY_NAME}/", f"](../{PUBLISHED_ASSET_DIRECTORY_NAME}/"
-        )
+        needed_image_files |= needed_files
         page_text = rewrite_repository_links(page_text, relative_path, config)
         (staging_directory / published_page_path(relative_path)).write_text(
             page_text, encoding="utf-8"
@@ -138,6 +187,10 @@ def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
     image_directory = config.documentation_directory / IMAGE_DIRECTORY_NAME
     if image_directory.is_dir():
         shutil.copytree(image_directory, staging_directory / PUBLISHED_ASSET_DIRECTORY_NAME)
+    for needed_file in sorted(needed_image_files):
+        published_file = staging_directory / PUBLISHED_ASSET_DIRECTORY_NAME / asset_path_for_documentation_file(needed_file)
+        published_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(config.documentation_directory / needed_file, published_file)
     return len(source_pages)
 
 
@@ -177,6 +230,45 @@ def render_navigation_groups(navigation_groups, page_context) -> str:
     return "".join(groups)
 
 
+MERMAID_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs"
+
+COLLAPSE_MENU_ON_NARROW_SCREENS_SCRIPT = (
+    "<script>(function(){var menu=document.querySelector('.site-menu');if(!menu)return;"
+    "var wide=window.matchMedia('(min-width: 1100px)');"
+    "function sync(){if(wide.matches){menu.setAttribute('open','')}else if(!menu.dataset.touched){menu.removeAttribute('open')}}"
+    "menu.addEventListener('toggle',function(){if(!wide.matches)menu.dataset.touched='1'});"
+    "sync();wide.addEventListener('change',sync)})()</script>"
+)
+
+RENDER_MERMAID_DIAGRAMS_SCRIPT = (
+    '<script type="module">'
+    "const blocks=[...document.querySelectorAll('pre > code.language-mermaid')];"
+    "if(blocks.length){try{"
+    f"const {{default:mermaid}}=await import('{MERMAID_SCRIPT_URL}');"
+    "const dark=!window.matchMedia('(prefers-color-scheme: light)').matches;"
+    "mermaid.initialize({startOnLoad:false,theme:dark?'dark':'neutral'});"
+    "const targets=blocks.map(function(code){const holder=document.createElement('pre');holder.className='mermaid';"
+    "holder.textContent=code.textContent;code.parentElement.replaceWith(holder);return holder});"
+    "await mermaid.run({nodes:targets})}catch(error){console.warn('Mermaid diagrams left as source',error)}}"
+    "</script>"
+)
+
+
+def theme_selection_script(config: DocsSiteConfig) -> str:
+    """Pick the dark theme or its light sibling from the reader's colour scheme, and follow changes."""
+    light_theme = LIGHT_THEME_FOR_DARK_THEME.get(config.theme)
+    if light_theme is None:
+        return f"<script>document.documentElement.setAttribute('data-theme','{config.theme}')</script>"
+    return (
+        "<script>(function(){var light=window.matchMedia('(prefers-color-scheme: light)');"
+        "function apply(){var theme=light.matches?"
+        f"'{light_theme}':'{config.theme}';"
+        "document.documentElement.setAttribute('data-theme',theme);"
+        "document.querySelectorAll('[data-theme]').forEach(function(element){element.setAttribute('data-theme',theme)})}"
+        "apply();document.addEventListener('DOMContentLoaded',apply);light.addEventListener('change',apply)})()</script>"
+    )
+
+
 def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
     def render_site_banner(page_context) -> str:
         navigation_groups = config.navigation or automatic_navigation(config)
@@ -207,13 +299,13 @@ def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
 
     return SiteChrome(
         site_name=config.site_name,
-        head_html=(
-            f"<script>document.documentElement.setAttribute('data-theme','{config.theme}')</script>"
-        ),
+        head_html=theme_selection_script(config),
         render_masthead=render_site_banner,
         footer_html=(
             '<p>Built with <a href="https://github.com/AnthusAI/Papyrus">Papyrus</a>. '
             f'Source on <a href="{config.source_repository_url}">GitHub</a>.</p>'
+            + COLLAPSE_MENU_ON_NARROW_SCREENS_SCRIPT
+            + RENDER_MERMAID_DIAGRAMS_SCRIPT
         ),
     )
 

@@ -18,3 +18,23 @@ main, .markus-main { max-width: 52rem; margin-left: auto; margin-right: auto; }
   .site-sidebar { grid-template-columns: 1fr; }
   .site-menu summary { display: none; }
 }
+
+[data-theme="catppuccin"] { --markus-muted: #a6adc8; }
+[data-theme="catppuccin-latte"] {
+  --markus-muted: #5c5f77;
+  --markus-accent: #1a56d6;
+  --markus-accent-2: #b53a17;
+  --markus-note: #0f6b70;
+  --markus-warning: #9a5b00;
+  --markus-tip: #2b7a1b;
+  --markus-caution: #b00c30;
+}
+main img, main svg, .markus-main img, .markus-main svg { max-width: 100%; height: auto; }
+main :not(pre) > code, main a, main strong, main em, main h1, main h2, main h3, main h4, main h5, main h6,
+.markus-main :not(pre) > code, .markus-main a, .markus-main strong, .markus-main em, .markus-main h1, .markus-main h2, .markus-main h3, .markus-main h4 { overflow-wrap: anywhere; }
+main pre, .markus-main pre { max-width: 100%; overflow-x: auto; }
+main, .markus-main { overflow-wrap: break-word; }
+.markus-table-wrap { max-width: 100%; overflow-x: auto; }
+pre.mermaid { background: transparent; text-align: center; overflow-x: auto; }
+.site-topbar, .site-tagline { min-width: 0; }
+.site-links a, .site-footer a { color: var(--markus-accent); }
