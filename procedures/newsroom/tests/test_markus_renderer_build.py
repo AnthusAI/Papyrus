@@ -107,14 +107,14 @@ class MarkusVersionCheckTests(unittest.TestCase):
             return assert_markus_version()
 
     def test_accepts_versions_inside_the_supported_range(self) -> None:
-        for version in ("0.5.1", "0.6.0", "0.10.3", "0.99.99"):
+        for version in ("0.6.0", "0.6.1", "0.10.3", "0.99.99"):
             with self.subTest(version=version):
                 self.assertEqual(self.reported(f"markus {version}\n"), version)
                 self.assertEqual(assert_supported_markus_version(version), version)
 
     def test_rejects_versions_outside_the_supported_range(self) -> None:
-        for version in ("0.5.0", "0.4.9", "1.0.0", "2.3.1"):
-            with self.subTest(version=version), self.assertRaisesRegex(RuntimeError, r">=0\.5\.1,<1\.0\.0"):
+        for version in ("0.5.1", "0.5.0", "1.0.0", "2.3.1"):
+            with self.subTest(version=version), self.assertRaisesRegex(RuntimeError, r">=0\.6\.0,<1\.0\.0"):
                 self.reported(f"markus {version}\n")
 
     def test_rejects_versions_it_cannot_read(self) -> None:
@@ -123,7 +123,7 @@ class MarkusVersionCheckTests(unittest.TestCase):
                 self.reported(stdout)
 
     def test_in_process_version_uses_the_same_range(self) -> None:
-        for version in ("0.5.0", "1.0.0", "0.6.0+local"):
+        for version in ("0.5.1", "1.0.0", "0.6.0+local"):
             with self.subTest(version=version), self.assertRaises(RuntimeError):
                 assert_supported_markus_version(version, purpose="deriving bodyIr")
 

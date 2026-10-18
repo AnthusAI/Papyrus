@@ -14,9 +14,9 @@ from typing import Sequence
 
 # Same range as the ``anthus-markus`` dependency in pyproject.toml. A Markus
 # outside it, or one whose version cannot be read, fails the build.
-MARKUS_MIN_VERSION = (0, 5, 1)
+MARKUS_MIN_VERSION = (0, 6, 0)
 MARKUS_MAX_VERSION_EXCLUSIVE = (1, 0, 0)
-MARKUS_SUPPORTED_RANGE = ">=0.5.1,<1.0.0"
+MARKUS_SUPPORTED_RANGE = ">=0.6.0,<1.0.0"
 _FORBIDDEN_ALLOW_HTML = re.compile(r"(?:^|\s)--allow-html(?:\s|$)")
 _RELEASE_VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)")
 
