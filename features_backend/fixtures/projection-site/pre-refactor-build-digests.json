@@ -10,43 +10,43 @@
   "notes/field-note.html": "a59aa2c53c1cedeaa2890ab2510750a8d227b8b217a2bab9f3e28f5232a577d0"
  },
  "fixture-default-citations": {
-  "articles/alpha.html": "4652edb7f16acd7ec4e00e74e903582986dc8bf9ad557beec59f61e50bca8d30",
-  "articles/beta.html": "b02e1fbe8439b598505c78b7b7ff2c2240f924f27f7ce521739dbcd7934fb6a8",
-  "articles/gamma-note.html": "78fdd3190244cd71472b1d13563dcac8605ac56596cd3f0560cf610b6b1839e3",
+  "articles/alpha.html": "a24cdf2fd91ce396a44981fbdd897c95d1a09f388a98f412844b3155983ff88a",
+  "articles/beta.html": "1a4630ed8198ae6201c2fd0696ffccd269590fb3ee87eeea2620be883f4eecc2",
+  "articles/gamma-note.html": "73c2b0f06efdf7d3b648af8731a624f4a03e70893fb8f73a297f39870bd283a9",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
-  "css/markus-vendor.css": "d1b28729b25fb0fb5f3028106f6ef2e64ece60d8e208a84eb7b321e7299db526",
+  "css/markus-vendor.css": "892a2e3f865058d59536a77efc0b06d134fa7f14155d6142754e01af109e23dc",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "498d04d5ee724115feca7e9b19d347874c2ad228d67f70618010c1f42de6bdf2"
+  "index.html": "24d24edad3882bffeeaaacb7941c10fa3c7d46412f9ea3a053e1d60e4d12932e"
  },
  "fixture-no-index-md": {
-  "articles/alpha.html": "4652edb7f16acd7ec4e00e74e903582986dc8bf9ad557beec59f61e50bca8d30",
-  "articles/beta.html": "b02e1fbe8439b598505c78b7b7ff2c2240f924f27f7ce521739dbcd7934fb6a8",
-  "articles/gamma-note.html": "78fdd3190244cd71472b1d13563dcac8605ac56596cd3f0560cf610b6b1839e3",
+  "articles/alpha.html": "a24cdf2fd91ce396a44981fbdd897c95d1a09f388a98f412844b3155983ff88a",
+  "articles/beta.html": "1a4630ed8198ae6201c2fd0696ffccd269590fb3ee87eeea2620be883f4eecc2",
+  "articles/gamma-note.html": "73c2b0f06efdf7d3b648af8731a624f4a03e70893fb8f73a297f39870bd283a9",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
-  "css/markus-vendor.css": "d1b28729b25fb0fb5f3028106f6ef2e64ece60d8e208a84eb7b321e7299db526",
+  "css/markus-vendor.css": "892a2e3f865058d59536a77efc0b06d134fa7f14155d6142754e01af109e23dc",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "5444289c031cdcd3f9f50feaa349334c99f4ba0c0484c0d748fcc4054f947326",
-  "notes/field-note.html": "de52272268de0e970814f84c13b8f7362d4e71649b1a76f1770ff9c7e4af0f07"
+  "index.html": "ce45adf0f7e76c778f0658e87687c2a1b8934819a6d84cef0a65b244cae9e4d5",
+  "notes/field-note.html": "ecc228c3d4b3968ac0b7e2cfec2074c6f576544593f6d74161af0e42337b917d"
  },
  "fixture-notes-section-no-theme": {
-  "articles/alpha.html": "2821f34aae7f9107174a8ba86d408aa510692c961aa852322180e401bc3339e4",
-  "articles/beta.html": "9c7646be95c40a2323cbdf29f8d85e2b231844845fac6458fc98d20581a06b17",
-  "articles/gamma-note.html": "1303b31fcb3670ee6fc17beb0fece8ecfc846f498c03e5f68ea0f09e0a7fd82c",
+  "articles/alpha.html": "dfa848db2f1d6ac84b41a67201baf90b4693a6f4058c3f5e2eee234b6448a5d3",
+  "articles/beta.html": "3bb0a65299f3ff610f6dcdfbe085d06fbab6c9a630e357bbaf5532daa7590a13",
+  "articles/gamma-note.html": "65942b0bb2a917c74f7934078a3ad74499df1139aa53becd76f2362bef44252d",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
-  "css/markus-vendor.css": "0cbbd09170f54be364c7d43c732c3a222114f312f43b35e5c2d7cc14a449fe5e",
+  "css/markus-vendor.css": "3e6234e5561d897beaeebac07f41c7416774ac3a950d80fe9038cd03c761bccf",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "305da13092f0a6bb7ad3a506cb60564cb6f228b8150ff6ae9b9ef84bdadcb5ee",
-  "notes/field-note.html": "7fe8dab7ef7f912205c20bee7f8d6bc8bcc1b6b584e1bbc5c3eb34e965e1cc37"
+  "index.html": "52aa5b2099fcddb82682cfcf9a852fea3da71e6298714a641ea4ed52b354cf37",
+  "notes/field-note.html": "65e9be72ddeced366a38c57aa2081fe43a77a915d06fa8a19e332c8ec58aea70"
  },
  "papyrus-own-site": {
-  "articles/sample.html": "e9ce55702f471e1a7de95d51fd81f21bacb6abce333da28598dce3c80d0336f7",
-  "articles/second-note.html": "d7869d2f897247996c47c8b077b3a62303ab6c25d80d28b5f204adc83f91d2fb",
+  "articles/sample.html": "afa249a0dd7422f4308b795b642323ee9fad9d835e578b1e29065155dc1bd1fa",
+  "articles/second-note.html": "ff1e0fcf727d5c8740d4fee6c3f2aa0d5f0f1151218d3325c782de9d6df6c3bc",
   "assets/state-diagram.svg": "abfa5ae38ea0a1262dad764e2f466332ccb1a8b157ed1bb24dd5ccd7f822794a",
-  "css/markus-vendor.css": "d1b28729b25fb0fb5f3028106f6ef2e64ece60d8e208a84eb7b321e7299db526",
+  "css/markus-vendor.css": "892a2e3f865058d59536a77efc0b06d134fa7f14155d6142754e01af109e23dc",
   "css/site-theme.css": "652d7096c3a7ea7004433b5e2a3807439daeb6ed86f0dfb8ec12e0e0519dd24a",
-  "index.html": "a4409da92230af281b443d452ecf2732b16351bcb24c421ca5d3813728e193ba"
+  "index.html": "820f4ef84065468b6dda0cf9f6d248e078366f327f95a83b164f0399fe48b1e0"
  }
 }
