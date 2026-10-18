@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "77f076a8-5be3-427b-849e-98c94dddb5d9",
+  "issue_id": "PPY-c0e117c1-96eb-4683-b0e2-53da0129cb8e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:50:51.542Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Tactus books 2: Tactus in a Nutshell gated Papyrus docs build, compare, switch Pages deploy",
+    "description": "Part of PPY-81c9b9. Simplest book (no includes or metadata). Add docs.yml gated by DOCS_SITE_ENABLED and DOCS_DEPLOY, keep chapters/ directory names so URLs hold, compare page by page, then switch the Pages deploy; keep the Quarto PDF job. Needs push access to the repo.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": [
+      "tactus-books"
+    ]
+  }
+}
