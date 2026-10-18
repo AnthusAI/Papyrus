@@ -288,6 +288,11 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             print_group_help(group)
             return 0
         return _map_assignments(command, flags)
+    if group == "stories":
+        if command is None:
+            raise ValueError("papyrus stories requires <command>: save-version, versions, link-reference, note or show.")
+        _delegate_content("stories", command, flags)
+        return 0
     if group == "references":
         if command is None:
             print_group_help(group)

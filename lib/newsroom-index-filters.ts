@@ -1,12 +1,11 @@
 import { browserPathToInternalNewsroomPath, toPublicNewsroomPath } from "./newsroom-base-path";
-export type NewsroomIndexTab = "references" | "messages" | "assignments" | "insights";
+export type NewsroomIndexTab = "references" | "messages" | "assignments";
 
 export type ReferenceIndexOrder = "published" | "imported";
 
 export type ReferencesIndexFilters = { status: string; processing: string; order: ReferenceIndexOrder };
 export type MessagesIndexFilters = { kind: string; domain: string };
 export type AssignmentsIndexFilters = { status: string; type: string; view: string };
-export type InsightsIndexFilters = { domain: string };
 
 export const DEFAULT_REFERENCES_INDEX_FILTERS: ReferencesIndexFilters = {
   status: "exclude-pending",
@@ -23,10 +22,6 @@ export const DEFAULT_ASSIGNMENTS_INDEX_FILTERS: AssignmentsIndexFilters = {
   status: "",
   type: "",
   view: "queue",
-};
-
-export const DEFAULT_INSIGHTS_INDEX_FILTERS: InsightsIndexFilters = {
-  domain: "",
 };
 
 export function referencesStatusFromUrl(value: string): string {
@@ -72,12 +67,6 @@ export function effectiveAssignmentsIndexFilters(partial?: Partial<AssignmentsIn
   };
 }
 
-export function effectiveInsightsIndexFilters(partial?: Partial<InsightsIndexFilters>): InsightsIndexFilters {
-  return {
-    domain: partial?.domain?.trim() ?? DEFAULT_INSIGHTS_INDEX_FILTERS.domain,
-  };
-}
-
 export function readReferencesIndexFilters(searchParams: URLSearchParams): ReferencesIndexFilters {
   const statusParam = searchParams.get("status")?.trim() ?? "";
   const orderParam = searchParams.get("order")?.trim();
@@ -100,12 +89,6 @@ export function readAssignmentsIndexFilters(searchParams: URLSearchParams): Assi
     status: searchParams.get("status")?.trim() ?? undefined,
     type: searchParams.get("type")?.trim() ?? undefined,
     view: searchParams.get("view")?.trim() ?? undefined,
-  });
-}
-
-export function readInsightsIndexFilters(searchParams: URLSearchParams): InsightsIndexFilters {
-  return effectiveInsightsIndexFilters({
-    domain: searchParams.get("domain")?.trim() ?? undefined,
   });
 }
 
@@ -137,26 +120,18 @@ export function buildAssignmentsIndexQuery(filters: AssignmentsIndexFilters): st
   return query ? `?${query}` : "";
 }
 
-export function buildInsightsIndexQuery(filters: InsightsIndexFilters): string {
-  const params = new URLSearchParams();
-  if (filters.domain.trim()) params.set("domain", filters.domain.trim());
-  const query = params.toString();
-  return query ? `?${query}` : "";
-}
-
 export function buildNewsroomIndexWebPath(
   tab: NewsroomIndexTab,
-  filters: ReferencesIndexFilters | MessagesIndexFilters | AssignmentsIndexFilters | InsightsIndexFilters,
+  filters: ReferencesIndexFilters | MessagesIndexFilters | AssignmentsIndexFilters,
 ): string {
   if (tab === "references") return toPublicNewsroomPath(`/newsroom/references${buildReferencesIndexQuery(filters as ReferencesIndexFilters)}`);
   if (tab === "messages") return toPublicNewsroomPath(`/newsroom/messages${buildMessagesIndexQuery(filters as MessagesIndexFilters)}`);
-  if (tab === "insights") return toPublicNewsroomPath(`/newsroom/insights${buildInsightsIndexQuery(filters as InsightsIndexFilters)}`);
   return toPublicNewsroomPath(`/newsroom/assignments${buildAssignmentsIndexQuery(filters as AssignmentsIndexFilters)}`);
 }
 
 export function syncBrowserNewsroomIndexUrl(
   tab: NewsroomIndexTab,
-  filters: ReferencesIndexFilters | MessagesIndexFilters | AssignmentsIndexFilters | InsightsIndexFilters,
+  filters: ReferencesIndexFilters | MessagesIndexFilters | AssignmentsIndexFilters,
   options?: { replace?: boolean },
 ) {
   if (typeof window === "undefined") return;
@@ -185,18 +160,6 @@ export function parseAssignmentIdFromNewsroomPathname(pathname: string | null | 
   const internalPathname = pathname ? browserPathToInternalNewsroomPath(pathname) : null;
   if (!internalPathname?.startsWith("/newsroom/assignments/")) return null;
   const segment = internalPathname.slice("/newsroom/assignments/".length).split("/")[0]?.trim() ?? "";
-  if (!segment) return null;
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
-}
-
-export function parseInsightThreadIdFromNewsroomPathname(pathname: string | null | undefined): string | null {
-  const internalPathname = pathname ? browserPathToInternalNewsroomPath(pathname) : null;
-  if (!internalPathname?.startsWith("/newsroom/insights/")) return null;
-  const segment = internalPathname.slice("/newsroom/insights/".length).split("/")[0]?.trim() ?? "";
   if (!segment) return null;
   try {
     return decodeURIComponent(segment);

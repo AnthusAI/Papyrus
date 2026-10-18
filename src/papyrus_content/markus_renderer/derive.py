@@ -70,12 +70,14 @@ def _markus_document(markdown: str) -> dict[str, Any]:
     import markusmd
     from markusmd.render import make_markdown
 
+    from .wiki_directives import papyrus_registry
+
     if markusmd.__version__ != MARKUS_REQUIRED_VERSION:
         raise RuntimeError(
             f"Markus {MARKUS_REQUIRED_VERSION} required to derive bodyIr; "
             f"got {markusmd.__version__!r}."
         )
-    document = markusmd.parse(markdown)
+    document = markusmd.parse(markdown, registry=papyrus_registry())
     return document.to_dict(markdown=make_markdown(allow_html=False))
 
 

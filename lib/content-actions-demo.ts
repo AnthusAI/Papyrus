@@ -1,4 +1,5 @@
 import { ContentActionFailure } from "./content-actions-client";
+import { isLocalPreviewEnabled } from "./local-preview";
 import type {
   DeriveMarkusInput,
   DeriveMarkusResult,
@@ -12,7 +13,7 @@ import {
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
-import { createLocalPreviewEditableArticle } from "./local-preview-seed";
+import { createLocalPreviewEditableArticle, lineageForPreviewVersion, recordLocalPreviewDesk, recordLocalPreviewVersion } from "./local-preview-seed";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -28,6 +29,18 @@ const DEMO_IMAGE_DIRECTIVE = /^::image\{([^}]*)\}$/;
 function demoAttribute(attributes: string, name: string): string {
   const match = new RegExp(`${name}="([^"]*)"`).exec(attributes);
   return match ? match[1] : "";
+}
+
+async function deriveThroughPreviewMarkusEngine(input: DeriveMarkusInput): Promise<DeriveMarkusResult | null> {
+  try {
+    const response = await fetch("/api/local-preview/derive", { method: "POST", body: JSON.stringify({ frontMatterYaml: input.frontMatterYaml, bodyMarkus: input.bodyMarkus }) });
+    if (!response.ok) return null;
+    const result = await response.json() as DeriveMarkusResult & { error?: string };
+    if (result.error) return null;
+    return input.includeIr ? result : { ...result, bodyIr: undefined };
+  } catch {
+    return null;
+  }
 }
 
 function demoEnvelope(bodyMarkus: string) {
@@ -74,6 +87,10 @@ export function createDemoArticlesBackend(): ArticlesBackend {
   return {
     actions: {
       async deriveMarkus(input: DeriveMarkusInput): Promise<DeriveMarkusResult> {
+        if (isLocalPreviewEnabled()) {
+          const derived = await deriveThroughPreviewMarkusEngine(input);
+          if (derived) return derived;
+        }
         const lines = input.bodyMarkus.split("\n");
         const invalidIndex = lines.findIndex((line) => line.includes(":::nope"));
         if (invalidIndex >= 0) {
@@ -91,6 +108,28 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       },
       async saveItemDraft(input: SaveItemDraftInput): Promise<SaveItemDraftResult> {
         const existing = input.id ? requireRecord(input.id) : null;
+        if (input.newVersion && existing) {
+          const lineageId = createLocalPreviewEditableArticle(existing.id)?.lineageId ?? existing.id;
+          const versionNumber = (existing.versionNumber ?? 1) + 1;
+          const id = `${lineageId}-v${versionNumber}`;
+          const frontMatterYaml = input.frontMatterYaml ?? "";
+          const record: DemoArticleRecord = {
+            ...existing,
+            id,
+            slug: existing.slug,
+            section: input.section,
+            title: titleFromYaml(input.frontMatterYaml, existing.slug),
+            status: "draft",
+            frontMatterYaml,
+            bodyMarkus: input.bodyMarkus,
+            contentHash: demoContentHash(frontMatterYaml, input.bodyMarkus),
+            versionNumber,
+            updatedAt: new Date().toISOString(),
+          };
+          records.set(id, record);
+          recordLocalPreviewVersion(lineageId, { id, versionNumber, versionState: "current", status: "draft", stage: null, headline: record.title, changeReason: input.changeReason ?? null, versionCreatedBy: "You", versionCreatedAt: record.updatedAt, updatedAt: record.updatedAt });
+          return { ok: true, item: { id, contentHash: record.contentHash, status: "draft", slug: record.slug, versionNumber } };
+        }
         if (existing && input.expectedContentHash !== null && input.expectedContentHash !== existing.contentHash) {
           throw new ContentActionFailure([
             { code: "conflict", message: "The item changed since it was loaded.", line: null },
@@ -120,6 +159,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           updatedAt: new Date().toISOString(),
         };
         records.set(id, record);
+        recordLocalPreviewDesk(id, record.section);
         return {
           ok: true,
           item: {
@@ -172,11 +212,23 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     },
     async loadArticle(id: string): Promise<EditableArticle> {
-      const previewRecord = records.get(id) ? null : createLocalPreviewEditableArticle(id);
-      if (previewRecord) return previewRecord;
+      if (!records.has(id)) {
+        const previewRecord = createLocalPreviewEditableArticle(id);
+        if (previewRecord) {
+          records.set(id, {
+            ...previewRecord,
+            title: titleFromYaml(previewRecord.frontMatterYaml, previewRecord.slug),
+            status: previewRecord.status === "published" ? "published" : "draft",
+            contentHash: demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus),
+            publishedContentHash: previewRecord.status === "published" ? demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus) : null,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+      }
       const record = requireRecord(id);
       return {
         id: record.id,
+        lineageId: createLocalPreviewEditableArticle(record.id)?.lineageId ?? lineageForPreviewVersion(record.id),
         type: record.type,
         section: record.section,
         slug: record.slug,

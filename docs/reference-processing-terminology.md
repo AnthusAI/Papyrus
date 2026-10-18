@@ -15,6 +15,10 @@ Use this vocabulary contract for Papyrus reference workflows.
 - `expand citation graph`: upsert authors, cited references, and relations from
   structured extraction.
 - `curate reference`: editorial accept/reject/archive decisions only.
+- `note`: a `Message` with `messageKind = "note"`. A note about a reference,
+  concept or other record is linked to it by a `note_about` semantic relation.
+  Notes have no surface of their own; they appear in the Messages tab and can
+  be filtered by `messageDomain`.
 
 ## Reserved Meanings
 

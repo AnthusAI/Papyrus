@@ -41,7 +41,7 @@ export type SemanticPredicateId =
   | "has_editorial_form"
   | "about"
   | "comment"
-  | "insight_about"
+  | "note_about"
   | "ingestion_rationale"
   | "uses_evidence"
   | "uses_signal"
@@ -77,7 +77,7 @@ export const SEMANTIC_PREDICATES: SemanticPredicateDefinition[] = [
   { id: "reference_summary_1000_tokens", label: "1000-token reference summary", group: "summarization", inverseLabel: "1000-token summary for", contextPackTags: ["reference_curation", "research", "context_ranking"] },
   { id: "mentions", label: "mentions", group: "ontology", inverseLabel: "mentioned by" },
   { id: "has_editorial_form", label: "has editorial form", group: "editorial", inverseLabel: "items by editorial form", contextPackTags: ["editing", "publication", "assignment_context"] },
-  { id: "insight_about", label: "insight about", group: "knowledge", inverseLabel: "insights", contextPackTags: ["research", "reference_graph", "editing"] },
+  { id: "note_about", label: "note about", group: "knowledge", inverseLabel: "notes", contextPackTags: ["research", "reference_graph", "editing"] },
   { id: "about", label: "about", group: "commentary", inverseLabel: "commentary" },
   { id: "comment", label: "comments on", group: "commentary", inverseLabel: "commented on by", contextPackTags: ["reference_curation", "editing", "research", "assignment_context"] },
   { id: "ingestion_rationale", label: "ingestion rationale for", group: "commentary", inverseLabel: "ingestion rationale", contextPackTags: ["reference_curation", "editing", "research", "assignment_context"] },
@@ -317,13 +317,13 @@ export class SemanticGraphSnapshot {
     return ranked.map((entry) => entry.message);
   }
 
-  insightsFor(kind: string, lineageId: string): MessageRecord[] {
+  notesFor(kind: string, lineageId: string): MessageRecord[] {
     return this.incoming(kind, lineageId)
       .filter((relation) => relation.subjectKind === "message")
-      .filter((relation) => relationTypeKey(relation) === "insight_about" || relation.predicate === "insight_about")
+      .filter((relation) => relationTypeKey(relation) === "note_about" || relation.predicate === "note_about")
       .map((relation) => this.messagesById.get(relation.subjectId))
       .filter((message): message is MessageRecord => Boolean(message))
-      .filter((message) => message.messageKind === "insight" && message.messageDomain === "knowledge")
+      .filter((message) => message.messageKind === "note" && message.messageDomain === "knowledge")
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 

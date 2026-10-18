@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
+import { BoardCardExcerpts } from "./board-card-excerpts";
 import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
@@ -21,10 +23,10 @@ import {
   type NativeBoardIssue,
 } from "../lib/newsroom-board";
 import type { AssignmentRecord, NewsroomSectionRecord } from "../lib/category-repository";
-import { displayNewsroomSectionShortTitle } from "../lib/newsroom-sections";
+import { displayNewsroomSectionShortTitle, newsroomDeskOptions } from "../lib/newsroom-sections";
 import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { loadNewsroomAssignmentPage, loadNewsroomPublishedContentItemVersions } from "./news-desk-taxonomy-client";
+import { loadNewsroomAssignmentPage, loadNewsroomPublishedContentItemVersions, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
 import { usePagedContentItemVersions } from "./use-paged-content-item-versions";
 import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
@@ -36,6 +38,8 @@ import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell"
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
+/** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
+const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
 const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
 const COLUMN_LOAD_MORE_DISTANCE_PIXELS = 240;
@@ -63,11 +67,21 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
   const [view, setView] = useState<"board" | "list">("board");
-  const [selected, setSelected] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selected = searchParams.get(SELECTED_ISSUE_PARAMETER);
+  const setSelected = useCallback((issueId: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (issueId) next.set(SELECTED_ISSUE_PARAMETER, issueId); else next.delete(SELECTED_ISSUE_PARAMETER);
+    const query = next.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
   const [supportingRecordsLoading, setSupportingRecordsLoading] = useState(false);
   const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
   const boardBodyRef = useRef<HTMLDivElement | null>(null);
+  const [boardBodyElement, setBoardBodyElement] = useState<HTMLDivElement | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>("all");
   const showsContentItems = subject !== "assignment";
   const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
@@ -88,7 +102,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   }, []);
   useEffect(() => {
     const request = ++generation.current;
-    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSelected(null); setSupportingRecordsError(null);
+    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSupportingRecordsError(null);
     if (!allowed) { setSupportingRecordsLoading(false); return; }
     const loadSupportingRecords = () => subject !== "assignment"
       ? Promise.all([loadNewsroomPublishedContentItemVersions(), loadEveryNewsroomAssignment()]).then(([published, everyAssignment]) => {
@@ -139,6 +153,13 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   });
   const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
+  const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
+  const changeAssignmentDesk = async (record: AssignmentRecord, deskId: string | null) => {
+    await saveNewsroomAssignmentDesk(record.id, deskId);
+    const moved = { ...record, sectionId: deskId, sectionKey: deskId };
+    setAssignments(current => current.map(candidate => candidate.id === record.id ? moved : candidate));
+    setAssignmentBoardIssues(current => current.map(candidate => candidate.nativeId === record.id ? { ...candidate } : candidate));
+  };
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
@@ -155,7 +176,8 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
-      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
+      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={node => { boardBodyRef.current = node; setBoardBodyElement(node); }} onScrollCapture={handleBoardScroll}>
+        <BoardCardExcerpts excerpts={issues.flatMap(item => item.kind === "contentItem" && item.excerpt ? [{ issueId: item.id, text: item.excerpt }] : [])} scope={boardBodyElement} />
         <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
@@ -170,7 +192,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
             : (() => {
               const record = assignments.find(candidate => candidate.id === issue.nativeId);
               return record
-                ? <NewsroomAssignmentDetail assignment={record} pageHref={getNewsroomNavHref(issue.href)} showTitle={false} />
+                ? <NewsroomAssignmentDetail assignment={record} deskOptions={deskOptions} onDeskChange={deskId => changeAssignmentDesk(record, deskId)} pageHref={getNewsroomNavHref(issue.href)} showTitle={false} />
                 : <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type}</Link>;
             })()}
         </IssueDetailPanel>}

@@ -8,7 +8,8 @@ from decision_flywheel.batched_classification import BatchedAnswers
 from decision_flywheel.models import DecisionResult
 
 from features_backend.steps.cyclotron_relevance_sweep_steps import DOCTRINE, configure, reference
-from papyrus_content.priming_proof import (PROOF_REPORT_VERSION, agreement_metrics, freeze_held_out_set,
+from papyrus_content.priming_proof import (PROOF_REPORT_VERSION, agreement_metrics, freeze_cross_validation_set, freeze_held_out_set,
+                                           run_cross_validated_priming_proof, verify_cross_validation_set,
                                            held_out_set_fingerprint, run_priming_proof, teaching_examples_from_reviews,
                                            verify_held_out_set)
 from papyrus_content.relevance_cyclotron import build_relevance_cyclotron
@@ -148,3 +149,39 @@ def test_teaching_from_past_reviews_raises_agreement(relevance_plan):
                                teaching_source="editor reviews of References")
     assert report["priming"]["source"] == "editor reviews of References"
     assert report["points"][0]["agreement"] == 0.5 and report["points"][-1]["agreement"] > 0.5
+
+
+
+def test_cross_validation_holds_every_review_out_exactly_once_and_never_teaches_from_the_held_out_fold(relevance_plan):
+    cross_validation_set = freeze_cross_validation_set(reviewed_pairs(per_topic=3), plan=relevance_plan,
+                                                       proof_id="proof-cv", fold_count=3)
+    verify_cross_validation_set(cross_validation_set)
+    held_out_ids = [item["id"] for fold in cross_validation_set["folds"] for item in fold["items"]]
+    assert len(held_out_ids) == len(set(held_out_ids)) == 30
+    for fold in cross_validation_set["folds"]:
+        assert not {item["id"] for item in fold["items"]} & {item["id"] for item in fold["teachingPool"]}
+        assert len(fold["items"]) == 10 and len(fold["teachingPool"]) == 20
+    first_item = cross_validation_set["folds"][0]["items"][0]
+    first_item["label"] = "exclude" if first_item["label"] == "include" else "include"
+    with pytest.raises(ValueError):
+        verify_cross_validation_set(cross_validation_set)
+
+
+def test_cross_validation_refuses_a_label_with_fewer_reviews_than_folds(relevance_plan):
+    with pytest.raises(ValueError, match="needs at least 5 reviewed references per label"):
+        freeze_cross_validation_set(reviewed_pairs(per_topic=1)[:7], plan=relevance_plan, proof_id="proof-cv")
+
+
+def test_cross_validated_report_pools_every_fold_and_states_its_design(relevance_plan):
+    cross_validation_set = freeze_cross_validation_set(reviewed_pairs(per_topic=3), plan=relevance_plan,
+                                                       proof_id="proof-cv", fold_count=3)
+    report = run_cross_validated_priming_proof(cross_validation_set, plan=relevance_plan,
+                                               model=NearestTrainingExampleModel(), label_schedule=[0, 5, 500],
+                                               publication="Example")
+    assert [point["labels"] for point in report["points"]] == [0, 5, 20]
+    assert all(point["decided"] == 30 for point in report["points"])
+    assert report["points"][0]["agreement"] == 0.5 and report["points"][-1]["agreement"] > 0.9
+    assert report["heldOut"]["size"] == 30 and report["heldOut"]["byLabel"] == {"include": 15, "exclude": 15}
+    assert "3-fold cross-validation" in report["heldOut"]["design"]
+    assert report["heldOut"]["fingerprint"] == cross_validation_set["fingerprint"]
+    assert "example.org" not in json.dumps(report)

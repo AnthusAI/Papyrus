@@ -1,6 +1,6 @@
 @live-agent @agent-references
 Feature: Live console agent Reference behavior
-  Live AppSync and LLM reference discussion/query/quality/insight specs.
+  Live AppSync and LLM reference discussion/query/quality/note specs.
 
   Background:
     Given live console agent tests are enabled
@@ -54,12 +54,12 @@ Feature: Live console agent Reference behavior
     And the live console agent response should equal "reference-quality-tested"
     And the live console agent smoke result should default to model "gpt-5-nano"
 
-  Scenario: The console agent can create and list Reference insights
-    When I run the live console agent smoke scenario "insight-reference"
+  Scenario: The console agent can create and list Reference notes
+    When I run the live console agent smoke scenario "note-reference"
     Then the live console agent smoke result should include tool call "papyrus.reference.list"
-    And the live console agent smoke result should include tool call "papyrus.reference.insight_create"
-    And the live console agent smoke result should include tool call "papyrus.reference.insight_list"
-    And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.insight_create"
+    And the live console agent smoke result should include tool call "papyrus.reference.note_create"
+    And the live console agent smoke result should include tool call "papyrus.reference.note_list"
+    And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.note_create"
     And the live console agent smoke result should include no structured errors
-    And the live console agent response should equal "reference-insight-tested"
+    And the live console agent response should equal "reference-note-tested"
     And the live console agent smoke result should default to model "gpt-5-nano"
