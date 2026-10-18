@@ -345,3 +345,14 @@ def test_a_claimed_site_cyclotron_refuses_a_second_worker(tmp_path):
         {"status": "claimed", "assigneeKey": "worker-b", "claimExpiresAt": "2999-01-01T00:00:00Z"})
     with pytest.raises(CyclotronClaimed):
         sweep(steering, client, tmp_path)
+
+
+def test_a_retired_classifiers_suggestion_stops_being_current_when_the_reference_is_decided_again(tmp_path):
+    steering = prepared(tmp_path)
+    client = SweepClient({"Reference": references()})
+    sweep(steering, client, tmp_path)
+    sweep(steering, client, tmp_path, sections=[*SECTIONS, section("policy", 3)], now="2026-10-18T11:00:00Z")
+    new_selector = section_selector_classifier_id(["security", "cloud", "policy"])
+    current = [relation for relation in site_relations(client, "reference-a") if relation["relationState"] == "current"]
+    assert {json.loads(relation["metadata"])["classifier"] for relation in current} == {
+        FIT_SECURITY, FIT_CLOUD, FIT_POLICY, new_selector}

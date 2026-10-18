@@ -114,8 +114,9 @@ def site_decision_records(reference: Mapping[str, Any], decision: Mapping[str, A
                           classifier_positive_labels: Mapping[str, str | None], now: str,
                           current_relations: Sequence[Mapping[str, Any]] = (), review_control: str | None = None,
                           provenance: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Records for one decision: a relation per classifier, each superseding that classifier's previous one."""
+    """Records for one decision: a relation per classifier, superseding every earlier current relation of the cyclotron, retired classifiers' included."""
     records: list[dict[str, Any]] = []
+    new_relation_ids: set[str] = set()
     lineage_id = reference.get("lineageId") or reference["id"]
     review = decision["review"]
     for classifier, result in decision["classifiers"].items():
@@ -161,15 +162,16 @@ def site_decision_records(reference: Mapping[str, Any], decision: Mapping[str, A
             },
         })
         relation["expected"]["id"] = f"semantic-relation-{hash_short([SITE_DECISION_RELATION, decision['decisionId'], classifier])}"
+        new_relation_ids.add(relation["expected"]["id"])
         records.append(site_decision_node_record(classifier, label, now=now))
         records.append(relation)
-        records.extend(
-            _record("SemanticRelation", {**{name: value for name, value in existing.items() if not name.startswith("__")},
-                                         "relationState": "superseded", "updatedAt": now})
-            for existing in current_relations
-            if existing.get("predicate") == SITE_DECISION_RELATION and existing.get("relationState") == "current"
-            and existing.get("subjectLineageId") == lineage_id and existing.get("classifierId") == key
-            and existing.get("id") != relation["expected"]["id"])
+    records.extend(
+        _record("SemanticRelation", {**{name: value for name, value in existing.items() if not name.startswith("__")},
+                                     "relationState": "superseded", "updatedAt": now})
+        for existing in current_relations
+        if existing.get("predicate") == SITE_DECISION_RELATION and existing.get("relationState") == "current"
+        and existing.get("subjectLineageId") == lineage_id and existing.get("id") not in new_relation_ids
+        and existing.get("classifierId", "").startswith(f"{cyclotron_id}/"))
     return records
 
 
