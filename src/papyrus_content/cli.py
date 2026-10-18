@@ -34,6 +34,7 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
+from .story_commands import stories_link_reference, stories_note, stories_save_version, stories_show, stories_versions
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
@@ -291,6 +292,11 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "stories:save-version",
+        "stories:versions",
+        "stories:link-reference",
+        "stories:note",
+        "stories:show",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -579,6 +585,16 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "stories:save-version":
+        stories_save_version(flags)
+    elif route == "stories:versions":
+        stories_versions(flags)
+    elif route == "stories:link-reference":
+        stories_link_reference(flags)
+    elif route == "stories:note":
+        stories_note(flags)
+    elif route == "stories:show":
+        stories_show(flags)
     elif route == "assignments:backfill-content-items":
         assignments_backfill_content_items(flags)
     elif route == "assignments:demote-undrafted-content-items":
