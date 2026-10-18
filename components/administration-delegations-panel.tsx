@@ -13,7 +13,7 @@ import {
   validateDelegationInput,
   type CurationDelegationRecord,
 } from "../lib/curation-delegation-helpers";
-import { createCurationDelegation, revokeCurationDelegation, type CreatedCurationDelegation } from "./curation-delegation-client";
+import { createCurationDelegation, listCurationDelegations, revokeCurationDelegation, type CreatedCurationDelegation } from "./curation-delegation-client";
 
 type IssuedToken = { agentLabel: string; token: string };
 
@@ -36,7 +36,7 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
   const [issued, setIssued] = useState<IssuedToken | null>(null);
   const [copied, setCopied] = useState<"token" | "command" | null>(null);
   const [email, setEmail] = useState("");
-  const [sessionDelegations, setSessionDelegations] = useState<CurationDelegationRecord[]>([]);
+  const [delegations, setDelegations] = useState<CurationDelegationRecord[]>([]);
   const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null);
   const [nowMilliseconds, setNowMilliseconds] = useState(() => Date.now());
   const mounted = useRef(true);
@@ -46,6 +46,7 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
     void readSignedInEmail().then((value) => {
       if (mounted.current) setEmail(value);
     });
+    void refreshDelegations();
     const timer = window.setInterval(() => setNowMilliseconds(Date.now()), 30_000);
     return () => {
       mounted.current = false;
@@ -53,6 +54,15 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
       setIssued(null);
     };
   }, []);
+
+  async function refreshDelegations() {
+    try {
+      const listed = await listCurationDelegations();
+      if (mounted.current) setDelegations(listed);
+    } catch (error) {
+      if (mounted.current) setErrorMessage(describeDelegationError(error));
+    }
+  }
 
   async function handleCreate() {
     const validation = validateDelegationInput(agentLabelText, hoursText);
@@ -64,10 +74,9 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
     setErrorMessage(null);
     try {
       const created: CreatedCurationDelegation = await createCurationDelegation(validation.agentLabel, validation.hours);
-      const { token, ...record } = created;
-      setIssued({ agentLabel: record.agentLabel, token });
+      setIssued({ agentLabel: created.agentLabel, token: created.token });
       setCopied(null);
-      setSessionDelegations((current) => [record, ...current]);
+      await refreshDelegations();
       setAgentLabelText("");
       setNowMilliseconds(Date.now());
     } catch (error) {
@@ -81,8 +90,8 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
     setBusy(true);
     setErrorMessage(null);
     try {
-      const revoked = await revokeCurationDelegation(delegationId);
-      setSessionDelegations((current) => current.map((entry) => (entry.delegationId === delegationId ? { ...entry, revokedAt: revoked.revokedAt ?? new Date().toISOString() } : entry)));
+      await revokeCurationDelegation(delegationId);
+      await refreshDelegations();
       setConfirmingRevokeId(null);
     } catch (error) {
       setErrorMessage(describeDelegationError(error));
@@ -113,6 +122,9 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
         </div>
         <p className="news-desk-delegation-note">
           A delegation is a token you hand to one named agent. While it lasts, that agent&apos;s approvals and rejections are recorded under your name and marked as relayed. You can revoke it at any moment.
+        </p>
+        <p className="news-desk-delegation-note" data-delegation-words-note>
+          The agent must pass your actual words, in quotes, as the instruction on every approval or rejection. Papyrus keeps those words with the record. An agent that paraphrases or invents them is not following this delegation.
         </p>
         <div className="news-desk-delegation-form">
           <label className="news-desk-doctrine-card__field">
@@ -153,17 +165,14 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
         <div className="news-desk-doctrine-card__header">
           <div>
             <h3>Delegations</h3>
-            <span>Created in this browser session</span>
+            <span>Granted by you, newest first</span>
           </div>
         </div>
-        <p className="news-desk-delegation-note">
-          The server does not yet offer a way to list delegations, so only the ones you create on this page appear here, and they disappear when you reload. To end a delegation made earlier, ask whoever has its id to revoke it, or wait for it to expire.
-        </p>
-        {sessionDelegations.length === 0 ? (
-          <p className="news-desk-delegation-note" data-delegation-empty>No delegations created yet in this session.</p>
+        {delegations.length === 0 ? (
+          <p className="news-desk-delegation-note" data-delegation-empty>You have not granted any delegations.</p>
         ) : (
           <ul className="news-desk-delegation-list">
-            {sessionDelegations.map((entry) => {
+            {delegations.map((entry) => {
               const stateText = delegationExpiryText(entry.expiresAt, entry.revokedAt, nowMilliseconds);
               const live = !entry.revokedAt && stateText !== "Expired";
               return (

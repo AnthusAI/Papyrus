@@ -30,7 +30,7 @@ assert.equal(validateDelegationInput("a", "1").ok, true);
 
 assert.equal(
   buildDelegatedCommandLine({ email: "ryan@example.com", agentLabel: "curator", token: "t~abc", action: "reject" }),
-  "papyrus references reject <reference-id> --on-behalf-of ryan@example.com --agent curator --delegation-token t~abc",
+  `papyrus references reject <reference-id> --on-behalf-of ryan@example.com --agent curator --instruction "<the person's own words>" --delegation-token t~abc`,
 );
 assert.match(buildDelegatedCommandLine({ email: "", agentLabel: "c", token: "t" }), /--on-behalf-of <your-email>/);
 

@@ -25,9 +25,17 @@ const REVOKE_MUTATION = `
   }
 `;
 
+const LIST_QUERY = `
+  query ListCurationDelegations {
+    listCurationDelegations {
+      delegationId agentLabel grantorLabel expiresAt revokedAt
+    }
+  }
+`;
+
 const previewDelegations: CurationDelegationRecord[] = [];
 
-async function runMutation<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+async function runGraphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
   configureAmplifyClient();
   const client = generateClient() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<{ data?: T | null; errors?: Array<{ message?: string }> | null }>;
@@ -51,7 +59,7 @@ export async function createCurationDelegation(agentLabel: string, hours: number
     previewDelegations.push(record);
     return { ...record, token: `${delegationId}~preview-token-not-valid-anywhere` };
   }
-  const data = await runMutation<{ createCurationDelegation: CreatedCurationDelegation }>(CREATE_MUTATION, { agentLabel, hours });
+  const data = await runGraphql<{ createCurationDelegation: CreatedCurationDelegation }>(CREATE_MUTATION, { agentLabel, hours });
   return data.createCurationDelegation;
 }
 
@@ -62,10 +70,12 @@ export async function revokeCurationDelegation(delegationId: string): Promise<Cu
     record.revokedAt = record.revokedAt ?? new Date().toISOString();
     return { ...record };
   }
-  const data = await runMutation<{ revokeCurationDelegation: CurationDelegationRecord }>(REVOKE_MUTATION, { delegationId });
+  const data = await runGraphql<{ revokeCurationDelegation: CurationDelegationRecord }>(REVOKE_MUTATION, { delegationId });
   return data.revokeCurationDelegation;
 }
 
-export function listPreviewCurationDelegations(): CurationDelegationRecord[] {
-  return previewDelegations.map((entry) => ({ ...entry }));
+export async function listCurationDelegations(): Promise<CurationDelegationRecord[]> {
+  if (isLocalPreviewEnabled()) return previewDelegations.map((entry) => ({ ...entry })).reverse();
+  const data = await runGraphql<{ listCurationDelegations: CurationDelegationRecord[] }>(LIST_QUERY, {});
+  return data.listCurationDelegations ?? [];
 }

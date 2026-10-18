@@ -43,7 +43,7 @@ export function isDelegationActive(record: CurationDelegationRecord, nowMillisec
 
 export function buildDelegatedCommandLine(input: { email: string; agentLabel: string; token: string; action?: "approve" | "reject" }): string {
   const email = input.email.trim() || "<your-email>";
-  return `papyrus references ${input.action ?? "approve"} <reference-id> --on-behalf-of ${email} --agent ${input.agentLabel} --delegation-token ${input.token}`;
+  return `papyrus references ${input.action ?? "approve"} <reference-id> --on-behalf-of ${email} --agent ${input.agentLabel} --instruction "<the person's own words>" --delegation-token ${input.token}`;
 }
 
 export function describeDelegationError(error: unknown): string {
