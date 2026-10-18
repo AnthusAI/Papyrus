@@ -49,6 +49,14 @@ import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceRelevanceReview } from "./reference-relevance-review";
+import {
+  CountsAsTrainingLabelNote,
+  ReferenceSuggestionBlock,
+  ReferenceSuggestionProvenance,
+  ReferenceSuggestionRowLine,
+} from "./reference-cyclotron-suggestion";
+import { ReferenceLiveAgreement } from "./reference-live-agreement";
+import type { ShadowAgreement } from "../lib/cyclotron-suggestions";
 import { ReferenceCyclotronPriming, type PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
 import type { PrimingRequestView } from "../lib/relevance-status";
@@ -75,6 +83,10 @@ type NewsroomReferencesViewProps = {
   demo?: boolean;
   /** The relevance cyclotron's current decisions, keyed by reference lineage. */
   decisions?: Map<string, RelevanceDecisionView>;
+  /** Reference lineage ids whose latest curation Message was made by a person. */
+  humanCuratedReferenceLineageIds?: Set<string>;
+  /** The live-agreement payload; the strip is hidden without it. */
+  shadowAgreement?: ShadowAgreement | null;
   disabled?: boolean;
   onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => void;
   initialReferenceLineageId?: string | null;
@@ -212,17 +224,13 @@ function useReferencePreviewAttachments(
   return previewAttachments;
 }
 
-function decisionSummary(decision: RelevanceDecisionView): string {
-  const sure = decision.confidence == null ? "confidence unknown" : `${Math.round(decision.confidence * 100)}% sure`;
-  return `${decision.label} · ${sure}${decision.version != null ? ` · version ${decision.version}` : ""}`;
-}
-
 function needsReview(reference: ReferenceRecord, decision: RelevanceDecisionView | undefined): boolean {
   return Boolean(decision?.reviewRecommended)
     && normalizeReferenceCurationStatus(reference.curationStatus) === "pending";
 }
 
 function ReferenceDetailPanel({
+  countsAsTrainingLabel,
   decision,
   demo,
   disabled,
@@ -232,6 +240,7 @@ function ReferenceDetailPanel({
   reference,
   onClose,
 }: {
+  countsAsTrainingLabel?: boolean;
   decision?: RelevanceDecisionView;
   demo?: boolean;
   disabled?: boolean;
@@ -267,25 +276,39 @@ function ReferenceDetailPanel({
           ) : null}
         </div>
 
-        {decision && status === "pending" && onRelevanceReview ? (
-          <ReferenceRelevanceReview
-            decision={decision}
-            disabled={disabled}
-            onCurate={onRelevanceReview}
-            referenceLineageId={lineageId}
-          />
-        ) : decision ? (
-          <p className="text-sm text-muted-foreground" data-reference-relevance-decision={lineageId}>
-            Cyclotron decision: {decisionSummary(decision)}
-          </p>
+        {decision ? (
+          <div className="space-y-3" data-reference-relevance-decision={lineageId}>
+            <ReferenceSuggestionBlock
+              decision={decision}
+              disabled={disabled}
+              onCurate={onRelevanceReview}
+              referenceLineageId={lineageId}
+              settled={status !== "pending"}
+              statusLabel={referenceStatusLabel(status)}
+            />
+            <ReferenceSuggestionProvenance decision={decision} />
+            {status === "pending" && onRelevanceReview ? (
+              <details className="text-sm text-foreground">
+                <summary className="cursor-pointer font-semibold underline-offset-4 hover:underline">Review with a reason</summary>
+                <div className="mt-2">
+                  <ReferenceRelevanceReview
+                    decision={decision}
+                    disabled={disabled}
+                    onCurate={onRelevanceReview}
+                    referenceLineageId={lineageId}
+                  />
+                </div>
+              </details>
+            ) : null}
+          </div>
         ) : null}
+        {countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
 
         <div
           className="flex flex-wrap items-center gap-2"
           data-news-desk-reference-curation-cluster
           data-reference-curation-status={status}
         >
-          {decision && status === "pending" && onRelevanceReview ? null : <>
           <Button
             aria-label="Accept reference"
             aria-pressed={status === "accepted"}
@@ -312,7 +335,6 @@ function ReferenceDetailPanel({
             <ThumbsDownIcon className="size-4" />
             Reject
           </Button>
-          </>}
           <Button
             aria-label="Archive reference"
             disabled={archiveDisabled}
@@ -409,6 +431,8 @@ export function NewsroomReferencesView({
   cyclotronStatus,
   cyclotronPriming,
   decisions,
+  humanCuratedReferenceLineageIds,
+  shadowAgreement = null,
   onRequestReviewRate,
   demo = false,
   disabled = false,
@@ -523,6 +547,7 @@ export function NewsroomReferencesView({
             Review source intake before it becomes accepted evidence.
           </p>
         </div>
+        <ReferenceLiveAgreement agreement={shadowAgreement} />
         <ReferenceCurationControls disabled={disabled} />
         {priming && !disabled ? <ReferencePriming {...priming} /> : null}
         {cyclotronPriming && !disabled ? (
@@ -595,12 +620,12 @@ export function NewsroomReferencesView({
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">{formatReferenceListDate(reference)}</p>
                   {decision ? (
-                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" data-reference-relevance-row={lineageId}>
-                      <span>Decision: {decisionSummary(decision)}</span>
+                    <div className="flex flex-wrap items-center gap-2" data-reference-relevance-row={lineageId}>
+                      <ReferenceSuggestionRowLine decision={decision} referenceLineageId={lineageId} />
                       {needsReview(reference, decision) ? (
                         <Badge variant="outline"><span aria-hidden="true">●</span> Needs review</Badge>
                       ) : null}
-                    </p>
+                    </div>
                   ) : null}
                 </button>
               );
@@ -650,6 +675,7 @@ export function NewsroomReferencesView({
         <ScrollArea className="min-h-0 flex-1">
           {selectedReference ? (
             <ReferenceDetailPanel
+              countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
               decision={decisions?.get(referenceLineageId(selectedReference))}
               demo={demo}
               disabled={disabled}
@@ -681,6 +707,7 @@ export function NewsroomReferencesView({
             {selectedReference ? (
               <ScrollArea className="max-h-[75dvh]">
                 <ReferenceDetailPanel
+                  countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
                   decision={decisions?.get(referenceLineageId(selectedReference))}
                   demo={demo}
                   disabled={disabled}

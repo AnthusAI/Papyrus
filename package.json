@@ -44,6 +44,7 @@
     "test:media-route": "tsx scripts/test-media-route-response.ts",
     "test:newsroom-nav": "tsx scripts/test-newsroom-nav.ts",
     "test:relevance-decisions": "tsx scripts/test-relevance-decisions.ts",
+    "test:cyclotron-suggestions": "tsx scripts/test-cyclotron-suggestions.ts",
     "test:relevance-review-ui": "tsx scripts/test-relevance-review-ui.ts",
     "test:relevance-status-ui": "tsx scripts/test-relevance-status-ui.ts",
     "test:relevance-priming-ui": "tsx scripts/test-relevance-priming-ui.ts",

@@ -54,6 +54,7 @@ import {
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
   loadCyclotronStatus,
+  loadCyclotronShadowAgreement,
   requestCyclotronPriming,
   loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
@@ -156,7 +157,10 @@ import {
   REFERENCE_REJECTION_REASON_CODES,
   referenceCurationStatusForAction,
 } from "../lib/reference-policy";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
+import { referencesWithHumanLatestCuration, type ShadowAgreement } from "../lib/cyclotron-suggestions";
+import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import {
   buildPrimingRequest,
   buildReviewRateRequest,
@@ -784,7 +788,18 @@ function NewsDeskDashboard({
   const [referenceAttachments, setReferenceAttachments] = useState(dashboard.referenceAttachments);
   const [messages, setMessages] = useState(dashboard.messages);
   const [semanticRelations, setSemanticRelations] = useState(dashboard.semanticRelations);
-  const relevanceDecisions = useMemo(() => currentRelevanceDecisions(semanticRelations), [semanticRelations]);
+  const cyclotronPreviewFixtures = useMemo(
+    () => (isLocalPreviewEnabled() ? createLocalPreviewCyclotronFixtures(references) : null),
+    [references],
+  );
+  const relevanceDecisions = useMemo(
+    () => currentRelevanceDecisions(cyclotronPreviewFixtures ? [...semanticRelations, ...cyclotronPreviewFixtures.relations] : semanticRelations),
+    [cyclotronPreviewFixtures, semanticRelations],
+  );
+  const humanCuratedReferenceLineageIds = useMemo(
+    () => referencesWithHumanLatestCuration(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
+    [cyclotronPreviewFixtures, messages],
+  );
   const relevanceCyclotronId = useMemo(
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
     [relevanceDecisions],
@@ -819,6 +834,19 @@ function NewsDeskDashboard({
       .catch(() => { if (!cancelled) setCyclotronStatus(null); });
     return () => { cancelled = true; };
   }, [dashboard.isDemo, relevanceCyclotronId]);
+  const [shadowAgreement, setShadowAgreement] = useState<ShadowAgreement | null>(null);
+  useEffect(() => {
+    if (cyclotronPreviewFixtures) {
+      setShadowAgreement(cyclotronPreviewFixtures.shadowAgreement);
+      return;
+    }
+    if (!relevanceCyclotronId || dashboard.isDemo) return;
+    let cancelled = false;
+    loadCyclotronShadowAgreement(relevanceCyclotronId)
+      .then((loaded) => { if (!cancelled) setShadowAgreement(loaded); })
+      .catch(() => { if (!cancelled) setShadowAgreement(null); });
+    return () => { cancelled = true; };
+  }, [cyclotronPreviewFixtures, dashboard.isDemo, relevanceCyclotronId]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
@@ -3217,6 +3245,8 @@ function NewsDeskDashboard({
               },
             }}
             decisions={relevanceDecisions}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            shadowAgreement={shadowAgreement}
             onRequestReviewRate={relevanceCyclotronId ? async (choice) => {
               const request = buildReviewRateRequest(choice, authState.label);
               if (dashboard.isDemo) return;
