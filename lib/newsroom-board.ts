@@ -17,6 +17,10 @@ export interface NativeBoardIssue extends KanbanIssue {
   href: string;
 }
 
+export function contentItemBoardPathSegment(): string {
+  return getContentItemName().plural.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "articles";
+}
+
 export function contentItemBoardType(): string {
   return getContentItemName().singular.toLowerCase();
 }

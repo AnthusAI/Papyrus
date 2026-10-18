@@ -13,6 +13,7 @@ from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
     content_item_lineage_for_new_assignment,
     plan_content_item_backfill,
+    plan_undrafted_backfill_story_demotion,
     require_assignment_content_item_lineage_id,
 )
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
@@ -2284,6 +2285,37 @@ def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[
         if index == len(changes) or index % 100 == 0:
             print(f"assignments\tbackfill-content-items\tprogress\t{index}/{len(changes)}", flush=True)
     print(f"assignments\tbackfill-content-items\tupdated\t{len(changes)}")
+
+
+def demote_undrafted_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
+    apply = resolve_mutation_apply(options, "assignments demote-undrafted-content-items")
+    items = client.list_records("Item")
+    reporting_assignments = [
+        assignment
+        for assignment in client.list_records("Assignment")
+        if str(assignment.get("assignmentTypeKey") or "").startswith("reporting.")
+    ]
+    changes = plan_undrafted_backfill_story_demotion(items=items, reporting_assignments=reporting_assignments)
+    print(f"assignments\tdemote-undrafted-content-items\tplanned\t{len(changes)}")
+    for change in changes:
+        expected = change["expected"]
+        print(
+            "\t".join(
+                [
+                    "content-item-demotion",
+                    expected["id"],
+                    f"from={change['current'].get('stage')}",
+                    "to=assignment",
+                    f"title={expected.get('title') or ''}",
+                ]
+            )
+        )
+    if not apply:
+        print("assignments\tdemote-undrafted-content-items\tapply\tskipped\tdry run; rerun without --dry-run to write")
+        return
+    for change in changes:
+        client.upsert("Item", change["expected"])
+    print(f"assignments\tdemote-undrafted-content-items\tupdated\t{len(changes)}")
 
 
 def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:

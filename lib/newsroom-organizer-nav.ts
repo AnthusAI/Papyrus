@@ -1,14 +1,15 @@
+import { contentItemBoardPathSegment } from "./newsroom-board";
 import { getContentItemName } from "./site-brand";
 
 const contentItemPluralLowercase = getContentItemName().plural.toLowerCase();
 export type OrganizerDestination = {
   key: string; label: string; description: string; path: string;
-  access?: "admin"; primary?: boolean; unavailable?: string;
+  access?: "admin"; primary?: boolean; unavailable?: string; alsoActiveOnPaths?: readonly string[];
 };
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
     { key: "overview", label: "Overview", description: "See the desk and choose where to begin.", path: "/newsroom", primary: true },
-    { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: "/newsroom/articles", primary: true },
+    { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },
     { key: "insights", label: "Insights", description: "Discuss findings and research threads.", path: "/newsroom/insights" },
