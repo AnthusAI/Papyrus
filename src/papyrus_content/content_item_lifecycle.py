@@ -21,6 +21,8 @@ CONTENT_ITEM_STAGES = (
     "report",
     "editor_select",
     "copywriting",
+    "illustration",
+    "typesetting",
     "published",
 )
 DEFAULT_CONTENT_ITEM_FORMAT = "article"

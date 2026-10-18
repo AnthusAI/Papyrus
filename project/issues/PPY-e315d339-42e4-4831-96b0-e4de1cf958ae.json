@@ -1,0 +1,22 @@
+{
+  "id": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+  "title": "Every Anthus website runs on Papyrus with Anthus-flavored Markdown (Markus)",
+  "description": "Direction from Ryan (2026-10-17): dogfood everything. Every Anthus website is authored as Markus (Anthus-flavored Markdown) and built/served by Papyrus, with no bespoke Gatsby, Next marketing or Quarto/mkdocs pipelines left.\n\n## Inventory (2026-10-17, read from each repo's default branch)\n\nAlready on Papyrus + Markus (verify served state, no migration needed):\n- Anth.us-Papyrus: live anth.us (S3 projection; Gatsby AnthusAI/Anth.us is superseded and its rename belongs to the repository-renames thread)\n- Pilobol.us, Threat-Intelligence, p.apyr.us, Kanbus-web: Next + @anthusai/papyrus pods\n\nPapyrus + Markus builds that exist but are not fully cut over (finish, do not rebuild):\n- Papyrus-web (marketing, S3 projection, pipeline working)\n- Prospectus-web (pr.ospect.us, deploy in progress)\n- Apricity-web (build_markus_site, nothing routed to production)\n- Auritus-web (source separation ready, live migration not complete; legacy-site/ Next app to retire)\n\nNot on Papyrus yet:\n- Markus site/ (3 pure Markus pages, GitHub Pages)\n- Cyclotron-web (Next.js marketing, cyclotron.anth.us, interactive previews)\n- Chattic.us-web (Next.js marketing + wiki/blog Markdown, waitlist/Stripe intake infra)\n- Docs sites (Kanbus mkdocs; Tactus, Biblicus, Cyclotron docs folders)\n- Tactus-web (Gatsby + MDX + @anthus/tactus-hitl-components)\n- Tactus books: Learning-Tactus, Programming-Tactus, Tactus-in-a-Nutshell (Quarto)\n- Anth.us (Gatsby, superseded; archive only)\n\nOrder is by ease. Deploys go through the DevOps pipeline, not local AWS.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T22:25:10.789016Z",
+  "updated_at": "2026-10-17T22:25:10.789271Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

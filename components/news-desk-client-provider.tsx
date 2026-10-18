@@ -3,6 +3,7 @@
 import { Hub } from "aws-amplify/utils";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
+import type { CategorySteeringDashboard } from "../lib/category-repository";
 import { ensureDevSandboxEditorSession } from "./dev-sandbox-editor-sign-in";
 import {
   loadEditorAssignmentsData,
@@ -46,7 +47,12 @@ const NewsDeskClientContext = createContext<NewsDeskClientContextValue | null>(n
 export function NewsDeskClientProvider({
   children,
   devSandboxEditorAuth = null,
-}: Readonly<{ children: React.ReactNode; devSandboxEditorAuth?: DevSandboxEditorAuth | null }>) {
+  localPreviewDashboard = null,
+}: Readonly<{
+  children: React.ReactNode;
+  devSandboxEditorAuth?: DevSandboxEditorAuth | null;
+  localPreviewDashboard?: CategorySteeringDashboard | null;
+}>) {
   const [shell, setShell] = useState<NewsDeskShellState>(() => createInitialNewsDeskShellState());
   const [searchTransition, setSearchTransition] = useState<NewsDeskSearchTransition | null>(null);
   const shellRef = useRef(shell);
@@ -58,6 +64,15 @@ export function NewsDeskClientProvider({
 
   const refreshDashboard = useCallback(async () => {
     const sequence = ++bootstrapSequenceRef.current;
+    if (localPreviewDashboard) {
+      setShell((current) => resolveDashboardReady(
+        current,
+        localPreviewDashboard,
+        { status: "signedIn", label: "Local preview editor", email: null },
+        new Date().toISOString(),
+      ));
+      return;
+    }
     setShell((current) => beginAccessCheck(current));
 
     try {
@@ -101,7 +116,7 @@ export function NewsDeskClientProvider({
         error instanceof Error ? error.message : "Could not load Newsroom data.",
       ));
     }
-  }, [devSandboxEditorAuth]);
+  }, [devSandboxEditorAuth, localPreviewDashboard]);
 
   const refreshAssignments = useCallback(async () => {
     try {

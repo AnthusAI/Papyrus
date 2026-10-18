@@ -1,0 +1,22 @@
+{
+  "id": "PPY-81c9b94a-928b-4be4-99ea-54f02ceff946",
+  "title": "Move the Tactus books (Learning, Programming, In-a-Nutshell) off Quarto to Markus",
+  "description": "Three Quarto books with PDF/EPUB targets. Needs Markus print/EPUB renderers (listed as later in the Markus README) before a faithful move. Web edition can move first.",
+  "type": "task",
+  "status": "open",
+  "priority": 4,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T22:26:37.185174Z",
+  "updated_at": "2026-10-17T22:26:37.185412Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "472ff4e1-e6c2-4956-949c-567502703328",
+  "issue_id": "PPY-7031626a-9fed-42af-be83-d826135daee4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T22:26:51.436Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Finish cutover of the in-flight Papyrus marketing publications (Papyrus-web, Prospectus-web, Apricity-web, Auritus-web)",
+    "description": "These already build with Papyrus + Markus but are not all routed to production: pr.ospect.us deploy in progress, Apricity nothing routed, Auritus live migration incomplete and legacy-site/ Next app still present, Papyrus-web p.apyr.us cutover paused. Track per-site remaining steps here; domain and DNS changes need Ryan's approval and deploys go through the DevOps pipeline.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": []
+  }
+}

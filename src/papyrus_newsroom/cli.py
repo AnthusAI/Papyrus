@@ -51,6 +51,12 @@ from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
 
 
 def main(argv: list[str] | None = None) -> int:
+    from papyrus_content.operator_errors import run_with_operator_error_handling
+
+    return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+
+
+def _run_with_arguments(argv: list[str] | None) -> int:
     from papyrus_content.env import load_dotenv
 
     load_dotenv()

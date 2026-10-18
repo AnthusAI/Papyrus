@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "97df6f80-9695-42be-9e13-fe65c428e62b",
+  "issue_id": "PPY-9335ef82-2556-4b8b-b9d9-7cd6f518f3f8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T09:51:56.771Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Local UI preview of the newsroom with seeded data and headless screenshots",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

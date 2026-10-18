@@ -88,17 +88,23 @@ class SigV4AuthoringTests(unittest.TestCase):
         self.assertIn(arn, text)
         self.assertIn("GraphQL reachability: ok", text)
 
-    def test_newsroom_graphql_uses_shared_client(self) -> None:
-        from papyrus_newsroom import newsroom
+    def test_rejected_credentials_raise_graphql_request_error_with_recovery_guidance(self) -> None:
+        import urllib.error
 
-        with patch(
-            "papyrus_content.graphql_http.execute_graphql",
-            return_value={"getAssignment": {"id": "a1"}},
-        ) as execute:
-            data = newsroom._graphql("query {}", {"id": "a1"})
-        self.assertEqual(data["getAssignment"]["id"], "a1")
-        execute.assert_called_once()
+        from papyrus_content.operator_errors import GraphQLRequestError
 
+        rejection = urllib.error.HTTPError(
+            "https://example.test/graphql", 401, "Unauthorized", {}, io.BytesIO(b"expired token")
+        )
+        with patch("papyrus_content.graphql_http.graphql_request_headers", return_value={}), patch(
+            "papyrus_content.graphql_http.graphql_endpoint", return_value="https://example.test/graphql"
+        ), patch("urllib.request.urlopen", side_effect=rejection), patch.dict(
+            "os.environ", {"AWS_PROFILE": "papyrus-production"}
+        ):
+            with self.assertRaises(GraphQLRequestError) as raised:
+                graphql_http.execute_graphql("query {}")
+        self.assertEqual(raised.exception.status_code, 401)
+        self.assertIn("aws sso login --profile papyrus-production", str(raised.exception))
 
 if __name__ == "__main__":
     unittest.main()

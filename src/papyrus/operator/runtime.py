@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import sys
-import traceback
-
 from .commands.references import (
   run_assignments_list,
   run_references_list,
@@ -33,29 +30,19 @@ def dispatch_operator_command(group: str, command: str | None, flags: list[str])
     print_group_help(group)
     return 0
 
-  try:
-    config = load_operator_config(
-      backend_override=_flag_value(flags, "backend"),
-      corpus_key_override=_flag_value(flags, "corpus-key"),
-    )
-    if group == "references" and command == "list":
-      return run_references_list(config, flags)
-    if group == "references" and command == "show":
-      return run_references_show(config, flags)
-    if group == "references" and command == "register":
-      return run_references_register(config, flags)
-    if group == "assignments" and command == "list":
-      return run_assignments_list(config, flags)
-    raise OperatorError(f"Unsupported operator command: papyrus {group} {command}")
-  except ValueError as error:
-    message = str(error)
-    if "unknown backend" in message:
-      print(message, file=sys.stderr)
-      return 2
-    raise
-  except OperatorError as error:
-    print(str(error), file=sys.stderr)
-    return error.exit_code
+  config = load_operator_config(
+    backend_override=_flag_value(flags, "backend"),
+    corpus_key_override=_flag_value(flags, "corpus-key"),
+  )
+  if group == "references" and command == "list":
+    return run_references_list(config, flags)
+  if group == "references" and command == "show":
+    return run_references_show(config, flags)
+  if group == "references" and command == "register":
+    return run_references_register(config, flags)
+  if group == "assignments" and command == "list":
+    return run_assignments_list(config, flags)
+  raise OperatorError(f"Unsupported operator command: papyrus {group} {command}")
 
 
 def print_top_level_help() -> None:
@@ -70,13 +57,3 @@ def _flag_value(flags: list[str], name: str) -> str | None:
     if value.startswith(f"{token}="):
       return value.split("=", 1)[1]
   return None
-
-
-def format_unexpected_error(error: BaseException) -> str:
-  return str(error)
-
-
-def should_suppress_traceback(error: BaseException) -> bool:
-  if isinstance(error, (OperatorError, ValueError)):
-    return True
-  return False

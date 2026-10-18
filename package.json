@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node scripts/ensure-sandbox-amplify-outputs.mjs && next dev -p 3001",
     "dev:production": "PAPYRUS_USE_PRODUCTION_AMPLIFY=1 node scripts/ensure-sandbox-amplify-outputs.mjs && next dev -p 3001",
+    "dev:preview": "node scripts/dev-local-preview.mjs",
+    "preview:screenshots": "node scripts/preview-screenshots.mjs",
     "dev:127": "node scripts/ensure-sandbox-amplify-outputs.mjs && next dev --hostname 127.0.0.1 -p 3001",
     "outputs:sandbox": "node scripts/ensure-sandbox-amplify-outputs.mjs",
     "outputs:production": "PAPYRUS_USE_PRODUCTION_AMPLIFY=1 node scripts/ensure-sandbox-amplify-outputs.mjs",
@@ -23,6 +25,7 @@
     "test:pretext-layout": "tsx scripts/test-pretext-layout.ts",
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",
     "test:identity-pool-model-access": "tsx scripts/test-identity-pool-model-access.ts",
+    "test:local-preview-seed": "tsx scripts/test-local-preview-seed.ts",
     "test:theme-packs": "node scripts/test-theme-packs.cjs",
     "test:anth-us-brand": "node scripts/test-anth-us-brand.cjs",
     "test:site-brand-registry": "tsx scripts/test-site-brand-registry.ts",

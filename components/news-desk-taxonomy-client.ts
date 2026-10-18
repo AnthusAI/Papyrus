@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -39,7 +41,8 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
-import { CONTENT_ITEM_STAGES, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { contentItemStageKeys, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
@@ -1862,6 +1865,7 @@ export function normalizeNewsroomReferencePageOrder(value?: string | null): News
 }
 
 export async function loadNewsroomReferencePage(options: NewsroomReferencePageOptions = {}): Promise<NewsroomRecordPage<ReferenceRecord>> {
+  if (isLocalPreviewEnabled()) return { items: createLocalPreviewReferences(), nextToken: null, hasMore: false };
   configureAmplifyClient();
   const order = normalizeNewsroomReferencePageOrder(options.order);
   if (order === "imported") {
@@ -2145,6 +2149,7 @@ export async function loadEditorOverviewEditionData(): Promise<{
 }
 
 export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPageOptions = {}): Promise<NewsroomRecordPage<AssignmentRecord>> {
+  if (isLocalPreviewEnabled()) return { items: createLocalPreviewAssignments(), nextToken: null, hasMore: false };
   return loadNewsroomFeedPage<AssignmentRecord>({
     query: NEWSROOM_ASSIGNMENT_FEED_QUERY,
     field: "listAssignmentsByNewsroomFeedAndCreatedAt",
@@ -2168,12 +2173,13 @@ const CONTENT_ITEMS_BY_STAGE_QUERY = `
 `;
 
 export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewContentItemVersions();
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const versionsPerStage = await Promise.all(CONTENT_ITEM_STAGES.map(async (stage) => {
+  const versionsPerStage = await Promise.all(contentItemStageKeys(getContentItemStageDefinitions()).map(async (stage) => {
     const versions: ContentItemVersionRecord[] = [];
     let nextToken: string | null = null;
     do {
@@ -2191,6 +2197,62 @@ export async function loadNewsroomContentItemVersions(): Promise<ContentItemVers
     return versions;
   }));
   return versionsPerStage.flat();
+}
+
+const PUBLISHED_ITEMS_QUERY = `
+  query ListPublishedItems($limit: Int, $nextToken: String) {
+    listPublishedItems(limit: $limit, nextToken: $nextToken) {
+      items { sourceItemId itemLineageId versionNumber type status title headline slug section publishedAt }
+      nextToken
+    }
+  }
+`;
+
+type PublishedItemBoardRow = {
+  sourceItemId: string;
+  itemLineageId: string;
+  versionNumber: number;
+  type: string;
+  status: string;
+  title?: string | null;
+  headline?: string | null;
+  slug: string;
+  section?: string | null;
+  publishedAt?: string | null;
+};
+
+export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;
+  };
+  const rows: PublishedItemBoardRow[] = [];
+  let nextToken: string | null = null;
+  do {
+    const response: GraphQLConnectionResponse<PublishedItemBoardRow> = await client.graphql({
+      query: PUBLISHED_ITEMS_QUERY,
+      variables: { limit: NEWSROOM_PAGE_LIMIT, nextToken },
+      authMode: USER_POOL_AUTH_MODE,
+    });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.listPublishedItems;
+    if (!connection) throw new Error("Missing GraphQL connection payload for listPublishedItems.");
+    rows.push(...((connection.items ?? []).filter(Boolean) as PublishedItemBoardRow[]));
+    nextToken = connection.nextToken ?? null;
+  } while (nextToken);
+  return rows.map(row => ({
+    id: row.sourceItemId,
+    lineageId: row.itemLineageId,
+    versionNumber: row.versionNumber,
+    stage: "published",
+    type: row.type,
+    status: row.status,
+    title: row.title,
+    headline: row.headline,
+    slug: row.slug,
+    section: row.section,
+    updatedAt: row.publishedAt,
+  }));
 }
 
 export async function loadModelPayloadsForOwner(
