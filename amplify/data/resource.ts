@@ -228,6 +228,16 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(categoryAction)),
 
+  CurationDelegationResult: a.customType({
+    ok: a.boolean().required(),
+    delegationId: a.id().required(),
+    token: a.string(),
+    agentLabel: a.string().required(),
+    grantorLabel: a.string(),
+    expiresAt: a.datetime().required(),
+    revokedAt: a.datetime(),
+  }),
+
   ReferenceCurationActionResult: a.customType({
     ok: a.boolean().required(),
     action: a.string().required(),
@@ -318,6 +328,49 @@ const schema = a.schema({
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  createCurationDelegation: a
+    .mutation()
+    .arguments({
+      agentLabel: a.string().required(),
+      hours: a.integer(),
+    })
+    .returns(a.ref("CurationDelegationResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  revokeCurationDelegation: a
+    .mutation()
+    .arguments({
+      delegationId: a.id().required(),
+    })
+    .returns(a.ref("CurationDelegationResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  recordDelegatedCuration: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      action: a.string().required(),
+      delegationId: a.id().required(),
+      delegationToken: a.string().required(),
+      agentLabel: a.string().required(),
+      onBehalfOf: a.string().required(),
+      note: a.string(),
+      reasonCode: a.string(),
+      decisionRelationId: a.id(),
+      shareable: a.boolean(),
+    })
+    .returns(a.ref("ReferenceCurationActionResult"))
+    .authorization((allow) => [
+      allow.authenticated("identityPool"),
     ])
     .handler(a.handler.function(categoryAction)),
 

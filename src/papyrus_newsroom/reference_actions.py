@@ -167,6 +167,67 @@ query GetReferenceCurationStatus($assignmentId: ID!) {
 """
 
 
+RECORD_DELEGATED_CURATION_MUTATION = """
+mutation RecordDelegatedCuration(
+  $referenceId: ID!, $action: String!, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
+  $onBehalfOf: String!, $note: String, $reasonCode: String, $decisionRelationId: ID, $shareable: Boolean
+) {
+  recordDelegatedCuration(
+    referenceId: $referenceId, action: $action, delegationId: $delegationId, delegationToken: $delegationToken,
+    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, note: $note, reasonCode: $reasonCode,
+    decisionRelationId: $decisionRelationId, shareable: $shareable
+  ) {
+    ok
+    action
+    referenceId
+    status
+    reasonCode
+    messageId
+    relationId
+  }
+}
+"""
+
+
+def delegation_id_from_token(token: str) -> str:
+    delegation_id, separator, _ = token.partition("~")
+    if not separator or not delegation_id:
+        raise ValueError("That is not a delegation token. Ask the person to create one in the Newsroom.")
+    return delegation_id
+
+
+def record_delegated_curation(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    action: str,
+    delegation_token: str,
+    agent_label: str,
+    on_behalf_of: str,
+    note: str = "",
+    reason_code: str = "",
+) -> dict[str, Any]:
+    """Record a person's decision, relayed by an agent, with the delegation the person granted it."""
+    resolved_action = _normalize_curation_action(action)
+    if resolved_action not in ("accept", "reject"):
+        raise ValueError("A delegation can record only accept or reject.")
+    return _call(
+        graphql,
+        RECORD_DELEGATED_CURATION_MUTATION,
+        "recordDelegatedCuration",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "action": resolved_action,
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "delegationToken": delegation_token,
+            "agentLabel": _required(agent_label, "agent_label"),
+            "onBehalfOf": _required(on_behalf_of, "on_behalf_of"),
+            "note": _optional(note) or None,
+            "reasonCode": _optional(reason_code) or None,
+        },
+    )
+
+
 def review_reference_curation(
     graphql: GraphqlInvoker,
     *,

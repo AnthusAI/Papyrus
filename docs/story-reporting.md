@@ -74,35 +74,42 @@ prints the latest version, how many versions exist, and every attached reference
 
 ## Approving a Reference on a person's behalf
 
-Status: designed, not yet available. Until it ships, an agent that runs
+Until a deployment includes the delegation mutations, an agent that runs
 `papyrus references review-curation` changes a Reference's admission status, but
-the curation is recorded as made by a service and never teaches a classifier.
-Do not tell a person their approval was recorded as a label.
+the curation is recorded without a human actor kind and never teaches a
+classifier. Do not tell a person their approval was recorded as a label unless
+the command below printed "on behalf of".
 
 When a person tells you, in a live session, that a Reference is approved or
-rejected, the system can record that as the person's own label, but only if the
-person gave you a delegation. You cannot assert it yourself, and your own
+rejected, the system records it as the person's own label, but only with a
+delegation the person granted. You cannot assert it yourself, and your own
 judgment never becomes a label this way.
 
-1. The person signs in to the Newsroom and creates a delegation: who it is for
-   (your agent name), which publication, approve and reject, and how long it
-   lasts (eight hours by default). They hand you the token it shows once.
-2. Record their decision with the token:
+1. The person signs in to the Newsroom and creates a delegation (the
+   `createCurationDelegation` mutation): your agent name and how long it lasts
+   (eight hours by default, 72 at most). They hand you the token it shows once.
+   They can revoke it at any time (`revokeCurationDelegation`).
+2. Record their decision. The token can be passed as `--delegation-token` or as
+   `PAPYRUS_DELEGATION_TOKEN`:
 
    ```bash
    papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
-     --delegation-token <token> --note "<their reason, in their words>"
+     --agent <your name> --note "<their reason, in their words>"
    papyrus references reject --reference <record id> --on-behalf-of <person's sign-in email> \
-     --delegation-token <token> --reason-code out_of_scope --note "<their reason>"
+     --agent <your name> --reason-code out_of_scope --note "<their reason>"
    ```
 
-3. The Lambda checks the token (unexpired, unrevoked, scoped to this
-   publication and your agent), then records the curation as the person's:
-   `actorKind: human`, `actorSub` the person's, `attestation: delegated`,
-   `relayedBy` your agent label and `delegationId`. The Newsroom shows it as
-   "approved by <person> through <agent>", and the person can revoke the
-   delegation at any time.
+3. The `recordDelegatedCuration` mutation checks the token (unexpired,
+   unrevoked, granted to your agent name, granted by the person you named), then
+   records the curation as the person's: `actorKind: human`, `attestation:
+   delegated`, `relayedBy` your agent name and `delegationId`.
 
-Only relay what the person actually said. If you are unsure, quote their words
-in `--note` and ask. A delegation lets you record a human decision; it does not
-let you decide.
+Only relay what the person actually said. If you are unsure, quote their words in
+`--note` and ask. A delegation lets you record a human decision; it does not let
+you decide.
+
+Limit to know about: an agent with direct write access to the data models could
+still write curation metadata itself. The delegation makes the honest path
+verifiable, and the audit trail (delegation id, agent, grantor) lets a person
+check it; removing direct write access to curation Messages is a separate
+hardening step.

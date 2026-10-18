@@ -5,9 +5,21 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
 import { curationActorKind, referenceCurationMetadata } from "../shared/reference-curation-metadata";
+import {
+  CURATION_DELEGATION_OWNER_TYPE,
+  CURATION_DELEGATION_PAYLOAD_KIND,
+  delegationExpiry,
+  delegationRefusalMessage,
+  delegationVerdict,
+  newDelegationToken,
+  type CurationDelegation,
+} from "../shared/curation-delegation";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
+type CreateCurationDelegationHandler = Schema["createCurationDelegation"]["functionHandler"];
+type RevokeCurationDelegationHandler = Schema["revokeCurationDelegation"]["functionHandler"];
+type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
@@ -23,6 +35,9 @@ type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["fun
 type CategoryActionEvent =
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
+  | Parameters<CreateCurationDelegationHandler>[0]
+  | Parameters<RevokeCurationDelegationHandler>[0]
+  | Parameters<RecordDelegatedCurationHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
@@ -88,6 +103,9 @@ export const handler = async (event: CategoryActionEvent) => {
   }
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
+  if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
+  if (fieldName === "revokeCurationDelegation") return revokeCurationDelegation(event as Parameters<RevokeCurationDelegationHandler>[0]);
+  if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
@@ -162,7 +180,10 @@ async function reviewSteeringProposal(event: Parameters<ReviewHandler>[0]) {
   };
 }
 
-async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandler>[0]) {
+async function reviewReferenceCuration(
+  event: Parameters<ReferenceCurationHandler>[0],
+  delegation: { delegationId: string; relayedBy: string } | null = null,
+) {
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const action = normalizeReferenceCurationAction(event.arguments.action);
@@ -234,7 +255,8 @@ async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandle
       referenceLineageId,
       decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
       shareable: event.arguments.shareable ?? null,
-      actorKind: curationActorKind(event.identity),
+      actorKind: delegation ? "human" : curationActorKind(event.identity),
+      delegation,
     }),
     { filename: "metadata.json", now },
   );
@@ -299,6 +321,127 @@ async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandle
     messageId,
     relationId,
   };
+}
+
+function requireSignedInPerson(event: { identity?: unknown }): { sub: string; label: string; isAdmin: boolean } {
+  if (curationActorKind(event.identity) !== "human") {
+    throw new Error("Only a person signed in to the Newsroom can manage curation delegations.");
+  }
+  const identity = event.identity as { sub?: unknown; claims?: Record<string, unknown> };
+  const claims = identity.claims ?? {};
+  const groups = Array.isArray(claims["cognito:groups"]) ? (claims["cognito:groups"] as unknown[]) : [];
+  return {
+    sub: normalizeRequiredString(claims.sub ?? identity.sub, "identity.sub"),
+    label: normalizeOptionalString(claims.email) ?? normalizeOptionalString(claims.name) ?? "Newsroom editor",
+    isAdmin: groups.includes("admin"),
+  };
+}
+
+async function readCurationDelegation(client: DataClient, delegationId: string): Promise<CurationDelegation | null> {
+  const stored = await readJsonModelPayload(client as any, "knowledgeRawPayload", delegationId, "raw_payload", CURATION_DELEGATION_PAYLOAD_KIND);
+  return stored ? (stored as unknown as CurationDelegation) : null;
+}
+
+async function writeCurationDelegation(client: DataClient, delegation: CurationDelegation, now: string, created: boolean) {
+  const input = {
+    id: delegation.delegationId,
+    ownerType: CURATION_DELEGATION_OWNER_TYPE,
+    ownerId: delegation.delegationId,
+    payloadKind: CURATION_DELEGATION_PAYLOAD_KIND,
+    createdAt: delegation.createdAt,
+    updatedAt: now,
+  };
+  if (created) {
+    await requireDataResult(client.models.KnowledgeRawPayload.create(input), "create curation delegation");
+  } else {
+    await requireDataResult(client.models.KnowledgeRawPayload.update(input), "update curation delegation");
+  }
+  await putJsonModelPayload(
+    client as any,
+    { ownerKind: "knowledgeRawPayload", ownerId: delegation.delegationId },
+    "raw_payload",
+    CURATION_DELEGATION_PAYLOAD_KIND,
+    delegation as unknown as Record<string, unknown>,
+    { filename: "curation-delegation.json", now },
+  );
+}
+
+function delegationResult(delegation: CurationDelegation, token: string | null) {
+  return {
+    ok: true,
+    delegationId: delegation.delegationId,
+    token,
+    agentLabel: delegation.agentLabel,
+    grantorLabel: delegation.grantorLabel,
+    expiresAt: delegation.expiresAt,
+    revokedAt: delegation.revokedAt,
+  };
+}
+
+async function createCurationDelegation(event: Parameters<CreateCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const delegationId = `curation-delegation-${randomUUID()}`;
+  const { token, tokenHash } = newDelegationToken(delegationId);
+  const delegation: CurationDelegation = {
+    delegationId,
+    tokenHash,
+    grantorSub: person.sub,
+    grantorLabel: person.label,
+    agentLabel: normalizeRequiredString(event.arguments.agentLabel, "agentLabel"),
+    createdAt: now,
+    expiresAt: delegationExpiry(now, event.arguments.hours),
+    revokedAt: null,
+  };
+  await writeCurationDelegation(client, delegation, now, true);
+  return delegationResult(delegation, token);
+}
+
+async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const delegation = await readCurationDelegation(client, normalizeRequiredString(event.arguments.delegationId, "delegationId"));
+  if (!delegation) throw new Error("That delegation was not found.");
+  if (delegation.grantorSub !== person.sub && !person.isAdmin) throw new Error("Only the person who granted a delegation can revoke it.");
+  const now = new Date().toISOString();
+  const revoked = { ...delegation, revokedAt: delegation.revokedAt ?? now };
+  await writeCurationDelegation(client, revoked, now, false);
+  return delegationResult(revoked, null);
+}
+
+async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const delegationId = normalizeRequiredString(event.arguments.delegationId, "delegationId");
+  const agentLabel = normalizeRequiredString(event.arguments.agentLabel, "agentLabel");
+  const delegation = await readCurationDelegation(client, delegationId);
+  const verdict = delegationVerdict(delegation, {
+    token: normalizeRequiredString(event.arguments.delegationToken, "delegationToken"),
+    agentLabel,
+    now,
+  });
+  if (!verdict.ok || !delegation) {
+    throw new Error(delegationRefusalMessage(verdict.ok ? "unknown-token" : verdict.reason));
+  }
+  const namedPerson = normalizeRequiredString(event.arguments.onBehalfOf, "onBehalfOf");
+  if (namedPerson.toLowerCase() !== delegation.grantorLabel.toLowerCase()) {
+    throw new Error(`That delegation was granted by ${delegation.grantorLabel}, not ${namedPerson}.`);
+  }
+  const onBehalfOfPerson = {
+    ...event,
+    arguments: {
+      referenceId: event.arguments.referenceId,
+      action: event.arguments.action,
+      note: event.arguments.note,
+      reasonCode: event.arguments.reasonCode,
+      decisionRelationId: event.arguments.decisionRelationId,
+      shareable: event.arguments.shareable,
+      actorSub: delegation.grantorSub,
+      actorLabel: delegation.grantorLabel,
+    },
+  } as unknown as Parameters<ReferenceCurationHandler>[0];
+  return reviewReferenceCuration(onBehalfOfPerson, { delegationId, relayedBy: agentLabel });
 }
 
 async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandler>[0]) {

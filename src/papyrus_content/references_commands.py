@@ -117,6 +117,36 @@ def references_review_curation(flags: list[str]) -> None:
     )
 
 
+def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
+    """papyrus references approve|reject --reference <id> --on-behalf-of <person's sign-in email>
+    --agent <your name> [--delegation-token <token> or PAPYRUS_DELEGATION_TOKEN] [--reason-code ...] [--note ...]
+
+    Records a decision a person made, using the delegation they granted this agent.
+    The cyclotron counts it as the person's label. Never use it for your own judgment.
+    """
+    import os
+
+    options = parse_options(flags)
+    reference_id = options.get("reference") or options.get("reference-id")
+    on_behalf_of = options.get("on-behalf-of")
+    agent_label = options.get("agent")
+    token = options.get("delegation-token") or os.environ.get("PAPYRUS_DELEGATION_TOKEN")
+    missing = [name for name, value in (("--reference", reference_id), ("--on-behalf-of", on_behalf_of),
+                                        ("--agent", agent_label), ("--delegation-token or PAPYRUS_DELEGATION_TOKEN", token))
+               if not value or value is True]
+    if missing:
+        raise ValueError(f"references {action} requires {', '.join(missing)}.")
+    reason_code = normalize_reference_rejection_reason_code(
+        options.get("reason-code") or options.get("reasonCode"), required=action == "reject")
+    client, _ = create_authoring_client()
+    recorded = newsroom_reference_actions.record_delegated_curation(
+        client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
+        agent_label=str(agent_label), on_behalf_of=str(on_behalf_of), note=str(options.get("note") or ""),
+        reason_code=reason_code or "")
+    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
+          f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+
+
 def references_list_predictions(flags: list[str]) -> None:
     options = parse_options(flags)
     limit = normalize_positive_integer(options.get("limit"), "--limit")
