@@ -655,3 +655,34 @@ publication named by the `--config` file (`papyrus-steering.yml` gives
   shared decision request, so decisions nobody has reviewed yet are decided again
   and the other classifiers' ML heads refit on the next decision; their labels and
   rubrics are untouched. Withdrawn Section labels are not yet retracted.
+
+### The Section proof: `references prove-site-sections`
+
+`papyrus_content.section_proof` measures how often the site cyclotron's
+classifiers agree with held-out human Section choices, the way the relevance
+proof does for relevance. Labels come only from explicit human Section choices
+(the same ones the sweep teaches from). Each classifier is cross-validated on its
+own: every human-placed Reference is held out once, taught only by the placements
+outside its own fold, and decided with and without that teaching, using the
+relevance proof's folds, runner and agreement metrics. The selector reports
+accuracy and per-Section recall; each Section's fit classifier reports
+precision, recall and F1.
+
+```bash
+poetry run papyrus references prove-site-sections --proof-id sections-1                          # dry run: label counts, what is provable, no model call
+poetry run papyrus references prove-site-sections --proof-id sections-1 --apply --output report.json
+```
+
+- The report schema is `cyclotron-section-proof/v1`: per-classifier results, label
+  counts, and the caveats stated plainly. It holds aggregate numbers only.
+- A classifier with too few labels is `not-yet-provable` with the reason and no
+  number: a fit classifier needs at least 2 positive and 2 negative examples, the
+  selector at least 10 human-placed References (and two enabled Sections), and a
+  Section's recall is shown only with at least 2 placements.
+- The fit classifiers' negatives are inferred from the single-Section assumption,
+  and every number is agreement with editors, not independent truth. Each
+  classifier lists its own sample-size caveat, such as how many percentage points
+  one more correct answer moves recall; under 10 positives (or 30 placed
+  References for the selector) the report calls the numbers a rough indication.
+- `--apply` calls the configured decision model once per placed Reference per
+  classifier, twice (without and with teaching). Tests use the scripted model.
