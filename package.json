@@ -142,6 +142,7 @@
     "test:bdd:agent-local:error-shape": "npm run -s check:reference-action-contract && PAPYRUS_LIVE_AGENT_BDD=1 PAPYRUS_LIVE_AGENT_LOCAL_RESPONDER=1 poetry run behave features_backend --tags=@agent-assignments --name \"The console agent returns structured error shape for invalid Assignment input\"",
     "release:dry-run": "semantic-release --dry-run --no-ci",
     "test:verify-packages": "node scripts/test-verify-packages.mjs",
+    "check:consumer-site-typecheck": "node scripts/check-consumer-site-typecheck.mjs",
     "test:newsroom-organizer": "node --import tsx scripts/test-newsroom-organizer-nav.ts && node --import tsx scripts/test-newsroom-section-routing.ts && node --import tsx scripts/test-newsroom-board.ts && node --import tsx scripts/test-editor-override.ts"
   },
   "keywords": [
