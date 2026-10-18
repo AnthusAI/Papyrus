@@ -4433,7 +4433,7 @@ function AdministrationDeskView({
     <div className="news-desk-columns news-desk-columns--administration" data-news-desk-section="administration">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-administration-title">
-          <SectionHeader title={administrationPanel === "sections" ? "Sections" : "Administration"} detail={administrationPanel === "sections" ? "Canonical and floating newspaper sections, and the publication ontology" : "Settings for users, policies, and procedures"} />
+          <SectionHeader title={administrationPanel === "sections" ? "Sections" : "Administration"} detail={administrationPanel === "sections" ? "The publication's sections and ontology" : "Settings for users, policies, and procedures"} />
           <div className="news-desk-settings-shell" data-settings-nav={administrationPanel === "sections" ? "hidden" : undefined}>
             {administrationPanel === "sections" ? null : <nav className="news-desk-settings-nav" aria-label="Administration settings">
               <Link
@@ -4962,7 +4962,7 @@ function AdministrationSectionsPanel({
 
   return (
     <div data-news-desk-admin-panel="sections">
-      <SectionHeader title="Newspaper Sections" detail={`${sortedSections.length} configured sections`} />
+      <SectionHeader title="Sections" detail={`${sortedSections.length} configured sections`} />
       <div className="news-desk-administration-category-layout">
         <div className="news-desk-administration-category-list" data-news-desk-section-list>
           {sortedSections.length ? (
@@ -13389,7 +13389,7 @@ function formatDeskSectionLede(section: NewsDeskTab): string {
   if (section === "references") return "Review source materials before they become usable evidence.";
   if (section === "messages") return "Read notes, rationales, forum threads, curation decisions, and other work products from people and agents.";
   if (section === "assignments") return "Create, filter, claim, and complete newsroom work.";
-  if (section === "administration") return "Manage users, roles, doctrine, configurable newspaper sections, and newsroom procedures.";
+  if (section === "administration") return "Manage users, roles, doctrine, and newsroom procedures.";
   return "";
 }
 
