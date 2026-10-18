@@ -1,5 +1,7 @@
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
 import type { EditableArticle } from "./newsroom-articles";
+import type { MediaAssetRecord } from "./newsroom-media";
+import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 
@@ -95,12 +97,17 @@ export function createLocalPreviewAssignments(): AssignmentRecord[] {
   return [...assignmentsOnContentItems, ...assignmentsWithoutContentItem];
 }
 
+export function createLocalPreviewRealPublishedVersions(): ContentItemVersionRecord[] {
+  return [];
+}
+
 export function createLocalPreviewEditableArticle(id: string): EditableArticle | null {
   const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === id);
   if (!version) return null;
   const headline = version.headline || version.title || version.slug;
   return {
     id: version.id,
+    lineageId: version.lineageId,
     type: version.type,
     section: version.section ?? null,
     slug: version.slug,
@@ -112,4 +119,30 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     aliases: [],
     everPublished: version.status === "published",
   };
+}
+
+export function recordLocalPreviewDesk(articleId: string, deskId: string | null): void {
+  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === articleId);
+  if (version) version.section = deskId;
+}
+
+const previewSavedVersions = new Map<string, TrailVersion[]>();
+const previewLineageByVersionId = new Map<string, string>();
+
+export function recordLocalPreviewVersion(lineageId: string, version: TrailVersion): void {
+  previewSavedVersions.set(lineageId, [version, ...(previewSavedVersions.get(lineageId) ?? [])]);
+  previewLineageByVersionId.set(version.id, lineageId);
+}
+
+export function lineageForPreviewVersion(versionId: string): string | null {
+  return previewLineageByVersionId.get(versionId) ?? null;
+}
+
+export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
+  const saved = previewSavedVersions.get(lineageId) ?? [];
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved };
+}
+
+export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord[] {
+  return [];
 }

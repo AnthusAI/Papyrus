@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .security import MARKUS_REQUIRED_VERSION, assert_argv_no_allow_html
+from .security import assert_argv_no_allow_html, assert_supported_markus_version
 
 if TYPE_CHECKING:
     from .transforms import FragmentTransform
@@ -54,10 +54,7 @@ def convert_text_in_process(text: str, *, theme: str | None = None) -> str:
     """
     import markusmd
 
-    if markusmd.__version__ != MARKUS_REQUIRED_VERSION:
-        raise RuntimeError(
-            f"Markus {MARKUS_REQUIRED_VERSION} required for static builds; got {markusmd.__version__!r}."
-        )
+    assert_supported_markus_version(markusmd.__version__)
     fragment = markusmd.convert(
         text, allow_html=False, include_css=False, full_document=False, theme=theme
     )

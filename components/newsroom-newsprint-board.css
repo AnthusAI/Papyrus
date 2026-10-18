@@ -36,10 +36,11 @@
   --issue-priority-bg: var(--org-paper) !important;
   background: transparent !important;
   border-radius: 0;
-  border-bottom: 1px solid var(--org-line) !important;
+  border: 0 !important;
   box-shadow: none !important;
 }
-.papyrus-newsprint-board .issue-accent-bar { border-bottom: 1px solid var(--org-line); background: var(--org-paper) !important; color: var(--org-ink) !important; }
+.papyrus-newsprint-board .issue-card + .issue-card { border-top: 1px solid var(--org-line) !important; }
+.papyrus-newsprint-board .issue-accent-bar { border-bottom: 0; background: var(--org-paper) !important; color: var(--org-ink) !important; }
 .papyrus-newsprint-board .issue-accent-id { font: 400 9px Newsroom UI, system-ui, sans-serif; letter-spacing: .8px; white-space: nowrap; color: var(--org-ink) !important; }
 .papyrus-newsprint-board .issue-accent-priority { border-radius: 0; color: var(--org-muted) !important; background: transparent !important; font-size: 8px; }
 .papyrus-newsprint-board .issue-card h3 { font: 700 19px/1.2 Newsroom Display, Georgia, serif !important; letter-spacing: -.2px; }
@@ -47,3 +48,9 @@
 .papyrus-newsprint-board .issue-card[data-selected=true] h3 { color: var(--org-ink) !important; }
 .papyrus-newsprint-board .kb-issue-detail { background: var(--org-paper); border: 1px solid var(--org-line); border-radius: 0; box-shadow: none; }
 .papyrus-newsprint-board .kb-issue-detail h2 { font: 700 28px/1.2 Newsroom Display, Georgia, serif; border-bottom: 3px double var(--org-ink); padding-bottom: 12px; }
+.papyrus-newsprint-board .issue-card .issue-accent-bar { height: auto !important; margin: 0 !important; width: 100% !important; padding: 0 !important; min-height: 0; }
+.papyrus-newsprint-board .issue-card .issue-card-content { padding-top: 2px !important; gap: 4px; }
+.papyrus-newsprint-board .issue-card h3 { margin: 0; }
+.board-card-excerpt p { margin: 0; font-size: 13px; line-height: 1.4; color: var(--org-ink); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.board-card-excerpt[data-expanded="true"] p { display: block; -webkit-line-clamp: unset; }
+.board-card-excerpt button { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; color: var(--org-ink); cursor: pointer; }

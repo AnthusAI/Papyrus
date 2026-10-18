@@ -408,6 +408,27 @@ poetry run papyrus references prove-priming --held-out .papyrus-runs/proofs/ti-2
 Keep the held-out file private: it holds source titles, URLs and editor notes.
 Cost is `held-out size x number of points` decision calls (200 for the defaults).
 
+### When there are too few labels for a held-out set
+
+A publication with a few dozen reviews (Threat Intelligence has 23) cannot spare
+40 for a fixed held-out set. Use stratified cross-validation instead: every
+labeled review is held out exactly once, taught only by reviews outside its own
+fold, and the folds are pooled at each N.
+
+```bash
+poetry run papyrus references freeze-priming-cross-validation --proof-id ti-2026-10-cv \
+  --output .papyrus-runs/proofs/ti-2026-10-cv.folds.json --folds 5
+
+# One decision-model call per labeled review per point (23 x 4 = 92 for the defaults).
+poetry run papyrus references prove-priming-cross-validated \
+  --folds-file .papyrus-runs/proofs/ti-2026-10-cv.folds.json --schedule 0,5,10 \
+  --output .papyrus-runs/proofs/ti-2026-10-cv.report.json
+```
+
+The schedule always also includes N = 0 and the largest N every fold can supply.
+The classes are unbalanced, so the page shows precision and recall beside
+agreement and states the design instead of claiming a 50% chance level.
+
 ### Where visitors see it
 
 The publication's `/cyclotron` page shows the headline ("agreement went from X%

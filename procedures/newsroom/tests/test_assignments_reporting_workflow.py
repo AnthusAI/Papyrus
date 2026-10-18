@@ -19,11 +19,11 @@ from papyrus_content.assignments_workflow import (
 
 
 class AssignmentsReportingWorkflowTests(unittest.TestCase):
-    def test_assignment_run_knowledge_scope_defaults_include_assignment_and_insight(self) -> None:
+    def test_assignment_run_knowledge_scope_defaults_include_assignment_and_note(self) -> None:
         scope = assignment_run_knowledge_scope({})
         self.assertIn("assignment", scope["includeObjectKinds"])
         self.assertIn("message", scope["includeObjectKinds"])
-        self.assertEqual(scope["includeMessageKinds"], ["insight"])
+        self.assertEqual(scope["includeMessageKinds"], ["note"])
         self.assertEqual(scope["includeAssignmentTypeKeys"], ["research.*", "reporting.*"])
 
     def test_normalize_reporting_packet_bundle_maps_fields(self) -> None:

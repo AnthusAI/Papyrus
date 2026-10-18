@@ -35,8 +35,8 @@ query ListReferences($limit: Int, $nextToken: String) {
 }
 """
 
-LIST_INSIGHT_MESSAGES_QUERY = """
-query ListInsightMessages($messageKind: String!, $limit: Int, $nextToken: String) {
+LIST_NOTE_MESSAGES_QUERY = """
+query ListNoteMessages($messageKind: String!, $limit: Int, $nextToken: String) {
   listMessagesByKindAndCreatedAt(messageKind: $messageKind, limit: $limit, nextToken: $nextToken) {
     items {
       id messageKind messageDomain status summary source importRunId authorLabel semanticLayer searchVisibility threadId createdAt updatedAt
@@ -113,7 +113,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     existing_vectors = _list_index_vectors(vector_index_arn)
     existing_keys = {str(vector.get("key")) for vector in existing_vectors if vector.get("key")}
     existing_reference_keys = _indexed_reference_keys(existing_vectors)
-    existing_insight_keys = _indexed_insight_message_keys(existing_vectors)
+    existing_note_keys = _indexed_note_message_keys(existing_vectors)
     stats = {
         "action": options.action,
         "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -122,13 +122,13 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "referencesScanned": len(references),
         "existingVectors": len(existing_vectors),
         "existingIndexedReferences": len(existing_reference_keys),
-        "existingIndexedInsightMessages": len(existing_insight_keys),
+        "existingIndexedNoteMessages": len(existing_note_keys),
         "referencesWithExtractedText": 0,
         "referencesPrepared": 0,
         "sourceVectorsPrepared": 0,
         "passageVectorsPrepared": 0,
-        "insightPassageVectorsPrepared": 0,
-        "insightVectorsPrepared": 0,
+        "notePassageVectorsPrepared": 0,
+        "noteVectorsPrepared": 0,
         "vectorsPrepared": 0,
         "vectorsSkippedExisting": 0,
         "vectorsToWrite": 0,
@@ -138,44 +138,44 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "dryRun": options.dry_run,
         "vectorIndexArn": vector_index_arn,
         "indexedReferenceSample": sorted(existing_reference_keys)[:20],
-        "indexedInsightMessageSample": sorted(existing_insight_keys)[:20],
+        "indexedNoteMessageSample": sorted(existing_note_keys)[:20],
         "totalMessages": 0,
-        "insightMessagesScanned": 0,
-        "eligibleInsightMessages": 0,
-        "excludedInsightMessages": 0,
-        "insightMessagesMissingBody": 0,
-        "insightSourceVectorsPrepared": 0,
+        "noteMessagesScanned": 0,
+        "eligibleNoteMessages": 0,
+        "excludedNoteMessages": 0,
+        "noteMessagesMissingBody": 0,
+        "noteSourceVectorsPrepared": 0,
         "ontologyVectorsPrepared": 0,
         "ontologyRelationExplanationVectorsPrepared": 0,
         "ontologyConceptProfileVectorsPrepared": 0,
-        "insightResults": [],
+        "noteResults": [],
         "ontologyResults": [],
         "failures": [],
         "warnings": [],
         "referenceResults": [],
     }
-    insight_messages = _list_insight_messages(services.graph)
-    prepared_insights = _prepare_insight_messages(services, insight_messages)
-    eligible_insights = [entry for entry in prepared_insights if entry.get("relation") and _insight_body_text(entry)]
-    missing_body_insights = [
-        entry for entry in prepared_insights
-        if entry.get("relation") and not _insight_body_text(entry)
+    note_messages = _list_note_messages(services.graph)
+    prepared_notes = _prepare_note_messages(services, note_messages)
+    eligible_notes = [entry for entry in prepared_notes if entry.get("relation") and _note_body_text(entry)]
+    missing_body_notes = [
+        entry for entry in prepared_notes
+        if entry.get("relation") and not _note_body_text(entry)
     ]
-    stats["totalMessages"] = len(insight_messages)
-    stats["insightMessagesScanned"] = len(prepared_insights)
-    stats["eligibleInsightMessages"] = len(eligible_insights)
-    stats["excludedInsightMessages"] = max(0, len(prepared_insights) - len(eligible_insights))
-    stats["insightMessagesMissingBody"] = len(missing_body_insights)
+    stats["totalMessages"] = len(note_messages)
+    stats["noteMessagesScanned"] = len(prepared_notes)
+    stats["eligibleNoteMessages"] = len(eligible_notes)
+    stats["excludedNoteMessages"] = max(0, len(prepared_notes) - len(eligible_notes))
+    stats["noteMessagesMissingBody"] = len(missing_body_notes)
     started = time.perf_counter()
     if options.action == "audit":
         selected_keys = _reference_key_set(references)
         missing = sorted(selected_keys - existing_reference_keys)
         stats["missingIndexedReferences"] = len(missing)
         stats["missingIndexedReferenceSample"] = missing[:20]
-        selected_insight_keys = _insight_message_key_set(eligible_insights)
-        missing_insight = sorted(selected_insight_keys - existing_insight_keys)
-        stats["missingIndexedInsightMessages"] = len(missing_insight)
-        stats["missingIndexedInsightMessageSample"] = missing_insight[:20]
+        selected_note_keys = _note_message_key_set(eligible_notes)
+        missing_note = sorted(selected_note_keys - existing_note_keys)
+        stats["missingIndexedNoteMessages"] = len(missing_note)
+        stats["missingIndexedNoteMessageSample"] = missing_note[:20]
         return stats
 
     if options.action == "rebuild" and existing_keys and not options.dry_run:
@@ -232,14 +232,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             stats["ontologyResults"].append(result)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    for prepared in prepared_insights:
-        pending_vectors = _consume_prepared_insight(prepared, stats, existing_keys, pending_vectors, vector_index_arn, options)
+    for prepared in prepared_notes:
+        pending_vectors = _consume_prepared_note(prepared, stats, existing_keys, pending_vectors, vector_index_arn, options)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
     selected_keys = _reference_key_set(references)
     stats["missingIndexedReferencesBeforeRun"] = len(selected_keys - existing_reference_keys)
-    selected_insight_keys = _insight_message_key_set(eligible_insights)
-    stats["missingIndexedInsightMessagesBeforeRun"] = len(selected_insight_keys - existing_insight_keys)
+    selected_note_keys = _note_message_key_set(eligible_notes)
+    stats["missingIndexedNoteMessagesBeforeRun"] = len(selected_note_keys - existing_note_keys)
     stats["elapsedSeconds"] = round(time.perf_counter() - started, 3)
     stats["completedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     return stats
@@ -378,14 +378,14 @@ def _flush_pending_vectors(
     return []
 
 
-def _prepare_insight_messages(
+def _prepare_note_messages(
     services: KnowledgeQueryServices,
     messages: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     graph = services.graph
     if not graph:
         return []
-    message_body_texts = _read_insight_message_bodies(services, messages)
+    message_body_texts = _read_note_message_bodies(services, messages)
     message_stubs = [
         {
             "kind": "message",
@@ -412,7 +412,7 @@ def _prepare_insight_messages(
             (
                 candidate for candidate in relations or []
                 if isinstance(candidate, dict)
-                and str(candidate.get("relationTypeKey") or candidate.get("predicate") or "") == "insight_about"
+                and str(candidate.get("relationTypeKey") or candidate.get("predicate") or "") == "note_about"
                 and candidate.get("relationState") in {None, "", "current"}
                 and str(candidate.get("subjectKind") or "message") == "message"
             ),
@@ -422,7 +422,7 @@ def _prepare_insight_messages(
     return prepared
 
 
-def _read_insight_message_bodies(
+def _read_note_message_bodies(
     services: KnowledgeQueryServices,
     messages: list[dict[str, Any]],
 ) -> dict[str, str]:
@@ -485,7 +485,7 @@ def _list_message_body_attachments(graph: Any, message_ids: list[str]) -> dict[s
 """
             )
             alias_to_id[alias] = message_id
-        query = f"query BatchInsightMessageBodies({', '.join(variable_defs)}) {{\n{''.join(fields)}\n}}"
+        query = f"query BatchNoteMessageBodies({', '.join(variable_defs)}) {{\n{''.join(fields)}\n}}"
         payload = graph.graphql(query, variables)
         for alias, message_id in alias_to_id.items():
             connection = payload.get(alias) or {}
@@ -503,7 +503,7 @@ def _list_message_body_attachments(graph: Any, message_ids: list[str]) -> dict[s
     return results
 
 
-def _consume_prepared_insight(
+def _consume_prepared_note(
     prepared: dict[str, Any],
     stats: dict[str, Any],
     existing_keys: set[str],
@@ -528,24 +528,24 @@ def _consume_prepared_insight(
         "aboutLineageId": relation.get("objectLineageId") if relation else None,
     }
     if not relation:
-        stats["insightResults"].append(result)
+        stats["noteResults"].append(result)
         return pending_vectors
     if not _clean_text(str(message.get("body") or "")):
         result["status"] = "missing_message_body"
-        stats["insightResults"].append(result)
+        stats["noteResults"].append(result)
         return pending_vectors
-    candidates = _prepare_insight_vectors(message, relation, options)
+    candidates = _prepare_note_vectors(message, relation, options)
     result["candidateCount"] = len(candidates)
     wrote_any = False
     for candidate in candidates:
         stats["vectorsPrepared"] += 1
-        stats["insightVectorsPrepared"] += 1
+        stats["noteVectorsPrepared"] += 1
         vector_kind = candidate["metadata"].get("vectorKind")
-        if vector_kind == "insight_source":
-            stats["insightSourceVectorsPrepared"] += 1
+        if vector_kind == "note_source":
+            stats["noteSourceVectorsPrepared"] += 1
             result["sourceVectorCount"] += 1
-        elif vector_kind == "insight_passage":
-            stats["insightPassageVectorsPrepared"] += 1
+        elif vector_kind == "note_passage":
+            stats["notePassageVectorsPrepared"] += 1
             result["passageVectorCount"] += 1
         if not options.force and candidate["key"] in existing_keys:
             stats["vectorsSkippedExisting"] += 1
@@ -567,7 +567,7 @@ def _consume_prepared_insight(
             result["status"] = "prepared"
         else:
             result["status"] = "eligible"
-    stats["insightResults"].append(result)
+    stats["noteResults"].append(result)
     return pending_vectors
 
 
@@ -614,7 +614,7 @@ def _prepare_reference_vectors(
     return vectors
 
 
-def _prepare_insight_vectors(
+def _prepare_note_vectors(
     message: dict[str, Any],
     relation: dict[str, Any],
     options: VectorIndexOptions,
@@ -626,19 +626,19 @@ def _prepare_insight_vectors(
     message_lineage_id = str(message.get("lineageId") or message.get("id") or "")
     about_kind = str(relation.get("objectKind") or "")
     about_lineage_id = str(relation.get("objectLineageId") or relation.get("objectId") or "")
-    metadata = _base_insight_metadata(message, relation, options)
+    metadata = _base_note_metadata(message, relation, options)
     vectors: list[dict[str, Any]] = []
     if options.include_source_vectors and len(body) >= 30:
         digest = hashlib.sha256(
-            f"{message_lineage_id}:{about_kind}:{about_lineage_id}:insight_source".encode("utf-8")
+            f"{message_lineage_id}:{about_kind}:{about_lineage_id}:note_source".encode("utf-8")
         ).hexdigest()[:20]
         vectors.append(
             {
-                "key": f"insight-source-{digest}",
+                "key": f"note-source-{digest}",
                 "text": body,
                 "metadata": {
                     **metadata,
-                    "vectorKind": "insight_source",
+                    "vectorKind": "note_source",
                     "summary": summary[:900],
                     "text": body[:2400],
                 },
@@ -652,11 +652,11 @@ def _prepare_insight_vectors(
             digest = hashlib.sha256(f"{message_lineage_id}:{about_kind}:{about_lineage_id}:{index}".encode("utf-8")).hexdigest()[:20]
             vectors.append(
                 {
-                    "key": f"insight-passage-{digest}",
+                    "key": f"note-passage-{digest}",
                     "text": clean,
                     "metadata": {
                         **metadata,
-                        "vectorKind": "insight_passage",
+                        "vectorKind": "note_passage",
                         "summary": clean[:600],
                         "text": clean[:1800],
                         "chunkIndex": index,
@@ -943,7 +943,7 @@ def _reference_summary_payload_for_indexing_legacy(
     )[0]
 
 
-def _base_insight_metadata(message: dict[str, Any], relation: dict[str, Any], options: VectorIndexOptions) -> dict[str, Any]:
+def _base_note_metadata(message: dict[str, Any], relation: dict[str, Any], options: VectorIndexOptions) -> dict[str, Any]:
     message_id = message.get("id")
     message_lineage_id = message.get("lineageId") or message_id
     about_kind = relation.get("objectKind")
@@ -957,11 +957,11 @@ def _base_insight_metadata(message: dict[str, Any], relation: dict[str, Any], op
         "messageLineageId": message_lineage_id,
         "messageKind": message.get("messageKind"),
         "messageDomain": message.get("messageDomain"),
-        "semanticLayer": message.get("semanticLayer") or "insight",
+        "semanticLayer": message.get("semanticLayer") or "note",
         "searchVisibility": message.get("searchVisibility") or "default",
         "threadId": message.get("threadId"),
         "status": message.get("status"),
-        "relationTypeKey": "insight_about",
+        "relationTypeKey": "note_about",
         "aboutKind": about_kind,
         "aboutId": about_id,
         "aboutLineageId": about_lineage_id,
@@ -1055,13 +1055,13 @@ def _list_references(graph: GraphQLKnowledgeGraphProvider) -> list[dict[str, Any
             return records
 
 
-def _list_insight_messages(graph: GraphQLKnowledgeGraphProvider) -> list[dict[str, Any]]:
+def _list_note_messages(graph: GraphQLKnowledgeGraphProvider) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
         payload = graph.graphql(
-            LIST_INSIGHT_MESSAGES_QUERY,
-            {"messageKind": "insight", "limit": 100, "nextToken": next_token},
+            LIST_NOTE_MESSAGES_QUERY,
+            {"messageKind": "note", "limit": 100, "nextToken": next_token},
         )
         connection = payload.get("listMessagesByKindAndCreatedAt") or {}
         records.extend(
@@ -1096,17 +1096,17 @@ def _indexed_reference_keys(vectors: list[dict[str, Any]]) -> set[str]:
     return keys
 
 
-def _indexed_insight_message_keys(vectors: list[dict[str, Any]]) -> set[str]:
+def _indexed_note_message_keys(vectors: list[dict[str, Any]]) -> set[str]:
     keys: set[str] = set()
     for vector in vectors:
         metadata = vector.get("metadata") if isinstance(vector.get("metadata"), dict) else {}
         vector_kind = str(metadata.get("vectorKind") or "")
         kind = str(metadata.get("kind") or "")
-        if kind != "message" and not vector_kind.startswith("insight_"):
+        if kind != "message" and not vector_kind.startswith("note_"):
             continue
-        if str(metadata.get("relationTypeKey") or "") != "insight_about":
+        if str(metadata.get("relationTypeKey") or "") != "note_about":
             continue
-        if str(metadata.get("messageKind") or "") != "insight":
+        if str(metadata.get("messageKind") or "") != "note":
             continue
         if str(metadata.get("messageDomain") or "") != "knowledge":
             continue
@@ -1116,10 +1116,10 @@ def _indexed_insight_message_keys(vectors: list[dict[str, Any]]) -> set[str]:
     return keys
 
 
-def _insight_message_key_set(prepared_insights: list[dict[str, Any]]) -> set[str]:
+def _note_message_key_set(prepared_notes: list[dict[str, Any]]) -> set[str]:
     keys: set[str] = set()
-    for entry in prepared_insights:
-        if not _insight_body_text(entry):
+    for entry in prepared_notes:
+        if not _note_body_text(entry):
             continue
         message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
         key = message.get("lineageId") or message.get("id")
@@ -1128,8 +1128,8 @@ def _insight_message_key_set(prepared_insights: list[dict[str, Any]]) -> set[str
     return keys
 
 
-def _insight_body_text(prepared_insight: dict[str, Any]) -> str:
-    message = prepared_insight.get("message") if isinstance(prepared_insight.get("message"), dict) else {}
+def _note_body_text(prepared_note: dict[str, Any]) -> str:
+    message = prepared_note.get("message") if isinstance(prepared_note.get("message"), dict) else {}
     return _clean_text(str(message.get("body") or ""))
 
 

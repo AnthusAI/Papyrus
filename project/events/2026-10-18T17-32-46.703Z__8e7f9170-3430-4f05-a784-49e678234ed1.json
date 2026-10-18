@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8e7f9170-3430-4f05-a784-49e678234ed1",
+  "issue_id": "PPY-0e4ec854-0d25-410a-a7d2-76c076720d02",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:32:46.703Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Scheduled cross-validated proof with a human-approved gate for auto-decisions",
+    "description": "Auto-proof command triggered after K new labels (draft report only), then a scheduled run. No auto-accept or auto-reject until a human approves a fresh proof; start with auto-reject of clear misses at most.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}

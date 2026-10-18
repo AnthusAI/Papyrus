@@ -86,7 +86,7 @@ class OntologyEnrichmentTests(unittest.TestCase):
                 "SemanticRelationType": [
                     {"key": "mentions"},
                     {"key": "explains_relation"},
-                    {"key": "insight_about"},
+                    {"key": "note_about"},
                     {"key": "same_as"},
                     {"key": "alias_of"},
                     {"key": "related_to"},

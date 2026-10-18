@@ -1,5 +1,6 @@
 "use client";
 
+import { WikiConceptsView } from "./wiki-concepts-view";
 import { Hub } from "aws-amplify/utils";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { gsap } from "gsap";
@@ -34,17 +35,13 @@ import {
   loadEditorProcedureData,
   loadEditorSemanticRelationsData,
   loadEditionForumThreads,
-  loadInsightForumThreadById,
-  loadInsightForumThreads,
   loadNewsroomAssignmentPage,
   loadNewsroomMessagePage,
   loadNewsroomReferencePage,
   loadNewsroomSemanticNodePage,
   appendForumThreadMessageRecord,
-  appendInsightThreadReplyRecord,
   createSectionForumThreadRecord,
   deleteForumThreadMessageRecord,
-  deleteInsightThreadMessageRecord,
   ensureEditionForumThreadRecord,
   publishProcedureVersionRecord,
   runNewsroomKnowledgeQuery,
@@ -68,11 +65,8 @@ import {
   effectiveReferencesIndexFilters,
   normalizeReferenceIndexOrder,
   readAssignmentsIndexFilters,
-  readInsightsIndexFilters,
   readMessagesIndexFilters,
   readReferencesIndexFilters,
-  effectiveInsightsIndexFilters,
-  parseInsightThreadIdFromNewsroomPathname,
   referencesStatusFromUrl,
   referencesStatusToUrl,
   type ReferenceIndexOrder,
@@ -201,12 +195,10 @@ import {
 } from "../lib/reporting-story-budget";
 import {
   buildForumThreadUrl,
-  buildInsightThreadUrl,
   getForumMessageAnchorId,
   isForumThreadId,
   parseForumMessageAnchorFromHash,
   pushForumThreadUrl,
-  pushInsightThreadUrl,
   readCurrentForumRoute,
 } from "../lib/newsroom-forum-routes";
 
@@ -247,7 +239,7 @@ type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "ki
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
 type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "signups";
-export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "insights" | "messages" | "assignments" | "administration" | "search";
+export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
 type ReferenceProcessingStatus = "created" | "processable" | "processed" | "blocked";
@@ -324,7 +316,7 @@ type NewsroomDetailAction = {
   onSelect: () => void;
 };
 
-type InsightTarget = {
+type NoteTarget = {
   kind: "assignment" | "category" | "item" | "newsroomSection" | "reference" | "semanticNode";
   id: string;
   lineageId: string;
@@ -333,7 +325,7 @@ type InsightTarget = {
   versionNumber?: number | null;
 };
 
-type InsightComposerControl = {
+type NoteComposerControl = {
   action: NewsroomDetailAction;
   dialog: ReactNode;
   error: string | null;
@@ -460,7 +452,7 @@ type ReferenceQualityResponse = {
   errors?: Array<{ message?: string | null } | string | null> | null;
 };
 
-type ReferenceInsightResponse = {
+type ReferenceNoteResponse = {
   data?: {
     ok?: boolean | null;
     referenceId?: string | null;
@@ -927,9 +919,6 @@ function NewsDeskDashboard({
     overview: 0,
     desks: summaryCountFromRecord(summary, "categories"),
     messages: summaryCountFromRecord(summary, "messages"),
-    insights: summary?.facets?.messages?.byKind?.insight
-      ?? summary?.messageKindCounts?.insight
-      ?? null,
     assignments: summaryCountFromRecord(summary, "assignments"),
     references: summaryCountFromRecord(summary, "references")
       ?? (hasHydratedReferences ? references.length : null),
@@ -1895,11 +1884,11 @@ function NewsDeskDashboard({
     });
   }
 
-  async function createInsight(target: InsightTarget, summary: string, body: string): Promise<void> {
+  async function createNote(target: NoteTarget, summary: string, body: string): Promise<void> {
     const cleanSummary = summary.trim();
     const cleanBody = body.trim();
-    if (!cleanSummary) throw new Error("Insight summary is required.");
-    if (!cleanBody) throw new Error("Insight body is required.");
+    if (!cleanSummary) throw new Error("Note summary is required.");
+    if (!cleanBody) throw new Error("Note body is required.");
     const now = new Date().toISOString();
     const subjectSeed = [
       target.kind,
@@ -1908,10 +1897,10 @@ function NewsDeskDashboard({
       cleanBody,
       now,
     ];
-    const messageId = `message-insight-${safeUiId(target.kind)}-${safeUiId(target.lineageId)}-${hashUiKey(subjectSeed)}`;
+    const messageId = `message-note-${safeUiId(target.kind)}-${safeUiId(target.lineageId)}-${hashUiKey(subjectSeed)}`;
     const message: MessageRecord = {
       id: messageId,
-      messageKind: "insight",
+      messageKind: "note",
       messageDomain: "knowledge",
       status: "active",
       summary: cleanSummary,
@@ -1929,18 +1918,18 @@ function NewsDeskDashboard({
         targetLineageId: target.lineageId,
       },
     };
-    const relation = buildUiInsightRelation(message, target, now);
-    setActionState({ id: messageId, message: "insight pending", tone: "pending" });
+    const relation = buildUiNoteRelation(message, target, now);
+    setActionState({ id: messageId, message: "note pending", tone: "pending" });
 
     if (dashboard.isDemo) {
       setMessages((current) => [message, ...current.filter((entry) => entry.id !== message.id)]);
       setSemanticRelations((current) => [relation, ...current.filter((entry) => entry.id !== relation.id)]);
-      setActionState({ id: messageId, message: "insight saved", tone: "ok" });
+      setActionState({ id: messageId, message: "note saved", tone: "ok" });
       return;
     }
 
     if (target.kind === "reference") {
-      const response = await dataClient.mutations.createReferenceInsight(
+      const response = await dataClient.mutations.createReferenceNote(
         {
           referenceId: target.id,
           summary: cleanSummary,
@@ -1949,7 +1938,7 @@ function NewsDeskDashboard({
         },
         { authMode: USER_POOL_AUTH_MODE },
       );
-      const created = assertReferenceInsightMutationSucceeded(response as ReferenceInsightResponse, target.id);
+      const created = assertReferenceNoteMutationSucceeded(response as ReferenceNoteResponse, target.id);
       const persistedMessageId = created.messageId ?? messageId;
       const persistedRelationId = created.relationId ?? relation.id;
       const persistedMessage: MessageRecord = {
@@ -1966,7 +1955,7 @@ function NewsDeskDashboard({
       };
       setMessages((current) => [persistedMessage, ...current.filter((entry) => entry.id !== persistedMessage.id)]);
       setSemanticRelations((current) => [persistedRelation, ...current.filter((entry) => entry.id !== persistedRelation.id)]);
-      setActionState({ id: persistedMessageId, message: "insight saved", tone: "ok" });
+      setActionState({ id: persistedMessageId, message: "note saved", tone: "ok" });
       return;
     }
 
@@ -2004,7 +1993,7 @@ function NewsDeskDashboard({
     assertNoGraphQLErrors(relationResponse.errors);
     setMessages((current) => [message, ...current.filter((entry) => entry.id !== message.id)]);
     setSemanticRelations((current) => [relation, ...current.filter((entry) => entry.id !== relation.id)]);
-    setActionState({ id: messageId, message: "insight saved", tone: "ok" });
+    setActionState({ id: messageId, message: "note saved", tone: "ok" });
   }
 
   function createLexicalSteeringRule(draft: LexicalRuleDraft) {
@@ -3073,7 +3062,7 @@ function NewsDeskDashboard({
 
   const shellTabCounts = useMemo(() => {
     const entries: Partial<Record<string, NewsroomNavCount>> = {};
-    for (const tab of ["overview", "messages", "insights", "assignments", "references", "topics", "concepts", "administration"] as NewsDeskTab[]) {
+    for (const tab of ["overview", "messages", "assignments", "references", "topics", "concepts", "administration"] as NewsDeskTab[]) {
       if (tab === "administration") continue;
       entries[tab] = {
         count: tabCounts[tab],
@@ -3087,7 +3076,9 @@ function NewsDeskDashboard({
     ? mastheadTitle
     : activeTab === "overview"
       ? "Overview"
-      : formatDeskSectionHeadline(activeTab);
+      : activeTab === "administration" && administrationPanel === "sections"
+        ? "Sections"
+        : formatDeskSectionHeadline(activeTab);
 
   return (
     <>
@@ -3124,8 +3115,8 @@ function NewsDeskDashboard({
         >
         {activeTab !== "overview" && activeTab !== "assignments" && activeTab !== "messages" && activeTab !== "references" && activeTab !== "topics" && activeTab !== "concepts" && activeTab !== "search" ? (
           <NewsroomOpsSectionIntro
-            description={formatDeskSectionLede(activeTab)}
-            title={formatDeskSectionHeadline(activeTab)}
+            description={activeTab === "administration" && administrationPanel === "sections" ? "Organize the publication's sections and the ontology that classifies its coverage." : formatDeskSectionLede(activeTab)}
+            title={activeTab === "administration" && administrationPanel === "sections" ? "Sections" : formatDeskSectionHeadline(activeTab)}
           />
         ) : null}
 
@@ -3145,7 +3136,7 @@ function NewsDeskDashboard({
           <DeepNewsroomSectionView
             demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
-            onCreateInsight={createInsight}
+            onCreateNote={createNote}
             section={activeNewsroomSection}
             sectionId={sectionPageId ?? ""}
             sectionsLoaded={loadedSections.sections}
@@ -3170,6 +3161,12 @@ function NewsDeskDashboard({
             references={references}
             semanticNodes={semanticNodes}
           />
+        ) : null}
+        {!isSectionPage && (activeTab === "desks" || activeTab === "topics") ? (
+          <nav aria-label="Taxonomy views" className="taxonomy-view-switch" data-taxonomy-view-switch>
+            <Link aria-current={activeTab === "desks" ? "page" : undefined} href={getNewsroomNavHref("/newsroom/desks", Boolean(dashboard.isDemo))}>Categories</Link>
+            <Link aria-current={activeTab === "topics" ? "page" : undefined} href={getNewsroomNavHref("/newsroom/topics", Boolean(dashboard.isDemo))}>Topic proposals</Link>
+          </nav>
         ) : null}
         {!isSectionPage && activeTab === "desks" ? (
           <DesksDeskView
@@ -3198,14 +3195,10 @@ function NewsDeskDashboard({
         ) : null}
         {!isSectionPage && activeTab === "concepts" ? (
           <ConceptsDeskView
-            categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
-            disabled={controlsDisabled}
             graph={graph}
-            initialCategoryLineageId={initialSelection.category}
             initialNodeLineageId={initialSelection.node}
-            onCreateInsight={createInsight}
+            isDemo={Boolean(dashboard.isDemo)}
             semanticNodes={semanticNodes}
-            summary={summary}
           />
         ) : null}
         {!isSectionPage && activeTab === "references" ? (
@@ -3239,15 +3232,6 @@ function NewsDeskDashboard({
             onReview={(reference, action) => runReferenceCurationAction(reference, action)}
             referenceAttachments={referenceAttachments}
             references={references}
-          />
-        ) : null}
-        {!isSectionPage && activeTab === "insights" ? (
-          <InsightsDeskView
-            graph={graph}
-            initialThreadId={initialSelection.forumThread}
-            isDemo={Boolean(dashboard.isDemo)}
-            messages={messages}
-            summary={summary}
           />
         ) : null}
         {!isSectionPage && activeTab === "messages" ? (
@@ -4193,20 +4177,20 @@ function RotatingSectionTriangleIcon({ expanded }: { expanded: boolean }) {
 function DeepNewsroomSectionView({
   demo,
   disabled,
-  onCreateInsight,
+  onCreateNote,
   section,
   sectionId,
   sectionsLoaded,
 }: {
   demo: boolean;
   disabled: boolean;
-  onCreateInsight: (target: InsightTarget, summary: string, body: string) => Promise<void>;
+  onCreateNote: (target: NoteTarget, summary: string, body: string) => Promise<void>;
   section: NewsroomSectionRecord | null;
   sectionId: string;
   sectionsLoaded: boolean;
 }) {
-  const insightTarget = section ? insightTargetForNewsroomSection(section) : null;
-  const insightComposer = useNewsroomInsightComposer(insightTarget, disabled, onCreateInsight);
+  const noteTarget = section ? noteTargetForNewsroomSection(section) : null;
+  const noteComposer = useNewsroomNoteComposer(noteTarget, disabled, onCreateNote);
 
   if (!section) {
     return (
@@ -4235,13 +4219,13 @@ function DeepNewsroomSectionView({
         <h2 data-newsroom-deep-section-title>{section.title}</h2>
         <p>{displayNewsroomSectionShortTitle(section)}</p>
         <div className="newsroom-deep-section__header-actions">
-          <button type="button" disabled={insightComposer.action.disabled} onClick={insightComposer.action.onSelect}>
-            {insightComposer.loading ? "Saving Insight" : "Add Insight"}
+          <button type="button" disabled={noteComposer.action.disabled} onClick={noteComposer.action.onSelect}>
+            {noteComposer.loading ? "Saving Note" : "Add Note"}
           </button>
           <Link href={getNewsDeskTabHref("/newsroom", demo)}>Back to Newsroom</Link>
         </div>
       </header>
-      {insightComposer.error ? <div className="category-steering-alert" role="status">{insightComposer.error}</div> : null}
+      {noteComposer.error ? <div className="category-steering-alert" role="status">{noteComposer.error}</div> : null}
       <div className="newsroom-deep-section__body">
         <article className="newsroom-deep-section__field newsroom-deep-section__field--lead">
           <p className="story-label">Mission</p>
@@ -4258,7 +4242,7 @@ function DeepNewsroomSectionView({
           </article>
         ))}
       </div>
-      {insightComposer.dialog}
+      {noteComposer.dialog}
     </section>
   );
 }
@@ -4449,9 +4433,9 @@ function AdministrationDeskView({
     <div className="news-desk-columns news-desk-columns--administration" data-news-desk-section="administration">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-administration-title">
-          <SectionHeader title="Administration" detail="Settings for users, policies, sections, and procedures" />
-          <div className="news-desk-settings-shell">
-            <nav className="news-desk-settings-nav" aria-label="Administration settings">
+          <SectionHeader title={administrationPanel === "sections" ? "Sections" : "Administration"} detail={administrationPanel === "sections" ? "The publication's sections and ontology" : "Settings for users, policies, and procedures"} />
+          <div className="news-desk-settings-shell" data-settings-nav={administrationPanel === "sections" ? "hidden" : undefined}>
+            {administrationPanel === "sections" ? null : <nav className="news-desk-settings-nav" aria-label="Administration settings">
               <Link
                 href={administrationPanelHref("users", isDemo)}
                 data-news-desk-admin-nav="users"
@@ -4469,15 +4453,6 @@ function AdministrationDeskView({
               >
                 <strong>Policies</strong>
                 <span>Publication and category doctrine</span>
-              </Link>
-              <Link
-                href={administrationPanelHref("sections", isDemo)}
-                data-news-desk-admin-nav="sections"
-                data-active={administrationPanel === "sections" || undefined}
-                onClick={() => onPanelChange("sections")}
-              >
-                <strong>Sections</strong>
-                <span>Canonical and floating newspaper sections</span>
               </Link>
               <Link
                 href={administrationPanelHref("procedures", isDemo)}
@@ -4499,7 +4474,7 @@ function AdministrationDeskView({
                   <span>Addresses from the site&apos;s signup forms</span>
                 </Link>
               ) : null}
-            </nav>
+            </nav>}
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
               {administrationPanel === "users" ? (
@@ -4987,7 +4962,7 @@ function AdministrationSectionsPanel({
 
   return (
     <div data-news-desk-admin-panel="sections">
-      <SectionHeader title="Newspaper Sections" detail={`${sortedSections.length} configured sections`} />
+      <SectionHeader title="Sections" detail={`${sortedSections.length} configured sections`} />
       <div className="news-desk-administration-category-layout">
         <div className="news-desk-administration-category-list" data-news-desk-section-list>
           {sortedSections.length ? (
@@ -5824,7 +5799,7 @@ function DesksDeskView({
   }, [initialRootKey, roots, selectedRoot, selectedRootKey]);
 
   return (
-    <div className="news-desk-columns" data-news-desk-section="desks">
+    <div className="news-desk-columns news-desk-columns--administration news-desk-columns--taxonomy" data-news-desk-section="desks">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-desks-title">
           <SectionHeader title="News Desks" detail={`${roots.length} root topic desks`} />
@@ -6374,148 +6349,27 @@ function TopicProposalEditModal({
 }
 
 function ConceptsDeskView({
-  categories,
-  disabled,
   graph,
-  initialCategoryLineageId,
   initialNodeLineageId,
-  onCreateInsight,
+  isDemo,
   semanticNodes,
-  summary,
 }: {
-  categories: CategorySteeringCategory[];
-  disabled: boolean;
   graph: SemanticGraph;
-  initialCategoryLineageId?: string | null;
   initialNodeLineageId?: string | null;
-  onCreateInsight: (target: InsightTarget, summary: string, body: string) => Promise<void>;
+  isDemo: boolean;
   semanticNodes: SemanticNodeRecord[];
-  summary?: NewsroomSummaryRecord | null;
 }) {
-  const [nodeKindFilter, setNodeKindFilter] = useState("");
-  const [nodeStatusFilter, setNodeStatusFilter] = useState("");
-  const [selectedNodeLineageId, setSelectedNodeLineageId] = useState(initialNodeLineageId ?? "");
-  const [isConceptDetailOpen, setIsConceptDetailOpen] = useState(Boolean(initialNodeLineageId));
-  const categoryContext = useMemo(() => buildCategoryDrilldownContext(categories, initialCategoryLineageId), [categories, initialCategoryLineageId]);
   const feed = useNewsroomPagedRows({
     initialItems: semanticNodes,
-    enabled: !categoryContext?.primary,
-    resetKey: `semanticNodes:${nodeKindFilter}:${nodeStatusFilter}`,
-    loadPage: (nextToken) => loadNewsroomSemanticNodePage({
-      nodeKind: nodeKindFilter,
-      status: nodeStatusFilter,
-      nextToken,
-    }),
+    enabled: true,
+    resetKey: "semanticNodes:wiki",
+    loadPage: (nextToken) => loadNewsroomSemanticNodePage({ nodeKind: "", status: "", nextToken }),
   });
-  const categoryFilter = categoryContext.primary ? graph.resolve("category", categoryLineageId(categoryContext.primary)) : null;
-  const categoryConceptLineages = useMemo(() => (
-    categoryContext.primary
-      ? new Set(semanticNodesForCategoryContext(graph, categoryContext).map((node) => node.lineageId))
-      : null
-  ), [categoryContext, graph]);
-  const feedNodes = useMemo(() => (
-    feed.items.length
-      ? feed.items
-      : (feed.isLoading || Boolean(feed.error))
-        ? semanticNodes
-        : feed.items
-  ), [feed.error, feed.isLoading, feed.items, semanticNodes]);
-  const visibleNodes = useMemo(() => (
-    categoryConceptLineages
-      ? semanticNodes.filter((node) => categoryConceptLineages.has(node.lineageId ?? node.id))
-      : feedNodes
-  ), [categoryConceptLineages, feedNodes, semanticNodes]);
-  const fallbackConceptCategories = useMemo(() => (
-    visibleNodes.length
-      ? []
-      : categories.filter((category) => category.status !== "deprecated" && category.status !== "archived")
-  ), [categories, visibleNodes.length]);
-  const requestedNodeLineageId = selectedNodeLineageId || initialNodeLineageId || "";
-  const selected = selectSemanticNodeSummary(graph, visibleNodes, requestedNodeLineageId)
-    ?? (requestedNodeLineageId ? selectSemanticNodeSummary(graph, semanticNodes, requestedNodeLineageId) : null)
-    ?? (requestedNodeLineageId ? selectCategorySummary(graph, categories, requestedNodeLineageId) : null)
-    ?? categoryFilter
-    ?? selectSemanticNodeSummary(graph, visibleNodes)
-    ?? selectCategorySummary(graph, fallbackConceptCategories);
-  const conceptKnowledgeQuery = useNewsroomKnowledgeContext(selected ? {
-    anchor: {
-      kind: selected.kind === "category" ? "category" : "semanticNode",
-      id: selected.id ?? selected.lineageId,
-      lineageId: selected.lineageId,
-    },
-    title: selected.label,
-    subtitle: selected.subtitle,
-  } : null);
-  const conceptInsight = useNewsroomInsightComposer(
-    selected && (selected.kind === "category" || selected.kind === "semanticNode") ? insightTargetForSemanticObject(selected) : null,
-    disabled,
-    onCreateInsight,
-  );
-  const detail = categoryFilter
-    ? `${visibleNodes.length} graph nodes associated with ${categoryFilter.label}`
-    : visibleNodes.length
-      ? `${summaryCountFromRecord(summary, "semanticNodes") || visibleNodes.length} graph nodes`
-      : `${fallbackConceptCategories.length} taxonomy concepts`;
-  const nodeKindCounts = categoryFilter ? countSemanticNodesByKind(visibleNodes) : summary?.facets?.semanticNodes?.byNodeKind ?? countSemanticNodesByKind(visibleNodes);
-  const nodeStatusCounts = categoryFilter ? countSemanticNodesByStatus(visibleNodes) : summary?.facets?.semanticNodes?.byStatus ?? countSemanticNodesByStatus(visibleNodes);
-  const nodeKinds = sortedCountOptions(nodeKindCounts).slice(0, 8);
-  const cards = visibleNodes.length
-    ? visibleNodes.map((node, index) => semanticNodeToNewsroomCard(node, index))
-    : fallbackConceptCategories.map((category, index) => categoryToConceptNewsroomCard(category, index));
-  const cardIds = useMemo(() => new Set(cards.map((card) => card.id)), [cards]);
-  const selectedLineageId = selected && cardIds.has(selected.lineageId) ? selected.lineageId : null;
-  const selectNode = (lineageId: string) => {
-    setSelectedNodeLineageId(lineageId);
-    setIsConceptDetailOpen(true);
-    pushNewsroomDetailUrl("concepts", lineageId, false);
-  };
-  return (
-    <>
-      <NewsroomListDetailShell
-        animatedDetail
-        sectionKey="concepts"
-        canExpandDetail={Boolean(selected)}
-        detailOpen={isConceptDetailOpen}
-        selectionScrollKey={selectedLineageId}
-        actions={[conceptInsight.action]}
-        utilityActions={[conceptKnowledgeQuery.action]}
-        lede={(
-          <NewsroomDeskSectionLede headingId="semantic-concepts-title" section="concepts" />
-        )}
-        list={(
-          <section className="category-steering-section category-steering-section--lead" aria-label={detail}>
-            <NewsroomCardGrid
-              cards={cards}
-              emptyLabel={feed.isLoading ? "Loading semantic concepts" : feed.error ?? "No semantic nodes imported"}
-              filterLabel="Concept kind"
-              filterOptions={[
-                { key: "", label: "All concept kinds", count: summaryCountFromRecord(summary, "semanticNodes") || visibleNodes.length },
-                ...nodeKinds.map((option) => ({ key: option.key, label: formatAssignmentTypeLabel(option.key), count: option.count })),
-              ]}
-              filterValue={nodeKindFilter}
-              footerLabel={feed.error ?? undefined}
-              hasMore={!categoryFilter && feed.hasMore}
-              isLoadingMore={feed.isLoadingMore}
-              metricValue={nodeStatusFilter}
-              metrics={[
-                { key: "", label: "All", count: summaryCountFromRecord(summary, "semanticNodes") || visibleNodes.length },
-                ...sortedCountOptions(nodeStatusCounts).map((option) => ({ key: option.key, label: option.key, count: option.count })),
-              ]}
-              onFilterChange={setNodeKindFilter}
-              onLoadMore={feed.loadMore}
-              onMetricChange={setNodeStatusFilter}
-              onSelect={selectNode}
-              selectedId={selectedLineageId}
-            />
-          </section>
-        )}
-        onCloseDetail={() => setIsConceptDetailOpen(false)}
-        detail={<SemanticDetailPanel graph={graph} selected={selected} knowledgeQuery={conceptKnowledgeQuery} />}
-      />
-      {conceptKnowledgeQuery.dialog}
-      {conceptInsight.dialog}
-    </>
-  );
+  useEffect(() => {
+    if (feed.hasMore && !feed.isLoadingMore) feed.loadMore();
+  }, [feed]);
+  const nodes = feed.items.length ? feed.items : semanticNodes;
+  return <WikiConceptsView demo={isDemo} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} />;
 }
 
 function ReferencesDeskView({
@@ -6529,7 +6383,7 @@ function ReferencesDeskView({
   initialReferenceLineageId,
   isDemo,
   deepLinkFetchEnabled = true,
-  onCreateInsight,
+  onCreateNote,
   onHydrateReference,
   onMoveCorpus,
   onReview,
@@ -6554,7 +6408,7 @@ function ReferencesDeskView({
   initialReferenceLineageId?: string | null;
   isDemo?: boolean;
   deepLinkFetchEnabled?: boolean;
-  onCreateInsight: (target: InsightTarget, summary: string, body: string) => Promise<void>;
+  onCreateNote: (target: NoteTarget, summary: string, body: string) => Promise<void>;
   onHydrateReference?: (reference: ReferenceRecord) => void;
   onMoveCorpus: (reference: ReferenceRecord, corpusId: string) => void;
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, note?: string, reasonCode?: ReferenceRejectionReasonCode | null) => void;
@@ -6958,7 +6812,7 @@ function ReferencesDeskView({
             corpora={corpora}
             disabled={disabled}
             graph={graph}
-            onCreateInsight={onCreateInsight}
+            onCreateNote={onCreateNote}
             onMoveCorpus={onMoveCorpus}
             onReview={runReferenceAction}
             onReviewTopicLabel={onReviewTopicLabel}
@@ -7008,365 +6862,6 @@ function NewsroomDeskSectionLede({
       {controls ?? null}
     </section>
   );
-}
-
-function InsightsDeskView({
-  graph,
-  initialThreadId = null,
-  isDemo = false,
-  messages,
-  summary,
-}: {
-  graph: SemanticGraph;
-  initialThreadId?: string | null;
-  isDemo?: boolean;
-  messages: MessageRecord[];
-  summary?: NewsroomSummaryRecord | null;
-}) {
-  const pathname = usePathname();
-  const pathnameThreadId = useMemo(
-    () => parseInsightThreadIdFromNewsroomPathname(pathname),
-    [pathname],
-  );
-  const resolvedInitialThreadId = initialThreadId ?? pathnameThreadId ?? "";
-  const forumMessageAnchorId = useForumMessageAnchorId();
-  const [domainFilter, setDomainFilter] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return readInsightsIndexFilters(new URLSearchParams(window.location.search)).domain;
-  });
-  const [threads, setThreads] = useState<ForumThreadWithMessages[]>([]);
-  const [threadsLoading, setThreadsLoading] = useState(false);
-  const [threadsError, setThreadsError] = useState<string | null>(null);
-  const [nextToken, setNextToken] = useState<string | null>(null);
-  const [selectedThreadId, setSelectedThreadId] = useState(resolvedInitialThreadId);
-  const [forumView, setForumView] = useState<ForumViewState>(
-    resolvedInitialThreadId ? { mode: "thread", threadId: resolvedInitialThreadId } : { mode: "index" },
-  );
-  const [replyParentId, setReplyParentId] = useState("");
-  const [composeSummary, setComposeSummary] = useState("");
-  const [composeContent, setComposeContent] = useState("");
-  const [composeError, setComposeError] = useState<string | null>(null);
-  const [deletingMessageId, setDeletingMessageId] = useState("");
-
-  const syncInsightsIndexUrl = useCallback((nextDomain: string, replace = true) => {
-    if (isDemo || forumView.mode === "thread") return;
-    syncBrowserNewsroomIndexUrl("insights", effectiveInsightsIndexFilters({ domain: nextDomain }), { replace });
-  }, [forumView.mode, isDemo]);
-
-  useEffect(() => {
-    if (isDemo || forumView.mode === "thread") return;
-    syncInsightsIndexUrl(domainFilter, true);
-  }, [domainFilter, forumView.mode, isDemo, syncInsightsIndexUrl]);
-
-  const refreshThreads = useCallback(async (options?: { append?: boolean; token?: string | null }) => {
-    if (isDemo) {
-      const demoThreads = messages
-        .filter((message) => message.messageKind === "insight")
-        .filter((message) => !domainFilter || message.messageDomain === domainFilter)
-        .map((message) => buildDemoInsightForumThread(message, messages));
-      setThreads(demoThreads);
-      setThreadsError(null);
-      setNextToken(null);
-      return;
-    }
-    setThreadsLoading(true);
-    try {
-      const result = await loadInsightForumThreads({
-        domain: domainFilter,
-        nextToken: options?.token ?? null,
-        includeMessages: true,
-      });
-      setThreads((current) => (options?.append ? [...current, ...result.threads] : result.threads));
-      setNextToken(result.nextToken);
-      setThreadsError(null);
-      setSelectedThreadId((current) => (current && result.threads.some((thread) => thread.id === current) ? current : current));
-    } catch (error) {
-      setThreads([]);
-      setThreadsError(error instanceof Error ? error.message : "Could not load insight threads.");
-      setNextToken(null);
-    } finally {
-      setThreadsLoading(false);
-    }
-  }, [domainFilter, isDemo, messages]);
-
-  useEffect(() => {
-    void refreshThreads();
-  }, [refreshThreads]);
-
-  useEffect(() => {
-    if (!resolvedInitialThreadId || threadsLoading) return;
-    if (!threads.some((thread) => thread.id === resolvedInitialThreadId)) return;
-    if (selectedThreadId === resolvedInitialThreadId && forumView.mode === "thread") return;
-    setSelectedThreadId(resolvedInitialThreadId);
-    setForumView({ mode: "thread", threadId: resolvedInitialThreadId });
-  }, [forumView.mode, resolvedInitialThreadId, selectedThreadId, threads, threadsLoading]);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const route = readCurrentForumRoute();
-      if (route.surface === "insight_forum" && route.threadId) {
-        setSelectedThreadId(route.threadId);
-        setForumView({ mode: "thread", threadId: route.threadId });
-        return;
-      }
-      setSelectedThreadId("");
-      setForumView({ mode: "index" });
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
-  const domainOptions = useMemo(() => {
-    const domains = new Set<string>();
-    for (const message of messages) {
-      if (message.messageKind === "insight" && message.messageDomain) domains.add(message.messageDomain);
-    }
-    for (const thread of threads) {
-      if (thread.sectionKey) domains.add(thread.sectionKey);
-    }
-    return sortedCountOptions(
-      Object.fromEntries([...domains].map((domain) => [domain, threads.filter((thread) => thread.sectionKey === domain).length])),
-    );
-  }, [messages, threads]);
-
-  const openThread = useCallback((threadId: string, options?: { messageId?: string | null; replace?: boolean }) => {
-    setSelectedThreadId(threadId);
-    setForumView({ mode: "thread", threadId });
-    pushInsightThreadUrl(threadId, {
-      demo: isDemo,
-      messageId: options?.messageId,
-      replace: options?.replace,
-    });
-  }, [isDemo]);
-
-  const closeThread = useCallback(() => {
-    setSelectedThreadId("");
-    setForumView({ mode: "index" });
-    pushInsightThreadUrl(null, { demo: isDemo, replace: true });
-  }, [isDemo]);
-
-  const postThreadMessage = useCallback(async () => {
-    if (!selectedThread) return;
-    const content = composeContent.trim();
-    if (!content) {
-      setComposeError("Message content is required.");
-      return;
-    }
-    const summary = composeSummary.trim() || content.slice(0, 120);
-    setComposeError(null);
-    try {
-      await appendInsightThreadReplyRecord({
-        threadId: selectedThread.id,
-        summary,
-        content,
-        role: "human",
-        authorLabel: "human-editor",
-        parentMessageId: replyParentId || undefined,
-      });
-      setComposeSummary("");
-      setComposeContent("");
-      setReplyParentId("");
-      await refreshThreads();
-      const reloaded = await loadInsightForumThreadById(selectedThread.id, { includeMessages: true });
-      if (reloaded) {
-        setThreads((current) => current.map((thread) => (thread.id === reloaded.id ? reloaded : thread)));
-      }
-      setForumView({ mode: "thread", threadId: selectedThread.id });
-    } catch (error) {
-      setComposeError(error instanceof Error ? error.message : "Could not post thread message.");
-    }
-  }, [composeContent, composeSummary, refreshThreads, replyParentId, selectedThread]);
-
-  const deleteThreadMessage = useCallback(async (threadId: string, messageId: string) => {
-    setDeletingMessageId(messageId);
-    try {
-      await deleteInsightThreadMessageRecord({ threadId, messageId });
-      if (replyParentId === messageId) setReplyParentId("");
-      await refreshThreads();
-      const reloaded = await loadInsightForumThreadById(threadId, { includeMessages: true });
-      if (reloaded) {
-        setThreads((current) => current.map((thread) => (thread.id === reloaded.id ? reloaded : thread)));
-      }
-      setComposeError(null);
-    } catch (error) {
-      setComposeError(error instanceof Error ? error.message : "Could not delete message.");
-    } finally {
-      setDeletingMessageId("");
-    }
-  }, [refreshThreads, replyParentId]);
-
-  const insightKnowledgeQuery = useNewsroomKnowledgeContext(selectedThread ? {
-    anchor: { kind: "message", id: selectedThread.id, lineageId: selectedThread.id },
-    title: selectedThread.title ?? "Insight thread",
-    subtitle: selectedThread.sectionKey ?? "insight",
-  } : null);
-
-  return (
-    <>
-      <NewsroomListDetailShell
-        sectionKey="insights"
-        canExpandDetail={forumView.mode === "thread" && Boolean(forumView.threadId)}
-        detailOpen={forumView.mode === "thread" && Boolean(forumView.threadId)}
-        selectionScrollKey={forumView.mode === "thread" ? forumView.threadId : null}
-        utilityActions={[insightKnowledgeQuery.action]}
-        lede={(
-          <NewsroomDeskSectionLede
-            headingId="insights-forum-title"
-            section="insights"
-            headline="Insights"
-            lede="Recent research insights in reverse chronological order. Each insight opens a forum thread for discussion and refinement."
-            controls={(
-              <div className="news-desk-reference-sort-controls" role="group" aria-label="Insight domain filter">
-                <span className="news-desk-reference-sort-controls__label">Domain</span>
-                <button
-                  type="button"
-                  data-active={!domainFilter || undefined}
-                  onClick={() => {
-                    setDomainFilter("");
-                    syncInsightsIndexUrl("", true);
-                  }}
-                >
-                  All
-                </button>
-                <button
-                  type="button"
-                  data-active={domainFilter === "knowledge" || undefined}
-                  onClick={() => {
-                    setDomainFilter("knowledge");
-                    syncInsightsIndexUrl("knowledge", true);
-                  }}
-                >
-                  Knowledge
-                </button>
-                <button
-                  type="button"
-                  data-active={domainFilter === "assignment_work" || undefined}
-                  onClick={() => {
-                    setDomainFilter("assignment_work");
-                    syncInsightsIndexUrl("assignment_work", true);
-                  }}
-                >
-                  Assignment work
-                </button>
-              </div>
-            )}
-          />
-        )}
-        list={(
-          <section className="category-steering-section category-steering-section--lead" aria-label="Insight forum threads">
-            <ForumThreadIndex
-              threads={threads}
-              sections={[]}
-              isLoading={threadsLoading}
-              error={threadsError}
-              emptyLabel="No insight threads match this filter."
-              variant="insight"
-              toolbar={domainOptions.length > 2 ? (
-                <div className="news-desk-forum-toolbar">
-                  <select
-                    aria-label="Insight domain"
-                    value={domainFilter}
-                    onChange={(event) => {
-                      setDomainFilter(event.target.value);
-                      syncInsightsIndexUrl(event.target.value, true);
-                    }}
-                  >
-                    <option value="">All domains ({threads.length})</option>
-                    {domainOptions.map((option) => (
-                      <option key={option.key} value={option.key}>{option.key} ({option.count})</option>
-                    ))}
-                  </select>
-                  {nextToken ? (
-                    <button type="button" disabled={threadsLoading} onClick={() => void refreshThreads({ append: true, token: nextToken })}>
-                      Load more
-                    </button>
-                  ) : null}
-                </div>
-              ) : nextToken ? (
-                <div className="news-desk-forum-toolbar">
-                  <button type="button" disabled={threadsLoading} onClick={() => void refreshThreads({ append: true, token: nextToken })}>
-                    Load more
-                  </button>
-                </div>
-              ) : null}
-              onOpenThread={(threadId) => openThread(threadId)}
-            />
-          </section>
-        )}
-        detail={forumView.mode === "thread" && selectedThread ? (
-          <ForumThreadView
-            thread={selectedThread}
-            sections={[]}
-            replyParentId={replyParentId}
-            composeSummary={composeSummary}
-            composeContent={composeContent}
-            composeError={composeError}
-            focusMessageId={forumMessageAnchorId}
-            isDemo={isDemo}
-            variant="insight"
-            onBack={closeThread}
-            onReplyTarget={(messageId) => {
-              setReplyParentId(messageId);
-              pushInsightThreadUrl(selectedThread.id, { demo: isDemo, messageId, replace: true });
-            }}
-            onClearReplyTarget={() => {
-              setReplyParentId("");
-              pushInsightThreadUrl(selectedThread.id, { demo: isDemo, replace: true });
-            }}
-            onSummaryChange={setComposeSummary}
-            onContentChange={setComposeContent}
-            onSubmit={() => void postThreadMessage()}
-            onDeleteMessage={(messageId) => {
-              if (!selectedThread || deletingMessageId === messageId) return;
-              void deleteThreadMessage(selectedThread.id, messageId);
-            }}
-            deletingMessageId={deletingMessageId}
-          />
-        ) : forumView.mode === "thread" ? (
-          <section className="category-steering-section">
-            <SectionHeader title="Thread Unavailable" detail="Insights" />
-            <EmptyRow label="That insight thread is not available. Return to the index or adjust filters." />
-          </section>
-        ) : null}
-      />
-      {insightKnowledgeQuery.dialog}
-    </>
-  );
-}
-
-function buildDemoInsightForumThread(root: MessageRecord, allMessages: MessageRecord[]): ForumThreadWithMessages {
-  const replies = allMessages.filter((message) => (
-    message.threadId === root.id
-    && message.id !== root.id
-    && String(message.status || "active") === "active"
-  ));
-  const messages = [root, ...replies].sort(
-    (left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0),
-  );
-  const lastMessage = messages.at(-1) ?? root;
-  return {
-    id: root.id,
-    threadKind: "insight_forum",
-    status: "active",
-    title: root.summary ?? "Insight",
-    summary: root.messageDomain ?? null,
-    primaryAnchorKind: "message",
-    primaryAnchorId: root.id,
-    primaryAnchorLineageId: root.id,
-    primaryAnchorKey: `message#${root.id}`,
-    createdByLabel: root.authorLabel ?? null,
-    messageCount: messages.length,
-    lastMessageId: lastMessage.id,
-    lastMessageAt: lastMessage.updatedAt ?? lastMessage.createdAt,
-    metadata: metadataRecord(root.metadata),
-    createdAt: root.createdAt,
-    updatedAt: lastMessage.updatedAt ?? lastMessage.createdAt,
-    newsroomFeedKey: "messages",
-    messages,
-    scope: "insight",
-    sectionKey: root.messageDomain ?? null,
-  };
 }
 
 function MessagesDeskView({
@@ -7975,7 +7470,6 @@ function ForumThreadIndex({
   emptyLabel,
   toolbar,
   composer,
-  variant = "edition",
   onOpenThread,
 }: {
   threads: ForumThreadWithMessages[];
@@ -7985,7 +7479,6 @@ function ForumThreadIndex({
   emptyLabel: string;
   toolbar?: ReactNode;
   composer?: ReactNode;
-  variant?: "edition" | "insight";
   onOpenThread: (threadId: string) => void;
 }) {
   return (
@@ -7997,7 +7490,7 @@ function ForumThreadIndex({
           <thead>
             <tr>
               <th>Topic</th>
-              <th>{variant === "insight" ? "Domain" : "Scope"}</th>
+              <th>Scope</th>
               <th>Replies</th>
               <th>Last Post</th>
             </tr>
@@ -8010,11 +7503,9 @@ function ForumThreadIndex({
               );
               const lastMessage = sortedMessages.at(-1) ?? null;
               const replies = Math.max(activeMessages.length - 1, 0);
-              const scopeLabel = thread.scope === "insight"
-                ? (thread.sectionKey ?? thread.summary ?? "Insight")
-                : thread.scope === "edition"
-                  ? "Edition"
-                  : `Section: ${normalizeForumThreadSectionLabel(thread, sections)}`;
+              const scopeLabel = thread.scope === "edition"
+                ? "Edition"
+                : `Section: ${normalizeForumThreadSectionLabel(thread, sections)}`;
               return (
                 <tr key={thread.id}>
                   <td>
@@ -8128,7 +7619,6 @@ function ForumThreadView({
   deletingMessageId,
   focusMessageId = null,
   isDemo = false,
-  variant = "edition",
   onBack,
   onReplyTarget,
   onDeleteMessage,
@@ -8146,7 +7636,6 @@ function ForumThreadView({
   deletingMessageId?: string;
   focusMessageId?: string | null;
   isDemo?: boolean;
-  variant?: "edition" | "insight";
   onBack: () => void;
   onReplyTarget: (messageId: string) => void;
   onDeleteMessage: (messageId: string) => void;
@@ -8159,9 +7648,7 @@ function ForumThreadView({
     (left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0),
   );
   const visibleCount = messages.length;
-  const threadShareUrl = variant === "insight"
-    ? buildInsightThreadUrl(thread.id, { demo: isDemo })
-    : buildForumThreadUrl(thread.id, { demo: isDemo });
+  const threadShareUrl = buildForumThreadUrl(thread.id, { demo: isDemo });
 
   useEffect(() => {
     if (!focusMessageId || typeof window === "undefined") return;
@@ -8190,11 +7677,9 @@ function ForumThreadView({
             Back to Threads
           </button>
           <p className="story-label">
-            {thread.scope === "insight"
-              ? `Insight · ${thread.sectionKey ?? "discussion"}`
-              : thread.scope === "edition"
-                ? "Edition Thread"
-                : `Section Thread: ${normalizeForumThreadSectionLabel(thread, sections)}`}
+            {thread.scope === "edition"
+              ? "Edition Thread"
+              : `Section Thread: ${normalizeForumThreadSectionLabel(thread, sections)}`}
           </p>
           <h3>{thread.title}</h3>
         </div>
@@ -8234,9 +7719,7 @@ function ForumThreadView({
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
-                      const url = variant === "insight"
-                        ? buildInsightThreadUrl(thread.id, { messageId: message.id, demo: isDemo })
-                        : buildForumThreadUrl(thread.id, { messageId: message.id, demo: isDemo });
+                      const url = buildForumThreadUrl(thread.id, { messageId: message.id, demo: isDemo });
                       void copyShareLink(url);
                     }}
                   >
@@ -8539,7 +8022,7 @@ function NewsroomListDetailShell({
   list: ReactNode;
   onCloseDetail?: () => void;
   selectionScrollKey?: string | null;
-  sectionKey: "assignments" | "concepts" | "insights" | "messages" | "references" | "topics";
+  sectionKey: "assignments" | "concepts" | "messages" | "references" | "topics";
   utilityActions?: NewsroomDetailAction[];
 }) {
   const [detailMode, setDetailMode] = useState<"split" | "full">("split");
@@ -9051,7 +8534,7 @@ function LibraryBigIcon() {
   );
 }
 
-function InsightIcon() {
+function NoteIcon() {
   return (
     <svg
       aria-hidden="true"
@@ -9512,7 +8995,7 @@ function SemanticDetailPanel({
   }
 
   const messages = graph.messagesFor(selected.kind, selected.lineageId);
-  const insights = graph.insightsFor(selected.kind, selected.lineageId);
+  const notes = graph.notesFor(selected.kind, selected.lineageId);
   const attachments = selected.kind === "reference" ? graph.attachmentsForReference(selected.lineageId) : [];
   const neighborGroups = graph.neighbors(selected.kind, selected.lineageId);
   const selectedReference = selected.kind === "reference" ? selected.record as ReferenceRecord : null;
@@ -9586,8 +9069,8 @@ function SemanticDetailPanel({
                 ) : null}
               </div>
             ) : null}
-            {insights.length ? (
-              <InsightMessageBlock insights={insights} />
+            {notes.length ? (
+              <NoteMessageBlock notes={notes} />
             ) : null}
             {messages.length ? (
               <div className="news-desk-detail-block">
@@ -9791,11 +9274,11 @@ function useNewsroomKnowledgeContext(target: KnowledgeQueryTarget | null) {
   };
 }
 
-function useNewsroomInsightComposer(
-  target: InsightTarget | null,
+function useNewsroomNoteComposer(
+  target: NoteTarget | null,
   disabled: boolean,
-  onCreate: (target: InsightTarget, summary: string, body: string) => Promise<void>,
-): InsightComposerControl {
+  onCreate: (target: NoteTarget, summary: string, body: string) => Promise<void>,
+): NoteComposerControl {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [summary, setSummary] = useState("");
   const [body, setBody] = useState("");
@@ -9804,7 +9287,7 @@ function useNewsroomInsightComposer(
     loading: false,
     targetKey: null,
   });
-  const targetKey = target ? insightTargetKey(target) : null;
+  const targetKey = target ? noteTargetKey(target) : null;
 
   useEffect(() => {
     setDialogOpen(false);
@@ -9818,7 +9301,7 @@ function useNewsroomInsightComposer(
     const cleanSummary = summary.trim();
     const cleanBody = body.trim();
     if (!cleanSummary || !cleanBody) {
-      setState({ error: "Insight summary and body are required.", loading: false, targetKey });
+      setState({ error: "Note summary and body are required.", loading: false, targetKey });
       return;
     }
     setState({ error: null, loading: true, targetKey });
@@ -9830,7 +9313,7 @@ function useNewsroomInsightComposer(
       setBody("");
     } catch (error) {
       setState({
-        error: error instanceof Error ? error.message : "Could not save insight.",
+        error: error instanceof Error ? error.message : "Could not save note.",
         loading: false,
         targetKey,
       });
@@ -9842,15 +9325,15 @@ function useNewsroomInsightComposer(
 
   return {
     action: {
-      ariaLabel: "Add insight",
+      ariaLabel: "Add note",
       disabled: disabled || !target || loading,
-      icon: <InsightIcon />,
-      key: "add-insight",
-      label: loading ? "Saving Insight" : "Add Insight",
+      icon: <NoteIcon />,
+      key: "add-note",
+      label: loading ? "Saving Note" : "Add Note",
       onSelect: () => setDialogOpen(true),
     } satisfies NewsroomDetailAction,
     dialog: target ? (
-      <InsightComposerDialog
+      <NoteComposerDialog
         body={body}
         disabled={disabled || loading}
         error={error}
@@ -10189,7 +9672,7 @@ function KnowledgeQueryDialog({
   );
 }
 
-function InsightComposerDialog({
+function NoteComposerDialog({
   body,
   disabled,
   error,
@@ -10210,7 +9693,7 @@ function InsightComposerDialog({
   onSummaryChange: (value: string) => void;
   open: boolean;
   summary: string;
-  target: InsightTarget;
+  target: NoteTarget;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -10227,16 +9710,16 @@ function InsightComposerDialog({
   return (
     <div
       className="news-desk-modal"
-      data-news-desk-insight-modal
+      data-news-desk-note-modal
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !disabled) onClose();
       }}
     >
-      <div className="news-desk-modal__dialog news-desk-modal__dialog--knowledge-query" role="dialog" aria-modal="true" aria-labelledby="insight-composer-title">
+      <div className="news-desk-modal__dialog news-desk-modal__dialog--knowledge-query" role="dialog" aria-modal="true" aria-labelledby="note-composer-title">
         <header className="news-desk-modal__header">
           <div>
-            <p className="story-label">Insight</p>
-            <h3 id="insight-composer-title">{target.title}</h3>
+            <p className="story-label">Note</p>
+            <h3 id="note-composer-title">{target.title}</h3>
             <span>{target.kind} / {target.lineageId}</span>
           </div>
           <button type="button" disabled={disabled} onClick={onClose}>Close</button>
@@ -10251,7 +9734,7 @@ function InsightComposerDialog({
             />
           </label>
           <label>
-            <span>Insight Body</span>
+            <span>Note Body</span>
             <textarea
               disabled={disabled}
               rows={8}
@@ -10264,7 +9747,7 @@ function InsightComposerDialog({
         <footer className="news-desk-modal__actions">
           <button type="button" disabled={disabled} onClick={onClose}>Cancel</button>
           <button type="button" className="news-desk-assignment-create-button" disabled={disabled || !summary.trim() || !body.trim()} onClick={onRun}>
-            {disabled ? "Saving" : "Save Insight"}
+            {disabled ? "Saving" : "Save Note"}
           </button>
         </footer>
       </div>
@@ -11011,14 +10494,14 @@ function PayloadDetailBlock({
   );
 }
 
-function InsightMessageBlock({ insights }: { insights: MessageRecord[] }) {
+function NoteMessageBlock({ notes }: { notes: MessageRecord[] }) {
   return (
     <div className="news-desk-detail-block">
-      <p className="story-label">Insights</p>
-      {insights.slice(0, 6).map((message) => (
+      <p className="story-label">Notes</p>
+      {notes.slice(0, 6).map((message) => (
         <div className="news-desk-detail-line" key={message.id}>
           <span>{message.authorLabel ?? "knowledge"}</span>
-          <strong>{message.summary ?? "Stored insight"}</strong>
+          <strong>{message.summary ?? "Stored note"}</strong>
         </div>
       ))}
     </div>
@@ -11032,7 +10515,7 @@ function ReferenceDetailPanel({
   curation,
   disabled,
   graph,
-  onCreateInsight,
+  onCreateNote,
   onMoveCorpus,
   onReview,
   onReviewTopicLabel,
@@ -11050,7 +10533,7 @@ function ReferenceDetailPanel({
   curation: ReferenceCurationDisplayState | null;
   disabled: boolean;
   graph: SemanticGraph;
-  onCreateInsight: (target: InsightTarget, summary: string, body: string) => Promise<void>;
+  onCreateNote: (target: NoteTarget, summary: string, body: string) => Promise<void>;
   onMoveCorpus: (reference: ReferenceRecord, corpusId: string) => void;
   onReview: (action: ReferenceCurationAction) => void;
   onReviewTopicLabel: (input: { action: TopicLabelAction; category: CategorySteeringCategory; note?: string | null; reference: ReferenceRecord; sourceRelationId?: string | null }) => void;
@@ -11329,7 +10812,7 @@ function ReferenceDetailPanel({
 
   const lineageId = referenceLineageId;
   const messages = graph.messagesFor("reference", lineageId);
-  const insights = graph.insightsFor("reference", lineageId);
+  const notes = graph.notesFor("reference", lineageId);
   const neighborGroups = graph.neighbors("reference", lineageId);
   const fallbackOutgoingCitationGroup = neighborGroups.find((group) => group.direction === "outgoing" && group.predicate === "cites") ?? null;
   const fallbackIncomingCitationGroup = neighborGroups.find((group) => group.direction === "incoming" && group.predicate === "cites") ?? null;
@@ -11448,10 +10931,10 @@ function ReferenceDetailPanel({
               reference={reference}
               semanticRelations={semanticRelations}
             />
-            <ReferenceInsightPanel
+            <ReferenceNotePanel
               disabled={disabled}
-              insights={insights}
-              onCreateInsight={onCreateInsight}
+              notes={notes}
+              onCreateNote={onCreateNote}
               reference={reference}
             />
             <div data-news-desk-reference-metadata-expander>
@@ -12341,49 +11824,49 @@ function ReferenceCurationStatusPanel({ status }: { status: ReferenceCurationRun
   );
 }
 
-function ReferenceInsightPanel({
+function ReferenceNotePanel({
   disabled,
-  insights,
-  onCreateInsight,
+  notes,
+  onCreateNote,
   reference,
 }: {
   disabled: boolean;
-  insights: MessageRecord[];
-  onCreateInsight: (target: InsightTarget, summary: string, body: string) => Promise<void>;
+  notes: MessageRecord[];
+  onCreateNote: (target: NoteTarget, summary: string, body: string) => Promise<void>;
   reference: ReferenceRecord;
 }) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const target = useMemo(() => insightTargetForReference(reference), [reference]);
-  const hasInsights = insights.length > 0;
+  const target = useMemo(() => noteTargetForReference(reference), [reference]);
+  const hasNotes = notes.length > 0;
 
   return (
-    <section className="news-desk-reference-workflow" data-reference-insight-workflow>
+    <section className="news-desk-reference-workflow" data-reference-note-workflow>
       <header className="news-desk-reference-workflow__header">
-        <p className="story-label">Insights</p>
-        {!hasInsights && !composerOpen ? (
+        <p className="story-label">Notes</p>
+        {!hasNotes && !composerOpen ? (
           <button
             type="button"
-            data-news-desk-reference-insight-trigger
+            data-news-desk-reference-note-trigger
             disabled={disabled || saving}
             onClick={() => {
               setComposerOpen(true);
               setError(null);
             }}
           >
-            Add insight
+            Add note
           </button>
         ) : null}
       </header>
-      <div className="news-desk-reference-insight-shell" data-reference-insight-input>
-        {hasInsights ? (
-          <div className="news-desk-reference-insight-list" data-reference-insight-state>
-            {insights.map((message) => (
+      <div className="news-desk-reference-note-shell" data-reference-note-input>
+        {hasNotes ? (
+          <div className="news-desk-reference-note-list" data-reference-note-state>
+            {notes.map((message) => (
               <article className="news-desk-reference-topic-state-row" key={message.id}>
                 <div className="news-desk-reference-topic-state-row__headline">
-                  <strong>{message.summary ?? "Stored insight"}</strong>
+                  <strong>{message.summary ?? "Stored note"}</strong>
                   <span>{message.authorLabel ?? message.source ?? "knowledge"}</span>
                 </div>
                 <div className="news-desk-reference-topic-state-row__meta">
@@ -12393,35 +11876,35 @@ function ReferenceInsightPanel({
             ))}
           </div>
         ) : null}
-        {hasInsights && !composerOpen ? (
+        {hasNotes && !composerOpen ? (
           <button
             type="button"
-            data-news-desk-reference-insight-trigger
+            data-news-desk-reference-note-trigger
             disabled={disabled || saving}
             onClick={() => {
               setComposerOpen(true);
               setError(null);
             }}
           >
-            Add insight
+            Add note
           </button>
         ) : null}
         {composerOpen ? (
           <form
-            className="news-desk-reference-insight-form"
-            data-news-desk-reference-insight-form
+            className="news-desk-reference-note-form"
+            data-news-desk-reference-note-form
             onSubmit={(event) => {
               event.preventDefault();
               if (disabled || saving) return;
               const cleanBody = body.trim();
               if (!cleanBody) {
-                setError("Insight text is required.");
+                setError("Note text is required.");
                 return;
               }
-              const cleanSummary = summarizeInsightForStorage(cleanBody);
+              const cleanSummary = summarizeNoteForStorage(cleanBody);
               setSaving(true);
               setError(null);
-              void onCreateInsight(target, cleanSummary, cleanBody)
+              void onCreateNote(target, cleanSummary, cleanBody)
                 .then(() => {
                   setSaving(false);
                   setBody("");
@@ -12429,12 +11912,12 @@ function ReferenceInsightPanel({
                 })
                 .catch((submitError) => {
                   setSaving(false);
-                  setError(submitError instanceof Error ? submitError.message : "Could not save insight.");
+                  setError(submitError instanceof Error ? submitError.message : "Could not save note.");
                 });
             }}
           >
               <label className="news-desk-reference-curation-note">
-                <span>Insight</span>
+                <span>Note</span>
                 <textarea
                   disabled={disabled || saving}
                   value={body}
@@ -12442,9 +11925,9 @@ function ReferenceInsightPanel({
                 />
               </label>
             {error ? <p className="news-desk-detail-copy">{error}</p> : null}
-            <div className="news-desk-reference-insight-form__actions">
+            <div className="news-desk-reference-note-form__actions">
               <button type="submit" disabled={disabled || saving || !body.trim()}>
-                {saving ? "Saving" : "Save insight"}
+                {saving ? "Saving" : "Save note"}
               </button>
               <button
                 type="button"
@@ -12465,9 +11948,9 @@ function ReferenceInsightPanel({
   );
 }
 
-function summarizeInsightForStorage(body: string): string {
+function summarizeNoteForStorage(body: string): string {
   const normalized = body.trim().replace(/\s+/g, " ");
-  if (!normalized) return "Insight";
+  if (!normalized) return "Note";
   const firstSentenceMatch = normalized.match(/(.+?[.!?])(?:\s|$)/);
   const candidate = (firstSentenceMatch?.[1] ?? normalized).trim();
   if (candidate.length <= 120) return candidate;
@@ -13332,7 +12815,7 @@ function buildUiAnalysisReindexAssignmentPlan({
   return { assignment, event, relation, metadata };
 }
 
-function insightTargetForReference(reference: ReferenceRecord): InsightTarget {
+function noteTargetForReference(reference: ReferenceRecord): NoteTarget {
   return {
     kind: "reference",
     id: reference.id,
@@ -13343,7 +12826,7 @@ function insightTargetForReference(reference: ReferenceRecord): InsightTarget {
   };
 }
 
-function insightTargetForNewsroomSection(section: NewsroomSectionRecord): InsightTarget {
+function noteTargetForNewsroomSection(section: NewsroomSectionRecord): NoteTarget {
   return {
     kind: "newsroomSection",
     id: section.id,
@@ -13354,7 +12837,7 @@ function insightTargetForNewsroomSection(section: NewsroomSectionRecord): Insigh
   };
 }
 
-function insightTargetForSemanticObject(object: SemanticObjectSummary): InsightTarget | null {
+function noteTargetForSemanticObject(object: SemanticObjectSummary): NoteTarget | null {
   if (object.kind !== "category" && object.kind !== "semanticNode") return null;
   return {
     kind: object.kind,
@@ -13366,21 +12849,21 @@ function insightTargetForSemanticObject(object: SemanticObjectSummary): InsightT
   };
 }
 
-function insightTargetKey(target: InsightTarget): string {
+function noteTargetKey(target: NoteTarget): string {
   return `${target.kind}#${target.lineageId}`;
 }
 
-function buildUiInsightRelation(message: MessageRecord, target: InsightTarget, now: string): SemanticRelationRecord {
+function buildUiNoteRelation(message: MessageRecord, target: NoteTarget, now: string): SemanticRelationRecord {
   const subjectStateKey = semanticStateKey("message", message.id);
   const objectStateKey = semanticStateKey(target.kind, target.lineageId);
   const subjectVersionKey = semanticVersionKey("message", message.id);
   const objectVersionKey = semanticVersionKey(target.kind, target.id);
   return {
-    id: `semantic-relation-${hashUiKey([subjectVersionKey, "insight_about", objectVersionKey])}`,
+    id: `semantic-relation-${hashUiKey([subjectVersionKey, "note_about", objectVersionKey])}`,
     relationState: "current",
-    predicate: "insight_about",
-    relationTypeId: "semantic-relation-type-insight-about",
-    relationTypeKey: "insight_about",
+    predicate: "note_about",
+    relationTypeId: "semantic-relation-type-note-about",
+    relationTypeKey: "note_about",
     relationDomain: "knowledge",
     subjectKind: "message",
     subjectId: message.id,
@@ -13393,7 +12876,7 @@ function buildUiInsightRelation(message: MessageRecord, target: InsightTarget, n
     subjectStateKey,
     objectStateKey,
     objectSubjectStateKey: `${objectStateKey}#message`,
-    predicateObjectStateKey: `insight_about#${objectStateKey}`,
+    predicateObjectStateKey: `note_about#${objectStateKey}`,
     subjectVersionKey,
     objectVersionKey,
     score: null,
@@ -13890,10 +13373,10 @@ function compareDoctrineCategories(left: DoctrineCategory, right: DoctrineCatego
 
 function formatDeskSectionHeadline(section: NewsDeskTab): string {
   if (section === "search") return "Search";
-  if (section === "topics") return "Topics";
+  if (section === "desks") return "Taxonomy";
+  if (section === "topics") return "Topic proposals";
   if (section === "concepts") return "Concepts";
   if (section === "references") return "References";
-  if (section === "insights") return "Insights";
   if (section === "messages") return "Messages";
   if (section === "assignments") return "Assignments";
   if (section === "administration") return "Administration";
@@ -13902,13 +13385,13 @@ function formatDeskSectionHeadline(section: NewsDeskTab): string {
 
 function formatDeskSectionLede(section: NewsDeskTab): string {
   if (section === "search") return "Search the newsroom knowledge base with semantic and ontology context.";
-  if (section === "topics") return "Review and shape the subject areas the newsroom covers.";
+  if (section === "desks") return "The desks and topic categories that organize coverage, with each desk's mission and policies.";
+  if (section === "topics") return "Review suggested changes to the subject areas the newsroom covers.";
   if (section === "concepts") return "Browse people, organizations, places, and ideas found in the source material.";
   if (section === "references") return "Review source materials before they become usable evidence.";
-  if (section === "insights") return "Browse recent research insights and discuss each one in a forum thread to refine the synthesis.";
   if (section === "messages") return "Read notes, rationales, forum threads, curation decisions, and other work products from people and agents.";
   if (section === "assignments") return "Create, filter, claim, and complete newsroom work.";
-  if (section === "administration") return "Manage users, roles, doctrine, configurable newspaper sections, and newsroom procedures.";
+  if (section === "administration") return "Manage users, roles, doctrine, and newsroom procedures.";
   return "";
 }
 
@@ -16537,21 +16020,21 @@ function assertReferenceQualityMutationSucceeded(
   return response.data;
 }
 
-function assertReferenceInsightMutationSucceeded(
-  response: ReferenceInsightResponse,
+function assertReferenceNoteMutationSucceeded(
+  response: ReferenceNoteResponse,
   referenceId: string,
-): NonNullable<ReferenceInsightResponse["data"]> {
+): NonNullable<ReferenceNoteResponse["data"]> {
   if (response.errors?.length) {
     throw new Error(response.errors.map(formatGraphQLError).join("; "));
   }
   if (!response.data?.ok) {
-    throw new Error(`Reference insight was not saved for ${referenceId}.`);
+    throw new Error(`Reference note was not saved for ${referenceId}.`);
   }
   if (response.data.referenceId && response.data.referenceId !== referenceId) {
-    throw new Error(`Reference insight response did not match ${referenceId}.`);
+    throw new Error(`Reference note response did not match ${referenceId}.`);
   }
   if (!response.data.messageId || !response.data.relationId) {
-    throw new Error(`Reference insight saved without required audit relations for ${referenceId}.`);
+    throw new Error(`Reference note saved without required audit relations for ${referenceId}.`);
   }
   return response.data;
 }

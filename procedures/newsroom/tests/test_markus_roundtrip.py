@@ -113,11 +113,11 @@ class RoundTripTests(unittest.TestCase):
         build_markus_site(content_dir=exported, out_dir=out_exported, theme="hackerman", markus_executable=executable, images=ImagePipeline(), citations=CitationRendering())
         self.assertEqual(compare_trees(out_original, out_exported), [])
 
-    @unittest.skipUnless(shutil.which("markus"), "markus 0.5.1 executable required")
+    @unittest.skipUnless(shutil.which("markus"), "markus 0.6.0 executable required")
     def test_stand_in_import_export_is_byte_identical_and_builds_identical_html(self):
         self.check(stand_in_import)
 
-    @unittest.skipUnless(shutil.which("markus"), "markus 0.5.1 executable required")
+    @unittest.skipUnless(shutil.which("markus"), "markus 0.6.0 executable required")
     def test_markus_importer_round_trip(self):
         from papyrus_content.markus_import import ImportOptions, plan_import, run_import  # noqa: PLC0415
 

@@ -233,15 +233,15 @@ files = [
 
 [[package]]
 name = "anthus-markus"
-version = "0.5.1"
+version = "0.6.0"
 description = "Markus: GitHub-flavored Markdown with semantic layout directives."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"markus\""
 files = [
-    {file = "anthus_markus-0.5.1-py3-none-any.whl", hash = "sha256:22ab7048f4489f66e7dec8c1ee0eb64741911211b417c07b2886223a16b03058"},
-    {file = "anthus_markus-0.5.1.tar.gz", hash = "sha256:9f466140fee6b8cae380b7f0cae131a90c3b71fafa3e405fae0f37931d31161b"},
+    {file = "anthus_markus-0.6.0-py3-none-any.whl", hash = "sha256:fd5f7558e8e638f7cf7eadf09faf2318445600e7cab969e52c2b46b2326209e7"},
+    {file = "anthus_markus-0.6.0.tar.gz", hash = "sha256:6a42a3bab0da76fd7f5656842871f945f864230e48a1ab2b44863fcaf51e4ca5"},
 ]
 
 [package.dependencies]
@@ -6839,4 +6839,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "4fa3e4760c804e25e3ca1ed291d583cc841153864934be65450fd2dbcbe762c2"
+content-hash = "e1d40510ce50b5ad121e21055d7dbb02cf69b2697e2c5564be62bacc69cb6929"

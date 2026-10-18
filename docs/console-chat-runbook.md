@@ -5,14 +5,14 @@ It is intentionally built on Papyrus newsroom primitives rather than a separate
 chat silo:
 
 - `MessageThread` is the navigable conversation container.
-- `Message` rows are the durable turns, tool records, and generated insight
+- `Message` rows are the durable turns, tool records, and generated note
   artifacts.
 - raw chat turns use `messageKind = "console_chat_turn"`,
   `messageDomain = "conversation"`, `semanticLayer = "chat_detail"`, and
   `searchVisibility = "explicit"` so they can be excluded from default
   semantic search.
-- synthesized durable insights should be separate `Message` rows with
-  `messageKind = "insight"` and default-search visibility.
+- synthesized durable notes should be separate `Message` rows with
+  `messageKind = "note"` and default-search visibility.
 
 ## Runtime flow
 

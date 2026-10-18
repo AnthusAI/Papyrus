@@ -2,20 +2,36 @@
 
 import { useEffect, useId, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { BookOpen, ClipboardList, LayoutDashboard, Menu, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { BookOpen, ClipboardList, Menu, Search, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
 import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReaderAuthControl } from "./reader-auth-control";
+import { ProspectusAccountChooser, useProspectusAccountSummary } from "./prospectus-account-chooser";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "./ui/sheet";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu";
 import type { NewsroomOpsShellProps } from "./newsroom-ops-shell";
 import "./newsroom-organizer.css";
 
-const ICONS = { overview: LayoutDashboard, articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
+/** The standard place to search the knowledge base; the Search page is the results page. */
+function OrganizerSearch({ demo }: { demo: boolean }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [text, setText] = useState(searchParams.get("q") ?? "");
+  return <form className="organizer-search" role="search" onSubmit={event => {
+    event.preventDefault();
+    const query = text.trim();
+    if (query) router.push(getNewsroomNavHref(`/newsroom/search?q=${encodeURIComponent(query)}`, demo));
+  }}>
+    <Search size={14} aria-hidden="true" />
+    <input aria-label="Search the knowledge base" data-newsroom-search type="search" onChange={event => setText(event.target.value)} placeholder="Search" value={text} />
+  </form>;
+}
+
+const ICONS = { articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
 
 /** Navigation is a presentation layer; existing route and server authorization still own access. */
 function Navigation({ activePath, demo, admin, surface, onNavigate }: { activePath: string; demo: boolean; admin: boolean; surface: string; onNavigate?: () => void }) {
@@ -39,6 +55,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
   const session = useOptionalNewsDeskClient();
   const auth = session?.shell.auth ?? { status: "loading" as const, label: "Checking sign-in" };
   const [open, setOpen] = useState(false);
+  const accountSummary = useProspectusAccountSummary();
   useEffect(() => {
     const media = matchMedia("(max-width: 900px)");
     const close = () => setOpen(false);
@@ -46,12 +63,13 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
     return () => media.removeEventListener("change", close);
   }, []);
   return <DropdownMenu open={open} onOpenChange={setOpen}>
-    <DropdownMenuTrigger className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
-      <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session"}</small></span>
+    <DropdownMenuTrigger id={`organizer-account-trigger-${placement}`} className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
+      <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{accountSummary ?? (auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session")}</small></span>
     </DropdownMenuTrigger>
     <DropdownMenuContent className="organizer-account-popup" side={placement === "sidebar" ? "top" : "bottom"} align="end">
       <DropdownMenuGroup>
         <DropdownMenuLabel>{auth.label}</DropdownMenuLabel><DropdownMenuSeparator />
+        <ProspectusAccountChooser />
         <DropdownMenuItem render={<Link href={getNewsroomNavHref(ORGANIZER_SETTINGS_DESTINATION.path)} />}><Settings aria-hidden="true" />{ORGANIZER_SETTINGS_DESTINATION.label}</DropdownMenuItem>
         <ReaderAuthControl authState={auth} renderAction={({ disabled, onClick, signedIn }) => <DropdownMenuItem disabled={disabled} closeOnClick={false} onClick={onClick}>
           {signedIn ? <LogOut aria-hidden="true" /> : <LogIn aria-hidden="true" />}{signedIn ? "Sign out" : "Sign in"}
@@ -107,7 +125,7 @@ export function NewsroomOrganizerShell({ activeTab, appTitle, backHref = "/", ba
   return <div className="newsroom-organizer" data-news-desk data-newsroom-ops-shell="true" data-newsroom-chrome="organizer" data-sidebar-collapsed={collapsed || !showNavigation ? "true" : "false"}>
     {showNavigation && <aside className="organizer-sidebar" hidden={collapsed} id="organizer-sidebar">
       <div className="organizer-sidebar-head">
-        <Link className="organizer-brand" href={getNewsroomNavHref("/newsroom", demo)}>{appTitle}<small>The newsroom</small></Link>
+        <Link className="organizer-brand" href={getNewsroomNavHref("/newsroom", demo)}>{SITE_BRAND.components?.NewsroomLogo ? <SITE_BRAND.components.NewsroomLogo className="organizer-brand-logo" /> : appTitle}<small>The newsroom</small></Link>
         {sidebarToggle}
       </div>
       <Navigation activePath={activePath} demo={demo} admin={admin} surface="sidebar" />
@@ -117,7 +135,7 @@ export function NewsroomOrganizerShell({ activeTab, appTitle, backHref = "/", ba
       <header className="organizer-topbar" data-newsroom-ops-topbar>
         {showNavigation && collapsed && sidebarToggle}
         <Link className="organizer-masthead" href={backHref} title={backLabel}>{appTitle}</Link>
-        <h1 data-newsroom-ops-title>{pageTitle}</h1><div className="organizer-header-actions">{headerActions}</div><Account placement="header" />
+        <h1 data-newsroom-ops-title>{pageTitle}</h1><OrganizerSearch demo={demo} /><div className="organizer-header-actions">{headerActions}</div><Account placement="header" />
       </header>
       <main className="organizer-main">{demo && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>
     </div>

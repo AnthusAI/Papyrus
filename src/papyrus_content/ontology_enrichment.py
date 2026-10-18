@@ -47,7 +47,7 @@ OPERATIONAL_RELATION_TYPES = {
 }
 RELATION_WEIGHTS = {
     "mentions": 2.0,
-    "insight_about": 2.0,
+    "note_about": 2.0,
     "classified_as": 1.4,
     "authoritative_label": 1.6,
     "scoped_to_topic": 1.4,
@@ -874,7 +874,7 @@ def context_message_fingerprints(state: dict[str, Any], relation: dict[str, Any]
     message_ids: set[str] = set()
     for candidate in current_relations(state):
         key = relation_type_key(candidate)
-        if key not in {"comment", "insight_about", "produces"}:
+        if key not in {"comment", "note_about", "produces"}:
             continue
         if str(candidate.get("objectLineageId") or "") in target_lineages and candidate.get("subjectKind") == "message":
             message_ids.add(str(candidate.get("subjectId") or ""))
@@ -1273,7 +1273,7 @@ def build_concept_profile_records(concept: dict[str, Any], context: dict[str, An
         )
     )
     link = semantic_relation_record(
-        predicate="insight_about",
+        predicate="note_about",
         subject_kind="message",
         subject_id=message_id,
         subject_lineage_id=message_id,
@@ -1562,7 +1562,7 @@ def next_recommended_command(payload: dict[str, Any]) -> str:
 def run_preflight_checks(client: PapyrusGraphQLAuthoringClient) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
     relation_types = {row.get("key") for row in client.safe_list_records("SemanticRelationType")}
-    required_types = {"explains_relation", "same_as", "alias_of", "mentions", "insight_about"}
+    required_types = {"explains_relation", "same_as", "alias_of", "mentions", "note_about"}
     missing_types = sorted(required_types - relation_types)
     checks.append(check_result("relation-types", not missing_types, f"missing={','.join(missing_types)}" if missing_types else "ok"))
     for owner_kind in ("semanticNode", "semanticRelation"):

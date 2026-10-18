@@ -326,13 +326,13 @@ class S3VectorsProvider:
             source_matches = (
                 self._query_vectors(vector, scope, query_limit, vector_kind="reference_summary")
                 + self._query_vectors(vector, scope, query_limit, vector_kind="reference_card")
-                + self._query_vectors(vector, scope, query_limit, vector_kind="insight_source")
-                + self._query_vectors(vector, scope, query_limit, vector_kind="insight_summary")
+                + self._query_vectors(vector, scope, query_limit, vector_kind="note_source")
+                + self._query_vectors(vector, scope, query_limit, vector_kind="note_summary")
             )
             passage_limit = min(query_limit, max(limit, 40))
             passage_matches = (
                 self._query_vectors(vector, scope, passage_limit, vector_kind="reference_passage")
-                + self._query_vectors(vector, scope, passage_limit, vector_kind="insight_passage")
+                + self._query_vectors(vector, scope, passage_limit, vector_kind="note_passage")
             )
             matches = source_matches + passage_matches
             if not matches:

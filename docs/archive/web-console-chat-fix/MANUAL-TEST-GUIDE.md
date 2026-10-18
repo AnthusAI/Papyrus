@@ -177,7 +177,7 @@ Once basic test works, try these:
 ### Test with Multiple Tools
 
 ```
-Find recent references about neural networks and create an insight
+Find recent references about neural networks and create a note
 ```
 
 Should use multiple tools in sequence.

@@ -84,7 +84,7 @@ Procedure {
         research_mode = field.string{default = "source_discovery", description = "internal_brief, source_discovery, or full_research"},
         research_questions = field.string{default = "", description = "Optional editor/reporter research questions"},
         max_evidence_items = field.integer{default = 20, description = "Maximum accepted Papyrus evidence ids to use"},
-        knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and insight retrieval defaults"}
+        knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and note retrieval defaults"}
     },
     output = {
         assignment_item_id = field.string{required = true},
@@ -297,7 +297,7 @@ Corrective requirements:
   finish_research_from_search, evidence_item_ids_from_knowledge, or
   proposed_references_from_search, the execute_tactus call must set
   harness="research" and include assignment-aware knowledge_query_scope
-  filters (assignment + insight). Those helpers are unavailable in raw execute_tactus.
+  filters (assignment + note). Those helpers are unavailable in raw execute_tactus.
 ]], base_message, attempt, max_attempts, error_text, output_text)
         end
 
@@ -374,8 +374,8 @@ Bounded exploration:
 - In source_discovery mode, run at least one web_search after internal orientation, unless you return blockedReason.
 - In full_research mode, run at least one web_search and synthesize internal findings plus external prospects, unless you return blockedReason.
 - A zero-result first web_search is not terminal; rely on harness retry behavior and only treat discovery as exhausted when blockedReason is explicit.
-- Keep assignment-aware knowledge orientation enabled by default (assignment and insight retrieval) via the harness knowledge_search helpers.
-- Finish with execute_tactus using harness="research", assignment_id=%s when no inline JSON is present, assignment_item_json when inline JSON is present, corpus_key=%s, research_mode=%s, max_evidence_items=%d, and knowledge_query_scope = { includeObjectKinds = {"reference","item","category","semanticNode","newsroomSection","assignment","message"}, includeMessageKinds = {"insight"}, includeAssignmentTypeKeys = {"research.*","reporting.*"} }.
+- Keep assignment-aware knowledge orientation enabled by default (assignment and note retrieval) via the harness knowledge_search helpers.
+- Finish with execute_tactus using harness="research", assignment_id=%s when no inline JSON is present, assignment_item_json when inline JSON is present, corpus_key=%s, research_mode=%s, max_evidence_items=%d, and knowledge_query_scope = { includeObjectKinds = {"reference","item","category","semanticNode","newsroomSection","assignment","message"}, includeMessageKinds = {"note"}, includeAssignmentTypeKeys = {"research.*","reporting.*"} }.
 - Do not call knowledge_search, web_search, finish_research,
   finish_research_from_search, evidence_item_ids_from_knowledge, or
   proposed_references_from_search in raw execute_tactus. Those helpers are
@@ -549,7 +549,7 @@ Call execute_tactus exactly once with:
 - corpus_key=%s
 - research_mode=%s
 - max_evidence_items=%d
-- knowledge_query_scope = { includeObjectKinds = {"reference","item","category","semanticNode","newsroomSection","assignment","message"}, includeMessageKinds = {"insight"}, includeAssignmentTypeKeys = {"research.*","reporting.*"} }
+- knowledge_query_scope = { includeObjectKinds = {"reference","item","category","semanticNode","newsroomSection","assignment","message"}, includeMessageKinds = {"note"}, includeAssignmentTypeKeys = {"research.*","reporting.*"} }
 - tactus snippet exactly:
 %s
 
