@@ -7,14 +7,16 @@ import yaml
 
 from features_backend.steps.cyclotron_relevance_sweep_steps import CORPUS_ID, LocalBucket, Model, SweepClient, reference
 from papyrus_content.relevance_sweep import CyclotronClaimed
-from papyrus_content.site_cyclotron import SECTION_SELECTOR_CLASSIFIER_ID, section_fit_classifier_id
-from papyrus_content.site_sweep import (SiteSectionsChanged, current_site_decisions, run_decide_site_sections,
+from papyrus_content.site_cyclotron import section_fit_classifier_id, section_selector_classifier_id
+from papyrus_content.site_sweep import (current_site_decisions, run_decide_site_sections,
                                         site_sweep_assignment_id)
 from papyrus_content.steering import load_steering_config
 
 CYCLOTRON_ID = "papyrus-relevance-sections"
 FIT_SECURITY = section_fit_classifier_id("security")
 FIT_CLOUD = section_fit_classifier_id("cloud")
+FIT_POLICY = section_fit_classifier_id("policy")
+SELECTOR = section_selector_classifier_id(["security", "cloud"])
 DOCTRINE = [{"kind": "mission", "body": ["Publish practical analysis."]}]
 
 
@@ -125,11 +127,11 @@ def test_one_decision_yields_a_current_suggestion_for_every_classifier_and_the_s
     result = sweep(steering, client, tmp_path, model=model)
     assert result.decided == 2 and model.calls == 2
     decisions = current_site_decisions(site_relations(client, "reference-a"), "reference-a")
-    assert set(decisions) == {FIT_SECURITY, FIT_CLOUD, SECTION_SELECTOR_CLASSIFIER_ID}
+    assert set(decisions) == {FIT_SECURITY, FIT_CLOUD, SELECTOR}
     labels = {classifier: json.loads(relation["metadata"])["label"] for classifier, relation in decisions.items()}
-    assert labels == {FIT_SECURITY: "fits", FIT_CLOUD: "does-not-fit", SECTION_SELECTOR_CLASSIFIER_ID: "security"}
-    selector = decisions[SECTION_SELECTOR_CLASSIFIER_ID]
-    assert selector["classifierId"] == f"{CYCLOTRON_ID}/section-selector" and selector["predicate"] == "site_decision_is"
+    assert labels == {FIT_SECURITY: "fits", FIT_CLOUD: "does-not-fit", SELECTOR: "security"}
+    selector = decisions[SELECTOR]
+    assert selector["classifierId"] == f"{CYCLOTRON_ID}/{SELECTOR}" and selector["predicate"] == "site_decision_is"
     metadata = json.loads(selector["metadata"])
     assert metadata["decisionId"] and metadata["probabilities"]["security"] == 0.8 and metadata["version"] is not None
     assert metadata["provenance"]["doctrineFingerprint"]
@@ -164,7 +166,7 @@ def test_only_an_explicit_human_section_choice_teaches_every_classifier(tmp_path
     labels, _ = taught(steering)
     assert result.reviews == 1
     assert labels == {("reference-a", FIT_SECURITY): "fits", ("reference-a", FIT_CLOUD): "does-not-fit",
-                      ("reference-a", SECTION_SELECTOR_CLASSIFIER_ID): "security"}
+                      ("reference-a", SELECTOR): "security"}
 
 
 def test_a_human_accept_without_a_section_or_with_an_unknown_actor_never_teaches(tmp_path):
@@ -186,7 +188,7 @@ def test_a_reference_nobody_decided_teaches_as_priming_from_a_human_section(tmp_
     result = sweep(steering, client, tmp_path)
     _, additions = taught(steering)
     assert result.primed_from_human_reviews == 1
-    assert additions and set(additions[0]) == {FIT_SECURITY, FIT_CLOUD, SECTION_SELECTOR_CLASSIFIER_ID}
+    assert additions and set(additions[0]) == {FIT_SECURITY, FIT_CLOUD, SELECTOR}
     assert sweep(steering, client, tmp_path).primed_from_human_reviews == 0
     assert len(taught(steering)[1]) == 1
 
@@ -202,7 +204,7 @@ def test_shadow_agreement_is_counted_per_classifier_for_honest_human_comparisons
     curate_into_section(client, early, section_id="security", actor_kind="human", at="2000-01-01T00:00:00Z")
     agreement = sweep(steering, client, tmp_path).live_agreement
     assert agreement["schema"] == "cyclotron-shadow-agreement/v1"
-    selector = agreement["classifiers"][SECTION_SELECTOR_CLASSIFIER_ID]
+    selector = agreement["classifiers"][SELECTOR]
     assert (selector["comparisons"], selector["correct"], selector["agreement"]) == (2, 1, 0.5)
     assert agreement["selectorAccuracy"] == 0.5
     security = agreement["classifiers"][FIT_SECURITY]
@@ -240,13 +242,99 @@ def test_a_second_sweep_changes_nothing(tmp_path):
     assert client.get_record("Assignment", site_sweep_assignment_id(CYCLOTRON_ID))["status"] == "open"
 
 
-def test_a_changed_section_list_names_the_section_instead_of_a_stack_trace(tmp_path):
+def human_placed_security_reference(client, tmp_path, steering):
+    item = reference("reference-human", "A security review by an editor", "pending")
+    client.upsert("Reference", item)
+    curate_into_section(client, item, section_id="security", actor_kind="human")
+
+
+def retired_and_labels(steering, active_sections):
+    from decision_flywheel import Cyclotron
+    from papyrus_content.site_classifier_set import definition_with_classifiers, stored_active_specs
+    from papyrus_content.site_cyclotron import build_site_cyclotron
+
+    plan = build_site_cyclotron(steering, active_sections)
+    definition = definition_with_classifiers(plan.definition, stored_active_specs(plan.local_path))
+    with Cyclotron.open(plan.local_path, definition, SectionModel(), review_program=plan.review_program) as cyclotron:
+        return cyclotron.retired_classifiers(), {(row["item"].id, row["classifier"]) for row in cyclotron.labels(include_retired=True)}
+
+
+def test_a_new_section_gets_a_classifier_and_a_new_selector_and_learns_from_earlier_human_choices(tmp_path):
     steering = prepared(tmp_path)
     client = SweepClient({"Reference": references()})
     sweep(steering, client, tmp_path)
-    with pytest.raises(SiteSectionsChanged, match="Sections added: policy"):
-        sweep(steering, client, tmp_path, sections=[*SECTIONS, section("policy", 3)])
-    assert client.get_record("Assignment", site_sweep_assignment_id(CYCLOTRON_ID))["status"] == "open"
+    human_placed_security_reference(client, tmp_path, steering)
+    with_policy = [*SECTIONS, section("policy", 3)]
+    result = sweep(steering, client, tmp_path, sections=with_policy, now="2026-10-18T11:00:00Z")
+    new_selector = section_selector_classifier_id(["security", "cloud", "policy"])
+    assert result.classifier_set["added"] == [FIT_POLICY, new_selector]
+    assert result.classifier_set["retired"] == [SELECTOR]
+    assert active_classifiers_of(steering, with_policy) == {FIT_SECURITY, FIT_CLOUD, FIT_POLICY, new_selector}
+    retired, labels = retired_and_labels(steering, with_policy)
+    assert retired == [SELECTOR]
+    assert result.primed_from_human_reviews >= 1
+    assert primed_classifiers(steering, with_policy) >= {FIT_POLICY, new_selector}
+
+
+def primed_classifiers(steering, sections):
+    from decision_flywheel import Cyclotron
+    from papyrus_content.site_classifier_set import definition_with_classifiers, stored_active_specs
+    from papyrus_content.site_cyclotron import build_site_cyclotron
+
+    plan = build_site_cyclotron(steering, sections)
+    definition = definition_with_classifiers(plan.definition, stored_active_specs(plan.local_path))
+    with Cyclotron.open(plan.local_path, definition, SectionModel(), review_program=plan.review_program) as cyclotron:
+        return {classifier for addition in cyclotron.priming_additions() for classifier in addition["examples"]}
+
+
+def active_classifiers_of(steering, sections):
+    from papyrus_content.site_classifier_set import stored_active_specs
+    from papyrus_content.site_cyclotron import build_site_cyclotron
+
+    return {spec.id for spec in stored_active_specs(build_site_cyclotron(steering, sections).local_path)}
+
+
+def test_a_disabled_section_has_its_classifier_retired_and_keeps_its_labels(tmp_path):
+    steering = prepared(tmp_path)
+    client = SweepClient({"Reference": references()})
+    human_placed_security_reference(client, tmp_path, steering)
+    sweep(steering, client, tmp_path)
+    only_security = [section("security", 1), section("cloud", 2, enabled=False)]
+    result = sweep(steering, client, tmp_path, sections=only_security, now="2026-10-18T11:00:00Z")
+    assert sorted(result.classifier_set["retired"]) == sorted([FIT_CLOUD, SELECTOR])
+    assert active_classifiers_of(steering, only_security) == {FIT_SECURITY}
+    retired, _ = retired_and_labels(steering, only_security)
+    assert set(retired) == {FIT_CLOUD, SELECTOR}
+
+
+def test_enabling_a_section_again_brings_back_its_classifier_with_its_history(tmp_path):
+    steering = prepared(tmp_path)
+    client = SweepClient({"Reference": references()})
+    human_placed_security_reference(client, tmp_path, steering)
+    sweep(steering, client, tmp_path)
+    sweep(steering, client, tmp_path, sections=[section("security", 1), section("cloud", 2, enabled=False)])
+    result = sweep(steering, client, tmp_path, now="2026-10-18T12:00:00Z")
+    assert set(result.classifier_set["added"]) == {FIT_CLOUD, SELECTOR}
+    assert active_classifiers_of(steering, SECTIONS) == {FIT_SECURITY, FIT_CLOUD, SELECTOR}
+    retired, _ = retired_and_labels(steering, SECTIONS)
+    assert retired == []
+
+
+def test_a_dry_run_reports_what_a_section_change_would_do_and_changes_nothing(tmp_path):
+    steering = prepared(tmp_path)
+    client = SweepClient({"Reference": references()})
+    sweep(steering, client, tmp_path)
+    result = sweep(steering, client, tmp_path, sections=[*SECTIONS, section("policy", 3)], apply=False)
+    assert result.classifier_set["added"] and any("Section policy" in warning for warning in result.warnings)
+    assert active_classifiers_of(steering, SECTIONS) == {FIT_SECURITY, FIT_CLOUD, SELECTOR}
+
+
+def test_an_unchanged_section_list_changes_no_classifiers(tmp_path):
+    steering = prepared(tmp_path)
+    client = SweepClient({"Reference": references()})
+    sweep(steering, client, tmp_path)
+    result = sweep(steering, client, tmp_path, now="2026-10-18T11:00:00Z")
+    assert result.classifier_set == {"added": [], "retired": [], "kept": [FIT_SECURITY, FIT_CLOUD, SELECTOR]}
 
 
 def test_a_claimed_site_cyclotron_refuses_a_second_worker(tmp_path):

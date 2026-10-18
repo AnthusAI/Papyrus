@@ -38,18 +38,17 @@ from .relevance_shadow import (decisions_remaining_today, live_agreement, shadow
 from .relevance_sweep import (REVIEWED_STATUSES, SNAPSHOT_NAME, AssignmentClaimLease, CyclotronClaimed, S3SnapshotStore,
                               SweepResult, _HeldLease, _apply, _curation_messages, _current, _recorded_usage,
                               reference_item)
-from .site_cyclotron import (SECTION_FIT_CLASSIFIER_PREFIX, SECTION_FIT_POSITIVE_LABEL, SECTION_SELECTOR_CLASSIFIER_ID, SECTION_FIT_LABELS,
-                             build_site_cyclotron, enabled_sections_in_order, section_fit_classifier_id)
+from .site_classifier_set import (apply_site_classifier_set, definition_with_classifiers, plan_site_classifier_set,
+                                  stored_active_specs)
+from .site_cyclotron import (SECTION_FIT_POSITIVE_LABEL, SECTION_FIT_LABELS, build_site_cyclotron,
+                             enabled_sections_in_order, is_section_selector_classifier_id, section_fit_classifier_id,
+                             section_selector_classifier_id)
 from .steering import require_corpus_config
 
 SITE_SWEEP_ASSIGNMENT_TYPE = "cyclotron.site"
 SITE_DECISION_RELATION = "site_decision_is"
 SITE_DECISION_NODE_KIND = "siteDecision"
 SECTION_DOES_NOT_FIT_LABEL = SECTION_FIT_LABELS[1]
-
-
-class SiteSectionsChanged(ValueError):
-    """The Section list no longer matches the classifiers the existing site cyclotron store was built for."""
 
 
 def site_sweep_assignment_id(cyclotron_id: str) -> str:
@@ -84,7 +83,7 @@ def human_labels_for_section(section_id: str, enabled_section_ids: Sequence[str]
     labels = {section_fit_classifier_id(other): SECTION_FIT_POSITIVE_LABEL if other == section_id
               else SECTION_DOES_NOT_FIT_LABEL for other in enabled_section_ids}
     if len(enabled_section_ids) >= 2:
-        labels[SECTION_SELECTOR_CLASSIFIER_ID] = section_id
+        labels[section_selector_classifier_id(enabled_section_ids)] = section_id
     return labels
 
 
@@ -249,7 +248,7 @@ def _live_site_agreement(client, plan, corpus_id: str, enabled_section_ids: Sequ
             outcomes[classifier].append((human_label, metadata.get("label")))
     classifiers = {}
     for spec in plan.definition.classifiers:
-        if spec.id == SECTION_SELECTOR_CLASSIFIER_ID:
+        if is_section_selector_classifier_id(spec.id):
             correct = sum(1 for human, suggested in outcomes[spec.id] if human == suggested)
             classifiers[spec.id] = {"comparisons": len(outcomes[spec.id]), "decided": len(outcomes[spec.id]),
                                     "correct": correct,
@@ -258,7 +257,7 @@ def _live_site_agreement(client, plan, corpus_id: str, enabled_section_ids: Sequ
             classifiers[spec.id] = live_agreement(
                 [{"editorLabel": human, "suggestedLabel": suggested} for human, suggested in outcomes[spec.id]],
                 positive_label=SECTION_FIT_POSITIVE_LABEL, now=now)
-    selector = classifiers.get(SECTION_SELECTOR_CLASSIFIER_ID)
+    selector = next((value for identifier, value in classifiers.items() if is_section_selector_classifier_id(identifier)), None)
     gate_labels = len(placed)
     return {"schema": SHADOW_AGREEMENT_SCHEMA, "positiveLabel": None, "computedAt": now,
             "comparisons": (selector or {}).get("comparisons", 0), "decided": (selector or {}).get("decided", 0),
@@ -293,6 +292,7 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
             examples = {classifier: [LabeledItem(Item(item.id, item.values), label, "trusted",
                                                  {"human_feedback": note} if note else {})]
                         for classifier, label in labels.items()}
+            examples = {classifier: values for classifier, values in examples.items() if classifier in cyclotron.specs}
             try:
                 outcome = asyncio.run(cyclotron.add_priming_examples(
                     examples, added_by=str(latest.get("authorLabel") or "newsroom editor")))
@@ -302,6 +302,8 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
             primed += 1 if outcome["added"] else 0
             continue
         metadata = latest.get("metadata") or {}
+        labels = {classifier: label for classifier, label in labels.items()
+                  if classifier in cyclotron.specs and classifier in decisions}
         try:
             asyncio.run(cyclotron.review(
                 decision_id, labels=labels, explanation=reference.get("curationStatusReason"),
@@ -313,26 +315,49 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
     return primed, reviewed
 
 
-def _section_change_error(local: Path, plan, error: ValueError) -> SiteSectionsChanged:
-    wanted = {spec.id for spec in plan.definition.classifiers if spec.id != SECTION_SELECTOR_CLASSIFIER_ID}
-    stored: set[str] = set()
-    try:
-        from decision_flywheel.embedded_storage import SQLiteEmbeddedStorage
+def _prime_added_classifiers(client, cyclotron, corpus_id: str, enabled_section_ids: Sequence[str],
+                             added_classifier_ids: Sequence[str], warnings: list[str]) -> int:
+    """Teach newly added classifiers from the Section choices people made before they existed.
 
-        saved = SQLiteEmbeddedStorage(local / "cyclotron.sqlite3").meta("definition")
-        stored = {spec["id"] for spec in json.loads(saved[0])["definition"]["classifiers"]
-                  if spec["id"] != SECTION_SELECTOR_CLASSIFIER_ID} if saved else set()
-    except Exception:
-        stored = set()
-    prefix = SECTION_FIT_CLASSIFIER_PREFIX
-    added = sorted(identifier.removeprefix(prefix) for identifier in wanted - stored)
-    removed = sorted(identifier.removeprefix(prefix) for identifier in stored - wanted)
-    change = (f"Sections added: {', '.join(added) or 'none'}; Sections removed or disabled: {', '.join(removed) or 'none'}."
-              if stored else "The stored classifier set could not be read to name the Section change.")
-    return SiteSectionsChanged(
-        f"The Section list changed since the site cyclotron store at {local} was created, so its classifiers no longer "
-        f"match. {change} Adding or retiring classifiers on an existing store is not supported by this sweep yet; "
-        f"restore the previous Section list or start a new store. Engine message: {error}")
+    A classifier cannot review a decision made before it was added, so it
+    learns from those choices as priming examples instead.
+    """
+    from decision_flywheel import Item, LabeledItem
+
+    primed = 0
+    for reference, messages, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
+        labels = {classifier: label for classifier, label in human_labels_for_section(section_id, enabled_section_ids).items()
+                  if classifier in added_classifier_ids}
+        if not labels:
+            continue
+        note = str(reference.get("curationStatusReason") or "").strip()
+        item = reference_item({**reference, "curationStatusReason": None})
+        examples = {classifier: [LabeledItem(Item(item.id, item.values), label, "trusted",
+                                             {"human_feedback": note} if note else {})]
+                    for classifier, label in labels.items()}
+        try:
+            outcome = asyncio.run(cyclotron.add_priming_examples(
+                examples, added_by=str(messages[-1].get("authorLabel") or "newsroom editor")))
+        except ValueError as error:
+            warnings.append(f"{reference['lineageId']}: {error}")
+            continue
+        primed += 1 if outcome["added"] else 0
+    return primed
+
+
+def _stored_site_specs(local: Path, snapshots, snapshot_uri: str | None):
+    """The classifiers the stored cyclotron has: the local store, else the snapshot in the bucket. None when neither exists."""
+    from decision_flywheel import Cyclotron
+
+    local_specs = stored_active_specs(local)
+    if local_specs is not None or not (snapshots and snapshot_uri):
+        return local_specs
+    with tempfile.TemporaryDirectory() as scratch:
+        archive = Path(scratch) / SNAPSHOT_NAME
+        if not snapshots.download(snapshot_uri, archive):
+            return None
+        Cyclotron.restore(archive, Path(scratch) / "restored", lease=_HeldLease())
+        return stored_active_specs(Path(scratch) / "restored")
 
 
 def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrine: Sequence[Mapping[str, Any]],
@@ -363,6 +388,13 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
     recorded_usage = _recorded_usage(client, plan.definition.id)
     decisions_allowed = decisions_remaining_today(recorded_usage, maximum_per_day=plan.max_decisions_per_day, today=today)
     result.pending = [reference["lineageId"] for reference in pending]
+    snapshots = snapshots if snapshots is not None else (S3SnapshotStore() if plan.s3_prefix else None)
+    local = Path(plan.local_path)
+    snapshot_uri = f"{plan.s3_prefix.rstrip('/')}/{SNAPSHOT_NAME}" if plan.s3_prefix else None
+    set_plan = plan_site_classifier_set(_stored_site_specs(local, snapshots, snapshot_uri), plan.definition.classifiers)
+    result.classifier_set = set_plan.to_json()
+    if not set_plan.unchanged:
+        result.warnings.extend(f"Section parity would {line}." for line in set_plan.describe())
     if not apply:
         return result
 
@@ -372,9 +404,6 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
     lease = AssignmentClaimLease(client, assignment_id, worker)
     lease.acquire()
     try:
-        snapshots = snapshots if snapshots is not None else (S3SnapshotStore() if plan.s3_prefix else None)
-        local = Path(plan.local_path)
-        snapshot_uri = f"{plan.s3_prefix.rstrip('/')}/{SNAPSHOT_NAME}" if plan.s3_prefix else None
         if snapshots and snapshot_uri and not (local / "cyclotron.sqlite3").exists():
             with tempfile.TemporaryDirectory() as scratch:
                 archive = Path(scratch) / SNAPSHOT_NAME
@@ -382,17 +411,20 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
                     Cyclotron.restore(archive, local, lease=_HeldLease())
         model = model if model is not None else decision_model_from_environment(plan)
         optimizer = optimizer if optimizer is not None else optimizer_from_environment(plan)
+        stored_specs = stored_active_specs(local)
+        opening_definition = definition_with_classifiers(plan.definition, stored_specs) if stored_specs else plan.definition
+        cyclotron = Cyclotron.open(local, opening_definition, model, optimizer, lease=_HeldLease(),
+                                   max_requests=plan.max_requests, review_program=plan.review_program,
+                                   seed_rubrics={identifier: rubric for identifier, rubric in plan.seed_rubrics.items()
+                                                 if identifier in {spec.id for spec in opening_definition.classifiers}})
         try:
-            cyclotron = Cyclotron.open(local, plan.definition, model, optimizer, lease=_HeldLease(),
-                                       max_requests=plan.max_requests, review_program=plan.review_program,
-                                       seed_rubrics=plan.seed_rubrics)
-        except ValueError as error:
-            if "different cyclotron definition" in str(error):
-                raise _section_change_error(local, plan, error) from error
-            raise
-        try:
-            result.primed_from_human_reviews, result.reviews = _teach_from_human_sections(
+            if not set_plan.unchanged:
+                asyncio.run(apply_site_classifier_set(cyclotron, set_plan, plan.seed_rubrics))
+                result.primed_from_human_reviews += _prime_added_classifiers(
+                    client, cyclotron, corpus_id, enabled_section_ids, [spec.id for spec in set_plan.added], result.warnings)
+            primed_by_teaching, result.reviews = _teach_from_human_sections(
                 client, cyclotron, plan, corpus_id, enabled_section_ids, result.warnings)
+            result.primed_from_human_reviews += primed_by_teaching
             provenance = site_provenance(plan, cyclotron, doctrine)
             questions = {spec.id: spec.question for spec in plan.definition.classifiers}
             labels = {spec.id: spec.labels for spec in plan.definition.classifiers}
@@ -475,7 +507,7 @@ def references_decide_site_sections(flags: list[str]) -> None:
     try:
         result = run_decide_site_sections(client, steering_config, doctrine, sections, apply=bool(options.get("apply")),
                                           worker=worker, max_count=max_count)
-    except (SiteSectionsChanged, CyclotronClaimed) as error:
+    except CyclotronClaimed as error:
         raise SystemExit(f"references\tdecide-site-sections\terror\t{error}") from error
     if options.get("json"):
         print(json.dumps(result.to_json(), indent=2, sort_keys=True))

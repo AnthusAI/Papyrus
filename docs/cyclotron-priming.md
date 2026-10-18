@@ -636,9 +636,22 @@ publication named by the `--config` file (`papyrus-steering.yml` gives
   accuracy; fit classifiers: agreement, precision, recall, confusion), the
   overall `selectorAccuracy`, and the same `autoDecision` and `loop` entries as
   the relevance payload. A decision made after the human's review does not count.
-- The Section list is not maintained in parity yet. A Section added, removed or
-  disabled changes the definition fingerprint, which the engine refuses on an
-  existing store; the sweep stops with an error naming the Sections that
-  changed instead of a stack trace. Adding and retiring classifiers on an
-  existing store is tracked as PPY-f579a2. Withdrawn Section labels are not yet
-  retracted.
+- The classifier set follows the Section list (PPY-f579a2,
+  `papyrus_content.site_classifier_set`). Before each sweep the stored
+  cyclotron's active classifiers are compared with the ones the enabled Sections
+  call for. A new Section gets a classifier (added through the engine's
+  `add_classifiers`); a removed or disabled Section has its classifier retired
+  (`retire_classifiers`), keeping its labels and history, and enabling it again
+  brings it back with them. The dry run lists what would change under
+  `classifierSet` and in warnings, and changes nothing. A classifier's labels can
+  never change, so the selector's id names its Section set
+  (`section-selector-<hash>`): when the set of Sections changes, the old selector
+  is retired and a new one added. A fit classifier's question names the Section id
+  and not its title, so renaming a Section never conflicts with the stored
+  classifier. Each change is recorded in the store with who and when.
+- A newly added classifier cannot review decisions made before it existed, so it
+  learns from the Section choices people made earlier as priming examples, and
+  from every decision made after it was added. Changing the set changes the
+  shared decision request, so decisions nobody has reviewed yet are decided again
+  and the other classifiers' ML heads refit on the next decision; their labels and
+  rubrics are untouched. Withdrawn Section labels are not yet retracted.

@@ -10,6 +10,7 @@ only from the explicit Section decisions of people.
 """
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Mapping, Sequence
 
 from .ids import safe_id
@@ -19,7 +20,7 @@ from .relevance_cyclotron import RelevanceCyclotronPlan, _refuse_secrets, _strin
 FIELD = "siteCyclotron"
 SECTION_FIT_LABELS = ("fits", "does-not-fit")
 SECTION_FIT_POSITIVE_LABEL = "fits"
-SECTION_SELECTOR_CLASSIFIER_ID = "section-selector"
+SECTION_SELECTOR_CLASSIFIER_PREFIX = "section-selector-"
 SECTION_FIT_CLASSIFIER_PREFIX = "section-fit-"
 SECTION_SELECTOR_QUESTION = "Which newsroom Section is the best home for this candidate source?"
 SITE_CYCLOTRON_FIELDS = {"cyclotronId", "enabled", "maxDecisionsPerDay", "approvedProofPath", "store"}
@@ -74,8 +75,18 @@ def section_fit_classifier_id(section_id: str) -> str:
     return f"{SECTION_FIT_CLASSIFIER_PREFIX}{safe_id(section_id)}"
 
 
+def section_selector_classifier_id(section_ids: Sequence[str]) -> str:
+    """The selector's id names its Section set, because a classifier's labels can never change once it exists."""
+    fingerprint = hashlib.sha256("\n".join(sorted(section_ids)).encode("utf-8")).hexdigest()[:8]
+    return f"{SECTION_SELECTOR_CLASSIFIER_PREFIX}{fingerprint}"
+
+
+def is_section_selector_classifier_id(classifier_id: str) -> bool:
+    return classifier_id.startswith(SECTION_SELECTOR_CLASSIFIER_PREFIX)
+
+
 def section_fit_question(section: Mapping[str, Any]) -> str:
-    return f"Does this candidate source belong in the {section['title']} section?"
+    return f"Does this candidate source belong in the {section['id']} section?"
 
 
 def section_seed_rubric(section: Mapping[str, Any]) -> str:
@@ -102,7 +113,8 @@ def site_classifier_specs(sections: Sequence[Mapping[str, Any]]) -> list[Any]:
     specs = [ClassifierSpec(section_fit_classifier_id(section["id"]), SECTION_FIT_LABELS, section_fit_question(section),
                             positive_label=SECTION_FIT_POSITIVE_LABEL) for section in ordered]
     if len(ordered) >= 2:
-        specs.append(ClassifierSpec(SECTION_SELECTOR_CLASSIFIER_ID, tuple(section["id"] for section in ordered),
+        selector_labels = tuple(sorted(str(section["id"]) for section in ordered))
+        specs.append(ClassifierSpec(section_selector_classifier_id(selector_labels), selector_labels,
                                     SECTION_SELECTOR_QUESTION))
     return specs
 
@@ -123,7 +135,7 @@ def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[
     specs = site_classifier_specs(sections)
     seed_rubrics = {section_fit_classifier_id(section["id"]): section_seed_rubric(section) for section in ordered}
     if len(ordered) >= 2:
-        seed_rubrics[SECTION_SELECTOR_CLASSIFIER_ID] = selector_seed_rubric(ordered)
+        seed_rubrics[section_selector_classifier_id([str(section["id"]) for section in ordered])] = selector_seed_rubric(ordered)
     definition = CyclotronDefinition(site_block["cyclotronId"], tuple(specs), seed=f"{site_block['cyclotronId']}-v1")
     program = ReviewProgram(**{REVIEW_PROGRAM_FIELDS[key]: (tuple(value) if key == "rates" else value)
                                for key, value in relevance_block["reviewProgram"].items()})
