@@ -1,4 +1,4 @@
-import approvedReport0 from "../publications/priming-proofs/papyrus.json";
+import approvedReport0 from "./approved-priming-proofs/papyrus.json";
 
 /**
  * Priming proof reports a publication owner approved for visitors, keyed by site brand id.

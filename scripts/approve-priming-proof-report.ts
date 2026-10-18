@@ -2,11 +2,11 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { parsePrimingProofReport } from "../lib/priming-proof-report";
 
-const APPROVED_REPORTS_DIRECTORY = join(__dirname, "..", "publications", "priming-proofs");
+const APPROVED_REPORTS_DIRECTORY = join(__dirname, "..", "lib", "approved-priming-proofs");
 const REGISTRY_PATH = join(__dirname, "..", "lib", "approved-priming-proof-reports.ts");
 
 function registrySource(brandIds: string[]): string {
-  const importLines = brandIds.map((brandId, index) => `import approvedReport${index} from "../publications/priming-proofs/${brandId}.json";`);
+  const importLines = brandIds.map((brandId, index) => `import approvedReport${index} from "./approved-priming-proofs/${brandId}.json";`);
   const entryLines = brandIds.map((brandId, index) => `  ${JSON.stringify(brandId)}: approvedReport${index},`);
   return [
     ...importLines,
