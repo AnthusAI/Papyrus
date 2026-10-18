@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2f561447-68d1-44cb-beb2-11c7c1958014",
+  "issue_id": "PPY-b497590d-8ba6-4b79-b240-0142e51e7720",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:24:03.201Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Tactus-web slice 2: convert prose-only pages (features, guiding-principles, validation, guardrails, evaluations, learn-more, getting-started, specifications) to Markus built by Papyrus",
+    "description": "Reuse publication/build.py and chrome.py from PR 7. Keep URLs; add redirects for removed Gatsby routes. Mac thread does the page conversion; cloud keeps records.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-217d9fa2-19a6-4edd-ab8b-e9170de19c4e",
+    "labels": []
+  }
+}

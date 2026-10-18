@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e08c79c3-4c49-4de0-8c60-2cc8e2d38c70",
+  "issue_id": "PPY-6f786cc2-7d55-4889-a77a-0205e477a741",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:24:31.949Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Tactus-web slice 4: switch the Amplify build from gatsby to the Papyrus projection and plan the Gen 2 backend extension resources",
+    "description": "amplify.yml currently runs ampx pipeline-deploy then npm run build. Replace the frontend build; keep or retire amplify/backend.ts resources with an explicit plan. Deploy through the repo's Amplify pipeline.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-217d9fa2-19a6-4edd-ab8b-e9170de19c4e",
+    "labels": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1dbc815a-f43d-4496-91ae-f6c6c318a14d",
+  "title": "Tactus-web slice 1: inventory pages as prose-only vs component-bearing, and map each MDX/React component to a Markus directive or island",
+  "description": "Tactus-web already builds the standard library and examples pages through Papyrus (publication/, PR 7). List every other page in src/pages and src/content, mark prose-only vs uses @anthus/tactus-hitl-components, video players, citation manager or Remotion; decide directive or island per component.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-217d9fa2-19a6-4edd-ab8b-e9170de19c4e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T17:23:48.454379Z",
+  "updated_at": "2026-10-18T17:23:48.454676Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-2b2b4a78-a727-4c63-bee4-c617f1cc6353",
+  "title": "Tactus-web slice 3: component-bearing pages (human-in-the-loop, videos, home, use-cases, download) via Markus directives or islands",
+  "description": "Per slice 1 mapping. Tactus HITL components become islands, as in Prospectus-web web/island.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-217d9fa2-19a6-4edd-ab8b-e9170de19c4e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T17:24:17.446881Z",
+  "updated_at": "2026-10-18T17:24:17.447074Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
