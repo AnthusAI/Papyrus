@@ -3,20 +3,33 @@
   "title": "Tactus-web slice 1: inventory pages as prose-only vs component-bearing, and map each MDX/React component to a Markus directive or island",
   "description": "Tactus-web already builds the standard library and examples pages through Papyrus (publication/, PR 7). List every other page in src/pages and src/content, mark prose-only vs uses @anthus/tactus-hitl-components, video players, citation manager or Remotion; decide directive or island per component.",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-217d9fa2-19a6-4edd-ab8b-e9170de19c4e",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "284be45a-f5a3-4e5b-8cfb-0564bcd8205a",
+      "author": "unknown",
+      "text": "Inventory done: /mnt/project-files/anthus-sites-to-papyrus/tactus-web-inventory-and-slices.md (3 page groups, diagrams and HITL components become islands, sections become chrome fragments or directives).",
+      "created_at": "2026-10-18T17:24:56.112997Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T17:23:48.454379Z",
-  "updated_at": "2026-10-18T17:23:48.454676Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T17:24:56.863808Z",
+  "closed_at": "2026-10-18T17:24:56.863649Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {},
+  "custom": {
+    "source": "shared",
+    "project_label": "PPY"
+  },
   "agent": null,
   "agent_assignment": null
 }
