@@ -3,7 +3,7 @@
   "title": "Continuation labels must come from the plan: fix hard-coded FROM A1 and the renderer's SEE MORE fallback",
   "description": "getArticleFrameLabel in lib/newspaper-layout.ts:3435 returns formatContinuationSourceLabel(article, 1) for every startCursor: 'current' block, so a story continued from A2 to A3 is labelled FROM A1. components/newspaper.tsx:1142, 1145, 1181, 1184 invent SEE MORE ON A${jumpTargetPage} when jumpLabel is missing, duplicating formatContinuationJumpLabel and bypassing shortSlug. lib/layout-plan.ts:849 validates that jumpTargetPage exists but not that the target page contains a startCursor: 'current' frame for the same flowKey. ArticleFlow.placedRanges (:2092-2157) is written and never read.\n\nFix: derive the continuation source page from the previous committed PlacedTextRange of the same flow (use placedRanges or remove it); make jumpLabel required whenever jumpTargetPage is set and delete the renderer fallbacks; extend validateEditionLayoutPlanForItems to require a continuation frame on the advertised page. Also move the pilot fixture slugs in getDefaultCutPolicy (lib/layout-plan.ts:957: agent-procedure-patterns, schools-reading-lab, market-hall) into lib/layout-scenarios.ts.\n\nDone when: the two-hop label scenario in the solver test passes and grep 'SEE MORE ON A$' components returns nothing.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -21,11 +21,20 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "2420172d-0318-4779-81d0-c9afb1e924c4",
+      "author": "unknown",
+      "text": "Merged in PR 234 (4e2c823).",
+      "created_at": "2026-10-18T11:49:27.769853Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T16:39:30.235164Z",
-  "updated_at": "2026-10-17T18:29:10.698950Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T11:50:49.467228Z",
+  "closed_at": "2026-10-18T11:50:49.466970Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
