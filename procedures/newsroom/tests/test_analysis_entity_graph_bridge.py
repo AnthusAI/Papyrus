@@ -163,7 +163,6 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
                     return_value={"key": "demo", "path": "corpora/demo"},
                 ),
                 patch("papyrus_content.analysis_commands._resolve_snapshot_manifest_path", return_value=manifest),
-                patch("papyrus_content.analysis_commands._preflight_biblicus_catalog_compatibility"),
                 patch("papyrus_content.analysis_commands._export_graph_snapshot_payload", return_value=payload),
                 patch("papyrus_content.analysis_commands._validate_graph_export_payload"),
                 patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
@@ -294,7 +293,6 @@ class AnalysisEntityGraphBridgeTests(unittest.TestCase):
             with (
                 patch("papyrus_content.analysis_commands.require_steering_config", return_value={"configPath": "test"}),
                 patch("papyrus_content.analysis_commands.require_corpus_config", return_value={"key": "demo", "path": "corpora/demo"}),
-                patch("papyrus_content.analysis_commands._preflight_biblicus_catalog_compatibility"),
                 patch("papyrus_content.analysis_commands.create_authoring_client", return_value=(object(), {})),
                 patch("papyrus_content.analysis_commands.hydrate_graph_reference_map_sync", return_value={}),
             ):

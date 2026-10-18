@@ -80,8 +80,10 @@ from .source_readiness import build_extraction_index
 from .steering import load_steering_config, require_corpus_config, require_steering_config
 
 DEFAULT_GROBID_URL = "http://127.0.0.1:8070"
+GROBID_CONTAINER_NAME_ENV = "BIBLICUS_GROBID_CONTAINER_NAME"
+GROBID_DOCKER_IMAGE_ENV = "BIBLICUS_GROBID_DOCKER_IMAGE"
+DEFAULT_GROBID_CONTAINER_NAME = "biblicus-grobid"
 DEFAULT_GROBID_DOCKER_IMAGE = "lfoppiano/grobid:0.8.0"
-DEFAULT_GROBID_CONTAINER_NAME = "papyrus-grobid"
 DOCKER_CANDIDATE_PATHS = (
     "/usr/local/bin/docker",
     "/opt/homebrew/bin/docker",
@@ -1726,8 +1728,8 @@ def _start_or_reuse_local_grobid_container(*, port: int) -> None:
         )
     _ensure_docker_daemon_ready(docker_command)
 
-    container_name = str(os.environ.get("PAPYRUS_GROBID_CONTAINER_NAME") or DEFAULT_GROBID_CONTAINER_NAME).strip()
-    image = str(os.environ.get("PAPYRUS_GROBID_DOCKER_IMAGE") or DEFAULT_GROBID_DOCKER_IMAGE).strip()
+    container_name = str(os.environ.get(GROBID_CONTAINER_NAME_ENV) or DEFAULT_GROBID_CONTAINER_NAME).strip()
+    image = str(os.environ.get(GROBID_DOCKER_IMAGE_ENV) or DEFAULT_GROBID_DOCKER_IMAGE).strip()
     running = _docker_lines(
         docker_command,
         [
