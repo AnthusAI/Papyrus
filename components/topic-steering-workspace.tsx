@@ -3160,6 +3160,12 @@ function NewsDeskDashboard({
             semanticNodes={semanticNodes}
           />
         ) : null}
+        {!isSectionPage && (activeTab === "desks" || activeTab === "topics") ? (
+          <nav aria-label="Taxonomy views" className="taxonomy-view-switch" data-taxonomy-view-switch>
+            <Link aria-current={activeTab === "desks" ? "page" : undefined} href={getNewsroomNavHref("/newsroom/desks", Boolean(dashboard.isDemo))}>Categories</Link>
+            <Link aria-current={activeTab === "topics" ? "page" : undefined} href={getNewsroomNavHref("/newsroom/topics", Boolean(dashboard.isDemo))}>Topic proposals</Link>
+          </nav>
+        ) : null}
         {!isSectionPage && activeTab === "desks" ? (
           <DesksDeskView
             assignments={assignments}

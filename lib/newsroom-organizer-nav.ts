@@ -8,28 +8,22 @@ export type OrganizerDestination = {
 };
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
-    { key: "overview", label: "Overview", description: "See the desk and choose where to begin.", path: "/newsroom", primary: true },
     { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },
   ] },
   { title: "Research & knowledge", items: [
     { key: "references", label: "References", description: "Inspect sources and make editorial inclusion decisions.", path: "/newsroom/references", primary: true },
-    { key: "desks", label: "Taxonomy", description: "Maintain topic sets and category versions.", path: "/newsroom/desks" },
-    { key: "topics", label: "Topic proposals", description: "Review suggested changes to coverage.", path: "/newsroom/topics" },
-    { key: "concepts", label: "Concept wiki", description: "Browse the knowledge graph as wiki pages.", path: "/newsroom/concepts" },
-    { key: "search", label: "Knowledge search", description: "Find evidence across the knowledge base.", path: "/newsroom/search" },
+    { key: "concepts", label: "Concepts", description: "A wiki of the entities in the knowledge graph.", path: "/newsroom/concepts" },
+    { key: "sections", label: "Sections", description: "Organize the publication’s sections and its ontology.", path: "/newsroom/administration/sections" },
+    { key: "desks", label: "Taxonomy", description: "Maintain topic sets and category versions, and review topic proposals.", path: "/newsroom/desks", alsoActiveOnPaths: ["/newsroom/topics"] },
   ] },
   { title: "Administration", items: [
-    { key: "policies", label: "Policies", description: "Set publication and category guidance.", path: "/newsroom/administration/policies" },
-    { key: "sections", label: "Sections", description: "Organize the publication’s sections.", path: "/newsroom/administration/sections" },
-    { key: "procedures", label: "Procedures", description: "Manage procedure definitions and versions.", path: "/newsroom/administration/procedures", access: "admin" },
-    { key: "users", label: "Users & identity merging", description: "Review people, roles and identity merges.", path: "/newsroom/administration/users", access: "admin" },
-    { key: "administration", label: "Administration", description: "Open the existing CMS settings workspace.", path: "/newsroom/administration" },
+    { key: "administration", label: "Administration", description: "Policies, procedures, users and settings.", path: "/newsroom/administration", alsoActiveOnPaths: ["/newsroom/administration/policies", "/newsroom/administration/procedures", "/newsroom/administration/users"] },
   ] },
 ];
 const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
-export const ORGANIZER_PRIMARY_NAV = ["overview", "articles", "references", "messages"].map(key => all.find(item => item.key === key)!);
+export const ORGANIZER_PRIMARY_NAV = ["articles", "references", "messages"].map(key => all.find(item => item.key === key)!);
 
 export const ORGANIZER_SETTINGS_DESTINATION = {
   label: "Settings", path: "/newsroom/settings", description: "Theme, motion and interface preferences.",
