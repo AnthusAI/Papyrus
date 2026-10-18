@@ -5799,7 +5799,7 @@ function DesksDeskView({
   }, [initialRootKey, roots, selectedRoot, selectedRootKey]);
 
   return (
-    <div className="news-desk-columns" data-news-desk-section="desks">
+    <div className="news-desk-columns news-desk-columns--administration news-desk-columns--taxonomy" data-news-desk-section="desks">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-desks-title">
           <SectionHeader title="News Desks" detail={`${roots.length} root topic desks`} />
@@ -13373,7 +13373,8 @@ function compareDoctrineCategories(left: DoctrineCategory, right: DoctrineCatego
 
 function formatDeskSectionHeadline(section: NewsDeskTab): string {
   if (section === "search") return "Search";
-  if (section === "topics") return "Topics";
+  if (section === "desks") return "Taxonomy";
+  if (section === "topics") return "Topic proposals";
   if (section === "concepts") return "Concepts";
   if (section === "references") return "References";
   if (section === "messages") return "Messages";
@@ -13384,7 +13385,8 @@ function formatDeskSectionHeadline(section: NewsDeskTab): string {
 
 function formatDeskSectionLede(section: NewsDeskTab): string {
   if (section === "search") return "Search the newsroom knowledge base with semantic and ontology context.";
-  if (section === "topics") return "Review and shape the subject areas the newsroom covers.";
+  if (section === "desks") return "The desks and topic categories that organize coverage, with each desk's mission and policies.";
+  if (section === "topics") return "Review suggested changes to the subject areas the newsroom covers.";
   if (section === "concepts") return "Browse people, organizations, places, and ideas found in the source material.";
   if (section === "references") return "Review source materials before they become usable evidence.";
   if (section === "messages") return "Read notes, rationales, forum threads, curation decisions, and other work products from people and agents.";
