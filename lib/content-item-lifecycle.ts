@@ -68,6 +68,8 @@ export type ContentItemVersionRecord = {
   status: string;
   title?: string | null;
   headline?: string | null;
+  deck?: string | null;
+  metadata?: unknown;
   slug: string;
   section?: string | null;
   updatedAt?: string | null;

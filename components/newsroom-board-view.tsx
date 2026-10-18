@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
+import { BoardCardExcerpts } from "./board-card-excerpts";
 import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
@@ -80,6 +81,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
   const boardBodyRef = useRef<HTMLDivElement | null>(null);
+  const [boardBodyElement, setBoardBodyElement] = useState<HTMLDivElement | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>("all");
   const showsContentItems = subject !== "assignment";
   const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
@@ -174,7 +176,8 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
-      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
+      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={node => { boardBodyRef.current = node; setBoardBodyElement(node); }} onScrollCapture={handleBoardScroll}>
+        <BoardCardExcerpts excerpts={issues.flatMap(item => item.kind === "contentItem" && item.excerpt ? [{ issueId: item.id, text: item.excerpt }] : [])} scope={boardBodyElement} />
         <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"

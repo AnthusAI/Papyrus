@@ -260,7 +260,8 @@
    "headline": "A Publication, Not a Trap",
    "slug": "papyrus-reader-contract",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "We respect your attention. Papyrus is not an infinite feed. It is not designed to trap you, gamify you, or learn how to keep you scrolling. It is a publication: you can open it, read it, finish it, and leave."
   },
   {
    "id": "item-howto-dispatch-research-agents",
@@ -273,7 +274,8 @@
    "headline": "Dispatch Research Agents",
    "slug": "howto-dispatch-research-agents",
    "section": "Newsroom How-To",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Start with a question the newsroom should investigate\u2014not a headline the system should already believe. Research assignments collect source material, surface context, and show what was found before editors decide what belongs in an edition."
   },
   {
    "id": "item-howto-curate-references",
@@ -286,7 +288,8 @@
    "headline": "Curate References by Hand",
    "slug": "howto-curate-references",
    "section": "Newsroom How-To",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "The References desk is where source material becomes newsroom memory. Open \\`/newsroom/references\\` to inspect a reference, review its status, and decide whether it belongs in the accepted structured knowledge graph."
   },
   {
    "id": "item-papyrus-operating-modes",
@@ -299,7 +302,8 @@
    "headline": "Light Touch or Hands on the Wheel",
    "slug": "papyrus-operating-modes",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "In light-touch mode, editors set mission, policy, sections, and topic priorities, then let the newsroom continue on that course."
   },
   {
    "id": "item-papyrus-reference-governance",
@@ -312,7 +316,8 @@
    "headline": "The Graph Editors Build",
    "slug": "papyrus-reference-governance",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Papyrus treats references as first-class editorial artifacts. Reliability depends on what evidence enters the curated structured knowledge graph and how humans evaluate it."
   },
   {
    "id": "item-papyrus-introduction",
@@ -325,7 +330,8 @@
    "headline": "An Autonomous Newsroom",
    "slug": "papyrus-introduction",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Papyrus is an autonomous publication system. Editors define the mission, the values, the voice, and the limits. The system handles the repetitive work of researching, assembling, drafting, checking, formatting, and publishing an edition\u2014continuously, within th"
   },
   {
    "id": "item-papyrus-first-install",
@@ -338,7 +344,8 @@
    "headline": "Chart the Course, Then Publish",
    "slug": "papyrus-first-install",
    "section": "Newsroom How-To",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Start with mission and policy so the newsroom has editorial direction before autonomous cycles begin."
   },
   {
    "id": "item-papyrus-data-ownership",
@@ -351,7 +358,8 @@
    "headline": "Your Newsroom, Your Data",
    "slug": "papyrus-data-ownership",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "A publication's sources, curation record, and policies are institutional memory. Papyrus stores source material through ordinary S3-backed corpus patterns, with metadata that describes provenance and how the newsroom should treat each reference."
   },
   {
    "id": "item-papyrus-steering-and-curation",
@@ -364,7 +372,8 @@
    "headline": "Humans Steer. Machines Operate.",
    "slug": "papyrus-steering-and-curation",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Papyrus is built around a different bargain: humans steer, machines operate. Publication doctrine\u2014mission, policies, and section priorities\u2014tells the newsroom what outcomes matter and what standards cannot be crossed."
   },
   {
    "id": "item-papyrus-agent-workflow",
@@ -377,7 +386,8 @@
    "headline": "Autopilot, Not Copilot",
    "slug": "papyrus-agent-workflow",
    "section": "Papyrus",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "A copilot waits for the next command. An autopilot follows a course that humans have set, adjusting within known boundaries and returning control when judgment is required. Papyrus is built on the second model."
   },
   {
    "id": "item-howto-register-source-material",
@@ -390,7 +400,8 @@
    "headline": "Register Source Material",
    "slug": "howto-register-source-material",
    "section": "Newsroom How-To",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Registration bridges source material and newsroom curation. It does not publish anything; it creates reference records, attachment metadata, and intake work so humans and agents can decide what the graph should trust."
   },
   {
    "id": "item-howto-maintain-reference-quality",
@@ -403,7 +414,8 @@
    "headline": "Maintain Reference Quality",
    "slug": "howto-maintain-reference-quality",
    "section": "Newsroom How-To",
-   "updatedAt": "2026-05-22T12:00:00.000Z"
+   "updatedAt": "2026-05-22T12:00:00.000Z",
+   "deck": "Reference quality is ongoing work. Material ages, identifiers change, and metadata may need enrichment before a source is useful."
   }
  ],
  "articles": {

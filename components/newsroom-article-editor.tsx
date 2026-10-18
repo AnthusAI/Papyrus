@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
 import { newsroomHref } from "../lib/newsroom-base-path";
@@ -249,6 +250,10 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     const patch: Partial<NewsroomArticleEditorState> = { frontMatterYaml: value };
     if (!slugEdited && !everPublished) patch.slug = suggestSlug(value);
     patchEditor(patch);
+  };
+
+  const changeFrontMatterField = (key: string, value: string) => {
+    if (editor) changeFrontMatter(writeFrontMatterText(editor.frontMatterYaml, key, value));
   };
 
   const goToLine = (location: ErrorLocation) => {
@@ -649,6 +654,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             </div>
               {(mobileTab === "trail" || mobileTab === "references") && editor.id ? <StoryReportingTrailView focusedReferenceId={focusedReferenceId} onShowReference={(referenceId) => { setFocusedReferenceId(referenceId); setMobileTab("references"); }} view={mobileTab === "references" ? "references" : "messages"} citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
+              <div className="newsroom-article-front-matter-fields" data-newsroom-article-fields>
+                <label><span>Title</span><Input data-newsroom-article-field="title" onChange={(event) => changeFrontMatterField(FRONT_MATTER_TITLE_KEY, event.target.value)} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY)} /></label>
+                <label><span>Subtitle</span><Input data-newsroom-article-field="subtitle" onChange={(event) => changeFrontMatterField(FRONT_MATTER_SUBTITLE_KEY, event.target.value)} placeholder="A line under the headline" value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)} /></label>
+                <label><span>Blurb</span><Textarea data-newsroom-article-field="blurb" onChange={(event) => changeFrontMatterField(FRONT_MATTER_BLURB_KEY, event.target.value)} placeholder="Two or three lines that describe the story on the board and in listings" rows={3} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)} /></label>
+              </div>
               <Input aria-label="What changed in this version" className="max-w-xl" onChange={(event) => setChangeReason(event.target.value)} placeholder="What changed? Recorded when you save as a new version." value={changeReason} />
               <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>
                 <summary>Front matter (YAML)</summary>
@@ -754,6 +764,12 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               data-newsroom-article-preview-column
             >
               <div className="rounded-xl border border-border bg-card p-4" data-newsroom-article-preview>
+                {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
+                  <div className="newsroom-article-summary" data-newsroom-article-summary>
+                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
+                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) ? <p className="newsroom-article-blurb">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)}</p> : null}
+                  </div>
+                ) : null}
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}
