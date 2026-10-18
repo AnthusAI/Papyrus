@@ -236,6 +236,27 @@ const schema = a.schema({
     grantorLabel: a.string(),
     expiresAt: a.datetime().required(),
     revokedAt: a.datetime(),
+    state: a.string(),
+    userCode: a.string(),
+    requestedHours: a.integer(),
+    pendingExpiresAt: a.datetime(),
+    approvedAt: a.datetime(),
+    deniedAt: a.datetime(),
+  }),
+
+  CurationDelegationRequestResult: a.customType({
+    ok: a.boolean().required(),
+    delegationId: a.id().required(),
+    userCode: a.string().required(),
+    pendingExpiresAt: a.datetime().required(),
+    requestedHours: a.integer().required(),
+  }),
+
+  CurationDelegationStatusResult: a.customType({
+    delegationId: a.id().required(),
+    state: a.string().required(),
+    expiresAt: a.datetime().required(),
+    grantorLabel: a.string(),
   }),
 
   ReferenceCurationActionResult: a.customType({
@@ -360,6 +381,53 @@ const schema = a.schema({
     .returns(a.ref("CurationDelegationResult").array())
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  requestCurationDelegation: a
+    .mutation()
+    .arguments({
+      delegationId: a.id().required(),
+      tokenHash: a.string().required(),
+      agentLabel: a.string().required(),
+      hours: a.integer(),
+    })
+    .returns(a.ref("CurationDelegationRequestResult"))
+    .authorization((allow) => [
+      allow.authenticated("identityPool"),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  approveCurationDelegation: a
+    .mutation()
+    .arguments({
+      userCode: a.string().required(),
+    })
+    .returns(a.ref("CurationDelegationResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  denyCurationDelegation: a
+    .mutation()
+    .arguments({
+      userCode: a.string().required(),
+    })
+    .returns(a.ref("CurationDelegationResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
+  getCurationDelegationStatus: a
+    .query()
+    .arguments({
+      delegationId: a.id().required(),
+    })
+    .returns(a.ref("CurationDelegationStatusResult"))
+    .authorization((allow) => [
+      allow.authenticated("identityPool"),
     ])
     .handler(a.handler.function(categoryAction)),
 
