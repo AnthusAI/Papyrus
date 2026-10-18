@@ -51,7 +51,7 @@ Rules:
 Procedure {
     input = {
         edition_id = field.string{required = true, description = "Papyrus Edition.id to plan assignments for"},
-        corpus_key = field.string{default = "AI-ML-research", description = "Papyrus steering corpus key"},
+        corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "", description = "Optional live context profile override"},
         section_targets_json = field.string{default = "", description = "JSON object or array of section article targets"},
         assignment_ratio = field.string{default = "1.5", description = "Assignment-to-final-slot ratio. Default 3/2."},

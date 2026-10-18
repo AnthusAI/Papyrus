@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -9,6 +10,18 @@ from papyrus_newsroom.email_submissions import (
     REJECTION_KIND_UNREGISTERED_SENDER,
     UNREGISTERED_SENDER_RESPONSE_ERROR,
 )
+
+
+def setUpModule():
+    environment_patch = mock.patch.dict(
+        os.environ,
+        {
+            "PAPYRUS_INBOUND_EMAIL_DOMAIN": "p.apyr.us",
+            "PAPYRUS_PUBLIC_SITE_BASE_URL": "https://p.apyr.us",
+        },
+    )
+    environment_patch.start()
+    unittest.addModuleCleanup(environment_patch.stop)
 
 
 class EmailSubmissionFeedbackTests(unittest.TestCase):

@@ -43,3 +43,16 @@ scripts/gitunblock
 project/.overlay/
 project/.cache/
 dist-packages/
+
+.next-3001/
+cdk.out/
+infra/amplify-app-shell/node_modules/
+infra/amplify-app-shell/cdk.out/
+.pytest_cache/
+.venv/
+.ruff_cache/
+.mypy_cache/
+playwright-report/
+test-results/
+amplify_outputs.json.stashed-by-local-preview
+preview-screenshots/

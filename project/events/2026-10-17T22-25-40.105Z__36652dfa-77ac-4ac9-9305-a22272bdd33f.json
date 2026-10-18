@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "36652dfa-77ac-4ac9-9305-a22272bdd33f",
+  "issue_id": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-17T22:25:40.105Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Migrate Cyclotron-web to a Papyrus Markus publication",
+    "description": "Next.js marketing site (app/ routes, content/articles, interactive previews) at cyclotron.anth.us. Convert prose pages to Markus; interactive chart/carousel/drift previews become Papyrus islands as in Prospectus-web (web/island). Keep the shared-UI dependency on Cyclotron.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": []
+  }
+}

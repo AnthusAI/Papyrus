@@ -9,9 +9,9 @@ Use this skill when the task is to start a new Papyrus publication from source
 materials rather than operate an already-indexed publication.
 
 The canonical guide is
-[`docs/new-publication-from-corpus.md`](/Users/ryan/Projects/Papyrus/docs/new-publication-from-corpus.md).
+[`docs/new-publication-from-corpus.md`](../../docs/new-publication-from-corpus.md).
 Worker setup and cloud-to-local corpus synchronization are documented in
-[`docs/newsroom-worker-bootstrap.md`](/Users/ryan/Projects/Papyrus/docs/newsroom-worker-bootstrap.md).
+[`docs/newsroom-worker-bootstrap.md`](../../docs/newsroom-worker-bootstrap.md).
 Read that guide first, then use the repo-local skills below for the exact
 sub-workflow:
 
@@ -31,7 +31,7 @@ after registration, GraphQL is the operational source of truth.
 
 Biblicus owns corpus ingestion, source extraction, topic modeling, classifier
 training, projection, graph extraction, generated artifacts, and repeatable
-analysis execution. Do not edit `/Users/ryan/Projects/Biblicus` source from
+analysis execution. Do not edit `$BIBLICUS_WORKDIR` source from
 Papyrus. If a bootstrap step needs a new Biblicus feature, document the needed
 contract and hand it to the Biblicus agent.
 

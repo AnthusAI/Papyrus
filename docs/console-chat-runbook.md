@@ -128,7 +128,7 @@ console as a signed-in editor. Use a prompt that forces a tool call, such as
 `What are the 5 most recent references?`. A healthy turn answers with real
 reference rows, usually within 10 to 60 seconds. A turn that stays `PENDING`
 for minutes, or answers with `Could not resolve JWT signing secret`, is a
-failure (see [web-console-chat-iam-fix.md](web-console-chat-iam-fix.md) for
+failure (see [web-console-chat-iam-fix.md](archive/web-console-chat-fix/web-console-chat-iam-fix.md) for
 that error). Then watch Lambda logs:
 
 ```bash

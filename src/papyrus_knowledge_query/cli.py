@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.operator_errors import GraphQLRequestError, OperatorError
 from papyrus_content.graphql_http import aws_credentials_available, iam_signed_graphql_headers
 
 from .engine import run_knowledge_query
@@ -150,7 +151,7 @@ def _should_run_remote(args: argparse.Namespace) -> bool:
     endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
     if execution == "remote":
         if not endpoint or not aws_credentials_available():
-            raise RuntimeError(
+            raise OperatorError(
                 "remote knowledge-query execution requires PAPYRUS_GRAPHQL_ENDPOINT and AWS credentials (set AWS_PROFILE)"
             )
         return True
@@ -175,7 +176,7 @@ def _run_remote_knowledge_query(payload: dict[str, Any]) -> dict[str, Any]:
     with urllib.request.urlopen(request, timeout=330) as response:  # nosec B310 - configured AppSync endpoint
         response_payload = json.loads(response.read().decode("utf-8"))
     if response_payload.get("errors"):
-        raise RuntimeError(json.dumps(response_payload["errors"]))
+        raise GraphQLRequestError(json.dumps(response_payload["errors"]))
     result = (response_payload.get("data") or {}).get("knowledgeQuery")
     if isinstance(result, str):
         parsed = json.loads(result)
@@ -183,7 +184,7 @@ def _run_remote_knowledge_query(payload: dict[str, Any]) -> dict[str, Any]:
             return parsed
     if isinstance(result, dict):
         return result
-    raise RuntimeError("knowledgeQuery remote response did not contain a JSON object")
+    raise GraphQLRequestError("knowledgeQuery remote response did not contain a JSON object")
 
 
 def _annotate_cli_execution(result: dict[str, Any], execution: str) -> None:

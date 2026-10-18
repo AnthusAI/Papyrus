@@ -39,6 +39,7 @@ from .reference_curation_signals import (
     reference_list,
     reference_summaries,
 )
+from papyrus_content.steering import default_corpus_key
 from .tactus_runtime import execute_tactus_harnessed
 from papyrus_knowledge_query.cli import (
     add_knowledge_query_parser,
@@ -46,9 +47,16 @@ from papyrus_knowledge_query.cli import (
     run_knowledge_query_cli,
     run_knowledge_vector_index_cli,
 )
+from papyrus_content.model_defaults import DEFAULT_LLM_MODEL
 
 
 def main(argv: list[str] | None = None) -> int:
+    from papyrus_content.operator_errors import run_with_operator_error_handling
+
+    return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+
+
+def _run_with_arguments(argv: list[str] | None) -> int:
     from papyrus_content.env import load_dotenv
 
     load_dotenv()
@@ -122,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
     curate_recent_parser.add_argument("--max-count", type=int, default=0)
     curate_recent_parser.add_argument("--scan-limit", type=int, default=1000)
     curate_recent_parser.add_argument("--max-parallel", type=int, default=1)
-    curate_recent_parser.add_argument("--model", default="gpt-5.4-mini")
+    curate_recent_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     curate_recent_parser.add_argument("--summary-max-tokens", type=int, default=1800)
     curate_recent_parser.add_argument("--refresh-summary", action="store_true")
     curate_recent_parser.add_argument("--actor-label", default="papyrus")
@@ -146,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     summarize_parser.add_argument("--summary-text", default="")
     summarize_parser.add_argument("--source-text", default="")
     summarize_parser.add_argument("--source-text-file", default="")
-    summarize_parser.add_argument("--model", default="gpt-5.4-mini")
+    summarize_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     summarize_parser.add_argument("--dry-run", action="store_true")
     summarize_parser.add_argument("--refresh", action="store_true")
 
@@ -160,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
     summarize_batch_parser.add_argument("--max-count", type=int, default=0)
     summarize_batch_parser.add_argument("--max-parallel", type=int, default=4)
     summarize_batch_parser.add_argument("--scan-limit", type=int, default=5000)
-    summarize_batch_parser.add_argument("--model", default="gpt-5.4-mini")
+    summarize_batch_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     summarize_batch_parser.add_argument("--dry-run", action="store_true")
     summarize_batch_parser.add_argument("--refresh", action="store_true")
 
@@ -194,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Use an LLM to assess and optionally set one Reference quality rating",
     )
     quality_assess_parser.add_argument("--reference", required=True)
-    quality_assess_parser.add_argument("--model", default="gpt-5.4-mini")
+    quality_assess_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     quality_assess_parser.add_argument("--source-text", default="")
     quality_assess_parser.add_argument("--source-text-file", default="")
     quality_assess_parser.add_argument("--dry-run", action="store_true")
@@ -208,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     quality_assess_batch_parser.add_argument("--corpus-key", required=True)
     quality_assess_batch_parser.add_argument("--max-count", type=int, default=10)
     quality_assess_batch_parser.add_argument("--status", default="accepted")
-    quality_assess_batch_parser.add_argument("--model", default="gpt-5.4-mini")
+    quality_assess_batch_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     quality_assess_batch_parser.add_argument("--only-missing", default="true")
     quality_assess_batch_parser.add_argument("--scan-limit", type=int, default=1000)
     quality_assess_batch_parser.add_argument("--dry-run", action="store_true")
@@ -241,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Resolve title/subtitle for one Reference; subtitle quality is prompt-driven",
     )
     title_subtitle_resolve_parser.add_argument("--reference", required=True)
-    title_subtitle_resolve_parser.add_argument("--model", default="gpt-5.4-mini")
+    title_subtitle_resolve_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     title_subtitle_resolve_parser.add_argument("--web-search", default="true")
     title_subtitle_resolve_parser.add_argument("--source-text", default="")
     title_subtitle_resolve_parser.add_argument("--source-text-file", default="")
@@ -260,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     title_subtitle_batch_parser.add_argument("--corpus-key", required=True)
     title_subtitle_batch_parser.add_argument("--status", default="all")
     title_subtitle_batch_parser.add_argument("--max-count", type=int, default=10)
-    title_subtitle_batch_parser.add_argument("--model", default="gpt-5.4-mini")
+    title_subtitle_batch_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     title_subtitle_batch_parser.add_argument("--web-search", default="true")
     title_subtitle_batch_parser.add_argument("--only-missing", default="true")
     title_subtitle_batch_parser.add_argument("--scan-limit", type=int, default=1000)
@@ -278,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     title_subtitle_catalog_parser.add_argument("--catalog", required=True)
     title_subtitle_catalog_parser.add_argument("--output", required=True)
-    title_subtitle_catalog_parser.add_argument("--model", default="gpt-5.4-mini")
+    title_subtitle_catalog_parser.add_argument("--model", default=DEFAULT_LLM_MODEL)
     title_subtitle_catalog_parser.add_argument("--web-search", default="true")
     title_subtitle_catalog_parser.add_argument("--summary", default="false")
     title_subtitle_catalog_parser.add_argument("--summary-max-tokens", type=int, default=1800)
@@ -400,9 +408,9 @@ def _add_editions_parser(subparsers: argparse._SubParsersAction[argparse.Argumen
         help="Plan an edition story budget from signal reports and section budgets",
     )
     plan_parser.add_argument("--date", required=True)
-    plan_parser.add_argument("--sections", default=",".join(["culture", "methods", "business", "law"]))
+    plan_parser.add_argument("--sections", default="")
     plan_parser.add_argument("--section-budgets", default="")
-    plan_parser.add_argument("--corpus-key", default="AI-ML-research")
+    plan_parser.add_argument("--corpus-key", default="")
     plan_parser.add_argument("--category", "--category-key", dest="category_key", default="")
     plan_parser.add_argument("--topic", default="")
     plan_parser.add_argument("--coverage-key", default="")
@@ -456,10 +464,10 @@ def _add_assignments_parser(subparsers: argparse._SubParsersAction[argparse.Argu
 def _add_coverage_theme_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--date", required=True)
     parser.add_argument("--topic", required=True)
-    parser.add_argument("--category", "--category-key", dest="category_key", default="AI-ML-research")
+    parser.add_argument("--category", "--category-key", dest="category_key", default="")
     parser.add_argument("--corpus-key", default="")
     parser.add_argument("--coverage-key", default="")
-    parser.add_argument("--sections", default="culture,methods,business,law")
+    parser.add_argument("--sections", default="")
     parser.add_argument("--section-budgets", default="")
     parser.add_argument("--run-id", default="")
     parser.add_argument("--through", choices=["plan", "rotating-desk", "research", "reporting"], default="reporting")
@@ -522,6 +530,7 @@ def _run_signals_command(args: argparse.Namespace) -> dict:
             run_id=args.run_id,
             references=fixture.get("references") if fixture else None,
             semantic_nodes=(fixture.get("semanticNodes") or fixture.get("semantic_nodes")) if fixture else None,
+            newsroom_sections=fixture.get("newsroomSections") if fixture else None,
             apply=not args.dry_run,
         )
     raise SystemExit("Missing or unsupported signals subcommand.")
@@ -534,7 +543,7 @@ def _run_editions_command(args: argparse.Namespace) -> dict:
             date=args.date,
             sections=sections,
             section_budgets=parse_section_budgets(args.section_budgets, sections),
-            corpus_key=args.corpus_key,
+            corpus_key=args.corpus_key or default_corpus_key(),
             category_key=args.category_key,
             topic=args.topic,
             coverage_key=args.coverage_key,
@@ -572,14 +581,14 @@ def _run_assignments_command(args: argparse.Namespace) -> dict:
 
 def _run_coverage_theme_run(args: argparse.Namespace) -> dict:
     sections = parse_csv(args.sections)
-    corpus_key = args.corpus_key or args.category_key
+    corpus_key = args.corpus_key or args.category_key or default_corpus_key()
     through = str(args.through or "reporting").replace("-", "_")
     select_rotating_desk = True if args.select_rotating_desk else None
     return coverage_theme_run(
         date=args.date,
         topic=args.topic,
         corpus_key=corpus_key,
-        category_key=args.category_key,
+        category_key=args.category_key or corpus_key,
         coverage_key=args.coverage_key,
         sections=sections,
         section_budgets=parse_section_budgets(args.section_budgets, sections),
@@ -589,6 +598,8 @@ def _run_coverage_theme_run(args: argparse.Namespace) -> dict:
         allow_fallback=args.allow_fallback,
         require_agent_success=args.require_agent_success,
         refresh_packets=args.refresh_packets,
+        max_parallel_research=args.max_parallel_research,
+        max_parallel_reporting=args.max_parallel_reporting,
         apply=not args.dry_run,
         selected_optional_desk_key=str(args.selected_optional_desk or "").strip(),
         include_optional_desks=bool(args.include_optional_desks),

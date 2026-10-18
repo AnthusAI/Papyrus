@@ -1871,8 +1871,12 @@ class KnowledgeQueryTests(unittest.TestCase):
         from papyrus_newsroom import cli as newsroom_cli
 
         with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_ENDPOINT": ""}, clear=False):
-            with self.assertRaises(RuntimeError):
-                newsroom_cli.main(["knowledge-query", "--query", "LLM"])
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                exit_code = newsroom_cli.main(["knowledge-query", "--query", "LLM"])
+        self.assertEqual(exit_code, 2)
+        self.assertIn("AWS_PROFILE", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_semantic_relation_seed_includes_insight_about(self):
         relation_types = (REPO_ROOT / "corpora" / "papyrus-semantic-relation-types.yml").read_text(encoding="utf-8")

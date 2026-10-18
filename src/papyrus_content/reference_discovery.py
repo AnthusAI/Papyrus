@@ -9,7 +9,7 @@ from .env import PAPYRUS_ROOT
 from .graphql_authoring import create_authoring_client
 from .ids import hash_short, knowledge_corpus_id
 from .options import normalize_non_negative_integer, normalize_positive_integer, normalize_string, parse_options, parse_repeated_option
-from .steering import load_steering_config, require_corpus_config
+from .steering import default_corpus_key, load_steering_config, require_corpus_config
 
 
 def _default_query_terms() -> list[str]:
@@ -29,7 +29,7 @@ def run_citation_led_discovery(flags: list[str]) -> None:
         options.get("anchor-corpus-key")
         or options.get("corpus-key")
         or (steering_config.get("canonicalTopicSet") or {}).get("corpusKey")
-        or "AI-ML-research"
+        or default_corpus_key()
     )
     anchor_corpus = require_corpus_config(steering_config, anchor_corpus_key, "--anchor-corpus-key")
     query_terms = parse_repeated_option(flags, "query") or _default_query_terms()

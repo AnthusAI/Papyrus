@@ -886,7 +886,6 @@ const baseDefinitions = {
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
-      allow.authenticated("identityPool").to(authoringOperations),
     ]),
 
   AssignmentEvent: modelWithoutSubscriptions({
@@ -1486,7 +1485,6 @@ const baseDefinitions = {
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read", "create", "update"]),
-      allow.authenticated("identityPool").to(authoringOperations),
     ]),
 
   ModelAttachment: modelWithoutSubscriptions({

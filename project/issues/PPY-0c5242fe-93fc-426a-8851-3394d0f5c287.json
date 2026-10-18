@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0c5242fe-93fc-426a-8851-3394d0f5c287",
+  "title": "Deploy p.apyr.us with Prospectus sign-in",
+  "description": "Hand-off from the Prospectus integration thread (PPY-58f107) to the DevOps session. Not deployed from the Mac; use the pipeline.\n\nFacts: AWS profile papyrus-production, account 712236451410, p.apyr.us Amplify app ds6yswxui41yi, user pool us-east-1_1sQaEOwsH, Prospectus accounts API bnh9mctvo9 stage api.\n\nSteps\n1. In AnthusAI/p.apyr.us bump @anthusai/papyrus and infra/site.json papyrusVersion to exactly 1.0.0-next.64. Only next.64 contains PR 220; not next.63 and not v1.0.0.\n2. Set cms.prospectusAccountsApiStageArn to arn:aws:execute-api:us-east-1:712236451410:bnh9mctvo9/api and update stack amplify-app-shell-p-apyr-us-cms.\n3. Run a backend deploy so the prospectus-google-only Cognito client exists.\n4. Report back: CmsComputeRoleArn, pool id, ProspectusGoogleOnlyClientId, ProspectusGoogleOnlyIssuer.\n\nCautions\n- Cognito domain papyrus-p-apyr-us must stay unchanged.\n- Prospectus's own Amplify backend stack is in UPDATE_ROLLBACK_COMPLETE; flag to its owner, do not touch it.\n\nAfter the deploy the Prospectus thread files the p.apyr.us entry in accounts/papyrus-sites.json via kanbus-2755969c with two Papyrus-minted review IDs, then wires account selection into the live curation host.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-17T18:00:55.803522Z",
+  "updated_at": "2026-10-17T18:00:55.803772Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

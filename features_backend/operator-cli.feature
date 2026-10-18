@@ -252,7 +252,7 @@ Feature: Operator CLI
   @auth @cloud-backend
   Scenario: The auth group no longer exists because no token is minted
     When I run `papyrus auth refresh`
-    Then the exit code should be 1
+    Then the exit code should be 2
     And stderr should mention `Unsupported papyrus group: auth`
     And stderr should not contain "Traceback"
 
@@ -264,6 +264,26 @@ Feature: Operator CLI
     When I run `papyrus assignments list --limit 1`
     Then the exit code should be 2
     And stderr should mention `AWS_PROFILE`
+    And stderr should not contain "Traceback"
+
+  @auth @errors
+  Scenario: Expired SSO credentials print recovery guidance and exit 2 without a traceback
+    Given operator CLI config selects backend "cloud"
+    And no operator CLI fixtures are loaded
+    And a GraphQL endpoint that rejects credentials with status 401
+    When I run `papyrus assignments list --limit 1`
+    Then the exit code should be 2
+    And stderr should contain "GraphQL request failed: 401"
+    And stderr should contain "aws sso login"
+    And stderr should not contain "Traceback"
+
+  @errors
+  Scenario: A dangling --backend flag is an operator error, not an IndexError
+    Given operator CLI config selects backend "local"
+    And the local pod fixture "anthus-blog" is configured
+    When I run `papyrus references list --backend`
+    Then the exit code should be 2
+    And stderr should contain "--backend requires a value"
     And stderr should not contain "Traceback"
 
   @auth @local-backend

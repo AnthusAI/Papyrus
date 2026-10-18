@@ -15,7 +15,7 @@ from papyrus_content.env import PAPYRUS_ROOT
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
 from papyrus_content.message_contract import build_canonical_message_expected
 from papyrus_content.records import apply_record_changes, build_record_changes
-from papyrus_content.steering import load_steering_config, require_corpus_config
+from papyrus_content.steering import default_corpus_key, load_steering_config, require_corpus_config
 
 MESSAGE_KIND_EMAIL_SUBMISSION = "email_submission"
 
@@ -28,7 +28,6 @@ MESSAGE_DOMAIN_REFERENCE_INTAKE = "reference_intake"
 MESSAGE_TYPE_INBOUND_EMAIL = "INBOUND_EMAIL"
 RESPONSE_TARGET_EMAIL_PROCESSOR = "email_submission_processor"
 
-DEFAULT_INBOUND_CORPUS_KEY = "AI-ML-research"
 INBOUND_EMAIL_INTAKE_PREFIX = "inbound-email/"
 INBOUND_EMAIL_ARCHIVE_PREFIX = "inbound-email-archived/"
 
@@ -496,12 +495,13 @@ def process_email_submission_message(
     client: PapyrusGraphQLAuthoringClient,
     *,
     message_id: str,
-    corpus_key: str = DEFAULT_INBOUND_CORPUS_KEY,
+    corpus_key: str | None = None,
     steering_config_path: str | None = None,
     apply: bool = True,
 ) -> dict[str, Any]:
     from papyrus_newsroom.email_submission_replies import process_inbound_email_submission
 
+    corpus_key = corpus_key or default_corpus_key()
     message = client.get_record("Message", message_id)
     if not message:
         raise ValueError(f"Message not found: {message_id}")
@@ -520,11 +520,12 @@ def run_email_submission_cloud_procedure(
     client: PapyrusGraphQLAuthoringClient,
     *,
     message_id: str,
-    corpus_key: str = DEFAULT_INBOUND_CORPUS_KEY,
+    corpus_key: str | None = None,
     actor_label: str = "Papyrus inbound email",
 ) -> dict[str, Any]:
     from papyrus_content.cloud_procedures import start_cloud_procedure_run
 
+    corpus_key = corpus_key or default_corpus_key()
     return start_cloud_procedure_run(
         client=client,
         alias="submissions.process-email",

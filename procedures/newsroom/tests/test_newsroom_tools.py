@@ -20,6 +20,37 @@ from papyrus_newsroom import tactus_runtime
 from papyrus_knowledge_query.uris import parse_papyrus_uri
 
 
+def _coverage_theme_run_with_sections(**options):
+    with mock.patch.object(
+        papyrus_coverage_theme,
+        "load_live_state",
+        return_value={"newsroomSections": ARTS_AND_METHODS_NEWSROOM_SECTIONS},
+    ):
+        return papyrus_coverage_theme.coverage_theme_run(**options)
+
+
+ARTS_AND_METHODS_NEWSROOM_SECTIONS = [
+    {
+        "id": "arts",
+        "title": "Arts",
+        "type": "canonical",
+        "enabled": True,
+        "sortOrder": 1,
+        "editorialMission": "Creative workflows and player experience.",
+        "assignmentGuidance": "creative workflows, game design, player experience, generative media",
+    },
+    {
+        "id": "methods",
+        "title": "Methods",
+        "type": "canonical",
+        "enabled": True,
+        "sortOrder": 2,
+        "editorialMission": "Implementation patterns and evaluation.",
+        "assignmentGuidance": "implementation patterns, NPC behavior, procedural generation, evaluation",
+    },
+]
+
+
 class NewsroomToolTests(unittest.TestCase):
     def test_wrapper_shim_exports_newsroom_functions(self):
         import importlib.util
@@ -399,7 +430,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
                 return {"createMessageThread": variables["input"]}
             return {}
 
-        with mock.patch.object(papyrus_newsroom, "_graphql", side_effect=fake_graphql):
+        with mock.patch.object(papyrus_newsroom, "execute_graphql", side_effect=fake_graphql):
             result = papyrus_newsroom.papyrus_create_section_forum_thread(
                 edition_id="edition-2026-06-05-v1",
                 section_id="culture",
@@ -3436,12 +3467,25 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertIn({"kind": "category", "lineageId": "cat"}, walked["nodes"])
         self.assertEqual(calls[0]["subjectStateKey"], "reference#ref#current")
 
+    def test_resolve_sections_defaults_to_enabled_sections_in_sort_order(self):
+        resolved = papyrus_coverage_theme.resolve_sections([], list(reversed(ARTS_AND_METHODS_NEWSROOM_SECTIONS)))
+        self.assertEqual([section["id"] for section in resolved], ["arts", "methods"])
+
+    def test_resolve_sections_rejects_unknown_section_keys(self):
+        with self.assertRaisesRegex(ValueError, "Unknown NewsroomSection key.*culture"):
+            papyrus_coverage_theme.resolve_sections(["culture"], ARTS_AND_METHODS_NEWSROOM_SECTIONS)
+
+    def test_section_research_lens_comes_from_the_section_row(self):
+        lens = papyrus_coverage_theme.section_research_lens(ARTS_AND_METHODS_NEWSROOM_SECTIONS[1])
+        self.assertEqual(lens, "implementation patterns, NPC behavior, procedural generation, evaluation")
+
     def test_signal_trend_report_scores_recent_accepted_references(self):
         result = papyrus_coverage_theme.signals_trend_report(
             corpus_key="AI-ML-research",
             topic="AI in video games",
             coverage_key="coverage.ai-in-video-games",
-            sections=["culture", "methods"],
+            sections=["arts", "methods"],
+            newsroom_sections=ARTS_AND_METHODS_NEWSROOM_SECTIONS,
             references=[
                 {
                     "id": "reference-ai-games-1",
@@ -3714,10 +3758,11 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
             coverage_key="coverage.ai-in-video-games",
-            sections=["culture", "methods"],
+            sections=["arts", "methods"],
             section_budgets={"arts": 2, "methods": 1},
             run_id="coverage-theme-test",
             now="2026-05-21T12:00:00Z",
+            state={"newsroomSections": ARTS_AND_METHODS_NEWSROOM_SECTIONS},
         )
 
         self.assertEqual(plan["summary"]["researchAssignmentCount"], 2)
@@ -3766,13 +3811,13 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             "_start_cloud_procedure_run",
             side_effect=RuntimeError("cloud unavailable"),
         ):
-            result = papyrus_coverage_theme.coverage_theme_run(
+            result = _coverage_theme_run_with_sections(
                 date="2026-05-21",
                 topic="AI in video games",
                 corpus_key="AI-ML-research",
                 category_key="AI-ML-research",
                 coverage_key="coverage.ai-in-video-games",
-                sections=["culture"],
+                sections=["arts"],
                 section_budgets={"arts": 1},
                 run_id="coverage-theme-test",
                 through="reporting",
@@ -3786,13 +3831,13 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(result["error"]["code"], "agent_success_required")
 
     def test_coverage_theme_reporting_allow_fallback_creates_private_packets_only(self):
-        result = papyrus_coverage_theme.coverage_theme_run(
+        result = _coverage_theme_run_with_sections(
             date="2026-05-21",
             topic="AI in video games",
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
             coverage_key="coverage.ai-in-video-games",
-            sections=["culture", "methods"],
+            sections=["arts", "methods"],
             section_budgets={"arts": 2, "methods": 1},
             run_id="coverage-theme-test",
             through="reporting",
@@ -4057,7 +4102,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             coverage_key="coverage.ai-in-video-games",
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
-            sections=["methods", "arts"],
+            section_lenses={"methods": "implementation patterns", "arts": "creative workflows"},
             state={"references": references, "semanticNodes": []},
             now=now,
         )
@@ -4110,7 +4155,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
             coverage_key="coverage.ai-in-video-games",
-            sections=["culture"],
+            sections=["arts"],
             section_budgets={"arts": 2},
             run_id="coverage-theme-forum-test",
             now="2026-06-01T12:00:00Z",
@@ -4213,7 +4258,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
             coverage_key="coverage.ai-in-video-games",
-            sections=["culture"],
+            sections=["arts"],
             section_budgets={"arts": 2},
             run_id="coverage-theme-forum-rerun",
             now="2026-06-01T12:00:00Z",
@@ -4357,7 +4402,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
             coverage_key="coverage.ai-in-video-games",
-            sections=["methods", "culture"],
+            sections=["methods", "arts"],
             section_budgets={"methods": 1, "arts": 2},
             run_id="coverage-theme-canonical-forum-test",
             now="2026-06-01T12:00:00Z",
@@ -4471,7 +4516,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             corpus_key="AI-ML-research",
             category_key="AI-ML-research",
             coverage_key="coverage.ai-safety-in-game-moderation",
-            sections=["culture"],
+            sections=["arts"],
             section_budgets={"arts": 2},
             run_id="coverage-theme-forum-replan",
             now="2026-06-01T12:00:00Z",

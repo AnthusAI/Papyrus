@@ -44,6 +44,8 @@ from .editions_commands import (
 from .options import normalize_non_negative_integer, normalize_string, parse_options, resolve_mutation_apply
 from .records import build_record_change_from_current, is_missing_graphql_model_error
 from .relations_commands import print_category_import_summary
+from .steering import default_corpus_key
+from .model_defaults import DEFAULT_LLM_MODEL
 
 CREATE_PROCEDURE_DEFINITION_MUTATION = """
 mutation CreateProcedureDefinition($input: CreateProcedureDefinitionInput!) {
@@ -734,7 +736,7 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
             "defaults": {
                 "mode": "reference_summary",
                 "max_tokens": 500,
-                "model": "gpt-5.4-mini",
+                "model": DEFAULT_LLM_MODEL,
             },
         },
         "ontology.relationship-explainer": {
@@ -753,7 +755,7 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
                 },
             },
             "defaults": {
-                "model": "gpt-5.4-mini",
+                "model": DEFAULT_LLM_MODEL,
                 "temperature": 0,
             },
         },
@@ -773,7 +775,7 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
                 },
             },
             "defaults": {
-                "model": "gpt-5.4-mini",
+                "model": DEFAULT_LLM_MODEL,
                 "temperature": 0,
             },
         },
@@ -792,7 +794,7 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
                 },
             },
             "defaults": {
-                "corpus_key": "AI-ML-research",
+                "corpus_key": default_corpus_key(),
                 "apply": True,
             },
         },
