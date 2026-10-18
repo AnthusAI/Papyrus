@@ -11,9 +11,9 @@ type SheetSide = "bottom" | "left" | "right";
 
 const sideClasses: Record<SheetSide, string> = {
   bottom:
-    "inset-x-0 bottom-0 top-auto max-h-[85dvh] w-full rounded-t-2xl border-t data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
-  left: "inset-y-0 left-0 h-full w-[min(100vw,20rem)] rounded-r-2xl border-r data-open:slide-in-from-left data-closed:slide-out-to-left",
-  right: "inset-y-0 right-0 h-full w-[min(100vw,20rem)] rounded-l-2xl border-l data-open:slide-in-from-right data-closed:slide-out-to-right",
+    "inset-x-0 bottom-0 top-auto max-h-[85dvh] w-full border-t data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+  left: "inset-y-0 left-0 h-full w-[min(100vw,20rem)] border-r data-open:slide-in-from-left data-closed:slide-out-to-left",
+  right: "inset-y-0 right-0 h-full w-[min(100vw,20rem)] border-l data-open:slide-in-from-right data-closed:slide-out-to-right",
 };
 
 function Sheet({ ...props }: DialogPrimitive.Root.Props) {
@@ -31,17 +31,22 @@ function SheetClose({ ...props }: DialogPrimitive.Close.Props) {
 function SheetContent({
   children,
   className,
+  backdropClassName,
   showCloseButton = true,
   side = "bottom",
   ...props
 }: DialogPrimitive.Popup.Props & {
+  backdropClassName?: string;
   showCloseButton?: boolean;
   side?: SheetSide;
 }) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop
-        className="fixed inset-0 z-50 bg-black/40 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+        className={cn(
+          "fixed inset-0 z-50 bg-black/40 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+          backdropClassName,
+        )}
       />
       <DialogPrimitive.Popup
         className={cn(

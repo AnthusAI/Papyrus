@@ -12,6 +12,7 @@ import {
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
+import { createLocalPreviewEditableArticle } from "./local-preview-seed";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -171,6 +172,8 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     },
     async loadArticle(id: string): Promise<EditableArticle> {
+      const previewRecord = records.get(id) ? null : createLocalPreviewEditableArticle(id);
+      if (previewRecord) return previewRecord;
       const record = requireRecord(id);
       return {
         id: record.id,

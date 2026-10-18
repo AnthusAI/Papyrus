@@ -1,4 +1,5 @@
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
+import type { EditableArticle } from "./newsroom-articles";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 
@@ -92,4 +93,23 @@ export function createLocalPreviewAssignments(): AssignmentRecord[] {
     updatedAt: isoTimestampHoursBeforeBase(index),
   }));
   return [...assignmentsOnContentItems, ...assignmentsWithoutContentItem];
+}
+
+export function createLocalPreviewEditableArticle(id: string): EditableArticle | null {
+  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === id);
+  if (!version) return null;
+  const headline = version.headline || version.title || version.slug;
+  return {
+    id: version.id,
+    type: version.type,
+    section: version.section ?? null,
+    slug: version.slug,
+    frontMatterYaml: `title: ${headline}\nsection: ${version.section ?? ""}`,
+    bodyMarkus: `# ${headline}\n\nThe local preview shows this story's record. Its full body text is loaded from the live backend.`,
+    contentHash: null,
+    status: version.status === "published" ? "published" : "draft",
+    versionNumber: version.versionNumber,
+    aliases: [],
+    everPublished: version.status === "published",
+  };
 }
