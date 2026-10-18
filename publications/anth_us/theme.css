@@ -1,3 +1,5 @@
+@font-face { font-family: "Jersey 25"; src: url("./fonts/Jersey25-Regular.ttf") format("truetype"); font-weight: 400 900; font-display: swap; }
+
 /* Anthus theme pack — colors only.
    Hex values are read off the live Gatsby site at AnthusAI/Anth.us
    (`src/styles/variables.scss` `:root`). That file is not loaded at runtime.
@@ -83,15 +85,22 @@
   letter-spacing: 0;
 }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand {
-  font-size: 40px;
+  font-family: "Jersey 25", serif !important;
+  font-size: 44px;
   font-weight: 900;
-  color: var(--theme-moss);
-  border-bottom: 3px solid var(--theme-moss);
+  line-height: 1;
+  padding: 14px 16px 12px;
+  margin: -16px -16px 0;
+  color: #ffffff;
+  background: linear-gradient(174deg, #d03382 0%, #d03382 45%, #0389d7 88%, #85cefa 97%, #ffffff 100%);
+  border-bottom: 0;
 }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand small {
-  color: var(--org-muted);
+  color: #ffffff;
+  font-family: var(--anth-ui-font) !important;
   letter-spacing: 0.22em;
   font-weight: 600;
+  margin-top: 8px;
 }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-sidebar {
   background: var(--theme-card);
