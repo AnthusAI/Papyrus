@@ -1,0 +1,944 @@
+{
+ "items": [
+  {
+   "id": "content-item-report-ai-in-video-games-for-methods-reader-impact-94d5b80528b413b1-v1",
+   "lineageId": "content-item-report-ai-in-video-games-for-methods-reader-impact-94d5b80528b413b1",
+   "versionNumber": 1,
+   "stage": "assignment",
+   "type": "article",
+   "status": "draft",
+   "title": "Report AI in video games for Methods: reader impact",
+   "headline": "Report AI in video games for Methods: reader impact",
+   "slug": "draft-methods-5d48d8687c047ed6",
+   "section": "methods",
+   "updatedAt": "2026-10-18T08:57:58.361235Z"
+  },
+  {
+   "id": "content-item-report-ai-in-video-games-for-arts-accountability-5eebf02a7b4f7dfc-v1",
+   "lineageId": "content-item-report-ai-in-video-games-for-arts-accountability-5eebf02a7b4f7dfc",
+   "versionNumber": 1,
+   "stage": "assignment",
+   "type": "article",
+   "status": "draft",
+   "title": "Report AI in video games for Arts: accountability",
+   "headline": "Report AI in video games for Arts: accountability",
+   "slug": "draft-arts-83f8bc7377c0bd05",
+   "section": "arts",
+   "updatedAt": "2026-10-18T08:57:58.361235Z"
+  },
+  {
+   "id": "content-item-report-ai-in-video-games-for-arts-reader-impact-0309fb13361005c5-v1",
+   "lineageId": "content-item-report-ai-in-video-games-for-arts-reader-impact-0309fb13361005c5",
+   "versionNumber": 1,
+   "stage": "assignment",
+   "type": "article",
+   "status": "draft",
+   "title": "Report AI in video games for Arts: reader impact",
+   "headline": "Report AI in video games for Arts: reader impact",
+   "slug": "draft-arts-34c141bbfe63a485",
+   "section": "arts",
+   "updatedAt": "2026-10-18T08:57:58.361235Z"
+  },
+  {
+   "id": "content-item-report-ai-in-video-games-for-arts-coverage-gap-daba0d073dead1b1-v1",
+   "lineageId": "content-item-report-ai-in-video-games-for-arts-coverage-gap-daba0d073dead1b1",
+   "versionNumber": 1,
+   "stage": "assignment",
+   "type": "article",
+   "status": "draft",
+   "title": "Report AI in video games for Arts: coverage gap",
+   "headline": "Report AI in video games for Arts: coverage gap",
+   "slug": "draft-arts-b99b027a3c5db9e9",
+   "section": "arts",
+   "updatedAt": "2026-10-18T08:57:58.361235Z"
+  },
+  {
+   "id": "content-item-report-ai-in-video-games-for-methods-accountability-7001bcd4a44e7474-v1",
+   "lineageId": "content-item-report-ai-in-video-games-for-methods-accountability-7001bcd4a44e7474",
+   "versionNumber": 1,
+   "stage": "assignment",
+   "type": "article",
+   "status": "draft",
+   "title": "Report AI in video games for Methods: accountability",
+   "headline": "Report AI in video games for Methods: accountability",
+   "slug": "draft-methods-05247d4fd4f8e91a",
+   "section": "methods",
+   "updatedAt": "2026-10-18T08:57:58.361235Z"
+  }
+ ],
+ "assignments": [
+  {
+   "id": "assignment-research-document-understanding-research-test-20260603T145428233079Z",
+   "title": "Document understanding research test",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "Survey multimodal document understanding for scientific and technical PDFs: layout-aware OCR, vision-language models (Docling, Donut, layout parsers), and benchmark practices in 2025-2026. Compare accuracy, throughput, and deployment tradeoffs for knowledge-ingestion pipelines.",
+   "itemLineageId": null,
+   "createdAt": "2026-06-03T14:54:28.233079Z",
+   "updatedAt": "2026-06-03T14:54:28.233079Z",
+   "assignmentTypeKey": "research.tavily-deep"
+  },
+  {
+   "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-02-reader-impact",
+   "title": "Report AI in video games for Arts: reader impact",
+   "status": "open",
+   "priority": 202,
+   "assigneeId": null,
+   "summary": "Reporting candidate on AI in video games for Arts, angle: reader impact.",
+   "itemLineageId": "content-item-report-ai-in-video-games-for-arts-reader-impact-0309fb13361005c5",
+   "createdAt": "2026-05-30T20:07:08Z",
+   "updatedAt": "2026-05-30T20:07:08Z",
+   "assignmentTypeKey": "reporting.edition-candidate"
+  },
+  {
+   "id": "assignment-coverage-theme-research-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods",
+   "title": "Research AI in video games for Methods",
+   "status": "open",
+   "priority": 100,
+   "assigneeId": null,
+   "summary": "Section-shaped research on AI in video games for Methods.",
+   "itemLineageId": null,
+   "createdAt": "2026-05-30T20:05:44Z",
+   "updatedAt": "2026-05-30T20:05:44Z",
+   "assignmentTypeKey": "research.edition-candidate"
+  },
+  {
+   "id": "assignment-coverage-theme-research-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts",
+   "title": "Research AI in video games for Arts",
+   "status": "open",
+   "priority": 200,
+   "assigneeId": null,
+   "summary": "Section-shaped research on AI in video games for Arts.",
+   "itemLineageId": null,
+   "createdAt": "2026-05-30T20:07:08Z",
+   "updatedAt": "2026-05-30T20:07:08Z",
+   "assignmentTypeKey": "research.edition-candidate"
+  },
+  {
+   "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-03-coverage-gap",
+   "title": "Report AI in video games for Arts: coverage gap",
+   "status": "open",
+   "priority": 203,
+   "assigneeId": null,
+   "summary": "Reporting candidate on AI in video games for Arts, angle: coverage gap.",
+   "itemLineageId": "content-item-report-ai-in-video-games-for-arts-coverage-gap-daba0d073dead1b1",
+   "createdAt": "2026-05-30T20:07:08Z",
+   "updatedAt": "2026-05-30T20:07:08Z",
+   "assignmentTypeKey": "reporting.edition-candidate"
+  },
+  {
+   "id": "assignment-research-llms-in-video-games-at-runtime-20260603T162821288356Z",
+   "title": "LLMs in video games at runtime",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "Research how large language models are used inside shipped video games at runtime (player-facing): dynamic NPC dialogue, adaptive narration, quest or mission generation, moderation, personalization, and similar live systems. Exclude developer tooling, code assistants, asset pipelines, and pre-release content authoring unless they directly affect what players experience in a live build. Cover major titles and platforms from 2023-2026, technical architectures (on-device vs cloud, latency budgets), player reception, and design tradeoffs. Cite specific games and implementations where possible.",
+   "itemLineageId": null,
+   "createdAt": "2026-06-03T16:28:21.288356Z",
+   "updatedAt": "2026-06-03T16:28:21.288356Z",
+   "assignmentTypeKey": "research.tavily-deep"
+  },
+  {
+   "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods-02-reader-impact",
+   "title": "Report AI in video games for Methods: reader impact",
+   "status": "open",
+   "priority": 102,
+   "assigneeId": null,
+   "summary": "Reporting candidate on AI in video games for Methods, angle: reader impact.",
+   "itemLineageId": "content-item-report-ai-in-video-games-for-methods-reader-impact-94d5b80528b413b1",
+   "createdAt": "2026-05-30T20:05:44Z",
+   "updatedAt": "2026-05-30T20:05:44Z",
+   "assignmentTypeKey": "reporting.edition-candidate"
+  },
+  {
+   "id": "assignment-research-llm-hallucinations-and-reliable-systems-webinar-20260603T191408897176Z",
+   "title": "LLM hallucinations and reliable systems (webinar)",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "This technical webinar explores why large language models can generate fluent but unsupported information, and how engineering teams can design more reliable LLM systems against hallucinations.\n\nWe will begin with a clear introduction to hallucinations, factuality, faithfulness, grounding, attribution, and uncertainty. Then we will move into the software engineering side: retrieval augmented generation, RAG failure modes, long context limitations, claim verification, guardrails, deterministic validators, human calibration, observability, and production monitoring.\n\nThe session will connect research papers such as TruthfulQA, SelfCheckGPT, FActScore, HaluEval, RAGAS, Chain of Verification, Lost in the Middle, and Semantic Entropy with practical enterprise architecture patterns for safer AI systems.\n\nProduce a research survey that maps these concepts, benchmarks, and engineering patterns to current best practices for enterprise LLM reliability in 2024-2026. Include citations and concrete architecture recommendations.",
+   "itemLineageId": null,
+   "createdAt": "2026-06-03T19:14:08.897176Z",
+   "updatedAt": "2026-06-03T19:14:08.897176Z",
+   "assignmentTypeKey": "research.tavily-deep"
+  },
+  {
+   "id": "assignment-research-tavily-body-fix-smoke-test-20260603T115525816662Z",
+   "title": "Tavily body fix smoke test",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "What is retrieval-augmented generation in one paragraph?",
+   "itemLineageId": null,
+   "createdAt": "2026-06-03T11:55:25.816662Z",
+   "updatedAt": "2026-06-03T11:55:25.816662Z",
+   "assignmentTypeKey": "research.tavily-deep"
+  },
+  {
+   "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-01-accountability",
+   "title": "Report AI in video games for Arts: accountability",
+   "status": "open",
+   "priority": 201,
+   "assigneeId": null,
+   "summary": "Reporting candidate on AI in video games for Arts, angle: accountability.",
+   "itemLineageId": "content-item-report-ai-in-video-games-for-arts-accountability-5eebf02a7b4f7dfc",
+   "createdAt": "2026-05-30T20:07:08Z",
+   "updatedAt": "2026-05-30T20:07:08Z",
+   "assignmentTypeKey": "reporting.edition-candidate"
+  },
+  {
+   "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods-01-accountability",
+   "title": "Report AI in video games for Methods: accountability",
+   "status": "open",
+   "priority": 101,
+   "assigneeId": null,
+   "summary": "Reporting candidate on AI in video games for Methods, angle: accountability.",
+   "itemLineageId": "content-item-report-ai-in-video-games-for-methods-accountability-7001bcd4a44e7474",
+   "createdAt": "2026-05-30T20:05:44Z",
+   "updatedAt": "2026-05-30T20:05:44Z",
+   "assignmentTypeKey": "reporting.edition-candidate"
+  },
+  {
+   "id": "assignment-research-world-models-in-robotics-20260531T193725338290Z",
+   "title": "World models in robotics",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "Explore world models for robot learning, simulation, and sim-to-real transfer",
+   "itemLineageId": null,
+   "createdAt": "2026-05-31T19:37:25.338290Z",
+   "updatedAt": "2026-05-31T19:37:25.338290Z",
+   "assignmentTypeKey": "research.edition-candidate"
+  },
+  {
+   "id": "assignment-reference-curation-reference-knowledge-corpus-ai-ml-research-5c8fb83c-4577-0c1e-bd86-1770ab42b4f8-20260525T191831941Z-17152204",
+   "title": "Re-curate reference: Intelligence Degradation in Long-Context LLMs: Critical Threshold Determination via Natural Length Distribution Analysis",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "Recompute identifier, publication date, title/subtitle, summary, and topic predictions.",
+   "itemLineageId": null,
+   "createdAt": "2026-05-25T19:18:31.941Z",
+   "updatedAt": "2026-05-25T19:18:31.941Z",
+   "assignmentTypeKey": "curation.reference-refresh"
+  },
+  {
+   "id": "assignment-copywriting-article-f45134c940bf4ede",
+   "title": "Write article from Report AI for Arts: accountability",
+   "status": "open",
+   "priority": 102,
+   "assigneeId": null,
+   "summary": "Copywriting handoff for selected article packet from Report AI for Arts: accountability.",
+   "itemLineageId": null,
+   "createdAt": "2026-05-30T11:56:37.707892Z",
+   "updatedAt": "2026-05-30T11:56:37.707892Z",
+   "assignmentTypeKey": "copywriting.article-draft"
+  },
+  {
+   "id": "assignment-research-tavily-long-report-smoke-20260603t142614-20260603T142615107564Z",
+   "title": "Tavily long report smoke 20260603T142614",
+   "status": "open",
+   "priority": 50,
+   "assigneeId": null,
+   "summary": "Tavily long report smoke 20260603T142614",
+   "itemLineageId": null,
+   "createdAt": "2026-06-03T14:26:15.107564Z",
+   "updatedAt": "2026-06-03T14:26:15.107564Z",
+   "assignmentTypeKey": "research.tavily-deep"
+  }
+ ],
+ "published": [
+  {
+   "id": "item-papyrus-reader-contract",
+   "lineageId": "item-papyrus-reader-contract",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "A Publication, Not a Trap",
+   "headline": "A Publication, Not a Trap",
+   "slug": "papyrus-reader-contract",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-howto-dispatch-research-agents",
+   "lineageId": "item-howto-dispatch-research-agents",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Dispatch Research Agents",
+   "headline": "Dispatch Research Agents",
+   "slug": "howto-dispatch-research-agents",
+   "section": "Newsroom How-To",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-howto-curate-references",
+   "lineageId": "item-howto-curate-references",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Curate References by Hand",
+   "headline": "Curate References by Hand",
+   "slug": "howto-curate-references",
+   "section": "Newsroom How-To",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-operating-modes",
+   "lineageId": "item-papyrus-operating-modes",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Light Touch or Hands on the Wheel",
+   "headline": "Light Touch or Hands on the Wheel",
+   "slug": "papyrus-operating-modes",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-reference-governance",
+   "lineageId": "item-papyrus-reference-governance",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "The Graph Editors Build",
+   "headline": "The Graph Editors Build",
+   "slug": "papyrus-reference-governance",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-introduction",
+   "lineageId": "item-papyrus-introduction",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "An Autonomous Newsroom",
+   "headline": "An Autonomous Newsroom",
+   "slug": "papyrus-introduction",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-first-install",
+   "lineageId": "item-papyrus-first-install",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Chart the Course, Then Publish",
+   "headline": "Chart the Course, Then Publish",
+   "slug": "papyrus-first-install",
+   "section": "Newsroom How-To",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-data-ownership",
+   "lineageId": "item-papyrus-data-ownership",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Your Newsroom, Your Data",
+   "headline": "Your Newsroom, Your Data",
+   "slug": "papyrus-data-ownership",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-steering-and-curation",
+   "lineageId": "item-papyrus-steering-and-curation",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Humans Steer. Machines Operate.",
+   "headline": "Humans Steer. Machines Operate.",
+   "slug": "papyrus-steering-and-curation",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-papyrus-agent-workflow",
+   "lineageId": "item-papyrus-agent-workflow",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Autopilot, Not Copilot",
+   "headline": "Autopilot, Not Copilot",
+   "slug": "papyrus-agent-workflow",
+   "section": "Papyrus",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-howto-register-source-material",
+   "lineageId": "item-howto-register-source-material",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Register Source Material",
+   "headline": "Register Source Material",
+   "slug": "howto-register-source-material",
+   "section": "Newsroom How-To",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  },
+  {
+   "id": "item-howto-maintain-reference-quality",
+   "lineageId": "item-howto-maintain-reference-quality",
+   "versionNumber": 1,
+   "stage": "published",
+   "type": "article",
+   "status": "published",
+   "title": "Maintain Reference Quality",
+   "headline": "Maintain Reference Quality",
+   "slug": "howto-maintain-reference-quality",
+   "section": "Newsroom How-To",
+   "updatedAt": "2026-05-22T12:00:00.000Z"
+  }
+ ],
+ "articles": {
+  "content-item-report-ai-in-video-games-for-methods-reader-impact-94d5b80528b413b1-v1": {
+   "bodyMarkus": "",
+   "frontMatterYaml": "",
+   "contentHash": "9c0013263c96c800"
+  },
+  "content-item-report-ai-in-video-games-for-arts-accountability-5eebf02a7b4f7dfc-v1": {
+   "bodyMarkus": "",
+   "frontMatterYaml": "",
+   "contentHash": "50a9e66409d505cd"
+  },
+  "item-howto-dispatch-research-agents": {
+   "bodyMarkus": "Start with a question the newsroom should investigate\u2014not a headline the system should already believe. Research assignments collect source material, surface context, and show what was found before editors decide what belongs in an edition.\n\nIn the Newsroom, use the assignments desk when it is available to create or inspect research work. The command-line path is the same workflow in operator form: \\`npm run content -- assignments create-research --title \\<text\\> --section \\<section-key\\> --corpus-key \\<key\\> --research-mode source\\_discovery --apply\\`.\n\nRun the assignment with \\`npm run content -- assignments run-research --assignment \\<id\\> --corpus-key \\<key\\> --research-mode source\\_discovery --apply --json\\`. The run produces a research packet, not a published article.\n\nInspect the packet with \\`npm run content -- assignments research-packets --assignment \\<id\\>\\`. Use it to register proposed references, request more research, brief reporting work, or leave the finding out of the publication.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:4ec7193cd7ae65343281a9a5a6476ab414a0b12cde9248e33e97c91e64cb0d6d"
+  },
+  "item-howto-maintain-reference-quality": {
+   "bodyMarkus": "Reference quality is ongoing work. Material ages, identifiers change, and metadata may need enrichment before a source is useful.\n\nUse \\`npm run content -- references curate-recent --corpus-key \\<key\\> --since-hours 48 --max-count 25 --dry-run --json\\` to preview a routine pass. Add \\`--apply\\` when the plan is correct.\n\nA pass can refresh summaries, check identifiers, enrich titles, and produce a manifest of successes and failures. Treat failures as operator signals.\n\nAccepted references are the safe input for analysis, topic work, graph operations, and edition planning. Keeping that set clean improves everything downstream.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:43d7f13683aacbe76fa6bbdbc1cd0c9162debcd9fa4a568d26ab53b8e1b7f88c"
+  },
+  "item-howto-curate-references": {
+   "bodyMarkus": "The References desk is where source material becomes newsroom memory. Open \\`/newsroom/references\\` to inspect a reference, review its status, and decide whether it belongs in the accepted structured knowledge graph.\n\nAccept references that are in scope, relevant, and reliable enough to inform future planning. Reject or archive references that are off mission, weakly sourced, duplicative, stale, or outside coverage boundaries.\n\nRatings and comments are steering memory\u2014they tell future research and reporting which sources deserve attention and which patterns should be treated cautiously.\n\nReopen older references when mission changes or better context arrives. Updating the graph is maintenance, not an admission of failure.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:9a008cdf8982347ae4b2ffb2e4497d4d5d7822a972a9dc1e4b5326342e573b5f"
+  },
+  "content-item-report-ai-in-video-games-for-arts-reader-impact-0309fb13361005c5-v1": {
+   "bodyMarkus": "",
+   "frontMatterYaml": "",
+   "contentHash": "280ea24f455075cb"
+  },
+  "item-papyrus-operating-modes": {
+   "bodyMarkus": "In light-touch mode, editors set mission, policy, sections, and topic priorities, then let the newsroom continue on that course.\n\nIn active mode, editors steer each cycle with explicit assignments, curation interventions, and coverage pivots when context changes.\n\nBoth modes share one contract: agent work is policy-bounded, source-aware, and traceable through curation and approval history. Neither mode optimizes for clicks or tunes copy to individual reader surveillance.\n\nSmall teams can keep publishing velocity with standing autopilot settings. Larger teams can intervene at any stage without breaking the pipeline.\n\nThe reader promise does not change with the steering dial. Whether the newsroom runs lightly or under close direction, the output remains a shaped edition with a finite scope\u2014something readers can finish.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:f533a3b6f71edec0db0e0c23a4035975532ed52894171f09714afb30e9090075"
+  },
+  "item-howto-register-source-material": {
+   "bodyMarkus": "Registration bridges source material and newsroom curation. It does not publish anything; it creates reference records, attachment metadata, and intake work so humans and agents can decide what the graph should trust.\n\nFor catalog-backed imports, use \\`npm run content -- references register-catalog --config corpora/papyrus-steering.yml --corpus-key \\<key\\> --catalog \\<metadata/catalog.json\\> --status pending --ingestion-rationale \\<summary\\> --apply\\`.\n\nFiles remain in the corpus/S3 pattern. Papyrus records the editorial layer: what the reference is, where it lives, how it entered, and its curation status.\n\nResearch packets can propose references. Treat proposals as prospects until they are registered and curated\u2014proposed links are not accepted evidence because an agent found them.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:a3d10a5b1ba2817961e49d39c96f37eba8ace93f563847723f657f84e4f39575"
+  },
+  "item-papyrus-agent-workflow": {
+   "bodyMarkus": "A copilot waits for the next command. An autopilot follows a course that humans have set, adjusting within known boundaries and returning control when judgment is required. Papyrus is built on the second model.\n\nResearch agents gather source material and produce candidate evidence. Human curation decides what enters the trusted graph and what stays out of scope.\n\nEditor agents use that graph plus policy to prioritize coverage, spot movement in signals, and assign reporting where the newsroom should invest attention.\n\nReporter agents collect context and structured findings. Copywriting agents turn reporting into draft stories aligned with style and policy. Layout agents package approved copy into edition pages.\n\nHuman review remains the final gate before publication. People can inspect references, redirect assignments, tighten policy, reject weak drafts, and approve only after the newsroom has shown its work.\n\nBecause the output is an edition\u2014not a feed\u2014each stage must choose. What belongs in this issue? What can wait? What context does a reader need before moving on?\n\nThe pipeline is deliberately specialized. Research agents do not publish directly. Editor agents do not pretend to be reporters. Layout agents do not invent coverage priorities. Each handoff passes structured context to the next.\n\nThe result is repeatable production with traceability from source curation to final approval\u2014and automation that leaves room for interviews, field reporting, and editorial calls only humans should make.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:578eb16142344e6d90d1eed9fee3ec807183590df428cea7d9d96156b7a721b0"
+  },
+  "content-item-report-ai-in-video-games-for-arts-coverage-gap-daba0d073dead1b1-v1": {
+   "bodyMarkus": "",
+   "frontMatterYaml": "",
+   "contentHash": "d7662be36b4282f7"
+  },
+  "item-papyrus-first-install": {
+   "bodyMarkus": "Start with mission and policy so the newsroom has editorial direction before autonomous cycles begin.\n\nConfigure sections and topic priorities that match the publication you want readers to experience.\n\nCurate initial references so the structured knowledge graph reflects your quality bar from day one.\n\nPublish the first edition. From there the system can operate on the course you set, with ongoing human steering when judgment is required.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:fd01e85770f7b934dba9c75e7c871de63d3463c6fb3b682c7987d8535f6cd3ad"
+  },
+  "content-item-report-ai-in-video-games-for-methods-accountability-7001bcd4a44e7474-v1": {
+   "bodyMarkus": "",
+   "frontMatterYaml": "",
+   "contentHash": "a20312b6cfd5141a"
+  },
+  "item-papyrus-steering-and-curation": {
+   "bodyMarkus": "Papyrus is built around a different bargain: humans steer, machines operate. Publication doctrine\u2014mission, policies, and section priorities\u2014tells the newsroom what outcomes matter and what standards cannot be crossed.\n\nEditors guide discovery with explicit questions, themes, and trend lines. That guidance can be broad strategic direction or a specific assignment. It is editorial intent, not a stream of chat prompts.\n\nAs sources arrive, human reviewers rate, vote on, and comment on references. Those decisions shape the curated structured knowledge graph that future planning and drafting rely on. They are not cosmetic feedback.\n\nThe system does not tune itself to individual reader behavior. It does not personalize headlines to maximize engagement. It improves when editors accept or reject proposals, adjust policy, refine section doctrine, and record why a source is trusted or excluded.\n\nPapyrus supports high-touch and low-touch operation. Set stable policy and let the autopilot continue on course, or steer each cycle with assignments, curation calls, and coverage pivots.\n\nWhen needed, humans issue direct reporting assignments or write a piece by hand. The default remains automated execution inside human-defined boundaries.\n\nSteering becomes a durable asset. Your mission and taste persist across editions instead of disappearing after a single session.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:c73cf0d6f89fb453566b790f7b2e9955762998d763df972165d2e9ae855f2d53"
+  },
+  "item-papyrus-reader-contract": {
+   "bodyMarkus": "We respect your attention. Papyrus is not an infinite feed. It is not designed to trap you, gamify you, or learn how to keep you scrolling. It is a publication: you can open it, read it, finish it, and leave.\n\nA published edition is a bounded editorial object. It has a beginning, an end, and a point of view about what deserves attention now. Readers should know the commitment they are making\u2014something to skim over breakfast, between meetings, or as part of a daily or weekly routine.\n\nThe newspaper form makes the editorial shape visible. Hierarchy, proximity, continuation, images, pull quotes, and endings show how stories relate without surrendering to a bottomless timeline.\n\nThis is not nostalgia for print. It is a rejection of interfaces that treat attention as something to capture indefinitely.\n\nAn edition should feel like a useful briefing: here is what matters, here is why, and then you are allowed to be done.\n\nThat contract changes the newsroom's incentives. The goal is not to maximize clicks or session length. The goal is to publish a finite package that earns trust by making judgment, context, and limits visible.\n\nReaders can survey the whole shape first, choose what deserves depth, and trust that the package will end. Closure is part of the promise: this is today's or this week's issue, this is the hierarchy, and this is the attention we are asking for.\n\nWhen it works, the publication becomes a routine\u2014not a trap. People return because the edition respects their time, not because the interface dangles one more reward.\n\nAdvertising, when it appears, is clearly marked as advertising. Editorial pages and sponsor messages do not blur together.\n\nSteering comes from editors\u2014mission, policy, section doctrine, and curation\u2014not from surveillance of individual reader behavior. The publication improves when editors give feedback, set preferences, tighten policy, and exercise judgment.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:5767080e52b6a1e3cb10c7961ee402e4db295b019d15eba0cabb52f119139a57"
+  },
+  "item-papyrus-data-ownership": {
+   "bodyMarkus": "A publication's sources, curation record, and policies are institutional memory. Papyrus stores source material through ordinary S3-backed corpus patterns, with metadata that describes provenance and how the newsroom should treat each reference.\n\nThat memory should stay portable. References, attachments, extracted text, catalogs, relationships, and curation decisions can be inspected, backed up, processed, or moved without negotiating with a proprietary format.\n\nS3 is a durable, boring boundary. You can run enrichment next to it, export manifests, audit material, or connect another analysis system without asking permission to reach your own files.\n\nThe application code is open. A publication can host its own installation, adapt workflows, customize layouts, and add policies that match its mission.\n\nOperators can trace what happens, replace pieces, or extend them. Newsroom procedures, the content CLI, layout plans, and data models are code and configuration\u2014not hidden product magic.\n\nSelf-hosting remains an option when an organization wants full operational leverage. Managed deployment can be convenient; ownership of the memory should not be forfeited.\n\nThe practical test is simple: if you leave, you should still have your sources, your catalog, your curation record, your policies, and the means to understand how the system worked. Papyrus should help you build a newsroom you control.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:76a529246c6e6d85ec4157ff767a6f542a5dc357c90993022297705f576085e1"
+  },
+  "item-papyrus-introduction": {
+   "bodyMarkus": "Papyrus is an autonomous publication system. Editors define the mission, the values, the voice, and the limits. The system handles the repetitive work of researching, assembling, drafting, checking, formatting, and publishing an edition\u2014continuously, within that guidance.\n\nThis is not a copilot that waits for the next prompt. A copilot needs constant direction. An autopilot follows a course humans have already set, adjusts inside known boundaries, and hands control back when judgment is required.\n\nThe goal is to amplify humans, not replace them. You remain the executive editor: you decide what deserves attention, what standards apply, and when the newsroom needs a stronger intervention. The system does the legwork.\n\nTeams begin with mission, policy, and coverage intent\u2014not blank article forms. Those constraints become operating rails for a newsroom that can keep running while you sleep, attend meetings, conduct interviews, or work on the stories only a person can do.\n\nEach edition is periodic. It has a beginning and an end. Readers can skim it, read it, and be done. The publication is not optimized to trap attention or harvest engagement signals.\n\nThe curated structured knowledge graph is the newsroom's working memory: source decisions, topic priorities, relationships, and policy-bounded context. Each edition starts from what the publication has already learned, not from scratch.\n\nWhen the system succeeds, editors spend more time on meaningful work\u2014research direction, source conversations, editorial judgment, shows, and creative calls\u2014and less time filling empty slots. Papyrus amplifies your judgment; it does not substitute for it.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:074fbc22377fde70878dd12001a144dbb87faf2ffadff3640cce9b7f4f4c2ea6"
+  },
+  "item-papyrus-reference-governance": {
+   "bodyMarkus": "Papyrus treats references as first-class editorial artifacts. Reliability depends on what evidence enters the curated structured knowledge graph and how humans evaluate it.\n\nReviewers assess relevance, reliability, and topical fit. Ratings and comments become steering memory for future research and planning. They are not votes for engagement\u2014they are judgments about what the publication is willing to reuse.\n\nThis prevents drift toward sources that are merely easy for agents to retrieve. Editorial standards stay explicit.\n\nOver time, curated reference history becomes institutional memory: what the newsroom knows, why it considers that knowledge credible, and how sources relate to one another.\n\nThat memory lets later editions explain trends instead of summarizing isolated links. New material connects to accepted context the editors have already defended.\n\nModels are neither neutral nor magically trustworthy. The publication's discipline is human governance of evidence\u2014accept, reject, annotate, and revisit as mission or facts change.",
+   "frontMatterYaml": "",
+   "contentHash": "sha256:c3c4251eb4747c1b42eda57b6f7415b65c97141b0fd26abea5ad35791ff969e5"
+  }
+ },
+ "trails": {
+  "item-papyrus-steering-and-curation": {
+   "versions": [
+    {
+     "id": "item-papyrus-steering-and-curation",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Humans Steer. Machines Operate.",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:24:52.830Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-howto-curate-references": {
+   "versions": [
+    {
+     "id": "item-howto-curate-references",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Curate References by Hand",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:25:08.762Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "content-item-report-ai-in-video-games-for-methods-accountability-7001bcd4a44e7474": {
+   "versions": [
+    {
+     "id": "content-item-report-ai-in-video-games-for-methods-accountability-7001bcd4a44e7474-v1",
+     "versionNumber": 1,
+     "versionState": "draft",
+     "status": "draft",
+     "stage": "assignment",
+     "headline": "Report AI in video games for Methods: accountability",
+     "changeReason": "content-item-created",
+     "versionCreatedBy": "papyrus-content-item-backfill",
+     "versionCreatedAt": "2026-10-18T08:57:58.361235Z",
+     "updatedAt": "2026-10-18T08:57:58.361235Z"
+    }
+   ],
+   "assignments": [
+    {
+     "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods-01-accountability",
+     "title": "Report AI in video games for Methods: accountability",
+     "assignmentTypeKey": "reporting.edition-candidate",
+     "status": "open",
+     "assigneeKey": null,
+     "summary": "Reporting candidate on AI in video games for Methods, angle: accountability.",
+     "createdAt": "2026-05-30T20:05:44Z",
+     "events": [
+      {
+       "id": "assignment-event-assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods-01-accountability-created",
+       "eventType": "created",
+       "fromStatus": null,
+       "toStatus": "open",
+       "actorLabel": "Papyrus newsroom CLI",
+       "note": "Created Coverage Theme reporting.edition-candidate assignment.",
+       "createdAt": "2026-05-30T20:05:44Z"
+      }
+     ]
+    }
+   ],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "content-item-report-ai-in-video-games-for-arts-accountability-5eebf02a7b4f7dfc": {
+   "versions": [
+    {
+     "id": "content-item-report-ai-in-video-games-for-arts-accountability-5eebf02a7b4f7dfc-v1",
+     "versionNumber": 1,
+     "versionState": "draft",
+     "status": "draft",
+     "stage": "assignment",
+     "headline": "Report AI in video games for Arts: accountability",
+     "changeReason": "content-item-created",
+     "versionCreatedBy": "papyrus-content-item-backfill",
+     "versionCreatedAt": "2026-10-18T08:57:58.361235Z",
+     "updatedAt": "2026-10-18T08:57:58.361235Z"
+    }
+   ],
+   "assignments": [
+    {
+     "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-01-accountability",
+     "title": "Report AI in video games for Arts: accountability",
+     "assignmentTypeKey": "reporting.edition-candidate",
+     "status": "open",
+     "assigneeKey": null,
+     "summary": "Reporting candidate on AI in video games for Arts, angle: accountability.",
+     "createdAt": "2026-05-30T20:07:08Z",
+     "events": [
+      {
+       "id": "assignment-event-assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-01-accountability-created",
+       "eventType": "created",
+       "fromStatus": null,
+       "toStatus": "open",
+       "actorLabel": "Papyrus newsroom CLI",
+       "note": "Created Coverage Theme reporting.edition-candidate assignment.",
+       "createdAt": "2026-05-30T20:07:08Z"
+      }
+     ]
+    }
+   ],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-introduction": {
+   "versions": [
+    {
+     "id": "item-papyrus-introduction",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "An Autonomous Newsroom",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:24:48.493Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "content-item-report-ai-in-video-games-for-methods-reader-impact-94d5b80528b413b1": {
+   "versions": [
+    {
+     "id": "content-item-report-ai-in-video-games-for-methods-reader-impact-94d5b80528b413b1-v1",
+     "versionNumber": 1,
+     "versionState": "draft",
+     "status": "draft",
+     "stage": "assignment",
+     "headline": "Report AI in video games for Methods: reader impact",
+     "changeReason": "content-item-created",
+     "versionCreatedBy": "papyrus-content-item-backfill",
+     "versionCreatedAt": "2026-10-18T08:57:58.361235Z",
+     "updatedAt": "2026-10-18T08:57:58.361235Z"
+    }
+   ],
+   "assignments": [
+    {
+     "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods-02-reader-impact",
+     "title": "Report AI in video games for Methods: reader impact",
+     "assignmentTypeKey": "reporting.edition-candidate",
+     "status": "open",
+     "assigneeKey": null,
+     "summary": "Reporting candidate on AI in video games for Methods, angle: reader impact.",
+     "createdAt": "2026-05-30T20:05:44Z",
+     "events": [
+      {
+       "id": "assignment-event-assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-methods-02-reader-impact-created",
+       "eventType": "created",
+       "fromStatus": null,
+       "toStatus": "open",
+       "actorLabel": "Papyrus newsroom CLI",
+       "note": "Created Coverage Theme reporting.edition-candidate assignment.",
+       "createdAt": "2026-05-30T20:05:44Z"
+      }
+     ]
+    }
+   ],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-first-install": {
+   "versions": [
+    {
+     "id": "item-papyrus-first-install",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Chart the Course, Then Publish",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:25:05.091Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-reader-contract": {
+   "versions": [
+    {
+     "id": "item-papyrus-reader-contract",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "A Publication, Not a Trap",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:24:50.693Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-data-ownership": {
+   "versions": [
+    {
+     "id": "item-papyrus-data-ownership",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Your Newsroom, Your Data",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:24:57.311Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "content-item-report-ai-in-video-games-for-arts-coverage-gap-daba0d073dead1b1": {
+   "versions": [
+    {
+     "id": "content-item-report-ai-in-video-games-for-arts-coverage-gap-daba0d073dead1b1-v1",
+     "versionNumber": 1,
+     "versionState": "draft",
+     "status": "draft",
+     "stage": "assignment",
+     "headline": "Report AI in video games for Arts: coverage gap",
+     "changeReason": "content-item-created",
+     "versionCreatedBy": "papyrus-content-item-backfill",
+     "versionCreatedAt": "2026-10-18T08:57:58.361235Z",
+     "updatedAt": "2026-10-18T08:57:58.361235Z"
+    }
+   ],
+   "assignments": [
+    {
+     "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-03-coverage-gap",
+     "title": "Report AI in video games for Arts: coverage gap",
+     "assignmentTypeKey": "reporting.edition-candidate",
+     "status": "open",
+     "assigneeKey": null,
+     "summary": "Reporting candidate on AI in video games for Arts, angle: coverage gap.",
+     "createdAt": "2026-05-30T20:07:08Z",
+     "events": [
+      {
+       "id": "assignment-event-assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-03-coverage-gap-created",
+       "eventType": "created",
+       "fromStatus": null,
+       "toStatus": "open",
+       "actorLabel": "Papyrus newsroom CLI",
+       "note": "Created Coverage Theme reporting.edition-candidate assignment.",
+       "createdAt": "2026-05-30T20:07:08Z"
+      }
+     ]
+    }
+   ],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "content-item-report-ai-in-video-games-for-arts-reader-impact-0309fb13361005c5": {
+   "versions": [
+    {
+     "id": "content-item-report-ai-in-video-games-for-arts-reader-impact-0309fb13361005c5-v1",
+     "versionNumber": 1,
+     "versionState": "draft",
+     "status": "draft",
+     "stage": "assignment",
+     "headline": "Report AI in video games for Arts: reader impact",
+     "changeReason": "content-item-created",
+     "versionCreatedBy": "papyrus-content-item-backfill",
+     "versionCreatedAt": "2026-10-18T08:57:58.361235Z",
+     "updatedAt": "2026-10-18T08:57:58.361235Z"
+    }
+   ],
+   "assignments": [
+    {
+     "id": "assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-02-reader-impact",
+     "title": "Report AI in video games for Arts: reader impact",
+     "assignmentTypeKey": "reporting.edition-candidate",
+     "status": "open",
+     "assigneeKey": null,
+     "summary": "Reporting candidate on AI in video games for Arts, angle: reader impact.",
+     "createdAt": "2026-05-30T20:07:08Z",
+     "events": [
+      {
+       "id": "assignment-event-assignment-coverage-theme-reporting-coverage-theme-2026-06-05-coverage-ai-in-video-games-arts-02-reader-impact-created",
+       "eventType": "created",
+       "fromStatus": null,
+       "toStatus": "open",
+       "actorLabel": "Papyrus newsroom CLI",
+       "note": "Created Coverage Theme reporting.edition-candidate assignment.",
+       "createdAt": "2026-05-30T20:07:08Z"
+      }
+     ]
+    }
+   ],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-agent-workflow": {
+   "versions": [
+    {
+     "id": "item-papyrus-agent-workflow",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Autopilot, Not Copilot",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:24:55.094Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-howto-register-source-material": {
+   "versions": [
+    {
+     "id": "item-howto-register-source-material",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Register Source Material",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:25:11.080Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-howto-maintain-reference-quality": {
+   "versions": [
+    {
+     "id": "item-howto-maintain-reference-quality",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Maintain Reference Quality",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:25:13.068Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-operating-modes": {
+   "versions": [
+    {
+     "id": "item-papyrus-operating-modes",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Light Touch or Hands on the Wheel",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:24:59.937Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-papyrus-reference-governance": {
+   "versions": [
+    {
+     "id": "item-papyrus-reference-governance",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "The Graph Editors Build",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:25:02.247Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  },
+  "item-howto-dispatch-research-agents": {
+   "versions": [
+    {
+     "id": "item-howto-dispatch-research-agents",
+     "versionNumber": 1,
+     "versionState": "current",
+     "status": "published",
+     "stage": "published",
+     "headline": "Dispatch Research Agents",
+     "changeReason": "fixture seed",
+     "versionCreatedBy": "python-seed",
+     "versionCreatedAt": "2026-05-22T12:00:00.000Z",
+     "updatedAt": "2026-10-18T11:25:06.898Z"
+    }
+   ],
+   "assignments": [],
+   "threads": [],
+   "references": [],
+   "attachments": []
+  }
+ },
+ "media": {}
+}

@@ -63,7 +63,7 @@ type ValidationState =
   | { status: "unavailable"; message: string };
 
 type Notice = { tone: "ok" | "error" | "info"; text: string };
-type MobileTab = "edit" | "preview" | "trail";
+type MobileTab = "edit" | "preview" | "trail" | "references";
 
 function lineStartIndex(text: string, line: number): number {
   let index = 0;
@@ -118,6 +118,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [conflictOpen, setConflictOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
+  const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
   const [lineageId, setLineageId] = useState<string | null>(null);
   const [latestVersion, setLatestVersion] = useState<{ id: string; number: number } | null>(null);
   const latestVersionNumber = latestVersion?.number ?? null;
@@ -644,8 +645,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
               <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
               <button aria-pressed={mobileTab === "trail"} className="organizer-header-button" data-newsroom-article-view="trail" onClick={() => setMobileTab("trail")} type="button">Messages</button>
+              <button aria-pressed={mobileTab === "references"} className="organizer-header-button" data-newsroom-article-view="references" onClick={() => { setFocusedReferenceId(null); setMobileTab("references"); }} type="button">References</button>
             </div>
-              {mobileTab === "trail" && editor.id ? <StoryReportingTrailView citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
+              {(mobileTab === "trail" || mobileTab === "references") && editor.id ? <StoryReportingTrailView focusedReferenceId={focusedReferenceId} onShowReference={(referenceId) => { setFocusedReferenceId(referenceId); setMobileTab("references"); }} view={mobileTab === "references" ? "references" : "messages"} citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
               <Input aria-label="What changed in this version" className="max-w-xl" onChange={(event) => setChangeReason(event.target.value)} placeholder="What changed? Recorded when you save as a new version." value={changeReason} />
               <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>

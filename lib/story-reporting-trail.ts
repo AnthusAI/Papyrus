@@ -93,9 +93,14 @@ export function storyReportingTrailIsEmpty(trail: StoryReportingTrail): boolean 
   return trail.assignments.length === 0 && trail.threads.length === 0 && trail.references.length === 0 && trail.attachments.length === 0 && trail.versions.length <= 1;
 }
 
-/** Every message of the story's threads in one feed, newest first. */
-export function storyMessageFeed(trail: StoryReportingTrail): (TrailMessage & { threadTitle: string | null })[] {
-  return trail.threads
-    .flatMap(thread => thread.messages.map(message => ({ ...message, threadTitle: thread.title })))
-    .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || (right.sequenceNumber ?? 0) - (left.sequenceNumber ?? 0));
+export type StoryFeedEntry =
+  | ({ entryKind: "message"; threadTitle: string | null } & TrailMessage)
+  | { entryKind: "reference"; id: string; createdAt: string; reference: TrailReference };
+
+/** Every message of the story's threads and every reference found for it in one chronological feed, newest first. */
+export function storyMessageFeed(trail: StoryReportingTrail): StoryFeedEntry[] {
+  const messages: StoryFeedEntry[] = trail.threads.flatMap(thread => thread.messages.map(message => ({ ...message, entryKind: "message" as const, threadTitle: thread.title })));
+  const references: StoryFeedEntry[] = trail.references.filter(reference => reference.addedAt).map(reference => ({ entryKind: "reference" as const, id: `reference-${reference.relationId}`, createdAt: reference.addedAt as string, reference }));
+  const sequenceOf = (entry: StoryFeedEntry) => (entry.entryKind === "message" ? entry.sequenceNumber ?? 0 : 0);
+  return [...messages, ...references].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || sequenceOf(right) - sequenceOf(left));
 }

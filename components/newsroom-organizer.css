@@ -190,3 +190,5 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 @container (min-width:900px){.story-trail{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:32px;align-items:start}}
 .newsroom-article-older-version{margin:0 0 12px;padding:8px 12px;border:1px solid var(--org-ink);border-left-width:5px;font-weight:600}
 .newsroom-article-link-button{background:none;border:0;padding:0;font:inherit;text-decoration:underline;cursor:pointer;color:inherit}
+.story-trail-list>li[data-story-reference-focused]{border-left:3px solid var(--org-ink);padding-left:10px}
+.story-trail-list>li[data-story-trail-feed-reference]{border-left:1px solid var(--org-line);padding-left:10px}

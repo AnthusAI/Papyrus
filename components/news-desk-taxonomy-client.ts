@@ -2,7 +2,7 @@
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
-import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
+import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -2258,7 +2258,7 @@ type PublishedItemBoardRow = {
 };
 
 export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
-  if (isLocalPreviewEnabled()) return [];
+  if (isLocalPreviewEnabled()) return createLocalPreviewRealPublishedVersions();
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;
