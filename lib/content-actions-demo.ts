@@ -13,7 +13,7 @@ import {
   demoContentHash,
   type DemoArticleRecord,
 } from "./newsroom-demo-articles";
-import { createLocalPreviewEditableArticle, recordLocalPreviewDesk } from "./local-preview-seed";
+import { createLocalPreviewEditableArticle, lineageForPreviewVersion, recordLocalPreviewDesk, recordLocalPreviewVersion } from "./local-preview-seed";
 import { sourceLineOffset, type ArticlesBackend, type EditableArticle, type NewsroomArticleRow } from "./newsroom-articles";
 
 function titleFromYaml(frontMatterYaml: string | null, fallback: string): string {
@@ -108,6 +108,28 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       },
       async saveItemDraft(input: SaveItemDraftInput): Promise<SaveItemDraftResult> {
         const existing = input.id ? requireRecord(input.id) : null;
+        if (input.newVersion && existing) {
+          const lineageId = createLocalPreviewEditableArticle(existing.id)?.lineageId ?? existing.id;
+          const versionNumber = (existing.versionNumber ?? 1) + 1;
+          const id = `${lineageId}-v${versionNumber}`;
+          const frontMatterYaml = input.frontMatterYaml ?? "";
+          const record: DemoArticleRecord = {
+            ...existing,
+            id,
+            slug: existing.slug,
+            section: input.section,
+            title: titleFromYaml(input.frontMatterYaml, existing.slug),
+            status: "draft",
+            frontMatterYaml,
+            bodyMarkus: input.bodyMarkus,
+            contentHash: demoContentHash(frontMatterYaml, input.bodyMarkus),
+            versionNumber,
+            updatedAt: new Date().toISOString(),
+          };
+          records.set(id, record);
+          recordLocalPreviewVersion(lineageId, { id, versionNumber, versionState: "current", status: "draft", stage: null, headline: record.title, changeReason: input.changeReason ?? null, versionCreatedBy: "You", versionCreatedAt: record.updatedAt, updatedAt: record.updatedAt });
+          return { ok: true, item: { id, contentHash: record.contentHash, status: "draft", slug: record.slug, versionNumber } };
+        }
         if (existing && input.expectedContentHash !== null && input.expectedContentHash !== existing.contentHash) {
           throw new ContentActionFailure([
             { code: "conflict", message: "The item changed since it was loaded.", line: null },
@@ -206,7 +228,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       const record = requireRecord(id);
       return {
         id: record.id,
-        lineageId: createLocalPreviewEditableArticle(record.id)?.lineageId ?? null,
+        lineageId: createLocalPreviewEditableArticle(record.id)?.lineageId ?? lineageForPreviewVersion(record.id),
         type: record.type,
         section: record.section,
         slug: record.slug,

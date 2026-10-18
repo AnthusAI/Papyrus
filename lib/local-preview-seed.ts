@@ -1,7 +1,7 @@
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
 import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
-import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail } from "./story-reporting-trail";
+import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 
@@ -122,8 +122,25 @@ export function recordLocalPreviewDesk(articleId: string, deskId: string | null)
   if (version) version.section = deskId;
 }
 
-export function createLocalPreviewReportingTrail(_lineageId: string): StoryReportingTrail {
-  return EMPTY_STORY_REPORTING_TRAIL;
+export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
+  return withPreviewSavedVersions(lineageId, EMPTY_STORY_REPORTING_TRAIL);
+}
+
+const previewSavedVersions = new Map<string, TrailVersion[]>();
+const previewLineageByVersionId = new Map<string, string>();
+
+export function recordLocalPreviewVersion(lineageId: string, version: TrailVersion): void {
+  previewSavedVersions.set(lineageId, [version, ...(previewSavedVersions.get(lineageId) ?? [])]);
+  previewLineageByVersionId.set(version.id, lineageId);
+}
+
+export function lineageForPreviewVersion(versionId: string): string | null {
+  return previewLineageByVersionId.get(versionId) ?? null;
+}
+
+function withPreviewSavedVersions(lineageId: string, trail: StoryReportingTrail): StoryReportingTrail {
+  const saved = previewSavedVersions.get(lineageId) ?? [];
+  return saved.length ? { ...trail, versions: [...saved, ...trail.versions] } : trail;
 }
 
 export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord[] {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { storyReportingTrailIsEmpty, type StoryReportingTrail } from "../lib/story-reporting-trail";
+import { storyMessageFeed, storyReportingTrailIsEmpty, type StoryReportingTrail } from "../lib/story-reporting-trail";
 import { loadStoryReportingTrail } from "./story-reporting-trail-client";
 
 const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -26,7 +26,7 @@ function TrailSection({ count, children, title }: { count: number; children: Rea
  * notes and packets, the references behind it, and attached files. Container queries lay the sections out
  * in one column in a narrow Board panel and side by side on a wide page.
  */
-export function StoryReportingTrailView({ demo = false, itemId, lineageId }: { demo?: boolean; itemId: string; lineageId: string | null | undefined }) {
+export function StoryReportingTrailView({ citedKeys = [], demo = false, itemId, lineageId, onOpenVersion }: { citedKeys?: readonly string[]; demo?: boolean; itemId: string; lineageId: string | null | undefined; onOpenVersion?: (versionId: string) => void }) {
   const [trail, setTrail] = useState<StoryReportingTrail | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -39,14 +39,17 @@ export function StoryReportingTrailView({ demo = false, itemId, lineageId }: { d
   }, [itemId, lineageId]);
   if (error) return <p role="alert" className="story-trail-empty">{error}</p>;
   if (!trail) return <p className="story-trail-empty">Loading the reporting trail…</p>;
+  const messageFeed = storyMessageFeed(trail);
   return <div className="story-trail" data-story-trail>
     {storyReportingTrailIsEmpty(trail) && <p className="story-trail-empty">No reporting trail has been recorded for this story yet. Research, reporting and copywriting assignments, their notes and packets, and the references behind the story appear here as agents and editors work on it.</p>}
     <TrailSection count={trail.versions.length} title="Draft versions">
       <ol className="story-trail-list">
-        {trail.versions.map(version => <li key={version.id}>
-          <div className="story-trail-row"><strong>Version {version.versionNumber}</strong> <span className="story-trail-chip">{version.versionState ?? "draft"}</span>{version.stage && <span className="story-trail-chip">{version.stage}</span>}</div>
+        {trail.versions.map((version, versionIndex) => <li key={version.id}>
+          <div className="story-trail-row"><strong>Version {version.versionNumber}</strong>{versionIndex === 0 && <span className="story-trail-chip">Latest</span>}<span className="story-trail-chip">{version.versionState ?? "draft"}</span>{version.stage && <span className="story-trail-chip">{version.stage}</span>}</div>
           <div className="story-trail-meta">{[formatTimestamp(version.versionCreatedAt ?? version.updatedAt), version.versionCreatedBy, version.changeReason].filter(Boolean).join(" · ")}</div>
-          <Link href={getNewsroomNavHref(`/newsroom/articles/${encodeURIComponent(version.id)}`, demo)}>Open this version</Link>
+          {onOpenVersion
+            ? <button className="newsroom-article-link-button" data-story-trail-open-version={version.versionNumber} onClick={() => onOpenVersion(version.id)} type="button">{versionIndex === 0 ? "Open the latest version" : "Open this older version (read-only)"}</button>
+            : <Link href={getNewsroomNavHref(`/newsroom/articles/${encodeURIComponent(version.id)}`, demo)}>{versionIndex === 0 ? "Open the latest version" : "Open this older version (read-only)"}</Link>}
         </li>)}
       </ol>
     </TrailSection>
@@ -65,22 +68,25 @@ export function StoryReportingTrailView({ demo = false, itemId, lineageId }: { d
         </li>)}
       </ol>
     </TrailSection>
-    <TrailSection count={trail.threads.length} title="Notes and packets">
-      <ol className="story-trail-list">
-        {trail.threads.map(thread => <li key={thread.id}>
-          <div className="story-trail-row"><strong>{thread.title ?? thread.threadKind ?? "Thread"}</strong></div>
-          {thread.summary && <p>{thread.summary}</p>}
-          {thread.messages.map(message => <details key={message.id} className="story-trail-message">
-            <summary>{[message.messageKind, message.authorLabel, formatTimestamp(message.createdAt)].filter(Boolean).join(" · ") || "Message"}{message.summary ? ` — ${message.summary}` : ""}</summary>
-            <pre>{message.content}</pre>
-          </details>)}
+    <TrailSection count={messageFeed.length} title="Messages">
+      <ol className="story-trail-list" data-story-trail-feed>
+        {messageFeed.map(message => <li key={message.id}>
+          <div className="story-trail-row"><strong>{message.authorLabel ?? "Unknown author"}</strong>{message.messageKind && <span className="story-trail-chip">{message.messageKind.replace(/_/g, " ")}</span>}<span className="story-trail-meta">{formatTimestamp(message.createdAt)}</span></div>
+          {message.summary && <p><strong>{message.summary}</strong></p>}
+          {message.content && <details className="story-trail-message" open={messageFeed.length <= 3}><summary>Show the message</summary><pre>{message.content}</pre></details>}
         </li>)}
       </ol>
     </TrailSection>
     <TrailSection count={trail.references.length} title="References">
       <ul className="story-trail-list">
         {trail.references.map(reference => <li key={reference.relationId}>
-          <div className="story-trail-row"><strong>{reference.title ?? reference.referenceId}</strong> <span className="story-trail-chip">{reference.predicate}</span></div>
+          <div className="story-trail-row">
+            <strong>{reference.title ?? reference.referenceId}</strong>
+            <span className="story-trail-chip" data-story-trail-reference-role={reference.role}>{reference.role === "cited" ? "Cited" : "Consulted"}</span>
+            {reference.citationKey && citedKeys.includes(reference.citationKey) && <span className="story-trail-chip">In the text</span>}
+          </div>
+          <div className="story-trail-meta">{[reference.addedBy && `added by ${reference.addedBy}`, formatTimestamp(reference.addedAt), reference.citationKey && `citation key ${reference.citationKey}`].filter(Boolean).join(" · ")}</div>
+          {reference.note && <p>{reference.note}</p>}
           {reference.referenceLineageId && <Link href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.referenceLineageId)}`, demo)}>Open reference</Link>}
         </li>)}
       </ul>

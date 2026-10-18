@@ -40,6 +40,7 @@ export type TrailAssignment = {
 
 export type TrailMessage = {
   id: string;
+  sequenceNumber?: number | null;
   messageKind: string | null;
   authorLabel: string | null;
   summary: string | null;
@@ -62,6 +63,12 @@ export type TrailReference = {
   referenceLineageId: string | null;
   title: string | null;
   sourceUri: string | null;
+  /** consulted: read during reporting; cited: a citation in the article. */
+  role: "consulted" | "cited";
+  note: string | null;
+  citationKey: string | null;
+  addedBy: string | null;
+  addedAt: string | null;
 };
 
 export type TrailAttachment = {
@@ -84,4 +91,11 @@ export const EMPTY_STORY_REPORTING_TRAIL: StoryReportingTrail = { versions: [], 
 
 export function storyReportingTrailIsEmpty(trail: StoryReportingTrail): boolean {
   return trail.assignments.length === 0 && trail.threads.length === 0 && trail.references.length === 0 && trail.attachments.length === 0 && trail.versions.length <= 1;
+}
+
+/** Every message of the story's threads in one feed, newest first. */
+export function storyMessageFeed(trail: StoryReportingTrail): (TrailMessage & { threadTitle: string | null })[] {
+  return trail.threads
+    .flatMap(thread => thread.messages.map(message => ({ ...message, threadTitle: thread.title })))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || (right.sequenceNumber ?? 0) - (left.sequenceNumber ?? 0));
 }

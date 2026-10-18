@@ -32,6 +32,22 @@ async function listAll(client: GraphqlClient, field: string, selection: string, 
 
 const text = (value: unknown): string | null => typeof value === "string" ? value : null;
 
+function parseMetadata(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    try { const parsed = JSON.parse(value); return typeof parsed === "object" && parsed ? parsed as Record<string, unknown> : {}; } catch { return {}; }
+  }
+  return typeof value === "object" && value ? value as Record<string, unknown> : {};
+}
+
+async function getReference(client: GraphqlClient, referenceId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await client.graphql({ query: "query ($id: ID!) { getReference(id: $id) { id title sourceUri } }", variables: { id: referenceId }, authMode: USER_POOL });
+    return (response.data?.getReference as unknown as Record<string, unknown> | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Reads the whole reporting trail of one story from the backend; the local preview serves a snapshot instead. */
 export async function loadStoryReportingTrail(lineageId: string, itemId: string): Promise<StoryReportingTrail> {
   if (isLocalPreviewEnabled()) return createLocalPreviewReportingTrail(lineageId);
@@ -41,7 +57,7 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string)
     listAll(client, "listItemsByLineageAndVersion", "id versionNumber versionState status stage headline title changeReason versionCreatedBy versionCreatedAt updatedAt", ", $lineageId: ID!", ", lineageId: $lineageId", { lineageId }).catch(() => []),
     listAll(client, "listAssignmentsByItemLineageAndCreatedAt", "id title assignmentTypeKey status assigneeKey summary createdAt", ", $itemLineageId: ID!", ", itemLineageId: $itemLineageId", { itemLineageId: lineageId }).catch(() => []),
     listAll(client, "listModelAttachmentsByOwnerRoleAndSortKey", "id role filename mediaType byteSize", ", $ownerId: ID!", ", ownerId: $ownerId", { ownerId: itemId }).catch(() => []),
-    listAll(client, "listSemanticRelations", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId", ", $filter: ModelSemanticRelationFilterInput", ", filter: $filter", { filter: { or: [{ subjectLineageId: { eq: lineageId } }, { objectLineageId: { eq: lineageId } }] } }).catch(() => []),
+    listAll(client, "listSemanticRelations", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId metadata", ", $filter: ModelSemanticRelationFilterInput", ", filter: $filter", { filter: { or: [{ subjectLineageId: { eq: lineageId } }, { objectLineageId: { eq: lineageId } }] } }).catch(() => []),
   ]);
   const versions: TrailVersion[] = versionRows.map(row => ({
     id: String(row.id), versionNumber: Number(row.versionNumber ?? 0), versionState: text(row.versionState), status: text(row.status), stage: text(row.stage),
@@ -57,11 +73,18 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string)
   const anchorFilters = [{ primaryAnchorLineageId: { eq: lineageId } }, ...assignments.map(assignment => ({ primaryAnchorId: { eq: assignment.id } }))];
   const threadRows = await listAll(client, "listMessageThreads", "id title threadKind summary", ", $filter: ModelMessageThreadFilterInput", ", filter: $filter", { filter: { or: anchorFilters } }).catch(() => []);
   const threads: TrailThread[] = await Promise.all(threadRows.map(async row => {
-    const messageRows = await listAll(client, "listMessagesByThreadAndSequence", "id messageKind authorLabel summary content createdAt", ", $threadId: ID!", ", threadId: $threadId", { threadId: row.id }).catch(() => []);
-    return { id: String(row.id), title: text(row.title), threadKind: text(row.threadKind), summary: text(row.summary), messages: messageRows.map(message => ({ id: String(message.id), messageKind: text(message.messageKind), authorLabel: text(message.authorLabel), summary: text(message.summary), content: text(message.content), createdAt: String(message.createdAt ?? "") })) };
+    const messageRows = await listAll(client, "listMessagesByThreadAndSequence", "id messageKind authorLabel summary content createdAt sequenceNumber", ", $threadId: ID!", ", threadId: $threadId", { threadId: row.id }).catch(() => []);
+    return { id: String(row.id), title: text(row.title), threadKind: text(row.threadKind), summary: text(row.summary), messages: messageRows.map(message => ({ id: String(message.id), sequenceNumber: typeof message.sequenceNumber === "number" ? message.sequenceNumber : null, messageKind: text(message.messageKind), authorLabel: text(message.authorLabel), summary: text(message.summary), content: text(message.content), createdAt: String(message.createdAt ?? "") })) };
   }));
-  const references: TrailReference[] = relationRows.filter(relation => relation.objectKind === "reference" || relation.subjectKind === "reference").map(relation => ({
-    relationId: String(relation.id), predicate: String(relation.predicate ?? ""), referenceId: String(relation.objectKind === "reference" ? relation.objectId : relation.subjectLineageId ?? ""), referenceLineageId: text(relation.objectKind === "reference" ? relation.objectLineageId : relation.subjectLineageId), title: null, sourceUri: null,
+  const referenceRelations = relationRows.filter(relation => relation.predicate === "uses_evidence" && relation.subjectLineageId === lineageId && relation.objectKind === "reference");
+  const references: TrailReference[] = await Promise.all(referenceRelations.map(async relation => {
+    const metadata = parseMetadata(relation.metadata);
+    const referenceRow = await getReference(client, String(relation.objectId));
+    return {
+      relationId: String(relation.id), predicate: String(relation.predicate ?? ""), referenceId: String(relation.objectId), referenceLineageId: text(relation.objectLineageId),
+      title: text(referenceRow?.title), sourceUri: text(referenceRow?.sourceUri),
+      role: metadata.role === "cited" ? "cited" as const : "consulted" as const, note: text(metadata.note), citationKey: text(metadata.citationKey), addedBy: text(metadata.addedBy), addedAt: text(metadata.addedAt),
+    };
   }));
   const attachments: TrailAttachment[] = attachmentRows.map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
   return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments };
