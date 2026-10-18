@@ -288,7 +288,7 @@ function PresentationItem({
   const lines = useMemo(() => {
     if (!maxWidth || !text.trim()) return [];
     return layoutAllTextLines({
-      prepared: prepareWithSegments(text, `${textStyle.fontSize}px ${textStyle.fontFamily}`),
+      prepared: prepareWithSegments(text, `${textStyle.fontSize}px ${textStyle.fontFamily}`, { whiteSpace: "pre-wrap" }),
       maxWidth,
       ...textStyle,
     });

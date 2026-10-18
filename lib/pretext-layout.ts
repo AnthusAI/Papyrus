@@ -9,6 +9,27 @@ import {
 
 export { layoutNextLine, prepareWithSegments, type LayoutCursor, type PreparedTextWithSegments };
 
+const preparedTextCache = new Map<string, PreparedTextWithSegments>();
+let preparedTextCacheMissCount = 0;
+
+export function getPreparedTextCacheMissCount(): number {
+  return preparedTextCacheMissCount;
+}
+
+export function prepareWithSegmentsCached(
+  text: string,
+  font: string,
+  options?: { whiteSpace?: "normal" | "pre-wrap" },
+): PreparedTextWithSegments {
+  const key = `${options?.whiteSpace ?? "normal"}\u0000${font}\u0000${text}`;
+  const cached = preparedTextCache.get(key);
+  if (cached) return cached;
+  preparedTextCacheMissCount += 1;
+  const prepared = prepareWithSegments(text, font, options);
+  preparedTextCache.set(key, prepared);
+  return prepared;
+}
+
 export type TextLine = {
   text: string;
   width: number;
@@ -184,5 +205,6 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function clearPretextMeasurementCache(): void {
+  preparedTextCache.clear();
   clearCache();
 }
