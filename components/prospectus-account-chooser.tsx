@@ -4,9 +4,15 @@ import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId, setLocalPreviewTenantId } from "../lib/local-preview-tenant";
-import { loadProspectusAccountState, selectProspectusAccount, type ProspectusAccountState } from "../lib/prospectus-account-client";
+import { createProspectusAccount, loadProspectusAccountState, selectProspectusAccount, type ProspectusAccountState } from "../lib/prospectus-account-client";
+
+/** Local preview: add ?no-accounts=1 to the address to see a signed-in person with no publishing account. */
+function previewHasNoAccounts(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).has("no-accounts");
+}
 
 function previewAccountState(): ProspectusAccountState {
+  if (previewHasNoAccounts()) return { status: "signedIn", publishingAccounts: [], selectedAccountId: null, cyclotronLabAccess: false };
   return {
     status: "signedIn",
     publishingAccounts: LOCAL_PREVIEW_TENANTS.map(tenant => ({ accountId: tenant.accountId, name: tenant.name, role: tenant.role })),
@@ -50,6 +56,8 @@ export function ProspectusAccountChooser() {
   const [state, setState] = useState<ProspectusAccountState>({ status: "unavailable" });
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
   useEffect(() => {
     let cancelled = false;
     const returnPath = `${window.location.pathname}${window.location.search}`;
@@ -76,6 +84,20 @@ export function ProspectusAccountChooser() {
     if ("error" in result) { setError(result.error); return; }
     window.location.reload();
   };
+  const create = async () => {
+    if (pending) return;
+    setPending("create"); setError(null);
+    if (isLocalPreviewEnabled()) {
+      const name = newName.trim() || "New publishing account";
+      setState({ status: "signedIn", publishingAccounts: [{ accountId: "preview-created-account", name, role: "owner" }], selectedAccountId: "preview-created-account", cyclotronLabAccess: false });
+      setPending(null); setCreating(false);
+      return;
+    }
+    const result = await createProspectusAccount(newName);
+    setPending(null);
+    if ("error" in result) { setError(result.error); return; }
+    window.location.reload();
+  };
   return <div className="organizer-account-chooser" data-prospectus-account-chooser="signed-in">
     <p className="organizer-account-chooser-heading">Publishing account</p>
     {state.publishingAccounts.length === 0
@@ -91,6 +113,17 @@ export function ProspectusAccountChooser() {
           </li>;
         })}
       </ul>}
+    {state.publishingAccounts.length === 0 ? (
+      creating
+        ? <form className="organizer-account-create" data-prospectus-create-account onSubmit={event => { event.preventDefault(); void create(); }}>
+          <label>Account name<input autoFocus disabled={pending !== null} maxLength={80} onChange={event => setNewName(event.target.value)} placeholder="Optional" type="text" value={newName} /></label>
+          <span>
+            <button data-prospectus-create-account-submit disabled={pending !== null} type="submit">{pending === "create" ? "Creating…" : "Create account"}</button>
+            <button disabled={pending !== null} onClick={() => setCreating(false)} type="button">Cancel</button>
+          </span>
+        </form>
+        : <button className="organizer-account-create-start" data-prospectus-create-account-start onClick={() => setCreating(true)} type="button">Create publishing account</button>
+    ) : null}
     {!state.selectedAccountId && state.publishingAccounts.length > 0 ? <p className="organizer-account-chooser-note">Choose the account you are working as.</p> : null}
     {state.cyclotronLabAccess ? <p className="organizer-account-chooser-note" data-cyclotron-lab-access>Cyclotron lab access is on for you.</p> : null}
     {error ? <p className="organizer-account-chooser-note" role="alert">{error}</p> : null}
