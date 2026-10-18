@@ -310,6 +310,14 @@ const baseDefinitions = {
     ])
     .handler(a.handler.function(categoryAction)),
 
+  listCurationDelegations: a
+    .query()
+    .returns(a.ref("CurationDelegationResult").array())
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(a.handler.function(categoryAction)),
+
   recordDelegatedCuration: a
     .mutation()
     .arguments({

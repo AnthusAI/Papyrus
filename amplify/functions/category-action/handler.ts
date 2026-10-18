@@ -19,6 +19,7 @@ type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
 type CreateCurationDelegationHandler = Schema["createCurationDelegation"]["functionHandler"];
 type RevokeCurationDelegationHandler = Schema["revokeCurationDelegation"]["functionHandler"];
+type ListCurationDelegationsHandler = Schema["listCurationDelegations"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
@@ -37,6 +38,7 @@ type CategoryActionEvent =
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
   | Parameters<RevokeCurationDelegationHandler>[0]
+  | Parameters<ListCurationDelegationsHandler>[0]
   | Parameters<RecordDelegatedCurationHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
@@ -105,6 +107,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
   if (fieldName === "revokeCurationDelegation") return revokeCurationDelegation(event as Parameters<RevokeCurationDelegationHandler>[0]);
+  if (fieldName === "listCurationDelegations") return listCurationDelegations(event as Parameters<ListCurationDelegationsHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
@@ -346,7 +349,7 @@ async function writeCurationDelegation(client: DataClient, delegation: CurationD
   const input = {
     id: delegation.delegationId,
     ownerType: CURATION_DELEGATION_OWNER_TYPE,
-    ownerId: delegation.delegationId,
+    ownerId: delegation.grantorSub,
     payloadKind: CURATION_DELEGATION_PAYLOAD_KIND,
     createdAt: delegation.createdAt,
     updatedAt: now,
@@ -408,6 +411,28 @@ async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegati
   const revoked = { ...delegation, revokedAt: delegation.revokedAt ?? now };
   await writeCurationDelegation(client, revoked, now, false);
   return delegationResult(revoked, null);
+}
+
+async function listCurationDelegations(event: Parameters<ListCurationDelegationsHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const delegations: CurationDelegation[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
+      { ownerId: person.sub, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
+      { nextToken },
+    );
+    assertNoDataErrors(page.errors, "list curation delegations");
+    for (const payload of page.data ?? []) {
+      const delegation = await readCurationDelegation(client, payload.id);
+      if (delegation) delegations.push(delegation);
+    }
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return delegations
+    .sort((first, second) => second.createdAt.localeCompare(first.createdAt))
+    .map((delegation) => delegationResult(delegation, null));
 }
 
 async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
