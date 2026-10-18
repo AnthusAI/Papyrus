@@ -10,16 +10,29 @@
   "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6478f99d-f1f1-41c1-be82-17caad085603",
+      "author": "home",
+      "text": "Read the local Cyclotron source: embedded_cyclotron.py:855 review() says the first label for a decision teaches the cyclotron and a later label is a correction, through a learning pass (learning_loop.decide_with_shared_context, feedback_partitions, line 1345 set_optimizer_context). So live review labels do feed the cyclotron's learning loop. Still not confirmed: whether they end up as in-context examples in the Jev decision prompt the way the proof's priming examples do. Needs a read of learning_loop.py and the Jev adapter, or a small experiment comparing a sweep with and without added priming examples.",
+      "created_at": "2026-10-18T17:33:19.092942Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "Mac thread"
+      }
+    }
+  ],
   "created_at": "2026-10-18T17:32:50.266446Z",
-  "updated_at": "2026-10-18T17:32:50.266486Z",
+  "updated_at": "2026-10-18T17:33:19.093310Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5",
     "name": "Mac thread"
   },
-  "right_now_summary": "We are checking whether review labels reach Cyclotron’s decision prompt or need priming examples added.",
-  "right_now_updated_at": "2026-10-18T17:32:52.317479Z",
+  "right_now_summary": "The team confirmed review labels reach learning but must verify they enter the Jev decision prompt.",
+  "right_now_updated_at": "2026-10-18T17:33:21.767552Z",
   "custom": {}
 }

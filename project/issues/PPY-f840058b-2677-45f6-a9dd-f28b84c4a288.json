@@ -19,7 +19,7 @@
     "model": "claude-sonnet-5-5",
     "name": "Mac thread"
   },
-  "right_now_summary": "The team is testing Cyclotron in shadow mode with human review, audit logs, and safety limits.",
-  "right_now_updated_at": "2026-10-18T17:32:57.380878Z",
+  "right_now_summary": "The team is building a human-approved shadow test with audit logs, safeguards, and a second publication trial.",
+  "right_now_updated_at": "2026-10-18T17:33:23.261734Z",
   "custom": {}
 }

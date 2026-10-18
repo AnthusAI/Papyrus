@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "ee4ae8a4-e843-4f18-845a-aa00fa54ebee",
+  "issue_id": "PPY-ae4fd14f-bd70-4a86-b366-02d1e937150d",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-18T17:33:19.093Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "6478f99d-f1f1-41c1-be82-17caad085603",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}
