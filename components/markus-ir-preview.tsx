@@ -62,7 +62,7 @@ function imagePlaceholder(token: string, context: PreviewContext): ReactNode {
       // eslint-disable-next-line @next/next/no-img-element
       <img
         alt={alt}
-        className="my-3 h-auto max-w-full rounded-lg"
+        className="my-3 h-auto max-w-full"
         data-markus-preview-image-loaded
         loading="lazy"
         src={url}
@@ -228,6 +228,36 @@ function renderBlock(block: MarkusBlock, index: number, context: PreviewContext)
   }
 }
 
+function normalizedFigureSource(src: string): string {
+  return src.replace(/^(\.\.?\/)+/, "");
+}
+
+function renderFigure(directive: MarkusDirective, index: number, context: PreviewContext): ReactNode {
+  const attribute = (name: string) => typeof directive.attributes[name] === "string" ? String(directive.attributes[name]) : "";
+  const src = attribute("src");
+  const alt = attribute("alt");
+  const caption = attribute("caption");
+  const credit = attribute("credit");
+  const url = context.imageUrls[src] ?? context.imageUrls[normalizedFigureSource(src)];
+  return (
+    <figure className="my-4" data-markus-preview-directive="figure" key={index}>
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt={alt} className="h-auto max-w-full" data-markus-preview-image-loaded loading="lazy" src={url} />
+      ) : (
+        <div className="border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-xs text-muted-foreground" data-markus-preview-image>
+          {`Figure: ${src}${alt ? ` (${alt})` : ""}`}
+        </div>
+      )}
+      {caption || credit ? (
+        <figcaption className="mt-1 text-sm text-muted-foreground">
+          {caption}{caption && credit ? " " : ""}{credit ? <span className="text-xs">{credit}</span> : null}
+        </figcaption>
+      ) : null}
+    </figure>
+  );
+}
+
 function renderDirective(directive: MarkusDirective, index: number, context: PreviewContext): ReactNode {
   if (directive.name === "pull-quote") {
     const attribution = directive.attributes.attribution;
@@ -244,6 +274,7 @@ function renderDirective(directive: MarkusDirective, index: number, context: Pre
       </blockquote>
     );
   }
+  if (directive.name === "figure") return renderFigure(directive, index, context);
   const attributeEntries = Object.entries(directive.attributes).filter(([, value]) => value !== null && value !== "");
   return (
     <section

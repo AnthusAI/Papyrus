@@ -1,5 +1,6 @@
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
 import type { EditableArticle } from "./newsroom-articles";
+import type { MediaAssetRecord } from "./newsroom-media";
 import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
@@ -123,4 +124,8 @@ export function recordLocalPreviewDesk(articleId: string, deskId: string | null)
 
 export function createLocalPreviewReportingTrail(_lineageId: string): StoryReportingTrail {
   return EMPTY_STORY_REPORTING_TRAIL;
+}
+
+export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord[] {
+  return [];
 }
