@@ -10,6 +10,7 @@ it without touching the resolver or the publication BFF.
 from dataclasses import dataclass
 import inspect
 
+import httpx
 from decision_flywheel.publication_lab import PublicationAccess, PublicationActor, PublicationError
 
 PROSPECTUS_ROLE_PUBLICATION_CAPABILITIES = {
@@ -146,3 +147,36 @@ class ProspectusCentralPublicationAccess:
             raise PublicationError('publication capability refused', 403)
         http_client = await resolved(self.central_http_client_for(authorization.account_id))
         return HTTPPublicationClient(http_client, account_id=authorization.account_id)
+
+
+class ProspectusSiteCredentialAuth(httpx.Auth):
+    """httpx auth that attaches a fresh account-service credential to each central-lab call."""
+    def __init__(self, credential_for, account_id):
+        self.credential_for = credential_for
+        self.account_id = account_id
+
+    async def async_auth_flow(self, request):
+        credential = await resolved(self.credential_for(self.account_id))
+        if not isinstance(credential, str) or not credential.strip():
+            raise PublicationError('site credential unavailable', 503)
+        request.headers['Authorization'] = f'Bearer {credential.strip()}'
+        yield request
+
+
+def central_lab_http_client_factory(*, endpoint, credential_for, transport=None):
+    """central_http_client_for for ProspectusCentralPublicationAccess.
+
+    credential_for(account_id) returns the signed-in person's current Prospectus
+    session access token, which the lab re-verifies with Prospectus on every call.
+    It is read on every call, never cached here, so a revoked membership stops
+    working at once.
+    """
+    def client_for(account_id):
+        return httpx.AsyncClient(
+            base_url=endpoint,
+            auth=ProspectusSiteCredentialAuth(credential_for, account_id),
+            transport=transport,
+            follow_redirects=False,
+        )
+
+    return client_for
