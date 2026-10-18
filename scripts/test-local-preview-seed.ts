@@ -5,7 +5,7 @@ import {
   createLocalPreviewAssignments,
   createLocalPreviewContentItemVersions,
 } from "../lib/local-preview-seed";
-import { projectNewsroomBoard } from "../lib/newsroom-board";
+import { projectContentItemBoard } from "../lib/newsroom-board";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 
 assert.equal(isLocalPreviewEnabled(), false, "preview mode is opt-in");
@@ -22,7 +22,7 @@ for (const assignment of createLocalPreviewAssignments()) {
   if (assignment.itemLineageId) assert.ok(lineageIds.has(assignment.itemLineageId), "assignments point at seeded items");
 }
 
-const boardIssues = projectNewsroomBoard({
+const boardIssues = projectContentItemBoard({
   contentItemVersions,
   assignments: createLocalPreviewAssignments(),
 });
