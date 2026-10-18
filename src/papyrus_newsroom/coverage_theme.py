@@ -5260,7 +5260,7 @@ def candidate_content_item_version(reporting_assignment: dict[str, Any], now: st
         title=reporting_assignment["title"],
         summary=reporting_assignment.get("summary"),
         section_key=reporting_assignment.get("sectionKey"),
-        stage="report",
+        stage="reporting",
         actor_label="papyrus",
         now=now,
     )

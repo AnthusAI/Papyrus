@@ -17,14 +17,19 @@ from .ids import hash_short, safe_id
 CONTENT_ITEM_STAGES = (
     "idea",
     "assignment",
-    "research",
-    "report",
-    "editor_select",
+    "reporting",
     "copywriting",
     "illustration",
     "typesetting",
     "published",
+    "held",
+    "spiked",
 )
+LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS = {
+    "research": "reporting",
+    "report": "reporting",
+    "editor_select": "reporting",
+}
 DEFAULT_CONTENT_ITEM_FORMAT = "article"
 
 
@@ -119,7 +124,7 @@ def stage_for_existing_item_without_stage(item: dict[str, Any]) -> str:
     return "published" if item.get("status") == "published" else "copywriting"
 
 
-UNDRAFTED_BACKFILL_STAGES = ("report", "editor_select")
+UNDRAFTED_BACKFILL_STAGES = ("report", "editor_select", "reporting")
 
 
 def plan_undrafted_backfill_story_demotion(
@@ -151,6 +156,19 @@ def plan_undrafted_backfill_story_demotion(
         if is_unedited_placeholder:
             changes.append({"modelName": "Item", "current": item, "expected": {**item, "stage": "assignment"}})
     return changes
+
+
+def plan_content_item_stage_migration(*, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Plan moving items off the retired research, report and editor_select stages onto reporting."""
+    return [
+        {
+            "modelName": "Item",
+            "current": item,
+            "expected": {**item, "stage": LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS[item["stage"]]},
+        }
+        for item in items
+        if item.get("stage") in LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS
+    ]
 
 
 def plan_content_item_backfill(

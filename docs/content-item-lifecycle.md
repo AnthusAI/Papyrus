@@ -37,8 +37,16 @@ and keeps its `lineageId` through publication. Every stage below is a value of
 one lifecycle field on that lineage, not a new record type:
 
 ```
-idea → assignment → research → report → editor_select → copywriting → illustration → typesetting → published
+idea → assignment → reporting → copywriting → illustration → typesetting → published
 ```
+
+`held` (a finished story kept for later) and `spiked` (a killed story) sit
+after `published`. Idea and assignment are work that has not become a story
+yet, so they appear on the assignments board and not on the stories board.
+Spiked is a collapsed column that loads its cards only when it is opened.
+Items still carrying the retired `research`, `report` or `editor_select`
+stages are read as `reporting`; `papyrus assignments migrate-content-item-stages`
+rewrites them (dry run by default).
 
 Illustration and typesetting follow copywriting so the board shows the whole
 production line up to publication. Nothing moves an item into them yet; editors
