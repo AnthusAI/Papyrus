@@ -5,6 +5,8 @@ import { Check } from "lucide-react";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { loadProspectusAccountState, selectProspectusAccount, type ProspectusAccountState } from "../lib/prospectus-account-client";
 
+let previewState: ProspectusAccountState | null = null;
+
 const PREVIEW_ACCOUNT_STATE: ProspectusAccountState = {
   status: "signedIn",
   publishingAccounts: [
@@ -15,6 +17,18 @@ const PREVIEW_ACCOUNT_STATE: ProspectusAccountState = {
   cyclotronLabAccess: true,
 };
 
+const ACCOUNT_STATE_EVENT = "papyrus:prospectus-account-state";
+
+function announceAccountState(state: ProspectusAccountState) {
+  window.dispatchEvent(new CustomEvent<ProspectusAccountState>(ACCOUNT_STATE_EVENT, { detail: state }));
+}
+
+function summaryOf(state: ProspectusAccountState): string | null {
+  if (state.status !== "signedIn") return null;
+  const selected = state.publishingAccounts.find(account => account.accountId === state.selectedAccountId);
+  return selected ? `${selected.name ?? selected.accountId} · ${roleLabel(selected.role)}` : "Choose an account";
+}
+
 const roleLabel = (role: string) => role.replace(/_/g, " ");
 
 /** The signed-in person's current publishing account as "Name · role", or null when the site has no Prospectus accounts. */
@@ -23,12 +37,12 @@ export function useProspectusAccountSummary(): string | null {
   useEffect(() => {
     let cancelled = false;
     const returnPath = `${window.location.pathname}${window.location.search}`;
-    (isLocalPreviewEnabled() ? Promise.resolve(PREVIEW_ACCOUNT_STATE) : loadProspectusAccountState(returnPath)).then(loaded => {
-      if (cancelled || loaded.status !== "signedIn") return;
-      const selected = loaded.publishingAccounts.find(account => account.accountId === loaded.selectedAccountId);
-      setSummary(selected ? `${selected.name ?? selected.accountId} · ${roleLabel(selected.role)}` : "Choose an account");
+    (isLocalPreviewEnabled() ? Promise.resolve(previewState ?? PREVIEW_ACCOUNT_STATE) : loadProspectusAccountState(returnPath)).then(loaded => {
+      if (!cancelled) setSummary(summaryOf(loaded));
     });
-    return () => { cancelled = true; };
+    const onChange = (event: Event) => setSummary(summaryOf((event as CustomEvent<ProspectusAccountState>).detail));
+    window.addEventListener(ACCOUNT_STATE_EVENT, onChange);
+    return () => { cancelled = true; window.removeEventListener(ACCOUNT_STATE_EVENT, onChange); };
   }, []);
   return summary;
 }
@@ -45,7 +59,7 @@ export function ProspectusAccountChooser() {
   useEffect(() => {
     let cancelled = false;
     const returnPath = `${window.location.pathname}${window.location.search}`;
-    (isLocalPreviewEnabled() ? Promise.resolve(PREVIEW_ACCOUNT_STATE) : loadProspectusAccountState(returnPath))
+    (isLocalPreviewEnabled() ? Promise.resolve(previewState ?? PREVIEW_ACCOUNT_STATE) : loadProspectusAccountState(returnPath))
       .then(loaded => { if (!cancelled) setState(loaded); });
     return () => { cancelled = true; };
   }, []);
@@ -59,7 +73,8 @@ export function ProspectusAccountChooser() {
     if (accountId === state.selectedAccountId || pending) return;
     setPending(accountId); setError(null);
     if (isLocalPreviewEnabled()) {
-      setState({ ...state, selectedAccountId: accountId }); setPending(null); return;
+      const next = { ...state, selectedAccountId: accountId };
+      previewState = next; setState(next); announceAccountState(next); setPending(null); return;
     }
     const result = await selectProspectusAccount(accountId);
     setPending(null);
