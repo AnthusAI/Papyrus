@@ -3,7 +3,7 @@
   "title": "Chattic.us-web slice 1: wiki and blog Markdown (content/wiki, content/blog) as a Markus publication",
   "description": "These are already frontmatter Markdown (9 wiki ideas; updates, agent-zoo and thoughts posts) rendered through lib/wiki.ts, lib/blog.ts and scripts/generate-wiki.ts. Re-render them through Papyrus build_markus_site with the Chatticus brand chrome, keeping wiki/blog URLs and OG images. The Chatticus package still generates product wiki pages; decide whether they are merged as Markus input.",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,20 @@
         "name": "Thread Claude",
         "settings": {}
       }
+    },
+    {
+      "id": "37e234ff-df5c-4002-a2bf-33f94d4690dc",
+      "author": "unknown",
+      "text": "Done in Chattic.us-web PRs 30 and 31; pipeline passed.",
+      "created_at": "2026-10-18T13:57:24.958245Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-18T12:59:26.842355Z",
-  "updated_at": "2026-10-18T13:24:15.389383Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T13:57:25.417082Z",
+  "closed_at": "2026-10-18T13:57:25.416924Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
