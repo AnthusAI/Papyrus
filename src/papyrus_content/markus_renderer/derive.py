@@ -16,6 +16,7 @@ from .citations import CitationCollector, CitationError, CitationRendering
 from .content_markup import ContentMarkupError, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
 from .security import MARKUS_REQUIRED_VERSION
+from .wiki_directives import papyrus_registry
 
 BODY_IR_SCHEMA_VERSION = 1
 MAX_BODY_IR_BYTES = 300_000
@@ -75,7 +76,7 @@ def _markus_document(markdown: str) -> dict[str, Any]:
             f"Markus {MARKUS_REQUIRED_VERSION} required to derive bodyIr; "
             f"got {markusmd.__version__!r}."
         )
-    document = markusmd.parse(markdown)
+    document = markusmd.parse(markdown, registry=papyrus_registry())
     return document.to_dict(markdown=make_markdown(allow_html=False))
 
 
