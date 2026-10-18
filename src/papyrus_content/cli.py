@@ -281,6 +281,7 @@ PORTED_COMMANDS = frozenset(
         "references:freeze-priming-cross-validation",
         "references:stamp-curation-actor-kind",
         "references:prove-priming-cross-validated",
+        "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -572,6 +573,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:prove-priming-cross-validated":
         from .priming_proof import references_prove_priming_cross_validated
         references_prove_priming_cross_validated(flags)
+    elif route == "references:prove-site-sections":
+        from .section_proof import references_prove_site_sections
+        references_prove_site_sections(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-corpus-storage-paths":
