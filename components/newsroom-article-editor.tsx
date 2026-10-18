@@ -643,7 +643,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
               <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
               <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
-              <button aria-pressed={mobileTab === "trail"} className="organizer-header-button" data-newsroom-article-view="trail" onClick={() => setMobileTab("trail")} type="button">Reporting trail</button>
+              <button aria-pressed={mobileTab === "trail"} className="organizer-header-button" data-newsroom-article-view="trail" onClick={() => setMobileTab("trail")} type="button">Messages</button>
             </div>
               {mobileTab === "trail" && editor.id ? <StoryReportingTrailView citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>

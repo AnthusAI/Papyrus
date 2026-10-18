@@ -41,7 +41,16 @@ export function StoryReportingTrailView({ citedKeys = [], demo = false, itemId, 
   if (!trail) return <p className="story-trail-empty">Loading the reporting trail…</p>;
   const messageFeed = storyMessageFeed(trail);
   return <div className="story-trail" data-story-trail>
-    {storyReportingTrailIsEmpty(trail) && <p className="story-trail-empty">No reporting trail has been recorded for this story yet. Research, reporting and copywriting assignments, their notes and packets, and the references behind the story appear here as agents and editors work on it.</p>}
+    {storyReportingTrailIsEmpty(trail) && <p className="story-trail-empty">No messages have been recorded for this story yet. Notes and packets, the work done on it, its draft versions and the references behind it appear here as agents and editors work on it.</p>}
+    <TrailSection count={messageFeed.length} title="Messages">
+      <ol className="story-trail-list" data-story-trail-feed>
+        {messageFeed.map(message => <li key={message.id}>
+          <div className="story-trail-row"><strong>{message.authorLabel ?? "Unknown author"}</strong>{message.messageKind && <span className="story-trail-chip">{message.messageKind.replace(/_/g, " ")}</span>}<span className="story-trail-meta">{formatTimestamp(message.createdAt)}</span></div>
+          {message.summary && <p><strong>{message.summary}</strong></p>}
+          {message.content && <details className="story-trail-message" open={messageFeed.length <= 3}><summary>Show the message</summary><pre>{message.content}</pre></details>}
+        </li>)}
+      </ol>
+    </TrailSection>
     <TrailSection count={trail.versions.length} title="Draft versions">
       <ol className="story-trail-list">
         {trail.versions.map((version, versionIndex) => <li key={version.id}>
@@ -65,15 +74,6 @@ export function StoryReportingTrailView({ citedKeys = [], demo = false, itemId, 
             </li>)}
           </ol>}
           <Link href={getNewsroomNavHref(`/newsroom/assignments/${encodeURIComponent(assignment.id)}`, demo)}>Open assignment</Link>
-        </li>)}
-      </ol>
-    </TrailSection>
-    <TrailSection count={messageFeed.length} title="Messages">
-      <ol className="story-trail-list" data-story-trail-feed>
-        {messageFeed.map(message => <li key={message.id}>
-          <div className="story-trail-row"><strong>{message.authorLabel ?? "Unknown author"}</strong>{message.messageKind && <span className="story-trail-chip">{message.messageKind.replace(/_/g, " ")}</span>}<span className="story-trail-meta">{formatTimestamp(message.createdAt)}</span></div>
-          {message.summary && <p><strong>{message.summary}</strong></p>}
-          {message.content && <details className="story-trail-message" open={messageFeed.length <= 3}><summary>Show the message</summary><pre>{message.content}</pre></details>}
         </li>)}
       </ol>
     </TrailSection>
