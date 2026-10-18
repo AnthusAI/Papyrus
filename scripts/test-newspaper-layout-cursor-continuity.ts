@@ -240,4 +240,18 @@ for (const pageWidth of PAGE_WIDTHS) {
   assert.equal(getPreparedTextCacheMissCount(), preparedTextCountAfterFirstSolve, "re-solving prepares no text that was already prepared");
 }
 
+{
+  const itemsWithoutImages = createFixtureItems().map((item) => ({ ...cloneJson(item), image: undefined, assets: [] }) as PublicationItem);
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message?: unknown) => { warnings.push(String(message)); };
+  try {
+    validateEditionLayoutPlanForItems(createFixturePlan(), itemsWithoutImages);
+    buildNewspaperLayout(itemsWithoutImages, 1280, VIEWPORT_HEIGHT, createFixturePlan());
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.ok(warnings.some((warning) => /requires an image asset/.test(warning)), "a missing required image is logged, not thrown");
+}
+
 console.log("newspaper layout cursor continuity ok");

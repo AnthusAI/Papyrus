@@ -1,3 +1,4 @@
+import { warnAboutMissingMedia } from "./layout-warnings";
 import {
   type ArticleFrameBlockSpec,
   type ArticleFrameCompositionSlotSpec,
@@ -605,7 +606,7 @@ function solveComposedFrontArticleFrame(
         flow.usedImageAssetIds,
       );
       if (!image) {
-        if (mediaSpec?.required) throw new Error(`${blockSpec.id} requires media slot ${slot.mediaIndex ?? 0} but no image could be solved`);
+        if (mediaSpec?.required) warnAboutMissingMedia(`${blockSpec.id} requires media slot ${slot.mediaIndex ?? 0} but no image could be solved and renders without it`);
         continue;
       }
       const stackTop = getOccupiedColumnBottom(columnBottoms, image.columnStart, image.columnSpan);
