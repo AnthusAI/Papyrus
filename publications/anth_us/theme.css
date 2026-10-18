@@ -85,22 +85,28 @@
   letter-spacing: 0;
 }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand {
-  font-family: "Jersey 25", serif !important;
-  font-size: 44px;
-  font-weight: 900;
-  line-height: 1;
-  padding: 14px 16px 12px;
-  margin: -16px -16px 0;
-  color: #ffffff;
-  background: linear-gradient(174deg, #d03382 0%, #d03382 45%, #0389d7 88%, #85cefa 97%, #ffffff 100%);
-  border-bottom: 0;
+  --logo-tile: #f9c9e1;
+  --logo-glyph: #1b1426;
+  display: block;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--org-line);
+  color: #1b1426;
 }
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand-logo {
+  display: block;
+  height: 36px;
+  width: auto;
+  overflow: visible;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .anth-us-logo-tile { fill: var(--logo-tile); }
+:root[data-site-brand="anth-us"] .newsroom-organizer .anth-us-logo-a { fill: var(--logo-glyph); }
+:root[data-site-brand="anth-us"] .newsroom-organizer .anth-us-logo-word { fill: #1b1426; }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand small {
-  color: #ffffff;
+  color: var(--org-muted);
   font-family: var(--anth-ui-font) !important;
   letter-spacing: 0.22em;
   font-weight: 600;
-  margin-top: 8px;
+  margin-top: 12px;
 }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-sidebar {
   background: var(--theme-card);

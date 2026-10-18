@@ -107,7 +107,7 @@ export function NewsroomOrganizerShell({ activeTab, appTitle, backHref = "/", ba
   return <div className="newsroom-organizer" data-news-desk data-newsroom-ops-shell="true" data-newsroom-chrome="organizer" data-sidebar-collapsed={collapsed || !showNavigation ? "true" : "false"}>
     {showNavigation && <aside className="organizer-sidebar" hidden={collapsed} id="organizer-sidebar">
       <div className="organizer-sidebar-head">
-        <Link className="organizer-brand" href={getNewsroomNavHref("/newsroom", demo)}>{appTitle}<small>The newsroom</small></Link>
+        <Link className="organizer-brand" href={getNewsroomNavHref("/newsroom", demo)}>{SITE_BRAND.components?.NewsroomLogo ? <SITE_BRAND.components.NewsroomLogo className="organizer-brand-logo" /> : appTitle}<small>The newsroom</small></Link>
         {sidebarToggle}
       </div>
       <Navigation activePath={activePath} demo={demo} admin={admin} surface="sidebar" />

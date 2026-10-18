@@ -23,6 +23,8 @@ export type SiteBrandId = string;
 
 /** Brand-specific replacements for generic Pretext components. */
 export type SiteBrandComponents = {
+  /** The mark shown at the top of the newsroom CMS sidebar in place of the app title. */
+  NewsroomLogo?: ComponentType<{ className?: string }>;
   PictogramFigure?: ComponentType<PictogramFigureProps>;
   BlogPageBackground?: ComponentType<BlogPageBackgroundProps>;
 };
