@@ -1,3 +1,4 @@
+import { isLocalPreviewEnabled } from "./local-preview";
 import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
 import type { Article, ArticleVideoAsset } from "./articles";
@@ -184,10 +185,16 @@ const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
  * The Papyrus reference brand plus whatever the publication registered in its
  * own `papyrus.config.ts` (resolved through the `papyrus-site` alias).
  */
-const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
+const REGISTERED_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   ...REFERENCE_SITE_BRANDS,
   ...Object.fromEntries((papyrusSite.brands ?? []).map((brand) => [brand.id, brand])),
 };
+
+const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = isLocalPreviewEnabled()
+  ? Object.fromEntries(
+      Object.entries(REGISTERED_SITE_BRANDS).map(([id, brand]) => [id, { ...brand, newsroomLayout: "organizer" as const }]),
+    )
+  : REGISTERED_SITE_BRANDS;
 
 export function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
   if (!value) return null;

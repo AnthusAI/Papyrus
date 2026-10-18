@@ -9,6 +9,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
+- [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.
 - [agent-rules-detail.md](agent-rules-detail.md): the full text behind each rule summarized in AGENTS.md.
 - [releasing.md](releasing.md): lockstep npm and PyPI releases with Semantic Release.
 
