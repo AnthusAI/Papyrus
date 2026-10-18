@@ -85,3 +85,62 @@ def test_importing_the_same_content_again_for_a_tenant_changes_nothing(tmp_path)
     import_for("alpha", content, client, tmp_path / "bucket")
     second = import_for("alpha", content, client, tmp_path / "bucket")
     assert second.created == 0 and second.updated == 0 and second.unchanged > 0
+
+
+def legacy_import(backend, tmp_path, name="legacy"):
+    return import_for(None, content_directory(tmp_path, name, "Legacy"), tenant_client(backend, None), tmp_path / "bucket")
+
+
+def test_a_tenant_import_reuses_the_legacy_item_id_instead_of_creating_a_duplicate(tmp_path):
+    backend = ImportBackend()
+    legacy_import(backend, tmp_path)
+    legacy_item_ids = set(backend.tables["Item"])
+    report = import_for("alpha", content_directory(tmp_path, "alpha", "Legacy"), tenant_client(backend, "alpha"), tmp_path / "bucket")
+    assert report.ok
+    assert set(backend.tables["Item"]) == legacy_item_ids
+    assert all(row["tenantId"] == "alpha" for row in backend.tables["Item"].values())
+    assert all(row["tenantSlug"] == f"alpha#{row['slug']}" for row in backend.tables["Item"].values())
+
+
+def test_a_tenant_import_stamps_the_legacy_media_and_published_rows_it_reuses(tmp_path):
+    backend = ImportBackend()
+    legacy_import(backend, tmp_path)
+    import_for("alpha", content_directory(tmp_path, "alpha", "Legacy"), tenant_client(backend, "alpha"), tmp_path / "bucket")
+    for model_name in ("PublishedItem", "MediaAsset", "PublishedMediaAsset"):
+        assert backend.tables[model_name]
+        assert all(row["tenantId"] == "alpha" for row in backend.tables[model_name].values())
+    assert all(row["typeStatus"].startswith("alpha#") for row in backend.tables["PublishedItem"].values())
+
+
+def test_importing_again_after_adopting_a_legacy_item_changes_nothing(tmp_path):
+    backend = ImportBackend()
+    legacy_import(backend, tmp_path)
+    content = content_directory(tmp_path, "alpha", "Legacy")
+    client = tenant_client(backend, "alpha")
+    import_for("alpha", content, client, tmp_path / "bucket")
+    second = import_for("alpha", content, client, tmp_path / "bucket")
+    assert second.created == 0 and second.updated == 0 and second.unchanged > 0
+    assert len(backend.tables["Item"]) == 2
+
+
+def test_a_legacy_item_belonging_to_another_tenant_is_never_reused(tmp_path):
+    backend = ImportBackend()
+    import_for("beta", content_directory(tmp_path, "beta", "Beta"), tenant_client(backend, "beta"), tmp_path / "bucket")
+    backend.tables["Item"] = {item_id.removeprefix("beta."): row for item_id, row in backend.tables["Item"].items()}
+    for item_id, row in backend.tables["Item"].items():
+        row["id"] = item_id
+    beta_rows = {key: dict(row) for key, row in backend.tables["Item"].items()}
+    report = import_for("alpha", content_directory(tmp_path, "alpha", "Alpha"), tenant_client(backend, "alpha"), tmp_path / "bucket")
+    assert report.ok and report.created == 2
+    for key, row in beta_rows.items():
+        assert backend.tables["Item"][key] == row
+
+
+def test_a_legacy_item_with_a_different_slug_is_not_reused(tmp_path):
+    backend = ImportBackend()
+    legacy_import(backend, tmp_path)
+    for row in backend.tables["Item"].values():
+        row["slug"] = "something-else"
+    report = import_for("alpha", content_directory(tmp_path, "alpha", "Alpha"), tenant_client(backend, "alpha"), tmp_path / "bucket")
+    assert report.ok and report.created == 2
+    assert "alpha.item-articles-hello" in backend.tables["Item"]
