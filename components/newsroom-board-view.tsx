@@ -30,6 +30,7 @@ import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
 const STATIC_MOTION = { mode: "static" } as const;
+const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
 
 async function loadEveryNewsroomAssignment() {
   const assignments: AssignmentRecord[] = [];
@@ -52,7 +53,6 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
   const [lowMotion, setLowMotion] = useState(false);
   const [issues, setIssues] = useState<NativeBoardIssue[]>([]);
   const [view, setView] = useState<"board" | "list">("board");
-  const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,21 +65,28 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
     const request = ++generation.current;
     setIssues([]); setSelected(null); setError(null);
     if (!allowed) { setLoading(false); return; }
-    setLoading(true);
-    const loadIssues = subject === "contentItem"
+    const loadIssues = () => subject === "contentItem"
       ? Promise.all([
         Promise.all([loadNewsroomContentItemVersions(), loadNewsroomPublishedContentItemVersions()]).then(([workingVersions, publishedVersions]) => [...workingVersions, ...publishedVersions]),
         loadEveryNewsroomAssignment(),
       ]).then(([contentItemVersions, assignments]) => projectContentItemBoard({ contentItemVersions, assignments }))
       : loadEveryNewsroomAssignment().then(projectAssignmentBoard);
-    loadIssues.then(loadedIssues => {
-      if (generation.current !== request) return;
-      setIssues(loadedIssues);
-    }).catch((reason: unknown) => {
-      if (generation.current === request) setError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
-    }).finally(() => { if (generation.current === request) { setLoading(false); } });
-    return () => { generation.current = request + 1; };
-  }, [allowed, revision, subject]);
+    const refresh = (initial: boolean) => {
+      if (initial) setLoading(true);
+      loadIssues().then(loadedIssues => {
+        if (generation.current !== request) return;
+        setIssues(loadedIssues);
+        setError(null);
+      }).catch((reason: unknown) => {
+        if (generation.current === request && initial) setError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
+      }).finally(() => { if (generation.current === request && initial) setLoading(false); });
+    };
+    refresh(true);
+    const refreshWhenVisible = () => { if (document.visibilityState === "visible") refresh(false); };
+    const interval = window.setInterval(refreshWhenVisible, BOARD_REFRESH_INTERVAL_MILLISECONDS);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => { generation.current = request + 1; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenVisible); };
+  }, [allowed, subject]);
   const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
   const boardType = subject === "contentItem" ? contentItemBoardType() : ASSIGNMENT_BOARD_TYPE;
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : "Assignments";
@@ -94,7 +101,7 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
     ) : undefined}>
     <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
       <div className="organizer-board-toolbar">
-        <div role="group" aria-label="Record presentation"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button><button type="button" disabled={loading} onClick={() => setRevision(current => current + 1)}>Refresh records</button></div>
+        <div role="group" aria-label="Record presentation"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
       </div>
       <p className="organizer-board-note">{subject === "contentItem"
         ? `Each ${getContentItemName().singular.toLowerCase()} appears once, in the column for its stage. Open one to use its existing editor.`
