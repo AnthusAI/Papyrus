@@ -1,0 +1,22 @@
+{
+  "id": "PPY-9175780c-9e31-46c8-b1b7-5b85953014ad",
+  "title": "Chattic.us-web slice 1: wiki and blog Markdown (content/wiki, content/blog) as a Markus publication",
+  "description": "These are already frontmatter Markdown (9 wiki ideas; updates, agent-zoo and thoughts posts) rendered through lib/wiki.ts, lib/blog.ts and scripts/generate-wiki.ts. Re-render them through Papyrus build_markus_site with the Chatticus brand chrome, keeping wiki/blog URLs and OG images. The Chatticus package still generates product wiki pages; decide whether they are merged as Markus input.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T12:59:26.842355Z",
+  "updated_at": "2026-10-18T12:59:26.842729Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

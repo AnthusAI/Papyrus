@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cf2d1289-4e16-4c8e-a374-37e77ae2076a",
+  "issue_id": "PPY-0ab84d83-1f39-4f8b-aacb-a0b88dbc7256",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T12:58:29.098Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Cyclotron-web slice 1: prose pages to a Markus publication (Papyrus-web pattern)",
+    "description": "Follow Papyrus-web/Prospectus-web: Git-authored Markus plus web/projector.py. Prose routes (how-it-works, developers, services, pricing, learn, use-cases, articles) become Markus with directives; the copy-claims, glossary and use-case tests in components/*.test.ts keep guarding wording and must run against the Markus source. Keep every URL. Pictograms and recording charts are islands (slice 2).",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+    "labels": []
+  }
+}

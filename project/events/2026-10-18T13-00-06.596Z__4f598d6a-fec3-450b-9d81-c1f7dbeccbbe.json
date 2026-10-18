@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4f598d6a-fec3-450b-9d81-c1f7dbeccbbe",
+  "issue_id": "PPY-d231f5cd-acad-402f-b8f2-04260a972270",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T13:00:06.596Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Chattic.us-web slice 3: keep waitlist, contact and Stripe intake as a separate service",
+    "description": "app/waitlist, app/contact and lib/*-api.ts are dynamic. Extract them into a small API service (infra/intake already exists) that the static publication links to, then switch the CodePipeline build to the projection. DevOps deploys.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
+    "labels": []
+  }
+}
