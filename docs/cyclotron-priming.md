@@ -575,3 +575,17 @@ Cyclotron change.
 
 Withdrawing a person's review of a Reference the cyclotron never decided now
 retracts its priming example too (`retract_priming_examples`, Cyclotron PR 49).
+
+## Site cyclotron: a classifier per Section
+
+One shared cyclotron for the whole site (`siteCyclotron` in the steering config,
+built by `papyrus_content.site_cyclotron`). Every enabled newsroom Section gets a
+binary classifier (`section-fit-<id>`: does this Reference belong in that
+Section?) and one multi-class `section-selector` chooses the Section. The
+classifier set is derived from the Section list, so the Section curation that
+Papyrus already has stays the only place Sections are maintained; each rubric is
+seeded from the Section's mission, policy, assignment guidance and kill criteria.
+The block holds only the cyclotron id, `enabled`, `maxDecisionsPerDay`,
+`approvedProofPath` and `store`; the model, optimizer and review program come
+from `relevanceCyclotron`. Training uses only the Section a person explicitly
+chose (PPY-1b1788). Epic PPY-0a285b.
