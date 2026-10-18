@@ -35,3 +35,29 @@ Copying a single-tenant backend with `--stamp-tenant` scopes the copied Section 
 ## Site cyclotron
 
 `references decide-site-sections` and `references prove-site-sections` take `--tenant <id>`. With a tenant the Section list is that tenant's NewsroomSection rows (the yml seed stays the source without a tenant), and the cyclotron is the tenant's own: id `<cyclotronId>-<tenant>`, local store `<localPath>-<tenant>`, S3 prefix `<s3Prefix>-<tenant>`, and so the `cyclotron.site` Assignment, the `site_decision_is` classifier keys and the usage and agreement records are all tenant-scoped. The steering config (decision model, optimizer, review program, `approvedProofPath`) stays shared. See [cyclotron-priming.md](cyclotron-priming.md).
+
+## Adopting data written before tenant scoping
+
+Rows written before tenants existed carry no `tenantId`, and Section rows sit under bare ids. A tenant client cannot see or write them, so they must be adopted once into the tenant that owns them (for the production publication, `p-apyr-us`).
+
+`content adopt-tenant-data --tenant <id> [--apply] [--json]` does it. It is a dry run unless `--apply` is given, and it refuses to run when `--tenant` is missing or `PAPYRUS_TENANT_ID` is set, because it must read every row.
+
+Run it from an operator machine that has AWS credentials for the backend (a person, not CI), dry run first:
+
+    papyrus content adopt-tenant-data --tenant p-apyr-us
+
+The dry run prints, for Section, Item, PublishedItem, MediaAsset and PublishedMediaAsset, how many rows it would adopt, re-id, find already adopted, leave because they belong to another tenant, or leave because of a conflict, with a few sample ids. Read the other-tenant and conflict lines before applying; those rows are never written. Then run the same command with `--apply`. Running it again changes nothing.
+
+What it does:
+
+- Stamps `tenantId` and the tenant-prefixed `typeStatus`, `sectionStatus` and `tenantSlug` on Item, PublishedItem, MediaAsset and PublishedMediaAsset rows that have none.
+- For each bare NewsroomSection row, whether or not it had a `tenantId`, creates `<tenant>#<key>` with the same fields and then deletes the bare row.
+
+What it will not do:
+
+- It does not change Item, PublishedItem or media record ids, since other records reference them.
+- It does not change any `storagePath` and moves no S3 objects. Adopted media keep their old paths until a `content import-markus --tenant` run re-uploads them under `media/<tenant>/`.
+- It does not touch rows that belong to a different tenant, and it leaves a bare Section alone when `<tenant>#<key>` already exists (a conflict to settle by hand).
+- It does not rebuild the reader; trigger a rebuild afterwards if needed.
+
+`content import-markus --tenant <id>` also adopts on its own: when `<tenant>.item-<section>-<slug>` is absent but the legacy `item-<section>-<slug>` exists and either belongs to the tenant or has no tenantId and the same slug, the import reuses the legacy id (media ids follow from it) and stamps that item, its media and its published rows as the tenant's, so no duplicate item or slug collision appears.

@@ -761,6 +761,17 @@ class PapyrusGraphQLAuthoringClient:
             return None
         return tenant_row_with_bare_record_id(model_name, self.tenant_id, row)
 
+    def get_record_unscoped(self, model_name: str, record_id: str) -> dict[str, Any] | None:
+        definition = GET_DEFINITIONS[model_name]
+        query = _get_query(definition["field"], definition["fields"])
+        result = self.graphql(query, {"id": record_id})
+        return result.get(definition["field"])
+
+    def update_record_unscoped(self, model_name: str, input_payload: dict[str, Any]) -> None:
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for update: {model_name}")
+        self.graphql(MUTATIONS[model_name]["update"], {"input": input_payload})
+
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
         unique_ids = [record_id for record_id in dict.fromkeys(record_ids) if record_id]
         if not unique_ids:

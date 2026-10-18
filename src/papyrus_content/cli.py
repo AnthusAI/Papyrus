@@ -207,6 +207,7 @@ from .markus_derive_commands import content_markus_derive
 from .markus_export_commands import content_export_published
 from .backend_copy_commands import content_copy_backend
 from .markus_import_commands import content_import_markus
+from .tenant_adoption_commands import content_adopt_tenant_data
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
 from .renditions_commands import content_renditions
@@ -224,6 +225,7 @@ PORTED_COMMANDS = frozenset(
         "content:scrub-item-inline-body",
         "content:markus-derive",
         "content:import-markus",
+        "content:adopt-tenant-data",
         "content:publish",
         "content:unpublish",
         "content:rebuild",
@@ -438,6 +440,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_markus_derive(flags)
     elif route == "content:import-markus":
         content_import_markus(flags)
+    elif route == "content:adopt-tenant-data":
+        content_adopt_tenant_data(flags)
     elif route == "content:publish":
         content_publish(flags)
     elif route == "content:unpublish":
@@ -1550,6 +1554,7 @@ def print_usage() -> None:
     print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
+    print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json],")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
