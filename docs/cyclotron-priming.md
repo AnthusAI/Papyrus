@@ -615,6 +615,21 @@ poetry run papyrus references decide-site-sections --apply    # decide, teach, r
 publication named by the `--config` file (`papyrus-steering.yml` gives
 `papyrus-newsroom-sections.yml`).
 
+### Per tenant
+
+`--tenant <id>` (or `PAPYRUS_TENANT_ID`) makes the sweep and the proof per
+tenant on a multi-tenant backend (see [multi-tenancy.md](multi-tenancy.md)). The
+Section list is then that tenant's `NewsroomSection` rows, read through its
+tenant-scoped client (`--sections-file` is ignored); the yml seed stays the
+source for a single-tenant backend. The cyclotron id, local store path, S3
+prefix, `cyclotron.site` Assignment and `site_decision_is` records are scoped by
+appending `-<tenant>` to the configured cyclotron id, store path and prefix, so
+two tenants with different Sections each have a cyclotron with only their own
+classifiers and one tenant's sweep never supersedes the other's decisions. The
+steering config, including the decision model and `approvedProofPath`, is
+shared. A tenant with no Sections is refused with the command that seeds them:
+`papyrus newsroom import-sections --tenant <id>`.
+
 - One `decide` per pending Reference answers every classifier. Each answer is
   its own current `SemanticRelation` with predicate `site_decision_is` and
   `classifierId` `<cyclotronId>/<classifier>`, carrying the decision id, label,

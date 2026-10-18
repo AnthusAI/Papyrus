@@ -480,10 +480,12 @@ def default_sections_path(config_path: str | None) -> str:
 
 def references_decide_site_sections(flags: list[str]) -> None:
     """papyrus references decide-site-sections [--config <steering.yml>] [--doctrine <doctrine.yml>]
-    [--sections-file <newsroom-sections.yml>] [--max-count N] [--worker <name>] [--apply] [--json]
+    [--sections-file <newsroom-sections.yml>] [--tenant <id>] [--max-count N] [--worker <name>] [--apply] [--json]
 
     Dry run by default: lists the pending references a sweep would decide and
-    makes no model call. ``--apply`` runs the sweep.
+    makes no model call. ``--apply`` runs the sweep. With ``--tenant`` (or
+    PAPYRUS_TENANT_ID) the Sections are that tenant's NewsroomSection rows and
+    the cyclotron, its stores, Assignment and decisions are the tenant's own.
     """
     import os
     import socket
@@ -492,20 +494,28 @@ def references_decide_site_sections(flags: list[str]) -> None:
     from .newsroom_doctrine import load_publication_doctrine_seed
     from .newsroom_sections import load_newsroom_section_seeds
     from .options import parse_options
+    from .site_cyclotron import newsroom_sections_of_tenant, tenant_site_cyclotron_steering
     from .steering import require_steering_config
+    from .tenancy import tenant_id_from_options
 
     options = parse_options(flags)
+    tenant_id = tenant_id_from_options(options)
     config_path = options.get("config") if isinstance(options.get("config"), str) else None
     steering_config = require_steering_config(config_path)
     if not steering_config.get("siteCyclotron"):
         raise ValueError("This publication's steering config has no siteCyclotron block; see docs/cyclotron-priming.md.")
+    steering_config = tenant_site_cyclotron_steering(steering_config, tenant_id)
     doctrine = load_publication_doctrine_seed(options.get("doctrine"))["doctrine"]
-    sections_file = options.get("sections-file") if isinstance(options.get("sections-file"), str) \
-        else default_sections_path(config_path)
-    sections = load_newsroom_section_seeds(sections_file)
+    if tenant_id:
+        client, _ = create_authoring_client(tenant_id)
+        sections = newsroom_sections_of_tenant(client, tenant_id)
+    else:
+        sections_file = options.get("sections-file") if isinstance(options.get("sections-file"), str) \
+            else default_sections_path(config_path)
+        sections = load_newsroom_section_seeds(sections_file)
+        client, _ = create_authoring_client()
     max_count = int(options["max-count"]) if options.get("max-count") not in (None, True) else None
     worker = options.get("worker") if isinstance(options.get("worker"), str) else f"{socket.gethostname()}:{os.getpid()}"
-    client, _ = create_authoring_client()
     try:
         result = run_decide_site_sections(client, steering_config, doctrine, sections, apply=bool(options.get("apply")),
                                           worker=worker, max_count=max_count)

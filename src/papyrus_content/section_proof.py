@@ -300,7 +300,7 @@ def _now() -> str:
 
 def references_prove_site_sections(flags: list[str]) -> None:
     """papyrus references prove-site-sections --proof-id <id> [--output <report.json>] [--folds 5] [--apply]
-    [--config <steering.yml>] [--sections-file <newsroom-sections.yml>]
+    [--config <steering.yml>] [--sections-file <newsroom-sections.yml>] [--tenant <id>]
 
     Dry run by default: reads the human-placed References, prints the label
     counts and which classifiers are provable, and makes no model call.
@@ -312,9 +312,12 @@ def references_prove_site_sections(flags: list[str]) -> None:
     from .options import parse_options
     from .relevance_cyclotron import decision_model_from_environment, decision_model_identity
     from .site_sweep import default_sections_path
+    from .site_cyclotron import newsroom_sections_of_tenant, tenant_site_cyclotron_steering
     from .steering import require_steering_config
+    from .tenancy import tenant_id_from_options
 
     options = parse_options(flags)
+    tenant_id = tenant_id_from_options(options)
     apply = bool(options.get("apply"))
     if not isinstance(options.get("proof-id"), str) or (apply and not isinstance(options.get("output"), str)):
         raise ValueError("references prove-site-sections requires --proof-id <id>, and --output <report.json> with --apply.")
@@ -322,12 +325,17 @@ def references_prove_site_sections(flags: list[str]) -> None:
     steering_config = require_steering_config(config_path)
     if not steering_config.get("siteCyclotron"):
         raise ValueError("This publication's steering config has no siteCyclotron block; see docs/cyclotron-priming.md.")
-    sections_file = options.get("sections-file") if isinstance(options.get("sections-file"), str) \
-        else default_sections_path(config_path)
-    sections = load_newsroom_section_seeds(sections_file)
+    steering_config = tenant_site_cyclotron_steering(steering_config, tenant_id)
+    if tenant_id:
+        client, _ = create_authoring_client(tenant_id)
+        sections = newsroom_sections_of_tenant(client, tenant_id)
+    else:
+        sections_file = options.get("sections-file") if isinstance(options.get("sections-file"), str) \
+            else default_sections_path(config_path)
+        sections = load_newsroom_section_seeds(sections_file)
+        client, _ = create_authoring_client()
     fold_count = int(options["folds"]) if isinstance(options.get("folds"), str) else DEFAULT_FOLD_COUNT
     plan = build_site_cyclotron(steering_config, sections)
-    client, _ = create_authoring_client()
     placed_references = collect_human_placed_references(
         client, steering_config, [str(section["id"]) for section in enabled_sections_in_order(sections)])
 

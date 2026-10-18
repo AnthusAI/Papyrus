@@ -15,6 +15,7 @@ from .markus_import import (
     run_import,
 )
 from .rebuild_trigger import reader_target_from_environment, trigger_rebuild
+from .tenancy import tenant_id_from_options
 from .options import normalize_string, parse_comma_list, parse_options, resolve_mutation_apply
 
 
@@ -43,6 +44,7 @@ def import_options_from_flags(options: dict[str, Any]) -> ImportOptions:
         publish=not options.get("no-publish"),
         force=bool(options.get("force")),
         image_source_dir=Path(image_source_dir) if image_source_dir else None,
+        tenant_id=tenant_id_from_options(options),
     )
 
 
@@ -50,7 +52,7 @@ def content_import_markus(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "content import-markus")
     import_options = import_options_from_flags(options)
-    client, _claims = create_authoring_client()
+    client, _claims = create_authoring_client(import_options.tenant_id)
     bucket = configured_media_bucket(normalize_string(options.get("bucket")))
     if bucket:
         store = S3MediaStore(bucket)

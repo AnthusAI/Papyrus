@@ -15,6 +15,7 @@ from typing import Any, Iterable
 
 TENANT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_TENANT_ID"
 TENANT_KEY_SEPARATOR = "#"
+TENANT_ITEM_ID_SEPARATOR = "."
 TENANT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 TENANT_MEDIA_PREFIX_TEMPLATE = "media/{tenant_id}/"
 
@@ -25,6 +26,8 @@ TENANT_SCOPED_INDEX_FIELDS = ("typeStatus", "sectionStatus")
 TENANT_SLUG_FIELD = "tenantSlug"
 TENANT_SLUG_MODELS = frozenset({"Item", "PublishedItem"})
 TENANT_MEDIA_PATH_MODELS = frozenset({"MediaAsset", "PublishedMediaAsset"})
+TENANT_SCOPED_RECORD_ID_MODELS = frozenset({"NewsroomSection"})
+STORED_RECORD_ID_FIELD = "storedId"
 TENANT_INDEX_REDIRECTS = {"itemBySlug": "itemByTenantSlug"}
 
 
@@ -52,6 +55,39 @@ def tenant_scoped_value(tenant_id: str | None, value: str) -> str:
     return value if value.startswith(prefix) else f"{prefix}{value}"
 
 
+def tenant_scoped_record_id(model_name: str, tenant_id: str | None, record_id: str) -> str:
+    if not tenant_id or model_name not in TENANT_SCOPED_RECORD_ID_MODELS:
+        return record_id
+    return tenant_scoped_value(tenant_id, record_id)
+
+
+def tenant_bare_record_id(tenant_id: str | None, record_id: str) -> str:
+    prefix = f"{tenant_id}{TENANT_KEY_SEPARATOR}" if tenant_id else ""
+    return record_id[len(prefix):] if prefix and record_id.startswith(prefix) else record_id
+
+
+def tenant_row_with_bare_record_id(model_name: str, tenant_id: str | None, row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not tenant_id or model_name not in TENANT_SCOPED_RECORD_ID_MODELS or not row or not isinstance(row.get("id"), str):
+        return row
+    bare = dict(row)
+    bare[STORED_RECORD_ID_FIELD] = row["id"]
+    bare["id"] = tenant_bare_record_id(tenant_id, row["id"])
+    return bare
+
+
+def tenant_scoped_item_id(tenant_id: str | None, item_id: str) -> str:
+    if not tenant_id:
+        return item_id
+    prefix = f"{tenant_id}{TENANT_ITEM_ID_SEPARATOR}"
+    return item_id if item_id.startswith(prefix) else f"{prefix}{item_id}"
+
+
+def tenant_id_from_options(options: dict[str, Any]) -> str | None:
+    raw_value = options.get("tenant")
+    explicit = raw_value.strip() if isinstance(raw_value, str) else ""
+    return validate_tenant_id(explicit) if explicit else tenant_id_from_environment()
+
+
 def tenant_media_prefix(tenant_id: str) -> str:
     return TENANT_MEDIA_PREFIX_TEMPLATE.format(tenant_id=tenant_id)
 
@@ -70,6 +106,9 @@ def tenant_stamped_payload(model_name: str, tenant_id: str | None, payload: dict
         return payload
     stamped = dict(payload)
     stamped["tenantId"] = tenant_id
+    stamped.pop(STORED_RECORD_ID_FIELD, None)
+    if isinstance(stamped.get("id"), str):
+        stamped["id"] = tenant_scoped_record_id(model_name, tenant_id, stamped["id"])
     for field_name in TENANT_SCOPED_INDEX_FIELDS:
         if isinstance(stamped.get(field_name), str):
             stamped[field_name] = tenant_scoped_value(tenant_id, stamped[field_name])
