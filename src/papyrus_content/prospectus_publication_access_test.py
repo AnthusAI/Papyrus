@@ -156,3 +156,45 @@ def test_prospectus_publication_host_serves_each_role_over_http(tmp_path):
                     await client.command('threat-intelligence', 'status', {})
                 assert removed.value.status == 403
     asyncio.run(scenario())
+
+
+def test_central_lab_access_serves_roles_through_the_publication_contract(tmp_path):
+    import httpx
+    from decision_flywheel.publication_lab import PublicationAccess, PublicationActor, create_publication_host
+    from papyrus_content.prospectus_publication_access import ProspectusCentralPublicationAccess
+
+    async def scenario():
+        with Cyclotron.open(tmp_path / 'engine', DEFINITION, OfflineModel()) as engine:
+            central_lab = PublicationLab(engine, account_id='account-a', bindings=BINDINGS)
+            central_calls = []
+
+            def central_trusts_the_site(_connection, publication, capability):
+                central_calls.append((publication, capability))
+                actor = PublicationActor('account-a', 'person-a', frozenset((publication, action) for action in ('read', 'review', 'decide', 'steer')))
+                return PublicationAccess(central_lab, actor)
+
+            central_host = create_publication_host(central_trusts_the_site, require_execution_guard=False)
+            signed_in_role = {'role': 'member'}
+
+            def authorize_account_operation(_connection, operation):
+                return ProspectusAccountAuthorization('account-a', 'person-a', signed_in_role['role'], operation)
+
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=central_host), base_url='http://central.test') as central_http:
+                access = ProspectusCentralPublicationAccess(
+                    authorize_account_operation=authorize_account_operation,
+                    central_http_client_for=lambda _account: central_http,
+                    publication_ids_for=lambda _account: tuple(central_lab.bindings),
+                )
+                member_client = await access(None, 'threat-intelligence', 'decide')
+                decided = await member_client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+                assert decided['accountId'] == 'account-a'
+                signed_in_role['role'] = 'viewer'
+                await access(None, 'threat-intelligence', 'read')
+                calls_before_refusal = len(central_calls)
+                with pytest.raises(PublicationError) as refused:
+                    await access(None, 'threat-intelligence', 'decide')
+                assert refused.value.status == 403
+                assert len(central_calls) == calls_before_refusal, 'a refused person never reaches the central lab'
+                with pytest.raises(PublicationError):
+                    await access(None, 'not-bound-here', 'read')
+    asyncio.run(scenario())
