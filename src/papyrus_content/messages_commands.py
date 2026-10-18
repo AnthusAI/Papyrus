@@ -6,10 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from .assignments_workflow import load_message_metadata_payload, research_packet_body
-from .insight_forum import (
-    derive_insight_forum_title,
-    insight_summary_needs_title_repair,
-)
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .ids import hash_short
 from .message_contract import build_canonical_message_expected
@@ -179,118 +175,131 @@ def semantic_state_key(kind: str, lineage_id: str) -> str:
     return f"{kind}#{lineage_id}#current"
 
 
-def messages_repair_insight_titles(flags: list[str]) -> None:
+LEGACY_MESSAGE_KIND = "insight"
+MIGRATED_MESSAGE_KIND = "note"
+LEGACY_RELATION_PREDICATE = "insight_about"
+MIGRATED_RELATION_PREDICATE = "note_about"
+LEGACY_TO_MIGRATED_METADATA_KINDS = {
+    "reference.insight.created": "reference.note.created",
+    "reference.insight": "reference.note",
+    "research.tavily.insight": "research.tavily.note",
+}
+
+
+def messages_migrate_insights_to_notes(flags: list[str]) -> None:
     options = parse_options(flags)
-    apply = resolve_mutation_apply(options, "messages repair-insight-titles")
-    message_id = normalize_string(options.get("message-id"))
-    assignment_id = normalize_string(options.get("assignment-id"))
-    tavily_only = parse_boolean_option(options.get("tavily-only"), True, "--tavily-only")
-    max_scan_option = normalize_non_negative_integer(options.get("max-scan"), "--max-scan")
-    max_scan = max_scan_option if max_scan_option is not None else (None if apply else 500)
+    apply = resolve_mutation_apply(options, "messages migrate-insights-to-notes")
     client, _ = create_authoring_client()
 
-    candidates = _insight_messages_for_backfill(
-        client,
-        message_id=message_id,
-        assignment_id=assignment_id,
-        tavily_only=tavily_only,
-        max_scan=max_scan,
-    )
-    planned: list[dict[str, Any]] = []
-    for message in candidates:
-        body_text = _resolve_insight_body_text(client, message)
-        metadata = message.get("_metadata")
-        if not isinstance(metadata, dict):
-            metadata = load_message_metadata_payload(client, message)
-        current_summary = str(message.get("summary") or "").strip()
-        assignment_title = ""
-        assignment_record_id = normalize_string(metadata.get("assignmentId"))
-        if assignment_record_id:
-            assignment = client.get_record("Assignment", assignment_record_id)
-            if assignment:
-                assignment_title = str(assignment.get("title") or "")
-        next_title = derive_insight_forum_title(
-            report_markdown=body_text,
-            assignment_title=assignment_title,
-            research_question="",
-            structured_summary=normalize_string(metadata.get("insightTitle")) or "",
-        )
-        if (
-            next_title == current_summary
-            and not insight_summary_needs_title_repair(current_summary, body_text)
-        ):
-            planned.append({"messageId": message["id"], "action": "noop", "reason": "title-ok"})
-            continue
-        planned.append(
-            {
-                "messageId": message["id"],
-                "action": "update-title",
-                "previousTitle": current_summary[:80],
-                "nextTitle": next_title,
-            }
-        )
+    message_updates, messages_scanned = plan_legacy_message_updates(client)
+    relation_migrations, relations_scanned = plan_legacy_relation_migrations(client)
+
+    counts = {
+        "messagesScanned": messages_scanned,
+        "messageKindsRewritten": sum(1 for update in message_updates if "messageKind" in update),
+        "messageMetadataKindsRewritten": sum(1 for update in message_updates if "metadata" in update),
+        "relationsScanned": relations_scanned,
+        "relationsCreated": sum(1 for migration in relation_migrations if migration["create"] is not None),
+        "relationsDeleted": len(relation_migrations),
+    }
+
+    if apply:
+        for update in message_updates:
+            client.update_record("Message", update)
+        for migration in relation_migrations:
+            if migration["create"] is not None:
+                client.create_record("SemanticRelation", migration["create"])
+            client.delete_record("SemanticRelation", migration["deleteId"])
 
     if options.get("json"):
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "command": "messages repair-insight-titles",
-                    "apply": apply,
-                    "scanned": len(candidates),
-                    "planned": planned,
-                },
-                indent=2,
-            )
-        )
-    else:
-        for row in planned:
-            print(
-                "messages\trepair-insight-titles\t"
-                f"{row['messageId']}\t{row['action']}\t{row.get('reason') or row.get('nextTitle')}"
-            )
-
-    if not apply:
+        print(json.dumps({"ok": True, "command": "messages migrate-insights-to-notes", "apply": apply, **counts}, indent=2))
         return
+    mode = "applied" if apply else "dry-run"
+    for name, value in counts.items():
+        print(f"messages\tmigrate-insights-to-notes\t{mode}\t{name}\t{value}")
 
-    updated = 0
-    for message in candidates:
-        message_id_value = str(message["id"])
-        row = next((entry for entry in planned if entry["messageId"] == message_id_value), None)
-        if not row or row["action"] != "update-title":
+
+def plan_legacy_message_updates(client: PapyrusGraphQLAuthoringClient) -> tuple[list[dict[str, Any]], int]:
+    updates: list[dict[str, Any]] = []
+    scanned = 0
+    next_token: str | None = None
+    while True:
+        rows, next_token = client.list_messages_safe(limit=100, next_token=next_token)
+        for row in rows:
+            if str(row.get("messageKind") or "") not in {LEGACY_MESSAGE_KIND, MIGRATED_MESSAGE_KIND}:
+                continue
+            scanned += 1
+            message = client.get_record("Message", str(row["id"]))
+            if not message:
+                continue
+            update = legacy_message_update(message)
+            if update:
+                updates.append(update)
+        if not next_token:
+            break
+    return updates, scanned
+
+
+def legacy_message_update(message: dict[str, Any]) -> dict[str, Any] | None:
+    update: dict[str, Any] = {"id": message["id"]}
+    if str(message.get("messageKind") or "") == LEGACY_MESSAGE_KIND:
+        update["messageKind"] = MIGRATED_MESSAGE_KIND
+    raw_metadata = message.get("metadata")
+    metadata = parse_jsonish(raw_metadata)
+    if isinstance(metadata, dict):
+        migrated_kind = LEGACY_TO_MIGRATED_METADATA_KINDS.get(str(metadata.get("kind") or ""))
+        if migrated_kind:
+            update["metadata"] = json.dumps({**metadata, "kind": migrated_kind})
+    if len(update) == 1:
+        return None
+    update["updatedAt"] = message.get("updatedAt") or message.get("createdAt") or _utc_now()
+    return update
+
+
+def plan_legacy_relation_migrations(client: PapyrusGraphQLAuthoringClient) -> tuple[list[dict[str, Any]], int]:
+    relations = client.list_records("SemanticRelation")
+    existing_ids = {str(relation.get("id")) for relation in relations}
+    migrations: list[dict[str, Any]] = []
+    for relation in relations:
+        if str(relation.get("predicate") or "") != LEGACY_RELATION_PREDICATE:
             continue
-        body_text = _resolve_insight_body_text(client, message)
-        metadata = load_message_metadata_payload(client, message)
-        assignment_title = ""
-        assignment_record_id = normalize_string(metadata.get("assignmentId"))
-        if assignment_record_id:
-            assignment = client.get_record("Assignment", assignment_record_id)
-            if assignment:
-                assignment_title = str(assignment.get("title") or "")
-        next_title = derive_insight_forum_title(
-            report_markdown=body_text,
-            assignment_title=assignment_title,
-            research_question="",
-            structured_summary=normalize_string(metadata.get("insightTitle")) or "",
-        )
-        now = message.get("updatedAt") or message.get("createdAt") or _utc_now()
-        client.update_record(
-            "Message",
-            {
-                "id": message_id_value,
-                "summary": next_title[:500],
-                "updatedAt": now,
-            },
-        )
-        updated += 1
-
-    if not options.get("json"):
-        print(f"messages\trepair-insight-titles\tupdated\t{updated}")
+        migrated = migrated_relation_record(relation)
+        already_exists = migrated["id"] in existing_ids
+        migrations.append({"deleteId": relation["id"], "create": None if already_exists else migrated})
+        existing_ids.add(migrated["id"])
+    return migrations, len(relations)
 
 
-def messages_backfill_insight_message_body(flags: list[str]) -> None:
+def migrated_relation_record(relation: dict[str, Any]) -> dict[str, Any]:
+    object_state_key = str(relation.get("objectStateKey") or "")
+    migrated = {key: value for key, value in relation.items() if value is not None}
+    migrated.update(
+        {
+            "id": "semantic-relation-"
+            + hash_short(
+                [
+                    relation.get("subjectVersionKey"),
+                    MIGRATED_RELATION_PREDICATE,
+                    relation.get("objectVersionKey"),
+                ]
+            ),
+            "predicate": MIGRATED_RELATION_PREDICATE,
+            "relationTypeKey": MIGRATED_RELATION_PREDICATE,
+            "relationTypeId": "semantic-relation-type-note-about",
+            "predicateObjectStateKey": f"{MIGRATED_RELATION_PREDICATE}#{object_state_key}",
+        }
+    )
+    metadata = parse_jsonish(relation.get("metadata"))
+    if isinstance(metadata, dict):
+        migrated_kind = LEGACY_TO_MIGRATED_METADATA_KINDS.get(str(metadata.get("kind") or ""))
+        if migrated_kind:
+            migrated["metadata"] = json.dumps({**metadata, "kind": migrated_kind})
+    return migrated
+
+
+def messages_backfill_note_message_body(flags: list[str]) -> None:
     options = parse_options(flags)
-    apply = resolve_mutation_apply(options, "messages backfill-insight-message-body")
+    apply = resolve_mutation_apply(options, "messages backfill-note-message-body")
     message_id = normalize_string(options.get("message-id"))
     assignment_id = normalize_string(options.get("assignment-id"))
     tavily_only = parse_boolean_option(options.get("tavily-only"), True, "--tavily-only")
@@ -298,7 +307,7 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
     max_scan = max_scan_option if max_scan_option is not None else (None if apply else 500)
     client, _ = create_authoring_client()
 
-    candidates = _insight_messages_for_backfill(
+    candidates = _note_messages_for_backfill(
         client,
         message_id=message_id,
         assignment_id=assignment_id,
@@ -307,7 +316,7 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
     )
     planned: list[dict[str, Any]] = []
     for message in candidates:
-        body_text = _resolve_insight_body_text(client, message)
+        body_text = _resolve_note_body_text(client, message)
         if not body_text.strip():
             planned.append({"messageId": message["id"], "action": "skip", "reason": "no-body-source"})
             continue
@@ -328,7 +337,7 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
             json.dumps(
                 {
                     "ok": True,
-                    "command": "messages backfill-insight-message-body",
+                    "command": "messages backfill-note-message-body",
                     "apply": apply,
                     "scanned": len(candidates),
                     "planned": planned,
@@ -339,7 +348,7 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
     else:
         for row in planned:
             print(
-                "messages\tbackfill-insight-message-body\t"
+                "messages\tbackfill-note-message-body\t"
                 f"{row['messageId']}\t{row['action']}\t{row.get('reason') or row.get('byteSize')}"
             )
 
@@ -351,7 +360,7 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
         message_id_value = str(message["id"])
         if any(row["messageId"] == message_id_value and row["action"] != "create-message_body" for row in planned):
             continue
-        body_text = _resolve_insight_body_text(client, message)
+        body_text = _resolve_note_body_text(client, message)
         now = message.get("updatedAt") or message.get("createdAt") or _utc_now()
         attachment_entry = _message_body_attachment_for_expected(
             {"id": message_id_value, "content": body_text, "importRunId": message.get("importRunId")},
@@ -362,12 +371,12 @@ def messages_backfill_insight_message_body(flags: list[str]) -> None:
         changes = build_record_changes(client, [attachment_entry])
         apply_record_changes(client, changes)
         created += 1
-        thread_updates = _insight_thread_id_updates(message)
+        thread_updates = _note_thread_id_updates(message)
         if thread_updates:
             client.update_record("Message", thread_updates)
 
     if not options.get("json"):
-        print(f"messages\tbackfill-insight-message-body\tcreated\t{created}")
+        print(f"messages\tbackfill-note-message-body\tcreated\t{created}")
 
 
 def messages_backfill_message_body(flags: list[str]) -> None:
@@ -510,7 +519,7 @@ def messages_scrub_inline_content(flags: list[str]) -> None:
         print(f"messages\tscrub-inline-content\tupdated\t{len(updates)}")
 
 
-def _insight_messages_for_backfill(
+def _note_messages_for_backfill(
     client: PapyrusGraphQLAuthoringClient,
     *,
     message_id: str | None,
@@ -520,8 +529,8 @@ def _insight_messages_for_backfill(
 ) -> list[dict[str, Any]]:
     if message_id:
         message = client.get_record("Message", message_id)
-        if not message or str(message.get("messageKind") or "") != "insight":
-            raise ValueError(f"Insight message not found: {message_id}")
+        if not message or str(message.get("messageKind") or "") != "note":
+            raise ValueError(f"Note message not found: {message_id}")
         return [message]
 
     scanned = 0
@@ -535,12 +544,12 @@ def _insight_messages_for_backfill(
             truncated = True
         scanned += len(rows)
         for row in rows:
-            if str(row.get("messageKind") or "") != "insight":
+            if str(row.get("messageKind") or "") != "note":
                 continue
             metadata = load_message_metadata_payload(client, row)
             if assignment_id and normalize_string(metadata.get("assignmentId")) != assignment_id:
                 continue
-            if tavily_only and normalize_string(metadata.get("kind")) != "research.tavily.insight":
+            if tavily_only and normalize_string(metadata.get("kind")) != "research.tavily.note":
                 continue
             candidates.append({**row, "_metadata": metadata})
         if truncated or not next_token:
@@ -576,7 +585,7 @@ def _read_message_body_attachment_text(client: PapyrusGraphQLAuthoringClient, me
     return ""
 
 
-def _resolve_insight_body_text(client: PapyrusGraphQLAuthoringClient, message: dict[str, Any]) -> str:
+def _resolve_note_body_text(client: PapyrusGraphQLAuthoringClient, message: dict[str, Any]) -> str:
     message_id = str(message["id"])
     attachment_text = _read_message_body_attachment_text(client, message_id)
     if attachment_text:
@@ -605,7 +614,7 @@ def _resolve_insight_body_text(client: PapyrusGraphQLAuthoringClient, message: d
     return ""
 
 
-def _insight_thread_id_updates(message: dict[str, Any]) -> dict[str, Any] | None:
+def _note_thread_id_updates(message: dict[str, Any]) -> dict[str, Any] | None:
     message_id = str(message["id"])
     thread_id = normalize_string(message.get("threadId"))
     sequence_number = message.get("sequenceNumber")
