@@ -34,6 +34,7 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
+from .story_commands import stories_link_reference, stories_note, stories_save_version, stories_show, stories_versions
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
@@ -104,10 +105,10 @@ from .item_content_commands import (
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
 from .messages_commands import (
     messages_backfill_message_body,
-    messages_backfill_insight_message_body,
+    messages_backfill_note_message_body,
     messages_export_legacy_comments,
     messages_import_legacy_comments,
-    messages_repair_insight_titles,
+    messages_migrate_insights_to_notes,
     messages_scrub_inline_content,
 )
 from .model_defaults import (
@@ -293,6 +294,11 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "stories:save-version",
+        "stories:versions",
+        "stories:link-reference",
+        "stories:note",
+        "stories:show",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -349,8 +355,8 @@ PORTED_COMMANDS = frozenset(
         "messages:export-legacy-comments",
         "messages:import-legacy-comments",
         "messages:backfill-message-body",
-        "messages:backfill-insight-message-body",
-        "messages:repair-insight-titles",
+        "messages:backfill-note-message-body",
+        "messages:migrate-insights-to-notes",
         "messages:scrub-inline-content",
         "categories:import-steering",
         "categories:import-config",
@@ -587,6 +593,16 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "stories:save-version":
+        stories_save_version(flags)
+    elif route == "stories:versions":
+        stories_versions(flags)
+    elif route == "stories:link-reference":
+        stories_link_reference(flags)
+    elif route == "stories:note":
+        stories_note(flags)
+    elif route == "stories:show":
+        stories_show(flags)
     elif route == "assignments:backfill-content-items":
         assignments_backfill_content_items(flags)
     elif route == "assignments:demote-undrafted-content-items":
@@ -712,10 +728,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         messages_import_legacy_comments(flags)
     elif route == "messages:backfill-message-body":
         messages_backfill_message_body(flags)
-    elif route == "messages:backfill-insight-message-body":
-        messages_backfill_insight_message_body(flags)
-    elif route == "messages:repair-insight-titles":
-        messages_repair_insight_titles(flags)
+    elif route == "messages:backfill-note-message-body":
+        messages_backfill_note_message_body(flags)
+    elif route == "messages:migrate-insights-to-notes":
+        messages_migrate_insights_to_notes(flags)
     elif route == "messages:scrub-inline-content":
         messages_scrub_inline_content(flags)
     elif route == "categories:import-steering":
@@ -1506,7 +1522,7 @@ def print_usage() -> None:
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")
-    print("  messages export/import-legacy-comments,")
+    print("  messages export/import-legacy-comments/migrate-insights-to-notes [--dry-run],")
     print("  categories import/export/draft/review/curation-cycle/rebuild-roots commands,")
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")

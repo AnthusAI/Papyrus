@@ -86,7 +86,6 @@ function parseRouteSelection(tab: NewsDeskTab, selectionPath: string[] | null | 
     if (segments[0] === "forum" && segments[1]) return { forumThread: segments[1] };
     return { message: segments[0] ?? null };
   }
-  if (tab === "insights") return { forumThread: segments[0] ?? null };
   if (tab === "assignments") return { assignment: segments[0] ?? null };
   if (tab === "overview" && segments[0] === "forum" && segments[1]) return { forumThread: segments[1] };
   return {};

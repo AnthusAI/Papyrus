@@ -59,6 +59,7 @@ export type NewsroomArticleEditorState = {
 
 export type EditableArticle = {
   id: string;
+  lineageId?: string | null;
   type: string;
   section: string | null;
   slug: string;
@@ -267,6 +268,7 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
   const status: ArticleStatus = record.status === "published" ? "published" : "draft";
   return {
     id: String(record.id),
+    lineageId: typeof record.lineageId === "string" ? record.lineageId : null,
     type: String(record.type),
     section: typeof record.section === "string" ? record.section : null,
     slug: String(record.slug),

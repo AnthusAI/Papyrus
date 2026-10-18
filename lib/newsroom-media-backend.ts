@@ -1,6 +1,8 @@
 import { generateClient } from "aws-amplify/data";
 import { getUrl, uploadData } from "aws-amplify/storage";
 import type { Schema } from "../amplify/data/resource";
+import { isLocalPreviewEnabled } from "./local-preview";
+import { createLocalPreviewMediaAssets } from "./local-preview-seed";
 import type { MediaAssetFields, MediaAssetRecord, NewsroomMediaBackend } from "./newsroom-media";
 
 type MediaListPage = {
@@ -113,6 +115,8 @@ export function createDemoMediaBackend(): NewsroomMediaBackend {
       rows.set(fields.itemId, [...(rows.get(fields.itemId) ?? []), fields]);
     },
     async listMediaAssets(itemId) {
+      const previewRows = createLocalPreviewMediaAssets(itemId);
+      if (previewRows.length) return previewRows;
       return (rows.get(itemId) ?? []).map((fields) => ({
         id: fields.id,
         sortKey: fields.sortKey,
@@ -122,6 +126,7 @@ export function createDemoMediaBackend(): NewsroomMediaBackend {
       }));
     },
     async imageUrl(storagePath) {
+      if (isLocalPreviewEnabled() && storagePath.startsWith("media/")) return `/api/local-preview/media?key=${encodeURIComponent(storagePath)}`;
       const object = objects.get(storagePath);
       if (!object) throw new Error(`No demo object at ${storagePath}.`);
       return URL.createObjectURL(object);

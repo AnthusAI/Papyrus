@@ -39,7 +39,7 @@ def step_run_live_console_agent_smoke_scenario(context, scenario: str) -> None:
         "review-reference-curation-reject",
         "review-reference-curation-archive",
         "review-reference-curation-reopen",
-        "insight-reference",
+        "note-reference",
         "curate-reference-refresh",
     }
     attempts = 3 if scenario in retryable_scenarios else 1

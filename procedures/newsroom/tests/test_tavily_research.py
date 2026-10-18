@@ -6,10 +6,9 @@ from unittest import mock
 from papyrus_newsroom import tavily_research
 from papyrus_content.catalog import message_record
 from papyrus_content.model_attachments import expand_private_payload_records
-from papyrus_content.insight_forum import (
-    INSIGHT_FORUM_TITLE_MAX_LEN,
-    derive_insight_forum_title,
-    insight_summary_needs_title_repair,
+from papyrus_content.note_forum import (
+    NOTE_FORUM_TITLE_MAX_LEN,
+    derive_note_forum_title,
 )
 from papyrus_content.tavily_deep_research import (
     TAVILY_DEEP_ASSIGNMENT_TYPE,
@@ -112,7 +111,7 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
         self.assertIn("Fallback report", packet["_report_markdown"])
 
     def test_forum_title_ignores_h2_sources_heading(self):
-        title = derive_insight_forum_title(
+        title = derive_note_forum_title(
             report_markdown="## Sources\n\nBody text.",
             assignment_title="Tavily body fix smoke test",
         )
@@ -123,31 +122,30 @@ class TavilyDeepResearchWorkflowTests(unittest.TestCase):
             "Retrieval-augmented generation (RAG) couples an external information retriever "
             "with a language-model generator by processing a user query."
         )
-        title = derive_insight_forum_title(
+        title = derive_note_forum_title(
             report_markdown=long_report,
             assignment_title="Tavily body fix smoke test",
             research_question="What is retrieval-augmented generation?",
         )
         self.assertEqual(title, "Tavily body fix smoke test")
-        self.assertLessEqual(len(title), INSIGHT_FORUM_TITLE_MAX_LEN)
-        self.assertTrue(insight_summary_needs_title_repair(long_report[:120], long_report))
+        self.assertLessEqual(len(title), NOTE_FORUM_TITLE_MAX_LEN)
 
     def test_message_record_expands_message_body_from_content(self):
         now = "2026-05-31T12:00:00Z"
         record = message_record(
             {
-                "id": "message-insight-test",
-                "messageKind": "insight",
+                "id": "message-note-test",
+                "messageKind": "note",
                 "messageDomain": "assignment_work",
-                "summary": "Insight summary",
+                "summary": "Note summary",
                 "body": "# Tavily report\n\nFull body text.",
-                "threadId": "message-insight-test",
+                "threadId": "message-note-test",
                 "sequenceNumber": 1,
                 "createdAt": now,
                 "updatedAt": now,
             }
         )
-        self.assertEqual(record["expected"]["threadId"], "message-insight-test")
+        self.assertEqual(record["expected"]["threadId"], "message-note-test")
         self.assertEqual(record["expected"]["sequenceNumber"], 1)
         expanded = expand_private_payload_records([record])
         attachments = [row for row in expanded if row["modelName"] == "ModelAttachment"]

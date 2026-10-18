@@ -246,7 +246,7 @@ const schema = a.schema({
     relationId: a.id(),
   }),
 
-  ReferenceInsightActionResult: a.customType({
+  ReferenceNoteActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
     messageId: a.id().required(),
@@ -336,7 +336,7 @@ const schema = a.schema({
     ])
     .handler(a.handler.function(categoryAction)),
 
-  createReferenceInsight: a
+  createReferenceNote: a
     .mutation()
     .arguments({
       referenceId: a.id().required(),
@@ -345,7 +345,7 @@ const schema = a.schema({
       actorSub: a.string(),
       actorLabel: a.string(),
     })
-    .returns(a.ref("ReferenceInsightActionResult"))
+    .returns(a.ref("ReferenceNoteActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])

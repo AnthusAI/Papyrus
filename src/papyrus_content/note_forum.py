@@ -1,4 +1,4 @@
-"""Forum-style titles and ledes for insight Messages."""
+"""Forum-style titles and ledes for note Messages."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 from .options import normalize_string
 
-INSIGHT_FORUM_TITLE_MAX_LEN = 120
+NOTE_FORUM_TITLE_MAX_LEN = 120
 _GENERIC_HEADINGS = frozenset(
     {
         "sources",
@@ -22,7 +22,7 @@ _GENERIC_HEADINGS = frozenset(
 )
 
 
-def derive_insight_forum_title(
+def derive_note_forum_title(
     *,
     report_markdown: str = "",
     assignment_title: str = "",
@@ -30,35 +30,35 @@ def derive_insight_forum_title(
     structured_summary: str = "",
 ) -> str:
     structured = normalize_string(structured_summary) or ""
-    if structured and len(structured) <= INSIGHT_FORUM_TITLE_MAX_LEN:
+    if structured and len(structured) <= NOTE_FORUM_TITLE_MAX_LEN:
         return structured
 
     assignment = normalize_string(assignment_title) or ""
     if assignment:
-        return _truncate_insight_forum_title(assignment)
+        return _truncate_note_forum_title(assignment)
 
     heading = _first_markdown_h1(report_markdown)
     if heading and heading.lower() not in _GENERIC_HEADINGS:
-        return _truncate_insight_forum_title(heading)
+        return _truncate_note_forum_title(heading)
 
     question = normalize_string(research_question) or ""
     if question:
-        return _truncate_insight_forum_title(question)
+        return _truncate_note_forum_title(question)
 
     report = str(report_markdown or "").strip()
     if report:
         without_heading = _strip_leading_markdown_heading(report)
         sentence = _first_sentence(without_heading)
-        if sentence and len(sentence) <= INSIGHT_FORUM_TITLE_MAX_LEN:
+        if sentence and len(sentence) <= NOTE_FORUM_TITLE_MAX_LEN:
             return sentence
         lede = without_heading.split("\n\n", 1)[0].strip()
-        if lede and len(lede) <= INSIGHT_FORUM_TITLE_MAX_LEN:
+        if lede and len(lede) <= NOTE_FORUM_TITLE_MAX_LEN:
             return lede
 
-    return "Research insight"
+    return "Research note"
 
 
-def derive_insight_packet_lede(
+def derive_note_packet_lede(
     *,
     report_markdown: str = "",
     structured_summary: str = "",
@@ -72,18 +72,6 @@ def derive_insight_packet_lede(
     body = _strip_leading_markdown_heading(report)
     paragraph = body.split("\n\n", 1)[0].strip() or body
     return paragraph[:500] if len(paragraph) > 500 else paragraph
-
-
-def insight_summary_needs_title_repair(summary: str, body_text: str) -> bool:
-    title = normalize_string(summary) or ""
-    body = str(body_text or "").strip()
-    if not title:
-        return True
-    if len(title) > INSIGHT_FORUM_TITLE_MAX_LEN:
-        return True
-    if body and (body.startswith(title) or title.startswith(body[: min(len(body), 80)])):
-        return True
-    return False
 
 
 def _first_markdown_h1(markdown: str) -> str:
@@ -120,16 +108,16 @@ def _first_sentence(text: str) -> str:
         position = normalized.find(marker)
         if position > 0:
             candidate = normalized[: position + 1].strip()
-            if len(candidate) <= INSIGHT_FORUM_TITLE_MAX_LEN:
+            if len(candidate) <= NOTE_FORUM_TITLE_MAX_LEN:
                 return candidate
-    return normalized if len(normalized) <= INSIGHT_FORUM_TITLE_MAX_LEN else ""
+    return normalized if len(normalized) <= NOTE_FORUM_TITLE_MAX_LEN else ""
 
 
-def _truncate_insight_forum_title(value: str) -> str:
+def _truncate_note_forum_title(value: str) -> str:
     text = re.sub(r"\s+", " ", str(value or "").strip())
     if not text:
-        return "Research insight"
-    if len(text) <= INSIGHT_FORUM_TITLE_MAX_LEN:
+        return "Research note"
+    if len(text) <= NOTE_FORUM_TITLE_MAX_LEN:
         return text
-    shortened = text[: INSIGHT_FORUM_TITLE_MAX_LEN - 1].rsplit(" ", 1)[0].strip()
-    return shortened or text[:INSIGHT_FORUM_TITLE_MAX_LEN]
+    shortened = text[: NOTE_FORUM_TITLE_MAX_LEN - 1].rsplit(" ", 1)[0].strip()
+    return shortened or text[:NOTE_FORUM_TITLE_MAX_LEN]

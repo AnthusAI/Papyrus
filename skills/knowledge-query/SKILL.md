@@ -106,22 +106,22 @@ If vector search returns a summary `Message` instead of the summarized
 `reference_summary_<N>_tokens` relation. Treat the summary as Reference summary
 evidence, not as an orphan `Message` object and not as a chunk excerpt.
 
-Insight messages are first-class knowledge evidence when they follow this
+Note messages are first-class knowledge evidence when they follow this
 contract:
 
-- `Message.messageKind = "insight"`
+- `Message.messageKind = "note"`
 - `Message.messageDomain = "knowledge"`
 - body text stored as a `ModelAttachment` with role `message_body`
-- a current `SemanticRelation` with `relationTypeKey = "insight_about"`
+- a current `SemanticRelation` with `relationTypeKey = "note_about"`
 
-`insight_about` may point at a `reference`, `item`, `category`,
+`note_about` may point at a `reference`, `item`, `category`,
 `semanticNode`, `assignment`, or `newsroomSection`. General commentary
 messages linked by `comment`, `about`, or `ingestion_rationale` stay outside
 default knowledge context packs.
 
-Insight vector indexing embeds only the `message_body` attachment text.
+Note vector indexing embeds only the `message_body` attachment text.
 `Message.summary` is a UI/list label and may be carried as vector metadata, but
-it must not be used as embedding input or as fallback content. An insight
+it must not be used as embedding input or as fallback content. A note
 without an active, non-empty `message_body` attachment is incomplete for vector
 indexing and should be reported as missing body.
 

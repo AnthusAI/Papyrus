@@ -9,6 +9,7 @@ import {
   latestVersionPerContentItem,
   type ContentItemVersionRecord,
 } from "./content-item-lifecycle";
+import { contentItemExcerpt } from "./front-matter-fields";
 import { assignmentStatusLabel } from "./newsroom-assignments";
 import { getContentItemName, getContentItemStageDefinitions } from "./site-brand";
 
@@ -18,6 +19,8 @@ export interface NativeBoardIssue extends KanbanIssue {
   nativeId: string;
   nativeStatus: string;
   href: string;
+  /** A few lines to show under the headline: the blurb, else the subtitle. */
+  excerpt?: string;
 }
 
 export function contentItemBoardPathSegment(): string {
@@ -57,6 +60,7 @@ export function projectContentItemBoard(records: {
       title: version.headline || version.title || version.slug, nativeStatus: stage, status: `${contentItemType}/${stage}`,
       priority: 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
+      excerpt: contentItemExcerpt(version),
     };
   });
 }
