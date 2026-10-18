@@ -1,0 +1,25 @@
+{
+  "id": "PPY-7ebbdc38-8dec-46b8-b599-74a79f98dab3",
+  "title": "Repeat the proof on a second publication before any customer claim",
+  "description": "23 items on Threat Intelligence is small (one item moves agreement about 4 points). Repeat with more labels and on another publication.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T17:32:54.029779Z",
+  "updated_at": "2026-10-18T17:32:54.029829Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "Mac thread"
+  },
+  "right_now_summary": "The team is repeating the proof with more labels on a second publication before making customer claims.",
+  "right_now_updated_at": "2026-10-18T17:32:55.773061Z",
+  "custom": {}
+}

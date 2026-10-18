@@ -1,0 +1,25 @@
+{
+  "id": "PPY-95d88232-dd2a-4393-b527-dba1e04c935e",
+  "title": "Cap model cost per publication and add an off switch",
+  "description": "Per-publication call and token limit, a feature flag to disable the loop, and a budget alarm.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T17:32:39.591239Z",
+  "updated_at": "2026-10-18T17:32:39.591271Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "Mac thread"
+  },
+  "right_now_summary": "The team is adding per-publication limits, an off switch, and a budget alarm.",
+  "right_now_updated_at": "2026-10-18T17:32:41.240687Z",
+  "custom": {}
+}

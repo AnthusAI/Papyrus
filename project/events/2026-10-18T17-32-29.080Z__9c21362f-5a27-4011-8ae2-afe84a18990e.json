@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "9c21362f-5a27-4011-8ae2-afe84a18990e",
+  "issue_id": "PPY-38aee107-e988-42c8-b567-1dd542931575",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:32:29.080Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Record every human Reference accept or reject as a label, human decisions only",
+    "description": "Only explicit editor decisions (accept; reject with out_of_scope or policy_exclusion) become labels with editor and time. Agent-found, unreviewed and classifier-made decisions never become labels. A reversed decision retires its old label. See docs from design note self-training-cyclotron-design.md (reviewReferenceCuration mutation, reference_policy.py:71-80).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}

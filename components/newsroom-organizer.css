@@ -265,3 +265,12 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .news-desk-columns--taxonomy .category-steering-category-card button{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:4px 12px;border:2px solid var(--org-ink);border-radius:0;background:transparent;color:var(--org-ink);font:700 12px/1.2 Newsroom UI,system-ui,sans-serif;letter-spacing:.05em;text-transform:uppercase;cursor:pointer}
 .news-desk-columns--taxonomy .category-steering-category-card button:disabled{border-color:var(--org-line);opacity:.6;cursor:default}
 .news-desk-columns--taxonomy .news-desk-rail-column .category-steering-section__header{border-bottom:0;padding-bottom:4px}
+.organizer-account-chooser{padding:8px 12px;border-bottom:1px solid var(--org-line);display:grid;gap:6px}
+.organizer-account-chooser ul{list-style:none;margin:0;padding:0;display:grid}
+.organizer-account-chooser li button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;border-left:3px solid transparent;padding:6px 8px;font:inherit;color:var(--org-ink);cursor:pointer}
+.organizer-account-chooser li button[data-selected]{border-left-color:var(--org-ink);font-weight:700}
+.organizer-account-chooser li button:disabled{opacity:.6;cursor:default}
+.organizer-account-chooser li button span{display:grid;gap:1px}
+.organizer-account-chooser li button small,.organizer-account-chooser-note{font-size:12px;color:var(--org-ink);margin:0}
+.organizer-account-chooser-heading{margin:0;font:600 11px/1.4 Newsroom UI,system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase}
+.organizer-account-chooser-link{color:var(--org-ink);text-decoration:underline;text-underline-offset:3px}
