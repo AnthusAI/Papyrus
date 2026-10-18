@@ -16,6 +16,7 @@ class AutomaticAssignmentCleanupTests(unittest.TestCase):
             {"id": "a-curate", "assignmentTypeKey": "curation.reference-intake", "status": "open", "title": "Curate reference: X"},
             {"id": "a-accession", "assignmentTypeKey": "reference.corpus-accession", "status": "completed", "title": "Accession source: Y"},
             {"id": "a-backfill", "assignmentTypeKey": "reference.identifier-backfill", "status": "open", "title": "Identifier backfill for z"},
+            {"id": "a-reindex", "assignmentTypeKey": "analysis.reindex", "status": "open", "title": "Re-index X"},
             {"id": "a-real", "assignmentTypeKey": "newsroom.research", "status": "open", "title": "Investigate chips"},
         ]
         events = [
@@ -38,6 +39,7 @@ class AutomaticAssignmentCleanupTests(unittest.TestCase):
                 ("Assignment", "a-accession"),
                 ("Assignment", "a-backfill"),
                 ("Assignment", "a-curate"),
+                ("Assignment", "a-reindex"),
                 ("AssignmentEvent", "e-1"),
                 ("SemanticRelation", "r-1"),
             ],

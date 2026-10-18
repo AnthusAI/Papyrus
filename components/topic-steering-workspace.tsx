@@ -13297,7 +13297,7 @@ function buildUiAnalysisReindexAssignmentPlan({
     createdBy: actorLabel,
     createdAt: now,
     updatedAt: now,
-    newsroomFeedKey: "assignments",
+    newsroomFeedKey: "operations",
     metadata,
   };
   const event: AssignmentEventRecord = {
