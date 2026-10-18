@@ -166,9 +166,10 @@ class ProspectusSiteCredentialAuth(httpx.Auth):
 def central_lab_http_client_factory(*, endpoint, credential_for, transport=None):
     """central_http_client_for for ProspectusCentralPublicationAccess.
 
-    credential_for(account_id) returns the short-lived credential the account
-    service issued for the signed-in person and that account. It is read on every
-    call, never cached here, so a revoked membership stops working at once.
+    credential_for(account_id) returns the signed-in person's current Prospectus
+    session access token, which the lab re-verifies with Prospectus on every call.
+    It is read on every call, never cached here, so a revoked membership stops
+    working at once.
     """
     def client_for(account_id):
         return httpx.AsyncClient(
