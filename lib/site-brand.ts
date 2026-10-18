@@ -81,8 +81,15 @@ export type ContentItemName = {
 
 export const DEFAULT_CONTENT_ITEM_NAME: ContentItemName = { singular: "Story", plural: "Stories" };
 
+/** Browser-tab icon files under `public/`, as site-root paths. The dark variant defaults to the light one. */
+export type SiteBrandIcons = { light: string; dark?: string; appleTouch?: string };
+
+export const DEFAULT_SITE_BRAND_ICONS: Required<Pick<SiteBrandIcons, "light" | "dark">> & { fallback: string } = { light: "/icon-light.png", dark: "/icon-dark.png", fallback: "/icon.png" };
+
 export type SiteBrand = {
   id: SiteBrandId;
+  /** The browser-tab icon. Omit to use the Papyrus plant. */
+  icons?: SiteBrandIcons;
   appTitle: string;
   appDescription: string;
   mastheadTitle: string;

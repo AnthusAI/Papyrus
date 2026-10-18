@@ -19,6 +19,7 @@ import { AnthUsLogo } from "./logo";
 export const anthUsBrand: SiteBrand = {
   id: "anth-us",
   appTitle: "Anthus",
+  icons: { light: "/brand/anth-us/icon-32.png", appleTouch: "/brand/anth-us/icon-192.png" },
   appDescription:
     "Anthus builds and operates self-aligning AI systems — custom models, agent harnesses, and evaluation loops with a human in the loop, grounded in 14 years of production operations.",
   // The live header renders the bare word "Anthus" (Jersey 25, weight 900),
