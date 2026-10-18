@@ -137,6 +137,19 @@ def test_setting_a_reviewed_reference_back_to_pending_retires_the_label_the_cycl
     assert sweep(context, Model(), client, tmp_path).retired_labels == 0
 
 
+def test_withdrawing_a_review_of_an_undecided_reference_retracts_its_priming_example(tmp_path):
+    context = prepared_context(tmp_path)
+    reviewed = reference("reference-human", "A human accepted security paper", "pending")
+    client = SweepClient({"Reference": [reviewed]})
+    curate(client, reviewed, status="accepted", actor_kind="human", note="Core topic.")
+    primed = sweep(context, Model(), client, tmp_path)
+    assert primed.primed_from_human_reviews == 1
+    curate(client, reviewed, status="pending", actor_kind="human", at="2999-02-01T00:00:00Z")
+    withdrawn = sweep(context, Model(), client, tmp_path)
+    assert withdrawn.retired_labels == 1
+    assert sweep(context, Model(), client, tmp_path).retired_labels == 0
+
+
 def test_live_agreement_counts_only_human_reviews_that_came_after_the_suggestion(tmp_path):
     context = prepared_context(tmp_path)
     first, second = two_pending_references()
