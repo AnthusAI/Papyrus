@@ -20,6 +20,7 @@
 }
 .papyrus-newsprint-board .kb-grid { height: 100%; min-height: 0; scrollbar-width: thin; }
 .papyrus-newsprint-board .kb-column { border-left: 1px solid var(--org-line); padding-left: 10px; }
+.papyrus-newsprint-board .kb-column:first-child { border-left: 0; padding-left: 0; }
 .papyrus-newsprint-board .kb-column-header {
   border-bottom: 2px solid var(--org-ink);
   padding: 5px 0;
