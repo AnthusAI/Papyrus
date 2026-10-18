@@ -691,14 +691,9 @@ type NewsroomSemanticRelationPageOptions = NewsroomPageOptions & {
 
 export type ForumThreadWithMessages = MessageThreadRecord & {
   messages: MessageRecord[];
-  scope: "edition" | "section" | "insight";
+  scope: "edition" | "section";
   sectionKey?: string | null;
   sectionTitle?: string | null;
-};
-
-export type InsightForumThreadsPage = {
-  threads: ForumThreadWithMessages[];
-  nextToken: string | null;
 };
 
 export type EditionForumThreadsResult = {
@@ -1299,148 +1294,6 @@ export async function loadEditionForumThreads(options: {
   };
 }
 
-export async function loadInsightForumThreads(options: {
-  domain?: string;
-  limit?: number;
-  nextToken?: string | null;
-  includeMessages?: boolean;
-} = {}): Promise<InsightForumThreadsPage> {
-  const testMock = getTestEditorNewsroomMock();
-  if (testMock?.insightForumThreads) {
-    const domain = String(options.domain || "").trim();
-    let threads = testMock.insightForumThreads;
-    if (domain) threads = threads.filter((thread) => thread.sectionKey === domain);
-    return { threads, nextToken: null };
-  }
-
-  const limit = Math.max(1, Math.min(options.limit ?? NEWSROOM_PAGE_LIMIT, 100));
-  const domain = String(options.domain || "").trim();
-  const includeMessages = options.includeMessages !== false;
-  type KindConnectionResponse = {
-    listMessagesByKindAndCreatedAt?: {
-      items?: Array<MessageRecord | null> | null;
-      nextToken?: string | null;
-    } | null;
-  };
-  const response: KindConnectionResponse = await runGraphql<KindConnectionResponse>(
-    LIST_MESSAGES_BY_KIND_AND_CREATED_AT_QUERY,
-    {
-      messageKind: "insight",
-      sortDirection: "DESC",
-      limit,
-      nextToken: options.nextToken ?? null,
-    },
-  );
-  const connection = response.listMessagesByKindAndCreatedAt;
-  const roots = (connection?.items ?? [])
-    .filter(Boolean)
-    .map((item) => normalizeMessageRecord(item as MessageRecord))
-    .filter(isInsightThreadRootMessage)
-    .filter((message) => !domain || message.messageDomain === domain);
-
-  const threads = await Promise.all(roots.map(async (root) => {
-    const messages = includeMessages
-      ? await loadInsightThreadMessages(root.id, root)
-      : [root];
-    return buildInsightForumThread(root, messages);
-  }));
-
-  return {
-    threads,
-    nextToken: connection?.nextToken ?? null,
-  };
-}
-
-export async function loadInsightForumThreadById(
-  threadId: string,
-  options: { includeMessages?: boolean } = {},
-): Promise<ForumThreadWithMessages | null> {
-  const normalized = String(threadId || "").trim();
-  if (!normalized) return null;
-  const testMock = getTestEditorNewsroomMock();
-  if (testMock?.insightForumThreads) {
-    return testMock.insightForumThreads.find((thread) => thread.id === normalized) ?? null;
-  }
-  const root = await getMessageRecordById(normalized);
-  if (!root || !isInsightThreadRootMessage(root)) return null;
-  const includeMessages = options.includeMessages !== false;
-  const messages = includeMessages
-    ? await loadInsightThreadMessages(normalized, root)
-    : [root];
-  return buildInsightForumThread(root, messages);
-}
-
-export async function appendInsightThreadReplyRecord(input: {
-  threadId: string;
-  summary: string;
-  content: string;
-  role?: string;
-  authorLabel?: string;
-  parentMessageId?: string | null;
-  metadata?: Record<string, unknown>;
-}): Promise<MessageRecord> {
-  const threadId = String(input.threadId || "").trim();
-  const summary = String(input.summary || "").trim();
-  const content = String(input.content || "").trim();
-  if (!threadId) throw new Error("threadId is required");
-  if (!summary) throw new Error("summary is required");
-  if (!content) throw new Error("content is required");
-  const root = await getMessageRecordById(threadId);
-  if (!root || !isInsightThreadRootMessage(root)) throw new Error(`Insight thread not found: ${threadId}`);
-  const existing = await listMessagesByThreadId(threadId, 1000);
-  const nextSequence = Math.max(1, ...existing.map((message) => Number(message.sequenceNumber || 0))) + 1;
-  const now = new Date().toISOString();
-  const message: MessageRecord = {
-    id: `message-insight-reply-${safeForumId(threadId)}-${String(nextSequence).padStart(4, "0")}`,
-    messageKind: "insight_reply",
-    messageDomain: root.messageDomain ?? "knowledge",
-    status: "active",
-    summary,
-    source: "newsroom.insights",
-    authorLabel: input.authorLabel?.trim() || "editor",
-    threadId,
-    parentMessageId: input.parentMessageId?.trim() || null,
-    sequenceNumber: nextSequence,
-    role: input.role || "human",
-    messageType: "insight_forum_reply",
-    content,
-    metadata: input.metadata ?? {},
-    createdAt: now,
-    updatedAt: now,
-    newsroomFeedKey: "messages",
-  };
-  const created = await runGraphql<{ createMessage?: MessageRecord | null }>(
-    CREATE_MESSAGE_MUTATION,
-    { input: message },
-  );
-  return normalizeMessageRecord(created.createMessage ?? message);
-}
-
-export async function deleteInsightThreadMessageRecord(input: {
-  threadId: string;
-  messageId: string;
-}): Promise<MessageRecord> {
-  const threadId = String(input.threadId || "").trim();
-  const messageId = String(input.messageId || "").trim();
-  if (!threadId) throw new Error("threadId is required");
-  if (!messageId) throw new Error("messageId is required");
-  const existing = await listMessagesByThreadId(threadId, 1000);
-  const target = existing.find((message) => message.id === messageId);
-  if (!target) throw new Error(`Message not found in thread: ${messageId}`);
-  const now = new Date().toISOString();
-  const updatedMessage = await runGraphql<{ updateMessage?: MessageRecord | null }>(
-    UPDATE_MESSAGE_MUTATION,
-    {
-      input: {
-        id: target.id,
-        status: "deleted",
-        updatedAt: now,
-      },
-    },
-  );
-  return normalizeMessageRecord(updatedMessage.updateMessage ?? { ...target, status: "deleted", updatedAt: now });
-}
-
 export async function ensureEditionForumThreadRecord(input: {
   editionId: string;
   title?: string;
@@ -1704,14 +1557,6 @@ async function listMessagesByThreadId(threadId: string, limit = 400): Promise<Me
   return records;
 }
 
-function isInsightThreadRootMessage(message: MessageRecord): boolean {
-  if (String(message.messageKind || "") !== "insight") return false;
-  const threadId = String(message.threadId || "").trim();
-  const sequenceNumber = Number(message.sequenceNumber || 0);
-  if (threadId && threadId !== message.id && sequenceNumber > 1) return false;
-  return true;
-}
-
 async function getMessageRecordById(messageId: string): Promise<MessageRecord | null> {
   const normalized = String(messageId || "").trim();
   if (!normalized) return null;
@@ -1721,66 +1566,6 @@ async function getMessageRecordById(messageId: string): Promise<MessageRecord | 
   );
   const message = response.getMessage;
   return message ? normalizeMessageRecord(message) : null;
-}
-
-async function loadInsightThreadMessages(threadId: string, root: MessageRecord): Promise<MessageRecord[]> {
-  const threadMessages = await listMessagesByThreadId(threadId, 500);
-  const byId = new Map<string, MessageRecord>();
-  byId.set(root.id, root);
-  for (const message of threadMessages) byId.set(message.id, message);
-  const merged = [...byId.values()].sort(
-    (left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0),
-  );
-  return hydrateMessageRecordsContent(merged);
-}
-
-function insightForumThreadTitle(root: MessageRecord): string {
-  const metadata = normalizeJsonValue(root.metadata);
-  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
-    const explicit = String((metadata as Record<string, unknown>).insightTitle || "").trim();
-    if (explicit) return explicit;
-  }
-  const summary = String(root.summary || "").trim();
-  return summary || "Insight";
-}
-
-function buildInsightForumThread(root: MessageRecord, messages: MessageRecord[]): ForumThreadWithMessages {
-  const activeMessages = messages.filter((message) => String(message.status || "active") === "active");
-  const sorted = [...activeMessages].sort(
-    (left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0),
-  );
-  const lastMessage = sorted.at(-1) ?? root;
-  const activityAt = lastMessage.updatedAt ?? lastMessage.createdAt ?? root.updatedAt ?? root.createdAt;
-  return {
-    id: root.id,
-    threadKind: "insight_forum",
-    status: "active",
-    title: insightForumThreadTitle(root),
-    summary: formatInsightForumDomainLabel(root.messageDomain),
-    primaryAnchorKind: "message",
-    primaryAnchorId: root.id,
-    primaryAnchorLineageId: root.id,
-    primaryAnchorKey: `message#${root.id}`,
-    createdByLabel: root.authorLabel ?? null,
-    messageCount: sorted.length,
-    lastMessageId: lastMessage.id,
-    lastMessageAt: activityAt,
-    metadata: normalizeJsonValue(root.metadata) as Record<string, unknown>,
-    createdAt: root.createdAt,
-    updatedAt: activityAt,
-    newsroomFeedKey: "messages",
-    messages: sorted.length ? sorted : [root],
-    scope: "insight",
-    sectionKey: root.messageDomain ?? null,
-  };
-}
-
-function formatInsightForumDomainLabel(domain: string | null | undefined): string {
-  const value = String(domain || "").trim();
-  if (value === "assignment_work") return "Assignment research";
-  if (value === "knowledge") return "Reference knowledge";
-  if (!value) return "Insight";
-  return value.replace(/_/g, " ");
 }
 
 async function hydrateMessageRecordsContent(messages: MessageRecord[]): Promise<MessageRecord[]> {
@@ -2712,7 +2497,6 @@ export function hasTestEditorOverride(): boolean {
 
 type TestEditorNewsroomMock = {
   forumThreadsByEdition?: Record<string, ForumThreadWithMessages[]>;
-  insightForumThreads?: ForumThreadWithMessages[];
   messages?: MessageRecord[];
   payloads?: Record<string, HydratedModelPayload[]>;
   referenceAttachments?: ReferenceAttachmentRecord[];

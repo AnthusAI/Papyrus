@@ -1164,7 +1164,7 @@ return finish_research{
         self.assertEqual(result["value"]["research_record_plan"]["message_persistence"], "outer_cli_layer")
         self.assertEqual(result["api_calls"], ["papyrus.knowledge.query", "papyrus.plan.assignment_research_packet"])
 
-    def test_research_harness_applies_assignment_and_insight_knowledge_scope_defaults(self):
+    def test_research_harness_applies_assignment_and_note_knowledge_scope_defaults(self):
         assignment = {
             "id": "assignment-live-456",
             "assignmentTypeKey": "research.edition-candidate",
@@ -1204,7 +1204,7 @@ return finish_research{
         scope = query_input.get("scope") or {}
         self.assertIn("assignment", scope.get("includeObjectKinds") or [])
         self.assertIn("message", scope.get("includeObjectKinds") or [])
-        self.assertEqual(scope.get("includeMessageKinds"), ["insight"])
+        self.assertEqual(scope.get("includeMessageKinds"), ["note"])
         self.assertEqual(scope.get("includeAssignmentTypeKeys"), ["research.*", "reporting.*"])
 
     def test_research_harness_requires_discovery_for_source_discovery_mode(self):

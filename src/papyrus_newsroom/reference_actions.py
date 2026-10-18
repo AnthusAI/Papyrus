@@ -90,9 +90,9 @@ RELATION_TYPE_FIELDS = {
         "relationTypeKey": "comment",
         "relationDomain": "commentary",
     },
-    "insight_about": {
-        "relationTypeId": "semantic-relation-type-insight-about",
-        "relationTypeKey": "insight_about",
+    "note_about": {
+        "relationTypeId": "semantic-relation-type-note-about",
+        "relationTypeKey": "note_about",
         "relationDomain": "knowledge",
     },
 }
@@ -284,7 +284,7 @@ def set_reference_quality_rating(
     )
 
 
-def create_reference_insight(
+def create_reference_note(
     graphql: GraphqlInvoker,
     *,
     reference_id: str,
@@ -300,27 +300,27 @@ def create_reference_insight(
     reference = _get_required_reference(graphql, resolved_reference_id)
     reference_lineage_id = _optional(reference.get("lineageId")) or resolved_reference_id
     message_id = (
-        f"message-reference-insight-{_safe_id(reference_lineage_id)}-"
+        f"message-reference-note-{_safe_id(reference_lineage_id)}-"
         f"{now.replace(':', '').replace('-', '')[:15]}-{uuid.uuid4().hex[:8]}"
     )
     relation_id = "semantic-relation-" + _hash_short(
         [
             _semantic_version_key("message", message_id),
-            "insight_about",
+            "note_about",
             _semantic_version_key("reference", resolved_reference_id),
         ]
     )
     _create_message(
         graphql,
         message_id=message_id,
-        message_kind="insight",
+        message_kind="note",
         message_domain="knowledge",
         summary=resolved_summary,
         body=resolved_body,
         actor_label=actor,
         now=now,
         metadata={
-            "kind": "reference.insight.created",
+            "kind": "reference.note.created",
             "targetKind": "reference",
             "targetId": resolved_reference_id,
             "targetLineageId": reference_lineage_id,
@@ -329,7 +329,7 @@ def create_reference_insight(
     _create_semantic_relation(
         graphql,
         relation_id=relation_id,
-        predicate="insight_about",
+        predicate="note_about",
         subject_kind="message",
         subject_id=message_id,
         subject_lineage_id=message_id,
@@ -339,7 +339,7 @@ def create_reference_insight(
         object_lineage_id=reference_lineage_id,
         object_version_number=_optional_int(reference.get("versionNumber")),
         metadata={
-            "kind": "reference.insight",
+            "kind": "reference.note",
             "summary": resolved_summary,
             "actor": actor,
         },

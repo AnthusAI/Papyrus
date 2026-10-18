@@ -15,7 +15,6 @@ const EXPECTED_SECTION_IDS = [
   "assignments",
   "references",
   "messages",
-  "insights",
   "topics",
   "concepts",
   "search",
@@ -30,6 +29,7 @@ function staticRouteDirectories(): string[] {
   return readdirSync(NEWSROOM_APP_DIRECTORY, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith("["))
     .filter((entry) => existsSync(path.join(NEWSROOM_APP_DIRECTORY, entry.name, "page.tsx")))
+    .filter((entry) => !readFileSync(path.join(NEWSROOM_APP_DIRECTORY, entry.name, "page.tsx"), "utf8").includes("permanentRedirect("))
     .map((entry) => entry.name);
 }
 

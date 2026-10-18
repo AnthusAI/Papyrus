@@ -1,14 +1,6 @@
-import { NewsDeskPage } from "../../../components/news-desk-page";
+import { permanentRedirect } from "next/navigation";
+import { toPublicNewsroomPath } from "../../../lib/newsroom-base-path";
 
-export const dynamic = "force-dynamic";
-
-type NewsroomInsightsPageProps = {
-  searchParams?: Promise<{
-    demo?: string | string[];
-    domain?: string | string[];
-  }>;
-};
-
-export default async function NewsroomInsightsPage({ searchParams }: NewsroomInsightsPageProps) {
-  return <NewsDeskPage section="insights" searchParams={searchParams} />;
+export default function NewsroomMessagesRedirectPage() {
+  permanentRedirect(toPublicNewsroomPath("/newsroom/messages"));
 }

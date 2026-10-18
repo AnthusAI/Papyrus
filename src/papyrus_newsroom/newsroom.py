@@ -2078,7 +2078,7 @@ def papyrus_reference_quality_rate(
     )
 
 
-def papyrus_reference_insight_create(
+def papyrus_reference_note_create(
     *,
     reference_id: str,
     summary: str,
@@ -2086,9 +2086,9 @@ def papyrus_reference_insight_create(
     actor_label: str = "",
 ) -> dict[str, Any]:
     """
-    Canonical insight creation action for a reference.
+    Canonical note creation action for a reference.
     """
-    return reference_actions.create_reference_insight(
+    return reference_actions.create_reference_note(
         execute_graphql,
         reference_id=reference_id,
         summary=summary,
@@ -2097,17 +2097,17 @@ def papyrus_reference_insight_create(
     )
 
 
-def papyrus_reference_insight_list(reference_lineage_id: str) -> dict[str, Any]:
+def papyrus_reference_note_list(reference_lineage_id: str) -> dict[str, Any]:
     """
-    List insight messages for one reference lineage.
+    List note messages for one reference lineage.
     """
     payload = papyrus_list_reference_messages(reference_lineage_id)
     messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
-    insights = [message for message in messages if str(message.get("messageKind") or "") == "insight"]
+    notes = [message for message in messages if str(message.get("messageKind") or "") == "note"]
     return {
         "referenceLineageId": reference_lineage_id,
-        "items": insights,
-        "count": len(insights),
+        "items": notes,
+        "count": len(notes),
     }
 
 
