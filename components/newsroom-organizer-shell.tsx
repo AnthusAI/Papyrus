@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGro
 import type { NewsroomOpsShellProps } from "./newsroom-ops-shell";
 import "./newsroom-organizer.css";
 
-const ICONS = { overview: LayoutDashboard, board: ClipboardList, references: BookOpen, messages: MessagesSquare };
+const ICONS = { overview: LayoutDashboard, articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
 
 /** Navigation is a presentation layer; existing route and server authorization still own access. */
 function Navigation({ activePath, demo, admin, surface, onNavigate }: { activePath: string; demo: boolean; admin: boolean; surface: string; onNavigate?: () => void }) {
