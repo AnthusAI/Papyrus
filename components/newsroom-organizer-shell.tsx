@@ -118,7 +118,7 @@ export function NewsroomOrganizerShell({ activeTab, appTitle, backHref = "/", ba
     </div>
     {showNavigation && <nav className="organizer-bottom-nav" aria-label="Primary newsroom navigation"><ul>
       {ORGANIZER_PRIMARY_NAV.map(item => { const Icon = ICONS[item.key as keyof typeof ICONS]; return <li key={item.key}><Link
-        href={getNewsroomNavHref(item.path, demo)} title={item.description} aria-label={item.label} aria-current={activeTab === item.key || activeTab === "work" && item.key === "board" ? "page" : undefined}>
+        href={getNewsroomNavHref(item.path, demo)} title={item.description} aria-label={item.label} aria-current={activeTab === item.key ? "page" : undefined}>
         <Icon size={18} aria-hidden="true" /><span>{item.label}</span></Link></li>; })}
       <li><Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger className="organizer-more" aria-label="More"><Menu size={18} aria-hidden="true" /><span>More</span></SheetTrigger>
         <SheetContent side="bottom" className="organizer-menu"><SheetHeader><SheetTitle>Newsroom</SheetTitle><SheetDescription>Workspaces and administration</SheetDescription></SheetHeader>

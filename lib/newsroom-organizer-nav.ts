@@ -8,7 +8,7 @@ export type OrganizerDestination = {
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
     { key: "overview", label: "Overview", description: "See the desk and choose where to begin.", path: "/newsroom", primary: true },
-    { key: "board", label: "Board", description: `Follow ${contentItemPluralLowercase}, sources and assignments across their stages.`, path: "/newsroom/work", primary: true },
+    { key: "board", label: "Board", description: `Follow ${contentItemPluralLowercase} and assignments across their stages.`, path: "/newsroom/board", primary: true },
     { key: "articles", label: getContentItemName().plural, description: "Write, revise and prepare copy for publication.", path: "/newsroom/articles" },
     { key: "assignments", label: "Assignments", description: "Claim work and follow research and reporting progress.", path: "/newsroom/assignments" },
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },

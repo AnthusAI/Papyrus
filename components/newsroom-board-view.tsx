@@ -66,7 +66,7 @@ export function NewsroomBoardView() {
   const config = useMemo(() => newsroomBoardConfig(issues), [issues]);
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
-  return <NewsroomOpsShell activeTab="work" appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle="Board">
+  return <NewsroomOpsShell activeTab="board" appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle="Board">
     <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
       <div className="organizer-board-toolbar">
         <IssueTypeFilter config={config} value={filter} onChange={value => { setFilter(value); setSelected(null); }} name="Record type" />
