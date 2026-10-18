@@ -4,7 +4,6 @@ import { isLocalPreviewEnabled } from "../lib/local-preview";
 import {
   createLocalPreviewAssignments,
   createLocalPreviewContentItemVersions,
-  createLocalPreviewReferences,
 } from "../lib/local-preview-seed";
 import { projectNewsroomBoard } from "../lib/newsroom-board";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
@@ -20,12 +19,11 @@ for (const stageKey of contentItemStageKeys(getContentItemStageDefinitions())) {
 const lineageIds = new Set(contentItemVersions.map((version) => version.lineageId));
 assert.equal(lineageIds.size, contentItemVersions.length, "every seeded item has its own lineage");
 for (const assignment of createLocalPreviewAssignments()) {
-  assert.ok(lineageIds.has(assignment.itemLineageId ?? ""), "assignments point at seeded items");
+  if (assignment.itemLineageId) assert.ok(lineageIds.has(assignment.itemLineageId), "assignments point at seeded items");
 }
 
 const boardIssues = projectNewsroomBoard({
   contentItemVersions,
-  references: createLocalPreviewReferences(),
   assignments: createLocalPreviewAssignments(),
 });
 assert.ok(boardIssues.length >= contentItemVersions.length, "board projects every seeded item");

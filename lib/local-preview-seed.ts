@@ -70,7 +70,7 @@ export function createLocalPreviewAssignments(): AssignmentRecord[] {
   const contentItemVersions = createLocalPreviewContentItemVersions();
   const assignmentTypeKeys = ["research", "reporting", "copywriting"];
   const statuses = ["queued", "claimed", "completed"];
-  return contentItemVersions.slice(0, 9).map((version, index) => ({
+  const assignmentsOnContentItems = contentItemVersions.slice(0, 9).map((version, index) => ({
     id: `preview-assignment-${index}`,
     assignmentTypeKey: assignmentTypeKeys[index % assignmentTypeKeys.length],
     queueKey: assignmentTypeKeys[index % assignmentTypeKeys.length],
@@ -82,4 +82,16 @@ export function createLocalPreviewAssignments(): AssignmentRecord[] {
     createdAt: isoTimestampHoursBeforeBase(index * 2),
     updatedAt: isoTimestampHoursBeforeBase(index * 2),
   }));
+  const assignmentsWithoutContentItem = ["Pitch: community radio partnership", "Backfill the archive index"].map((title, index) => ({
+    id: `preview-assignment-standalone-${index}`,
+    assignmentTypeKey: "research",
+    queueKey: "research",
+    queueStatusKey: "research#queued",
+    status: "queued",
+    priority: 2,
+    title,
+    createdAt: isoTimestampHoursBeforeBase(index),
+    updatedAt: isoTimestampHoursBeforeBase(index),
+  }));
+  return [...assignmentsOnContentItems, ...assignmentsWithoutContentItem];
 }
