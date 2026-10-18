@@ -1,0 +1,90 @@
+{
+  "version": "cyclotron-priming-proof/v1",
+  "proofId": "ti-2026-10",
+  "publication": "Anthus Threat Intelligence",
+  "cyclotronId": "papyrus-relevance",
+  "question": "Should this candidate source become a reference for this publication?",
+  "labels": [
+    "include",
+    "exclude"
+  ],
+  "positiveLabel": "include",
+  "decisionModel": "jev:jev-1.13.0",
+  "ranAt": "2026-10-18T13:34:13.426310Z",
+  "heldOut": {
+    "size": 10,
+    "byLabel": {
+      "include": 5,
+      "exclude": 5
+    },
+    "fingerprint": "b12fe63012c925bd6def343a13b94ccedafd5184ddb93c8312998486045da779",
+    "frozenAt": "2026-10-18T13:02:20.090030Z",
+    "source": "References editors reviewed in the Newsroom, labeled by the scope-training rule"
+  },
+  "priming": {
+    "acceptedExamples": 13,
+    "excludedBecauseInHeldOut": 0,
+    "fingerprint": null,
+    "source": "editor reviews of References",
+    "order": "reviews in review order, then priming examples in acceptance order"
+  },
+  "conditions": {
+    "freshStorePerPoint": true,
+    "rubric": "publication doctrine seed",
+    "optimizer": false,
+    "reviewProgram": false
+  },
+  "points": [
+    {
+      "labels": 0,
+      "labelsByClass": {
+        "include": 0,
+        "exclude": 0
+      },
+      "decided": 10,
+      "agreement": 1,
+      "precision": 1,
+      "recall": 1,
+      "confusion": {
+        "truePositives": 5,
+        "falsePositives": 0,
+        "trueNegatives": 5,
+        "falseNegatives": 0
+      }
+    },
+    {
+      "labels": 5,
+      "labelsByClass": {
+        "include": 4,
+        "exclude": 1
+      },
+      "decided": 10,
+      "agreement": 1,
+      "precision": 1,
+      "recall": 1,
+      "confusion": {
+        "truePositives": 5,
+        "falsePositives": 0,
+        "trueNegatives": 5,
+        "falseNegatives": 0
+      }
+    },
+    {
+      "labels": 13,
+      "labelsByClass": {
+        "include": 4,
+        "exclude": 9
+      },
+      "decided": 10,
+      "agreement": 0.9,
+      "precision": 1,
+      "recall": 0.8,
+      "confusion": {
+        "truePositives": 4,
+        "falsePositives": 0,
+        "trueNegatives": 5,
+        "falseNegatives": 1
+      }
+    }
+  ]
+}
