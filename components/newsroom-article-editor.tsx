@@ -91,6 +91,8 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The request failed.";
 }
 
+const NO_DESK_VALUE = "__no-desk__";
+
 export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { articleId: string; demo: boolean; embedded?: boolean }) {
   const session = useOptionalNewsDeskClient();
   const blocked = !demo && articlesAccessBlocked(session?.shell.phase);
@@ -110,6 +112,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [unpublishOpen, setUnpublishOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
   const [sections, setSections] = useState<string[]>([]);
+  const deskOptions = useMemo(() => {
+    const desks = (session?.shell.dashboard?.newsroomSections ?? []).filter(desk => desk.enabled).sort((left, right) => left.sortOrder - right.sortOrder).map(desk => ({ value: desk.id, label: desk.shortTitle || desk.title }));
+    const current = editor?.section.trim() ?? "";
+    return current && !desks.some(desk => desk.value === current) ? [{ value: current, label: current }, ...desks] : desks;
+  }, [editor?.section, session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [imageUploading, setImageUploading] = useState(false);
@@ -543,18 +550,23 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                   </Select>
                 </label>
                 <label className="space-y-1 text-sm font-medium">
-                  <span>Section</span>
-                  <Input
-                    data-newsroom-article-section
-                    list="newsroom-article-sections"
-                    onChange={(event) => patchEditor({ section: event.target.value })}
-                    value={editor.section}
-                  />
-                  <datalist id="newsroom-article-sections">
-                    {sections.map((section) => (
-                      <option key={section} value={section} />
-                    ))}
-                  </datalist>
+                  <span>Desk</span>
+                  <Select
+                    onValueChange={(value) => {
+                      if (typeof value === "string") patchEditor({ section: value === NO_DESK_VALUE ? "" : value });
+                    }}
+                    value={editor.section.trim() ? editor.section : NO_DESK_VALUE}
+                  >
+                    <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-article-section>
+                      <SelectValue>{deskOptions.find(option => option.value === editor.section)?.label ?? (editor.section.trim() || "No desk")}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>
+                      {deskOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </label>
                 <label className="space-y-1 text-sm font-medium">
                   <span>Slug</span>
