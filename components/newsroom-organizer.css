@@ -43,10 +43,10 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-board-note{font-size:11px;line-height:1.5;margin:0;color:var(--org-muted);white-space:nowrap}
 @media(min-width:901px){.newsroom-organizer[data-sidebar-collapsed=false] .organizer-masthead{display:none}}
 .organizer-board-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-width:0;min-height:0;gap:16px}
-.organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr) minmax(280px,360px)}
+.organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr) clamp(320px,34vw,1000px)}
 .organizer-board-body>.kb-issue-collection{height:100%;min-height:0;overflow:auto}
 .organizer-board-body>.kb-issue-detail{overflow:auto;min-height:0}
-.organizer-board-body .kb-issue-detail a{display:block;min-height:44px;text-decoration:underline;padding:12px 0}
+.organizer-board-body .kb-issue-detail a:not(.organizer-header-button){display:block;min-height:44px;text-decoration:underline;padding:12px 0}
 .organizer-menu{height:min(85dvh,760px);max-height:85dvh;display:flex;flex-direction:column;padding:16px;border-radius:24px 24px 0 0;gap:20px}
 .organizer-menu .organizer-destinations{overflow-y:auto}.organizer-menu .organizer-destinations section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.organizer-menu .organizer-destinations h3{grid-column:1/-1;font-size:12px;text-transform:none;margin:0 0 4px}
 .organizer-menu .organizer-destinations a{border:1px solid var(--org-line);padding:12px;color:var(--org-ink)}
@@ -63,3 +63,22 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
  .organizer-board-body>.kb-issue-detail{position:absolute;inset:0;z-index:2;overflow:auto}
 }
 @media(prefers-reduced-motion:reduce){.newsroom-organizer,.newsroom-organizer *,.organizer-menu,.organizer-menu *,.organizer-account-popup,.organizer-account-popup *{scroll-behavior:auto;animation:none!important;transition:none!important}}
+.newsroom-organizer :is(button,input,select,textarea,[role=button],[role=tab],[role=combobox],[role=option],[role=menuitem],a[class]),.organizer-menu :is(button,a),.organizer-account-popup :is(button,a){border-radius:0 !important}
+.newsroom-assignment-detail,.newsroom-embedded-article{container-type:inline-size;min-width:0}
+.newsroom-assignment-detail{display:grid;gap:16px;padding:12px}
+.newsroom-assignment-detail-title{margin:0;font-size:1.25rem;line-height:1.25;overflow-wrap:anywhere}
+.newsroom-assignment-detail-facts{display:grid;gap:8px 16px;grid-template-columns:minmax(0,1fr);margin:0}
+.newsroom-assignment-detail-facts>div{display:grid;grid-template-columns:minmax(80px,max-content) minmax(0,1fr);gap:8px;border-top:1px solid var(--org-line);padding-top:6px}
+.newsroom-assignment-detail-facts dt{color:var(--org-muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.newsroom-assignment-detail-facts dd{margin:0;overflow-wrap:anywhere}
+.newsroom-assignment-detail-prose{display:grid;gap:12px}
+.newsroom-assignment-detail-prose h3{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--org-muted)}
+.newsroom-assignment-detail-prose p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+@container (min-width:560px){.newsroom-assignment-detail-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (min-width:900px){.newsroom-assignment-detail{grid-template-columns:minmax(0,2fr) minmax(280px,1fr);align-items:start;column-gap:32px}.newsroom-assignment-detail-title{grid-column:1/-1}.newsroom-assignment-detail-facts{grid-template-columns:minmax(0,1fr)}}
+@container (min-width:1500px){.newsroom-assignment-detail-prose{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.newsroom-embedded-article{padding:0 8px 12px}
+.newsroom-embedded-article :is(textarea,input,select){max-width:100%}
+.newsroom-embedded-article [class*="grid-cols-2"],.newsroom-embedded-article [class*="lg:grid"]{grid-template-columns:minmax(0,1fr) !important}
+@container (min-width:1100px){.newsroom-embedded-article [class*="lg:grid"]{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}
+.newsroom-organizer [class*="rounded"]:not([data-slot=avatar]):not([class*="animate-spin"]):not([role=progressbar]),.organizer-menu,.organizer-account-popup,[data-slot=dialog-content],[data-slot=popover-content],[data-slot=dropdown-menu-content],[data-slot=select-content],[data-slot=tooltip-content]{border-radius:0 !important}

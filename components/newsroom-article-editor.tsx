@@ -91,7 +91,7 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The request failed.";
 }
 
-export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; demo: boolean }) {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { articleId: string; demo: boolean; embedded?: boolean }) {
   const session = useOptionalNewsDeskClient();
   const blocked = !demo && articlesAccessBlocked(session?.shell.phase);
   const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(demo), [demo]);
@@ -724,6 +724,8 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
       </TooltipProvider>
     );
   })();
+
+  if (embedded) return <div className="newsroom-embedded-article">{body}</div>;
 
   return (
     <NewsroomOpsShell
