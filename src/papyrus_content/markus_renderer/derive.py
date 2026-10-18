@@ -16,7 +16,6 @@ from .citations import CitationCollector, CitationError, CitationRendering
 from .content_markup import ContentMarkupError, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
 from .security import MARKUS_REQUIRED_VERSION
-from .wiki_directives import papyrus_registry
 
 BODY_IR_SCHEMA_VERSION = 1
 MAX_BODY_IR_BYTES = 300_000
@@ -70,6 +69,8 @@ def _front_matter_error(front_matter_yaml: str | None) -> BodyError | None:
 def _markus_document(markdown: str) -> dict[str, Any]:
     import markusmd
     from markusmd.render import make_markdown
+
+    from .wiki_directives import papyrus_registry
 
     if markusmd.__version__ != MARKUS_REQUIRED_VERSION:
         raise RuntimeError(

@@ -1,5 +1,4 @@
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
-import realSeed from "./real-preview-seed.json";
 import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
 import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail, type TrailVersion } from "./story-reporting-trail";
@@ -28,14 +27,6 @@ function slugFromHeadline(headline: string): string {
 }
 
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
-  return realSeed.items as unknown as ContentItemVersionRecord[];
-}
-
-export function createLocalPreviewRealPublishedVersions(): ContentItemVersionRecord[] {
-  return realSeed.published as unknown as ContentItemVersionRecord[];
-}
-
-function unusedFixtureContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
     const headlines = SEED_CONTENT_ITEM_HEADLINES_BY_POSITION[stageIndex % SEED_CONTENT_ITEM_HEADLINES_BY_POSITION.length];
@@ -59,10 +50,6 @@ function unusedFixtureContentItemVersions(): ContentItemVersionRecord[] {
 }
 
 export function createLocalPreviewReferences(): ReferenceRecord[] {
-  return [];
-}
-
-function unusedFixtureReferences(): ReferenceRecord[] {
   const curationStatuses = ["pending", "accepted", "accepted", "rejected", "pending"];
   return curationStatuses.map((curationStatus, index) => ({
     id: `preview-reference-${index}`,
@@ -81,10 +68,6 @@ function unusedFixtureReferences(): ReferenceRecord[] {
 }
 
 export function createLocalPreviewAssignments(): AssignmentRecord[] {
-  return realSeed.assignments as unknown as AssignmentRecord[];
-}
-
-function unusedFixtureAssignments(): AssignmentRecord[] {
   const contentItemVersions = createLocalPreviewContentItemVersions();
   const assignmentTypeKeys = ["research", "reporting", "copywriting"];
   const statuses = ["queued", "claimed", "completed"];
@@ -114,19 +97,22 @@ function unusedFixtureAssignments(): AssignmentRecord[] {
   return [...assignmentsOnContentItems, ...assignmentsWithoutContentItem];
 }
 
+export function createLocalPreviewRealPublishedVersions(): ContentItemVersionRecord[] {
+  return [];
+}
+
 export function createLocalPreviewEditableArticle(id: string): EditableArticle | null {
-  const version = [...createLocalPreviewContentItemVersions(), ...createLocalPreviewRealPublishedVersions()].find(candidate => candidate.id === id);
+  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === id);
   if (!version) return null;
   const headline = version.headline || version.title || version.slug;
-  const stored = (realSeed as unknown as { articles?: Record<string, { bodyMarkus: string; frontMatterYaml: string; contentHash: string | null }> }).articles?.[id];
   return {
     id: version.id,
     lineageId: version.lineageId,
     type: version.type,
     section: version.section ?? null,
     slug: version.slug,
-    frontMatterYaml: stored?.frontMatterYaml || `title: ${headline}\nsection: ${version.section ?? ""}`,
-    bodyMarkus: stored?.bodyMarkus || `# ${headline}\n\nThis story has no body text in the preview snapshot.`,
+    frontMatterYaml: `title: ${headline}\nsection: ${version.section ?? ""}`,
+    bodyMarkus: `# ${headline}\n\nThe local preview shows this story's record. Its full body text is loaded from the live backend.`,
     contentHash: null,
     status: version.status === "published" ? "published" : "draft",
     versionNumber: version.versionNumber,
@@ -136,13 +122,8 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
 }
 
 export function recordLocalPreviewDesk(articleId: string, deskId: string | null): void {
-  const version = [...createLocalPreviewContentItemVersions(), ...createLocalPreviewRealPublishedVersions()].find(candidate => candidate.id === articleId);
+  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === articleId);
   if (version) version.section = deskId;
-}
-
-export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
-  const trails = (realSeed as unknown as { trails?: Record<string, StoryReportingTrail> }).trails;
-  return withPreviewSavedVersions(lineageId, trails?.[lineageId] ?? EMPTY_STORY_REPORTING_TRAIL);
 }
 
 const previewSavedVersions = new Map<string, TrailVersion[]>();
@@ -157,12 +138,11 @@ export function lineageForPreviewVersion(versionId: string): string | null {
   return previewLineageByVersionId.get(versionId) ?? null;
 }
 
-function withPreviewSavedVersions(lineageId: string, trail: StoryReportingTrail): StoryReportingTrail {
+export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
   const saved = previewSavedVersions.get(lineageId) ?? [];
-  return saved.length ? { ...trail, versions: [...saved, ...trail.versions] } : trail;
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved };
 }
 
-export function createLocalPreviewMediaAssets(itemId: string): MediaAssetRecord[] {
-  const media = (realSeed as unknown as { media?: Record<string, MediaAssetRecord[]> }).media;
-  return media?.[itemId] ?? [];
+export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord[] {
+  return [];
 }

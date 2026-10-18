@@ -129,10 +129,11 @@ assert.match(themeCss, /--primary:\s*var\(--theme-moss\)/);
 assert.match(themeCss, /--accent:\s*var\(--theme-ochre\)/);
 assert.match(themeCss, /--destructive:\s*var\(--theme-caution\)/);
 assert.match(themeCss, /color-scheme:\s*light/);
-// Colors only: Shadcn owns typography, and the pack must not ship a face.
-assert.doesNotMatch(themeCss, /(?:^|[^-])font-family\s*:/);
-assert.doesNotMatch(themeCss, /@font-face/);
-assert.doesNotMatch(themeCss, /Jersey 25|Montserrat|Geist Mono/i);
+// Shadcn owns body typography: the pack ships only the Jersey 25 face for the CMS mark and headings,
+// and every other font-family must come from a variable.
+assert.doesNotMatch(themeCss.replace(/@font-face\s*\{[^}]*\}/g, ""), /(?:^|[^-])font-family\s*:[ \t]*(?!var\()\S/);
+assert.match(themeCss, /@font-face\s*\{[^}]*Jersey 25/);
+assert.doesNotMatch(themeCss, /Geist Mono/i);
 
 // The pack is imported through the dev-only theme aggregator, not inlined: no
 // Anthus hexes in framework CSS.
