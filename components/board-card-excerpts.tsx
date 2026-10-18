@@ -1,45 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect } from "react";
 
 type Excerpt = { issueId: string; text: string };
 
-function CardExcerpt({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
-  return <div className="board-card-excerpt" data-board-card-excerpt data-expanded={expanded}>
-    <p>{text}</p>
-    {text.length > 130 && <button aria-expanded={expanded} onClick={event => { event.stopPropagation(); setExpanded(open => !open); }} onKeyDown={event => event.stopPropagation()} type="button">{expanded ? "Less" : "More"}</button>}
-  </div>;
+const EXCERPT_TOGGLE_THRESHOLD = 130;
+
+function buildExcerptElement(text: string): HTMLElement {
+  const container = document.createElement("div");
+  container.className = "board-card-excerpt";
+  container.dataset.boardCardExcerpt = "";
+  container.dataset.expanded = "false";
+  const paragraph = document.createElement("p");
+  paragraph.textContent = text;
+  container.append(paragraph);
+  if (text.length > EXCERPT_TOGGLE_THRESHOLD) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.textContent = "More";
+    toggle.setAttribute("aria-expanded", "false");
+    const flip = (event: Event) => {
+      event.stopPropagation();
+      const expanded = container.dataset.expanded !== "true";
+      container.dataset.expanded = String(expanded);
+      toggle.textContent = expanded ? "Less" : "More";
+      toggle.setAttribute("aria-expanded", String(expanded));
+    };
+    toggle.addEventListener("click", flip);
+    toggle.addEventListener("keydown", event => event.stopPropagation());
+    container.append(toggle);
+  }
+  return container;
 }
 
 /**
  * Adds a short expandable excerpt under each card's headline. The Kanbus card has no excerpt slot,
- * so each excerpt is rendered into the card's content block once the card is on the page.
+ * so each excerpt is written into the card's content block once the card is on the page.
  */
 export function BoardCardExcerpts({ excerpts, scope }: { excerpts: readonly Excerpt[]; scope: HTMLElement | null }) {
-  const [hosts, setHosts] = useState<{ host: HTMLElement; text: string }[]>([]);
   useEffect(() => {
     if (!scope) return;
-    const collect = () => {
-      const found = excerpts.flatMap(({ issueId, text }) => {
-        const card = Array.from(scope.querySelectorAll<HTMLElement>(".issue-card")).find(candidate => candidate.dataset.issueId === issueId);
-        const content = card?.querySelector<HTMLElement>(".issue-card-content");
-        if (!content) return [];
-        let host = content.querySelector<HTMLElement>(":scope > [data-board-card-excerpt-host]");
-        if (!host) {
-          host = document.createElement("div");
-          host.dataset.boardCardExcerptHost = "true";
-          content.querySelector("h3")?.after(host);
-        }
-        return [{ host, text }];
-      });
-      setHosts(previous => previous.length === found.length && previous.every((entry, index) => entry.host === found[index].host && entry.text === found[index].text) ? previous : found);
+    const textByIssueId = new Map(excerpts.map(({ issueId, text }) => [issueId, text]));
+    const place = () => {
+      for (const card of Array.from(scope.querySelectorAll<HTMLElement>(".issue-card"))) {
+        const text = textByIssueId.get(card.dataset.issueId ?? "");
+        const content = card.querySelector<HTMLElement>(".issue-card-content");
+        if (!text || !content) continue;
+        const existing = content.querySelector<HTMLElement>(":scope > [data-board-card-excerpt]");
+        if (existing && existing.querySelector("p")?.textContent === text) continue;
+        existing?.remove();
+        content.querySelector("h3")?.after(buildExcerptElement(text));
+      }
     };
-    collect();
-    const observer = new MutationObserver(collect);
+    place();
+    const observer = new MutationObserver(place);
     observer.observe(scope, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [excerpts, scope]);
-  return <>{hosts.map(({ host, text }, index) => createPortal(<CardExcerpt text={text} />, host, `${index}`))}</>;
+  return null;
 }
