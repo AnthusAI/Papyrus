@@ -31,6 +31,7 @@ from .publishing import (
     save_item,
 )
 from .record_helpers import to_aws_json
+from .tenancy import tenant_media_path, tenant_scoped_item_id
 
 IMPORT_ACTOR = "papyrus-import"
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg")
@@ -60,6 +61,7 @@ class ImportOptions:
     publish: bool = True
     force: bool = False
     image_source_dir: Path | None = None
+    tenant_id: str | None = None
 
 
 class MediaStore(Protocol):
@@ -117,10 +119,11 @@ class SourceFile:
     status: str
     front_matter_yaml: str
     body_markus: str
+    tenant_id: str | None = None
 
     @property
     def item_id(self) -> str:
-        return item_id_for(self.section, self.slug)
+        return tenant_scoped_item_id(self.tenant_id, item_id_for(self.section, self.slug))
 
     @property
     def canonical_path(self) -> str:
@@ -221,6 +224,7 @@ def discover(options: ImportOptions) -> list[SourceFile]:
                     status="draft" if draft_section is not None else "published",
                     front_matter_yaml=front_matter_yaml.lstrip("\n"),
                     body_markus=body_markus,
+                    tenant_id=options.tenant_id,
                 )
             )
     return sources
@@ -282,6 +286,10 @@ def _resolve_image(image_root: Path, source_path: str) -> Path | None:
     return candidate
 
 
+def tenant_stored_media_path(tenant_id: str | None, storage_path: str) -> str:
+    return tenant_media_path(tenant_id, storage_path) if tenant_id else storage_path
+
+
 def media_id_for(item_id: str, source_path: str) -> str:
     return f"media-{item_id}-{hashlib.sha256(source_path.encode('utf-8')).hexdigest()[:10]}"
 
@@ -314,7 +322,7 @@ def _plan_media(
             "type": "image",
             "role": role,
             "sortKey": f"{len(planned) + 1:03d}#{source_path}",
-            "storagePath": f"media/{source_path}",
+            "storagePath": tenant_stored_media_path(source.tenant_id, f"media/{source_path}"),
             "alt": Path(source_path).name,
             "metadata": to_aws_json(
                 {"srcPath": source_path, "sha256": sha256, "bytes": len(content), "contentType": content_type}

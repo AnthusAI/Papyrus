@@ -1550,7 +1550,7 @@ def print_usage() -> None:
     print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
-    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
+    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json],")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")

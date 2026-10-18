@@ -66,6 +66,34 @@ def normalize_site_cyclotron_config(raw: Any, relevance_block: Mapping[str, Any]
     }
 
 
+def tenant_site_cyclotron_steering(steering_config: Mapping[str, Any], tenant_id: str | None) -> Mapping[str, Any]:
+    """The steering config with the site cyclotron's id, local store and S3 prefix made the tenant's own.
+
+    Everything keyed by the cyclotron id (the sweep Assignment, the
+    ``site_decision_is`` classifier keys, the usage and agreement records)
+    follows from the scoped id. The relevance block and the approved proof
+    stay shared. Without a tenant the steering config is returned untouched.
+    """
+    if not tenant_id:
+        return steering_config
+    site_block = steering_config.get(FIELD)
+    if not site_block:
+        raise ValueError(f"This publication's steering config has no {FIELD} block.")
+    store = site_block["store"]
+    scoped_store = {"localPath": f"{store['localPath'].rstrip('/')}-{tenant_id}",
+                    "s3Prefix": f"{store['s3Prefix'].rstrip('/')}-{tenant_id}" if store.get("s3Prefix") else None}
+    scoped_block = {**site_block, "cyclotronId": f"{site_block['cyclotronId']}-{tenant_id}", "store": scoped_store}
+    return {**steering_config, FIELD: scoped_block}
+
+
+def newsroom_sections_of_tenant(client, tenant_id: str) -> list[dict[str, Any]]:
+    """The tenant's own Section rows, read through its tenant-scoped client."""
+    sections = [dict(row) for row in client.list_records("NewsroomSection")]
+    if not sections:
+        raise ValueError(f"Tenant {tenant_id} has no newsroom Sections; run `papyrus newsroom import-sections --tenant {tenant_id}` first.")
+    return sections
+
+
 def enabled_sections_in_order(sections: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     enabled = [section for section in sections if section.get("enabled", True)]
     return sorted(enabled, key=lambda section: (int(section.get("sortOrder") or 0), str(section["id"])))
