@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { referenceCurationMetadata } from "../amplify/functions/shared/reference-curation-metadata";
+import { curationActorKind, referenceCurationMetadata } from "../amplify/functions/shared/reference-curation-metadata";
 import type { SemanticRelationRecord } from "../lib/category-repository";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
 
@@ -70,5 +70,15 @@ assert.deepEqual(referenceCurationMetadata({
   action: "accept", curationStatus: "accepted", reasonCode: null, curationReasonCode: null,
   referenceId: "reference-a-v1", referenceLineageId: "reference-a",
 });
+
+// Only a user-pool sign-in is a human curation; no argument can claim it.
+assert.equal(curationActorKind({ claims: { sub: "user-1", email: "editor@example.org" } }), "human");
+assert.equal(curationActorKind({ claims: {} }), "service");
+assert.equal(curationActorKind({ userArn: "arn:aws:sts::1:assumed-role/agent" }), "service");
+assert.equal(curationActorKind(null), "service");
+assert.equal(referenceCurationMetadata({
+  action: "accept", curationStatus: "accepted", reasonCode: null,
+  referenceId: "reference-a-v1", referenceLineageId: "reference-a", actorKind: "human",
+}).actorKind, "human");
 
 console.log("relevance decisions: ok");

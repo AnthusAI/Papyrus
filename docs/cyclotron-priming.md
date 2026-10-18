@@ -501,3 +501,44 @@ from the integration Cyclotron checkout. See Cyclotron
 
 Deployment still needs the release owner's route, session and grant composition
 and the chosen storage authority (PPY-58f107).
+
+## Self-training from human decisions, in shadow mode
+
+A cyclotron learns only from References a person explicitly accepted or
+rejected. The Newsroom's curation Lambda records `actorKind: "human"` on the
+curation Message only when AppSync supplied a user-pool subject claim for the
+caller; request arguments cannot claim it, and IAM-signed service callers and
+agents record `service`. A curation with no recorded actor kind, from before
+this rule, never teaches.
+
+Each decide-relevance sweep:
+
+- sends the human review of every decided Reference to the cyclotron (a later
+  opposite label corrects it);
+- primes the cyclotron with every human-reviewed Reference it never decided,
+  with the editor's note as human feedback and never inside the item;
+- decides pending References. A decision is a suggestion: it never changes
+  curation status. The relation records the labels and doctrine behind it
+  (`provenance`: label set, doctrine fingerprint, teaching-label fingerprint and
+  counts) next to the model version and fingerprint;
+- records live agreement (`cyclotron-shadow-agreement/v1`, a KnowledgeRawPayload
+  beside the status snapshot): suggestions compared with later human decisions,
+  with precision and recall. Reviews made before the suggestion, or by anyone
+  not provably human, are left out.
+
+Controls in the steering config's `relevanceCyclotron` block: `enabled: false`
+switches the publication off (the sweep decides nothing and says why), and
+`maxDecisionsPerDay` caps new decisions per UTC day, on top of
+`maxRequestsPerSweep`.
+
+Which reviews reach the decision prompt: priming examples and training-role
+labels do; development and audit-role labels do not. A review of a decision the
+review program did not send is reviewer-selected and is always training. A
+review of a decision the program sent is placed by hash: about a fifth are
+protected audit evidence and about a quarter of the rest are held for
+development, so they do not reach the prompt. That is deliberate, and it is why
+the proof above teaches through priming, where every example reaches the prompt.
+
+Not yet built: retiring a taught label when a human changes it to no label
+(the engine corrects a flipped label, but cannot remove a primed example), and
+gating automatic decisions on an approved fresh proof.

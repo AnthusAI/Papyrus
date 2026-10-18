@@ -233,7 +233,7 @@ def curate(context, item, *, status, action, reason, note, shareable):
     row.update({"curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}",
                 "curationStatusReason": note, "curationStatusUpdatedAt": "2026-10-09T12:00:00Z"})
     message_id = f"message-reference-curation-{item['lineageId']}-{action}"
-    metadata = {"action": action, "reasonCode": reason, **({"shareable": shareable} if shareable is not None else {})}
+    metadata = {"action": action, "reasonCode": reason, "actorKind": "human", **({"shareable": shareable} if shareable is not None else {})}
     context.client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "editor-7",
                                       "createdAt": "2026-10-09T12:00:00Z", "metadata": json.dumps(metadata)})
     context.client.upsert("SemanticRelation", {
@@ -261,7 +261,7 @@ def step_editor_rejects(context, reason, note):
     message_id = f"message-reference-curation-{item['lineageId']}-reject"
     context.client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "editor-7",
                                       "createdAt": "2026-10-09T12:00:00Z",
-                                      "metadata": json.dumps({"action": "reject", "reasonCode": reason})})
+                                      "metadata": json.dumps({"action": "reject", "reasonCode": reason, "actorKind": "human"})})
     context.client.upsert("SemanticRelation", {
         "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
         "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
