@@ -35,7 +35,7 @@ Git Flow. Agents commit, push and open PRs as normal delivery.
 - Branch from `origin/develop`, named after the Kanbus issue: `feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...` (a `cursor/` prefix when host tooling requires it).
 - Never commit implementation to `develop` or `main`. It lands on `develop` by pull request.
 - `project/` changes and spec-only Gherkin go straight to `develop`, no PR. If they belong with an implementation, include them in that PR.
-- Never merge to `main` or open or merge `develop -> main` without explicit human instruction.
+- Never merge to `main` or open or merge `develop -> main` without explicit human instruction. Standing instruction (Ryan, 2026-10-18, project thread): once CI is green, agents may promote `develop` to `main`, let the release publish, and open and merge the version-bump PRs on the Papyrus test sites without asking again. Never touch Anth.us. Never merge a change to this rule yourself.
 - Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`). Never amend or force-push a commit that may have reached `develop` or `main`. If you committed to either by mistake, stop and ask.
 - Stage deliberately; the tree is often dirty. Never `git add -A` while someone else's work is in flight.
 - Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change has landed in `develop` and whether a `develop -> main` PR exists.
