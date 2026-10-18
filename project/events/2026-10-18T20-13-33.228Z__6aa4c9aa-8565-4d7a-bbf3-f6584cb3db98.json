@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6aa4c9aa-8565-4d7a-bbf3-f6584cb3db98",
+  "issue_id": "PPY-1b17888f-ee46-4673-b900-050eaedab1a6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:13:33.228Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Record the Section a person assigns as a training label",
+    "description": "Backend then UI on the Mac. Today a Reference carries only accepted or rejected, so there is no human ground truth for which Section it belongs in. Add an optional Section on a human (or delegated) accept, stored in the curation metadata with the same human-only rule and delegation quote, exposed through recordDelegatedCuration and the CLI. Section labels count only when a person explicitly set them; links inferred from stories are proposals a person must confirm, never labels.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

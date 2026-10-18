@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f12d1dd6-2a8d-46f8-88f8-7cfccd3da4e9",
+  "issue_id": "PPY-f579a269-c324-4b41-8b20-19e2459fb69d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:13:14.547Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Keep the classifier set in parity with Section curation",
+    "description": "Backend plus Cyclotron engine. A new, renamed, disabled or removed NewsroomSection changes the site cyclotron's classifiers on the next sweep, with no manual step. The engine fixes the classifier set at open (definition fingerprint), so this needs Cyclotron support to add and retire a classifier in an existing store without losing learned rubrics; v1 fallback is a new store per Section-set fingerprint rebuilt from human labels, with the old store kept. Include a dry-run report of what a Section change would do.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

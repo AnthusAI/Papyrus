@@ -1,0 +1,22 @@
+{
+  "id": "PPY-051dfffd-587a-4885-a7da-c5e73ac0e9c6",
+  "title": "Cross-validated proof for the section selector and each Section classifier",
+  "description": "Backend. Extend the priming proof to the multi-class selector (accuracy and per-class agreement) and per-Section binary classifiers, with the same stratified k-fold design, frozen folds and approved-report flow. Sections with too few human labels are reported as not yet provable, and the proof gate (PPY-0e4ec8) stays closed for any classifier without a fresh approved proof.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T20:14:10.199610Z",
+  "updated_at": "2026-10-18T20:14:10.199925Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}
