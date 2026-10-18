@@ -1,5 +1,6 @@
 import type { AssignmentRecord, ReferenceRecord } from "./category-repository";
 import type { EditableArticle } from "./newsroom-articles";
+import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 
@@ -101,6 +102,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
   const headline = version.headline || version.title || version.slug;
   return {
     id: version.id,
+    lineageId: version.lineageId,
     type: version.type,
     section: version.section ?? null,
     slug: version.slug,
@@ -117,4 +119,8 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
 export function recordLocalPreviewDesk(articleId: string, deskId: string | null): void {
   const version = createLocalPreviewContentItemVersions().find(candidate => candidate.id === articleId);
   if (version) version.section = deskId;
+}
+
+export function createLocalPreviewReportingTrail(_lineageId: string): StoryReportingTrail {
+  return EMPTY_STORY_REPORTING_TRAIL;
 }

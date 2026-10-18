@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { newsroomDeskOptions } from "../lib/newsroom-sections";
+import { StoryReportingTrailView } from "./story-reporting-trail";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,7 +62,7 @@ type ValidationState =
   | { status: "unavailable"; message: string };
 
 type Notice = { tone: "ok" | "error" | "info"; text: string };
-type MobileTab = "edit" | "preview";
+type MobileTab = "edit" | "preview" | "trail";
 
 function lineStartIndex(text: string, line: number): number {
   let index = 0;
@@ -114,6 +115,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [conflictOpen, setConflictOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
+  const [lineageId, setLineageId] = useState<string | null>(null);
   const [sections, setSections] = useState<string[]>([]);
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
@@ -135,6 +137,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       .then((article) => {
         if (cancelled) return;
         setEditor(stateFromArticle(article));
+        setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setEverPublished(article.everPublished);
         setSlugEdited(true);
@@ -584,7 +587,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
               <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
               <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
+              <button aria-pressed={mobileTab === "trail"} className="organizer-header-button" data-newsroom-article-view="trail" onClick={() => setMobileTab("trail")} type="button">Reporting trail</button>
             </div>
+              {mobileTab === "trail" && editor.id ? <StoryReportingTrailView demo={previewMode} itemId={editor.id} lineageId={lineageId} /> : null}
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
               <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>
                 <summary>Front matter (YAML)</summary>
@@ -690,9 +695,6 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               data-newsroom-article-preview-column
             >
               <div className="rounded-xl border border-border bg-card p-4" data-newsroom-article-preview>
-                <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Preview
-                </p>
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}

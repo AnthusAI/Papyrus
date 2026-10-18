@@ -206,6 +206,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       const record = requireRecord(id);
       return {
         id: record.id,
+        lineageId: createLocalPreviewEditableArticle(record.id)?.lineageId ?? null,
         type: record.type,
         section: record.section,
         slug: record.slug,
