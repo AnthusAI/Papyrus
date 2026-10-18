@@ -539,6 +539,14 @@ protected audit evidence and about a quarter of the rest are held for
 development, so they do not reach the prompt. That is deliberate, and it is why
 the proof above teaches through priming, where every example reaches the prompt.
 
+Section labels follow the same rule. A human or delegated accept can carry a
+`sectionId` (an enabled `NewsroomSection`, validated when recorded and stored in
+the curation Message metadata beside `actorKind`). `human_section_for_review(reference,
+messages, section_ids)` in `relevance_decisions.py` returns that id only when the
+latest curation is an explicit human accept carrying a section id in the given
+set, and `None` otherwise. Agent or unknown actors, rejections and unrecognised
+ids never produce a section label.
+
 Historic curation has no `actorKind`. `papyrus references stamp-curation-actor-kind
 --human-authors <label,label>` stamps `human` only on curation whose author label
 a person names, and is a dry run (it also lists every other author label) until

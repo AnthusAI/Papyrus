@@ -115,3 +115,21 @@ still write curation metadata itself. The delegation makes the honest path
 verifiable, and the audit trail (delegation id, agent, grantor) lets a person
 check it; removing direct write access to curation Messages is a separate
 hardening step.
+
+### Naming the section
+
+An accept, direct or relayed, can also say which newsroom Section the Reference
+belongs in:
+
+```bash
+papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
+  --agent <your name> --instruction "<the person's exact words>" --section <newsroom section id>
+papyrus references review-curation --reference <record id> --action accept --section <newsroom section id>
+```
+
+`reviewReferenceCuration` and `recordDelegatedCuration` take an optional
+`sectionId`. It must be the id of an enabled `NewsroomSection`; an unknown or
+disabled section is refused before anything is written, and a section on a
+reject, reopen or archive is refused. The id is stored as `sectionId` in the
+curation Message metadata beside `actorKind`. Only an accept that the signed-in
+person made, or that the person delegated, counts as their section label.

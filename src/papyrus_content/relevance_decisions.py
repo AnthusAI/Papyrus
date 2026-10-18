@@ -188,5 +188,26 @@ def human_label_for_review(reference: Mapping[str, Any], messages: Sequence[Mapp
     return relevance_label_for_review(reference, messages, labels=labels)
 
 
+def human_section_for_review(reference: Mapping[str, Any], messages: Sequence[Mapping[str, Any]],
+                             section_ids: Sequence[str]) -> str | None:
+    """The newsroom Section a person chose when accepting the Reference, else None.
+
+    Only an explicit human (or delegated) accept that names one of the known
+    section ids teaches a section. Agents, unknown actors, rejections and
+    unrecognised ids never produce a section label.
+    """
+    if not curation_was_made_by_a_human(messages):
+        return None
+    if reference.get("curationStatus") != "accepted":
+        return None
+    metadata = messages[-1].get("metadata") or {}
+    if metadata.get("action") != "accept":
+        return None
+    section_id = metadata.get("sectionId")
+    if not isinstance(section_id, str) or section_id not in set(section_ids):
+        return None
+    return section_id
+
+
 def _strip(record: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in record.items() if not key.startswith("__")}
