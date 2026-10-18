@@ -19,10 +19,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "cee53313-1ceb-412d-a797-f7cadbf46c0a",
+      "author": "unknown",
+      "text": "Findings 2026-10-18 (read-only): Kanbus mkdocs, 29 pages, builder in PR 461 (left unmerged: page conversion is Mac frontend work). Biblicus is Sphinx (docs/conf.py, api.rst autodoc, .readthedocs.yaml), 118 Markdown pages, so the API reference needs its own decision. Tactus docs/ has 35 Markdown files and no site build or Pages workflow. Cyclotron docs/ has 27 Markdown files and no site build. All reuse docsite/build_site.py from Kanbus PR 461 as the starting point; each repo needs requirements, a Pages or Amplify workflow and a Mac preview.",
+      "created_at": "2026-10-18T18:55:03.223207Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:26:07.495419Z",
-  "updated_at": "2026-10-18T18:54:30.408581Z",
+  "updated_at": "2026-10-18T18:55:03.223466Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
