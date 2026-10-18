@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { newsroomDeskOptions } from "../lib/newsroom-sections";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
@@ -96,8 +97,9 @@ const NO_DESK_VALUE = "__no-desk__";
 
 export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { articleId: string; demo: boolean; embedded?: boolean }) {
   const session = useOptionalNewsDeskClient();
-  const blocked = !demo && articlesAccessBlocked(session?.shell.phase);
-  const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(demo), [demo]);
+  const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
+  const previewMode = demo || isLocalPreviewEnabled();
+  const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(previewMode), [previewMode]);
   const isNew = articleId === "new";
 
   const [editor, setEditor] = useState<NewsroomArticleEditorState | null>(isNew ? emptyArticle() : null);
@@ -122,7 +124,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const mediaBackend = useMemo(() => resolveMediaBackend(demo), [demo]);
+  const mediaBackend = useMemo(() => resolveMediaBackend(previewMode), [previewMode]);
   const validationSequence = useRef(0);
 
   useEffect(() => {
@@ -515,11 +517,6 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             </div>
           ) : null}
 
-          <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
-            <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
-            <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Raw code</button>
-          </div>
-
           <div className="grid gap-6">
             <div
               className="min-w-0 space-y-4"
@@ -584,6 +581,10 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 </label>
               </div>
 
+                <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
+              <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
+              <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
+            </div>
               <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
               <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>
                 <summary>Front matter (YAML)</summary>
