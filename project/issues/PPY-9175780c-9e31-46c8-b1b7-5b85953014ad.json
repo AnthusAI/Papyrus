@@ -10,9 +10,24 @@
   "parent": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6162bec3-cd02-4bf2-aa77-c8e291ab786d",
+      "author": "unknown",
+      "text": "Slice 1 landed: AnthusAI/Chattic.us-web PR 30 squash-merged to main (f53cc39). Wiki idea pages, product docs and blog posts (59 pages) now render through Papyrus build_markus_site via publication/build.py, same URLs, canonical/OG/Twitter tags and opengraph-image routes. Verified locally: build, typecheck, npm test, 81 behave scenarios, editorial copy checks. Not yet verified: the chattic.us pipeline run (Verify stage now builds a Python venv). Index pages (/wiki, /updates, /agent-zoo, /thoughts) remain Next routes for the next slice.",
+      "created_at": "2026-10-18T13:23:31.760460Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Sonnet 5.5",
+        "name": "Thread Claude",
+        "settings": {}
+      }
+    }
+  ],
   "created_at": "2026-10-18T12:59:26.842355Z",
-  "updated_at": "2026-10-18T12:59:26.842729Z",
+  "updated_at": "2026-10-18T13:24:15.389383Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
