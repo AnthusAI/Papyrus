@@ -86,3 +86,26 @@ class ProspectusPublicationAccess:
         actor = PublicationActor(authorization.account_id, authorization.person_id, grants)
         execution_guard = self.execution_guard_for(connection) if self.execution_guard_for else None
         return PublicationAccess(lab, actor, execution_guard)
+
+
+def create_prospectus_publication_host(
+    *,
+    resolve_selection,
+    authorize_account_operation,
+    lab_for_account,
+    grants_for=role_based_publication_grants,
+    execution_guard_for=None,
+):
+    from decision_flywheel.publication_lab import create_publication_host
+    from .publication_bff import PublicationBFF
+
+    publication_access = ProspectusPublicationAccess(
+        authorize_account_operation=authorize_account_operation,
+        lab_for_account=lab_for_account,
+        grants_for=grants_for,
+        execution_guard_for=execution_guard_for,
+    )
+    return create_publication_host(
+        PublicationBFF(resolve_selection=resolve_selection, resolve_access=publication_access),
+        require_execution_guard=False,
+    )

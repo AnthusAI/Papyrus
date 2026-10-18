@@ -121,3 +121,38 @@ def test_access_fails_closed(tmp_path, case):
                 await access(None, 'threat-intelligence', 'publish' if case == 'unknown-capability' else 'read')
             assert refused.value.status == 403
     asyncio.run(scenario())
+
+
+def test_prospectus_publication_host_serves_each_role_over_http(tmp_path):
+    import httpx
+    from decision_flywheel.publication_lab import HTTPPublicationClient
+    from papyrus_content.prospectus_publication_access import create_prospectus_publication_host
+
+    async def scenario():
+        with Cyclotron.open(tmp_path / 'engine', DEFINITION, OfflineModel()) as engine:
+            lab = PublicationLab(engine, account_id='account-a', bindings=BINDINGS)
+            signed_in_role = {'role': 'member'}
+
+            def authorize_account_operation(connection, operation):
+                return ProspectusAccountAuthorization('account-a', 'person-a', signed_in_role['role'], operation)
+
+            host = create_prospectus_publication_host(
+                resolve_selection=lambda _connection: SELECTION,
+                authorize_account_operation=authorize_account_operation,
+                lab_for_account=lambda _connection, _account: lab,
+            )
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=host), base_url='http://offline.test') as http:
+                client = HTTPPublicationClient(http, account_id='account-a')
+                decided = await client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+                assert decided['accountId'] == 'account-a'
+                assert (await client.command('threat-intelligence', 'status', {}))
+                signed_in_role['role'] = 'viewer'
+                assert (await client.command('threat-intelligence', 'status', {}))
+                with pytest.raises(PublicationError) as refused:
+                    await client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+                assert refused.value.status == 403
+                signed_in_role['role'] = 'guest'
+                with pytest.raises(PublicationError) as removed:
+                    await client.command('threat-intelligence', 'status', {})
+                assert removed.value.status == 403
+    asyncio.run(scenario())
