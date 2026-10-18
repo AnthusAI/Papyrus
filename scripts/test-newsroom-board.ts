@@ -7,6 +7,7 @@ import {
   contentItemBoardPathSegment, assignmentBoardConfig, canReadNewsroomBoard, contentItemBoardConfig, contentItemBoardType, contentItemColumnOrder, projectAssignmentBoard, projectContentItemBoard } from "../lib/newsroom-board";
 import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS, contentItemStageKeys } from "../lib/content-item-lifecycle";
 import { getContentItemName } from "../lib/site-brand";
+import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 
 const contentItemType = contentItemBoardType();
 assert.equal(contentItemType, getContentItemName().singular.toLowerCase(), "content item cards use the publication's name");
@@ -80,3 +81,10 @@ assert.deepEqual(Object.keys(deskConfig.workflows ?? {}), [contentItemType, "ass
 assert.ok(Object.keys(deskConfig.workflows?.assignment ?? {}).every(key => key.startsWith("assignment/")), "assignment columns stay separate from story columns");
 assert.ok(Object.keys(deskConfig.workflows?.[contentItemType] ?? {}).every(key => key.startsWith(`${contentItemType}/`)));
 console.log("PASS separate story and assignment boards, one card per record by stage or status, and board access gate");
+
+for (const bookkeepingTypeKey of ["curation.reference-intake", "reference.corpus-accession", "reference.identifier-backfill", "reference.text-extraction", "analysis.reindex"]) {
+  assert.equal(isEditorialWorkAssignment({ assignmentTypeKey: bookkeepingTypeKey }), false, `${bookkeepingTypeKey} stays off the assignments board`);
+}
+for (const workTypeKey of ["copywriting.article-draft", "research.edition-candidate", "reporting.edition-candidate", "custom", undefined]) {
+  assert.equal(isEditorialWorkAssignment({ assignmentTypeKey: workTypeKey }), true, `${workTypeKey} is real work`);
+}

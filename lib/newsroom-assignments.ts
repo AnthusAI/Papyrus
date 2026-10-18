@@ -18,6 +18,19 @@ export type AssignmentMetrics = {
   canceled: number;
 };
 
+export const BOOKKEEPING_ASSIGNMENT_TYPE_KEYS: ReadonlySet<string> = new Set([
+  "analysis.reindex",
+  "curation.reference-intake",
+  "reference.corpus-accession",
+  "reference.identifier-backfill",
+  "reference.doi-backfill",
+  "reference.text-extraction",
+]);
+
+export function isEditorialWorkAssignment(assignment: Pick<AssignmentRecord, "assignmentTypeKey">): boolean {
+  return !BOOKKEEPING_ASSIGNMENT_TYPE_KEYS.has(assignment.assignmentTypeKey?.trim() ?? "");
+}
+
 export function assignmentTypeKeyForFilter(assignment: AssignmentRecord): string {
   return assignment.assignmentTypeKey?.trim() || "unknown";
 }

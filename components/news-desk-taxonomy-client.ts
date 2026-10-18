@@ -1,5 +1,6 @@
 "use client";
 
+import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
@@ -2156,10 +2157,10 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
     newsroomFeedKey: "assignments",
     limit: options.limit,
     nextToken: options.nextToken,
-    matches: equalityMatcher({
+    matches: (assignment) => isEditorialWorkAssignment(assignment) && (equalityMatcher<AssignmentRecord>({
       assignmentTypeKey: options.type,
       status: options.status,
-    }),
+    })?.(assignment) ?? true),
   });
 }
 
