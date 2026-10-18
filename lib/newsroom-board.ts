@@ -114,6 +114,31 @@ export function assignmentBoardConfig(issues: readonly NativeBoardIssue[]): Kanb
     .map(status => ({ key: `${ASSIGNMENT_BOARD_TYPE}/${status}`, name: assignmentStatusLabel(status) })));
 }
 
+function matchesDesk(candidate: string | null | undefined, deskId: string): boolean {
+  return Boolean(candidate) && candidate!.trim().toLowerCase() === deskId.trim().toLowerCase();
+}
+
+export function deskContainsContentItem(version: ContentItemVersionRecord, deskId: string): boolean {
+  return matchesDesk(version.section, deskId);
+}
+
+export function deskContainsAssignment(assignment: AssignmentRecord, deskId: string): boolean {
+  return matchesDesk(assignment.sectionId, deskId) || matchesDesk(assignment.sectionKey, deskId);
+}
+
+/** A desk board shows stories and assignments side by side; each keeps its own columns and the type filter narrows to one. */
+export function deskBoardConfig(issues: readonly NativeBoardIssue[]): KanbanConfig {
+  const storiesConfig = contentItemBoardConfig(issues.filter(issue => issue.kind === "contentItem"));
+  const assignmentsConfig = assignmentBoardConfig(issues.filter(issue => issue.kind === "assignment"));
+  return {
+    ...storiesConfig,
+    types: [...(storiesConfig.types ?? []), ...(assignmentsConfig.types ?? [])],
+    statuses: [...storiesConfig.statuses, ...assignmentsConfig.statuses],
+    categories: storiesConfig.categories,
+    workflows: { ...storiesConfig.workflows, ...assignmentsConfig.workflows },
+  };
+}
+
 export function canReadNewsroomBoard(phase: string | undefined): boolean {
   return phase === "ready";
 }
