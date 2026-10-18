@@ -2194,6 +2194,62 @@ export async function loadNewsroomContentItemVersions(): Promise<ContentItemVers
   return versionsPerStage.flat();
 }
 
+const PUBLISHED_ITEMS_QUERY = `
+  query ListPublishedItems($limit: Int, $nextToken: String) {
+    listPublishedItems(limit: $limit, nextToken: $nextToken) {
+      items { sourceItemId itemLineageId versionNumber type status title headline slug section publishedAt }
+      nextToken
+    }
+  }
+`;
+
+type PublishedItemBoardRow = {
+  sourceItemId: string;
+  itemLineageId: string;
+  versionNumber: number;
+  type: string;
+  status: string;
+  title?: string | null;
+  headline?: string | null;
+  slug: string;
+  section?: string | null;
+  publishedAt?: string | null;
+};
+
+export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;
+  };
+  const rows: PublishedItemBoardRow[] = [];
+  let nextToken: string | null = null;
+  do {
+    const response: GraphQLConnectionResponse<PublishedItemBoardRow> = await client.graphql({
+      query: PUBLISHED_ITEMS_QUERY,
+      variables: { limit: NEWSROOM_PAGE_LIMIT, nextToken },
+      authMode: USER_POOL_AUTH_MODE,
+    });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.listPublishedItems;
+    if (!connection) throw new Error("Missing GraphQL connection payload for listPublishedItems.");
+    rows.push(...((connection.items ?? []).filter(Boolean) as PublishedItemBoardRow[]));
+    nextToken = connection.nextToken ?? null;
+  } while (nextToken);
+  return rows.map(row => ({
+    id: row.sourceItemId,
+    lineageId: row.itemLineageId,
+    versionNumber: row.versionNumber,
+    stage: "published",
+    type: row.type,
+    status: row.status,
+    title: row.title,
+    headline: row.headline,
+    slug: row.slug,
+    section: row.section,
+    updatedAt: row.publishedAt,
+  }));
+}
+
 export async function loadModelPayloadsForOwner(
   ownerKind: string,
   ownerId: string,
