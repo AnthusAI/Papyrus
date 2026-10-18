@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4b05de62-84e4-4b81-bc37-2abb3ed6314d",
+  "issue_id": "PPY-cea7bdc9-9152-428d-82ae-a908da367408",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:50:36.904Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Tactus books 1: docs builder book mode (_quarto.yml nav, snippet includes, metadata substitution)",
+    "description": "Part of PPY-81c9b9. In papyrus_content.markus_renderer.docs_site: read book.chapters and part groups from _quarto.yml into sidebar groups with previous/next links; treat .qmd as Markdown; expand {file= snippet= show-path=} fences from -- snippet:start/end markers and fail on a missing snippet; replace {{< meta KEY >}} from book-links.yml and tactus-target.yml. Unit tests with a small chapter fixture. Cloud work, Papyrus only. Plan: /mnt/project-files/anthus-sites-to-papyrus/tactus-books-inventory-and-plan.md",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": [
+      "tactus-books"
+    ]
+  }
+}
