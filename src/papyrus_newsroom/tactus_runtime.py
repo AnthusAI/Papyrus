@@ -624,7 +624,6 @@ RESOURCE_API_SCHEMA: dict[str, Any] = {
                     "apply",
                     "enrich",
                     "skipExisting",
-                    "createCurationAssignment",
                     "createIngestionRationaleMessage",
                     "note",
                 ],
@@ -719,7 +718,7 @@ DOCS: dict[str, dict[str, Any]] = {
             "generation when apply = true.\n\n"
             "Required: url (http/https). Optional: title, corpusKey (default: the publication's canonical corpus), "
             "ingestionRationale, actorLabel, apply (default false dry-run), enrich (default true "
-            "when apply), skipExisting (default true), createCurationAssignment (default true), "
+            "when apply), skipExisting (default true), "
             "note.\n\n"
             "Example:\n"
             "return Reference.create{\n"
