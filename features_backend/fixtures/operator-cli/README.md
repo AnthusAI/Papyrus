@@ -1,6 +1,6 @@
 # Operator CLI fixtures
 
-Executable specs in `features/operator-cli.feature` use these fixtures. They are
+Executable specs in `features_backend/operator-cli.feature` use these fixtures. They are
 not production data and do not revive a local Markdown content store.
 
 ## Cloud backend fixture

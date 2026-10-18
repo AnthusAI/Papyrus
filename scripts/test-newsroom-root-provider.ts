@@ -5,6 +5,7 @@
  *   PAPYRUS_SITE_BRAND=pilobol-us npx tsx scripts/test-newsroom-root-provider.ts
  */
 import assert from "node:assert/strict";
+process.env.PAPYRUS_SITE_BRAND = "pilobol-us";
 import Module from "node:module";
 import * as React from "react";
 import type { ReactElement } from "react";

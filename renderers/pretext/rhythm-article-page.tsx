@@ -13,6 +13,7 @@ import { PresentationFooter } from "../../components/presentation-footer";
 import { PresentationHeader } from "../../components/presentation-header";
 import { useBlogHeaderObstacles } from "../../components/use-blog-header-obstacles";
 import { useRhythmOverlay } from "../../components/use-rhythm-overlay";
+import { useMeasuredWidth } from "./presentation-shared";
 import { BLOG_RHYTHM, getFeaturedLayoutStyle, getRhythmShellStyle } from "./rhythm-shell-style";
 
 const BlogPageBackground = SITE_BRAND.components?.BlogPageBackground ?? GenericBlogPageBackground;
@@ -133,24 +134,6 @@ export function RhythmArticlePage({
       ) : null}
     </main>
   );
-}
-
-function useMeasuredWidth(ref: RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const update = () => setWidth(Math.max(1, Math.floor(node.getBoundingClientRect().width)));
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(node);
-    window.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [ref]);
-  return width;
 }
 
 function useViewportWidth(): number {

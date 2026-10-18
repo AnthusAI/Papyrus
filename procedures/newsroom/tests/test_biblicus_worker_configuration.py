@@ -16,6 +16,7 @@ def test_extraction_and_metadata_use_same_configured_worker(tmp_path, configured
     interpreter = checkout / ".venv/bin/python"
     interpreter.parent.mkdir(parents=True)
     interpreter.touch()
+    (checkout / "src/biblicus").mkdir(parents=True)
     env = {**os.environ, "PAPYRUS_ROOT": str(papyrus), "EXPECTED_BIBLICUS": str(checkout)}
     env.pop("BIBLICUS_WORKDIR", None)
     if configured:
