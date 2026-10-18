@@ -12,9 +12,19 @@
     "anthus-move-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c5413403-1d2e-460a-bc62-d8c92055ed66",
+      "author": "unknown",
+      "text": "2026-10-18: Anth.us PR 88 merged (legacy notice, no AWS IDs in current files). Repos renamed: Anth.us-Papyrus -> Anth.us-web, Anth.us -> Anth.us-legacy-Gatsby. Docs/brand/fixture references updated in the Papyrus repo. Remaining: history scrub + force-push of both repos on the Mac (runbook /mnt/project-files/anthus-renames/scrub-and-rename.md), then make Anth.us-web public. Older issues mentioning the old names (e.g. PPY-736021, PPY-44a215, PPY-b488da) stay as history; new names are recorded here.",
+      "created_at": "2026-10-18T12:57:02.066973Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:50:47.592993Z",
-  "updated_at": "2026-10-17T16:50:47.593419Z",
+  "updated_at": "2026-10-18T12:57:02.067174Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
