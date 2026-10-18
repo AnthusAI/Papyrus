@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "dffb0756-1ba3-40e4-a02f-ee95745d1833",
+  "issue_id": "PPY-0acfdb7d-abd7-4b05-98c6-624d45e6cb87",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T19:00:31.364Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Resolve current editorial context through one publication-scoped CLI and library",
+    "description": "Feature: Current editorial context. Scenario: Fetch a scoped policy. Given a configured publication and current mission and policy records, when an agent resolves publication plus optional section/story/assignment context, then one rendered text and source revisions identify that scope. Scenario: Explicit offline configuration. Given local Git configuration, when local context is requested, then source provenance says local and never claims to be current hosted policy. Scenario: Missing or unauthorized policy. Given missing required doctrine, ambiguous revisions or an unauthorized read, when context is fetched, then execution fails explicitly without seed fallback. Scenario: Required policy budget. Given a budget smaller than required policy, when context is requested, then it fails instead of truncating required policy.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "ChatGPT"
+    }
+  }
+}

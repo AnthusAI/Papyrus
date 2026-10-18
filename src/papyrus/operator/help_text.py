@@ -19,7 +19,7 @@ Operator groups:
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
-  editorial     Editorial quality loop commands
+  editorial     Editorial context and quality loop commands
   batch         Batch registration and enrichment
 
 Backend selection:
@@ -91,6 +91,14 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   diagnose.add_argument("--draft", required=True, help="Path to the draft file (read-only).")
   diagnose.add_argument("--profile", required=True, help="Path to the style profile YAML.")
   diagnose.add_argument("--output", default="", help="Optional path to write diagnostic JSON.")
+  context = subparsers.add_parser("context", help="Resolve current editorial guidance with source provenance")
+  context.add_argument("--backend", choices=["local", "cloud"], required=True)
+  context.add_argument("--publication", required=True)
+  context.add_argument("--section")
+  context.add_argument("--story")
+  context.add_argument("--assignment")
+  context.add_argument("--format", choices=["json", "text"], default="json")
+  context.add_argument("--max-characters", type=int, default=0)
   options = subparsers.add_parser("options", help="Generate constrained rewrite options for findings marked rewrite")
   options.add_argument("--draft", required=True, help="Path to the draft file (read-only).")
   options.add_argument("--profile", required=True, help="Path to the style profile YAML.")

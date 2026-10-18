@@ -343,6 +343,11 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             raise ValueError("papyrus videos requires <command>.")
         _delegate_content("videos", command, flags)
         return 0
+    if group == "editorial" and command == "context":
+        from papyrus_content.editorial_context import editorial_context_command
+
+        editorial_context_command(flags)
+        return 0
     if group == "editorial":
         if command is None:
             print_group_help(group)

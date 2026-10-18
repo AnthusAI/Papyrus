@@ -52,6 +52,9 @@ Rules:
 
 Procedure {
     input = {
+        editorial_context_json = field.string{default = "", description = "Resolved editorial context source provenance for the run audit"},
+        editorial_context_text = field.string{default = "", description = "Required resolved live editorial context; fetch with papyrus editorial context"},
+        editorial_context_hash = field.string{default = "", description = "Resolved editorial context provenance hash"},
         assignment_item_id = field.string{default = "", description = "Papyrus copywriting Assignment.id"},
         corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "copywriting", description = "Context profile for copywriting"},
@@ -67,6 +70,9 @@ Procedure {
         summary = field.string{required = true}
     },
     function(input)
+        if input.editorial_context_text == "" or input.editorial_context_hash == "" then
+            error("Resolved editorial context text and hash are required before starting an editorial worker")
+        end
         local message = string.format([[
 Create a copywriting draft plan for copywriting Assignment %s using corpus %s.
 
@@ -86,7 +92,7 @@ Return dry_run=true, work_product_kind="draft_item", item_status="draft",
 draft_payload, and a concise summary.
 ]], input.assignment_item_id, input.corpus_key, input.source_reporting_packet_id or "")
 
-        local result = newsroom_copywriter({message = message})
+        local result = newsroom_copywriter({message = input.editorial_context_text .. "\nContext hash: " .. input.editorial_context_hash .. "\n\n" .. message})
         return result.output
     end
 }
@@ -97,6 +103,8 @@ Feature: Newsroom copywriter procedure
 
   Scenario: Copywriter plans a draft article Item
     Given the procedure has started
+    And the input editorial_context_text is "Synthetic test publication policy"
+    And the input editorial_context_hash is "synthetic-fixture-context"
     And the input assignment_item_id is "assignment-copywriting-article-123"
     And the input corpus_key is "AI-ML-research"
     And the agent "newsroom_copywriter" calls tool "execute_tactus" with args {"tactus": "local context = assignment_context{ id = \"assignment-copywriting-article-123\" }; local pack = assignment_agent_context{ id = \"assignment-copywriting-article-123\", context_profile = \"copywriting\" }; return { assignment = context.assignment_context.assignment, context = pack }"}

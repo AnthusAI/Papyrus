@@ -1,0 +1,27 @@
+{
+  "id": "PPY-43e9491b-10f6-4176-a8b3-fccba686f3ad",
+  "title": "Deliver shared editorial policy to canned workers and assignment context APIs",
+  "description": "Feature: Shared worker policy. Scenario: Policy before research. Given a live research assignment, when its worker is dispatched, then the shared editorial context enters the prompt before source research. Scenario: Current section policy. Given a changed section policy, when reporting, writing and assignment APIs fetch context, then they resolve the same current section and surface missing/unauthorized failures. Scenario: Budgeted context. Given required editorial policy, when evidence is compacted, then policy is retained intact or the request fails explicitly.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T19:07:13.752008Z",
+  "updated_at": "2026-10-18T19:10:05.739904Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "ChatGPT",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

@@ -154,6 +154,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
                     "referenceLineageIds": ["reference-1"],
                 },
             },
+            "editorialContext": {"text": "Publication Doctrine\nStudy systems as operational systems.\nDesk Doctrine\nPrefer concrete operational evidence.", "contextHash": "fixture-context", "sources": []},
             "doctrine": [
                 {"scope": "publication", "kind": "mission", "label": "Editorial Mission", "body": ["Study systems as operational systems."]},
                 {"scope": "desk", "kind": "policy", "label": "Scaling Desk Policy", "body": ["Prefer concrete operational evidence."]},
@@ -336,6 +337,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
                 },
             },
             "doctrine": [],
+            "editorialContext": {"text": "Publication Doctrine\nFixture policy", "contextHash": "forum-fixture", "sources": []},
             "targets": [],
             "events": [],
         }

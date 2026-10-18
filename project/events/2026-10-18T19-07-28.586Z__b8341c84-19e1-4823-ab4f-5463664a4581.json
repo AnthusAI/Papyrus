@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b8341c84-19e1-4823-ab4f-5463664a4581",
+  "issue_id": "PPY-df5545bf-7989-413b-94cf-6deb33014a98",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T19:07:28.586Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fetch editorial context from static reporting and copywriting skills",
+    "description": "Feature: DRY newsroom skills. Scenario: Current policy. Given a publication and story task, when the static reporting or copywriting skill is followed, then it fetches the standardized context and records provenance without duplicating policy text. Scenario: Limatus editing. Given a draft, when copy editing starts, then the existing Limatus packaged skill and publication style profile govern editing, original text is preserved, explicit human option selection remains required and each substantive article change creates a new version.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "ChatGPT"
+    }
+  }
+}
