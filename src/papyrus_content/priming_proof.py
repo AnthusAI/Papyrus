@@ -30,6 +30,9 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 HELD_OUT_SET_VERSION = "papyrus-priming-held-out/v1"
+CROSS_VALIDATION_SET_VERSION = "papyrus-priming-cross-validation/v1"
+DEFAULT_FOLD_COUNT = 5
+DEFAULT_CROSS_VALIDATION_SCHEDULE = (0, 5, 10)
 PROOF_REPORT_VERSION = "cyclotron-priming-proof/v1"
 DEFAULT_HELD_OUT_SIZE = 40
 MINIMUM_HELD_OUT_ITEMS_PER_LABEL = 5
@@ -66,6 +69,21 @@ def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[
     if size < 2 * MINIMUM_HELD_OUT_ITEMS_PER_LABEL or size % 2:
         raise ValueError(f"The held-out size must be an even number of at least {2 * MINIMUM_HELD_OUT_ITEMS_PER_LABEL}.")
     items_per_label = size // 2
+    candidates_by_label = _ranked_candidates_by_label(reviewed_references_with_labels, classifier, proof_id)
+    shortfalls = {label: len(candidates) for label, candidates in candidates_by_label.items()
+                  if len(candidates) < items_per_label}
+    if shortfalls:
+        counts = ", ".join(f"{label}: {count}" for label, count in shortfalls.items())
+        raise ValueError(f"A held-out set of {size} needs {items_per_label} reviewed references per label; "
+                         f"only {counts} are available. Review more references or choose a smaller --size.")
+    selected_items = [item for label in classifier.labels for item in candidates_by_label[label][:items_per_label]]
+    teaching_pool = [item for label in classifier.labels for item in candidates_by_label[label][items_per_label:]]
+    return _assembled_held_out_set(plan=plan, proof_id=proof_id, held_out_items=selected_items,
+                                   teaching_items=teaching_pool, frozen_at=frozen_at,
+                                   selection="balanced; editor-reviewed References ranked by sha256(proofId, lineageId)")
+
+
+def _ranked_candidates_by_label(reviewed_references_with_labels, classifier, proof_id: str) -> dict[str, list[dict[str, Any]]]:
     candidates_by_label: dict[str, list[tuple[str, dict[str, Any]]]] = {label: [] for label in classifier.labels}
     for reference, label in reviewed_references_with_labels:
         if label not in candidates_by_label:
@@ -75,19 +93,16 @@ def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[
                                            {"id": item.id, "label": label, "values": dict(item.values),
                                             "reviewedAt": str(reference.get("curationStatusUpdatedAt") or ""),
                                             "explanation": str(reference.get("curationStatusReason") or "").strip()}))
-    shortfalls = {label: len(candidates) for label, candidates in candidates_by_label.items()
-                  if len(candidates) < items_per_label}
-    if shortfalls:
-        counts = ", ".join(f"{label}: {count}" for label, count in shortfalls.items())
-        raise ValueError(f"A held-out set of {size} needs {items_per_label} reviewed references per label; "
-                         f"only {counts} are available. Review more references or choose a smaller --size.")
-    selected_items = [item for label in classifier.labels
-                      for _, item in sorted(candidates_by_label[label], key=lambda pair: pair[0])[:items_per_label]]
-    selected_items.sort(key=lambda item: held_out_selection_rank(proof_id, item["id"]))
-    selected_ids = {item["id"] for item in selected_items}
-    teaching_pool = sorted((item for candidates in candidates_by_label.values() for _, item in candidates
-                            if item["id"] not in selected_ids),
-                           key=lambda item: (item["reviewedAt"], held_out_selection_rank(proof_id, item["id"])))
+    return {label: [item for _, item in sorted(candidates, key=lambda pair: pair[0])]
+            for label, candidates in candidates_by_label.items()}
+
+
+def _assembled_held_out_set(*, plan, proof_id: str, held_out_items: Sequence[Mapping[str, Any]],
+                            teaching_items: Sequence[Mapping[str, Any]], frozen_at: str | None,
+                            selection: str) -> dict[str, Any]:
+    classifier = plan.definition.classifiers[0]
+    held_out_items = sorted(held_out_items, key=lambda item: held_out_selection_rank(proof_id, item["id"]))
+    teaching_pool = sorted(teaching_items, key=lambda item: (item["reviewedAt"], held_out_selection_rank(proof_id, item["id"])))
     held_out_set = {
         "version": HELD_OUT_SET_VERSION,
         "proofId": proof_id,
@@ -97,12 +112,61 @@ def freeze_held_out_set(reviewed_references_with_labels: Sequence[tuple[Mapping[
         "labels": list(classifier.labels),
         "positiveLabel": classifier.positive_label,
         "frozenAt": frozen_at or _now(),
-        "selection": "balanced; editor-reviewed References ranked by sha256(proofId, lineageId)",
-        "items": [{key: item[key] for key in ("id", "label", "values")} for item in selected_items],
-        "teachingPool": teaching_pool,
+        "selection": selection,
+        "items": [{key: item[key] for key in ("id", "label", "values")} for item in held_out_items],
+        "teachingPool": list(teaching_pool),
     }
     held_out_set["fingerprint"] = held_out_set_fingerprint(held_out_set)
     return held_out_set
+
+
+def freeze_cross_validation_set(reviewed_references_with_labels: Sequence[tuple[Mapping[str, Any], str]], *, plan,
+                                proof_id: str, fold_count: int = DEFAULT_FOLD_COUNT,
+                                frozen_at: str | None = None) -> dict[str, Any]:
+    """Every labeled review held out exactly once, in stratified folds, each with the other folds as its teaching pool."""
+    classifier = plan.definition.classifiers[0]
+    if fold_count < 2:
+        raise ValueError("Cross-validation needs at least two folds.")
+    candidates_by_label = _ranked_candidates_by_label(reviewed_references_with_labels, classifier, proof_id)
+    shortfalls = {label: len(candidates) for label, candidates in candidates_by_label.items()
+                  if len(candidates) < fold_count}
+    if shortfalls:
+        counts = ", ".join(f"{label}: {count}" for label, count in shortfalls.items())
+        raise ValueError(f"{fold_count}-fold cross-validation needs at least {fold_count} reviewed references per "
+                         f"label; only {counts} are available.")
+    frozen_at = frozen_at or _now()
+    fold_items: list[list[dict[str, Any]]] = [[] for _ in range(fold_count)]
+    for label in classifier.labels:
+        for position, item in enumerate(candidates_by_label[label]):
+            fold_items[position % fold_count].append(item)
+    folds = [_assembled_held_out_set(plan=plan, proof_id=f"{proof_id}/fold-{fold_number}",
+                                     held_out_items=held_items,
+                                     teaching_items=[item for other_number, other_items in enumerate(fold_items)
+                                                     if other_number != fold_number for item in other_items],
+                                     frozen_at=frozen_at,
+                                     selection=f"stratified fold {fold_number + 1} of {fold_count}; position in "
+                                               "sha256(proofId, lineageId) rank within each label, modulo the fold count")
+             for fold_number, held_items in enumerate(fold_items)]
+    cross_validation_set = {"version": CROSS_VALIDATION_SET_VERSION, "proofId": proof_id, "frozenAt": frozen_at,
+                            "folds": folds}
+    cross_validation_set["fingerprint"] = cross_validation_fingerprint(cross_validation_set)
+    return cross_validation_set
+
+
+def cross_validation_fingerprint(cross_validation_set: Mapping[str, Any]) -> str:
+    return hashlib.sha256(canonical_json({"version": cross_validation_set["version"],
+                                          "proofId": cross_validation_set["proofId"],
+                                          "folds": [fold["fingerprint"] for fold in cross_validation_set["folds"]]}
+                                         ).encode()).hexdigest()
+
+
+def verify_cross_validation_set(cross_validation_set: Mapping[str, Any]) -> None:
+    if cross_validation_set.get("version") != CROSS_VALIDATION_SET_VERSION:
+        raise ValueError(f"The cross-validation set must be {CROSS_VALIDATION_SET_VERSION}.")
+    for fold in cross_validation_set["folds"]:
+        verify_held_out_set(fold)
+    if cross_validation_fingerprint(cross_validation_set) != cross_validation_set.get("fingerprint"):
+        raise ValueError("The cross-validation set changed after it was frozen; freeze a new set under a new proof id.")
 
 
 def reviewed_reference_item_without_the_editor_note(reference: Mapping[str, Any]):
@@ -244,6 +308,60 @@ def run_priming_proof(held_out_set: Mapping[str, Any], *, plan, priming_examples
     }
 
 
+def run_cross_validated_priming_proof(cross_validation_set: Mapping[str, Any], *, plan, model,
+                                      label_schedule: Sequence[int] = DEFAULT_CROSS_VALIDATION_SCHEDULE,
+                                      publication: str, model_identity: str | None = None,
+                                      ran_at: str | None = None,
+                                      on_point: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
+    """Run the proof once per fold on a schedule every fold can honor, then pool the folds' decisions per N."""
+    verify_cross_validation_set(cross_validation_set)
+    folds = cross_validation_set["folds"]
+    smallest_teaching_pool = min(len(fold["teachingPool"]) for fold in folds)
+    common_schedule = sorted({count for count in label_schedule if 0 <= count <= smallest_teaching_pool}
+                             | {0, smallest_teaching_pool})
+    fold_reports = [run_priming_proof(fold, plan=plan, priming_examples=teaching_examples_from_reviews(fold),
+                                      model=model, label_schedule=common_schedule, publication=publication,
+                                      model_identity=model_identity, ran_at=ran_at,
+                                      teaching_source=TEACHING_SOURCES["reviews"])
+                    for fold in folds]
+    classifier = plan.definition.classifiers[0]
+    points = []
+    for point_number, label_count in enumerate(common_schedule):
+        fold_points = [report["points"][point_number] for report in fold_reports]
+        pooled_confusion = {key: sum(point["confusion"][key] for point in fold_points)
+                            for key in fold_points[0]["confusion"]}
+        pooled_outcomes = ([("positive", "positive")] * pooled_confusion["truePositives"]
+                           + [("other", "positive")] * pooled_confusion["falsePositives"]
+                           + [("other", "other")] * pooled_confusion["trueNegatives"]
+                           + [("positive", "other")] * pooled_confusion["falseNegatives"])
+        point = {"labels": label_count,
+                 "labelsByClass": {label: round(sum(point["labelsByClass"][label] for point in fold_points)
+                                                / len(fold_points)) for label in classifier.labels},
+                 **agreement_metrics(pooled_outcomes, positive_label="positive")}
+        points.append(point)
+        if on_point:
+            on_point(point)
+    held_out_by_label = {label: sum(report["heldOut"]["byLabel"][label] for report in fold_reports)
+                         for label in classifier.labels}
+    return {
+        **{key: fold_reports[0][key] for key in ("version", "publication", "cyclotronId", "question", "labels",
+                                                  "positiveLabel", "decisionModel", "ranAt", "conditions")},
+        "proofId": cross_validation_set["proofId"],
+        "heldOut": {
+            "size": sum(held_out_by_label.values()),
+            "byLabel": held_out_by_label,
+            "fingerprint": cross_validation_set["fingerprint"],
+            "frozenAt": cross_validation_set["frozenAt"],
+            "source": fold_reports[0]["heldOut"]["source"],
+            "design": f"{len(folds)}-fold cross-validation: every reviewed Reference is held out exactly once, "
+                      "taught only by reviews outside its own fold; folds are pooled at each N",
+        },
+        "priming": {**fold_reports[0]["priming"], "acceptedExamples": smallest_teaching_pool,
+                    "order": "reviews in review order within each fold's teaching pool"},
+        "points": points,
+    }
+
+
 def _ratio(numerator: int, denominator: int) -> float | None:
     return round(numerator / denominator, 4) if denominator else None
 
@@ -335,6 +453,72 @@ def references_prove_priming(flags: list[str]) -> None:
     Path(options["output"]).parent.mkdir(parents=True, exist_ok=True)
     Path(options["output"]).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"references\tprove-priming\t{options['output']}")
+
+
+def references_freeze_priming_cross_validation(flags: list[str]) -> None:
+    """papyrus references freeze-priming-cross-validation --proof-id <id> --output <folds.json>
+    [--folds 5] [--config <steering.yml>] [--doctrine <doctrine.yml>]
+
+    Reads reviewed References and writes stratified folds that hold every labeled
+    review out exactly once. Makes no model call and writes nothing to Papyrus.
+    Keep the file private. Refuses to overwrite an existing file.
+    """
+    from .graphql_authoring import create_authoring_client
+    from .newsroom_doctrine import load_publication_doctrine_seed
+    from .options import parse_options
+    from .relevance_cyclotron import build_relevance_cyclotron
+    from .steering import require_steering_config
+
+    options = parse_options(flags)
+    if not isinstance(options.get("proof-id"), str) or not isinstance(options.get("output"), str):
+        raise ValueError("references freeze-priming-cross-validation requires --proof-id <id> and --output <folds.json>.")
+    output_path = Path(options["output"])
+    if output_path.exists():
+        raise ValueError(f"{output_path} exists; a frozen set is never regenerated. Use a new --proof-id.")
+    steering_config = require_steering_config(options.get("config"))
+    plan = build_relevance_cyclotron(steering_config, load_publication_doctrine_seed(options.get("doctrine"))["doctrine"])
+    fold_count = int(options["folds"]) if isinstance(options.get("folds"), str) else DEFAULT_FOLD_COUNT
+    client, _ = create_authoring_client()
+    cross_validation_set = freeze_cross_validation_set(reviewed_references_with_editor_labels(client, steering_config, plan),
+                                                       plan=plan, proof_id=options["proof-id"], fold_count=fold_count)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(cross_validation_set, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"references\tfreeze-priming-cross-validation\t{output_path}\t"
+          f"{sum(len(fold['items']) for fold in cross_validation_set['folds'])} items\t{cross_validation_set['fingerprint']}")
+
+
+def references_prove_priming_cross_validated(flags: list[str]) -> None:
+    """papyrus references prove-priming-cross-validated --folds-file <folds.json> --output <report.json>
+    [--schedule 0,5,10] [--config <steering.yml>] [--doctrine <doctrine.yml>]
+
+    Calls the configured decision model once per labeled review per scheduled N
+    (the key comes from the environment). Writes the aggregate report only.
+    """
+    from .newsroom_doctrine import load_publication_doctrine_seed
+    from .options import parse_options
+    from .relevance_cyclotron import build_relevance_cyclotron, decision_model_from_environment, decision_model_identity
+    from .steering import require_steering_config
+
+    options = parse_options(flags)
+    if not isinstance(options.get("folds-file"), str) or not isinstance(options.get("output"), str):
+        raise ValueError("references prove-priming-cross-validated requires --folds-file <folds.json> and --output <report.json>.")
+    steering_config = require_steering_config(options.get("config"))
+    plan = build_relevance_cyclotron(steering_config, load_publication_doctrine_seed(options.get("doctrine"))["doctrine"])
+    cross_validation_set = json.loads(Path(options["folds-file"]).read_text(encoding="utf-8"))
+    label_schedule = ([int(part) for part in options["schedule"].split(",")] if isinstance(options.get("schedule"), str)
+                      else list(DEFAULT_CROSS_VALIDATION_SCHEDULE))
+
+    def print_point(point: dict[str, Any]) -> None:
+        print(f"references\tprove-priming-cross-validated\tlabels\t{point['labels']}\tagreement\t{point['agreement']}\t"
+              f"precision\t{point['precision']}\trecall\t{point['recall']}")
+
+    report = run_cross_validated_priming_proof(cross_validation_set, plan=plan, model=decision_model_from_environment(plan),
+                                               label_schedule=label_schedule,
+                                               publication=steering_config["publication"]["name"],
+                                               model_identity=decision_model_identity(plan), on_point=print_point)
+    Path(options["output"]).parent.mkdir(parents=True, exist_ok=True)
+    Path(options["output"]).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"references\tprove-priming-cross-validated\t{options['output']}")
 
 
 def accepted_catalog_examples(options: Mapping[str, Any], plan) -> tuple[list[Any], str]:

@@ -25,6 +25,16 @@ async function main() {
   assert.equal((published.match(/data-priming-proof-point=/g) ?? []).length, 3);
   assert.match(published, /1 include, 5 exclude/);
 
+  assert.match(published, /A classifier that always gives the same answer agrees on half of it/);
+
+  const crossValidatedReport = parsePrimingProofReport({
+    ...pythonReport,
+    heldOut: { ...pythonReport.heldOut, design: "5-fold cross-validation: every reviewed Reference is held out exactly once" },
+  });
+  const crossValidated = renderToStaticMarkup(createElement(PrimingProofPage, { report: crossValidatedReport }));
+  assert.match(crossValidated, /5-fold cross-validation: every reviewed Reference is held out exactly once/);
+  assert.doesNotMatch(crossValidated, /agrees on half of it/);
+
   const pending = renderToStaticMarkup(createElement(PrimingProofPage, { report: null }));
   assert.match(pending, /data-priming-proof="pending"/);
   assert.match(pending, /No approved proof run/);
