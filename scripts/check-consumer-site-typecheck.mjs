@@ -2,7 +2,7 @@
 /**
  * Build a minimal publication-site fixture against a packed @anthusai/papyrus
  * tarball and type-check it with only the dependencies real site repos declare.
- *   node scripts/test-consumer-site-typecheck.mjs <path to anthusai-papyrus-<version>.tgz>
+ *   node scripts/check-consumer-site-typecheck.mjs <path to anthusai-papyrus-<version>.tgz>
  * Fails when a Papyrus source file needs a package the sites do not install.
  */
 import { execFileSync } from "node:child_process";
@@ -12,7 +12,7 @@ import path from "node:path";
 
 const tarballArgument = process.argv[2];
 if (!tarballArgument || !fs.existsSync(tarballArgument)) {
-  console.error("usage: node scripts/test-consumer-site-typecheck.mjs <anthusai-papyrus tarball>");
+  console.error("usage: node scripts/check-consumer-site-typecheck.mjs <anthusai-papyrus tarball>");
   process.exit(1);
 }
 const tarball = path.resolve(tarballArgument);
