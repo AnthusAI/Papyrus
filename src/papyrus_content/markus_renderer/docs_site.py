@@ -10,6 +10,7 @@ with :func:`build_markus_site` and a masthead carrying the site's name.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import html
 import posixpath
 import re
@@ -43,6 +44,20 @@ class DocsSiteConfig:
     site_stylesheet: Path | None = None
     redirect_former_directory_urls: bool = False
     """Write an index.html redirect at each page's former directory URL (for example from MkDocs)."""
+    excluded_page_patterns: tuple[str, ...] = ()
+    """Glob patterns matched against each page's path under the docs directory; matching pages are never published."""
+
+
+def source_documentation_pages(config: DocsSiteConfig) -> list[Path]:
+    """Every Markdown page that may be published, without the excluded ones."""
+    return [
+        page
+        for page in sorted(config.documentation_directory.rglob("*.md"))
+        if not any(
+            fnmatch.fnmatchcase(page.relative_to(config.documentation_directory).as_posix(), pattern)
+            for pattern in config.excluded_page_patterns
+        )
+    ]
 
 
 def published_page_path(documentation_relative_path: str) -> str:
@@ -104,7 +119,7 @@ def rewrite_repository_links(page_text: str, documentation_relative_path: str, c
 def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
     """Write the staged content layout and return the number of pages staged."""
     (staging_directory / "articles").mkdir()
-    source_pages = sorted(config.documentation_directory.rglob("*.md"))
+    source_pages = source_documentation_pages(config)
     known_pages = {
         page.relative_to(config.documentation_directory).as_posix() for page in source_pages
     }
@@ -136,7 +151,7 @@ def page_title(source_page: Path) -> str:
 def automatic_navigation(config: DocsSiteConfig) -> tuple[tuple[str, tuple[tuple[str, str], ...]], ...]:
     """Sidebar groups from the documentation tree: top-level pages together, then one group per directory."""
     groups: dict[str, list[tuple[str, str]]] = {"Overview": [("index.html", "Overview")]}
-    for source_page in sorted(config.documentation_directory.rglob("*.md")):
+    for source_page in source_documentation_pages(config):
         relative_path = source_page.relative_to(config.documentation_directory).as_posix()
         if relative_path == INDEX_PAGE_PATH:
             continue
@@ -204,7 +219,7 @@ def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
 
 
 def write_redirects_from_former_urls(config: DocsSiteConfig, output_directory: Path) -> None:
-    for source_page in sorted(config.documentation_directory.rglob("*.md")):
+    for source_page in source_documentation_pages(config):
         relative_path = source_page.relative_to(config.documentation_directory).as_posix()
         if relative_path == INDEX_PAGE_PATH:
             continue
@@ -246,6 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tagline", default="")
     parser.add_argument("--source-url", required=True)
     parser.add_argument("--theme", default="catppuccin")
+    parser.add_argument("--exclude", action="append", default=[], help="Glob of pages (relative to --docs) never to publish; repeatable.")
     parser.add_argument("--redirect-former-urls", action="store_true", help="Write redirects from former directory-style URLs.")
     arguments = parser.parse_args(argv)
     result = build_docs_site(
@@ -256,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
             source_repository_url=arguments.source_url,
             theme=arguments.theme,
             redirect_former_directory_urls=arguments.redirect_former_urls,
+            excluded_page_patterns=tuple(arguments.exclude),
         ),
         arguments.out,
     )

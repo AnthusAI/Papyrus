@@ -74,6 +74,23 @@ class DocsSiteTests(unittest.TestCase):
             self.assertIn("](../assets/diagram.svg)", (staging_directory / "articles" / "cli.md").read_text())
             self.assertTrue((staging_directory / "articles" / "guides-setup.md").is_file())
 
+    def test_excluded_pages_are_never_staged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_name:
+            temporary_directory = Path(temporary_name)
+            write_documentation_tree(temporary_directory / "docs")
+            staging_directory = temporary_directory / "staging"
+            staging_directory.mkdir()
+            config = DocsSiteConfig(
+                "Demo",
+                "tag",
+                temporary_directory / "docs",
+                "https://x",
+                excluded_page_patterns=("guides/*",),
+            )
+            staged_count = stage_docs_content(config, staging_directory)
+            self.assertEqual(staged_count, 2)
+            self.assertFalse((staging_directory / "articles" / "guides-setup.md").exists())
+
     @unittest.skipUnless(shutil.which("markus"), "markus executable not installed")
     def test_build_renders_every_page_with_the_site_name(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_name:
