@@ -166,6 +166,8 @@ def test_the_daily_decision_cap_stops_the_sweep_and_resets_the_next_day(tmp_path
     assert (first_run.decided, first_run.stopped_because) == (1, "daily decision cap")
     assert first_run.live_agreement["loop"]["stoppedBecause"] == "daily decision cap"
     assert first_run.live_agreement["loop"]["enabled"] is True
+    assert first_run.live_agreement["autoDecision"]["allowed"] is False
+    assert first_run.live_agreement["autoDecision"]["reason"] == "no approved proof"
     same_day = sweep(context, Model(), client, tmp_path, now="2026-10-18T20:00:00Z")
     assert (same_day.decided, same_day.stopped_because) == (0, "daily decision cap")
     next_day = sweep(context, Model(), client, tmp_path, now="2026-10-19T01:00:00Z")

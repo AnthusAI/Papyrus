@@ -547,3 +547,20 @@ a person names, and is a dry run (it also lists every other author label) until
 Not yet built: retiring a taught label when a human changes it to no label
 (the engine corrects a flipped label, but cannot remove a primed example), and
 gating automatic decisions on an approved fresh proof.
+
+### The gate before any automatic decision
+
+A cyclotron decision is only a suggestion. Nothing may change a Reference's
+curation status automatically until a person has approved a fresh
+cross-validated proof. `relevanceCyclotron.approvedProofPath` names the approved
+report file (the one committed through `npm run approve:priming-proof`). Every
+sweep stores the gate's verdict beside the live agreement as `autoDecision`:
+
+- `allowed: false` with a `reason` when there is no approved proof, ten or more
+  human labels have arrived since it was run, it is more than 30 days old, or
+  its agreement at the largest label count is under 0.9.
+- `allowed: true` with `scope: "reject-clear-misses"` otherwise. Accepting is
+  never automatic, and nothing in the sweep acts on the gate yet.
+
+`proof_is_due` gives the reason a fresh draft proof should be run (new labels or
+age), for the scheduled proof that follows.

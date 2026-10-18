@@ -25,8 +25,9 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
+from .auto_decision_gate import auto_decision_gate, load_approved_proof
 from .assignments import active_claim_held_by_different_assignee, apply_assignment_action
 from .ids import knowledge_corpus_id, safe_id
 from .model_attachments import download_attachment_buffer, expand_private_payload_records, parse_jsonish
@@ -412,8 +413,21 @@ def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: s
             if comparison is not None:
                 comparisons.append(comparison)
     return {**live_agreement(comparisons, positive_label=classifier.positive_label, now=now),
+            "autoDecision": auto_decision_gate(load_approved_proof(plan.approved_proof_path),
+                                               human_label_count=_human_label_count(client, classifier.labels, corpus_id),
+                                               now=now),
             "loop": {"enabled": plan.enabled, "stoppedBecause": stopped_because, "lastSweepAt": now,
                      "maxDecisionsPerDay": plan.max_decisions_per_day}}
+
+
+def _human_label_count(client, labels: Sequence[str], corpus_id: str) -> int:
+    count = 0
+    for status in REVIEWED_STATUSES:
+        for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
+            messages = _curation_messages(client, reference["lineageId"])
+            if human_label_for_review(reference, messages, labels=labels) is not None:
+                count += 1
+    return count
 
 
 def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str,
