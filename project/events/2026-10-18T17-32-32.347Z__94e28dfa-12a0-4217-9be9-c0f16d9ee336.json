@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "94e28dfa-12a0-4217-9be9-c0f16d9ee336",
+  "issue_id": "PPY-fc383e82-0caf-47b1-b1f3-c5eb56b29f51",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:32:32.347Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Show the classifier suggestion in the References queue (UI)",
+    "description": "Decision, confidence and one-click agree or overrule in the References queue. Mac thread builds this UI once the backend exposes the suggestion.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "bad7e8e5-0e0a-460b-b269-52247ceac1cc",
+  "issue_id": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:32:08.462Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Self-training Cyclotron: shadow mode on Threat Intelligence",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "title": "Self-training Cyclotron: shadow mode on Threat Intelligence",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T17:32:08.462880Z",
+  "updated_at": "2026-10-18T17:32:08.462927Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "Mac thread"
+  },
+  "right_now_summary": "The team is testing Cyclotron in shadow mode with human review, audit logs, and safety limits.",
+  "right_now_updated_at": "2026-10-18T17:32:57.380878Z",
+  "custom": {}
+}
