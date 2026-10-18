@@ -1,41 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchAuthSession } from "aws-amplify/auth";
-import { isLocalPreviewEnabled } from "../lib/local-preview";
 import {
-  DEFAULT_DELEGATION_HOURS,
-  MAXIMUM_DELEGATION_HOURS,
-  MINIMUM_DELEGATION_HOURS,
-  buildDelegatedCommandLine,
-  delegationExpiryText,
+  delegationStateText,
   describeDelegationError,
-  validateDelegationInput,
+  isPendingDelegation,
+  pendingCountdownText,
+  requestedHoursText,
   type CurationDelegationRecord,
 } from "../lib/curation-delegation-helpers";
-import { createCurationDelegation, listCurationDelegations, revokeCurationDelegation, type CreatedCurationDelegation } from "./curation-delegation-client";
+import { approveCurationDelegation, denyCurationDelegation, listCurationDelegations, revokeCurationDelegation } from "./curation-delegation-client";
 
-type IssuedToken = { agentLabel: string; token: string };
-
-async function readSignedInEmail(): Promise<string> {
-  if (isLocalPreviewEnabled()) return "ryan@example.com";
-  try {
-    const session = await fetchAuthSession();
-    const email = session.tokens?.idToken?.payload?.email;
-    return typeof email === "string" ? email : "";
-  } catch {
-    return "";
-  }
-}
+const REFRESH_MILLISECONDS = 10_000;
 
 export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean }) {
-  const [agentLabelText, setAgentLabelText] = useState("");
-  const [hoursText, setHoursText] = useState(String(DEFAULT_DELEGATION_HOURS));
+  const [busyCode, setBusyCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [issued, setIssued] = useState<IssuedToken | null>(null);
-  const [copied, setCopied] = useState<"token" | "command" | null>(null);
-  const [email, setEmail] = useState("");
   const [delegations, setDelegations] = useState<CurationDelegationRecord[]>([]);
   const [confirmingRevokeId, setConfirmingRevokeId] = useState<string | null>(null);
   const [nowMilliseconds, setNowMilliseconds] = useState(() => Date.now());
@@ -43,15 +24,13 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
 
   useEffect(() => {
     mounted.current = true;
-    void readSignedInEmail().then((value) => {
-      if (mounted.current) setEmail(value);
-    });
     void refreshDelegations();
-    const timer = window.setInterval(() => setNowMilliseconds(Date.now()), 30_000);
+    const refreshTimer = window.setInterval(() => void refreshDelegations(), REFRESH_MILLISECONDS);
+    const clockTimer = window.setInterval(() => setNowMilliseconds(Date.now()), 1_000);
     return () => {
       mounted.current = false;
-      window.clearInterval(timer);
-      setIssued(null);
+      window.clearInterval(refreshTimer);
+      window.clearInterval(clockTimer);
     };
   }, []);
 
@@ -64,25 +43,17 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
     }
   }
 
-  async function handleCreate() {
-    const validation = validateDelegationInput(agentLabelText, hoursText);
-    if (!validation.ok) {
-      setErrorMessage(validation.message);
-      return;
-    }
-    setBusy(true);
+  async function decide(userCode: string, decision: "approve" | "deny") {
+    setBusyCode(userCode);
     setErrorMessage(null);
     try {
-      const created: CreatedCurationDelegation = await createCurationDelegation(validation.agentLabel, validation.hours);
-      setIssued({ agentLabel: created.agentLabel, token: created.token });
-      setCopied(null);
+      await (decision === "approve" ? approveCurationDelegation(userCode) : denyCurationDelegation(userCode));
       await refreshDelegations();
-      setAgentLabelText("");
-      setNowMilliseconds(Date.now());
     } catch (error) {
       setErrorMessage(describeDelegationError(error));
+      await refreshDelegations();
     } finally {
-      setBusy(false);
+      setBusyCode(null);
     }
   }
 
@@ -100,81 +71,62 @@ export function AdministrationDelegationsPanel({ disabled }: { disabled: boolean
     }
   }
 
-  async function copyText(kind: "token" | "command", text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(kind);
-    } catch {
-      setErrorMessage("Copying was blocked by the browser. Select the text and copy it by hand.");
-    }
-  }
-
-  const commandLine = issued ? buildDelegatedCommandLine({ email, agentLabel: issued.agentLabel, token: issued.token }) : "";
+  const pending = delegations.filter((entry) => isPendingDelegation(entry, nowMilliseconds));
+  const others = delegations.filter((entry) => entry.state !== "pending");
 
   return (
     <div data-news-desk-admin-panel="delegations">
-      <article className="news-desk-doctrine-card">
+      <article className="news-desk-doctrine-card" data-delegation-pending-block>
         <div className="news-desk-doctrine-card__header">
           <div>
-            <h3>Agent delegations</h3>
-            <span>Let one agent approve or reject References for you, for a short time</span>
+            <h3>Pending requests</h3>
+            <span>An agent asked to record your decisions. Check the code matches what it showed you.</span>
           </div>
-        </div>
-        <p className="news-desk-delegation-note">
-          A delegation is a token you hand to one named agent. While it lasts, that agent&apos;s approvals and rejections are recorded under your name and marked as relayed. You can revoke it at any moment.
-        </p>
-        <p className="news-desk-delegation-note" data-delegation-words-note>
-          The agent must pass your actual words, in quotes, as the instruction on every approval or rejection. Papyrus keeps those words with the record. An agent that paraphrases or invents them is not following this delegation.
-        </p>
-        <div className="news-desk-delegation-form">
-          <label className="news-desk-doctrine-card__field">
-            <span>Agent name</span>
-            <input value={agentLabelText} onChange={(event) => setAgentLabelText(event.target.value)} placeholder="curator-agent" autoComplete="off" disabled={disabled || busy} />
-          </label>
-          <label className="news-desk-doctrine-card__field">
-            <span>{`Hours (${MINIMUM_DELEGATION_HOURS} to ${MAXIMUM_DELEGATION_HOURS})`}</span>
-            <input value={hoursText} onChange={(event) => setHoursText(event.target.value)} inputMode="numeric" disabled={disabled || busy} />
-          </label>
-          <button type="button" className="news-desk-primary-action-button" data-delegation-create onClick={() => void handleCreate()} disabled={disabled || busy}>
-            {busy && !issued ? "Creating" : "Create delegation"}
-          </button>
         </div>
         {errorMessage ? <p className="news-desk-delegation-error" role="alert" data-delegation-error>{errorMessage}</p> : null}
+        {pending.length === 0 ? (
+          <p className="news-desk-delegation-note" data-delegation-pending-empty>No agent is waiting for approval. A request appears here as soon as an agent asks.</p>
+        ) : (
+          <ul className="news-desk-delegation-pending-list">
+            {pending.map((entry) => {
+              const userCode = entry.userCode ?? "";
+              const working = busyCode === userCode;
+              return (
+                <li key={entry.delegationId} data-delegation-pending={entry.delegationId}>
+                  <div>
+                    <strong>{entry.agentLabel}</strong>
+                    <span>{requestedHoursText(entry.requestedHours)}</span>
+                    <span className="news-desk-delegation-countdown" data-delegation-countdown>{pendingCountdownText(entry.pendingExpiresAt ?? entry.expiresAt, nowMilliseconds)}</span>
+                  </div>
+                  <code className="news-desk-delegation-code" data-delegation-user-code aria-label={`Code ${userCode.split("").join(" ")}`}>{userCode}</code>
+                  <span className="news-desk-delegation-decision">
+                    <button type="button" data-delegation-approve onClick={() => void decide(userCode, "approve")} disabled={disabled || working || busyCode !== null}>Approve</button>
+                    <button type="button" data-delegation-deny onClick={() => void decide(userCode, "deny")} disabled={disabled || working || busyCode !== null}>Deny</button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="news-desk-delegation-note" data-delegation-words-note>
+          While a delegation lasts, that agent&apos;s approvals and rejections are recorded under your name and marked as relayed, with the words you gave it kept with each record. You can revoke it at any moment.
+        </p>
       </article>
-
-      {issued ? (
-        <article className="news-desk-delegation-token" data-delegation-token-box aria-live="polite">
-          <h3>Copy this token now</h3>
-          <p>This token is shown once. Papyrus does not keep it, and it cannot be shown again. If you lose it, revoke the delegation and create a new one.</p>
-          <div className="news-desk-delegation-token__row">
-            <code data-delegation-token>{issued.token}</code>
-            <button type="button" onClick={() => void copyText("token", issued.token)}>{copied === "token" ? "Copied" : "Copy token"}</button>
-          </div>
-          <p className="story-label">Command line for {issued.agentLabel}</p>
-          <div className="news-desk-delegation-token__row">
-            <code data-delegation-command>{commandLine}</code>
-            <button type="button" onClick={() => void copyText("command", commandLine)}>{copied === "command" ? "Copied" : "Copy command"}</button>
-          </div>
-          <div className="news-desk-doctrine-card__actions">
-            <button type="button" className="news-desk-primary-action-button" data-delegation-done onClick={() => { setIssued(null); setCopied(null); }}>Done</button>
-          </div>
-        </article>
-      ) : null}
 
       <article className="news-desk-doctrine-card">
         <div className="news-desk-doctrine-card__header">
           <div>
             <h3>Delegations</h3>
-            <span>Granted by you, newest first</span>
+            <span>Decided requests, newest first</span>
           </div>
         </div>
-        {delegations.length === 0 ? (
+        {others.length === 0 ? (
           <p className="news-desk-delegation-note" data-delegation-empty>You have not granted any delegations.</p>
         ) : (
           <ul className="news-desk-delegation-list">
-            {delegations.map((entry) => {
-              const stateText = delegationExpiryText(entry.expiresAt, entry.revokedAt, nowMilliseconds);
-              const live = !entry.revokedAt && stateText !== "Expired";
+            {others.map((entry) => {
+              const stateText = delegationStateText(entry, nowMilliseconds);
+              const live = entry.state === "approved" && !entry.revokedAt && stateText !== "Expired";
               return (
                 <li key={entry.delegationId} data-delegation-row={entry.delegationId} data-delegation-live={live || undefined}>
                   <div>
