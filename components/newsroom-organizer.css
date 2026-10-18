@@ -166,3 +166,6 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
  .news-desk-columns--administration .news-desk-administration-category-layout{grid-template-columns:minmax(220px,280px) minmax(0,1fr)}
  .news-desk-columns--administration .news-desk-administration-category-list{max-height:none}
 }
+.newsroom-assignment-detail-desk{display:grid;gap:4px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--org-muted)}
+.newsroom-assignment-detail-error{margin:0;text-transform:none;letter-spacing:0;color:var(--org-ink);font-weight:700}
+[data-slot=select-content],[data-slot=select-item],[data-slot=dropdown-menu-item],[data-slot=dropdown-menu-content],[role=option],[role=menuitem],[role=listbox],[role=menu]{border-radius:0 !important}

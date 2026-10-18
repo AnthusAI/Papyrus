@@ -1098,6 +1098,27 @@ export async function loadEditorProcedureData(): Promise<{
   };
 }
 
+const UPDATE_ASSIGNMENT_DESK_MUTATION = `
+  mutation UpdateAssignmentDesk($input: UpdateAssignmentInput!) {
+    updateAssignment(input: $input) { id sectionId sectionKey }
+  }
+`;
+
+/** Puts an assignment on a desk's board, or takes it off every desk when `deskId` is null. */
+export async function saveNewsroomAssignmentDesk(assignmentId: string, deskId: string | null): Promise<void> {
+  if (isLocalPreviewEnabled()) return;
+  const dataClient = generateClient<Schema>();
+  const graphClient = dataClient as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<{ data?: Record<string, unknown> | null; errors?: unknown[] | null }>;
+  };
+  const response = await graphClient.graphql({
+    query: UPDATE_ASSIGNMENT_DESK_MUTATION,
+    variables: { input: { id: assignmentId, sectionId: deskId, sectionKey: deskId } },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  assertNoGraphQLErrors(response.errors);
+}
+
 export async function saveProcedureDefinitionRecord(input: Record<string, unknown>) {
   const dataClient = generateClient<Schema>();
   const graphClient = dataClient as unknown as {
