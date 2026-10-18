@@ -93,19 +93,16 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
-    headerActions={subject === "contentItem" ? (
-      <Link className={cn(buttonVariants({ size: "sm" }))} data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
-        <PlusIcon aria-hidden="true" />
-        {`New ${getContentItemName().singular.toLowerCase()}`}
-      </Link>
-    ) : undefined}>
+    headerActions={<>
+      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
+      {subject === "contentItem" && (
+        <Link className={cn(buttonVariants({ size: "sm" }))} data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
+          <PlusIcon aria-hidden="true" />
+          {`New ${getContentItemName().singular.toLowerCase()}`}
+        </Link>
+      )}
+    </>}>
     <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
-      <div className="organizer-board-toolbar">
-        <div role="group" aria-label="Record presentation"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
-      </div>
-      <p className="organizer-board-note">{subject === "contentItem"
-        ? `Each ${getContentItemName().singular.toLowerCase()} appears once, in the column for its stage. Open one to use its existing editor.`
-        : "Each assignment appears once, in the column for its status. Open one to use its existing workflow controls."}</p>
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       <p role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</p>
       <div className="organizer-board-body" data-detail-open={Boolean(issue)}>

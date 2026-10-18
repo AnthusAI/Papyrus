@@ -38,6 +38,7 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
 from papyrus_content.graphql_http import execute_graphql
+from papyrus_content.biblicus_runtime import biblicus_corpus_catalog_path, biblicus_python_executable
 from papyrus_content.env import BIBLICUS_ROOT
 from papyrus_content.model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
@@ -99,18 +100,6 @@ BIBLICUS_CATALOG_ITEM_ROOT_FIELDS = frozenset(
         "dates",
         "created_at",
         "source_uri",
-    }
-)
-CATALOG_EXTENSION_ROOT_FIELDS = frozenset(
-    {
-        "identifiers",
-        "identifier_resolution",
-        "papyrus",
-        "summary",
-        "summary_resolution",
-        "title_subtitle_resolution",
-        "subtitle",
-        "quality",
     }
 )
 IDENTIFIER_PREPASS_TYPES = ("doi", "arxiv_id", "isbn13", "publisher_item")
@@ -1696,21 +1685,15 @@ def apply_quality_local_metadata(
                 skipped.append({"target": "catalog", "path": str(catalog_path), "reason": "catalog_item_not_found"})
             else:
                 metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
-                current_rating = _quality_rating_from_metadata(metadata) or _quality_rating_from_metadata(item)
+                current_rating = _quality_rating_from_metadata(metadata)
                 if current_rating == rating:
                     skipped.append({"target": "catalog", "path": str(catalog_path), "reason": "quality_rating_already_present"})
                 else:
-                    metadata["quality"] = {
-                        **(metadata.get("quality") if isinstance(metadata.get("quality"), dict) else {}),
-                        "rating": rating,
-                        "rating_node_key": quality_node_key(rating),
-                    }
                     metadata["papyrus"] = {
                         **(metadata.get("papyrus") if isinstance(metadata.get("papyrus"), dict) else {}),
                         "quality_rating": payload,
                     }
                     item["metadata"] = metadata
-                    item.pop("quality", None)
                     catalog_path.write_text(json.dumps(catalog, indent=2, sort_keys=True) + "\n", encoding="utf-8")
                     updated.append({"target": "catalog", "path": str(catalog_path), "itemKey": catalog_item_key})
         except Exception as exc:
@@ -3555,7 +3538,7 @@ def _run_biblicus_summarize_map_reduce(
     if not BIBLICUS_ROOT.is_dir():
         raise RuntimeError(f"Biblicus checkout not found at {BIBLICUS_ROOT}")
     command = [
-        str(_biblicus_python_executable()),
+        biblicus_python_executable(),
         "-m",
         "biblicus",
         "summarize",
@@ -3581,12 +3564,6 @@ def _run_biblicus_summarize_map_reduce(
     }
     from papyrus_content.reference_url_text import _biblicus_env
     env = _biblicus_env()
-    biblicus_src = str(BIBLICUS_ROOT / "src")
-    env["PYTHONPATH"] = (
-        f"{biblicus_src}{os.pathsep}{env['PYTHONPATH']}"
-        if env.get("PYTHONPATH")
-        else biblicus_src
-    )
     completed = subprocess.run(
         command,
         cwd=BIBLICUS_ROOT,
@@ -3608,16 +3585,6 @@ def _run_biblicus_summarize_map_reduce(
     if _clean_text(parsed.get("task")) != output_kind:
         raise RuntimeError("Biblicus summarize map-reduce command returned an unexpected task payload.")
     return parsed
-
-
-def _biblicus_python_executable() -> Path:
-    for candidate in (
-        BIBLICUS_ROOT / ".venv" / "bin" / "python",
-        BIBLICUS_ROOT / ".venv" / "bin" / "python3",
-    ):
-        if candidate.is_file():
-            return candidate
-    return Path(sys.executable)
 
 
 def estimate_tokens(text: str, *, model: str = "") -> int:
@@ -4470,15 +4437,24 @@ def apply_title_subtitle_to_catalog_item(item: dict[str, Any], *, resolution: di
         title = _clean_text(resolution.get("title"))
         if title:
             enriched["title"] = title
-        _apply_title_subtitle_to_mapping(metadata, resolution)
+        papyrus_extension = dict(metadata.get("papyrus") if isinstance(metadata.get("papyrus"), dict) else {})
+        _apply_title_subtitle_to_mapping(papyrus_extension, resolution)
+        title_subtitle_provenance = papyrus_extension.pop("papyrus", {}).get("title_subtitle")
+        papyrus_extension.pop("title", None)
+        if title_subtitle_provenance is not None:
+            papyrus_extension["title_subtitle"] = title_subtitle_provenance
+        metadata["papyrus"] = papyrus_extension
         enriched["metadata"] = metadata
-        for key in CATALOG_EXTENSION_ROOT_FIELDS:
-            enriched.pop(key, None)
         return enriched
     _apply_title_subtitle_to_mapping(enriched, resolution)
     _apply_title_subtitle_to_mapping(metadata, resolution)
     enriched["metadata"] = metadata
     return enriched
+
+
+def _catalog_papyrus_extension(catalog_entry: dict[str, Any]) -> dict[str, Any]:
+    metadata = catalog_entry.get("metadata") if isinstance(catalog_entry.get("metadata"), dict) else {}
+    return metadata.get("papyrus") if isinstance(metadata.get("papyrus"), dict) else {}
 
 
 def _is_biblicus_catalog_item(item: dict[str, Any]) -> bool:
@@ -4554,6 +4530,7 @@ def _title_subtitle_from_local(*, reference: dict[str, Any], catalog_entry: dict
         ("sidecar", sidecar),
         ("reference_metadata", _jsonish(reference.get("metadata")) or {}),
         ("catalog_metadata", catalog_entry.get("metadata") if isinstance(catalog_entry.get("metadata"), dict) else {}),
+        ("catalog_papyrus", _catalog_papyrus_extension(catalog_entry)),
         ("sidecar_papyrus", sidecar.get("papyrus", {}).get("title_subtitle") if isinstance(sidecar.get("papyrus"), dict) else {}),
     ]
     title = ""
@@ -4743,6 +4720,7 @@ def _identifier_raw_inputs(
 ) -> list[tuple[str, str]]:
     reference_metadata = _jsonish(reference.get("metadata")) or {}
     catalog_metadata = catalog_entry.get("metadata") if isinstance(catalog_entry.get("metadata"), dict) else {}
+    catalog_papyrus_extension = _catalog_papyrus_extension(catalog_entry)
 
     values: list[tuple[str, str]] = []
 
@@ -4754,7 +4732,7 @@ def _identifier_raw_inputs(
     aliases = IDENTIFIER_ALIASES.get(identifier_type, (identifier_type,))
     for mapping in (
         reference_metadata.get("identifiers") if isinstance(reference_metadata.get("identifiers"), dict) else {},
-        catalog_metadata.get("identifiers") if isinstance(catalog_metadata.get("identifiers"), dict) else {},
+        catalog_papyrus_extension.get("identifiers") if isinstance(catalog_papyrus_extension.get("identifiers"), dict) else {},
     ):
         for alias in aliases:
             _append("metadata.identifiers", mapping.get(alias))
@@ -5530,10 +5508,10 @@ def _catalog_location_for_reference(reference: dict[str, Any]) -> tuple[Path | N
     corpus_path = _corpus_path_for_local_source(local_source)
     if not corpus_path:
         return None, None
-    catalog_path = corpus_path / "metadata" / "catalog.json"
-    if not catalog_path.exists():
-        alt_path = corpus_path / ".biblicus" / "catalog.json"
-        catalog_path = alt_path if alt_path.exists() else catalog_path
+    try:
+        catalog_path = biblicus_corpus_catalog_path(corpus_path)
+    except Exception:
+        return None, None
     external_item_id = str(reference.get("externalItemId") or "").strip()
     return (catalog_path if catalog_path.exists() else None), (external_item_id or None)
 

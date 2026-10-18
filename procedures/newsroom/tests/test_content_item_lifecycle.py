@@ -14,6 +14,7 @@ from papyrus_content.content_item_lifecycle import (
     CONTENT_ITEM_STAGES,
     content_item_lineage_for_new_assignment,
     plan_content_item_backfill,
+    plan_undrafted_backfill_story_demotion,
     require_assignment_content_item_lineage_id,
 )
 from papyrus_content.copywriting import build_copywriting_run_plan
@@ -208,8 +209,8 @@ class ContentItemBackfillTests(unittest.TestCase):
         stage_by_lineage = {
             change["expected"]["lineageId"]: change["expected"]["stage"] for change in self.expected_records(plan, "Item").values()
         }
-        self.assertEqual(stage_by_lineage[assignments[in_progress["id"]]["expected"]["itemLineageId"]], "report")
-        self.assertEqual(stage_by_lineage[assignments[completed["id"]]["expected"]["itemLineageId"]], "editor_select")
+        self.assertEqual(stage_by_lineage[assignments[in_progress["id"]]["expected"]["itemLineageId"]], "assignment")
+        self.assertEqual(stage_by_lineage[assignments[completed["id"]]["expected"]["itemLineageId"]], "assignment")
         self.assertEqual(
             assignments[copywriting["id"]]["expected"]["itemLineageId"],
             assignments[completed["id"]]["expected"]["itemLineageId"],
@@ -239,6 +240,36 @@ class ContentItemBackfillTests(unittest.TestCase):
         self.assertEqual(len(plan["warnings"]), 2)
         self.assertIn("more than one draft lineage", plan["warnings"][0])
         self.assertIn("left unlinked", plan["warnings"][1])
+
+
+class UndraftedBackfillDemotionTests(unittest.TestCase):
+    def placeholder(self, **overrides):
+        return {
+            "id": "content-item-a-v1",
+            "lineageId": "content-item-a",
+            "versionNumber": 1,
+            "changeReason": "content-item-created",
+            "stage": "report",
+            "title": "Rising ransomware",
+            "body": [],
+            **overrides,
+        }
+
+    def test_unedited_placeholders_named_after_a_reporting_assignment_move_to_assignment(self) -> None:
+        reporting = [reporting_assignment(itemLineageId="content-item-a")]
+        changes = plan_undrafted_backfill_story_demotion(items=[self.placeholder()], reporting_assignments=reporting)
+        self.assertEqual([change["expected"]["stage"] for change in changes], ["assignment"])
+
+    def test_real_stories_are_left_alone(self) -> None:
+        reporting = [reporting_assignment(itemLineageId="content-item-a")]
+        items = [
+            self.placeholder(id="edited", body=[{"type": "paragraph"}]),
+            self.placeholder(id="revised", versionNumber=2),
+            self.placeholder(id="retitled", title="A different headline"),
+            self.placeholder(id="published", stage="published"),
+            self.placeholder(id="other-lineage", lineageId="content-item-b"),
+        ]
+        self.assertEqual(plan_undrafted_backfill_story_demotion(items=items, reporting_assignments=reporting), [])
 
 
 if __name__ == "__main__":

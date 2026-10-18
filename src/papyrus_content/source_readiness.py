@@ -147,8 +147,12 @@ def build_extraction_index(corpus_path: str | None) -> ExtractionIndex:
     snapshot_ids: list[str] = []
     if not corpus_path:
         return ExtractionIndex(item_ids, text_by_item_id, text_by_storage_path, snapshot_ids)
+    from biblicus.constants import PIPELINE_EXTRACTOR_ID
+    from biblicus.corpus import Corpus
+
     root = Path(corpus_path).resolve()
-    extracted_root = root / "extracted" / "pipeline"
+    corpus = Corpus.open(root)
+    extracted_root = corpus.extraction_snapshots_dir / PIPELINE_EXTRACTOR_ID
     if not extracted_root.exists():
         return ExtractionIndex(item_ids, text_by_item_id, text_by_storage_path, snapshot_ids)
 

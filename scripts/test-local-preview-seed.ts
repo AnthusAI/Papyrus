@@ -5,7 +5,7 @@ import {
   createLocalPreviewAssignments,
   createLocalPreviewContentItemVersions,
 } from "../lib/local-preview-seed";
-import { projectContentItemBoard } from "../lib/newsroom-board";
+import { projectAssignmentBoard, projectContentItemBoard } from "../lib/newsroom-board";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 
 assert.equal(isLocalPreviewEnabled(), false, "preview mode is opt-in");
@@ -22,10 +22,9 @@ for (const assignment of createLocalPreviewAssignments()) {
   if (assignment.itemLineageId) assert.ok(lineageIds.has(assignment.itemLineageId), "assignments point at seeded items");
 }
 
-const boardIssues = projectContentItemBoard({
-  contentItemVersions,
-  assignments: createLocalPreviewAssignments(),
-});
-assert.ok(boardIssues.length >= contentItemVersions.length, "board projects every seeded item");
+const assignments = createLocalPreviewAssignments();
+const storyBoardIssues = projectContentItemBoard({ contentItemVersions, assignments });
+assert.equal(storyBoardIssues.length, contentItemVersions.length, "story board projects every seeded item");
+assert.equal(projectAssignmentBoard(assignments).length, assignments.length, "assignment board projects every seeded assignment");
 
 console.log("local preview seed ok");

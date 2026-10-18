@@ -206,21 +206,13 @@ def resolve_corpus_local_path(corpus: dict[str, Any], steering_config: dict[str,
     if not resolved.exists():
         from .corpus_storage_paths import (
             corpus_storage_path_prefix,
-            corpus_storage_segment,
             legacy_corpus_storage_segment,
-            legacy_mixed_case_corpus_segment,
         )
 
         corpus_key = str(corpus.get("key") or "")
         fallbacks = []
         if corpus_key:
             fallbacks.append((steering_dir.parent / corpus_storage_path_prefix(corpus_key)).resolve())
-            fallbacks.append(
-                (
-                    steering_dir.parent
-                    / f"corpora/{legacy_mixed_case_corpus_segment(corpus_storage_segment(corpus_key))}"
-                ).resolve()
-            )
             fallbacks.append((steering_dir.parent / f"corpora/{legacy_corpus_storage_segment(corpus_key)}").resolve())
         for candidate in fallbacks:
             if candidate.exists():

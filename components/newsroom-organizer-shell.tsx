@@ -21,7 +21,7 @@ const ICONS = { overview: LayoutDashboard, articles: ClipboardList, references: 
 function Navigation({ activePath, demo, admin, surface, onNavigate }: { activePath: string; demo: boolean; admin: boolean; surface: string; onNavigate?: () => void }) {
   const id = useId();
   const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
-  const active = all.filter(item => activePath === item.path || (item.path !== "/newsroom" && activePath.startsWith(item.path + "/"))).sort((a, b) => b.path.length - a.path.length)[0]?.key;
+  const active = all.filter(item => [item.path, ...(item.alsoActiveOnPaths ?? [])].some(candidate => activePath === candidate || (candidate !== "/newsroom" && activePath.startsWith(candidate + "/")))).sort((a, b) => b.path.length - a.path.length)[0]?.key;
   return <nav className="organizer-destinations" aria-label={surface === "sidebar" ? "Newsroom" : "All workspaces"}>
     {ORGANIZER_NAV_GROUPS.map((group, index) => <section key={group.title} aria-labelledby={`${id}-${index}`}>
       <h3 id={`${id}-${index}`}>{group.title}</h3>
