@@ -10,9 +10,19 @@
   "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5266de12-14c4-47ab-b132-9f7481dc75bf",
+      "author": "unknown",
+      "text": "Unblocked 2026-10-18: Cyclotron-web slice 4 (PR 137, Next removed) merged to develop. Pipeline-switch steps: (1) on cyclotron-web main after Ryan's promote line, confirm buildspec runs the Papyrus projection build and syncs to the site bucket; (2) on the Mac via Remote Control, update the cyclotron-marketing CodePipeline build action in cyclotron-production 682849160744, keeping the CloudFront alias and certificate; (3) run the pipeline, verify the CloudFront URL serves projected pages; (4) rollback is the previous pipeline definition. Promotion to main waits for Ryan's line in the Cyclotron-web thread.",
+      "created_at": "2026-10-18T13:44:39.690156Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T12:59:06.734626Z",
-  "updated_at": "2026-10-18T12:59:06.734849Z",
+  "updated_at": "2026-10-18T13:44:39.690337Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
