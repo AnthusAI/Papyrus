@@ -15,7 +15,7 @@ from typing import Any
 from .citations import CitationCollector, CitationError, CitationRendering
 from .content_markup import ContentMarkupError, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
-from .security import MARKUS_REQUIRED_VERSION
+from .security import assert_supported_markus_version
 
 BODY_IR_SCHEMA_VERSION = 1
 MAX_BODY_IR_BYTES = 300_000
@@ -72,11 +72,7 @@ def _markus_document(markdown: str) -> dict[str, Any]:
 
     from .wiki_directives import papyrus_registry
 
-    if markusmd.__version__ != MARKUS_REQUIRED_VERSION:
-        raise RuntimeError(
-            f"Markus {MARKUS_REQUIRED_VERSION} required to derive bodyIr; "
-            f"got {markusmd.__version__!r}."
-        )
+    assert_supported_markus_version(markusmd.__version__, purpose="deriving bodyIr")
     document = markusmd.parse(markdown, registry=papyrus_registry())
     return document.to_dict(markdown=make_markdown(allow_html=False))
 
@@ -108,6 +104,7 @@ def derive_body(front_matter_yaml: str | None, body_markus: str) -> BodyDerivati
     if image_errors:
         return _failure(*image_errors)
 
+    import markusmd
     from markusmd.errors import MarkusSyntaxError, MarkusValidationError
 
     try:
@@ -134,7 +131,7 @@ def derive_body(front_matter_yaml: str | None, body_markus: str) -> BodyDerivati
 
     envelope = {
         "schemaVersion": BODY_IR_SCHEMA_VERSION,
-        "markus": {"version": MARKUS_REQUIRED_VERSION, "irSchemaVersion": document["schema_version"]},
+        "markus": {"version": markusmd.__version__, "irSchemaVersion": document["schema_version"]},
         "document": document,
         "papyrus": {
             "images": {
