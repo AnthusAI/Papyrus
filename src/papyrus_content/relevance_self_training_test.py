@@ -155,6 +155,8 @@ def test_a_switched_off_cyclotron_decides_nothing(tmp_path):
     client = SweepClient({"Reference": two_pending_references()})
     result = sweep(context, model, client, tmp_path)
     assert (model.calls, result.decided, result.stopped_because) == (0, 0, "disabled")
+    assert result.live_agreement["loop"] == {"enabled": False, "stoppedBecause": "disabled",
+                                             "lastSweepAt": "2026-10-18T10:00:00Z", "maxDecisionsPerDay": None}
 
 
 def test_the_daily_decision_cap_stops_the_sweep_and_resets_the_next_day(tmp_path):
@@ -162,6 +164,8 @@ def test_the_daily_decision_cap_stops_the_sweep_and_resets_the_next_day(tmp_path
     client = SweepClient({"Reference": two_pending_references()})
     first_run = sweep(context, Model(), client, tmp_path)
     assert (first_run.decided, first_run.stopped_because) == (1, "daily decision cap")
+    assert first_run.live_agreement["loop"]["stoppedBecause"] == "daily decision cap"
+    assert first_run.live_agreement["loop"]["enabled"] is True
     same_day = sweep(context, Model(), client, tmp_path, now="2026-10-18T20:00:00Z")
     assert (same_day.decided, same_day.stopped_because) == (0, "daily decision cap")
     next_day = sweep(context, Model(), client, tmp_path, now="2026-10-19T01:00:00Z")

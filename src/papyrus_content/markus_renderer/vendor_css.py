@@ -11,7 +11,7 @@ def resolve_markus_static_dir() -> Path:
     if spec is None or not spec.origin:
         raise RuntimeError(
             "markusmd package not found. Install Markus v0.6.0: "
-            'pip install "git+https://github.com/AnthusAI/Markus@v0.6.0"'
+            'pip install "git+https://github.com/AnthusAI/Markus@v0.7.0"'
         )
     static_dir = Path(spec.origin).parent / "static"
     if not static_dir.is_dir():

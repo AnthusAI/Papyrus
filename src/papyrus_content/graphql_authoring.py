@@ -9,6 +9,17 @@ from .env import graphql_endpoint, graphql_timeout_seconds
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, iam_signed_graphql_headers
 from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+from .tenancy import (
+    TENANT_MODELS,
+    TenantError,
+    row_belongs_to_tenant,
+    rows_for_tenant,
+    tenant_id_from_environment,
+    tenant_scoped_index,
+    tenant_scoped_value,
+    tenant_stamped_payload,
+    validate_tenant_id,
+)
 
 VERSION_FIELDS = (
     "lineageId versionNumber previousVersionId versionState versionCreatedAt "
@@ -101,7 +112,7 @@ MODEL_ATTACHMENT_FIELDS = (
 )
 NEWSROOM_SECTION_FIELDS = (
     "id title shortTitle type editorialMission editorialPolicy enabled enabledStatus sortOrder "
-    "defaultArticleTypes defaultPageBudget assignmentGuidance killCriteria visualGuidance createdAt updatedAt"
+    "defaultArticleTypes defaultPageBudget assignmentGuidance killCriteria visualGuidance createdAt updatedAt tenantId"
 )
 EDITION_FIELDS = (
     f"{VERSION_FIELDS} id slug title status editionDate publishedAt description layoutPlan metadata"
@@ -120,22 +131,22 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
     "itemLineageId placementKey sortKey pageNumber priority metadata"
 )
 ITEM_FIELDS = (
-    f"{VERSION_FIELDS} id type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
+    f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
     "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata"
 )
 PUBLISHED_ITEM_FIELDS = (
-    "id sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
+    "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
     "title headline deck body byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial bodyMarkus bodyIr aliases metadata"
 )
 PUBLISHED_ITEM_SUMMARY_FIELDS = (
-    "id sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
+    "id tenantId sourceItemId itemLineageId versionNumber type status slug section title aliases publishedAt metadata"
 )
 MEDIA_ASSET_FIELDS = (
-    "id itemId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
+    "id itemId tenantId type role sortKey storagePath externalUrl alt caption credit width height aspectRatio focalX focalY "
     "minHeight preferredHeight maxHeight crop wrapsText metadata"
 )
 PUBLISHED_MEDIA_ASSET_FIELDS = (
-    "id sourceMediaAssetId publishedItemId sourceItemId itemLineageId type role sortKey storagePath externalUrl alt "
+    "id sourceMediaAssetId tenantId publishedItemId sourceItemId itemLineageId type role sortKey storagePath externalUrl alt "
     "caption credit width height aspectRatio focalX focalY minHeight preferredHeight maxHeight crop wrapsText metadata"
 )
 ITEM_TAG_FIELDS = "id itemId tagId itemType itemStatus tagSlug publishedAt"
@@ -387,6 +398,7 @@ mutation CreateModelAttachmentDownload($attachmentId: ID!) {
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
+    "itemByTenantSlug": {"field": "itemByTenantSlug", "partitionKey": "tenantSlug", "fields": ITEM_FIELDS},
     "itemsByLineageAndVersion": {
         "field": "listItemsByLineageAndVersion",
         "partitionKey": "lineageId",
@@ -579,7 +591,9 @@ class PapyrusGraphQLAuthoringClient:
         self,
         endpoint: str | None = None,
         header_factory: Callable[[bytes], dict[str, str]] | None = None,
+        tenant_id: str | None = None,
     ) -> None:
+        self.tenant_id = validate_tenant_id(tenant_id) if tenant_id else tenant_id_from_environment()
         self.endpoint = endpoint or graphql_endpoint()
         self.header_factory = header_factory
         self.timeout_seconds = graphql_timeout_seconds()
@@ -662,7 +676,11 @@ class PapyrusGraphQLAuthoringClient:
         while True:
             result = self.graphql(
                 LIST_ARTICLES_QUERY,
-                {"typeStatus": "article#published", "limit": 100, "nextToken": next_token},
+                {
+                    "typeStatus": tenant_scoped_value(self.tenant_id, "article#published"),
+                    "limit": 100,
+                    "nextToken": next_token,
+                },
             )
             connection = result.get("listPublishedItemsByTypeStatusAndPublishedAt") or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
@@ -721,16 +739,17 @@ class PapyrusGraphQLAuthoringClient:
             next_token = connection.get("nextToken")
             if not next_token:
                 break
-        return items
+        return rows_for_tenant(model_name, self.tenant_id, items)
 
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
-        return self.list_records("PublishedItemSummary")
+        return rows_for_tenant("PublishedItem", self.tenant_id, self.list_records("PublishedItemSummary"))
 
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]
         query = _get_query(definition["field"], definition["fields"])
         result = self.graphql(query, {"id": record_id})
-        return result.get(definition["field"])
+        row = result.get(definition["field"])
+        return row if row_belongs_to_tenant(model_name, self.tenant_id, row) else None
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
         unique_ids = [record_id for record_id in dict.fromkeys(record_ids) if record_id]
@@ -751,6 +770,7 @@ class PapyrusGraphQLAuthoringClient:
         return {record_id: by_id[record_id] for record_id in unique_ids if record_id in by_id}
 
     def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100) -> list[dict[str, Any]]:
+        index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
         query = _index_query(
             definition["field"],
@@ -815,6 +835,7 @@ class PapyrusGraphQLAuthoringClient:
     def delete_record(self, model_name: str, record_id: str) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for delete: {model_name}")
+        self._require_row_in_tenant(model_name, record_id)
         self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": record_id}})
 
     def safe_list_records(self, model_name: str) -> list[dict[str, Any]]:
@@ -843,14 +864,24 @@ class PapyrusGraphQLAuthoringClient:
         )
         return result.get("updateNewsroomSummary") or {}
 
+    def _require_row_in_tenant(self, model_name: str, record_id: str) -> None:
+        if not self.tenant_id or model_name not in TENANT_MODELS:
+            return
+        if self.get_record(model_name, record_id) is None:
+            raise TenantError(f"{model_name} {record_id} does not exist in tenant {self.tenant_id}.")
+
+    def _prepared_payload(self, model_name: str, input_payload: dict[str, Any]) -> dict[str, Any]:
+        stamped = tenant_stamped_payload(model_name, self.tenant_id, input_payload)
+        return strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, stamped))
+
     def create_record(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for create: {model_name}")
-        prepared = strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, input_payload))
+        prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["create"], {"input": prepared})
 
     def upsert(self, model_name: str, input_payload: dict[str, Any]) -> str:
-        prepared = strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, input_payload))
+        prepared = self._prepared_payload(model_name, input_payload)
         current = self.get_record(model_name, prepared["id"])
         mutation = MUTATIONS[model_name]["update" if current else "create"]
         self.graphql(mutation, {"input": prepared})
@@ -859,7 +890,8 @@ class PapyrusGraphQLAuthoringClient:
     def update_record(self, model_name: str, input_payload: dict[str, Any]) -> None:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for update: {model_name}")
-        prepared = strip_unsupported_payload_fields(model_name, add_operational_index_fields(model_name, input_payload))
+        self._require_row_in_tenant(model_name, input_payload["id"])
+        prepared = self._prepared_payload(model_name, input_payload)
         self.graphql(MUTATIONS[model_name]["update"], {"input": prepared})
 
     def create_model_attachment_upload(self, attachment: dict[str, Any]) -> dict[str, Any]:
@@ -893,9 +925,9 @@ class PapyrusGraphQLAuthoringClient:
         return slot
 
 
-def create_authoring_client() -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
+def create_authoring_client(tenant_id: str | None = None) -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
     refuse_guest_auth("this command")
-    return PapyrusGraphQLAuthoringClient(), {}
+    return PapyrusGraphQLAuthoringClient(tenant_id=tenant_id), {}
 
 
 def model_attachment_upload_variables(attachment: dict[str, Any]) -> dict[str, Any]:

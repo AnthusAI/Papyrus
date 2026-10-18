@@ -245,6 +245,8 @@ PORTED_COMMANDS = frozenset(
         "references:process-create-accession-assignments",
         "references:process-accession-now",
         "references:review-curation",
+        "references:approve",
+        "references:reject",
         "references:list-predictions",
         "references:review-classification",
         "references:label",
@@ -477,6 +479,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:process-accession-now":
         require_reference_process_runtime("references process-accession-now")
         references_accession_now(flags)
+    elif route in ("references:approve", "references:reject"):
+        from .references_commands import references_record_on_behalf_of
+        references_record_on_behalf_of(flags, action=command)
     elif route == "references:review-curation":
         references_review_curation(flags)
     elif route == "references:list-predictions":
@@ -1532,7 +1537,7 @@ def print_usage() -> None:
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
     print("  batch register-catalog/enrich-references,")
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
-    print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
+    print("  content export-published --out DIR [--tenant ID] [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
     print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
