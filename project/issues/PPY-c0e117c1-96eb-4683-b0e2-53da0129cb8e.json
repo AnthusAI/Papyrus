@@ -12,9 +12,19 @@
     "tactus-books"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "68e2a361-6f90-44cc-a43b-f793bfb41c7b",
+      "author": "unknown",
+      "text": "Papyrus docs workflow merged on main and deployed (build and deploy jobs green). Quarto publish workflow is now manual-only. Live site content and old chapters/*.html redirects still need a check from a machine that can reach github.io.",
+      "created_at": "2026-10-18T23:55:48.581399Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T20:50:51.542688Z",
-  "updated_at": "2026-10-18T20:50:51.542906Z",
+  "updated_at": "2026-10-18T23:55:48.582277Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
