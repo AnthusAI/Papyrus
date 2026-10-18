@@ -10,9 +10,19 @@
   "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "182a44ab-c930-4162-8127-6deca1de3d27",
+      "author": "unknown",
+      "text": "Plan (production has 9 include + 14 exclude labeled reviews = 23; a held-out set of 40 is impossible, and 815 archived references carry no editor label so they cannot be used). Design: stratified 5-fold cross-validation over all 23. Folds assigned by the frozen sha256(proofId, lineageId) rank within each label, so no one chooses items by looking at results. For each fold, the held-out items are scored with a fresh store primed by the first N reviews (review order) of the other folds' items, for N in 0,5,10,all-remaining. Every labeled review is held out exactly once, so each point is agreement over n=23 decisions (N=0 is identical across folds, so it costs 23 calls; about 92 calls total). Report keeps the v1 schema plus heldOut.design. Always-exclude scores 61%, so precision and recall are shown beside agreement. Longer term, a bigger proof needs more editor reviews, which is an editor task, not a code one.",
+      "created_at": "2026-10-18T15:18:46.658847Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-18T14:02:52.448415Z",
-  "updated_at": "2026-10-18T14:02:58.892641Z",
+  "updated_at": "2026-10-18T15:18:46.659091Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
