@@ -282,3 +282,48 @@ export async function handleProspectusAccountSelection(request: NextRequest, opt
     return signInFailedResponse(503, "prospectus_unavailable", "Prospectus could not be reached.");
   }
 }
+
+const MAXIMUM_PUBLISHING_ACCOUNT_NAME_LENGTH = 150;
+const DEFAULT_PUBLISHING_ACCOUNT_NAME = "Publishing account";
+const IDEMPOTENCY_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function handleProspectusPublishingAccountCreation(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  const runtime = await signInRuntimeFor(request, options);
+  if (!runtime) return signInUnavailableResponse();
+  if (request.headers.get("origin") !== request.nextUrl.origin) {
+    return signInFailedResponse(403, "cross_origin_creation", "Create an account from this site.");
+  }
+  const nowInSeconds = currentTimeInSeconds(options);
+  const session = signedInProspectusSession(request, runtime.sealingSecret, nowInSeconds);
+  if (!session) return signInFailedResponse(401, "signed_out", "Sign in first.");
+  const body = await request.json().catch(() => null) as { name?: unknown; idempotencyKey?: unknown } | null;
+  const requestedName = typeof body?.name === "string" ? body.name.trim() : "";
+  const accountName = requestedName || DEFAULT_PUBLISHING_ACCOUNT_NAME;
+  if (accountName.length > MAXIMUM_PUBLISHING_ACCOUNT_NAME_LENGTH) {
+    return signInFailedResponse(400, "account_name_too_long", "Name the account in 150 characters or fewer.");
+  }
+  const idempotencyKey = typeof body?.idempotencyKey === "string" ? body.idempotencyKey : "";
+  if (!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    return signInFailedResponse(400, "idempotency_key_required", "Send a UUID idempotency key.");
+  }
+  try {
+    const created = await runtime.accounts.createAccount(session.accessToken, accountName, idempotencyKey);
+    const selection = await freshlyAuthorizedPublishingSelection(runtime, session, created.account.id, siteProductFor(options));
+    if (!selection) return signInFailedResponse(403, "not_a_publishing_account", "The new account does not grant publishing access on this site.");
+    const response = NextResponse.json(
+      { selectedAccountId: selection.accountId, role: selection.role, publicationCapabilities: selection.publicationCapabilities },
+      { status: 201, headers: NO_STORE_HEADERS },
+    );
+    const selectedSession: ProspectusSignedInSession = { ...session, selectedAccountId: selection.accountId };
+    response.cookies.set(
+      PROSPECTUS_SESSION_COOKIE,
+      sealProspectusCookie(runtime.sealingSecret, PROSPECTUS_SESSION_COOKIE, selectedSession, session.accessTokenExpiresAt),
+      sealedCookieAttributes(session.accessTokenExpiresAt, nowInSeconds),
+    );
+    return response;
+  } catch (error) {
+    if (error instanceof ProspectusAccountsError) return signInFailedResponse(error.status, error.code, error.message);
+    console.error(`Prospectus account creation failed (${error instanceof Error ? error.name : "error"}).`);
+    return signInFailedResponse(503, "prospectus_unavailable", "Prospectus could not be reached.");
+  }
+}
