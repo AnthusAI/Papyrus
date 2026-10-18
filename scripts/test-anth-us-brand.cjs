@@ -66,7 +66,7 @@ assert.deepEqual(getRootRoute(anthus), { kind: "newsroom" });
 assert.equal(anthus.readerDeployment?.kind, "amplify-static");
 assert.equal(
   anthus.readerDeployment?.repository,
-  "https://github.com/AnthusAI/Anth.us-Papyrus",
+  "https://github.com/AnthusAI/Anth.us-web",
 );
 // Production anth.us still serves the Gatsby site. Asserting these stay unset
 // is the point: a canonical host must not be claimed before cutover.
