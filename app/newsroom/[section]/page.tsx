@@ -43,6 +43,7 @@ const NEWS_DESK_ROUTE_SECTIONS = new Set<NewsDeskTab>([
 
 export default async function NewsDeskSectionPage({ params, searchParams }: NewsDeskSectionPageProps) {
   const { section } = await params;
+  if (section === "work") redirect(toPublicNewsroomPath("/newsroom/articles"));
   if (section === "users") redirect(toPublicNewsroomPath("/newsroom/administration/users"));
   if (section === "doctrine") redirect(toPublicNewsroomPath("/newsroom/administration/policies"));
   if (section === "desks" && resolveActiveSiteBrand().newsroomLayout !== "organizer") redirect(toPublicNewsroomPath("/newsroom/topics"));
