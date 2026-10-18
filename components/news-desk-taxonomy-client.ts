@@ -41,7 +41,7 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
-import { contentItemStageKeys, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -2172,14 +2172,23 @@ const CONTENT_ITEMS_BY_STAGE_QUERY = `
   }
 `;
 
-export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewContentItemVersions();
+export async function loadNewsroomContentItemVersions(options: { includeCollapsedUntilOpenedStages?: readonly string[] } = {}): Promise<ContentItemVersionRecord[]> {
+  const stageDefinitions = getContentItemStageDefinitions();
+  const stagesToLoad = [
+    ...stageDefinitions
+      .filter(definition => !definition.collapsedUntilOpened || options.includeCollapsedUntilOpenedStages?.includes(definition.key))
+      .map(definition => definition.key),
+    ...legacyStageKeysToLoad(stageDefinitions),
+  ];
+  if (isLocalPreviewEnabled()) {
+    return createLocalPreviewContentItemVersions().filter(version => stagesToLoad.includes(version.stage ?? ""));
+  }
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const versionsPerStage = await Promise.all(contentItemStageKeys(getContentItemStageDefinitions()).map(async (stage) => {
+  const versionsPerStage = await Promise.all(stagesToLoad.map(async (stage) => {
     const versions: ContentItemVersionRecord[] = [];
     let nextToken: string | null = null;
     do {

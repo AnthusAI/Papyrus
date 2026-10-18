@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { IssueCollection, IssueDetailPanel } from "@kanbus/ui";
+import { IssueCollection, IssueDetailPanel, useBoardColumnState } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
 import "./newsroom-newsprint-board.css";
 import { PlusIcon } from "lucide-react";
@@ -20,7 +20,7 @@ import {
   type NativeBoardIssue,
 } from "../lib/newsroom-board";
 import type { AssignmentRecord } from "../lib/category-repository";
-import { getContentItemName, SITE_BRAND } from "../lib/site-brand";
+import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { loadNewsroomAssignmentPage, loadNewsroomContentItemVersions, loadNewsroomPublishedContentItemVersions } from "./news-desk-taxonomy-client";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
@@ -57,6 +57,8 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
+  const openedCollapsedUntilOpenedStagesRef = useRef<string[]>([]);
+  const refreshIssuesRef = useRef<((initial: boolean) => void) | null>(null);
   useEffect(() => {
     setLowMotion(readLocalReaderSettings().motion === "low");
     return subscribeReaderSettingsChanges(settings => setLowMotion(settings.motion === "low"));
@@ -67,7 +69,7 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
     if (!allowed) { setLoading(false); return; }
     const loadIssues = () => subject === "contentItem"
       ? Promise.all([
-        Promise.all([loadNewsroomContentItemVersions(), loadNewsroomPublishedContentItemVersions()]).then(([workingVersions, publishedVersions]) => [...workingVersions, ...publishedVersions]),
+        Promise.all([loadNewsroomContentItemVersions({ includeCollapsedUntilOpenedStages: openedCollapsedUntilOpenedStagesRef.current }), loadNewsroomPublishedContentItemVersions()]).then(([workingVersions, publishedVersions]) => [...workingVersions, ...publishedVersions]),
         loadEveryNewsroomAssignment(),
       ]).then(([contentItemVersions, assignments]) => projectContentItemBoard({ contentItemVersions, assignments }))
       : loadEveryNewsroomAssignment().then(projectAssignmentBoard);
@@ -81,6 +83,7 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
         if (generation.current === request && initial) setError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
       }).finally(() => { if (generation.current === request && initial) setLoading(false); });
     };
+    refreshIssuesRef.current = refresh;
     refresh(true);
     const refreshWhenVisible = () => { if (document.visibilityState === "visible") refresh(false); };
     const interval = window.setInterval(refreshWhenVisible, BOARD_REFRESH_INTERVAL_MILLISECONDS);
@@ -89,6 +92,14 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
   }, [allowed, subject]);
   const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
   const boardType = subject === "contentItem" ? contentItemBoardType() : ASSIGNMENT_BOARD_TYPE;
+  const columnState = useBoardColumnState({ config, storageKey: `papyrus.cms.columns.v1.${SITE_BRAND.id}.${subject}` });
+  const openedCollapsedUntilOpenedStageKeys = useMemo(() => subject !== "contentItem" ? "" : getContentItemStageDefinitions()
+    .filter(definition => definition.collapsedUntilOpened && !columnState.collapsedColumns.has(`${boardType}/${definition.key}`))
+    .map(definition => definition.key).join(","), [boardType, columnState.collapsedColumns, subject]);
+  useEffect(() => {
+    openedCollapsedUntilOpenedStagesRef.current = openedCollapsedUntilOpenedStageKeys ? openedCollapsedUntilOpenedStageKeys.split(",") : [];
+    if (openedCollapsedUntilOpenedStageKeys) refreshIssuesRef.current?.(false);
+  }, [openedCollapsedUntilOpenedStageKeys]);
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : "Assignments";
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
@@ -108,7 +119,7 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
       <div className="organizer-board-body" data-detail-open={Boolean(issue)}>
         <IssueCollection issues={issues} config={config} query={{ type: boardType }} view={view}
           motion={lowMotion ? STATIC_MOTION : undefined}
-          columnStateKey={`papyrus.cms.columns.v1.${SITE_BRAND.id}.${subject}`} initialScroll="start"
+          collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
           emptyMessage={loading ? "Loading records…" : error ? "Records could not be loaded." : "No records in this selection."} />
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[{ label: "CMS record ID", value: issue.nativeId }, { label: "Status", value: issue.nativeStatus }]}>

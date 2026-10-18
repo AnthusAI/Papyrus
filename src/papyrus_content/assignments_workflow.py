@@ -13,6 +13,7 @@ from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
     content_item_lineage_for_new_assignment,
     plan_content_item_backfill,
+    plan_content_item_stage_migration,
     plan_undrafted_backfill_story_demotion,
     require_assignment_content_item_lineage_id,
 )
@@ -154,7 +155,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         title=title,
         summary=summary,
         section_key=section_key,
-        stage="research",
+        stage="reporting",
         actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
         now=now,
     )
@@ -303,7 +304,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         title=title,
         summary=summary,
         section_key=section_key,
-        stage="report",
+        stage="reporting",
         actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
         now=now,
     )
@@ -2316,6 +2317,25 @@ def demote_undrafted_content_items(client: PapyrusGraphQLAuthoringClient, option
     for change in changes:
         client.upsert("Item", change["expected"])
     print(f"assignments\tdemote-undrafted-content-items\tupdated\t{len(changes)}")
+
+
+def migrate_content_item_stages(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
+    apply = resolve_mutation_apply(options, "assignments migrate-content-item-stages")
+    changes = plan_content_item_stage_migration(items=client.list_records("Item"))
+    print(f"assignments\tmigrate-content-item-stages\tplanned\t{len(changes)}")
+    for change in changes[:25]:
+        expected = change["expected"]
+        print("\t".join(["content-item-stage", expected["id"], f"from={change['current'].get('stage')}", f"to={expected['stage']}"]))
+    if len(changes) > 25:
+        print(f"assignments\tmigrate-content-item-stages\tpreview-truncated\t{len(changes) - 25} more")
+    if not apply:
+        print("assignments\tmigrate-content-item-stages\tapply\tskipped\tdry run; rerun without --dry-run to write")
+        return
+    for index, change in enumerate(changes, start=1):
+        client.upsert("Item", change["expected"])
+        if index == len(changes) or index % 100 == 0:
+            print(f"assignments\tmigrate-content-item-stages\tprogress\t{index}/{len(changes)}", flush=True)
+    print(f"assignments\tmigrate-content-item-stages\tupdated\t{len(changes)}")
 
 
 def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
