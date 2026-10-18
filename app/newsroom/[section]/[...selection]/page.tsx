@@ -33,7 +33,6 @@ const NEWS_DESK_ROUTE_SECTIONS = new Set<NewsDeskTab>([
   "topics",
   "concepts",
   "references",
-  "insights",
   "messages",
   "assignments",
 ]);

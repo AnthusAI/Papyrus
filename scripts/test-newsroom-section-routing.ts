@@ -4,7 +4,7 @@ import { resolveNewsDeskTab } from "../lib/newsroom-section-routing";
 assert.equal(resolveNewsDeskTab("desks", null, true), "desks", "taxonomy must open its editor, not proposals");
 assert.equal(resolveNewsDeskTab(["desks"], null, true), "desks");
 assert.equal(resolveNewsDeskTab("desks", null), "topics", "other publications retain existing routing");
-for (const section of ["concepts", "references", "search", "administration", "assignments", "messages", "topics", "insights"] as const) {
+for (const section of ["concepts", "references", "search", "administration", "assignments", "messages", "topics"] as const) {
   assert.equal(resolveNewsDeskTab(section, null, true), section);
   assert.equal(resolveNewsDeskTab(section, null), section);
 }

@@ -5,7 +5,6 @@ export type NewsroomNavTabId =
   | "overview"
   | "articles"
   | "messages"
-  | "insights"
   | "assignments"
   | "references"
   | "topics"
@@ -28,7 +27,6 @@ export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
   { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments"), mobilePrimary: true },
   { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references"), mobilePrimary: true },
   { id: "messages", label: "Messages", detail: "Forum", href: newsroomHref("messages") },
-  { id: "insights", label: "Insights", detail: "Research threads", href: newsroomHref("insights") },
   { id: "topics", label: "Topics", detail: "Taxonomy", href: newsroomHref("topics"), mobilePrimary: true },
   { id: "concepts", label: "Concepts", detail: "Ontology", href: newsroomHref("concepts") },
   { id: "search", label: "Search", detail: "Knowledge base", href: newsroomHref("search") },

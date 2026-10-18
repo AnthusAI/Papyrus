@@ -28,7 +28,6 @@ async function run() {
   assert.equal(nav.getNewsroomNavHref("/newsroom?item=a"), atRoot ? "/?item=a" : "/newsroom?item=a");
   assert.equal(base.toPublicNewsroomPath("/newsroom?object=x#y"), atRoot ? "/?object=x#y" : "/newsroom?object=x#y");
   assert.equal(filters.buildNewsroomIndexWebPath("references", { status: "all", processing: "all", order: "published" }).startsWith(`${prefix}/references`), true);
-  assert.equal(forum.buildNewsroomInsightsIndexUrl(true), `${prefix}/insights?demo=1`);
   assert.equal(forum.buildNewsroomForumIndexUrl(true), atRoot ? "/?demo=1" : "/newsroom?demo=1");
   assert.equal(drilldown.topicHref("root"), `${prefix}/topics/root`);
   assert.equal(graph.newsDeskHrefForSemanticObject("reference", "r1"), `${prefix}/references/r1`);
@@ -37,7 +36,6 @@ async function run() {
   const browserReferencePath = `${prefix}/references/ref%201`;
   assert.equal(filters.parseReferenceLineageIdFromNewsroomPathname(browserReferencePath), "ref 1");
   assert.equal(filters.parseAssignmentIdFromNewsroomPathname(`${prefix}/assignments/a1`), "a1");
-  assert.equal(filters.parseInsightThreadIdFromNewsroomPathname(`${prefix}/insights/t1`), "t1");
   assert.equal(filters.parseAssignmentIdFromNewsroomPathname(`${prefix}/assignments`), null);
 
   assert.equal(base.browserPathToInternalNewsroomPath(atRoot ? "/" : "/newsroom"), "/newsroom");
