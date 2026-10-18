@@ -1329,9 +1329,6 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
         "note": str(payload.get("note") or f"Registered from console chat for {normalized_url}"),
         "ingestionRationale": ingestion_rationale or None,
         "actor": actor_label,
-        "createCurationAssignment": bool(
-            payload.get("createCurationAssignment", payload.get("create_curation_assignment", True))
-        ),
         "createIngestionRationaleMessage": bool(
             payload.get("createIngestionRationaleMessage", payload.get("create_ingestion_rationale_message"))
         ),

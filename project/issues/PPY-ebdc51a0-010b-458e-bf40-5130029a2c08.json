@@ -1,0 +1,22 @@
+{
+  "id": "PPY-ebdc51a0-010b-458e-bf40-5130029a2c08",
+  "title": "Chattic.us-web slice 2: marketing pages (home, features, use-cases, beta, legal) to Markus",
+  "description": "Six feature pages (durable-sessions, approvals, flex-mode and others) and the legal pages are TSX copy today. Convert to Markus; offers.test.ts, marketing-cta.test.ts and wordmark-presence.test.ts must keep passing.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T12:59:47.475985Z",
+  "updated_at": "2026-10-18T12:59:47.476235Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

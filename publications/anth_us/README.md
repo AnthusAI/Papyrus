@@ -17,7 +17,7 @@ Two sibling directories, two different jobs — do not merge them:
 
 The reader deployment is a **staging** port of a live marketing site.
 Production `anth.us` stays pointed at the existing Gatsby site
-(`AnthusAI/Anth.us`) until the port has been reviewed.
+(`AnthusAI/Anth.us-legacy-Gatsby`) until the port has been reviewed.
 
 Accordingly, `readerDeployment` on `anthUsBrand` records only the repository.
 `domain` and `amplifyAppId` are deliberately unset, and **no DNS, domain
@@ -26,7 +26,7 @@ Anthus**. Staging runs on the hostname Amplify hands out.
 
 | Surface | Repo | Platform | Domain |
 | --- | --- | --- | --- |
-| **Reader** (Markus static HTML) | [AnthusAI/Anth.us-Papyrus](https://github.com/AnthusAI/Anth.us-Papyrus) | `WEB` | none yet (Amplify staging hostname) |
+| **Reader** (Markus static HTML) | [AnthusAI/Anth.us-web](https://github.com/AnthusAI/Anth.us-web) | `WEB` | none yet (Amplify staging hostname) |
 | **CMS / newsroom** (Papyrus Next.js) | [AnthusAI/Papyrus](https://github.com/AnthusAI/Papyrus) | `WEB_COMPUTE` | not provisioned |
 
 The reader repo is private while the port is half-finished, so that link will

@@ -75,7 +75,7 @@ class PapyrusPrimingCuration:
         now=datetime.now(timezone.utc).isoformat()
         catalog=build_prepared_reference_catalog({'schema_version':1,'generated_at':now,'items':[catalog_item_with_external_item_id({'url':source,'source_uri':source,'title':source})]},
             {'corpusKey':self.corpus['key'],'publicationName':self.publication_name})
-        registration=build_reference_catalog_registration_records(catalog,{'corpusConfig':self.corpus,'classifierId':self.classifier_id,'status':'pending','createCurationAssignment':False,'importedAt':now})
+        registration=build_reference_catalog_registration_records(catalog,{'corpusConfig':self.corpus,'classifierId':self.classifier_id,'status':'pending','importedAt':now})
         assert_reference_catalog_plan_safety(registration)
         reference=next(record['expected'] for record in registration['records'] if record['modelName']=='Reference')
         return reference,registration

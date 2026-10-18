@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { resolveActiveSiteBrand } from "../../../../lib/site-brand-tenant";
+import { NewsroomBoardView } from "../../../../components/newsroom-board-view";
 import { NewsDeskPage } from "../../../../components/news-desk-page";
 
 export const dynamic = "force-dynamic";
@@ -13,5 +15,6 @@ export default async function NewsroomDeepSectionPage({ params, searchParams }: 
   const normalizedSectionId = decodeURIComponent(sectionId ?? "").trim();
   if (!normalizedSectionId) notFound();
 
+  if (resolveActiveSiteBrand().newsroomLayout === "organizer") return <NewsroomBoardView subject="desk" deskId={normalizedSectionId} />;
   return <NewsDeskPage sectionPageId={normalizedSectionId} searchParams={searchParams} />;
 }
