@@ -327,7 +327,7 @@ try {
   assert.equal(sealingSecretReads.length, 1, "prospectus: the compute role reads the sealing secret");
   assert.deepEqual(sealingSecretReads[0].Resource, { Ref: sealingSecretKeys[0] }, "prospectus: sealing secret read is scoped to that secret");
 
-  const synthVariant = (label, example, change) => {
+  const synthVariant = (label, example, change, { repositoryConnected = false } = {}) => {
     const config = JSON.parse(fs.readFileSync(path.join(shell, "examples", example), "utf8"));
     change(config);
     const variantSite = path.join(work, `${label}.site.json`);
@@ -335,9 +335,9 @@ try {
     const variantOut = path.join(infraApp, `cdk.out.${label}`);
     run("node", [cli, "synth", "--site", variantSite, "--out", variantOut], { cwd: infraApp });
     const text = fs.readFileSync(path.join(variantOut, fs.readdirSync(variantOut).find((name) => name.endsWith(".template.json"))), "utf8");
-    assert.equal(text.includes("AccessToken"), false, `${label}: AccessToken`);
+    assert.equal(text.includes("AccessToken"), repositoryConnected, `${label}: AccessToken`);
     assert.equal(text.includes("OauthToken"), false, `${label}: OauthToken`);
-    assert.equal(text.includes("Repository"), false, `${label}: Repository`);
+    assert.equal(text.includes("Repository"), repositoryConnected, `${label}: Repository`);
     return JSON.parse(text);
   };
   const removeDomains = (config) => {
@@ -456,7 +456,7 @@ try {
   const connectedRepositoryArn = "arn:aws:secretsmanager:us-east-1:712236451410:secret:github-amplify-token-AbCdEf";
   const connected = synthVariant("connected-repository", "pilobol-us.site.json", (config) => {
     config.repositoryAccessTokenSecretArn = connectedRepositoryArn;
-  });
+  }, { repositoryConnected: true });
   const connectedApps = resourcesOfType(connected, "AWS::Amplify::App");
   assert.equal(connectedApps.length, 2, "connected repository: both apps present");
   for (const app of connectedApps) {
