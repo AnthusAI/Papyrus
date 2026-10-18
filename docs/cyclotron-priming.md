@@ -416,10 +416,10 @@ method. `/api/cyclotron/priming-proof` serves the same report as JSON. Until a
 report is approved the page says no approved run has been published and still
 explains the method.
 
-A report becomes public only by a reviewed commit: save it as
-`publications/priming-proofs/<site brand id>.json` and import it into
-`lib/approved-priming-proof-reports.ts`. Ryan approves a report before it is
-committed. Brands whose newsroom owns the site root rewrite `/cyclotron` into the
+A report becomes public only by a reviewed commit. Ryan approves a report, then
+`npm run approve:priming-proof -- <site brand id> <report.json>` validates it,
+saves it as `publications/priming-proofs/<site brand id>.json` and regenerates
+`lib/approved-priming-proof-reports.ts`. Brands whose newsroom owns the site root rewrite `/cyclotron` into the
 newsroom; for those, link the API route.
 
 ## 4. Publication panel (embedded or remote)
