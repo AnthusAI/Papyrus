@@ -71,7 +71,7 @@ class DocsSiteTests(unittest.TestCase):
             staged_count = stage_docs_content(config, staging_directory)
             self.assertEqual(staged_count, 3)
             self.assertTrue((staging_directory / "assets" / "diagram.svg").is_file())
-            self.assertIn("](../assets/diagram.svg)", (staging_directory / "articles" / "CLI.md").read_text())
+            self.assertIn("](../assets/diagram.svg)", (staging_directory / "articles" / "cli.md").read_text())
             self.assertTrue((staging_directory / "articles" / "guides-setup.md").is_file())
 
     @unittest.skipUnless(shutil.which("markus"), "markus executable not installed")

@@ -21,10 +21,12 @@ from pathlib import Path
 from .build import BuildResult, build_markus_site
 from .shell import SiteChrome
 
+RELATIVE_LINK_PATTERN = re.compile(r"\]\((?!https?:|mailto:|#|/)([^)\s#]+)(#[^)\s]*)?\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"\]\(([^)\s#]+\.(?:md|html))(#[^)\s]*)?\)")
 IMAGE_DIRECTORY_NAME = "images"
 PUBLISHED_ASSET_DIRECTORY_NAME = "assets"
 INDEX_PAGE_PATH = "index.md"
+DEFAULT_SITE_STYLESHEET = Path(__file__).with_name("docs_site.css")
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,29 @@ def rewrite_links_between_pages(
     return MARKDOWN_LINK_PATTERN.sub(rewrite, page_text)
 
 
+def rewrite_repository_links(page_text: str, documentation_relative_path: str, config: DocsSiteConfig) -> str:
+    """Point relative links to files in the repository (source, README, diagrams) at their GitHub pages."""
+    source_directory = posixpath.dirname(documentation_relative_path)
+    repository_root = config.documentation_directory.parent
+
+    def rewrite(match: re.Match[str]) -> str:
+        target = match.group(1)
+        if target.startswith(("articles/", "../assets/", "assets/")) or target.endswith(".html"):
+            return match.group(0)
+        docs_relative = posixpath.normpath(posixpath.join(source_directory, target))
+        documentation_target = config.documentation_directory / docs_relative
+        repository_relative = posixpath.normpath(posixpath.join(config.documentation_directory.name, docs_relative))
+        repository_target = repository_root / repository_relative
+        if documentation_target.exists() and docs_relative.endswith(".md") and not docs_relative.startswith(".."):
+            return match.group(0)
+        if repository_target.exists():
+            kind = "tree" if repository_target.is_dir() else "blob"
+            return f"]({config.source_repository_url}/{kind}/HEAD/{repository_relative}{match.group(2) or ''})"
+        return match.group(0)
+
+    return RELATIVE_LINK_PATTERN.sub(rewrite, page_text)
+
+
 def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
     """Write the staged content layout and return the number of pages staged."""
     (staging_directory / "articles").mkdir()
@@ -91,6 +116,7 @@ def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
         page_text = page_text.replace(
             f"]({IMAGE_DIRECTORY_NAME}/", f"](../{PUBLISHED_ASSET_DIRECTORY_NAME}/"
         )
+        page_text = rewrite_repository_links(page_text, relative_path, config)
         (staging_directory / published_page_path(relative_path)).write_text(
             page_text, encoding="utf-8"
         )
@@ -100,9 +126,29 @@ def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
     return len(source_pages)
 
 
-def render_navigation_groups(config: DocsSiteConfig, page_context) -> str:
+def page_title(source_page: Path) -> str:
+    for line in source_page.read_text(encoding="utf-8").splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return source_page.stem.replace("_", " ").replace("-", " ").title()
+
+
+def automatic_navigation(config: DocsSiteConfig) -> tuple[tuple[str, tuple[tuple[str, str], ...]], ...]:
+    """Sidebar groups from the documentation tree: top-level pages together, then one group per directory."""
+    groups: dict[str, list[tuple[str, str]]] = {"Overview": [("index.html", "Overview")]}
+    for source_page in sorted(config.documentation_directory.rglob("*.md")):
+        relative_path = source_page.relative_to(config.documentation_directory).as_posix()
+        if relative_path == INDEX_PAGE_PATH:
+            continue
+        directory = posixpath.dirname(relative_path)
+        label = directory.replace("-", " ").replace("_", " ").title() if directory else "Guides"
+        groups.setdefault(label, []).append((f"articles/{published_page_slug(relative_path)}.html", page_title(source_page)))
+    return tuple((label, tuple(entries)) for label, entries in groups.items())
+
+
+def render_navigation_groups(navigation_groups, page_context) -> str:
     groups = []
-    for group_label, entries in config.navigation:
+    for group_label, entries in navigation_groups:
         items = "".join(
             f'<li><a href="{page_context.prefix}{href}"'
             + (' aria-current="page"' if href == page_context.active_href else "")
@@ -118,14 +164,15 @@ def render_navigation_groups(config: DocsSiteConfig, page_context) -> str:
 
 def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
     def render_site_banner(page_context) -> str:
-        if config.navigation:
+        navigation_groups = config.navigation or automatic_navigation(config)
+        if navigation_groups:
             return (
                 '<header class="site-banner"><div class="site-topbar">'
                 f'<a class="site-wordmark" href="{page_context.prefix}index.html">{config.site_name}</a>'
                 f'<p class="site-tagline">{config.tagline}</p>'
                 f'<nav class="site-links" aria-label="Project"><a href="{config.source_repository_url}">GitHub</a></nav>'
                 '</div><details class="site-menu" open><summary>Contents</summary>'
-                f'<nav class="site-sidebar" aria-label="Documentation">{render_navigation_groups(config, page_context)}</nav>'
+                f'<nav class="site-sidebar" aria-label="Documentation">{render_navigation_groups(navigation_groups, page_context)}</nav>'
                 "</details></header>"
             )
         navigation_links = "".join(
@@ -183,7 +230,7 @@ def build_docs_site(config: DocsSiteConfig, output_directory: Path) -> BuildResu
             content_dir=staging_directory,
             out_dir=output_directory,
             theme=config.theme,
-            site_css=config.site_stylesheet,
+            site_css=config.site_stylesheet or DEFAULT_SITE_STYLESHEET,
             chrome=docs_site_chrome(config),
         )
     if config.redirect_former_directory_urls:
@@ -199,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tagline", default="")
     parser.add_argument("--source-url", required=True)
     parser.add_argument("--theme", default="catppuccin")
+    parser.add_argument("--redirect-former-urls", action="store_true", help="Write redirects from former directory-style URLs.")
     arguments = parser.parse_args(argv)
     result = build_docs_site(
         DocsSiteConfig(
@@ -207,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
             documentation_directory=arguments.docs,
             source_repository_url=arguments.source_url,
             theme=arguments.theme,
+            redirect_former_directory_urls=arguments.redirect_former_urls,
         ),
         arguments.out,
     )
