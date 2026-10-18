@@ -174,11 +174,11 @@ export function NewsroomOpsOverview({
                     href={href}
                     key={lineageId}
                   >
-                    <Badge className="mt-0.5 shrink-0" variant="outline">Pending</Badge>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{referenceDisplayTitle(reference)}</p>
                       <p className="text-xs text-muted-foreground">Review source intake · {formatReferenceListDate(reference)}</p>
                     </div>
+                    <Badge className="mt-0.5 shrink-0" variant="outline">Pending</Badge>
                   </Link>
                 );
               })}
@@ -195,11 +195,11 @@ export function NewsroomOpsOverview({
                     href={href}
                     key={assignment.id}
                   >
-                    <Badge className="mt-0.5 shrink-0" variant="secondary">{assignment.status}</Badge>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-foreground">{assignment.title}</p>
                       <p className="text-xs text-muted-foreground">Assignment · {assignment.assignmentTypeKey}</p>
                     </div>
+                    <Badge className="mt-0.5 shrink-0" variant="secondary">{assignment.status}</Badge>
                   </Link>
                 );
               })}

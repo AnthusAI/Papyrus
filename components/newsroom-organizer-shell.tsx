@@ -46,7 +46,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
     return () => media.removeEventListener("change", close);
   }, []);
   return <DropdownMenu open={open} onOpenChange={setOpen}>
-    <DropdownMenuTrigger className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
+    <DropdownMenuTrigger id={`organizer-account-trigger-${placement}`} className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
       <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session"}</small></span>
     </DropdownMenuTrigger>
     <DropdownMenuContent className="organizer-account-popup" side={placement === "sidebar" ? "top" : "bottom"} align="end">
