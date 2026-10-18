@@ -145,7 +145,7 @@ web/
 Markus install for Amplify CI (not on PyPI today):
 
 ```yaml
-pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
+pip install "git+https://github.com/AnthusAI/Markus@v0.6.0"
 ```
 
 See the static template for the full `amplify.yml`.

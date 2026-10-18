@@ -12,7 +12,7 @@ import re
 import subprocess
 from typing import Sequence
 
-MARKUS_REQUIRED_VERSION = "0.5.1"
+MARKUS_REQUIRED_VERSION = "0.6.0"
 _FORBIDDEN_ALLOW_HTML = re.compile(r"(?:^|\s)--allow-html(?:\s|$)")
 
 
