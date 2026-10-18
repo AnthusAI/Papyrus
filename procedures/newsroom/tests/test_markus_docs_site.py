@@ -32,7 +32,7 @@ def write_documentation_tree(documentation_directory: Path) -> None:
 class DocsSiteTests(unittest.TestCase):
     def test_published_page_paths_flatten_nested_pages(self) -> None:
         self.assertEqual(published_page_path("index.md"), "index.md")
-        self.assertEqual(published_page_path("CLI.md"), "articles/CLI.md")
+        self.assertEqual(published_page_path("CLI.md"), "articles/cli.md")
         self.assertEqual(published_page_path("guides/setup.md"), "articles/guides-setup.md")
 
     def test_links_follow_pages_to_their_published_locations(self) -> None:
@@ -41,13 +41,20 @@ class DocsSiteTests(unittest.TestCase):
             rewrite_links_between_pages(
                 "[Setup](guides/setup.md) [CLI](CLI.md#flags)", "index.md", known_pages
             ),
-            "[Setup](articles/guides-setup.html) [CLI](articles/CLI.html#flags)",
+            "[Setup](articles/guides-setup.html) [CLI](articles/cli.html#flags)",
         )
         self.assertEqual(
             rewrite_links_between_pages(
                 "[home](../index.md) [CLI](../CLI.md)", "guides/setup.md", known_pages
             ),
-            "[home](../index.html) [CLI](CLI.html)",
+            "[home](../index.html) [CLI](cli.html)",
+        )
+
+    def test_html_links_between_pages_follow_the_page_to_its_published_name(self) -> None:
+        known_pages = {"index.md", "CLI_REFERENCE.md"}
+        self.assertEqual(
+            rewrite_links_between_pages("[CLI](CLI_REFERENCE.html#flags)", "index.md", known_pages),
+            "[CLI](articles/cli-reference.html#flags)",
         )
 
     def test_links_to_unknown_or_external_pages_are_left_alone(self) -> None:
