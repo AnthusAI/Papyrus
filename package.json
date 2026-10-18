@@ -18,6 +18,7 @@
     "content:register-catalog-bulk": "poetry run papyrus batch register-catalog",
     "content:enrich-references-bulk": "poetry run papyrus batch enrich-references",
     "lint": "eslint .",
+    "test:curation-delegation-helpers": "tsx scripts/test-curation-delegation-helpers.ts",
     "test:newsroom": "node scripts/test-newsroom-session.cjs && node scripts/test-newsroom-forum-routes.cjs && node scripts/test-theme-packs.cjs",
     "test:revalidate-secret-policy": "tsx scripts/test-revalidate-secret-policy.ts",
     "test:rebuild-trigger-settings": "tsx scripts/test-rebuild-trigger-settings.ts",
