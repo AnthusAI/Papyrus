@@ -9,6 +9,7 @@ OPERATIONAL_ASSIGNMENT_FEED_KEY = "operations"
 
 AUTOMATIC_ASSIGNMENT_TYPE_KEYS = frozenset(
     {
+        "analysis.reindex",
         "curation.reference-intake",
         "reference.corpus-accession",
         "reference.identifier-backfill",
