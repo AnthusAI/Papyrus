@@ -3076,7 +3076,9 @@ function NewsDeskDashboard({
     ? mastheadTitle
     : activeTab === "overview"
       ? "Overview"
-      : formatDeskSectionHeadline(activeTab);
+      : activeTab === "administration" && administrationPanel === "sections"
+        ? "Sections"
+        : formatDeskSectionHeadline(activeTab);
 
   return (
     <>
@@ -3113,8 +3115,8 @@ function NewsDeskDashboard({
         >
         {activeTab !== "overview" && activeTab !== "assignments" && activeTab !== "messages" && activeTab !== "references" && activeTab !== "topics" && activeTab !== "concepts" && activeTab !== "search" ? (
           <NewsroomOpsSectionIntro
-            description={formatDeskSectionLede(activeTab)}
-            title={formatDeskSectionHeadline(activeTab)}
+            description={activeTab === "administration" && administrationPanel === "sections" ? "Organize the publication's sections and the ontology that classifies its coverage." : formatDeskSectionLede(activeTab)}
+            title={activeTab === "administration" && administrationPanel === "sections" ? "Sections" : formatDeskSectionHeadline(activeTab)}
           />
         ) : null}
 
