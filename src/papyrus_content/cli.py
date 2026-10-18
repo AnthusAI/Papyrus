@@ -43,6 +43,7 @@ from .assignments_commands import (
     assignments_migrate_content_item_stages,
     assignments_build_context,
     assignments_cancel,
+    assignments_cleanup_automatic,
     assignments_claim,
     assignments_complete,
     assignments_copywriting_output,
@@ -292,6 +293,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:backfill-section-indexes",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
+        "assignments:cleanup-automatic",
         "assignments:migrate-content-item-stages",
         "assignments:for-object",
         "assignments:build-context",
@@ -581,6 +583,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_backfill_content_items(flags)
     elif route == "assignments:demote-undrafted-content-items":
         assignments_demote_undrafted_content_items(flags)
+    elif route == "assignments:cleanup-automatic":
+        assignments_cleanup_automatic(flags)
     elif route == "assignments:migrate-content-item-stages":
         assignments_migrate_content_item_stages(flags)
     elif route == "assignments:for-object":

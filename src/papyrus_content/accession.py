@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import semantic_relation_record
 from .corpora import build_corpus_sync_plan, run_or_print_corpus_sync_plan
@@ -146,7 +147,7 @@ def reference_accession_assignment_record(
         "createdBy": actor_label,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "assignments",
+        "newsroomFeedKey": OPERATIONAL_ASSIGNMENT_FEED_KEY,
         "metadata": json.dumps(
             {
                 "kind": "reference.corpus-accession.requested",
