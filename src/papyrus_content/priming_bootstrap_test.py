@@ -46,7 +46,7 @@ def service(tmp_path,processor=None):
             return httpx.Response(response.status_code,content=response.content,headers={'Content-Type':'application/json'})
         transport=httpx.Client(transport=httpx.MockTransport(request))
     priming=PrimingService(store,transformers=[HTTPTransformer('papyrus','Existing Papyrus curation','https://transformer.invalid',({'name':'url','label':'Source URL','required':True},))] if processor else (),client=transport)
-    web=TestClient(create_app(store,priming=priming))
+    web=TestClient(create_app(store,priming=priming,trusted_loopback_hosts=('testclient',)))
     def command(action,payload):
         result=web.post('/graphql',json={'query':'mutation($action:String!,$payload:JSON!){primingCommand(action:$action,payload:$payload)}','variables':{'action':action,'payload':payload}}).json()
         if result.get('errors'):raise ValueError(result['errors'][0]['message'])
