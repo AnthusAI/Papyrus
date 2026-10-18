@@ -3,7 +3,7 @@
   "title": "Record reusable Papyrus reporting skill",
   "description": "Document the authorized lineage-based reporting workflow in .agents/skills/reporting/SKILL.md. Verify current CLI syntax, publication binding, reference ids versus lineages, immutable drafts, messages, and fallback command inputs. Editorial PwnEscape records belong only in Threat Intelligence. No runtime, infrastructure or deployment changes.",
   "type": "chore",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -22,16 +22,35 @@
         "model": "gpt-6",
         "name": "ChatGPT"
       }
+    },
+    {
+      "id": "3e0e6ae5-8be5-4da5-a417-769faf762a6e",
+      "author": "home",
+      "text": "Reporting skill landed via PR #293 into develop at merge ef2dbdc6d2f503fee08d3ef83ba4c45ce12d03a6. Both GitHub CI jobs (python and ts) passed; skill validator passed. Remote .agents/skills/reporting/SKILL.md verified. User explicitly authorized merge. No main promotion or deployment.",
+      "created_at": "2026-10-18T17:41:11.454169Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "787421c9-5732-4adf-bc16-75fdbf5b6b33",
+      "author": "home",
+      "text": "Completion verified: PR293 merged into develop as ef2dbdc6d2f503fee08d3ef83ba4c45ce12d03a6; python and ts checks SUCCESS. GitHub content API confirms .agents/skills/reporting/SKILL.md blob 2c219b9fd7dccd6c62b966b40c2b338af24337ba (5161 bytes). No main promotion or deployment.",
+      "created_at": "2026-10-18T17:41:29.716306Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT"
+      }
     }
   ],
   "created_at": "2026-10-18T17:30:07.783554Z",
-  "updated_at": "2026-10-18T17:36:21.270447Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T17:41:29.716343Z",
+  "closed_at": "2026-10-18T17:41:13.138167Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6"
   },
-  "right_now_summary": "The reporting skill is documented and validated, with PR #293 awaiting review; no runtime or deployment changes are",
-  "right_now_updated_at": "2026-10-18T17:36:23.129160Z",
+  "right_now_summary": "The reporting skill is merged into develop, validated by CI, and awaiting any main promotion or deployment.",
+  "right_now_updated_at": "2026-10-18T17:41:31.439913Z",
   "custom": {}
 }
