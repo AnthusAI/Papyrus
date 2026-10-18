@@ -304,10 +304,11 @@ class S3ObjectStore:
         return sorted(objects, key=lambda entry: entry.key)
 
     def copy_object_from(self, source_store: Any, key: str) -> str | None:
+        source_key = source_store.original_key(key) if hasattr(source_store, "original_key") else key
         if self.transfer == SERVER_SIDE_TRANSFER:
-            self.client.copy({"Bucket": source_store.bucket, "Key": key}, self.bucket, key)
+            self.client.copy({"Bucket": source_store.bucket, "Key": source_key}, self.bucket, key)
             return None
-        return self._stream_object_from(source_store, key)
+        return self._stream_object_from(source_store, source_key, key)
 
     def _source_part_size(self, source_store: Any, key: str, size_bytes: int) -> int:
         try:
@@ -317,7 +318,7 @@ class S3ObjectStore:
             return S3_PART_SIZE_BYTES
         return part_size if 0 < part_size <= size_bytes else S3_PART_SIZE_BYTES
 
-    def _stream_object_from(self, source_store: Any, key: str) -> str | None:
+    def _stream_object_from(self, source_store: Any, key: str, target_key: str) -> str | None:
         head = source_store.client.head_object(Bucket=source_store.bucket, Key=key)
         source_etag_raw = str(head["ETag"])
         source_etag = source_etag_raw.strip('"')
@@ -334,12 +335,12 @@ class S3ObjectStore:
         body = source_store.client.get_object(Bucket=source_store.bucket, Key=key, IfMatch=source_etag_raw)["Body"]
         try:
             if multipart_source or not reproducible:
-                target_etag = self._upload_in_parts(body, key, size_bytes, part_size, settings)
+                target_etag = self._upload_in_parts(body, target_key, size_bytes, part_size, settings)
             else:
                 with self.memory_budget.hold(size_bytes):
                     data = read_exactly(body, size_bytes)
                     target_etag = str(
-                        self.client.put_object(Bucket=self.bucket, Key=key, Body=data, **settings)["ETag"]
+                        self.client.put_object(Bucket=self.bucket, Key=target_key, Body=data, **settings)["ETag"]
                     ).strip('"')
         finally:
             close = getattr(body, "close", None)
@@ -349,7 +350,7 @@ class S3ObjectStore:
             return None
         if not multipart_source and reproducible:
             raise RuntimeError(f"ETag mismatch after copy: source {source_etag}, target {target_etag}.")
-        target_size = int(self.client.head_object(Bucket=self.bucket, Key=key)["ContentLength"])
+        target_size = int(self.client.head_object(Bucket=self.bucket, Key=target_key)["ContentLength"])
         if target_size != size_bytes:
             raise RuntimeError(f"Size mismatch after copy: source {size_bytes}, target {target_size}.")
         return (
