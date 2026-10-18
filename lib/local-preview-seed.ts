@@ -151,7 +151,7 @@ export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord
 type PreviewSuggestionPlan = {
   label: "include" | "exclude";
   confidence: number;
-  curation: "none" | "human" | "service";
+  curation: "none" | "human" | "service" | "delegated";
   provenance: boolean;
 };
 
@@ -159,7 +159,7 @@ const PREVIEW_SUGGESTION_PLANS: readonly PreviewSuggestionPlan[] = [
   { label: "include", confidence: 0.91, curation: "none", provenance: true },
   { label: "include", confidence: 0.86, curation: "human", provenance: true },
   { label: "exclude", confidence: 0.72, curation: "service", provenance: true },
-  { label: "exclude", confidence: 0.88, curation: "human", provenance: true },
+  { label: "exclude", confidence: 0.88, curation: "delegated", provenance: true },
   { label: "exclude", confidence: 0.64, curation: "none", provenance: false },
 ];
 
@@ -229,6 +229,7 @@ export function createLocalPreviewCyclotronFixtures(references: ReferenceRecord[
         messageDomain: "commentary",
         status: "active",
         summary: `${reference.title ?? lineageId}: curated`,
+        authorLabel: plan.curation === "delegated" ? "Maya Okafor" : null,
         source: "newsroom",
         createdAt,
         updatedAt: createdAt,
@@ -236,7 +237,13 @@ export function createLocalPreviewCyclotronFixtures(references: ReferenceRecord[
           action: reference.curationStatus === "rejected" ? "reject" : "accept",
           curationStatus: reference.curationStatus,
           referenceLineageId: lineageId,
-          actorKind: plan.curation === "human" ? "human" : "service",
+          actorKind: plan.curation === "service" ? "service" : "human",
+          ...(plan.curation === "delegated" ? {
+            attestation: "delegated",
+            relayedBy: "newsroom-reporter",
+            delegationId: "curation-delegation-9b1f6c24-5d0e-4a7b-8c31-2e6f0a1d7b45",
+            instruction: "Reject that one, it duplicates the filing from Tuesday.",
+          } : {}),
         }),
       });
     }
@@ -253,8 +260,7 @@ export function createLocalPreviewCyclotronFixtures(references: ReferenceRecord[
       confusion: { truePositive: 9, falsePositive: 1, falseNegative: 2, trueNegative: 11 },
       computedAt: isoTimestampHoursBeforeBase(3),
       positiveLabel: "include",
-      enabled: true,
-      stoppedBecause: null,
+      loop: { enabled: true, stoppedBecause: "daily decision cap", lastSweepAt: isoTimestampHoursBeforeBase(3), maxDecisionsPerDay: 50 },
     },
   };
 }

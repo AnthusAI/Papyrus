@@ -51,12 +51,13 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceRelevanceReview } from "./reference-relevance-review";
 import {
   CountsAsTrainingLabelNote,
+  DelegatedCurationNote,
   ReferenceSuggestionBlock,
   ReferenceSuggestionProvenance,
   ReferenceSuggestionRowLine,
 } from "./reference-cyclotron-suggestion";
 import { ReferenceLiveAgreement } from "./reference-live-agreement";
-import type { ShadowAgreement } from "../lib/cyclotron-suggestions";
+import type { DelegatedCuration, ShadowAgreement } from "../lib/cyclotron-suggestions";
 import { ReferenceCyclotronPriming, type PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
 import type { PrimingRequestView } from "../lib/relevance-status";
@@ -85,6 +86,8 @@ type NewsroomReferencesViewProps = {
   decisions?: Map<string, RelevanceDecisionView>;
   /** Reference lineage ids whose latest curation Message was made by a person. */
   humanCuratedReferenceLineageIds?: Set<string>;
+  /** Delegated curations by reference lineage. */
+  delegatedCurations?: Map<string, DelegatedCuration>;
   /** The live-agreement payload; the strip is hidden without it. */
   shadowAgreement?: ShadowAgreement | null;
   disabled?: boolean;
@@ -231,6 +234,7 @@ function needsReview(reference: ReferenceRecord, decision: RelevanceDecisionView
 
 function ReferenceDetailPanel({
   countsAsTrainingLabel,
+  delegated,
   decision,
   demo,
   disabled,
@@ -241,6 +245,7 @@ function ReferenceDetailPanel({
   onClose,
 }: {
   countsAsTrainingLabel?: boolean;
+  delegated?: DelegatedCuration;
   decision?: RelevanceDecisionView;
   demo?: boolean;
   disabled?: boolean;
@@ -302,7 +307,7 @@ function ReferenceDetailPanel({
             ) : null}
           </div>
         ) : null}
-        {countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
+        {delegated ? <DelegatedCurationNote delegated={delegated} referenceLineageId={lineageId} /> : countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
 
         <div
           className="flex flex-wrap items-center gap-2"
@@ -432,6 +437,7 @@ export function NewsroomReferencesView({
   cyclotronPriming,
   decisions,
   humanCuratedReferenceLineageIds,
+  delegatedCurations,
   shadowAgreement = null,
   onRequestReviewRate,
   demo = false,
@@ -676,6 +682,7 @@ export function NewsroomReferencesView({
           {selectedReference ? (
             <ReferenceDetailPanel
               countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
+              delegated={delegatedCurations?.get(referenceLineageId(selectedReference))}
               decision={decisions?.get(referenceLineageId(selectedReference))}
               demo={demo}
               disabled={disabled}
@@ -708,6 +715,7 @@ export function NewsroomReferencesView({
               <ScrollArea className="max-h-[75dvh]">
                 <ReferenceDetailPanel
                   countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
+              delegated={delegatedCurations?.get(referenceLineageId(selectedReference))}
                   decision={decisions?.get(referenceLineageId(selectedReference))}
                   demo={demo}
                   disabled={disabled}

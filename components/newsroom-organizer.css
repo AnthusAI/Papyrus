@@ -274,3 +274,9 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-account-chooser li button small,.organizer-account-chooser-note{font-size:12px;color:var(--org-ink);margin:0}
 .organizer-account-chooser-heading{margin:0;font:600 11px/1.4 Newsroom UI,system-ui,sans-serif;letter-spacing:.07em;text-transform:uppercase}
 .organizer-account-chooser-link{color:var(--org-ink);text-decoration:underline;text-underline-offset:3px}
+[data-reference-cyclotron-status] .cyclotron-status[data-variant]{border-radius:0;background:transparent;border-top:1px solid var(--org-ink);border-bottom:1px solid var(--org-ink);padding-left:0;padding-right:0}
+[data-reference-cyclotron-status] :is(.cyclotron-status-note,.cyclotron-status-definition,.cyclotron-status-header p,.cyclotron-status-override){color:var(--org-ink)}
+[data-reference-cyclotron-status] .cyclotron-status[data-variant="strip"]>span+span::before{color:var(--org-ink)}
+[data-reference-cyclotron-status] .cyclotron-status-bar{border-radius:0;background:transparent;border:1px solid var(--org-ink)}
+[data-reference-cyclotron-status] .cyclotron-status-bar>span{opacity:1}
+[data-reference-cyclotron-status] :is(.cyclotron-review-secondary,.cyclotron-review-choice,.cyclotron-review-submit){border-radius:0;opacity:1}

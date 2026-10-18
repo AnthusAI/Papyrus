@@ -5,6 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { MessageRecord, SemanticRelationRecord } from "../lib/category-repository";
 import {
   agreementStripState,
+  dailyCapWords,
+  delegatedCurationsByReference,
+  delegationShortId,
+  loopStateWords,
   curationForSuggestionChoice,
   latestShadowAgreement,
   parseShadowAgreement,
@@ -51,17 +55,22 @@ async function main() {
 
   // No payload hides the strip; under ten comparisons the figures are withheld; ten or more shows them.
   assert.deepEqual(agreementStripState(null), { kind: "hidden" });
-  assert.deepEqual(agreementStripState(parseShadowAgreement(payload({ comparisons: 9 }))), {
-    kind: "not_enough", comparisons: 9, needed: 10, computedAt: "2026-10-18T09:00:00.000Z", reason: null,
-  });
-  const measured = agreementStripState(parseShadowAgreement(payload({ comparisons: 10 })));
-  assert.equal(measured.kind, "measured");
+  const few = agreementStripState(parseShadowAgreement(payload({ comparisons: 9 })));
+  assert.equal(few.kind, "not_enough");
+  assert.equal(agreementStripState(parseShadowAgreement(payload({ comparisons: 10 }))).kind, "measured");
 
-  // A disabled loop or a stopped sweep shows its reason first.
-  const disabled = agreementStripState(parseShadowAgreement(payload({ enabled: false, comparisons: 3 })));
-  assert.deepEqual(disabled, { kind: "stopped", reason: "disabled", measurement: null });
-  const capped = agreementStripState(parseShadowAgreement(payload({ stoppedBecause: "daily decision cap" })));
-  assert.equal(capped.kind, "stopped");
+  // The loop object says on or off, the last sweep, the cap, and why it stopped.
+  const loop = { enabled: false, stoppedBecause: "disabled", lastSweepAt: "2026-10-18T10:00:00Z", maxDecisionsPerDay: null };
+  const stopped = agreementStripState(parseShadowAgreement(payload({ loop })));
+  assert.ok(stopped.kind !== "hidden");
+  {
+    assert.deepEqual(stopped.loop, loop);
+    assert.match(stopped.stopReasonSentence ?? "", /switched off/);
+    assert.equal(loopStateWords(stopped.loop!), "Loop off");
+    assert.equal(dailyCapWords(stopped.loop!), "No daily decision cap");
+  }
+  assert.equal(dailyCapWords({ ...loop, maxDecisionsPerDay: 50 }), "Daily cap 50 decisions");
+  assert.equal(parseShadowAgreement(payload())?.loop, null);
   assert.match(stopReasonSentence("daily decision cap"), /daily decision cap/);
   assert.match(stopReasonSentence("odd"), /stopped early: odd/);
 
@@ -75,6 +84,21 @@ async function main() {
     { ...curationMessage("m6", "other-kind-ref", "2026-10-10T00:00:00Z", "human"), messageKind: "ingestion_rationale" },
   ]);
   assert.deepEqual([...humanLabels], ["human-ref"]);
+
+  // A delegated curation names the agent, the person, the quoted instruction and a short delegation id.
+  const delegatedMessage = {
+    ...curationMessage("m7", "delegated-ref", "2026-10-12T00:00:00Z", "human"), authorLabel: "Maya Okafor",
+    metadata: JSON.stringify({ referenceLineageId: "delegated-ref", actorKind: "human", attestation: "delegated", relayedBy: "newsroom-reporter",
+      delegationId: "curation-delegation-9b1f6c24-5d0e", instruction: "Reject it." }),
+  } as MessageRecord;
+  const delegations = delegatedCurationsByReference([delegatedMessage, curationMessage("m8", "human-ref", "2026-10-12T00:00:00Z", "human")]);
+  assert.deepEqual([...delegations.keys()], ["delegated-ref"]);
+  assert.deepEqual(delegations.get("delegated-ref"), {
+    agent: "newsroom-reporter", person: "Maya Okafor", instruction: "Reject it.",
+    delegationId: "curation-delegation-9b1f6c24-5d0e", delegationShortId: "9b1f6c24", countsAsTrainingLabel: true,
+  });
+  assert.equal(delegationShortId("curation-delegation-abcdef0123"), "abcdef01");
+  assert.equal(delegatedCurationsByReference([delegatedMessage, curationMessage("m9", "delegated-ref", "2026-10-13T00:00:00Z", "service")]).size, 0);
 
   // Agree does what the suggestion implies; overrule the opposite.
   const includeDecision = currentRelevanceDecisions([relation({})]).get("reference-a")!;
@@ -99,7 +123,7 @@ async function main() {
   });
   assert.equal(provenanceSummary(includeDecision), null);
 
-  const { ReferenceSuggestionBlock, ReferenceSuggestionProvenance, CountsAsTrainingLabelNote } =
+  const { ReferenceSuggestionBlock, ReferenceSuggestionProvenance, CountsAsTrainingLabelNote, DelegatedCurationNote } =
     await import("../components/reference-cyclotron-suggestion");
   const { ReferenceLiveAgreement } = await import("../components/reference-live-agreement");
 
@@ -121,15 +145,22 @@ async function main() {
   }
   assert.ok(renderToStaticMarkup(createElement(CountsAsTrainingLabelNote, { referenceLineageId: "x" })).includes("Counts as a training label"));
 
+  const delegatedMarkup = renderToStaticMarkup(createElement(DelegatedCurationNote, { delegated: delegations.get("delegated-ref")!, referenceLineageId: "delegated-ref" }));
+  for (const text of ["Decided by newsroom-reporter on behalf of Maya Okafor", "Reject it.", "Delegation 9b1f6c24", "Counts as a training label"]) {
+    assert.ok(delegatedMarkup.includes(text), `delegated note shows: ${text}`);
+  }
+
   assert.equal(renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: null })), "");
-  const few = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload({ comparisons: 4 })) }));
-  assert.ok(few.includes("Not enough comparisons yet") && !few.includes("87%"));
-  const strip = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload()) }));
-  for (const text of ["87%", "90%", "82%", "23", "Computed 2026-10-18 09:00 UTC"]) {
+  const fewMarkup = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload({ comparisons: 4 })) }));
+  assert.ok(fewMarkup.includes("Not enough comparisons yet") && !fewMarkup.includes("87%"));
+  const strip = renderToStaticMarkup(createElement(ReferenceLiveAgreement, {
+    agreement: parseShadowAgreement(payload({ loop: { enabled: true, stoppedBecause: "daily decision cap", lastSweepAt: "2026-10-18T10:00:00Z", maxDecisionsPerDay: 50 } })),
+  }));
+  for (const text of ["87%", "90%", "82%", "23", "Computed 2026-10-18 09:00 UTC", "Loop on", "Last sweep 2026-10-18 10:00 UTC", "Daily cap 50 decisions", "stopped at the daily decision cap"]) {
     assert.ok(strip.includes(text), `strip shows: ${text}`);
   }
-  const stopped = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload({ enabled: false })) }));
-  assert.ok(stopped.includes("switched off"));
+  const off = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload({ loop })) }));
+  assert.ok(off.includes("Loop off") && off.includes("switched off"));
 
   console.log("cyclotron suggestion helpers ok");
 }

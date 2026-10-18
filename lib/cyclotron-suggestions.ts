@@ -5,6 +5,14 @@ import { safeId } from "./relevance-status";
 export const SHADOW_AGREEMENT_SCHEMA = "cyclotron-shadow-agreement/v1";
 export const MINIMUM_COMPARISONS_FOR_AGREEMENT = 10;
 
+/** What the sweep recorded about the loop itself: whether it is on, when it last ran, why it stopped. */
+export type CyclotronLoopState = {
+  enabled: boolean;
+  stoppedBecause: string | null;
+  lastSweepAt: string | null;
+  maxDecisionsPerDay: number | null;
+};
+
 /** The live-agreement payload the sweep writes: suggestions compared with later human decisions. */
 export type ShadowAgreement = {
   schema: typeof SHADOW_AGREEMENT_SCHEMA;
@@ -15,17 +23,8 @@ export type ShadowAgreement = {
   confusion: Record<string, unknown> | null;
   computedAt: string | null;
   positiveLabel: string | null;
-  /** Optional: false when the steering config switched the loop off. */
-  enabled: boolean | null;
-  /** Optional: why the last sweep stopped early, for example "daily decision cap". */
-  stoppedBecause: string | null;
+  loop: CyclotronLoopState | null;
 };
-
-export type AgreementStripState =
-  | { kind: "hidden" }
-  | { kind: "stopped"; reason: string; measurement: AgreementStripMeasurement | null }
-  | { kind: "not_enough"; comparisons: number; needed: number; computedAt: string | null; reason: null }
-  | { kind: "measured"; measurement: AgreementStripMeasurement; reason: null };
 
 export type AgreementStripMeasurement = {
   comparisons: number;
@@ -35,12 +34,34 @@ export type AgreementStripMeasurement = {
   computedAt: string | null;
 };
 
+export type AgreementStripState =
+  | { kind: "hidden" }
+  | {
+    kind: "not_enough" | "measured";
+    measurement: AgreementStripMeasurement;
+    needed: number;
+    loop: CyclotronLoopState | null;
+    stopReasonSentence: string | null;
+  };
+
 export function shadowAgreementPayloadId(cyclotronId: string): string {
   return `knowledge-raw-payload-cyclotron-shadow-agreement-${safeId(cyclotronId)}`;
 }
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function parseLoop(value: unknown): CyclotronLoopState | null {
+  if (!value || typeof value !== "object") return null;
+  const loop = value as Record<string, unknown>;
+  if (typeof loop.enabled !== "boolean") return null;
+  return {
+    enabled: loop.enabled,
+    stoppedBecause: typeof loop.stoppedBecause === "string" && loop.stoppedBecause ? loop.stoppedBecause : null,
+    lastSweepAt: typeof loop.lastSweepAt === "string" ? loop.lastSweepAt : null,
+    maxDecisionsPerDay: numberOrNull(loop.maxDecisionsPerDay),
+  };
 }
 
 /** A shadow-agreement payload, or null for any other JSON. */
@@ -57,8 +78,7 @@ export function parseShadowAgreement(json: unknown): ShadowAgreement | null {
     confusion: record.confusion && typeof record.confusion === "object" ? (record.confusion as Record<string, unknown>) : null,
     computedAt: typeof record.computedAt === "string" ? record.computedAt : null,
     positiveLabel: typeof record.positiveLabel === "string" ? record.positiveLabel : null,
-    enabled: typeof record.enabled === "boolean" ? record.enabled : null,
-    stoppedBecause: typeof record.stoppedBecause === "string" && record.stoppedBecause ? record.stoppedBecause : null,
+    loop: parseLoop(record.loop),
   };
 }
 
@@ -82,26 +102,35 @@ export function stopReasonSentence(reason: string): string {
 }
 
 /**
- * What the Live agreement strip shows. No payload and no stop reason hides it;
- * a stop reason always shows; under ten comparisons the numbers are withheld.
+ * What the Live agreement strip shows. No payload hides it; under ten
+ * comparisons the figures are withheld; a stop reason is always put in words.
  */
 export function agreementStripState(agreement: ShadowAgreement | null): AgreementStripState {
   if (!agreement) return { kind: "hidden" };
-  const measurement: AgreementStripMeasurement = {
-    comparisons: agreement.comparisons,
-    agreement: agreement.agreement,
-    precision: agreement.precision,
-    recall: agreement.recall,
-    computedAt: agreement.computedAt,
+  const loop = agreement.loop;
+  return {
+    kind: agreement.comparisons < MINIMUM_COMPARISONS_FOR_AGREEMENT ? "not_enough" : "measured",
+    measurement: {
+      comparisons: agreement.comparisons,
+      agreement: agreement.agreement,
+      precision: agreement.precision,
+      recall: agreement.recall,
+      computedAt: agreement.computedAt,
+    },
+    needed: MINIMUM_COMPARISONS_FOR_AGREEMENT,
+    loop,
+    stopReasonSentence: loop?.stoppedBecause ? stopReasonSentence(loop.stoppedBecause) : null,
   };
-  const reason = agreement.enabled === false ? "disabled" : agreement.stoppedBecause;
-  if (reason) {
-    return { kind: "stopped", reason, measurement: agreement.comparisons >= MINIMUM_COMPARISONS_FOR_AGREEMENT ? measurement : null };
-  }
-  if (agreement.comparisons < MINIMUM_COMPARISONS_FOR_AGREEMENT) {
-    return { kind: "not_enough", comparisons: agreement.comparisons, needed: MINIMUM_COMPARISONS_FOR_AGREEMENT, computedAt: agreement.computedAt, reason: null };
-  }
-  return { kind: "measured", measurement, reason: null };
+}
+
+/** "Loop on" or "Loop off", the word the strip leads with. */
+export function loopStateWords(loop: CyclotronLoopState): string {
+  return loop.enabled ? "Loop on" : "Loop off";
+}
+
+/** The daily cap in words; no cap is said plainly. */
+export function dailyCapWords(loop: CyclotronLoopState): string {
+  return loop.maxDecisionsPerDay === null ? "No daily decision cap" : `Daily cap ${loop.maxDecisionsPerDay} decisions`;
 }
 
 export function formatPercentage(fraction: number | null): string {
@@ -183,4 +212,52 @@ export function provenanceSummary(decision: RelevanceDecisionView): ProvenanceSu
 
 export function suggestionConfidenceWords(decision: RelevanceDecisionView): string {
   return decision.confidence === null ? "confidence unknown" : `${Math.round(decision.confidence * 100)}% sure`;
+}
+
+/** A curation recorded by an agent using a delegation a person granted. */
+export type DelegatedCuration = {
+  agent: string;
+  person: string | null;
+  instruction: string;
+  delegationId: string;
+  delegationShortId: string;
+  /** What the backend does: a delegated curation is stamped human, so the person's label trains the cyclotron. */
+  countsAsTrainingLabel: boolean;
+};
+
+const DELEGATION_ID_PREFIX = "curation-delegation-";
+const DELEGATION_SHORT_ID_LENGTH = 8;
+
+export function delegationShortId(delegationId: string): string {
+  return delegationId.replace(DELEGATION_ID_PREFIX, "").slice(0, DELEGATION_SHORT_ID_LENGTH);
+}
+
+/**
+ * Delegated curations by reference lineage, from each reference's latest
+ * curation Message only. The person is the Message author; the agent is relayedBy.
+ */
+export function delegatedCurationsByReference(messages: MessageRecord[]): Map<string, DelegatedCuration> {
+  const latest = new Map<string, MessageRecord>();
+  for (const message of messages) {
+    if (message.messageKind !== "reference_curation") continue;
+    const lineageId = parseMetadata(message.metadata).referenceLineageId;
+    if (typeof lineageId !== "string" || !lineageId) continue;
+    const seen = latest.get(lineageId);
+    if (!seen || seen.createdAt < message.createdAt) latest.set(lineageId, message);
+  }
+  const delegated = new Map<string, DelegatedCuration>();
+  for (const [lineageId, message] of latest) {
+    const metadata = parseMetadata(message.metadata);
+    if (metadata.attestation !== "delegated") continue;
+    const delegationId = typeof metadata.delegationId === "string" ? metadata.delegationId : "";
+    delegated.set(lineageId, {
+      agent: typeof metadata.relayedBy === "string" && metadata.relayedBy ? metadata.relayedBy : "an agent",
+      person: message.authorLabel?.trim() || null,
+      instruction: typeof metadata.instruction === "string" ? metadata.instruction : "",
+      delegationId,
+      delegationShortId: delegationShortId(delegationId),
+      countsAsTrainingLabel: metadata.actorKind === "human",
+    });
+  }
+  return delegated;
 }

@@ -3,7 +3,8 @@
 import {
   agreementStripState,
   formatPercentage,
-  stopReasonSentence,
+  dailyCapWords,
+  loopStateWords,
   type AgreementStripMeasurement,
   type ShadowAgreement,
 } from "../lib/cyclotron-suggestions";
@@ -38,16 +39,21 @@ export function ReferenceLiveAgreement({ agreement }: { agreement: ShadowAgreeme
   return (
     <section aria-label="Live agreement" className="shrink-0 space-y-2 border-y border-foreground py-3" data-reference-live-agreement={state.kind}>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Live agreement</h3>
-      {state.kind === "stopped" ? (
-        <p className="text-sm font-semibold text-foreground" data-reference-live-agreement-stopped>{stopReasonSentence(state.reason)}</p>
+      {state.loop ? (
+        <p className="text-sm text-foreground" data-reference-live-agreement-loop>
+          <span className="font-semibold">{loopStateWords(state.loop)}</span>
+          {" · "}Last sweep {formatSuggestionTime(state.loop.lastSweepAt)}
+          {" · "}{dailyCapWords(state.loop)}
+        </p>
+      ) : null}
+      {state.stopReasonSentence ? (
+        <p className="text-sm font-semibold text-foreground" data-reference-live-agreement-stopped>{state.stopReasonSentence}</p>
       ) : null}
       {state.kind === "not_enough" ? (
         <p className="text-sm text-foreground" data-reference-live-agreement-not-enough>
-          Not enough comparisons yet: {state.comparisons} of {state.needed} editor decisions have followed a suggestion. Figures appear at {state.needed}.
+          Not enough comparisons yet: {state.measurement.comparisons} of {state.needed} editor decisions have followed a suggestion. Figures appear at {state.needed}.
         </p>
-      ) : null}
-      {state.kind === "measured" ? <MeasurementFigures measurement={state.measurement} /> : null}
-      {state.kind === "stopped" && state.measurement ? <MeasurementFigures measurement={state.measurement} /> : null}
+      ) : <MeasurementFigures measurement={state.measurement} />}
       <p className="text-xs text-foreground">
         Suggestions compared with the decisions editors made afterwards. Computed {formatSuggestionTime(agreement?.computedAt ?? null)}.
       </p>

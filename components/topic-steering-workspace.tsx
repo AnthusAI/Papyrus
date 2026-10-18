@@ -159,7 +159,7 @@ import {
 } from "../lib/reference-policy";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
-import { referencesWithHumanLatestCuration, type ShadowAgreement } from "../lib/cyclotron-suggestions";
+import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type ShadowAgreement } from "../lib/cyclotron-suggestions";
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import {
   buildPrimingRequest,
@@ -795,6 +795,10 @@ function NewsDeskDashboard({
   const relevanceDecisions = useMemo(
     () => currentRelevanceDecisions(cyclotronPreviewFixtures ? [...semanticRelations, ...cyclotronPreviewFixtures.relations] : semanticRelations),
     [cyclotronPreviewFixtures, semanticRelations],
+  );
+  const delegatedCurations = useMemo(
+    () => delegatedCurationsByReference(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
+    [cyclotronPreviewFixtures, messages],
   );
   const humanCuratedReferenceLineageIds = useMemo(
     () => referencesWithHumanLatestCuration(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
@@ -3246,6 +3250,7 @@ function NewsDeskDashboard({
             }}
             decisions={relevanceDecisions}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            delegatedCurations={delegatedCurations}
             shadowAgreement={shadowAgreement}
             onRequestReviewRate={relevanceCyclotronId ? async (choice) => {
               const request = buildReviewRateRequest(choice, authState.label);

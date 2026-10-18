@@ -2,6 +2,7 @@
 
 import {
   curationForSuggestionChoice,
+  type DelegatedCuration,
   provenanceSummary,
   suggestionConfidenceWords,
   type SuggestionChoice,
@@ -117,5 +118,26 @@ export function CountsAsTrainingLabelNote({ referenceLineageId }: { referenceLin
     <p className="border-l-2 border-foreground pl-2 text-xs font-semibold text-foreground" data-reference-training-label={referenceLineageId}>
       Counts as a training label: an editor made this decision, so the cyclotron learns from it.
     </p>
+  );
+}
+
+/**
+ * Shown on a record an agent decided for a person under a delegation. The
+ * backend stamps it human, so it counts as that person's training label.
+ */
+export function DelegatedCurationNote({ delegated, referenceLineageId }: { delegated: DelegatedCuration; referenceLineageId: string }) {
+  return (
+    <section aria-label="Delegated decision" className="space-y-1 border-l-2 border-foreground pl-2 text-sm text-foreground" data-reference-delegated-curation={referenceLineageId}>
+      <p className="font-semibold">
+        Decided by {delegated.agent} on behalf of {delegated.person ?? "a person"}
+      </p>
+      {delegated.instruction ? <blockquote className="italic">&ldquo;{delegated.instruction}&rdquo;</blockquote> : null}
+      <p className="text-xs">Delegation {delegated.delegationShortId || "id not recorded"}.</p>
+      <p className="text-xs font-semibold" data-reference-training-label={referenceLineageId}>
+        {delegated.countsAsTrainingLabel
+          ? `Counts as a training label: the record is stamped as ${delegated.person ?? "the person"}'s own decision, so the cyclotron learns from it.`
+          : "Does not count as a training label."}
+      </p>
+    </section>
   );
 }
