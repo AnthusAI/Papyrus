@@ -29,6 +29,9 @@ import { usePagedContentItemVersions } from "./use-paged-content-item-versions";
 import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { NewsroomArticleEditor } from "./newsroom-article-editor";
+import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
@@ -92,7 +95,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         if (generation.current === request) { setPublishedVersions(published); setAssignments(everyAssignment); }
       })
       : loadEveryNewsroomAssignment().then(everyAssignment => {
-        if (generation.current === request) setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment));
+        if (generation.current === request) { setAssignments(everyAssignment); setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment)); }
       });
     const refresh = (initial: boolean) => {
       if (initial) setSupportingRecordsLoading(true);
@@ -158,8 +161,18 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
           emptyMessage={loading ? "Loading records…" : error ? "Records could not be loaded." : "No records in this selection."} />
-        {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[{ label: "CMS record ID", value: issue.nativeId }, { label: "Status", value: issue.nativeStatus }]}>
-          <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type}</Link>
+        {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
+          {issue.kind === "contentItem"
+            ? <>
+              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded />
+              <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
+            </>
+            : (() => {
+              const record = assignments.find(candidate => candidate.id === issue.nativeId);
+              return record
+                ? <NewsroomAssignmentDetail assignment={record} pageHref={getNewsroomNavHref(issue.href)} showTitle={false} />
+                : <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type}</Link>;
+            })()}
         </IssueDetailPanel>}
       </div>
     </div>
