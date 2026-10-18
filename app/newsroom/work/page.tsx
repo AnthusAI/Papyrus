@@ -1,10 +1,6 @@
-import { notFound } from "next/navigation";
-import { resolveActiveSiteBrand } from "../../../lib/site-brand-tenant";
-import { NewsroomBoardView } from "../../../components/newsroom-board-view";
+import { redirect } from "next/navigation";
+import { toPublicNewsroomPath } from "../../../lib/newsroom-base-path";
 
-export const dynamic = "force-dynamic";
-
-export default function NewsroomWorkPage() {
-  if (resolveActiveSiteBrand().newsroomLayout !== "organizer") notFound();
-  return <NewsroomBoardView />;
+export default function NewsroomWorkRedirectPage() {
+  redirect(toPublicNewsroomPath("/newsroom/articles"));
 }

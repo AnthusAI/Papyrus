@@ -1,6 +1,7 @@
 import { resolveActiveSiteBrand } from "../../../lib/site-brand-tenant";
 import { notFound, redirect } from "next/navigation";
 import { toPublicNewsroomPath } from "../../../lib/newsroom-base-path";
+import { NewsroomBoardView } from "../../../components/newsroom-board-view";
 import { NewsDeskPage } from "../../../components/news-desk-page";
 import type { NewsDeskTab } from "../../../components/topic-steering-workspace";
 
@@ -46,5 +47,9 @@ export default async function NewsDeskSectionPage({ params, searchParams }: News
   if (section === "doctrine") redirect(toPublicNewsroomPath("/newsroom/administration/policies"));
   if (section === "desks" && resolveActiveSiteBrand().newsroomLayout !== "organizer") redirect(toPublicNewsroomPath("/newsroom/topics"));
   if (!NEWS_DESK_ROUTE_SECTIONS.has(section as NewsDeskTab)) notFound();
+  if (section === "assignments" && resolveActiveSiteBrand().newsroomLayout === "organizer") {
+    const resolved = await searchParams;
+    if (!resolved?.assignment && resolved?.demo !== "1") return <NewsroomBoardView subject="assignment" />;
+  }
   return <NewsDeskPage section={section} searchParams={searchParams} />;
 }
