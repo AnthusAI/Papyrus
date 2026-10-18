@@ -46,10 +46,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "0c47a8a2-d992-4192-82d7-a82c466ea60b",
+      "author": "unknown",
+      "text": "Findings: marketing bucket already has the latest restyled build (job 6). CMS Amplify app builds 25 and 26 (Papyrus 1.6.0 and 1.7.0 bumps) failed, so /newsroom/stories 404s; routed to the Board thread.",
+      "created_at": "2026-10-18T13:51:34.398628Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:26:51.436172Z",
-  "updated_at": "2026-10-18T13:50:53.125511Z",
+  "updated_at": "2026-10-18T13:51:34.398790Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
