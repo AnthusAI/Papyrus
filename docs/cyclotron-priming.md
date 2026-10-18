@@ -636,6 +636,7 @@ shared. A tenant with no Sections is refused with the command that seeds them:
   probabilities, version, fingerprint and provenance, and superseding that
   Reference's previous current relation for the same classifier. Every one is a
   suggestion; curation status is never changed.
+- A delegated accept comes from a delegation a person approved: the agent requests it with `papyrus references request-delegation`, keeps the secret in a private file, and a person approves the short code in the Newsroom (see "Getting a delegation without pasting a secret" in `docs/story-reporting.md`). A pending, denied or unapproved delegation is refused.
 - Teaching comes only from an explicit human or delegated accept that names a
   Section (`human_section_for_review`). For a Reference placed in Section S the
   selector learns S, `section-fit-S` learns `fits`, and every other

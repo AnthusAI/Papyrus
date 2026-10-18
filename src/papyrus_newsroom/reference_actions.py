@@ -4,7 +4,10 @@ import datetime as dt
 import hashlib
 import json
 import re
+import secrets
+import time
 import uuid
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -198,6 +201,99 @@ query GetNewsroomSection($id: ID!) {
   }
 }
 """
+
+
+REQUEST_CURATION_DELEGATION_MUTATION = """
+mutation RequestCurationDelegation($delegationId: ID!, $tokenHash: String!, $agentLabel: String!, $hours: Int) {
+  requestCurationDelegation(delegationId: $delegationId, tokenHash: $tokenHash, agentLabel: $agentLabel, hours: $hours) {
+    ok
+    delegationId
+    userCode
+    pendingExpiresAt
+    requestedHours
+  }
+}
+"""
+
+
+GET_CURATION_DELEGATION_STATUS_QUERY = """
+query GetCurationDelegationStatus($delegationId: ID!) {
+  getCurationDelegationStatus(delegationId: $delegationId) {
+    delegationId
+    state
+    expiresAt
+    grantorLabel
+  }
+}
+"""
+
+DELEGATION_TERMINAL_STATES = ("approved", "denied", "expired", "revoked")
+
+
+def new_delegation_token() -> str:
+    """Make a delegation token whose secret half exists only on the machine that made it."""
+    return f"curation-delegation-{uuid.uuid4()}~{secrets.token_urlsafe(24)}"
+
+
+def hash_delegation_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def read_delegation_token_file(path: str | Path) -> str:
+    token = Path(path).expanduser().read_text(encoding="utf-8").strip()
+    if not token:
+        raise ValueError("The delegation file is empty.")
+    return token
+
+
+def request_curation_delegation(
+    graphql: GraphqlInvoker,
+    *,
+    delegation_token: str,
+    agent_label: str,
+    hours: int | None = None,
+) -> dict[str, Any]:
+    """Ask for a delegation. Only the hash of the token leaves this machine; a person approves the returned code."""
+    return _call(
+        graphql,
+        REQUEST_CURATION_DELEGATION_MUTATION,
+        "requestCurationDelegation",
+        {
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "tokenHash": hash_delegation_token(delegation_token),
+            "agentLabel": _required(agent_label, "agent_label"),
+            "hours": hours,
+        },
+    )
+
+
+def get_curation_delegation_status(graphql: GraphqlInvoker, *, delegation_id: str) -> dict[str, Any]:
+    return _call(
+        graphql,
+        GET_CURATION_DELEGATION_STATUS_QUERY,
+        "getCurationDelegationStatus",
+        {"delegationId": _required(delegation_id, "delegation_id")},
+    )
+
+
+def wait_for_curation_delegation(
+    graphql: GraphqlInvoker,
+    *,
+    delegation_id: str,
+    poll_interval_seconds: float = 5.0,
+    timeout_seconds: float = 660.0,
+    sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> dict[str, Any]:
+    """Poll until a person approves or denies the request, or it expires, or the timeout passes."""
+    deadline = monotonic() + timeout_seconds
+    while True:
+        status = get_curation_delegation_status(graphql, delegation_id=delegation_id)
+        if status.get("state") in DELEGATION_TERMINAL_STATES:
+            return status
+        if monotonic() >= deadline:
+            return {**status, "state": status.get("state") or "pending", "timedOut": True}
+        sleep(poll_interval_seconds)
 
 
 def delegation_id_from_token(token: str) -> str:

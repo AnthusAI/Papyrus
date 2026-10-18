@@ -247,6 +247,7 @@ PORTED_COMMANDS = frozenset(
         "references:review-curation",
         "references:approve",
         "references:reject",
+        "references:request-delegation",
         "references:list-predictions",
         "references:review-classification",
         "references:label",
@@ -484,6 +485,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route in ("references:approve", "references:reject"):
         from .references_commands import references_record_on_behalf_of
         references_record_on_behalf_of(flags, action=command)
+    elif route == "references:request-delegation":
+        from .references_commands import references_request_delegation
+        references_request_delegation(flags)
     elif route == "references:review-curation":
         references_review_curation(flags)
     elif route == "references:list-predictions":
