@@ -205,3 +205,12 @@ assert.equal(papyrusVersionToPep440("1.0.0"), "1.0.0");
 assert.equal(papyrusVersionToPep440("1.0.0-next.12"), "1.0.0.dev12");
 
 console.log("infra site config tests passed");
+
+const repositoryTokenSecretArn = "arn:aws:secretsmanager:us-east-1:712236451410:secret:github-amplify-token-AbCdEf";
+assert.equal(staticConfig.repositoryAccessTokenSecretArn, undefined);
+assert.equal(
+  parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.repositoryAccessTokenSecretArn = repositoryTokenSecretArn))).repositoryAccessTokenSecretArn,
+  repositoryTokenSecretArn,
+);
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.repositoryAccessTokenSecretArn = "ghp_plaintexttoken")), "repositoryAccessTokenSecretArn");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.repositoryAccessTokenSecretArn = 7)), "repositoryAccessTokenSecretArn");

@@ -453,6 +453,18 @@ try {
   }
   assert.match(message, /optional peer dependencies/, "synth without the CDK must explain the optional peers");
 
+  const connectedRepositoryArn = "arn:aws:secretsmanager:us-east-1:712236451410:secret:github-amplify-token-AbCdEf";
+  const connected = synthVariant("connected-repository", "pilobol-us.site.json", (config) => {
+    config.repositoryAccessTokenSecretArn = connectedRepositoryArn;
+  });
+  const connectedApps = resourcesOfType(connected, "AWS::Amplify::App");
+  assert.equal(connectedApps.length, 2, "connected repository: both apps present");
+  for (const app of connectedApps) {
+    assert.equal(app.Properties.Repository, "https://github.com/AnthusAI/Pilobol.us", "connected repository: app points at the site repository");
+    assert.equal(app.Properties.AccessToken, `{{resolve:secretsmanager:${connectedRepositoryArn}:SecretString}}`, "connected repository: token is a dynamic reference");
+  }
+  assert.equal(JSON.stringify(connected).includes("ghp_"), false, "connected repository: no literal token in the template");
+
   const renamed = synthVariant("renamed-stack", "pilobol-us.site.json", (config) => {
     config.stackName = "pilobol-us-new";
     config.github.ciCanDeployInfra = true;
