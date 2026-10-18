@@ -33,3 +33,4 @@ jobs:
       - run: npm ci
       - run: node packages/stage.mjs --version 0.0.0-smoke.1
       - run: node packages/verify-packages.mjs 0.0.0-smoke.1
+      - run: node scripts/test-consumer-site-typecheck.mjs dist-packages/anthusai-papyrus-0.0.0-smoke.1.tgz
