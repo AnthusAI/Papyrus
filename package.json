@@ -46,6 +46,7 @@
     "test:newsroom-nav": "tsx scripts/test-newsroom-nav.ts",
     "test:relevance-decisions": "tsx scripts/test-relevance-decisions.ts",
     "test:cyclotron-suggestions": "tsx scripts/test-cyclotron-suggestions.ts",
+    "test:site-section-suggestions": "tsx scripts/test-site-section-suggestions.ts",
     "test:curation-delegation": "tsx scripts/test-curation-delegation.ts",
     "test:curation-section": "tsx scripts/test-curation-section.ts",
     "test:relevance-review-ui": "tsx scripts/test-relevance-review-ui.ts",
