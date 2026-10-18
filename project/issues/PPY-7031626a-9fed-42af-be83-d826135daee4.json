@@ -64,10 +64,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "bc0430a8-877c-48b3-963d-d1e5c6619332",
+      "author": "unknown",
+      "text": "2026-10-18 17:21Z Ryan confirmed p.apyr.us/newsroom sign-in works after the redo. Papyrus-web cutover done. Remaining under this ticket: Prospectus-web (pipeline needs AnthusAI/Prospectus-web added to the AWS Connector GitHub installation), Apricity-web and Auritus-web (account move into papyrus-production).",
+      "created_at": "2026-10-18T17:21:34.563747Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:26:51.436172Z",
-  "updated_at": "2026-10-18T15:10:10.416263Z",
+  "updated_at": "2026-10-18T17:21:34.563942Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
