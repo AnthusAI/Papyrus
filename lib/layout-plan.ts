@@ -469,7 +469,12 @@ export type LayoutRegionSpec = z.infer<typeof LayoutRegionSchema>;
 export type LayoutPageSpec = z.infer<typeof LayoutPageSchema>;
 export type EditionLayoutPlan = z.infer<typeof EditionLayoutPlanSchema>;
 
-export function createDefaultEditionLayoutPlan(itemIds: string[]): EditionLayoutPlan {
+export type ArticleCutPolicy = ArticleFrameBlockSpec["cutPolicy"];
+
+export function createDefaultEditionLayoutPlan(
+  itemIds: string[],
+  cutPoliciesByItemId: Record<string, ArticleCutPolicy> = {},
+): EditionLayoutPlan {
   const frontItemIds = getDefaultFrontItemOrder(itemIds);
   const frontBlocks = frontItemIds.map((itemId, index) => ({
     id: `front-${itemId}`,
@@ -563,7 +568,7 @@ export function createDefaultEditionLayoutPlan(itemIds: string[]): EditionLayout
           ],
         }
       : undefined,
-    cutPolicy: getDefaultCutPolicy(itemId),
+    cutPolicy: cutPoliciesByItemId[itemId],
   }));
 
   const plan: EditionLayoutPlan = normalizeEditionLayoutPlan({
@@ -812,7 +817,37 @@ export function validateEditionLayoutPlanForItems(
     }
   }
 
+  validateJumpTargetsHaveContinuationFrames(layoutPlan, label);
+
   return layoutPlan;
+}
+
+function validateJumpTargetsHaveContinuationFrames(layoutPlan: EditionLayoutPlan, label: string): void {
+  const continuationFlowKeysByPageNumber = new Map<number, Set<string>>();
+  for (const page of layoutPlan.pages) {
+    const flowKeys = new Set<string>();
+    for (const region of page.regions) {
+      for (const block of region.blocks) {
+        if (block.type === "articleFrame" && block.startCursor === "current") flowKeys.add(block.flowKey ?? block.itemId);
+      }
+    }
+    continuationFlowKeysByPageNumber.set(page.pageNumber, flowKeys);
+  }
+  for (const page of layoutPlan.pages) {
+    for (const region of page.regions) {
+      for (const block of region.blocks) {
+        if (block.type !== "articleFrame") continue;
+        const jumpTargetPage = block.cutPolicy?.jumpTargetPage;
+        if (!jumpTargetPage) continue;
+        const flowKey = block.flowKey ?? block.itemId;
+        if (!continuationFlowKeysByPageNumber.get(jumpTargetPage)?.has(flowKey)) {
+          throw new Error(
+            `${label}.pages[${page.pageNumber}].regions.${region.id}.${block.id} advertises page ${jumpTargetPage} but that page has no startCursor "current" frame for flow ${flowKey}`,
+          );
+        }
+      }
+    }
+  }
 }
 
 function validateBlock(
@@ -952,13 +987,6 @@ function getDefaultFrontEditorialPriority(index: number): EditorialPriorityId {
 function getDefaultFrontItemOrder(itemIds: string[]): string[] {
   if (itemIds.length < 3) return itemIds;
   return [itemIds[1], itemIds[0], itemIds[2], ...itemIds.slice(3)];
-}
-
-function getDefaultCutPolicy(itemId: string): ArticleFrameBlockSpec["cutPolicy"] | undefined {
-  if (itemId === "agent-procedure-patterns") return { maxBodyLines: 22, jumpTargetPage: 2 };
-  if (itemId === "schools-reading-lab") return { maxBodyLines: 16, jumpTargetPage: 3 };
-  if (itemId === "market-hall") return { maxBodyLines: 14, jumpTargetPage: 3 };
-  return undefined;
 }
 
 function parseMaybeJson(value: unknown, label: string): unknown {
