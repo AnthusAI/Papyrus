@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8a27f8f9-5f72-4e70-abf7-4748d25125d0",
+  "issue_id": "PPY-9d978d39-40a7-40a5-b994-16d960adc44f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:32:43.083Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Make suggestions reproducible: record priming-set and doctrine hashes",
+    "description": "Store which labels and which doctrine version produced each suggestion in the decision metadata.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}
