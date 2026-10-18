@@ -10,9 +10,19 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c34a195a-985f-4b17-9135-15f97bc5c34c",
+      "author": "unknown",
+      "text": "Inventory and plan written: /anthus-sites-to-papyrus/chattic-us-web-inventory-and-plan.md. 31 plain-Markdown content files (about 16,700 words), no MDX or in-content components; deploy already goes through CodePipeline. Slice 1 (cloud): convert content to Markus with a link and field checker. Slice 2 (Mac): publication layout and marketing sections. Intake forms stay a separate service.",
+      "created_at": "2026-10-18T23:37:32.336165Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:25:53.576750Z",
-  "updated_at": "2026-10-17T22:25:53.576967Z",
+  "updated_at": "2026-10-18T23:37:32.336306Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
