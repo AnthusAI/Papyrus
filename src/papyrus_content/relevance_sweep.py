@@ -496,7 +496,8 @@ def _curation_messages(client, lineage_id: str) -> list[dict[str, Any]]:
         message = client.get_record("Message", relation["subjectId"])
         if not message or message.get("messageKind") != "reference_curation":
             continue
-        messages.append({**message, "metadata": _owner_metadata(client, message)})
+        messages.append({**message, "metadata": _owner_metadata(client, message),
+                         "hasInlineMetadata": bool(parse_jsonish(message.get("metadata")))})
     messages.sort(key=lambda message: str(message.get("createdAt") or ""))
     return messages
 
