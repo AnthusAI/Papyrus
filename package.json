@@ -48,6 +48,7 @@
     "test:relevance-status-ui": "tsx scripts/test-relevance-status-ui.ts",
     "test:relevance-priming-ui": "tsx scripts/test-relevance-priming-ui.ts",
     "test:priming-proof-page": "tsx scripts/test-priming-proof-page.ts",
+    "approve:priming-proof": "tsx scripts/approve-priming-proof-report.ts",
     "test:newsroom-root-paths": "tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us SITE_ENV=staging tsx scripts/test-newsroom-root-middleware.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-provider.ts",
     "test:pilobol-sample-ast": "node scripts/check-pilobol-sample-ast-stale.mjs",
     "test:oauth-redirect-urls": "tsx scripts/test-oauth-redirect-urls.ts",

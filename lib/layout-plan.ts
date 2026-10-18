@@ -1,3 +1,4 @@
+import { warnAboutMissingMedia } from "./layout-warnings";
 import { z } from "zod";
 import {
   type PublicationItem,
@@ -894,7 +895,7 @@ function validateBlock(
   if (block.type === "mediaCluster") {
     const assets = findAssetsByRole(item, block.assetRole);
     if (block.required && assets.length < block.count.min) {
-      throw new Error(`${label}.${block.id} requires at least ${block.count.min} media assets`);
+      warnAboutMissingMedia(`${label}.${block.id} requires at least ${block.count.min} media assets`);
     }
   }
 }
@@ -902,7 +903,7 @@ function validateBlock(
 function validateMediaSpec(item: PublicationItem, media: LayoutMediaSpec, label: string): void {
   const matchingAssets = findAssetsByRole(item, media.assetRole);
   if (media.required && matchingAssets.length === 0) {
-    throw new Error(`${label} requires an image asset${media.assetRole ? ` with role ${media.assetRole}` : ""}`);
+    warnAboutMissingMedia(`${label} requires an image asset${media.assetRole ? ` with role ${media.assetRole}` : ""} and renders without it`);
   }
 }
 
