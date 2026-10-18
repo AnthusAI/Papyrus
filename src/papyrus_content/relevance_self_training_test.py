@@ -121,6 +121,22 @@ def test_a_human_label_on_a_decided_reference_reaches_the_next_decision_prompt(t
     assert second_model.training_label_counts == [1]
 
 
+def test_setting_a_reviewed_reference_back_to_pending_retires_the_label_the_cyclotron_learned(tmp_path):
+    context = prepared_context(tmp_path)
+    decided, _ = two_pending_references()
+    client = SweepClient({"Reference": [decided]})
+    sweep(context, Model(), client, tmp_path)
+    curate(client, decided, status="rejected", actor_kind="human", reason="out_of_scope", at="2999-01-01T00:00:00Z")
+    labelled = sweep(context, Model(), client, tmp_path)
+    assert labelled.retired_labels == 0
+    assert labels_in_store(context) == {"reference-a": "exclude"}
+    curate(client, decided, status="pending", actor_kind="human", at="2999-02-01T00:00:00Z")
+    withdrawn = sweep(context, Model(), client, tmp_path)
+    assert withdrawn.retired_labels == 1
+    assert labels_in_store(context) == {}
+    assert sweep(context, Model(), client, tmp_path).retired_labels == 0
+
+
 def test_live_agreement_counts_only_human_reviews_that_came_after_the_suggestion(tmp_path):
     context = prepared_context(tmp_path)
     first, second = two_pending_references()

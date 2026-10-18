@@ -564,3 +564,11 @@ sweep stores the gate's verdict beside the live agreement as `autoDecision`:
 
 `proof_is_due` gives the reason a fresh draft proof should be run (new labels or
 age), for the scheduled proof that follows.
+
+### Withdrawn labels
+
+If a person sets a reviewed Reference back to pending, or a later curation is not
+an explicit human label, the next sweep retracts the label the cyclotron learned
+from it (`undo_review`, counted as `retiredLabels`). Priming examples added for
+References no one decided have no retraction in the engine yet; that needs a
+Cyclotron change.
