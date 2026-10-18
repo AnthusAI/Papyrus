@@ -37,10 +37,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "2b869d26-1af1-49df-983f-c99bbbc3bf6a",
+      "author": "unknown",
+      "text": "Ryan 2026-10-18: after rollback p.apyr.us shows the old pre-restyle landing page. Redo must serve the current Papyrus-web build (newsprint styling, PR 4 or later); verify the marketing bucket holds the latest build before DNS. Added to the redo design doc.",
+      "created_at": "2026-10-18T13:50:53.125193Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:26:51.436172Z",
-  "updated_at": "2026-10-18T13:47:43.918692Z",
+  "updated_at": "2026-10-18T13:50:53.125511Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
