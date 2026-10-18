@@ -10,9 +10,19 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a2d8419b-584a-4a40-a7f8-2db54d272e0d",
+      "author": "unknown",
+      "text": "2026-10-18 Docs sites plan. Remaining after Kanbus: Tactus docs, Biblicus docs, Cyclotron docs (same docsite/build_site.py pattern, copy from AnthusAI/Kanbus PR 461). Kanbus: docsite/build_site.py builds all 29 docs pages through Papyrus, workflow updated, PR 461 open. Follow-ups: redirects from former MkDocs URLs; retire mkdocs.yml after Pages deploy is confirmed.",
+      "created_at": "2026-10-18T18:54:30.408408Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:26:07.495419Z",
-  "updated_at": "2026-10-17T22:26:07.495697Z",
+  "updated_at": "2026-10-18T18:54:30.408581Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
