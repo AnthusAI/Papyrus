@@ -142,6 +142,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
     headerActions={<>
+      <span role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</span>
       <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
       {showsContentItems && (
         <Link className={cn(buttonVariants({ size: "sm" }))} data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
@@ -152,7 +153,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     </>}>
     <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
-      <p role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</p>
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
       <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
         <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
