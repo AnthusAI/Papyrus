@@ -9,7 +9,7 @@ import { canReadNewsroomBoard, contentItemBoardType, newsroomBoardConfig, projec
 import type { AssignmentRecord } from "../lib/category-repository";
 import { getContentItemName, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { loadNewsroomAssignmentPage, loadNewsroomContentItemVersions } from "./news-desk-taxonomy-client";
+import { loadNewsroomAssignmentPage, loadNewsroomContentItemVersions, loadNewsroomPublishedContentItemVersions } from "./news-desk-taxonomy-client";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
@@ -53,7 +53,7 @@ export function NewsroomBoardView() {
     if (!allowed) { setLoading(false); return; }
     setLoading(true);
     Promise.all([
-      loadNewsroomContentItemVersions(),
+      Promise.all([loadNewsroomContentItemVersions(), loadNewsroomPublishedContentItemVersions()]).then(([workingVersions, publishedVersions]) => [...workingVersions, ...publishedVersions]),
       loadEveryNewsroomAssignment(),
     ]).then(([contentItemVersions, assignments]) => {
       if (generation.current !== request) return;
