@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5ca187b1-8a7f-4118-adcb-72c1933b3ebf",
+  "title": "p.apyr.us footer: confirm Footer Products = Cyclotron, Chatticus, Papyrus, Auritus (app ds6yswxui41yi)",
+  "description": "STUBS: open items named by the coordinator whose details live in other threads or boards and were NOT re-verified in this session. Whoever picks these up should read the original thread/board first.\n\n5. p.apyr.us footer depends on the shared footer registry/pin; confirm p.apyr.us (app ds6yswxui41yi, builds fine) shows Footer Products = Cyclotron, Chatticus, Papyrus, Auritus after the anth.us/Babulus work.\n\nStub caveat: details live in other threads or boards and were NOT re-verified; read the original thread/board first.\n\nSource: Claude Code Projects handoff, 2026-10-19.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:42:50.540416Z",
+  "updated_at": "2026-10-19T16:42:50.540469Z",
+  "closed_at": null,
+  "right_now_summary": "p.apyr.us’s footer still needs verification of the four listed products after the anth.us/Babulus work.",
+  "right_now_updated_at": "2026-10-19T16:42:52.315762Z",
+  "custom": {}
+}
