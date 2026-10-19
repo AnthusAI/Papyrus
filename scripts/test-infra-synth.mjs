@@ -19,7 +19,7 @@ const version = "0.0.0-inf.1";
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-infra-synth-"));
 
 function run(command, args, options = {}) {
-  return execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...options });
+  return execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...options, env: { ...process.env, CDK_DEFAULT_ACCOUNT: "335163751677", ...options.env } });
 }
 
 function resourcesOfType(template, type) {

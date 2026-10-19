@@ -12,6 +12,7 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { resolveCdkEnvironment } from "../src/cdk-environment.mjs";
 
 const USAGE = [
   "Usage: papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]",
@@ -25,6 +26,14 @@ const args = process.argv.slice(2);
 const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : fallback;
+};
+const resolveEnvironmentOrExit = () => {
+  try {
+    return resolveCdkEnvironment({ explicitAccount: opt("account"), explicitRegion: opt("region") });
+  } catch (error) {
+    console.error(`papyrus-infra: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
 };
 const command = args[0];
 if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge") {
@@ -85,7 +94,7 @@ if (accountStack !== undefined) {
   const { App } = createRequire(path.join(process.cwd(), "noop.js"))("aws-cdk-lib");
   const app = new App({ outdir: path.resolve(opt("out", "cdk.out")) });
   new GithubOidcProviderStack(app, "GithubOidcProviderStack", {
-    env: { account: opt("account", process.env.CDK_DEFAULT_ACCOUNT ?? "335163751677"), region: opt("region", process.env.CDK_DEFAULT_REGION ?? "us-east-1") },
+    env: resolveEnvironmentOrExit(),
     stackName: "github-oidc-provider",
   });
   app.synth();
@@ -168,7 +177,7 @@ try {
 const { App } = createRequire(path.join(process.cwd(), "noop.js"))("aws-cdk-lib");
 const app = new App({ outdir: path.resolve(opt("out", "cdk.out")) });
 new AmplifyAppShellStack(app, `AmplifyAppShell-${config.siteId}`, config, {
-  env: { account: opt("account", process.env.CDK_DEFAULT_ACCOUNT ?? "335163751677"), region: opt("region", process.env.CDK_DEFAULT_REGION ?? "us-east-1") },
+  env: resolveEnvironmentOrExit(),
   stackName: resolveStackName(config),
 });
 app.synth();
