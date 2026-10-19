@@ -1,0 +1,24 @@
+{
+  "id": "PPY-d98d2b34-e84f-40d1-aa9f-0e29cac31de3",
+  "title": "Docs say GROBID auto-launch is disabled but Biblicus starts it on 0.0.0.0",
+  "description": "Found by the Cyclotron session (read-only; refs at origin/main a35694b).\n\n`docs/cyclotron-priming.md:318-319` says the automatic Docker launch of GROBID is disabled. It is not: Biblicus auto-starts it by default (`BIBLICUS_GROBID_AUTO_START`) and publishes it on `0.0.0.0:8070`, which is LAN-reachable.\n\n```gherkin\nFeature: GROBID is loopback only\n  Scenario: Biblicus auto-starts GROBID\n    When the automatic launch runs\n    Then port 8070 is bound to 127.0.0.1 only\n```\nAcceptance: fix the doc to state the real default and the env var; decide and implement 127.0.0.1 binding (or disable auto-start by default via the env Papyrus passes to Biblicus); verify with a socket check that 8070 is not reachable on the LAN address.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T21:56:38.827202Z",
+  "updated_at": "2026-10-19T21:56:38.827237Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

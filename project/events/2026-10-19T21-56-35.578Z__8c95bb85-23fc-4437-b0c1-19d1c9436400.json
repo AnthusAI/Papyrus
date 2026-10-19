@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "8c95bb85-23fc-4437-b0c1-19d1c9436400",
+  "issue_id": "PPY-2409cf2a-29e7-4f97-80f0-a0b6df4e8164",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T21:56:35.578Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Priming extraction failure hides the real reason code",
+    "description": "Found by the Cyclotron session (read-only; refs at origin/main a35694b).\n\n`src/papyrus_content/priming_curation.py:46` collapses any extraction failure, filter fallback or empty plan set into `ValueError(\"existing reference extraction did not complete\")`. The real cause in `extraction[\"failures\"][0][\"reason\"][\"code\"]` and its message are dropped, so operators cannot tell GROBID outages from bad URLs.\n\n```gherkin\nFeature: Priming extraction errors\n  Scenario: Extraction reports a failure\n    Given reference extraction returns failures[0].reason with code \"grobid_unreachable\" and a message\n    When priming curation runs\n    Then the raised error includes the code and the message\n```\nAcceptance: error text contains failures[0].reason.code and message; filterFallbacks and empty-plans cases each name their own cause; spec covers all three.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
