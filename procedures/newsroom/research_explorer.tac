@@ -726,7 +726,7 @@ Feature: Knowledge-aware exploratory researcher procedure
   Scenario: Explorer uses deterministic fallback after repeated invalid output
     Given the procedure has started
     And the input assignment_item_id is "assignment-live-fallback-1"
-    And the input assignment_json is "{\"id\":\"assignment-live-fallback-1\",\"assignmentTypeKey\":\"research.edition-candidate\",\"queueKey\":\"research#open\",\"queueStatusKey\":\"research#open#open\",\"status\":\"open\",\"title\":\"Fallback assignment\"}"
+    And the input assignment_json is "{\"id\":\"assignment-live-fallback-1\",\"assignmentTypeKey\":\"research.candidate\",\"queueKey\":\"research#open\",\"queueStatusKey\":\"research#open#open\",\"status\":\"open\",\"title\":\"Fallback assignment\"}"
     And the input corpus_key is "AI-ML-research"
     And the input research_mode is "internal_brief"
     And the agent "newsroom_research_explorer" returns data {"invalid":"attempt-1"}

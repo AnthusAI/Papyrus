@@ -42,7 +42,7 @@ npm run dispatch:ai-ml-research-papers -- --dry-run
 - Mode: `source_discovery`
 - Priority: `95`
 - Queue: `research:science:immediate`
-- Type: `research.edition-candidate` (CLI default)
+- Type: `research.candidate` (CLI default)
 
 Focus spans LLMs, AI engineering, RAG, information architecture, embeddings,
 encoders, text classifiers, unsupervised/semi-supervised learning, topic

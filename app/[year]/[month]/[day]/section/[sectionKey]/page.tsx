@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { EditionRoutePage } from "../../edition-route-page";
 import { createSectionKey } from "../../../../../../lib/edition-sections";
 import { parseEditionSectionRoute } from "../../../../../../lib/edition-routes";
+import { editionsEnabled } from "../../../../../../lib/site-brand";
 import { generateEditionSectionStaticParams } from "../../../../../../lib/reader-static-params";
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
 export const revalidate = 60;
@@ -20,6 +21,7 @@ type EditionSectionRouteProps = {
 };
 
 export default async function EditionSectionRoute({ params }: EditionSectionRouteProps) {
+  if (!editionsEnabled()) notFound();
   const { year, month, day, sectionKey } = await params;
   const normalizedSectionKey = createSectionKey(sectionKey);
   const route = parseEditionSectionRoute({ year, month, day, sectionKey: normalizedSectionKey });

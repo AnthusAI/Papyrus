@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e3baf537-97c8-4238-9788-32f7472a0bb6",
+  "issue_id": "PPY-079d73f7-481a-41aa-a304-8a718884e8ed",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T12:00:51.939Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Reader (Mac): editions off gives a plain stream reader with no edition paths",
+    "description": "FRONTEND, DONE ON THE MAC against a dev server. With editions off the package reader exposes no /YYYY/month/DD, archive or edition masthead; home is the newest-items stream, items at flat slugs, sections as filters. No rolling-edition fallback, no redirects. Replace the empty-edition promo placeholder with a neutral empty state. TI home becomes its posts feed (DatedPostList, published-post-repository exist). p.apyr.us: remove readerBasePath /information and legacyRedirects.mjs; the Papyrus publication is served at read.p.apyr.us.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+    "labels": []
+  }
+}

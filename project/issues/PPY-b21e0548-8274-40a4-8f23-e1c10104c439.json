@@ -1,0 +1,22 @@
+{
+  "id": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+  "title": "Make editions an optional per-publication setting",
+  "description": "Delivery epic for PPY-8b3b4d.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-8b3b4ddc-85fd-458c-9a12-c076f2572ccf",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T12:00:17.934214Z",
+  "updated_at": "2026-10-19T12:00:17.934620Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

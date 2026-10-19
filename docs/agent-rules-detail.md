@@ -173,7 +173,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
 - Assignment lifecycle changes use protected actions or the IAM authoring CLI
   and append `AssignmentEvent` audit rows. The Newsroom `Assignments` tab
   should show claim/release/complete/cancel/reopen workflow actions, not
-  edition-candidate culling.
+  candidate culling.
 - **One content item, one lifecycle** (`docs/content-item-lifecycle.md`). A
   piece of content is one `Item` lineage from the moment work on it starts
   until publication. `Item.stage` carries the lifecycle (`idea`,

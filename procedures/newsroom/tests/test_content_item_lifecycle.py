@@ -29,7 +29,7 @@ CONTENT_ITEM_LINEAGE_ID = "content-item-rising-ransomware-abc123"
 def reporting_assignment(**overrides):
     return {
         "id": "assignment-reporting-1",
-        "assignmentTypeKey": "reporting.edition-candidate",
+        "assignmentTypeKey": "reporting.candidate",
         "queueKey": "reporting:news:exploratory",
         "status": "completed",
         "title": "Rising ransomware",

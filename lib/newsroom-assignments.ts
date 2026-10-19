@@ -41,7 +41,7 @@ export function formatAssignmentTypeLabel(typeKey: string | null | undefined): s
   if (key === "analysis.reindex") return "Analysis re-index";
   if (key === "newsroom.research" || key === "research") return "Research";
   if (key === "curation.reference-intake") return "Reference intake";
-  if (key === "reporting.edition-candidate") return "Reporting candidate";
+  if (key === "reporting.candidate") return "Reporting candidate";
   return key
     .split(/[.:_-]+/)
     .filter(Boolean)

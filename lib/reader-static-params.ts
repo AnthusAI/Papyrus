@@ -1,6 +1,6 @@
 import type { ContentRepository, EditionContent } from "./content-types";
 import { graphqlContentRepository } from "./graphql-content-repository";
-import { SITE_BRAND } from "./site-brand";
+import { SITE_BRAND, editionsEnabled } from "./site-brand";
 import { getContentSource } from "./site-env";
 import type { RendererConfig } from "./renderer-config";
 
@@ -40,6 +40,7 @@ const RESERVED_DATE_CHILD_SEGMENTS = new Set(["page", "section"]);
 type EnumerationRepository = Pick<ContentRepository, "listPublishedEditions" | "loadEditionContent">;
 
 function shouldEnumerateAtBuild(): boolean {
+  if (!editionsEnabled()) return false;
   if (process.env.NODE_ENV === "development") return false;
   return siteEnumeratesReaderRoutesAtBuild();
 }
