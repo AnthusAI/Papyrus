@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cadbc413-da30-4ea5-93f0-9ad0bb4130fe",
+  "issue_id": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T12:00:17.934Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Make editions an optional per-publication setting",
+    "description": "Delivery epic for PPY-8b3b4d.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-8b3b4ddc-85fd-458c-9a12-c076f2572ccf",
+    "labels": []
+  }
+}
