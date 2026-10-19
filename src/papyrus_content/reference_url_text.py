@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from .biblicus_runtime import biblicus_python_executable, environment_with_biblicus_source_checkout
 from .env import BIBLICUS_ROOT, load_amplify_outputs, storage_bucket_from_amplify_outputs
 from .corpus_storage_paths import corpus_storage_path_prefix
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
@@ -2154,26 +2155,14 @@ def _biblicus_env(*, grobid_url: str | None = None) -> dict[str, str]:
     if scoped is not None:
         env = {name:value for name,value in env.items() if name in {'PATH','PYTHONPATH','HOME','LANG','LC_ALL','TMPDIR','SYSTEMROOT','OPENBLAS_NUM_THREADS','OMP_NUM_THREADS','BIBLICUS_WORKDIR'}}
         env.update(scoped)
-    biblicus_src = str(BIBLICUS_ROOT / "src")
-    env["PYTHONPATH"] = (
-        f"{biblicus_src}{os.pathsep}{env['PYTHONPATH']}"
-        if env.get("PYTHONPATH")
-        else biblicus_src
-    )
+    env = environment_with_biblicus_source_checkout(env)
     resolved_grobid = str(grobid_url or env.get("BIBLICUS_GROBID_URL") or "").strip()
     if resolved_grobid:
         env["BIBLICUS_GROBID_URL"] = resolved_grobid
     return env
 
 
-def _biblicus_python_executable() -> str:
-    for candidate in (
-        BIBLICUS_ROOT / ".venv" / "bin" / "python",
-        BIBLICUS_ROOT / ".venv" / "bin" / "python3",
-    ):
-        if candidate.is_file():
-            return str(candidate)
-    return sys.executable
+_biblicus_python_executable = biblicus_python_executable
 
 
 def _read_attachment_text_from_s3(*, s3_client: Any, bucket: str, attachment: dict[str, Any]) -> str:

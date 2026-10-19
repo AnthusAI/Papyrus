@@ -3,12 +3,10 @@ import { PAPYRUS_OBJECT_KINDS, type PapyrusObjectKind } from "./papyrus-object-k
 import {
   buildNewsroomIndexWebPath,
   effectiveAssignmentsIndexFilters,
-  effectiveInsightsIndexFilters,
   effectiveMessagesIndexFilters,
   effectiveReferencesIndexFilters,
   normalizeReferenceIndexOrder,
   type AssignmentsIndexFilters,
-  type InsightsIndexFilters,
   type MessagesIndexFilters,
   type NewsroomIndexTab,
   type ReferencesIndexFilters,
@@ -27,7 +25,6 @@ export type PapyrusWebUiContext = {
 const NEWSROOM_TAB_IDS = new Set([
   "overview",
   "messages",
-  "insights",
   "assignments",
   "references",
   "topics",
@@ -123,19 +120,8 @@ export function webPathToPapyrusLocation(webPath: string): PapyrusWebUiContext {
     });
   }
 
-  if ((tab === "references" || tab === "messages" || tab === "assignments" || tab === "insights") && segments.length === 2) {
+  if ((tab === "references" || tab === "messages" || tab === "assignments") && segments.length === 2) {
     return newsroomIndexLocation(tab as NewsroomIndexTab, normalized, url.searchParams);
-  }
-
-  if (tab === "insights" && segments[2]) {
-    const threadId = decodeURIComponent(segments[2]);
-    const objectUri = `papyrus://message/${encodeURIComponent(threadId)}`;
-    return location(objectUri, normalized, {
-      papyrusObjectUri: objectUri,
-      newsroomTab: "insights",
-      viewMode: "detail",
-      label: `Insight thread ${threadId}`,
-    });
   }
 
   if ((tab === "references" || tab === "messages" || tab === "assignments") && segments[2]) {
@@ -277,7 +263,7 @@ export function papyrusUriToWebPath(uri: string): PapyrusUriToWebPathResult {
   }
 
   if (NEWSROOM_TAB_IDS.has(id)) {
-    if (id === "references" || id === "messages" || id === "assignments" || id === "insights") {
+    if (id === "references" || id === "messages" || id === "assignments") {
       const mapped = newsroomIndexUriToWebPath(raw, `${id}/index`);
       if (mapped) return mapped;
     }
@@ -347,9 +333,6 @@ function readIndexFiltersFromSearchParams(tab: NewsroomIndexTab, searchParams: U
     kind: searchParams.get("kind")?.trim() ?? undefined,
     domain: searchParams.get("domain")?.trim() ?? undefined,
   });
-  if (tab === "insights") return effectiveInsightsIndexFilters({
-    domain: searchParams.get("domain")?.trim() ?? undefined,
-  });
   return effectiveAssignmentsIndexFilters({
     status: searchParams.get("status")?.trim() ?? undefined,
     type: searchParams.get("type")?.trim() ?? undefined,
@@ -367,9 +350,6 @@ function buildNewsroomIndexLocationUri(tab: NewsroomIndexTab, filters: Record<st
   } else if (tab === "messages") {
     const normalized = filters as MessagesIndexFilters;
     if (normalized.kind?.trim()) segments.push("kind", normalized.kind.trim());
-    if (normalized.domain?.trim()) segments.push("domain", normalized.domain.trim());
-  } else if (tab === "insights") {
-    const normalized = filters as InsightsIndexFilters;
     if (normalized.domain?.trim()) segments.push("domain", normalized.domain.trim());
   } else {
     const normalized = filters as AssignmentsIndexFilters;
@@ -400,7 +380,7 @@ function parseIndexUriTail(objectId: string): { tab: NewsroomIndexTab; filters: 
   const segments = objectId.split("/").filter(Boolean);
   if (!segments.length) return null;
   const tab = segments[0];
-  if (tab !== "references" && tab !== "messages" && tab !== "assignments" && tab !== "insights") return null;
+  if (tab !== "references" && tab !== "messages" && tab !== "assignments") return null;
   if (segments.length === 1) {
     return { tab, filters: readIndexFiltersFromSearchParams(tab, new URLSearchParams()) };
   }
@@ -414,7 +394,6 @@ function parseIndexUriTail(objectId: string): { tab: NewsroomIndexTab; filters: 
   }
   if (tab === "references") return { tab, filters: effectiveReferencesIndexFilters(filters) };
   if (tab === "messages") return { tab, filters: effectiveMessagesIndexFilters(filters) };
-  if (tab === "insights") return { tab, filters: effectiveInsightsIndexFilters(filters) };
   return { tab, filters: effectiveAssignmentsIndexFilters(filters) };
 }
 

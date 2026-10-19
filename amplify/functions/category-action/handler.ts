@@ -4,12 +4,39 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
-import { referenceCurationMetadata } from "../shared/reference-curation-metadata";
+import { curationActorKind, referenceCurationMetadata, validatedCurationSectionId } from "../shared/reference-curation-metadata";
+import {
+  CURATION_DELEGATION_OWNER_TYPE,
+  CURATION_DELEGATION_PAYLOAD_KIND,
+  delegationExpiry,
+  delegationRefusalMessage,
+  delegationVerdict,
+  newDelegationToken,
+  PENDING_REQUEST_GRANTOR_SUB,
+  type CurationDelegation,
+} from "../shared/curation-delegation";
+import {
+  approveDelegation,
+  delegationResult as flowDelegationResult,
+  delegationStatus,
+  denyDelegation,
+  livePendingRequests,
+  requestDelegation,
+  type DelegationStore,
+} from "../shared/curation-delegation-flow";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
+type CreateCurationDelegationHandler = Schema["createCurationDelegation"]["functionHandler"];
+type RevokeCurationDelegationHandler = Schema["revokeCurationDelegation"]["functionHandler"];
+type ListCurationDelegationsHandler = Schema["listCurationDelegations"]["functionHandler"];
+type RequestCurationDelegationHandler = Schema["requestCurationDelegation"]["functionHandler"];
+type ApproveCurationDelegationHandler = Schema["approveCurationDelegation"]["functionHandler"];
+type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionHandler"];
+type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
+type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
-type ReferenceInsightHandler = Schema["createReferenceInsight"]["functionHandler"];
+type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
 type StartReferenceCurationHandler = Schema["startReferenceCuration"]["functionHandler"];
 type GetReferenceCurationStatusHandler = Schema["getReferenceCurationStatus"]["functionHandler"];
@@ -23,8 +50,16 @@ type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["fun
 type CategoryActionEvent =
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
+  | Parameters<CreateCurationDelegationHandler>[0]
+  | Parameters<RevokeCurationDelegationHandler>[0]
+  | Parameters<ListCurationDelegationsHandler>[0]
+  | Parameters<RequestCurationDelegationHandler>[0]
+  | Parameters<ApproveCurationDelegationHandler>[0]
+  | Parameters<DenyCurationDelegationHandler>[0]
+  | Parameters<GetCurationDelegationStatusHandler>[0]
+  | Parameters<RecordDelegatedCurationHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
-  | Parameters<ReferenceInsightHandler>[0]
+  | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
   | Parameters<StartReferenceCurationHandler>[0]
   | Parameters<GetReferenceCurationStatusHandler>[0]
@@ -88,8 +123,16 @@ export const handler = async (event: CategoryActionEvent) => {
   }
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
+  if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
+  if (fieldName === "revokeCurationDelegation") return revokeCurationDelegation(event as Parameters<RevokeCurationDelegationHandler>[0]);
+  if (fieldName === "listCurationDelegations") return listCurationDelegations(event as Parameters<ListCurationDelegationsHandler>[0]);
+  if (fieldName === "requestCurationDelegation") return requestCurationDelegationAction(event as Parameters<RequestCurationDelegationHandler>[0]);
+  if (fieldName === "approveCurationDelegation") return approveCurationDelegationAction(event as Parameters<ApproveCurationDelegationHandler>[0]);
+  if (fieldName === "denyCurationDelegation") return denyCurationDelegationAction(event as Parameters<DenyCurationDelegationHandler>[0]);
+  if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
+  if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
-  if (fieldName === "createReferenceInsight") return createReferenceInsight(event as Parameters<ReferenceInsightHandler>[0]);
+  if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
   if (fieldName === "startReferenceCuration") return startReferenceCuration(event as Parameters<StartReferenceCurationHandler>[0]);
   if (fieldName === "getReferenceCurationStatus") return getReferenceCurationStatus(event as Parameters<GetReferenceCurationStatusHandler>[0]);
@@ -162,13 +205,21 @@ async function reviewSteeringProposal(event: Parameters<ReviewHandler>[0]) {
   };
 }
 
-async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandler>[0]) {
+async function reviewReferenceCuration(
+  event: Parameters<ReferenceCurationHandler>[0],
+  delegation: { delegationId: string; relayedBy: string; instruction: string } | null = null,
+) {
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const action = normalizeReferenceCurationAction(event.arguments.action);
   const nextStatus = referenceCurationStatusForAction(action);
   const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode, action === "reject");
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const sectionRecord = requestedSectionId
+    ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
+    : null;
+  const sectionId = validatedCurationSectionId(requestedSectionId, action, sectionRecord);
   const now = new Date().toISOString();
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
@@ -234,6 +285,9 @@ async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandle
       referenceLineageId,
       decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
       shareable: event.arguments.shareable ?? null,
+      actorKind: delegation ? "human" : curationActorKind(event.identity),
+      sectionId,
+      delegation,
     }),
     { filename: "metadata.json", now },
   );
@@ -298,6 +352,204 @@ async function reviewReferenceCuration(event: Parameters<ReferenceCurationHandle
     messageId,
     relationId,
   };
+}
+
+function requireSignedInPerson(event: { identity?: unknown }): { sub: string; label: string; isAdmin: boolean } {
+  if (curationActorKind(event.identity) !== "human") {
+    throw new Error("Only a person signed in to the Newsroom can manage curation delegations.");
+  }
+  const identity = event.identity as { sub?: unknown; claims?: Record<string, unknown> };
+  const claims = identity.claims ?? {};
+  const groups = Array.isArray(claims["cognito:groups"]) ? (claims["cognito:groups"] as unknown[]) : [];
+  return {
+    sub: normalizeRequiredString(claims.sub ?? identity.sub, "identity.sub"),
+    label: normalizeOptionalString(claims.email) ?? normalizeOptionalString(claims.name) ?? "Newsroom editor",
+    isAdmin: groups.includes("admin"),
+  };
+}
+
+async function readCurationDelegation(client: DataClient, delegationId: string): Promise<CurationDelegation | null> {
+  const stored = await readJsonModelPayload(client as any, "knowledgeRawPayload", delegationId, "raw_payload", CURATION_DELEGATION_PAYLOAD_KIND);
+  return stored ? (stored as unknown as CurationDelegation) : null;
+}
+
+async function writeCurationDelegation(client: DataClient, delegation: CurationDelegation, now: string, created: boolean) {
+  const input = {
+    id: delegation.delegationId,
+    ownerType: CURATION_DELEGATION_OWNER_TYPE,
+    ownerId: delegation.grantorSub,
+    payloadKind: CURATION_DELEGATION_PAYLOAD_KIND,
+    createdAt: delegation.createdAt,
+    updatedAt: now,
+  };
+  if (created) {
+    await requireDataResult(client.models.KnowledgeRawPayload.create(input), "create curation delegation");
+  } else {
+    await requireDataResult(client.models.KnowledgeRawPayload.update(input), "update curation delegation");
+  }
+  await putJsonModelPayload(
+    client as any,
+    { ownerKind: "knowledgeRawPayload", ownerId: delegation.delegationId },
+    "raw_payload",
+    CURATION_DELEGATION_PAYLOAD_KIND,
+    delegation as unknown as Record<string, unknown>,
+    { filename: "curation-delegation.json", now },
+  );
+}
+
+function delegationResult(delegation: CurationDelegation, token: string | null) {
+  return { ...flowDelegationResult(delegation, new Date().toISOString()), token };
+}
+
+async function listPendingCurationDelegations(client: DataClient): Promise<CurationDelegation[]> {
+  const pending: CurationDelegation[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
+      { ownerId: PENDING_REQUEST_GRANTOR_SUB, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
+      { nextToken },
+    );
+    assertNoDataErrors(page.errors, "list pending curation delegations");
+    for (const payload of page.data ?? []) {
+      const delegation = await readCurationDelegation(client, payload.id);
+      if (delegation) pending.push(delegation);
+    }
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return pending;
+}
+
+function curationDelegationStore(client: DataClient): DelegationStore {
+  return {
+    read: (delegationId) => readCurationDelegation(client, delegationId),
+    write: (delegation, now, created) => writeCurationDelegation(client, delegation, now, created),
+    listPending: () => listPendingCurationDelegations(client),
+  };
+}
+
+async function requestCurationDelegationAction(event: Parameters<RequestCurationDelegationHandler>[0]) {
+  const client = await getDataClient();
+  return requestDelegation(
+    curationDelegationStore(client),
+    {
+      delegationId: normalizeRequiredString(event.arguments.delegationId, "delegationId"),
+      tokenHash: normalizeRequiredString(event.arguments.tokenHash, "tokenHash"),
+      agentLabel: normalizeRequiredString(event.arguments.agentLabel, "agentLabel"),
+      hours: event.arguments.hours,
+    },
+    new Date().toISOString(),
+  );
+}
+
+async function approveCurationDelegationAction(event: Parameters<ApproveCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  return { ...(await approveDelegation(curationDelegationStore(client), person, normalizeRequiredString(event.arguments.userCode, "userCode"), now)), token: null };
+}
+
+async function denyCurationDelegationAction(event: Parameters<DenyCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  return { ...(await denyDelegation(curationDelegationStore(client), person, normalizeRequiredString(event.arguments.userCode, "userCode"), now)), token: null };
+}
+
+async function getCurationDelegationStatusAction(event: Parameters<GetCurationDelegationStatusHandler>[0]) {
+  const client = await getDataClient();
+  return delegationStatus(curationDelegationStore(client), normalizeRequiredString(event.arguments.delegationId, "delegationId"), new Date().toISOString());
+}
+
+async function createCurationDelegation(event: Parameters<CreateCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const delegationId = `curation-delegation-${randomUUID()}`;
+  const { token, tokenHash } = newDelegationToken(delegationId);
+  const delegation: CurationDelegation = {
+    delegationId,
+    tokenHash,
+    grantorSub: person.sub,
+    grantorLabel: person.label,
+    agentLabel: normalizeRequiredString(event.arguments.agentLabel, "agentLabel"),
+    createdAt: now,
+    expiresAt: delegationExpiry(now, event.arguments.hours),
+    revokedAt: null,
+  };
+  await writeCurationDelegation(client, delegation, now, true);
+  return delegationResult(delegation, token);
+}
+
+async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const delegation = await readCurationDelegation(client, normalizeRequiredString(event.arguments.delegationId, "delegationId"));
+  if (!delegation) throw new Error("That delegation was not found.");
+  if (delegation.grantorSub !== person.sub && delegation.grantorSub !== PENDING_REQUEST_GRANTOR_SUB && !person.isAdmin) throw new Error("Only the person who granted a delegation can revoke it.");
+  const now = new Date().toISOString();
+  const revoked = { ...delegation, revokedAt: delegation.revokedAt ?? now };
+  await writeCurationDelegation(client, revoked, now, false);
+  return delegationResult(revoked, null);
+}
+
+async function listCurationDelegations(event: Parameters<ListCurationDelegationsHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const delegations: CurationDelegation[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
+      { ownerId: person.sub, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
+      { nextToken },
+    );
+    assertNoDataErrors(page.errors, "list curation delegations");
+    for (const payload of page.data ?? []) {
+      const delegation = await readCurationDelegation(client, payload.id);
+      if (delegation) delegations.push(delegation);
+    }
+    nextToken = page.nextToken;
+  } while (nextToken);
+  const now = new Date().toISOString();
+  delegations.push(...(await livePendingRequests(curationDelegationStore(client), now)));
+  return delegations
+    .sort((first, second) => second.createdAt.localeCompare(first.createdAt))
+    .map((delegation) => delegationResult(delegation, null));
+}
+
+async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const delegationId = normalizeRequiredString(event.arguments.delegationId, "delegationId");
+  const agentLabel = normalizeRequiredString(event.arguments.agentLabel, "agentLabel");
+  const delegation = await readCurationDelegation(client, delegationId);
+  const verdict = delegationVerdict(delegation, {
+    token: normalizeRequiredString(event.arguments.delegationToken, "delegationToken"),
+    agentLabel,
+    now,
+  });
+  if (!verdict.ok || !delegation) {
+    throw new Error(delegationRefusalMessage(verdict.ok ? "unknown-token" : verdict.reason));
+  }
+  const instruction = normalizeRequiredString(event.arguments.instruction, "instruction").slice(0, 2000);
+  const namedPerson = normalizeRequiredString(event.arguments.onBehalfOf, "onBehalfOf");
+  if (namedPerson.toLowerCase() !== delegation.grantorLabel.toLowerCase()) {
+    throw new Error(`That delegation was granted by ${delegation.grantorLabel}, not ${namedPerson}.`);
+  }
+  const onBehalfOfPerson = {
+    ...event,
+    arguments: {
+      referenceId: event.arguments.referenceId,
+      action: event.arguments.action,
+      note: event.arguments.note,
+      reasonCode: event.arguments.reasonCode,
+      decisionRelationId: event.arguments.decisionRelationId,
+      shareable: event.arguments.shareable,
+      sectionId: event.arguments.sectionId,
+      actorSub: delegation.grantorSub,
+      actorLabel: delegation.grantorLabel,
+    },
+  } as unknown as Parameters<ReferenceCurationHandler>[0];
+  return reviewReferenceCuration(onBehalfOfPerson, { delegationId, relayedBy: agentLabel, instruction });
 }
 
 async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandler>[0]) {
@@ -403,7 +655,7 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
   };
 }
 
-async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>[0]) {
+async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const summary = normalizeRequiredString(event.arguments.summary, "summary");
@@ -414,10 +666,10 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
   const actor = actorLabel ?? actorSub ?? "Papyrus newsroom";
   const referenceLineageId = normalizeOptionalString(reference.lineageId) ?? referenceId;
-  const messageId = `message-reference-insight-${safeId(referenceLineageId)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
+  const messageId = `message-reference-note-${safeId(referenceLineageId)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
   const relationId = `semantic-relation-${hashStable([
     `message#${messageId}`,
-    "insight_about",
+    "note_about",
     `reference#${referenceId}`,
   ]).slice(0, 24)}`;
 
@@ -425,7 +677,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
     client.models.Message.create({
       ...buildCanonicalMessageInput({
         id: messageId,
-        messageKind: "insight",
+        messageKind: "note",
         messageDomain: "knowledge",
         summary,
         source: "newsroom",
@@ -436,7 +688,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       threadId: messageId,
       sequenceNumber: 1,
     }),
-    "create insight Message",
+    "create note Message",
   );
   await putTextModelPayload(
     client as any,
@@ -452,7 +704,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
     "metadata",
     "metadata",
     {
-      kind: "reference.insight.created",
+      kind: "reference.note.created",
       targetKind: "reference",
       targetId: referenceId,
       targetLineageId: referenceLineageId,
@@ -463,8 +715,8 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
     client.models.SemanticRelation.create({
       id: relationId,
       relationState: "current",
-      predicate: "insight_about",
-      ...semanticRelationTypeFieldsForPredicate("insight_about"),
+      predicate: "note_about",
+      ...semanticRelationTypeFieldsForPredicate("note_about"),
       subjectKind: "message",
       subjectId: messageId,
       subjectLineageId: messageId,
@@ -476,7 +728,7 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       subjectStateKey: semanticStateKey("message", messageId),
       objectStateKey: semanticStateKey("reference", referenceLineageId),
       objectSubjectStateKey: `${semanticStateKey("reference", referenceLineageId)}#message`,
-      predicateObjectStateKey: `insight_about#${semanticStateKey("reference", referenceLineageId)}`,
+      predicateObjectStateKey: `note_about#${semanticStateKey("reference", referenceLineageId)}`,
       subjectVersionKey: semanticVersionKey("message", messageId),
       objectVersionKey: semanticVersionKey("reference", referenceId),
       score: 1,
@@ -492,17 +744,17 @@ async function createReferenceInsight(event: Parameters<ReferenceInsightHandler>
       updatedAt: now,
       newsroomFeedKey: "semanticRelations",
       metadata: JSON.stringify({
-        kind: "reference.insight",
+        kind: "reference.note",
         summary,
         actor,
       }),
     }),
-    "create insight_about relation",
+    "create note_about relation",
   );
   await updateNewsroomSummaryForSemanticRelationDelta(
     client,
     {
-      relationTypeKey: "insight_about",
+      relationTypeKey: "note_about",
       relationDomain: "commentary",
       subjectKind: "message",
       objectKind: "reference",
@@ -1497,10 +1749,10 @@ function semanticRelationTypeFieldsForPredicate(predicate: string): {
       relationDomain: "curation",
     };
   }
-  if (predicate === "insight_about") {
+  if (predicate === "note_about") {
     return {
-      relationTypeId: "semantic-relation-type-insight-about",
-      relationTypeKey: "insight_about",
+      relationTypeId: "semantic-relation-type-note-about",
+      relationTypeKey: "note_about",
       relationDomain: "knowledge",
     };
   }

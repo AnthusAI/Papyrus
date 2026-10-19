@@ -1,0 +1,22 @@
+{
+  "id": "PPY-96a25324-b81d-45ce-986f-6de43048961d",
+  "title": "Backend and agents: skip edition planning and edition paths when editions are off",
+  "description": "editions plan/dispatch/purge refuse clearly when off; research/reporting.edition-candidate assignment keys get neutral names; copywriting and reporting stop carrying editionId/editionDate when off; edition forum surface and edition overview video target hidden when off. All intact when on.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T12:01:08.799993Z",
+  "updated_at": "2026-10-19T12:01:08.800427Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

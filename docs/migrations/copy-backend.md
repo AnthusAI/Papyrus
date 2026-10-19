@@ -20,7 +20,7 @@ papyrus ops content copy-backend \
   [--manifest-dir <dir>] [--json] [--apply] \
   [--source-profile <aws-profile>] [--target-profile <aws-profile>] \
   [--expect-source-account <id>] [--expect-target-account <id>] \
-  [--s3-transfer auto|server-side|stream] [--s3-workers <N>]
+  [--s3-transfer auto|server-side|stream] [--s3-workers <N>] [--stamp-tenant <tenant-id>]
 ```
 
 * Dry run is the default and performs only reads (introspection, list queries, S3 list). `--apply` writes. This differs on purpose from `import-markus`, which writes by default.
@@ -39,6 +39,10 @@ papyrus ops content copy-backend \
 * S3: objects are copied (server-side by default, see `--s3-transfer`) with the same key, only when missing or different (size differs, or both ETags are plain MD5 and differ; multipart ETags are not comparable and size decides).
 * Never deletes rows or objects in the target. Target-only rows and objects are counted and kept.
 * `--manifest-dir` writes `source/` and `target/` directories in the P4-01 baseline layout: `models/counts.json`, `models/content-manifest.json` (per-row sha256 of the shared, normalized fields, excluding createdAt/updatedAt), `s3/media-manifest.json`, `s3/keys.json` (key and size only, for diffing across buckets) and `s3/prefix-summary.json`. After `--apply` the manifests come from a fresh read. These hashes are over GraphQL-normalized fields, so they are comparable between the two sides of this tool, not with the raw DynamoDB hashes of the P4-01 baseline (compare ids and counts with the baseline).
+
+## Copying into a tenant (`--stamp-tenant`)
+
+`--stamp-tenant pilobol-us` copies a single-tenant backend into one tenant of a multi-tenant target. Each copied row of Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection gets `tenantId`, a tenant-prefixed `typeStatus`, `sectionStatus` and `tenantSlug`, and media `storagePath` values move from `media/...` to `media/<tenant>/...`. The S3 copy follows: only `media/` objects are copied, to `media/<tenant>/...`. A row whose id already exists in the target under another tenant (or under none) is listed as invalid, so `--apply` writes nothing. A target schema without `tenantId` is a plan error. See [docs/multi-tenancy.md](../multi-tenancy.md).
 
 ## Known limits
 

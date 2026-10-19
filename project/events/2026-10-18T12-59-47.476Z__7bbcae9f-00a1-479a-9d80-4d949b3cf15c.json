@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7bbcae9f-00a1-479a-9d80-4d949b3cf15c",
+  "issue_id": "PPY-ebdc51a0-010b-458e-bf40-5130029a2c08",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T12:59:47.476Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Chattic.us-web slice 2: marketing pages (home, features, use-cases, beta, legal) to Markus",
+    "description": "Six feature pages (durable-sessions, approvals, flex-mode and others) and the legal pages are TSX copy today. Convert to Markus; offers.test.ts, marketing-cta.test.ts and wordmark-presence.test.ts must keep passing.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
+    "labels": []
+  }
+}

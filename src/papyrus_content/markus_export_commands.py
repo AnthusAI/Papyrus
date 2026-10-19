@@ -19,13 +19,14 @@ def content_export_published(flags: list[str]) -> None:
     if not out_raw:
         raise ValueError("Pass --out <directory>.")
     explicit_bucket = normalize_string(options.get("bucket"))
+    tenant_id = normalize_string(options.get("tenant"))
     if guest_auth_requested(options.get("auth")):
         if options.get("drafts"):
             raise ValueError("--auth guest reads published content only; it cannot be combined with --drafts.")
         configuration = resolve_guest_configuration(explicit_bucket)
         session = GuestSession(configuration)
         client = PapyrusGraphQLAuthoringClient(
-            endpoint=configuration.endpoint, header_factory=session.appsync_headers
+            endpoint=configuration.endpoint, header_factory=session.appsync_headers, tenant_id=tenant_id
         )
         store = (
             S3MediaStore(configuration.bucket, client=session.s3_client())
@@ -33,7 +34,7 @@ def content_export_published(flags: list[str]) -> None:
             else AbsentMediaStore()
         )
     else:
-        client, _claims = create_authoring_client()
+        client, _claims = create_authoring_client(tenant_id)
         bucket = configured_media_bucket(explicit_bucket)
         store = S3MediaStore(bucket) if bucket else AbsentMediaStore()
     try:

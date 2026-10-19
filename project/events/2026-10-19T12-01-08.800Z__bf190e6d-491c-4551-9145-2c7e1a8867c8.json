@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bf190e6d-491c-4551-9145-2c7e1a8867c8",
+  "issue_id": "PPY-96a25324-b81d-45ce-986f-6de43048961d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T12:01:08.800Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Backend and agents: skip edition planning and edition paths when editions are off",
+    "description": "editions plan/dispatch/purge refuse clearly when off; research/reporting.edition-candidate assignment keys get neutral names; copywriting and reporting stop carrying editionId/editionDate when off; edition forum surface and edition overview video target hidden when off. All intact when on.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+    "labels": []
+  }
+}

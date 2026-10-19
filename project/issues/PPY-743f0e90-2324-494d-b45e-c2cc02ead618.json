@@ -1,0 +1,22 @@
+{
+  "id": "PPY-743f0e90-2324-494d-b45e-c2cc02ead618",
+  "title": "Build the site cyclotron definition from the Section list",
+  "description": "Backend. One CyclotronDefinition for the whole site: one binary classifier per enabled NewsroomSection (question and rubric seeded from the Section's editorial mission, policy and kill criteria) and one multi-class 'section' classifier whose labels are the Section ids. Config: relevanceCyclotron stays for the relevance question; add siteCyclotron with the same enabled flag, daily cap and approvedProofPath. Replaces the single-classifier assumption (classifiers[0]) across relevance_sweep, relevance_decisions and relevance_shadow.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T20:12:56.148824Z",
+  "updated_at": "2026-10-18T20:12:56.149258Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

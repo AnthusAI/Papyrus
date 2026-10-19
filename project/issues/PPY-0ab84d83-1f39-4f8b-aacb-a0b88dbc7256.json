@@ -1,0 +1,32 @@
+{
+  "id": "PPY-0ab84d83-1f39-4f8b-aacb-a0b88dbc7256",
+  "title": "Cyclotron-web slice 1: prose pages to a Markus publication (Papyrus-web pattern)",
+  "description": "Follow Papyrus-web/Prospectus-web: Git-authored Markus plus web/projector.py. Prose routes (how-it-works, developers, services, pricing, learn, use-cases, articles) become Markus with directives; the copy-claims, glossary and use-case tests in components/*.test.ts keep guarding wording and must run against the Markus source. Keep every URL. Pictograms and recording charts are islands (slice 2).",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2d613a2b-a2c4-4869-8932-bc3b47e3320a",
+      "author": "unknown",
+      "text": "Slice 1 landed: AnthusAI/Cyclotron-web PR 135 merged to develop (2026-10-18). Remaining before slice 1 is fully complete or handed to slice 2: the use-cases pages, the home page, the recordings pages and a real island bundle. Slice 2 (PPY-d49d6f) is now running.",
+      "created_at": "2026-10-18T13:19:07.229205Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T12:58:29.097390Z",
+  "updated_at": "2026-10-18T13:19:08.131382Z",
+  "closed_at": "2026-10-18T13:19:08.131130Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

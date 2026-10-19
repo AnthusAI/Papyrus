@@ -7,7 +7,7 @@ publication kinds: Markus sites projected into S3 behind CloudFront
 
 Kanbus: PPY-17fcfc (original hosting design), PPY-23a743 (static projection).
 Live examples: [Pilobol.us](https://github.com/AnthusAI/Pilobol.us) on
-**pilobol.us** and [Anth.us-Papyrus](https://github.com/AnthusAI/Anth.us-Papyrus) on
+**pilobol.us** and [Anth.us-web](https://github.com/AnthusAI/Anth.us-web) on
 **anth.us**, both served from an S3 projection. The picture of how the parts
 fit is in the [README](../README.md#how-a-papyrus-publication-fits-together);
 editors read [How a publish flows](how-a-publish-flows.md).
@@ -145,7 +145,7 @@ web/
 Markus install for Amplify CI (not on PyPI today):
 
 ```yaml
-pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
+pip install "git+https://github.com/AnthusAI/Markus@v0.7.0"
 ```
 
 See the static template for the full `amplify.yml`.
@@ -169,7 +169,7 @@ custom page. Keep the catch-all **last**, after any 301 rules. The build must
 emit `404.html` at the artifact root. A missing path without a trailing slash,
 or ending in `.html`, first gets Amplify's own 301 to the directory-style URL,
 then the 404. Verify with a random missing path (expect 404 and the custom
-body), for example Anth.us-Papyrus `bin/check-404.py <base-url>`.
+body), for example Anth.us-web `bin/check-404.py <base-url>`.
 
 The `amplify-app-shell` template sets this catch-all (`/<*>` -> `/404.html`,
 `404-200`) on every generated reader app, so a `markus-static` reader must emit

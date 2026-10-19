@@ -1,22 +1,11 @@
-import { NewsDeskPage } from "../../../../components/news-desk-page";
+import { permanentRedirect } from "next/navigation";
+import { toPublicNewsroomPath } from "../../../../lib/newsroom-base-path";
 
-export const dynamic = "force-dynamic";
-
-type NewsroomInsightThreadPageProps = {
+type NewsroomMessageThreadRedirectPageProps = {
   params: Promise<{ threadId: string }>;
-  searchParams?: Promise<{
-    demo?: string | string[];
-    domain?: string | string[];
-  }>;
 };
 
-export default async function NewsroomInsightThreadPage({ params, searchParams }: NewsroomInsightThreadPageProps) {
+export default async function NewsroomMessageThreadRedirectPage({ params }: NewsroomMessageThreadRedirectPageProps) {
   const { threadId } = await params;
-  return (
-    <NewsDeskPage
-      section="insights"
-      selectionPath={[threadId]}
-      searchParams={searchParams}
-    />
-  );
+  permanentRedirect(toPublicNewsroomPath(`/newsroom/messages/${encodeURIComponent(threadId)}`));
 }

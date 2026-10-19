@@ -308,7 +308,7 @@ class PapyrusSemanticClient:
         messages: list[dict[str, Any]] = []
         for relation in relations:
             relation_type = relation.get("relationTypeKey") or relation.get("predicate")
-            if relation_type in {"comment", "insight_about"}:
+            if relation_type in {"comment", "note_about"}:
                 if relation.get("subjectKind") != "message":
                     continue
                 message_id = relation["subjectId"]

@@ -9,6 +9,7 @@ import yaml
 from .env import PAPYRUS_ROOT
 from .papyrus_config import DEFAULT_STEERING_CONFIG_PATH, resolve_topics_steering_config_path
 from .relevance_cyclotron import normalize_relevance_cyclotron_config
+from .site_cyclotron import normalize_site_cyclotron_config
 
 DEFAULT_STEERING_CONFIG = DEFAULT_STEERING_CONFIG_PATH
 VALID_CORPUS_ROLES = frozenset({"canonical", "source", "supporting", "archive"})
@@ -69,6 +70,7 @@ def normalize_steering_config(raw_config: Any, config_path: str) -> dict[str, An
         raise ValueError(f"canonicalTopicSet.corpusKey does not match a configured corpus: {canonical_corpus_key}")
 
     publication = raw_config.get("publication") or {}
+    relevance_cyclotron = normalize_relevance_cyclotron_config(raw_config.get("relevanceCyclotron"))
     return {
         "configPath": config_path,
         "schemaVersion": 1,
@@ -78,7 +80,8 @@ def normalize_steering_config(raw_config: Any, config_path: str) -> dict[str, An
             "classifierId": canonical_classifier_id,
         },
         "corpora": normalized_corpora,
-        "relevanceCyclotron": normalize_relevance_cyclotron_config(raw_config.get("relevanceCyclotron")),
+        "relevanceCyclotron": relevance_cyclotron,
+        "siteCyclotron": normalize_site_cyclotron_config(raw_config.get("siteCyclotron"), relevance_cyclotron),
     }
 
 
@@ -206,21 +209,13 @@ def resolve_corpus_local_path(corpus: dict[str, Any], steering_config: dict[str,
     if not resolved.exists():
         from .corpus_storage_paths import (
             corpus_storage_path_prefix,
-            corpus_storage_segment,
             legacy_corpus_storage_segment,
-            legacy_mixed_case_corpus_segment,
         )
 
         corpus_key = str(corpus.get("key") or "")
         fallbacks = []
         if corpus_key:
             fallbacks.append((steering_dir.parent / corpus_storage_path_prefix(corpus_key)).resolve())
-            fallbacks.append(
-                (
-                    steering_dir.parent
-                    / f"corpora/{legacy_mixed_case_corpus_segment(corpus_storage_segment(corpus_key))}"
-                ).resolve()
-            )
             fallbacks.append((steering_dir.parent / f"corpora/{legacy_corpus_storage_segment(corpus_key)}").resolve())
         for candidate in fallbacks:
             if candidate.exists():

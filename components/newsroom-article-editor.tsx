@@ -14,10 +14,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { newsroomDeskOptions } from "../lib/newsroom-sections";
+import { StoryReportingTrailView } from "./story-reporting-trail";
+import { loadStoryReportingTrail } from "./story-reporting-trail-client";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
 import { newsroomHref } from "../lib/newsroom-base-path";
@@ -59,7 +64,7 @@ type ValidationState =
   | { status: "unavailable"; message: string };
 
 type Notice = { tone: "ok" | "error" | "info"; text: string };
-type MobileTab = "edit" | "preview";
+type MobileTab = "edit" | "preview" | "trail" | "references";
 
 function lineStartIndex(text: string, line: number): number {
   let index = 0;
@@ -91,10 +96,15 @@ function failureMessage(error: unknown): string {
   return error instanceof Error ? error.message : "The request failed.";
 }
 
-export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; demo: boolean }) {
+const NO_DESK_VALUE = "__no-desk__";
+
+export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { articleId: string; demo: boolean; embedded?: boolean }) {
   const session = useOptionalNewsDeskClient();
-  const blocked = !demo && articlesAccessBlocked(session?.shell.phase);
-  const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(demo), [demo]);
+  const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
+  const previewMode = demo || isLocalPreviewEnabled();
+  const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(previewMode), [previewMode]);
+  const [activeArticleId, setActiveArticleId] = useState(articleId);
+  useEffect(() => { setActiveArticleId(articleId); }, [articleId]);
   const isNew = articleId === "new";
 
   const [editor, setEditor] = useState<NewsroomArticleEditorState | null>(isNew ? emptyArticle() : null);
@@ -108,8 +118,15 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
   const [notice, setNotice] = useState<Notice | null>(null);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<MobileTab>("edit");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
+  const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
+  const [lineageId, setLineageId] = useState<string | null>(null);
+  const [latestVersion, setLatestVersion] = useState<{ id: string; number: number } | null>(null);
+  const latestVersionNumber = latestVersion?.number ?? null;
+  const [changeReason, setChangeReason] = useState("");
+  const citedKeys = useMemo(() => Object.values(((bodyIr as { papyrus?: { citations?: Record<string, string[]> } } | null)?.papyrus?.citations) ?? {}).flat(), [bodyIr]);
   const [sections, setSections] = useState<string[]>([]);
+  const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [imageUploading, setImageUploading] = useState(false);
@@ -118,17 +135,18 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const mediaBackend = useMemo(() => resolveMediaBackend(demo), [demo]);
+  const mediaBackend = useMemo(() => resolveMediaBackend(previewMode), [previewMode]);
   const validationSequence = useRef(0);
 
   useEffect(() => {
     if (blocked || isNew) return;
     let cancelled = false;
     backend
-      .loadArticle(articleId)
+      .loadArticle(activeArticleId)
       .then((article) => {
         if (cancelled) return;
         setEditor(stateFromArticle(article));
+        setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setEverPublished(article.everPublished);
         setSlugEdited(true);
@@ -140,7 +158,7 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
     return () => {
       cancelled = true;
     };
-  }, [articleId, backend, blocked, isNew, reloadToken]);
+  }, [activeArticleId, backend, blocked, isNew, reloadToken]);
 
   useEffect(() => {
     if (blocked) return;
@@ -234,8 +252,12 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
     patchEditor(patch);
   };
 
+  const changeFrontMatterField = (key: string, value: string) => {
+    if (editor) changeFrontMatter(writeFrontMatterText(editor.frontMatterYaml, key, value));
+  };
+
   const goToLine = (location: ErrorLocation) => {
-    setMobileTab("edit");
+    setMobileTab("preview");
     window.setTimeout(() => {
       const target = location.field === "frontMatterYaml" ? frontMatterRef.current : bodyRef.current;
       if (!target) return;
@@ -273,6 +295,41 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
       setImageUploading(false);
     }
   };
+
+  useEffect(() => {
+    if (!lineageId || isNew) { setLatestVersion(null); return; }
+    let cancelled = false;
+    loadStoryReportingTrail(lineageId, activeArticleId)
+      .then(trail => { if (!cancelled) { const newest = trail.versions[0]; setLatestVersion(newest ? { id: newest.id, number: newest.versionNumber } : null); } })
+      .catch(() => { if (!cancelled) setLatestVersion(null); });
+    return () => { cancelled = true; };
+  }, [activeArticleId, isNew, lineageId, reloadToken]);
+
+  const saveNewVersion = useCallback(async () => {
+    if (!editor || editor.id === null) return;
+    setBusy("save");
+    try {
+      const result = await backend.actions.saveItemDraft({
+        id: editor.id,
+        type: editor.type,
+        slug: editor.slug,
+        section: editor.section.trim() ? editor.section.trim() : null,
+        frontMatterYaml: editor.frontMatterYaml,
+        bodyMarkus: editor.bodyMarkus,
+        aliases,
+        expectedContentHash: editor.contentHash,
+        newVersion: true,
+        changeReason: changeReason.trim() || null,
+      });
+      setChangeReason("");
+      setActiveArticleId(result.item.id);
+      setNotice({ tone: "ok", text: `Saved as version ${result.item.versionNumber ?? ""}.` });
+    } catch (error) {
+      setNotice({ tone: "error", text: failureMessage(error) });
+    } finally {
+      setBusy(null);
+    }
+  }, [aliases, backend, changeReason, editor]);
 
   const saveDraft = useCallback(async (): Promise<string | null> => {
     if (!editor) return null;
@@ -400,8 +457,9 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
 
     const slugLocked = everPublished;
     const invalid = validation.status === "invalid" || validation.status === "unavailable";
-    const publishBlocked = invalid || validation.status === "checking" || busy !== null || !editor.slug.trim();
-    const saveBlocked = invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null);
+    const isOlderVersion = latestVersionNumber !== null && editor.versionNumber !== null && editor.versionNumber < latestVersionNumber;
+    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim();
+    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null);
     const stagingUrl = stagingPreviewUrl(
       process.env.NEXT_PUBLIC_PAPYRUS_STAGING_URL,
       editor.type,
@@ -481,6 +539,16 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                 Save draft
               </Button>
               <Button
+                data-newsroom-article-save-version
+                disabled={isOlderVersion || invalid || busy !== null || editor.id === null || !editor.dirty}
+                onClick={() => void saveNewVersion()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Save as new version
+              </Button>
+              <Button
                 data-newsroom-article-publish
                 disabled={publishBlocked}
                 onClick={() => void publish()}
@@ -493,7 +561,7 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
               {editor.status === "published" ? (
                 <Button
                   data-newsroom-article-unpublish
-                  disabled={busy !== null}
+                  disabled={isOlderVersion || busy !== null}
                   onClick={() => setUnpublishOpen(true)}
                   size="sm"
                   type="button"
@@ -511,16 +579,9 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
             </div>
           ) : null}
 
-          <Tabs className="lg:hidden" defaultValue="edit" onValueChange={(value) => setMobileTab(value as MobileTab)} value={mobileTab}>
-            <TabsList>
-              <TabsTrigger className="min-w-[6rem]" value="edit">Edit</TabsTrigger>
-              <TabsTrigger className="min-w-[6rem]" value="preview">Preview</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-6">
             <div
-              className={cn("min-w-0 space-y-4", mobileTab === "edit" ? "block" : "hidden", "lg:block")}
+              className="min-w-0 space-y-4"
               data-newsroom-article-edit-column
             >
               <div className="grid gap-3 sm:grid-cols-3">
@@ -543,18 +604,29 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                   </Select>
                 </label>
                 <label className="space-y-1 text-sm font-medium">
-                  <span>Section</span>
-                  <Input
-                    data-newsroom-article-section
-                    list="newsroom-article-sections"
-                    onChange={(event) => patchEditor({ section: event.target.value })}
-                    value={editor.section}
-                  />
-                  <datalist id="newsroom-article-sections">
-                    {sections.map((section) => (
-                      <option key={section} value={section} />
-                    ))}
-                  </datalist>
+                  <span>Desk</span>
+                  <Select
+                    onValueChange={(value) => {
+                      if (typeof value === "string") patchEditor({ section: value === NO_DESK_VALUE ? "" : value });
+                    }}
+                    value={deskOptions.some(option => option.value === editor.section) ? editor.section : NO_DESK_VALUE}
+                  >
+                    <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-article-section>
+                      <SelectValue>{deskOptions.find(option => option.value === editor.section)?.label ?? "No desk"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>
+                      {(["core", "rotating"] as const).map((kind) => deskOptions.some(option => option.kind === kind) ? (
+                        <SelectGroup key={kind}>
+                          <SelectLabel>{kind === "core" ? "Core desks" : "Rotating desks"}</SelectLabel>
+                          {deskOptions.filter(option => option.kind === kind).map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ) : null)}
+                    </SelectContent>
+                  </Select>
+                  {editor.section.trim() && !deskOptions.some(option => option.value === editor.section) ? <small className="newsroom-desk-legacy-value">Old section value: {editor.section.trim()}</small> : null}
                 </label>
                 <label className="space-y-1 text-sm font-medium">
                   <span>Slug</span>
@@ -571,8 +643,27 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                 </label>
               </div>
 
+                {isOlderVersion ? <p className="newsroom-article-older-version" data-newsroom-article-older-version role="status">
+                This is version {editor.versionNumber} of {latestVersionNumber}, shown read-only. <button className="newsroom-article-link-button" onClick={() => setActiveArticleId(latestVersion?.id ?? activeArticleId)} type="button">Open the latest version</button>
+              </p> : null}
+              <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
+              <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
+              <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
+              <button aria-pressed={mobileTab === "trail"} className="organizer-header-button" data-newsroom-article-view="trail" onClick={() => setMobileTab("trail")} type="button">Messages</button>
+              <button aria-pressed={mobileTab === "references"} className="organizer-header-button" data-newsroom-article-view="references" onClick={() => { setFocusedReferenceId(null); setMobileTab("references"); }} type="button">References</button>
+            </div>
+              {(mobileTab === "trail" || mobileTab === "references") && editor.id ? <StoryReportingTrailView focusedReferenceId={focusedReferenceId} onShowReference={(referenceId) => { setFocusedReferenceId(referenceId); setMobileTab("references"); }} view={mobileTab === "references" ? "references" : "messages"} citedKeys={citedKeys} demo={previewMode} itemId={editor.id} lineageId={lineageId} onOpenVersion={(versionId) => { setActiveArticleId(versionId); setMobileTab("preview"); }} /> : null}
+              <div className={cn("space-y-4", mobileTab === "edit" ? "block" : "hidden")} data-newsroom-article-raw-code>
+              <div className="newsroom-article-front-matter-fields" data-newsroom-article-fields>
+                <label><span>Title</span><Input data-newsroom-article-field="title" onChange={(event) => changeFrontMatterField(FRONT_MATTER_TITLE_KEY, event.target.value)} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY)} /></label>
+                <label><span>Subtitle</span><Input data-newsroom-article-field="subtitle" onChange={(event) => changeFrontMatterField(FRONT_MATTER_SUBTITLE_KEY, event.target.value)} placeholder="A line under the headline" value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)} /></label>
+                <label><span>Blurb</span><Textarea data-newsroom-article-field="blurb" onChange={(event) => changeFrontMatterField(FRONT_MATTER_BLURB_KEY, event.target.value)} placeholder="Two or three lines that describe the story on the board and in listings" rows={3} value={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)} /></label>
+              </div>
+              <Input aria-label="What changed in this version" className="max-w-xl" onChange={(event) => setChangeReason(event.target.value)} placeholder="What changed? Recorded when you save as a new version." value={changeReason} />
+              <details className="newsroom-article-front-matter" data-newsroom-article-front-matter-details>
+                <summary>Front matter (YAML)</summary>
               <label className="block space-y-1 text-sm font-medium">
-                <span>Front matter (YAML)</span>
+                <span className="sr-only">Front matter (YAML)</span>
                 <Textarea
                   className={TEXTAREA_CLASS}
                   data-newsroom-article-front-matter
@@ -583,10 +674,11 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                   value={editor.frontMatterYaml}
                 />
               </label>
+              </details>
 
               <div className="space-y-1 text-sm font-medium">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label htmlFor="newsroom-article-body">Body (Markus)</label>
+                  <label className="sr-only" htmlFor="newsroom-article-body">Story body</label>
                   <Button
                     data-newsroom-article-insert-image
                     disabled={editor.id === null || imageUploading || busy !== null}
@@ -664,16 +756,20 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
                   })}
                 </ul>
               ) : null}
+              </div>
             </div>
 
             <div
-              className={cn("min-w-0", mobileTab === "preview" ? "block" : "hidden", "lg:block")}
+              className={cn("min-w-0", mobileTab === "preview" ? "block" : "hidden")}
               data-newsroom-article-preview-column
             >
               <div className="rounded-xl border border-border bg-card p-4" data-newsroom-article-preview>
-                <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  Preview
-                </p>
+                {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
+                  <div className="newsroom-article-summary" data-newsroom-article-summary>
+                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
+                    {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) ? <p className="newsroom-article-blurb">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)}</p> : null}
+                  </div>
+                ) : null}
                 {invalid && bodyIr ? (
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}
@@ -724,6 +820,8 @@ export function NewsroomArticleEditor({ articleId, demo }: { articleId: string; 
       </TooltipProvider>
     );
   })();
+
+  if (embedded) return <div className="newsroom-embedded-article">{body}</div>;
 
   return (
     <NewsroomOpsShell

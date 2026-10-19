@@ -1,0 +1,27 @@
+{
+  "id": "PPY-109943b0-4f0c-4e63-9bd2-53f6970d69d6",
+  "title": "Store CLI sessions securely and provide honest logout and expiry recovery",
+  "description": "Issue filing only, explicitly requested by Ryan. No implementation, login, new credentials, security/configuration changes or deployment is authorized. Parent epic: PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7. Reference: Apricity authorization-code+PKCE login, keychain refresh session and renewal, https://github.com/AnthusAI/Apricity/blob/ffe8a023b0418445aa67893a52ae9e173c366d42/crates/apricity-cli/src/cloud.rs#L206. Preserve existing newsroom authorization and agent attribution; do not conflate CLI auth with hosted procedure execution.\n\nAs a newsroom user I can retain my CLI session securely, end it and recover from confirmed expiry without leaked credentials, silent permission escalation or misleading logout success.\n\nFeature: Secure renewable session lifecycle\n  Scenario: Protect local credentials\n    Given a successfully authenticated session\n    When renewable secret material is persisted on M1\n    Then it is stored in OS secure credential storage scoped to issuer, client, person and publication/account\n    And repo files, .env, command arguments and logs contain no session secrets\n    And locked or unavailable secure storage fails visibly without plaintext fallback\n  Scenario: Logout with honest revocation status\n    Given a stored signed-in session\n    When papyrus logout is requested\n    Then local session secrets and selection cache are removed\n    And remote refresh-session revocation is attempted through the supported provider operation\n    And an offline or uncertain remote result is reported accurately\n    And other device sessions are not silently globally revoked\n  Scenario: Recover from expiry or revoked permission\n    Given a confirmed invalid, expired or revoked renewable session or a removed publication grant\n    When a noninteractive protected command runs\n    Then it exits with a useful bounded error and explicit recovery guidance\n    And it does not loop, silently log in or fall back to broader IAM authority\n\nVerify server-side issuer/audience/token type and actual existing-access-token revocation behavior; do not promise instant invalidation beyond provider/API enforcement. Do not copy Apricity's global single-key binding or clearing of credentials on every non-success refresh response without addressing publication scoping, transient errors and rotation. Acceptance evidence uses fake provider/keychain tests first and approved live revocation/authorization checks later, without exposing secrets or labeling agent work as a human editorial decision.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T10:38:03.602906Z",
+  "updated_at": "2026-10-19T10:38:03.603028Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "ChatGPT",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

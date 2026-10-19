@@ -68,7 +68,7 @@ SCENARIO_REQUIRED_TOOL_CALLS: dict[str, list[str]] = {
     "review-reference-curation-reject": ["papyrus.reference.list", "papyrus.reference.curation_review"],
     "review-reference-curation-archive": ["papyrus.reference.list", "papyrus.reference.curation_review"],
     "review-reference-curation-reopen": ["papyrus.reference.list", "papyrus.reference.curation_review"],
-    "insight-reference": ["papyrus.reference.list", "papyrus.reference.insight_create", "papyrus.reference.insight_list"],
+    "note-reference": ["papyrus.reference.list", "papyrus.reference.note_create", "papyrus.reference.note_list"],
     "curate-reference-refresh": ["papyrus.reference.list", "papyrus.reference.curation_start", "papyrus.reference.curation_status"],
 }
 SCENARIO_REQUIRED_TOOL_CALL_COUNTS: dict[str, dict[str, int]] = {
@@ -91,7 +91,7 @@ SCENARIO_EXPECTED_FINAL_RESPONSE: dict[str, str] = {
     "review-reference-curation-reject": "reference-curation-reject-tested",
     "review-reference-curation-archive": "reference-curation-archive-tested",
     "review-reference-curation-reopen": "reference-curation-reopen-tested",
-    "insight-reference": "reference-insight-tested",
+    "note-reference": "reference-note-tested",
 }
 MESSAGE_FIELD_CANDIDATES = [
     "id",
@@ -320,20 +320,20 @@ def _collect_reference_tool_diagnostics(value: Any, diagnostics: dict[str, Any],
                 }
             )
     if str(value.get("status") or "").strip().lower() == "created" and value.get("messageId"):
-        insight = diagnostics.setdefault("insight", {})
-        created = set(str(entry) for entry in (insight.get("createdMessageIds") or []))
+        note = diagnostics.setdefault("note", {})
+        created = set(str(entry) for entry in (note.get("createdMessageIds") or []))
         created.add(str(value.get("messageId")))
-        insight["createdMessageIds"] = sorted(created)
+        note["createdMessageIds"] = sorted(created)
     if "referenceLineageId" in value and isinstance(value.get("items"), list):
-        insight = diagnostics.setdefault("insight", {})
-        listed_ids: set[str] = set(str(entry) for entry in (insight.get("listedMessageIds") or []))
+        note = diagnostics.setdefault("note", {})
+        listed_ids: set[str] = set(str(entry) for entry in (note.get("listedMessageIds") or []))
         listed_items = [entry for entry in value.get("items") if isinstance(entry, dict)]
         for entry in listed_items:
             if entry.get("id"):
                 listed_ids.add(str(entry.get("id")))
-        insight["listedMessageIds"] = sorted(listed_ids)
-        created_ids = {str(entry) for entry in (insight.get("createdMessageIds") or [])}
-        matched_ids: set[str] = set(str(entry) for entry in (insight.get("matchedMessageIds") or []))
+        note["listedMessageIds"] = sorted(listed_ids)
+        created_ids = {str(entry) for entry in (note.get("createdMessageIds") or [])}
+        matched_ids: set[str] = set(str(entry) for entry in (note.get("matchedMessageIds") or []))
         for entry in listed_items:
             message_id = str(entry.get("id") or "")
             if not message_id or message_id not in created_ids:
@@ -342,10 +342,10 @@ def _collect_reference_tool_diagnostics(value: Any, diagnostics: dict[str, Any],
             summary = str(entry.get("summary") or "")
             body = str(entry.get("content") or entry.get("body") or "")
             if marker in summary:
-                insight["markerInSummary"] = True
+                note["markerInSummary"] = True
             if marker in body:
-                insight["markerInBody"] = True
-        insight["matchedMessageIds"] = sorted(matched_ids)
+                note["markerInBody"] = True
+        note["matchedMessageIds"] = sorted(matched_ids)
 
 
 def _local_responder_enabled() -> bool:
@@ -417,7 +417,7 @@ def scenario_prompt(
     seeded_assignment_id: str | None = None,
     reference_corpus_key: str | None = None,
     reference_target: dict[str, Any] | None = None,
-    insight_marker: str | None = None,
+    note_marker: str | None = None,
 ) -> str:
     marker = f"{LIVE_AGENT_MARKER}-{run_id}"
     if name == "hello":
@@ -704,36 +704,36 @@ def scenario_prompt(
                 f"After all tool calls succeed, reply with only `{sentinel}`.",
             ]
         )
-    if name == "insight-reference":
+    if name == "note-reference":
         if not reference_corpus_key:
-            raise RuntimeError("insight-reference scenario requires a non-empty reference corpus key")
+            raise RuntimeError("note-reference scenario requires a non-empty reference corpus key")
         if not isinstance(reference_target, dict):
-            raise RuntimeError("insight-reference scenario requires a selected reference target.")
+            raise RuntimeError("note-reference scenario requires a selected reference target.")
         reference_id = str(reference_target.get("id") or "").strip()
         reference_lineage_id = str(reference_target.get("lineageId") or "").strip()
         if not reference_id or not reference_lineage_id:
-            raise RuntimeError("insight-reference scenario requires selected reference id and lineageId.")
-        marker_token = str(insight_marker or marker).strip()
+            raise RuntimeError("note-reference scenario requires selected reference id and lineageId.")
+        marker_token = str(note_marker or marker).strip()
         return "\n".join(
             [
                 f"Model policy: use {DEFAULT_AGENT_MODEL}.",
                 f"Marker: {marker}",
-                f"Insight marker token (must appear verbatim in summary and body): {marker_token}",
+                f"Note marker token (must appear verbatim in summary and body): {marker_token}",
                 f"Selected reference id: {reference_id} (lineage {reference_lineage_id}).",
-                "Use execute_tactus for Reference insight test. Do not answer until all required tool calls succeed.",
+                "Use execute_tactus for Reference note test. Do not answer until all required tool calls succeed.",
                 "Do not call docs_list or docs_get.",
-                "Execute exactly three tool calls: list, insight_create, insight_list.",
+                "Execute exactly three tool calls: list, note_create, note_list.",
                 "Do not alter snippet text or marker token values.",
                 "Step 1 required snippet:",
                 f"return papyrus.reference.list{{ corpus_key = '{reference_corpus_key}', limit = 100 }}",
                 "Step 2 required snippet:",
                 (
-                    f"return papyrus.reference.insight_create{{ reference_id = '{reference_id}', "
-                    f"summary = '{marker_token} insight', body = '{marker_token} insight body', actor_label = 'behave-live-agent' }}"
+                    f"return papyrus.reference.note_create{{ reference_id = '{reference_id}', "
+                    f"summary = '{marker_token} note', body = '{marker_token} note body', actor_label = 'behave-live-agent' }}"
                 ),
                 "Step 3 required snippet:",
-                f"return papyrus.reference.insight_list{{ reference_lineage_id = '{reference_lineage_id}' }}",
-                "After all tool calls succeed, reply with only `reference-insight-tested`.",
+                f"return papyrus.reference.note_list{{ reference_lineage_id = '{reference_lineage_id}' }}",
+                "After all tool calls succeed, reply with only `reference-note-tested`.",
             ]
         )
     if name == "curate-reference-refresh":
@@ -830,7 +830,7 @@ def _assert_required_reference_actions(client: GraphqlClient, scenario_name: str
         "review-reference-curation-reject",
         "review-reference-curation-archive",
         "review-reference-curation-reopen",
-        "insight-reference",
+        "note-reference",
         "curate-reference-refresh",
     }
     if scenario_name not in reference_scenarios:
@@ -841,7 +841,7 @@ def _assert_required_reference_actions(client: GraphqlClient, scenario_name: str
     required_mutations = {
         "reviewReferenceCuration",
         "setReferenceQualityRating",
-        "createReferenceInsight",
+        "createReferenceNote",
         "moveReferenceCorpus",
         "startReferenceCuration",
     }
@@ -1049,7 +1049,7 @@ def _seed_update_assignment(client: GraphqlClient, marker: str) -> str:
     assignment_id = f"assignment-research-{marker}-seed-{uuid.uuid4().hex[:8]}"
     assignment_input = {
         "id": assignment_id,
-        "assignmentTypeKey": "research.edition-candidate",
+        "assignmentTypeKey": "research.candidate",
         "queueKey": "research:technology:exploratory",
         "queueStatusKey": "research:technology:exploratory#open",
         "status": "open",
@@ -1188,7 +1188,7 @@ def run_scenario(
         "curationTransitions": [],
         "initialStatusObservedFromList": None,
         "finalStatusObservedFromGraphql": None,
-        "insight": {
+        "note": {
             "createdMessageIds": [],
             "listedMessageIds": [],
             "matchedMessageIds": [],
@@ -1243,7 +1243,7 @@ def run_scenario(
             "review-reference-curation-reject",
             "review-reference-curation-archive",
             "review-reference-curation-reopen",
-            "insight-reference",
+            "note-reference",
             "curate-reference-refresh",
         }:
             reference_corpus_key = _discover_reference_corpus_key(client)
@@ -1288,27 +1288,27 @@ def run_scenario(
             reference_diagnostics["expectedFinalStatus"] = reference_target.get("initialStatus")
             reference_diagnostics["primaryAction"] = scenario["action"]
             reference_diagnostics["restoreAction"] = scenario["restoreAction"]
-        if scenario_name == "insight-reference":
+        if scenario_name == "note-reference":
             reference_target = _select_reference_for_status(
                 client,
                 corpus_key=str(reference_corpus_key or ""),
                 required_status="accepted",
             )
-            assertion_marker = f"insight-{uuid.uuid4().hex[:10]}"
+            assertion_marker = f"note-{uuid.uuid4().hex[:10]}"
             reference_diagnostics["selectedReference"] = {
                 "id": reference_target.get("id"),
                 "lineageId": reference_target.get("lineageId"),
                 "title": reference_target.get("title"),
                 "initialStatus": reference_target.get("initialStatus"),
             }
-            reference_diagnostics["insightExpectedMarker"] = assertion_marker
+            reference_diagnostics["noteExpectedMarker"] = assertion_marker
         prompt = scenario_prompt(
             scenario_name,
             run_id,
             seeded_assignment_id=seeded_assignment_id,
             reference_corpus_key=reference_corpus_key,
             reference_target=reference_target,
-            insight_marker=assertion_marker if scenario_name == "insight-reference" else None,
+            note_marker=assertion_marker if scenario_name == "note-reference" else None,
         )
         required_tool_calls = list(SCENARIO_REQUIRED_TOOL_CALLS.get(scenario_name, []))
         required_tool_call_counts = dict(SCENARIO_REQUIRED_TOOL_CALL_COUNTS.get(scenario_name, {}))
@@ -1593,15 +1593,15 @@ def run_scenario(
                 raise RuntimeError(
                     f"Expected reference curation-review tool calls. Saw: {', '.join(api_calls)}. Assistant said: {content}"
                 )
-        if scenario_name == "insight-reference":
+        if scenario_name == "note-reference":
             required = {
                 "papyrus.reference.list",
-                "papyrus.reference.insight_create",
-                "papyrus.reference.insight_list",
+                "papyrus.reference.note_create",
+                "papyrus.reference.note_list",
             }
             if not required.issubset(set(api_calls)):
                 raise RuntimeError(
-                    f"Expected reference insight tool calls. Saw: {', '.join(api_calls)}. Assistant said: {content}"
+                    f"Expected reference note tool calls. Saw: {', '.join(api_calls)}. Assistant said: {content}"
                 )
         if scenario_name == "curate-reference-refresh":
             required = {
@@ -1671,7 +1671,7 @@ def run_scenario(
             "review-reference-curation-reject",
             "review-reference-curation-archive",
             "review-reference-curation-reopen",
-            "insight-reference",
+            "note-reference",
             "curate-reference-refresh",
         } and errors:
             raise RuntimeError(
@@ -1725,26 +1725,26 @@ def run_scenario(
                     f"Reference status restore failed for {scenario_name}: expected final '{expected_final}', "
                     f"observed '{final_status}'. Diagnostics: {json.dumps(reference_diagnostics)}"
                 )
-        if scenario_name == "insight-reference":
-            insight = reference_diagnostics.get("insight") if isinstance(reference_diagnostics.get("insight"), dict) else {}
-            created_ids = [str(entry) for entry in (insight.get("createdMessageIds") or [])]
-            matched_ids = [str(entry) for entry in (insight.get("matchedMessageIds") or [])]
+        if scenario_name == "note-reference":
+            note = reference_diagnostics.get("note") if isinstance(reference_diagnostics.get("note"), dict) else {}
+            created_ids = [str(entry) for entry in (note.get("createdMessageIds") or [])]
+            matched_ids = [str(entry) for entry in (note.get("matchedMessageIds") or [])]
             if not created_ids:
                 raise RuntimeError(
-                    f"Expected insight_create to return a messageId; none found. Diagnostics: {json.dumps(reference_diagnostics)}"
+                    f"Expected note_create to return a messageId; none found. Diagnostics: {json.dumps(reference_diagnostics)}"
                 )
             if not matched_ids:
                 raise RuntimeError(
-                    f"Expected insight_list to include created insight message id(s) {created_ids}; observed "
-                    f"{insight.get('listedMessageIds') or []}. Diagnostics: {json.dumps(reference_diagnostics)}"
+                    f"Expected note_list to include created note message id(s) {created_ids}; observed "
+                    f"{note.get('listedMessageIds') or []}. Diagnostics: {json.dumps(reference_diagnostics)}"
                 )
-            if not bool(insight.get("markerInSummary")):
+            if not bool(note.get("markerInSummary")):
                 raise RuntimeError(
-                    f"Expected listed insight summary to include marker '{assertion_marker}'. Diagnostics: {json.dumps(reference_diagnostics)}"
+                    f"Expected listed note summary to include marker '{assertion_marker}'. Diagnostics: {json.dumps(reference_diagnostics)}"
                 )
-            if not bool(insight.get("markerInBody")):
+            if not bool(note.get("markerInBody")):
                 raise RuntimeError(
-                    f"Expected listed insight body/content to include marker '{assertion_marker}'. Diagnostics: {json.dumps(reference_diagnostics)}"
+                    f"Expected listed note body/content to include marker '{assertion_marker}'. Diagnostics: {json.dumps(reference_diagnostics)}"
                 )
 
         if (
@@ -1778,8 +1778,8 @@ def run_scenario(
             raise RuntimeError(f"Expected reference-quality-tested, got: {content}")
         if scenario_name in EDITORIAL_CURATION_SCENARIOS and content != EDITORIAL_CURATION_SCENARIOS[scenario_name]["sentinel"]:
             raise RuntimeError(f"Expected {EDITORIAL_CURATION_SCENARIOS[scenario_name]['sentinel']}, got: {content}")
-        if scenario_name == "insight-reference" and content != "reference-insight-tested":
-            raise RuntimeError(f"Expected reference-insight-tested, got: {content}")
+        if scenario_name == "note-reference" and content != "reference-note-tested":
+            raise RuntimeError(f"Expected reference-note-tested, got: {content}")
         if scenario_name == "curate-reference-refresh":
             if not re.match(r"^assignment[-_][A-Za-z0-9_-]+$", content):
                 raise RuntimeError(f"Expected assignment id content for curation refresh, got: {content}")

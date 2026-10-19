@@ -15,7 +15,10 @@ import {
   type PublicPlaceholderTopic,
 } from "../lib/public-placeholder-config";
 import type { PublicationItem } from "../lib/publication-items";
-import { SITE_BRAND, rootRoute } from "../lib/site-brand";
+import { SITE_BRAND, editionsEnabled, rootRoute } from "../lib/site-brand";
+import { ItemStreamView } from "../components/item-stream-view";
+import { ITEM_STREAM_RECENT_EDITION_COUNT, buildItemStream, selectNewestStreamItems } from "../lib/item-stream";
+import { listCachedPublishedEditions } from "../lib/cached-content-repository";
 import { notFound, redirect } from "next/navigation";
 import { getReaderBasePath } from "../lib/reader-base-path";
 import { buildRootRedirectTarget } from "../lib/root-route-redirect";
@@ -27,6 +30,7 @@ export const dynamic = "force-dynamic";
 type HomePageProps = {
   searchParams?: Promise<{
     scenario?: string | string[];
+    section?: string | string[];
     code?: string | string[];
     state?: string | string[];
     error?: string | string[];
@@ -59,6 +63,13 @@ export default async function Home({ searchParams }: HomePageProps) {
     notFound();
   }
 
+  if (!editionsEnabled()) {
+    const sectionParam = resolvedSearchParams?.section;
+    const sectionKey = Array.isArray(sectionParam) ? sectionParam[0] : sectionParam;
+    const items = await loadNewestStreamItemsOrNone();
+    return <ItemStreamView stream={buildItemStream(items, sectionKey)} />;
+  }
+
   // Resolved only on the reader path: Markus brands (renderer "markus") have
   // no Next.js reader and getSiteRenderer() throws for them, but they can
   // still serve the newsroom at the root via rootRoute above.
@@ -86,6 +97,24 @@ export default async function Home({ searchParams }: HomePageProps) {
   const content = await loadHomeContent(scenarioId);
   if (content.items.length === 0) return <siteRenderer.renderEdition content={createEmptyGraphQLEdition()} />;
   return <siteRenderer.renderEdition content={content} />;
+}
+
+async function loadNewestStreamItemsOrNone() {
+  try {
+    return await loadNewestStreamItems();
+  } catch (error) {
+    if (!isMissingReaderBackendError(error)) throw error;
+    return [];
+  }
+}
+
+async function loadNewestStreamItems() {
+  const { editions } = await listCachedPublishedEditions({ limit: ITEM_STREAM_RECENT_EDITION_COUNT });
+  const newestFirst = [...editions].sort((left, right) => right.editionDate.localeCompare(left.editionDate));
+  const contents = await Promise.all(
+    newestFirst.map((edition) => loadCachedEditionContent({ editionDate: edition.editionDate })),
+  );
+  return selectNewestStreamItems(contents);
 }
 
 async function loadLatestGraphQLEdition(): Promise<EditionContent | null> {

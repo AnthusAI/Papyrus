@@ -7,6 +7,7 @@ from decision_flywheel.publication_lab import PublicationError, PublicationLab
 from decision_flywheel.publication_lab_test import BINDINGS, DEFINITION, ITEM, OfflineModel
 
 from papyrus_content.prospectus_publication_access import (
+    role_based_publication_grants,
     ProspectusAccountAuthorization,
     ProspectusPublicationAccess,
     publication_capabilities_for_prospectus_role,
@@ -120,4 +121,134 @@ def test_access_fails_closed(tmp_path, case):
             with pytest.raises(PublicationError) as refused:
                 await access(None, 'threat-intelligence', 'publish' if case == 'unknown-capability' else 'read')
             assert refused.value.status == 403
+    asyncio.run(scenario())
+
+
+def test_prospectus_publication_host_serves_each_role_over_http(tmp_path):
+    import httpx
+    from decision_flywheel.publication_lab import HTTPPublicationClient
+    from papyrus_content.prospectus_publication_access import create_prospectus_publication_host
+
+    async def scenario():
+        with Cyclotron.open(tmp_path / 'engine', DEFINITION, OfflineModel()) as engine:
+            lab = PublicationLab(engine, account_id='account-a', bindings=BINDINGS)
+            signed_in_role = {'role': 'member'}
+
+            def authorize_account_operation(connection, operation):
+                return ProspectusAccountAuthorization('account-a', 'person-a', signed_in_role['role'], operation)
+
+            host = create_prospectus_publication_host(
+                resolve_selection=lambda _connection: SELECTION,
+                authorize_account_operation=authorize_account_operation,
+                lab_for_account=lambda _connection, _account: lab,
+            )
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=host), base_url='http://offline.test') as http:
+                client = HTTPPublicationClient(http, account_id='account-a')
+                decided = await client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+                assert decided['accountId'] == 'account-a'
+                assert (await client.command('threat-intelligence', 'status', {}))
+                signed_in_role['role'] = 'viewer'
+                assert (await client.command('threat-intelligence', 'status', {}))
+                with pytest.raises(PublicationError) as refused:
+                    await client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+                assert refused.value.status == 403
+                signed_in_role['role'] = 'guest'
+                with pytest.raises(PublicationError) as removed:
+                    await client.command('threat-intelligence', 'status', {})
+                assert removed.value.status == 403
+    asyncio.run(scenario())
+
+
+def test_central_lab_access_serves_roles_through_the_publication_contract(tmp_path):
+    import httpx
+    from decision_flywheel.publication_lab import PublicationAccess, PublicationActor, create_publication_host
+    from papyrus_content.prospectus_publication_access import ProspectusCentralPublicationAccess
+
+    async def scenario():
+        with Cyclotron.open(tmp_path / 'engine', DEFINITION, OfflineModel()) as engine:
+            central_lab = PublicationLab(engine, account_id='account-a', bindings=BINDINGS)
+            central_calls = []
+
+            def central_trusts_the_site(_connection, publication, capability):
+                central_calls.append((publication, capability))
+                actor = PublicationActor('account-a', 'person-a', frozenset((publication, action) for action in ('read', 'review', 'decide', 'steer')))
+                return PublicationAccess(central_lab, actor)
+
+            central_host = create_publication_host(central_trusts_the_site, require_execution_guard=False)
+            signed_in_role = {'role': 'member'}
+
+            def authorize_account_operation(_connection, operation):
+                return ProspectusAccountAuthorization('account-a', 'person-a', signed_in_role['role'], operation)
+
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=central_host), base_url='http://central.test') as central_http:
+                access = ProspectusCentralPublicationAccess(
+                    authorize_account_operation=authorize_account_operation,
+                    central_http_client_for=lambda _account: central_http,
+                    publication_ids_for=lambda _account: tuple(central_lab.bindings),
+                )
+                member_client = await access(None, 'threat-intelligence', 'decide')
+                decided = await member_client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+                assert decided['accountId'] == 'account-a'
+                signed_in_role['role'] = 'viewer'
+                await access(None, 'threat-intelligence', 'read')
+                calls_before_refusal = len(central_calls)
+                with pytest.raises(PublicationError) as refused:
+                    await access(None, 'threat-intelligence', 'decide')
+                assert refused.value.status == 403
+                assert len(central_calls) == calls_before_refusal, 'a refused person never reaches the central lab'
+                with pytest.raises(PublicationError):
+                    await access(None, 'not-bound-here', 'read')
+    asyncio.run(scenario())
+
+
+def test_central_lab_client_sends_the_account_credential_the_lab_reverifies(tmp_path):
+    import httpx
+    from decision_flywheel.publication_lab import PublicationAccess, PublicationActor, create_publication_host
+    from papyrus_content.prospectus_publication_access import ProspectusCentralPublicationAccess, central_lab_http_client_factory
+
+    async def scenario():
+        with Cyclotron.open(tmp_path / 'engine', DEFINITION, OfflineModel()) as engine:
+            lab = PublicationLab(engine, account_id='account-a', bindings=BINDINGS)
+            live_credentials = {'credential-1': ('account-a', 'person-a', 'member')}
+            verifications = []
+
+            def lab_that_reverifies_the_bearer_credential(request, publication, capability):
+                scheme, _, token = request.headers.get('authorization', '').partition(' ')
+                pinned_account_id = request.headers.get('x-cyclotron-account')
+                verifications.append((token, pinned_account_id))
+                verified = live_credentials.get(token) if scheme.lower() == 'bearer' else None
+                if verified is None or verified[0] != pinned_account_id:
+                    raise PublicationError('site credential refused', 403)
+                grants = role_based_publication_grants(
+                    ProspectusAccountAuthorization(verified[0], verified[1], verified[2], 'console:write'),
+                    tuple(lab.bindings),
+                )
+                return PublicationAccess(lab, PublicationActor(verified[0], verified[1], grants))
+
+            central_host = create_publication_host(lab_that_reverifies_the_bearer_credential, require_execution_guard=False)
+            issued = {'credential': 'credential-1'}
+            http_factory = central_lab_http_client_factory(
+                endpoint='http://central.test',
+                credential_for=lambda _account: issued['credential'],
+                transport=httpx.ASGITransport(app=central_host),
+            )
+            access = ProspectusCentralPublicationAccess(
+                authorize_account_operation=lambda _connection, operation: ProspectusAccountAuthorization('account-a', 'person-a', 'member', operation),
+                central_http_client_for=http_factory,
+                publication_ids_for=lambda _account: tuple(lab.bindings),
+            )
+            client = await access(None, 'threat-intelligence', 'decide')
+            decided = await client.command('threat-intelligence', 'decide', {'item': ITEM, 'bindingRevision': 'binding-1'})
+            assert decided['accountId'] == 'account-a'
+            assert verifications[-1] == ('credential-1', 'account-a')
+
+            del live_credentials['credential-1']
+            with pytest.raises(PublicationError) as revoked:
+                await client.command('threat-intelligence', 'status', {})
+            assert revoked.value.status == 403, 'a revoked credential stops working on the next call'
+
+            issued['credential'] = ''
+            with pytest.raises(PublicationError) as missing:
+                await client.command('threat-intelligence', 'status', {})
+            assert missing.value.status == 503
     asyncio.run(scenario())

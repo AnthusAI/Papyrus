@@ -1,4 +1,5 @@
 import { isLocalPreviewEnabled } from "./local-preview";
+import { areEditionsEnabled } from "./site-env";
 import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
 import type { Article, ArticleVideoAsset } from "./articles";
@@ -23,6 +24,8 @@ export type SiteBrandId = string;
 
 /** Brand-specific replacements for generic Pretext components. */
 export type SiteBrandComponents = {
+  /** The mark shown at the top of the newsroom CMS sidebar in place of the app title. */
+  NewsroomLogo?: ComponentType<{ className?: string }>;
   PictogramFigure?: ComponentType<PictogramFigureProps>;
   BlogPageBackground?: ComponentType<BlogPageBackgroundProps>;
 };
@@ -79,8 +82,15 @@ export type ContentItemName = {
 
 export const DEFAULT_CONTENT_ITEM_NAME: ContentItemName = { singular: "Story", plural: "Stories" };
 
+/** Browser-tab icon files under `public/`, as site-root paths. The dark variant defaults to the light one. */
+export type SiteBrandIcons = { light: string; dark?: string; appleTouch?: string };
+
+export const DEFAULT_SITE_BRAND_ICONS: Required<Pick<SiteBrandIcons, "light" | "dark">> & { fallback: string } = { light: "/icon-light.png", dark: "/icon-dark.png", fallback: "/icon.png" };
+
 export type SiteBrand = {
   id: SiteBrandId;
+  /** The browser-tab icon. Omit to use the Papyrus plant. */
+  icons?: SiteBrandIcons;
   appTitle: string;
   appDescription: string;
   mastheadTitle: string;
@@ -148,6 +158,11 @@ export type SiteBrand = {
   fonts?: SiteBrandFont[];
   demoEdition?: SiteBrandDemoEdition;
   video?: SiteBrandVideo;
+  /**
+   * Editions are an optional setting, off unless `{ enabled: true }`. When off the
+   * publication is a plain stream of items: no edition date routes, archive or masthead date.
+   */
+  editions?: { enabled: boolean };
 };
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
@@ -243,6 +258,11 @@ export function getRootRoute(brand: SiteBrand = SITE_BRAND): RootRouteConfig {
 }
 
 export const rootRoute = getRootRoute();
+
+/** The brand setting wins when present; otherwise the PAPYRUS_EDITIONS_ENABLED switch decides. */
+export function editionsEnabled(brand: Pick<SiteBrand, "editions"> = SITE_BRAND): boolean {
+  return brand.editions?.enabled ?? areEditionsEnabled();
+}
 
 export function enforcePresentation(presentation: EditionPresentationFormat): EditionPresentationFormat {
   return SITE_BRAND.forcedPresentation ?? presentation;

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "13b1adcf-1c5c-4e74-966e-a95e64d8e062",
+  "issue_id": "PPY-7d1bc7f6-9e07-4de6-bce9-c3d5534d5d14",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T14:02:52.448Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Priming proof v2: a larger held-out set and a baseline below the ceiling",
+    "description": "The first proof (ti-2026-10) had a held-out set of 10 and scored 100% unprimed, so it cannot show labels helping.\nFeature: Priming proof v2\n  Scenario: A held-out set big enough to read\n    Given at least 40 reviewed References per the scope-training rule\n    When the operator freezes a new proof id of size 40\n    Then each point's agreement moves by at most 2.5 points per disagreement\n  Scenario: A baseline below the ceiling\n    Given the unprimed classifier agrees with editors on at most 85% of the held-out set\n    When the proof runs at N = 0 and each scheduled N\n    Then the report can show agreement rising or not, with the held-out size beside it\nConstraint: the held-out set is chosen by the frozen sha256 rule, never by looking at unprimed results. If production has fewer than 40 labeled reviews, the work is to gather more editor reviews, not to lower the size.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": []
+  }
+}

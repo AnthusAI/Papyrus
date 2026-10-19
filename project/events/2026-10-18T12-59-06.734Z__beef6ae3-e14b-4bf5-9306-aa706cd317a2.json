@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "beef6ae3-e14b-4bf5-9306-aa706cd317a2",
+  "issue_id": "PPY-698f2e7e-6e60-4427-b1ed-6ba26b7d60a3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T12:59:06.734Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Cyclotron-web slice 3: switch the cyclotron-marketing pipeline build to the Papyrus projection",
+    "description": "The cyclotron-marketing CodePipeline (cyclotron-production account) builds next build today. Replace the build step with the projection build and S3 publish, keeping the CloudFront alias and certificate context. DevOps pipeline owners do the deploy; no local AWS.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+    "labels": []
+  }
+}

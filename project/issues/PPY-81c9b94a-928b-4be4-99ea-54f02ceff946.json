@@ -4,15 +4,34 @@
   "description": "Three Quarto books with PDF/EPUB targets. Needs Markus print/EPUB renderers (listed as later in the Markus README) before a faithful move. Web edition can move first.",
   "type": "task",
   "status": "open",
-  "priority": 4,
+  "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5521d599-f32b-4ac3-a95b-3653f9fdae66",
+      "author": "unknown",
+      "text": "Inventory done 2026-10-18 (read-only clones of the three books and Tactus-examples). The books are nearly plain Markdown: no callouts, cross-references, citations or diagrams. Quarto-specific pieces: the part/chapter tree in _quarto.yml, 15 code-include fences with snippet markers (Learning-Tactus only), 4 meta shortcodes fed by book-links.yml and tactus-target.yml, and a cover page. The web edition can move now on the shared docs builder (Papyrus PR 308) plus three generic additions; PDF stays on the Quarto job until a Papyrus print output exists. Full plan: /mnt/project-files/anthus-sites-to-papyrus/tactus-books-inventory-and-plan.md. Tactus-examples is not a site and needs no conversion.",
+      "created_at": "2026-10-18T20:49:51.285851Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "43fca2b2-bf6a-4bba-8477-003a6737991f",
+      "author": "unknown",
+      "text": "All three Tactus books now deploy through the Papyrus pipeline on GitHub Pages. Pending: live-site verification from the Mac.",
+      "created_at": "2026-10-18T23:55:51.109557Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:26:37.185174Z",
-  "updated_at": "2026-10-17T22:26:37.185412Z",
+  "updated_at": "2026-10-18T23:55:51.109723Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

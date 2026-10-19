@@ -408,6 +408,27 @@ poetry run papyrus references prove-priming --held-out .papyrus-runs/proofs/ti-2
 Keep the held-out file private: it holds source titles, URLs and editor notes.
 Cost is `held-out size x number of points` decision calls (200 for the defaults).
 
+### When there are too few labels for a held-out set
+
+A publication with a few dozen reviews (Threat Intelligence has 23) cannot spare
+40 for a fixed held-out set. Use stratified cross-validation instead: every
+labeled review is held out exactly once, taught only by reviews outside its own
+fold, and the folds are pooled at each N.
+
+```bash
+poetry run papyrus references freeze-priming-cross-validation --proof-id ti-2026-10-cv \
+  --output .papyrus-runs/proofs/ti-2026-10-cv.folds.json --folds 5
+
+# One decision-model call per labeled review per point (23 x 4 = 92 for the defaults).
+poetry run papyrus references prove-priming-cross-validated \
+  --folds-file .papyrus-runs/proofs/ti-2026-10-cv.folds.json --schedule 0,5,10 \
+  --output .papyrus-runs/proofs/ti-2026-10-cv.report.json
+```
+
+The schedule always also includes N = 0 and the largest N every fold can supply.
+The classes are unbalanced, so the page shows precision and recall beside
+agreement and states the design instead of claiming a 50% chance level.
+
 ### Where visitors see it
 
 The publication's `/cyclotron` page shows the headline ("agreement went from X%
@@ -416,10 +437,10 @@ method. `/api/cyclotron/priming-proof` serves the same report as JSON. Until a
 report is approved the page says no approved run has been published and still
 explains the method.
 
-A report becomes public only by a reviewed commit: save it as
-`publications/priming-proofs/<site brand id>.json` and import it into
-`lib/approved-priming-proof-reports.ts`. Ryan approves a report before it is
-committed. Brands whose newsroom owns the site root rewrite `/cyclotron` into the
+A report becomes public only by a reviewed commit. Ryan approves a report, then
+`npm run approve:priming-proof -- <site brand id> <report.json>` validates it,
+saves it as `lib/approved-priming-proofs/<site brand id>.json` and regenerates
+`lib/approved-priming-proof-reports.ts`. Brands whose newsroom owns the site root rewrite `/cyclotron` into the
 newsroom; for those, link the API route.
 
 ## 4. Publication panel (embedded or remote)
@@ -480,3 +501,204 @@ from the integration Cyclotron checkout. See Cyclotron
 
 Deployment still needs the release owner's route, session and grant composition
 and the chosen storage authority (PPY-58f107).
+
+## Self-training from human decisions, in shadow mode
+
+A cyclotron learns only from References a person explicitly accepted or
+rejected. The Newsroom's curation Lambda records `actorKind: "human"` on the
+curation Message only when AppSync supplied a user-pool subject claim for the
+caller; request arguments cannot claim it, and IAM-signed service callers and
+agents record `service`. A curation with no recorded actor kind, from before
+this rule, never teaches.
+
+Each decide-relevance sweep:
+
+- sends the human review of every decided Reference to the cyclotron (a later
+  opposite label corrects it);
+- primes the cyclotron with every human-reviewed Reference it never decided,
+  with the editor's note as human feedback and never inside the item;
+- decides pending References. A decision is a suggestion: it never changes
+  curation status. The relation records the labels and doctrine behind it
+  (`provenance`: label set, doctrine fingerprint, teaching-label fingerprint and
+  counts) next to the model version and fingerprint;
+- records live agreement (`cyclotron-shadow-agreement/v1`, a KnowledgeRawPayload
+  beside the status snapshot): suggestions compared with later human decisions,
+  with precision and recall. Reviews made before the suggestion, or by anyone
+  not provably human, are left out.
+
+Controls in the steering config's `relevanceCyclotron` block: `enabled: false`
+switches the publication off (the sweep decides nothing and says why), and
+`maxDecisionsPerDay` caps new decisions per UTC day, on top of
+`maxRequestsPerSweep`.
+
+Which reviews reach the decision prompt: priming examples and training-role
+labels do; development and audit-role labels do not. A review of a decision the
+review program did not send is reviewer-selected and is always training. A
+review of a decision the program sent is placed by hash: about a fifth are
+protected audit evidence and about a quarter of the rest are held for
+development, so they do not reach the prompt. That is deliberate, and it is why
+the proof above teaches through priming, where every example reaches the prompt.
+
+Section labels follow the same rule. A human or delegated accept can carry a
+`sectionId` (an enabled `NewsroomSection`, validated when recorded and stored in
+the curation Message metadata beside `actorKind`). `human_section_for_review(reference,
+messages, section_ids)` in `relevance_decisions.py` returns that id only when the
+latest curation is an explicit human accept carrying a section id in the given
+set, and `None` otherwise. Agent or unknown actors, rejections and unrecognised
+ids never produce a section label.
+
+Historic curation has no `actorKind`. `papyrus references stamp-curation-actor-kind
+--human-authors <label,label>` stamps `human` only on curation whose author label
+a person names, and is a dry run (it also lists every other author label) until
+`--apply`.
+
+Not yet built: retiring a taught label when a human changes it to no label
+(the engine corrects a flipped label, but cannot remove a primed example), and
+gating automatic decisions on an approved fresh proof.
+
+### The gate before any automatic decision
+
+A cyclotron decision is only a suggestion. Nothing may change a Reference's
+curation status automatically until a person has approved a fresh
+cross-validated proof. `relevanceCyclotron.approvedProofPath` names the approved
+report file (the one committed through `npm run approve:priming-proof`). Every
+sweep stores the gate's verdict beside the live agreement as `autoDecision`:
+
+- `allowed: false` with a `reason` when there is no approved proof, ten or more
+  human labels have arrived since it was run, it is more than 30 days old, or
+  its agreement at the largest label count is under 0.9.
+- `allowed: true` with `scope: "reject-clear-misses"` otherwise. Accepting is
+  never automatic, and nothing in the sweep acts on the gate yet.
+
+`proof_is_due` gives the reason a fresh draft proof should be run (new labels or
+age), for the scheduled proof that follows.
+
+### Withdrawn labels
+
+If a person sets a reviewed Reference back to pending, or a later curation is not
+an explicit human label, the next sweep retracts the label the cyclotron learned
+from it (`undo_review`, counted as `retiredLabels`). Priming examples added for
+References no one decided have no retraction in the engine yet; that needs a
+Cyclotron change.
+
+Withdrawing a person's review of a Reference the cyclotron never decided now
+retracts its priming example too (`retract_priming_examples`, Cyclotron PR 49).
+
+## Site cyclotron: a classifier per Section
+
+One shared cyclotron for the whole site (`siteCyclotron` in the steering config,
+built by `papyrus_content.site_cyclotron`). Every enabled newsroom Section gets a
+binary classifier (`section-fit-<id>`: does this Reference belong in that
+Section?) and one multi-class `section-selector` chooses the Section. The
+classifier set is derived from the Section list, so the Section curation that
+Papyrus already has stays the only place Sections are maintained; each rubric is
+seeded from the Section's mission, policy, assignment guidance and kill criteria.
+The block holds only the cyclotron id, `enabled`, `maxDecisionsPerDay`,
+`approvedProofPath` and `store`; the model, optimizer and review program come
+from `relevanceCyclotron`. Training uses only the Section a person explicitly
+chose (PPY-1b1788). Epic PPY-0a285b.
+
+### The site sweep: `references decide-site-sections`
+
+`papyrus_content.site_sweep` runs the site cyclotron the way the relevance sweep
+runs the relevance cyclotron: one writer through the `cyclotron.site` Assignment
+claim, the store restored from and saved to the private bucket, the same
+`enabled` and `maxDecisionsPerDay` controls (a Reference counts once however
+many classifiers answer) and the same `approvedProofPath` gate verdict.
+
+```bash
+poetry run papyrus references decide-site-sections            # dry run: lists pending references, no model call
+poetry run papyrus references decide-site-sections --apply    # decide, teach, record agreement, save the store
+```
+
+`--sections-file` defaults to `corpora/<publication>-newsroom-sections.yml`, the
+publication named by the `--config` file (`papyrus-steering.yml` gives
+`papyrus-newsroom-sections.yml`).
+
+### Per tenant
+
+`--tenant <id>` (or `PAPYRUS_TENANT_ID`) makes the sweep and the proof per
+tenant on a multi-tenant backend (see [multi-tenancy.md](multi-tenancy.md)). The
+Section list is then that tenant's `NewsroomSection` rows, read through its
+tenant-scoped client (`--sections-file` is ignored); the yml seed stays the
+source for a single-tenant backend. The cyclotron id, local store path, S3
+prefix, `cyclotron.site` Assignment and `site_decision_is` records are scoped by
+appending `-<tenant>` to the configured cyclotron id, store path and prefix, so
+two tenants with different Sections each have a cyclotron with only their own
+classifiers and one tenant's sweep never supersedes the other's decisions. The
+steering config, including the decision model and `approvedProofPath`, is
+shared. A tenant with no Sections is refused with the command that seeds them:
+`papyrus newsroom import-sections --tenant <id>`.
+
+- One `decide` per pending Reference answers every classifier. Each answer is
+  its own current `SemanticRelation` with predicate `site_decision_is` and
+  `classifierId` `<cyclotronId>/<classifier>`, carrying the decision id, label,
+  probabilities, version, fingerprint and provenance, and superseding that
+  Reference's previous current relation for the same classifier. Every one is a
+  suggestion; curation status is never changed.
+- A delegated accept comes from a delegation a person approved: the agent requests it with `papyrus references request-delegation`, keeps the secret in a private file, and a person approves the short code in the Newsroom (see "Getting a delegation without pasting a secret" in `docs/story-reporting.md`). A pending, denied or unapproved delegation is refused.
+- Teaching comes only from an explicit human or delegated accept that names a
+  Section (`human_section_for_review`). For a Reference placed in Section S the
+  selector learns S, `section-fit-S` learns `fits`, and every other
+  `section-fit-*` learns `does-not-fit`. This assumes a Reference belongs to a
+  single Section. Agents, unknown actors, rejections and accepts without a
+  Section never teach. A Reference the cyclotron never decided teaches as a
+  priming example for each classifier; a decided one teaches through one
+  checklist review, with the curation Message id as the review id, so a repeat
+  sweep changes nothing.
+- The `cyclotron-shadow-agreement/v1` payload for the site cyclotron holds, per
+  classifier under `classifiers`, the agreement metrics of suggestions against
+  later explicit human Section decisions (selector: comparisons, correct,
+  accuracy; fit classifiers: agreement, precision, recall, confusion), the
+  overall `selectorAccuracy`, and the same `autoDecision` and `loop` entries as
+  the relevance payload. A decision made after the human's review does not count.
+- The classifier set follows the Section list (PPY-f579a2,
+  `papyrus_content.site_classifier_set`). Before each sweep the stored
+  cyclotron's active classifiers are compared with the ones the enabled Sections
+  call for. A new Section gets a classifier (added through the engine's
+  `add_classifiers`); a removed or disabled Section has its classifier retired
+  (`retire_classifiers`), keeping its labels and history, and enabling it again
+  brings it back with them. The dry run lists what would change under
+  `classifierSet` and in warnings, and changes nothing. A classifier's labels can
+  never change, so the selector's id names its Section set
+  (`section-selector-<hash>`): when the set of Sections changes, the old selector
+  is retired and a new one added. A fit classifier's question names the Section id
+  and not its title, so renaming a Section never conflicts with the stored
+  classifier. Each change is recorded in the store with who and when.
+- A newly added classifier cannot review decisions made before it existed, so it
+  learns from the Section choices people made earlier as priming examples, and
+  from every decision made after it was added. Changing the set changes the
+  shared decision request, so decisions nobody has reviewed yet are decided again
+  and the other classifiers' ML heads refit on the next decision; their labels and
+  rubrics are untouched. Withdrawn Section labels are not yet retracted.
+
+### The Section proof: `references prove-site-sections`
+
+`papyrus_content.section_proof` measures how often the site cyclotron's
+classifiers agree with held-out human Section choices, the way the relevance
+proof does for relevance. Labels come only from explicit human Section choices
+(the same ones the sweep teaches from). Each classifier is cross-validated on its
+own: every human-placed Reference is held out once, taught only by the placements
+outside its own fold, and decided with and without that teaching, using the
+relevance proof's folds, runner and agreement metrics. The selector reports
+accuracy and per-Section recall; each Section's fit classifier reports
+precision, recall and F1.
+
+```bash
+poetry run papyrus references prove-site-sections --proof-id sections-1                          # dry run: label counts, what is provable, no model call
+poetry run papyrus references prove-site-sections --proof-id sections-1 --apply --output report.json
+```
+
+- The report schema is `cyclotron-section-proof/v1`: per-classifier results, label
+  counts, and the caveats stated plainly. It holds aggregate numbers only.
+- A classifier with too few labels is `not-yet-provable` with the reason and no
+  number: a fit classifier needs at least 2 positive and 2 negative examples, the
+  selector at least 10 human-placed References (and two enabled Sections), and a
+  Section's recall is shown only with at least 2 placements.
+- The fit classifiers' negatives are inferred from the single-Section assumption,
+  and every number is agreement with editors, not independent truth. Each
+  classifier lists its own sample-size caveat, such as how many percentage points
+  one more correct answer moves recall; under 10 positives (or 30 placed
+  References for the selector) the report calls the numbers a rough indication.
+- `--apply` calls the configured decision model once per placed Reference per
+  classifier, twice (without and with teaching). Tests use the scripted model.

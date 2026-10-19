@@ -34,13 +34,17 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
+from .story_commands import stories_link_reference, stories_note, stories_save_version, stories_show, stories_versions
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
     assignments_backfill_content_items,
     assignments_backfill_section_indexes,
+    assignments_demote_undrafted_content_items,
+    assignments_migrate_content_item_stages,
     assignments_build_context,
     assignments_cancel,
+    assignments_cleanup_automatic,
     assignments_claim,
     assignments_complete,
     assignments_copywriting_output,
@@ -101,10 +105,10 @@ from .item_content_commands import (
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
 from .messages_commands import (
     messages_backfill_message_body,
-    messages_backfill_insight_message_body,
+    messages_backfill_note_message_body,
     messages_export_legacy_comments,
     messages_import_legacy_comments,
-    messages_repair_insight_titles,
+    messages_migrate_insights_to_notes,
     messages_scrub_inline_content,
 )
 from .model_defaults import (
@@ -203,6 +207,7 @@ from .markus_derive_commands import content_markus_derive
 from .markus_export_commands import content_export_published
 from .backend_copy_commands import content_copy_backend
 from .markus_import_commands import content_import_markus
+from .tenant_adoption_commands import content_adopt_tenant_data
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
 from .renditions_commands import content_renditions
@@ -220,6 +225,7 @@ PORTED_COMMANDS = frozenset(
         "content:scrub-item-inline-body",
         "content:markus-derive",
         "content:import-markus",
+        "content:adopt-tenant-data",
         "content:publish",
         "content:unpublish",
         "content:rebuild",
@@ -241,6 +247,9 @@ PORTED_COMMANDS = frozenset(
         "references:process-create-accession-assignments",
         "references:process-accession-now",
         "references:review-curation",
+        "references:approve",
+        "references:reject",
+        "references:request-delegation",
         "references:list-predictions",
         "references:review-classification",
         "references:label",
@@ -268,9 +277,14 @@ PORTED_COMMANDS = frozenset(
         "references:export-analysis-manifest",
         "references:export-scope-training",
         "references:decide-relevance",
+        "references:decide-site-sections",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
+        "references:freeze-priming-cross-validation",
+        "references:stamp-curation-actor-kind",
+        "references:prove-priming-cross-validated",
+        "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -288,7 +302,15 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "stories:save-version",
+        "stories:versions",
+        "stories:link-reference",
+        "stories:note",
+        "stories:show",
         "assignments:backfill-content-items",
+        "assignments:demote-undrafted-content-items",
+        "assignments:cleanup-automatic",
+        "assignments:migrate-content-item-stages",
         "assignments:for-object",
         "assignments:build-context",
         "assignments:research-packets",
@@ -341,8 +363,8 @@ PORTED_COMMANDS = frozenset(
         "messages:export-legacy-comments",
         "messages:import-legacy-comments",
         "messages:backfill-message-body",
-        "messages:backfill-insight-message-body",
-        "messages:repair-insight-titles",
+        "messages:backfill-note-message-body",
+        "messages:migrate-insights-to-notes",
         "messages:scrub-inline-content",
         "categories:import-steering",
         "categories:import-config",
@@ -419,6 +441,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_markus_derive(flags)
     elif route == "content:import-markus":
         content_import_markus(flags)
+    elif route == "content:adopt-tenant-data":
+        content_adopt_tenant_data(flags)
     elif route == "content:publish":
         content_publish(flags)
     elif route == "content:unpublish":
@@ -462,6 +486,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:process-accession-now":
         require_reference_process_runtime("references process-accession-now")
         references_accession_now(flags)
+    elif route in ("references:approve", "references:reject"):
+        from .references_commands import references_record_on_behalf_of
+        references_record_on_behalf_of(flags, action=command)
+    elif route == "references:request-delegation":
+        from .references_commands import references_request_delegation
+        references_request_delegation(flags)
     elif route == "references:review-curation":
         references_review_curation(flags)
     elif route == "references:list-predictions":
@@ -530,6 +560,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-relevance":
         from .relevance_sweep import references_decide_relevance
         references_decide_relevance(flags)
+    elif route == "references:decide-site-sections":
+        from .site_sweep import references_decide_site_sections
+        references_decide_site_sections(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
@@ -539,6 +572,18 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:prove-priming":
         from .priming_proof import references_prove_priming
         references_prove_priming(flags)
+    elif route == "references:stamp-curation-actor-kind":
+        from .curation_actor_backfill import references_stamp_curation_actor_kind
+        references_stamp_curation_actor_kind(flags)
+    elif route == "references:freeze-priming-cross-validation":
+        from .priming_proof import references_freeze_priming_cross_validation
+        references_freeze_priming_cross_validation(flags)
+    elif route == "references:prove-priming-cross-validated":
+        from .priming_proof import references_prove_priming_cross_validated
+        references_prove_priming_cross_validated(flags)
+    elif route == "references:prove-site-sections":
+        from .section_proof import references_prove_site_sections
+        references_prove_site_sections(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-corpus-storage-paths":
@@ -573,8 +618,24 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "stories:save-version":
+        stories_save_version(flags)
+    elif route == "stories:versions":
+        stories_versions(flags)
+    elif route == "stories:link-reference":
+        stories_link_reference(flags)
+    elif route == "stories:note":
+        stories_note(flags)
+    elif route == "stories:show":
+        stories_show(flags)
     elif route == "assignments:backfill-content-items":
         assignments_backfill_content_items(flags)
+    elif route == "assignments:demote-undrafted-content-items":
+        assignments_demote_undrafted_content_items(flags)
+    elif route == "assignments:cleanup-automatic":
+        assignments_cleanup_automatic(flags)
+    elif route == "assignments:migrate-content-item-stages":
+        assignments_migrate_content_item_stages(flags)
     elif route == "assignments:for-object":
         assignments_for_object(flags)
     elif route == "assignments:build-context":
@@ -692,10 +753,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         messages_import_legacy_comments(flags)
     elif route == "messages:backfill-message-body":
         messages_backfill_message_body(flags)
-    elif route == "messages:backfill-insight-message-body":
-        messages_backfill_insight_message_body(flags)
-    elif route == "messages:repair-insight-titles":
-        messages_repair_insight_titles(flags)
+    elif route == "messages:backfill-note-message-body":
+        messages_backfill_note_message_body(flags)
+    elif route == "messages:migrate-insights-to-notes":
+        messages_migrate_insights_to_notes(flags)
     elif route == "messages:scrub-inline-content":
         messages_scrub_inline_content(flags)
     elif route == "categories:import-steering":
@@ -1486,18 +1547,19 @@ def print_usage() -> None:
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")
-    print("  messages export/import-legacy-comments,")
+    print("  messages export/import-legacy-comments/migrate-insights-to-notes [--dry-run],")
     print("  categories import/export/draft/review/curation-cycle/rebuild-roots commands,")
     print("    note: rebuild-roots + taxonomy discovery run BERTopic clustering;")
     print("    semi-supervised classifier behavior lives in Biblicus topic-classifier train/project,")
     print("  batch register-catalog/enrich-references,")
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
-    print("  content export-published --out DIR [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
+    print("  content export-published --out DIR [--tenant ID] [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
     print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
-    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
+    print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
+    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json],")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")

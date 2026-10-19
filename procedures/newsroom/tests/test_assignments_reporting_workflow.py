@@ -19,11 +19,11 @@ from papyrus_content.assignments_workflow import (
 
 
 class AssignmentsReportingWorkflowTests(unittest.TestCase):
-    def test_assignment_run_knowledge_scope_defaults_include_assignment_and_insight(self) -> None:
+    def test_assignment_run_knowledge_scope_defaults_include_assignment_and_note(self) -> None:
         scope = assignment_run_knowledge_scope({})
         self.assertIn("assignment", scope["includeObjectKinds"])
         self.assertIn("message", scope["includeObjectKinds"])
-        self.assertEqual(scope["includeMessageKinds"], ["insight"])
+        self.assertEqual(scope["includeMessageKinds"], ["note"])
         self.assertEqual(scope["includeAssignmentTypeKeys"], ["research.*", "reporting.*"])
 
     def test_normalize_reporting_packet_bundle_maps_fields(self) -> None:
@@ -49,7 +49,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-reporting-1",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "queueKey": "edition:edition-2026-05-25:section:news:lane:reporting",
                 "sectionKey": "news",
             },
@@ -85,7 +85,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-reporting-1",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "queueKey": "edition:edition-2026-05-25:section:news:lane:reporting",
                 "sectionKey": "news",
             },
@@ -109,7 +109,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-reporting-1",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "queueKey": "edition:edition-2026-05-25:section:news:lane:reporting",
                 "sectionKey": "news",
             },
@@ -131,7 +131,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-reporting-1",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "queueKey": "edition:edition-2026-05-25:section:news:lane:reporting",
                 "sectionKey": "news",
             },
@@ -152,7 +152,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-research-1",
-                "assignmentTypeKey": "research.edition-candidate",
+                "assignmentTypeKey": "research.candidate",
                 "queueKey": "research:gaming:exploratory",
             },
             assignment_meta={"corpusKey": "AI-ML-research"},
@@ -183,7 +183,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-research-1",
-                "assignmentTypeKey": "research.edition-candidate",
+                "assignmentTypeKey": "research.candidate",
                 "queueKey": "research:gaming:exploratory",
             },
             assignment_meta={"corpusKey": "AI-ML-research"},
@@ -207,7 +207,7 @@ class AssignmentsReportingWorkflowTests(unittest.TestCase):
             },
             assignment={
                 "id": "assignment-research-1",
-                "assignmentTypeKey": "research.edition-candidate",
+                "assignmentTypeKey": "research.candidate",
                 "queueKey": "research:technology:exploratory",
             },
             assignment_meta={"corpusKey": "AI-ML-research"},

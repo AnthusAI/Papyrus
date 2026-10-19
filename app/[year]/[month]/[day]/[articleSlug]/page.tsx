@@ -3,7 +3,7 @@ import { getSiteRenderer } from "../../../../../lib/site-renderer";
 import { getCachedEditionItem, loadCachedEditionContent } from "../../../../../lib/cached-content-repository";
 import { getEditionDatePath, parseEditionArticleRoute } from "../../../../../lib/edition-routes";
 import { buildPresentationFooterEntries } from "../../../../../lib/presentation-footer";
-import { SITE_BRAND } from "../../../../../lib/site-brand";
+import { SITE_BRAND, editionsEnabled } from "../../../../../lib/site-brand";
 import { generateEditionItemStaticParams } from "../../../../../lib/reader-static-params";
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
 export const revalidate = 60;
@@ -39,6 +39,7 @@ export async function generateMetadata({ params }: DateScopedArticlePageProps) {
 }
 
 export default async function DateScopedArticlePage({ params }: DateScopedArticlePageProps) {
+  if (!editionsEnabled()) notFound();
   const { year, month, day, articleSlug } = await params;
   const route = parseEditionArticleRoute({ year, month, day, articleSlug });
   if (!route) notFound();

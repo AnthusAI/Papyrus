@@ -40,7 +40,7 @@ from .assignments_workflow import (
     timestamp_for_path,
     update_newsroom_summary_after_research_packet_creates,
 )
-from .insight_forum import derive_insight_forum_title, derive_insight_packet_lede
+from .note_forum import derive_note_forum_title, derive_note_packet_lede
 from .steering import default_corpus_key
 
 TAVILY_DEEP_ASSIGNMENT_TYPE = "research.tavily-deep"
@@ -320,7 +320,7 @@ def _tavily_completed_report_content(completed: dict[str, Any]) -> tuple[str, st
 
 def _tavily_completed_report_markdown(completed: dict[str, Any]) -> tuple[str, str]:
     report_markdown, structured_summary = _tavily_completed_report_content(completed)
-    lede = derive_insight_packet_lede(report_markdown=report_markdown, structured_summary=structured_summary)
+    lede = derive_note_packet_lede(report_markdown=report_markdown, structured_summary=structured_summary)
     return report_markdown, lede
 
 
@@ -334,11 +334,11 @@ def build_research_packet_from_tavily_completed(
     sources = completed.get("sources") if isinstance(completed.get("sources"), list) else []
     input_text = str(completed.get("input") or "")
     report_markdown, structured_summary = _tavily_completed_report_content(completed)
-    packet_lede = derive_insight_packet_lede(
+    packet_lede = derive_note_packet_lede(
         report_markdown=report_markdown,
         structured_summary=structured_summary,
     )
-    forum_title = derive_insight_forum_title(
+    forum_title = derive_note_forum_title(
         report_markdown=report_markdown,
         assignment_title=str(assignment.get("title") or ""),
         research_question=input_text,
@@ -396,7 +396,7 @@ def build_research_packet_from_tavily_completed(
     }
 
 
-def create_assignment_insight_records(
+def create_assignment_note_records(
     *,
     assignment: dict[str, Any],
     summary: str,
@@ -409,12 +409,12 @@ def create_assignment_insight_records(
     actor_label: str,
     now: str,
 ) -> list[dict[str, Any]]:
-    title = normalize_string(forum_title) or normalize_string(summary) or "Tavily deep research insight"
-    message_id = f"message-assignment-insight-{hash_short([assignment['id'], tavily_request_id, title])}"
+    title = normalize_string(forum_title) or normalize_string(summary) or "Tavily deep research note"
+    message_id = f"message-assignment-note-{hash_short([assignment['id'], tavily_request_id, title])}"
     message = message_record(
         {
             "id": message_id,
-            "messageKind": "insight",
+            "messageKind": "note",
             "messageDomain": "assignment_work",
             "status": "active",
             "summary": title[:500],
@@ -422,8 +422,8 @@ def create_assignment_insight_records(
             "threadId": message_id,
             "sequenceNumber": 1,
             "metadata": {
-                "kind": "research.tavily.insight",
-                "insightTitle": title,
+                "kind": "research.tavily.note",
+                "noteTitle": title,
                 "assignmentId": assignment["id"],
                 "assignmentTypeKey": assignment.get("assignmentTypeKey"),
                 "queueKey": assignment.get("queueKey"),
@@ -445,9 +445,9 @@ def create_assignment_insight_records(
             assignment=assignment,
             message_id=message_id,
             now=now,
-            lifecycle="assignment-tavily-insight",
-            message_kind="insight",
-            metadata_kind="research.tavily.insight",
+            lifecycle="assignment-tavily-note",
+            message_kind="note",
+            metadata_kind="research.tavily.note",
         ),
         semantic_relation_record(
             {
@@ -463,7 +463,7 @@ def create_assignment_insight_records(
                 "reviewRecommended": False,
                 "importRunId": assignment.get("importRunId"),
                 "importedAt": now,
-                "metadata": {"lifecycle": "assignment-tavily-insight", "sourceKind": "tavily_research_task"},
+                "metadata": {"lifecycle": "assignment-tavily-note", "sourceKind": "tavily_research_task"},
             }
         ),
         semantic_relation_record(
@@ -480,7 +480,7 @@ def create_assignment_insight_records(
                 "reviewRecommended": False,
                 "importRunId": assignment.get("importRunId"),
                 "importedAt": now,
-                "metadata": {"lifecycle": "assignment-tavily-insight", "sourceKind": "research_packet"},
+                "metadata": {"lifecycle": "assignment-tavily-note", "sourceKind": "research_packet"},
             }
         ),
     ]
@@ -490,7 +490,7 @@ def create_assignment_insight_records(
         records.append(
             semantic_relation_record(
                 {
-                    "predicate": "insight_about",
+                    "predicate": "note_about",
                     "subjectKind": "message",
                     "subjectId": message_id,
                     "subjectLineageId": message_id,
@@ -503,8 +503,8 @@ def create_assignment_insight_records(
                     "importRunId": assignment.get("importRunId"),
                     "importedAt": now,
                     "metadata": {
-                        "kind": "research.tavily.insight",
-                        "lifecycle": "assignment-tavily-insight",
+                        "kind": "research.tavily.note",
+                        "lifecycle": "assignment-tavily-note",
                         "tavilyRequestId": tavily_request_id,
                     },
                 }
@@ -573,13 +573,13 @@ def finalize_tavily_deep_research(
     research_packet_message_id = packet_entries[0]["message"]["id"] if packet_entries else ""
 
     if not forum_title:
-        forum_title = derive_insight_forum_title(
+        forum_title = derive_note_forum_title(
             report_markdown=report_markdown,
             assignment_title=str(assignment.get("title") or ""),
             research_question=tavily_research_input_for_assignment(assignment, assignment_meta),
             structured_summary=str(raw_packet.get("summary") or ""),
         )
-    insight_records = create_assignment_insight_records(
+    note_records = create_assignment_note_records(
         assignment=assignment,
         summary=forum_title,
         body=report_markdown,
@@ -598,7 +598,7 @@ def finalize_tavily_deep_research(
         actor_label=actor_label,
         now=now,
     )
-    changes = build_record_changes(client, [*insight_records, event])
+    changes = build_record_changes(client, [*note_records, event])
     apply_record_changes(client, changes)
     update_newsroom_summary_after_research_packet_creates(
         client,
@@ -612,7 +612,7 @@ def finalize_tavily_deep_research(
         "tavilyRequestId": tavily_request_id,
         "taskMessageId": task_message_id,
         "researchPacketMessageId": research_packet_message_id,
-        "insightMessageId": insight_records[0]["expected"]["id"],
+        "noteMessageId": note_records[0]["expected"]["id"],
         "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0),
         "intake": intake_result,
     }
@@ -835,5 +835,5 @@ def poll_tavily_deep_research_command(flags: list[str]) -> None:
     print(f"assignments\ttavily-deep\tassignment\t{result.get('assignmentId')}")
     if result.get("tavilyRequestId"):
         print(f"assignments\ttavily-deep\ttavily-request-id\t{result.get('tavilyRequestId')}")
-    if result.get("insightMessageId"):
-        print(f"assignments\ttavily-deep\tinsight\t{result.get('insightMessageId')}")
+    if result.get("noteMessageId"):
+        print(f"assignments\ttavily-deep\tnote\t{result.get('noteMessageId')}")

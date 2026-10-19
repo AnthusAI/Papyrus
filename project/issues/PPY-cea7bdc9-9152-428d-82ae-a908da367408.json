@@ -1,0 +1,34 @@
+{
+  "id": "PPY-cea7bdc9-9152-428d-82ae-a908da367408",
+  "title": "Tactus books 1: docs builder book mode (_quarto.yml nav, snippet includes, metadata substitution)",
+  "description": "Part of PPY-81c9b9. In papyrus_content.markus_renderer.docs_site: read book.chapters and part groups from _quarto.yml into sidebar groups with previous/next links; treat .qmd as Markdown; expand {file= snippet= show-path=} fences from -- snippet:start/end markers and fail on a missing snippet; replace {{< meta KEY >}} from book-links.yml and tactus-target.yml. Unit tests with a small chapter fixture. Cloud work, Papyrus only. Plan: /mnt/project-files/anthus-sites-to-papyrus/tactus-books-inventory-and-plan.md",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+  "labels": [
+    "tactus-books"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "86fb82d2-91fc-4dc0-9c00-dbe6e661c1b2",
+      "author": "unknown",
+      "text": "Merged in Papyrus PR 322 (book_site module). Builds all three real books: Nutshell 19 pages, Programming 26, Learning 24, with snippet includes, meta shortcodes, part-grouped sidebar and redirects from chapters/NAME.html.",
+      "created_at": "2026-10-18T21:03:07.699857Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T20:50:36.904324Z",
+  "updated_at": "2026-10-18T21:03:07.891106Z",
+  "closed_at": "2026-10-18T21:03:07.890901Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

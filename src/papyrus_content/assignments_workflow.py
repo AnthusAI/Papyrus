@@ -13,6 +13,8 @@ from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
     content_item_lineage_for_new_assignment,
     plan_content_item_backfill,
+    plan_content_item_stage_migration,
+    plan_undrafted_backfill_story_demotion,
     require_assignment_content_item_lineage_id,
 )
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
@@ -53,7 +55,7 @@ ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_KINDS = (
     "assignment",
     "message",
 )
-ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_MESSAGE_KINDS = ("insight",)
+ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_MESSAGE_KINDS = ("note",)
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_ASSIGNMENT_TYPES = ("research.*", "reporting.*")
 
 
@@ -126,7 +128,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     research_mode = normalize_research_mode(options.get("research-mode") or options.get("researchMode"))
     now = _utc_now()
-    assignment_type_key = normalize_string(options.get("type")) or "research.edition-candidate"
+    assignment_type_key = normalize_string(options.get("type")) or "research.candidate"
     tavily_deep = assignment_type_key == "research.tavily-deep"
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
@@ -153,7 +155,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         title=title,
         summary=summary,
         section_key=section_key,
-        stage="research",
+        stage="reporting",
         actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
         now=now,
     )
@@ -274,9 +276,9 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     section_key = normalize_string(options.get("section"))
     corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     now = _utc_now()
-    assignment_type_key = normalize_string(options.get("type")) or "reporting.edition-candidate"
-    if assignment_type_key != "reporting.edition-candidate":
-        raise ValueError("assignments create-reporting only supports --type reporting.edition-candidate.")
+    assignment_type_key = normalize_string(options.get("type")) or "reporting.candidate"
+    if assignment_type_key != "reporting.candidate":
+        raise ValueError("assignments create-reporting only supports --type reporting.candidate.")
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
     queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
@@ -302,7 +304,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         title=title,
         summary=summary,
         section_key=section_key,
-        stage="report",
+        stage="reporting",
         actor_label=normalize_string(options.get("actor-label")) or "papyrus-cli",
         now=now,
     )
@@ -466,7 +468,7 @@ def run_research_assignment(flags: list[str]) -> None:
         research,
         assignment={
             "id": assignment_id,
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "",
         },
         assignment_meta={"researchMode": research_mode, "corpusKey": corpus_key},
@@ -2284,6 +2286,56 @@ def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[
         if index == len(changes) or index % 100 == 0:
             print(f"assignments\tbackfill-content-items\tprogress\t{index}/{len(changes)}", flush=True)
     print(f"assignments\tbackfill-content-items\tupdated\t{len(changes)}")
+
+
+def demote_undrafted_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
+    apply = resolve_mutation_apply(options, "assignments demote-undrafted-content-items")
+    items = client.list_records("Item")
+    reporting_assignments = [
+        assignment
+        for assignment in client.list_records("Assignment")
+        if str(assignment.get("assignmentTypeKey") or "").startswith("reporting.")
+    ]
+    changes = plan_undrafted_backfill_story_demotion(items=items, reporting_assignments=reporting_assignments)
+    print(f"assignments\tdemote-undrafted-content-items\tplanned\t{len(changes)}")
+    for change in changes:
+        expected = change["expected"]
+        print(
+            "\t".join(
+                [
+                    "content-item-demotion",
+                    expected["id"],
+                    f"from={change['current'].get('stage')}",
+                    "to=assignment",
+                    f"title={expected.get('title') or ''}",
+                ]
+            )
+        )
+    if not apply:
+        print("assignments\tdemote-undrafted-content-items\tapply\tskipped\tdry run; rerun without --dry-run to write")
+        return
+    for change in changes:
+        client.upsert("Item", change["expected"])
+    print(f"assignments\tdemote-undrafted-content-items\tupdated\t{len(changes)}")
+
+
+def migrate_content_item_stages(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
+    apply = resolve_mutation_apply(options, "assignments migrate-content-item-stages")
+    changes = plan_content_item_stage_migration(items=client.list_records("Item"))
+    print(f"assignments\tmigrate-content-item-stages\tplanned\t{len(changes)}")
+    for change in changes[:25]:
+        expected = change["expected"]
+        print("\t".join(["content-item-stage", expected["id"], f"from={change['current'].get('stage')}", f"to={expected['stage']}"]))
+    if len(changes) > 25:
+        print(f"assignments\tmigrate-content-item-stages\tpreview-truncated\t{len(changes) - 25} more")
+    if not apply:
+        print("assignments\tmigrate-content-item-stages\tapply\tskipped\tdry run; rerun without --dry-run to write")
+        return
+    for index, change in enumerate(changes, start=1):
+        client.upsert("Item", change["expected"])
+        if index == len(changes) or index % 100 == 0:
+            print(f"assignments\tmigrate-content-item-stages\tprogress\t{index}/{len(changes)}", flush=True)
+    print(f"assignments\tmigrate-content-item-stages\tupdated\t{len(changes)}")
 
 
 def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:

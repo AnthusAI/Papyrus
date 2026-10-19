@@ -1,3 +1,5 @@
+@font-face { font-family: "Jersey 25"; src: url("./fonts/Jersey25-Regular.ttf") format("truetype"); font-weight: 400 900; font-display: swap; }
+
 /* Anthus theme pack — colors only.
    Hex values are read off the live Gatsby site at AnthusAI/Anth.us
    (`src/styles/variables.scss` `:root`). That file is not loaded at runtime.
@@ -63,4 +65,119 @@
   :root[data-site-brand="anth-us"] {
     color-scheme: light;
   }
+}
+
+/* Anthus newsroom CMS: soft blue paper, Montserrat, pink accent rules. Selection uses rules and weight, never inverted colors. */
+:root[data-site-brand="anth-us"] .newsroom-organizer {
+  --org-paper: var(--theme-paper);
+  --org-ink: var(--theme-ink);
+  --org-muted: var(--theme-muted);
+  --org-line: #c9dbe6;
+  --org-accent: var(--theme-moss);
+  --anth-ui-font: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  background: var(--org-paper);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer *:not(code):not(pre):not(textarea):not(kbd) {
+  font-family: var(--anth-ui-font);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer :is(h1, h2, h3, .organizer-brand, .organizer-destinations a strong, .kb-column-header, .organizer-masthead) {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand {
+  --logo-tile: #f9c9e1;
+  --logo-glyph: #1b1426;
+  display: block;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--org-line);
+  color: #1b1426;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand-logo {
+  display: block;
+  height: 36px;
+  width: auto;
+  overflow: visible;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .anth-us-logo-tile { fill: var(--logo-tile); }
+:root[data-site-brand="anth-us"] .newsroom-organizer .anth-us-logo-a { fill: var(--logo-glyph); }
+:root[data-site-brand="anth-us"] .newsroom-organizer .anth-us-logo-word { fill: #1b1426; }
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand small {
+  color: var(--org-muted);
+  font-family: var(--anth-ui-font) !important;
+  letter-spacing: 0.22em;
+  font-weight: 600;
+  margin-top: 12px;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-sidebar {
+  background: var(--theme-card);
+  border-right: 1px solid var(--org-line);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-destinations a {
+  border-bottom: 1px solid var(--org-line);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-destinations a strong {
+  font-size: 15px;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-destinations a[aria-current="page"] {
+  background: var(--theme-stage);
+  border-bottom: 1px solid var(--theme-moss);
+  box-shadow: inset 4px 0 0 var(--theme-moss);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-topbar {
+  border-bottom: 1px solid var(--org-line);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-header-button {
+  background: var(--theme-card);
+  border-color: var(--org-line);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-header-button[aria-pressed="true"] {
+  background: var(--theme-card);
+  box-shadow: inset 0 -3px 0 var(--theme-moss);
+  color: var(--theme-quote);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .kb-column-header {
+  border-bottom: 2px solid var(--theme-moss);
+  color: var(--theme-quote);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .issue-card {
+  background: var(--theme-card);
+  box-shadow: 0 1px 0 var(--org-line) !important;
+  padding-left: 16px;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .issue-card + .issue-card {
+  border-top: 1px solid var(--org-line) !important;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board :is(.issue-card h3, .kb-issue-detail h2, h3, h2) {
+  font-family: var(--anth-ui-font) !important;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .issue-card h3 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .issue-card[data-selected="true"] {
+  outline: 2px solid var(--theme-moss);
+  outline-offset: -2px;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .kb-issue-detail {
+  background: var(--theme-card);
+  border-color: var(--org-line);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .papyrus-newsprint-board .kb-issue-detail h2 {
+  border-bottom: 3px solid var(--theme-moss);
+  font-size: 24px;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer [data-slot="card"] {
+  background: var(--theme-card);
+  border-color: var(--org-line);
+  border-top: 3px solid var(--theme-moss);
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer :is([class~="bg-primary"], [data-slot="button"][class*="bg-primary"], .news-desk-primary-action-button) {
+  border-color: var(--theme-moss) !important;
+  color: var(--theme-quote) !important;
+}
+:root[data-site-brand="anth-us"] .newsroom-desk-group-heading {
+  border-bottom-color: var(--theme-moss);
 }

@@ -1,0 +1,32 @@
+{
+  "id": "PPY-d49d6f99-9a1d-4bf0-b5d7-663656ae4bf7",
+  "title": "Cyclotron-web slice 2: pictograms, playback and recording charts as Papyrus islands",
+  "description": "Follow Prospectus-web web/island (client.tsx, server.tsx, data.ts). Covers RunPlayback, EditorialPlayback, LearningCurveChart, ConfusionMatrix, ReviewEffortChart, RecordingComparison and the pictograms. Recordings JSON stays the source of truth.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "dc699c13-def3-44f5-b938-d78dc169831f",
+      "author": "unknown",
+      "text": "Slice 2 landed: AnthusAI/Cyclotron-web PR 136 merged to develop (2026-10-18): home page, use-cases and recordings indexes, and the named islands. Standalone island bundle (dropping Next) is tracked as slice 3.",
+      "created_at": "2026-10-18T13:25:22.067785Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T12:58:48.094288Z",
+  "updated_at": "2026-10-18T13:25:24.290551Z",
+  "closed_at": "2026-10-18T13:25:24.290384Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

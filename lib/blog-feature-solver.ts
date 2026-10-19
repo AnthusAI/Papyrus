@@ -12,7 +12,7 @@ import {
 } from "./blog-rhythm";
 import { layoutAllTextLines, layoutTextLines, prepareWithSegments, type TextLine, type TextObstacle } from "./pretext-layout";
 
-export type FeaturedLayoutMode = "obstacle" | "float" | "stacked";
+export type FeaturedLayoutMode = "float" | "stacked";
 
 export type SolvedFeaturedItem = {
   mode: FeaturedLayoutMode;
@@ -92,19 +92,6 @@ export function solveFeaturedItem(input: SolveFeaturedItemInput): SolvedFeatured
   });
   const aspectRatio = getImageAspectRatio(input.imageAsset);
 
-  if (mode === "obstacle") {
-    return solveObstacleFeaturedItem({
-      prepared,
-      containerWidth: input.containerWidth,
-      viewportWidth: input.viewportWidth,
-      rhythm,
-      textStyle: input.textStyle,
-      aspectRatio,
-      gap,
-      imageAsset: input.imageAsset,
-    });
-  }
-
   if (mode === "float") {
     return solveFloatFeaturedItem({
       prepared,
@@ -150,96 +137,6 @@ type PreparedSolveInput = {
   gap: number;
   imageAsset: ArticleImageAsset;
 };
-
-function solveObstacleFeaturedItem(input: PreparedSolveInput): SolvedFeaturedItem {
-  const maxImageWidth = getFloatImageWidth(input);
-  let best: {
-    score: number;
-    textLines: TextLine[];
-    imageHeight: number;
-    imageWidth: number;
-    captionHeight: number;
-    mediaHeight: number;
-    copyWidth: number;
-    textFrameHeight: number;
-    hasMore: boolean;
-  } | null = null;
-
-  for (const imageWidth of getObstacleImageWidths(maxImageWidth, input.rhythm)) {
-    const copyWidth = Math.max(
-      getFloatCopyMinimum(input.viewportWidth, input.rhythm),
-      input.containerWidth - imageWidth - input.gap,
-    );
-    const imageHeight = snapImageHeight(imageWidth / input.aspectRatio, input.rhythm, input.imageAsset.layout);
-    const captionHeight = getFeatureCaptionHeight(input.imageAsset, imageWidth, input.rhythm);
-    const mediaHeight = imageHeight + captionHeight;
-    const obstacle: TextObstacle = {
-      x: Math.max(0, copyWidth - imageWidth),
-      y: 0,
-      width: imageWidth,
-      height: mediaHeight,
-    };
-
-    let candidateHeight = mediaHeight;
-    let result = layoutTextLines({
-      prepared: input.prepared,
-      cursor: { segmentIndex: 0, graphemeIndex: 0 },
-      maxHeight: candidateHeight,
-      maxWidth: copyWidth,
-      lineHeight: input.textStyle.lineHeight,
-      linePaintHeight: input.textStyle.linePaintHeight,
-      fontSize: input.textStyle.fontSize,
-      fontFamily: input.textStyle.fontFamily,
-      obstacles: [obstacle],
-    });
-
-    const textBottom = getMeasuredTextHeight(result.lines);
-    if (textBottom > 0 && textBottom < candidateHeight) {
-      candidateHeight = reserveRhythmRows(textBottom, input.rhythm);
-      obstacle.height = candidateHeight;
-      result = layoutTextLines({
-        prepared: input.prepared,
-        cursor: { segmentIndex: 0, graphemeIndex: 0 },
-        maxHeight: candidateHeight,
-        maxWidth: copyWidth,
-        lineHeight: input.textStyle.lineHeight,
-        linePaintHeight: input.textStyle.linePaintHeight,
-        fontSize: input.textStyle.fontSize,
-        fontFamily: input.textStyle.fontFamily,
-        obstacles: [obstacle],
-      });
-    }
-
-    const whitespace = Math.max(0, candidateHeight - getMeasuredTextHeight(result.lines));
-    const score = 50_000 - whitespace * 1.4 - Math.abs(candidateHeight - mediaHeight) * 0.35 - Math.abs(maxImageWidth - imageWidth) * 0.2;
-    const candidate = {
-      score,
-      textLines: result.lines,
-      imageHeight: Math.min(imageHeight, candidateHeight),
-      imageWidth,
-      captionHeight,
-      mediaHeight: candidateHeight,
-      copyWidth,
-      textFrameHeight: reserveRhythmRows(getMeasuredTextHeight(result.lines), input.rhythm),
-      hasMore: result.hasMore,
-    };
-    if (!best || candidate.score > best.score) best = candidate;
-  }
-
-  const fallbackImageHeight = input.rhythm.rowHeight * 6;
-  return {
-    mode: "obstacle",
-    textLines: best?.textLines ?? [],
-    imageHeight: best?.imageHeight ?? fallbackImageHeight,
-    imageWidth: best?.imageWidth ?? maxImageWidth,
-    captionHeight: best?.captionHeight ?? 0,
-    mediaHeight: best?.mediaHeight ?? fallbackImageHeight,
-    copyWidth: best?.copyWidth ?? input.containerWidth,
-    textFrameHeight: best?.textFrameHeight ?? 0,
-    hasMore: best?.hasMore ?? false,
-    gap: input.gap,
-  };
-}
 
 function solveFloatFeaturedItem(input: PreparedSolveInput): SolvedFeaturedItem {
   const geometry = computeFloatGeometry({
@@ -415,11 +312,6 @@ function getFloatImageMinimum(viewportWidth: number, rhythm: VerticalRhythm): nu
 
 function getFloatCopyMinimum(viewportWidth: number, rhythm: VerticalRhythm): number {
   return rhythmLengthRows(viewportWidth <= 600 ? FLOAT_COPY_MIN_PHONE_ROWS : FLOAT_COPY_MIN_DESKTOP_ROWS, rhythm);
-}
-
-function getObstacleImageWidths(maximum: number, rhythm: VerticalRhythm): number[] {
-  const candidateRows = [0, 1, 2].map((offset) => Math.max(rhythm.rowHeight * 5, maximum - (offset * rhythm.rowHeight)));
-  return Array.from(new Set(candidateRows));
 }
 
 function snapImageHeight(

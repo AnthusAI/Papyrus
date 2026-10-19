@@ -171,12 +171,12 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
 - Assignment lifecycle changes use protected actions or the IAM authoring CLI
   and append `AssignmentEvent` audit rows. The Newsroom `Assignments` tab
   should show claim/release/complete/cancel/reopen workflow actions, not
-  edition-candidate culling.
+  candidate culling.
 - **One content item, one lifecycle** (`docs/content-item-lifecycle.md`). A
   piece of content is one `Item` lineage from the moment work on it starts
   until publication. `Item.stage` carries the lifecycle (`idea`,
-  `assignment`, `research`, `report`, `editor_select`, `copywriting`, `illustration`, `typesetting`,
-  `published`); `Item.versionState` still versions the copy. Research,
+  `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`,
+  `published`, `held`, `spiked`); `Item.versionState` still versions the copy. Research,
   reporting and copywriting Assignments are work on that content item and
   carry its `itemLineageId`; they never create a second piece of content. The
   name editors see is `SiteBrand.contentItemName` (default Story). Do not

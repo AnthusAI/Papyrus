@@ -1,0 +1,43 @@
+{
+  "id": "PPY-95021996-f178-404e-ac04-760a38a29ef4",
+  "title": "Rename Anth.us repos: Anth.us-Papyrus to Anth.us-web (public), Anth.us to Anth.us-legacy-Gatsby, with Papyrus notice",
+  "description": "Ryan, 2026-10-17: pay off naming debt. (1) Rename AnthusAI/Anth.us-Papyrus to AnthusAI/Anth.us-web and make it public. (2) Rename AnthusAI/Anth.us to AnthusAI/Anth.us-legacy-Gatsby. (3) Add a clear notice to the legacy repo (README, AGENTS) that anth.us is powered by Papyrus and served from Anth.us-web. (4) Update old repo names in docs and Kanbus boards (PPY-736021, PPY-b488da, PPY-44a215 etc.). Blocker before going public: Anth.us-Papyrus history has no credentials but contains AWS account IDs (712236451410, 830955873957, 335163751677), a CloudFront ARN, a deploy-role ARN and an old AppSync/Amplify domain; Ryan to decide publish as-is vs scrub history. Also verify the Amplify app GitHub connection and CI (anthus-site-content, PPY-b488da) survive the rename; any AWS/Amplify change runs on Ryan's Mac. GitHub redirects old names, but git remotes and workflow references should be updated.",
+  "type": "sub-task",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8cd086-eaf1-4ae1-bc3d-ecb2edea3b93",
+  "labels": [
+    "anthus-move-plan"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c5413403-1d2e-460a-bc62-d8c92055ed66",
+      "author": "unknown",
+      "text": "2026-10-18: Anth.us PR 88 merged (legacy notice, no AWS IDs in current files). Repos renamed: Anth.us-Papyrus -> Anth.us-web, Anth.us -> Anth.us-legacy-Gatsby. Docs/brand/fixture references updated in the Papyrus repo. Remaining: history scrub + force-push of both repos on the Mac (runbook /mnt/project-files/anthus-renames/scrub-and-rename.md), then make Anth.us-web public. Older issues mentioning the old names (e.g. PPY-736021, PPY-44a215, PPY-b488da) stay as history; new names are recorded here.",
+      "created_at": "2026-10-18T12:57:02.066973Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "68b39b70-01c5-4a00-b88e-079c1ab2e680",
+      "author": "unknown",
+      "text": "2026-10-18 done. Repos renamed (Anth.us-web, Anth.us-legacy-Gatsby); Anth.us PR 88 + Papyrus PR 267 merged; Anth.us-web made public. History scrubbed on both repos' branches and verified from fresh cloud mirror clones: Anth.us-web 187 commits/58 branches, Anth.us-legacy-Gatsby 819 commits/79 branches, 0 account, distribution, AppSync or Amplify app ids on any branch. Remaining outside this issue: refs/pull/* on GitHub (55 refs on Anth.us-web) still hold old commits; GitHub Support purge requested separately. Anth.us-web repo description still says 'STAGING ... Not the production anth.us site'; Ryan to update in repo settings.",
+      "created_at": "2026-10-18T14:04:17.662183Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-17T16:50:47.592993Z",
+  "updated_at": "2026-10-18T14:04:25.819214Z",
+  "closed_at": "2026-10-18T14:04:25.818933Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

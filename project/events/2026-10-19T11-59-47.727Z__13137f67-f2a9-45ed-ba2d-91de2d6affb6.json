@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "13137f67-f2a9-45ed-ba2d-91de2d6affb6",
+  "issue_id": "PPY-35468066-27c4-44f3-b0d6-134d187e6944",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T11:59:47.727Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Edition-based demo publication: a Miami Beach local events site",
+    "description": "Backlog (Ryan 2026-10-19). A demo publication that publishes in editions, to exercise the edition feature once it is an opt-in setting. Idea: a local events site for Miami Beach with natural cadence editions: Art Basel edition, Spring Music edition, Summer Festival edition. Depends on PPY-8b3b4d. Not started; YAGNI until then.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

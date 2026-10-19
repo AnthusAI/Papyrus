@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
 from .accession import assignment_created_event_record, resolve_biblicus_workdir
 from .catalog import semantic_relation_record
 from .env import PAPYRUS_ROOT
@@ -128,7 +129,7 @@ def reference_text_extraction_assignment_record(
         "createdBy": actor_label,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "assignments",
+        "newsroomFeedKey": OPERATIONAL_ASSIGNMENT_FEED_KEY,
     }
 
 
@@ -191,7 +192,7 @@ def build_reference_identifier_backfill_assignment_plan(
         "createdBy": actor_label,
         "createdAt": now,
         "updatedAt": now,
-        "newsroomFeedKey": "assignments",
+        "newsroomFeedKey": OPERATIONAL_ASSIGNMENT_FEED_KEY,
         "metadata": json.dumps(metadata),
     }
     records = [

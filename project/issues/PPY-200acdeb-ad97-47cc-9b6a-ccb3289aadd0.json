@@ -3,7 +3,7 @@
   "title": "Prove priming with a held-out agreement number before and after N labels",
   "description": "Feature: Priming proof\n  Scenario: Freeze a held-out set from editor reviews\n    Given reviewed References of the publication's canonical corpus\n    When the operator freezes a held-out set\n    Then a fixed, fingerprinted set of items and human labels is written and never regenerated under the same proof id\n  Scenario: Measure agreement before and after N priming labels\n    Given a frozen held-out set and accepted priming examples\n    When the proof runs at N = 0 and each scheduled N\n    Then each point opens a fresh cyclotron with only the first N examples and reports agreement, precision and recall on the held-out set\n  Scenario: Visitors see the number\n    Given an approved proof report\n    When a visitor opens the publication's Cyclotron proof page\n    Then they see agreement before and after N labels, the held-out size and the method, with no item text or explanations",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -37,11 +37,20 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "09883fef-fb5d-4981-b844-1002e2ce271e",
+      "author": "unknown",
+      "text": "Merged PR 269 into develop (aa72e65): approve command plus the first approved report. Report ti-2026-10 (decision model jev-1.13.0, held-out set of 10, 5 include / 5 exclude): agreement with editors 100% with no labels, 100% after 5 labels, 90% after 13. Inconclusive at n=10; the page shows the held-out size. Verified: page test passes, CI ts/python/smoke green. Not yet on main or deployed.",
+      "created_at": "2026-10-18T14:01:49.557762Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T12:14:24.730729Z",
-  "updated_at": "2026-10-17T13:55:24.820054Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T14:01:50.406635Z",
+  "closed_at": "2026-10-18T14:01:50.406461Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},

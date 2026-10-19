@@ -13,8 +13,7 @@ function assert(condition, message) {
 
 const slugSource = read("publications/threat_intelligence/pictograms/registry.ts");
 const artSource = read("publications/threat_intelligence/pictograms/art.tsx");
-const presentationSource = read("components/presentation-shell.tsx");
-const articleSource = read("components/article-page.tsx");
+const brandSource = read("publications/threat_intelligence/brand.ts");
 const backgroundSource = read("publications/threat_intelligence/blog-defense/page-background.tsx");
 
 for (const slug of [
@@ -30,8 +29,7 @@ for (const slug of [
 }
 
 assert(slugSource.includes("PICTOGRAM_CYCLE_MS = 20_000"), "Expected shared 20-second pictogram cycle");
-assert(presentationSource.includes("PictogramFigure"), "Presentation shell should render lead media through PictogramFigure");
-assert(articleSource.includes("PictogramFigure"), "Article page should render lead media through PictogramFigure");
+assert(brandSource.includes("components: { PictogramFigure"), "Brand should provide PictogramFigure as the lead media component");
 assert(artSource.includes("THREAT_INTELLIGENCE_PICTOGRAM_REGISTRY"), "Pictogram art registry should export slug map");
 assert(backgroundSource.includes('from "../pictograms/registry"'), "Hero background should import shared pictogram timing");
 

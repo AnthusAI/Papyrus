@@ -3,7 +3,7 @@
   "title": "Convert scripts/test-* to node:test and run them with one runner",
   "description": "84 scripts/test-* files (58 .ts, 11 .cjs, 13 .mjs) each import node:assert/strict and print 'passed'; they are chained with && in package.json test:ci:ts. No isolation, no reporting, no parallelism, first failure hides the rest. About 65 need only a three-line node:test wrapper with zero behaviour change (sampled: test-inline-excerpt.ts, test-site-env.ts, test-robots-policy.ts, test-blog-feature-solver.ts). The hard class is the .cjs scripts, six of which carry a private copy of a hand-rolled TypeScript require hook (registerTypeScriptRequire in scripts/register-papyrus-aliases.cjs, test-theme-packs.cjs and others); convert them to .ts under tsx, which already honours tsconfig paths.\n\nFix: wrap each script in import { test } from 'node:test'; move them to tests/unit/**/*.test.ts (or keep the path, but use one glob); replace the && chain with node --import tsx --test --test-reporter=spec --test-concurrency=4 'tests/**/*.test.ts'; delete the six require-hook copies. Also move features/operator-cli.feature to features_backend/ (its steps exist only in Python, so cucumber-js hits undefined steps) and collapse the three byte-identical cucumber profiles in cucumber.js to one.\n\nDone when: npm test runs every former test:* target through the runner with per-test reporting, and CI calls that one command.\n\nSource: full code review of develop @ e9b1923 on 2026-10-17 (https://claude.ai/code/artifact/f01a3c9f-7fad-4df2-8a15-ac6c27cc83ed). Branch from origin/develop, name the branch after this issue, open a PR into develop, and record branch, PR link and verification in a comment here before closing.",
   "type": "chore",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,20 @@
     "code-review-2026-10"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7bce2516-6017-4b31-8e89-e6f6a84e6840",
+      "author": "unknown",
+      "text": "Landed in develop via PR 232 (https://github.com/AnthusAI/Papyrus/pull/232), branch claude/project-thread-3wbg4z, merge 2136ef5. Verification: CI green on 3e1b429 (ts: typecheck, lint, build, npm test with 96 files; python: pytest + behave incl. operator-cli; unit; smoke). Follow-ups not done: wrap script bodies in test() and delete the hand-rolled TS require hooks; CI deselects/ignores tracked by PPY-a1867d and PPY-759492.",
+      "created_at": "2026-10-18T12:45:43.278728Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T16:38:59.261589Z",
-  "updated_at": "2026-10-17T16:38:59.261938Z",
-  "closed_at": null,
+  "updated_at": "2026-10-18T12:45:50.041515Z",
+  "closed_at": "2026-10-18T12:45:50.041320Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},

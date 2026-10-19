@@ -68,7 +68,7 @@ strictly:
 - directive attribute schemas are pydantic models with `extra="forbid"`, so
   `:::figure{…}` physically cannot carry a `layout` or a `sizes` hint;
 - an unregistered directive name is a hard validation error;
-- `convert_fragment` shells out to the **pinned `markus` CLI** (0.5.1), which
+- `convert_fragment` shells out to the **pinned `markus` CLI** (0.7.0), which
   is also the security boundary — the build never passes `--allow-html`, so
   authors can never introduce raw HTML. Registering a directive in-process
   would mean giving that up.

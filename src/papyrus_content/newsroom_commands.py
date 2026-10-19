@@ -9,6 +9,7 @@ from typing import Any
 
 from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import create_authoring_client
+from .tenancy import tenant_id_from_options
 from .cloud_procedures import (
     SEED_REQUIRED_PROCEDURES_COMMAND,
     load_required_cli_procedure_config,
@@ -479,7 +480,7 @@ def newsroom_import_sections(flags: list[str]) -> None:
     options = parse_options(flags)
     config_path = options.get("config") or str(DEFAULT_NEWSROOM_SECTIONS_PATH)
     sections = load_newsroom_section_seeds(config_path)
-    client, _ = create_authoring_client()
+    client, _ = create_authoring_client(tenant_id_from_options(options))
     records = build_newsroom_section_records(sections)
     changes: list[dict[str, Any]] = []
     for record in records:
@@ -1109,8 +1110,8 @@ def _write_json_file(path: str, payload: Any) -> None:
 
 
 PLANNING_ASSIGNMENT_TYPE_KEYS = frozenset({
-    "research.edition-candidate",
-    "reporting.edition-candidate",
+    "research.candidate",
+    "reporting.candidate",
 })
 PLANNING_FORUM_THREAD_KINDS = frozenset({
     "edition_forum",

@@ -134,7 +134,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
         assignment_context = {
             "assignment": {
                 "id": "assignment-live-123",
-                "assignmentTypeKey": "research.edition-candidate",
+                "assignmentTypeKey": "research.candidate",
                 "queueKey": "edition:edition-2026-05-16:desk:topic-scaling:lane:analysis",
                 "queueStatusKey": "edition:edition-2026-05-16:desk:topic-scaling:lane:analysis#open",
                 "status": "open",
@@ -325,7 +325,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
         assignment_context = {
             "assignment": {
                 "id": "assignment-reporting-001",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "status": "open",
                 "title": "Reporting candidate",
                 "sectionKey": "culture",
@@ -650,7 +650,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
             },
             {
                 "id": "assignment-edition-1",
-                "assignmentTypeKey": "research.edition-candidate",
+                "assignmentTypeKey": "research.candidate",
                 "createdAt": "2026-05-31T19:00:00Z",
                 "title": "World models",
             },
@@ -753,7 +753,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
             generated_at="2026-05-18T15:30:00Z",
             assignment={
                 "id": "assignment-live-123",
-                "assignmentTypeKey": "research.edition-candidate",
+                "assignmentTypeKey": "research.candidate",
                 "queueKey": "edition:edition-2026-05-18:desk:automation:lane:reporting",
                 "queueStatusKey": "edition:edition-2026-05-18:desk:automation:lane:reporting#open",
                 "status": "open",
@@ -839,7 +839,7 @@ return plan_research_update{ assignment_item = assignment, research = research }
             """
 local assignment = {
   id = "assignment-live-123",
-  assignmentTypeKey = "research.edition-candidate",
+  assignmentTypeKey = "research.candidate",
   queueKey = "edition:edition-2026-05-18:desk:automation:lane:reporting",
   status = "open",
   title = "Research automated publication systems",
@@ -866,7 +866,7 @@ return plan_assignment_research_packet{ assignment = assignment, research = rese
             generated_at="2026-05-18T16:00:00Z",
             assignment={
                 "id": "assignment-reporting-123",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "queueKey": "edition:edition-2026-05-23:section:news:lane:reporting",
                 "queueStatusKey": "edition:edition-2026-05-23:section:news:lane:reporting#open",
                 "status": "open",
@@ -931,7 +931,7 @@ return plan_assignment_research_packet{ assignment = assignment, research = rese
             generated_at="2026-05-18T16:15:00Z",
             assignment={
                 "id": "assignment-reporting-derived",
-                "assignmentTypeKey": "reporting.edition-candidate",
+                "assignmentTypeKey": "reporting.candidate",
                 "queueKey": "edition:edition-2026-05-23:section:science:lane:reporting",
                 "status": "open",
                 "sectionKey": "science",
@@ -959,7 +959,7 @@ return plan_assignment_research_packet{ assignment = assignment, research = rese
             """
 local assignment = {
   id = "assignment-reporting-123",
-  assignmentTypeKey = "reporting.edition-candidate",
+  assignmentTypeKey = "reporting.candidate",
   queueKey = "edition:edition-2026-05-23:section:news:lane:reporting",
   status = "open",
   sectionKey = "news",
@@ -986,7 +986,7 @@ return plan_assignment_reporting_context_packet{ assignment = assignment, report
 
     def test_reporter_procedure_routes_live_reporting_assignments_to_context_packets(self):
         source = (REPO_ROOT / "procedures" / "newsroom" / "reporter.tac").read_text()
-        self.assertIn("reporting.edition-candidate Assignments must produce a", source)
+        self.assertIn("reporting.candidate Assignments must produce a", source)
         self.assertIn("reporting_context_packet payload", source)
         self.assertIn("Do not generate Papyrus persistence snippets", source)
         self.assertIn("Do not call Papyrus persistence planners", source)
@@ -1113,7 +1113,7 @@ return plan_assignment_reporting_context_packet{ assignment = assignment, report
     def test_research_harness_supports_uri_anchored_knowledge_trace(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore internal evidence",
@@ -1164,10 +1164,10 @@ return finish_research{
         self.assertEqual(result["value"]["research_record_plan"]["message_persistence"], "outer_cli_layer")
         self.assertEqual(result["api_calls"], ["papyrus.knowledge.query", "papyrus.plan.assignment_research_packet"])
 
-    def test_research_harness_applies_assignment_and_insight_knowledge_scope_defaults(self):
+    def test_research_harness_applies_assignment_and_note_knowledge_scope_defaults(self):
         assignment = {
             "id": "assignment-live-456",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore AI in gaming",
@@ -1204,13 +1204,13 @@ return finish_research{
         scope = query_input.get("scope") or {}
         self.assertIn("assignment", scope.get("includeObjectKinds") or [])
         self.assertIn("message", scope.get("includeObjectKinds") or [])
-        self.assertEqual(scope.get("includeMessageKinds"), ["insight"])
+        self.assertEqual(scope.get("includeMessageKinds"), ["note"])
         self.assertEqual(scope.get("includeAssignmentTypeKeys"), ["research.*", "reporting.*"])
 
     def test_research_harness_requires_discovery_for_source_discovery_mode(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1246,7 +1246,7 @@ return finish_research{
     def test_research_harness_accepts_source_discovery_bundle_with_prospects(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1286,7 +1286,7 @@ return finish_research{
     def test_research_harness_web_search_uses_reference_web_search_api(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1330,7 +1330,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
     def test_research_harness_finish_research_from_search_accepts_table_call_syntax(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1381,7 +1381,7 @@ return finish_research_from_search{
     def test_research_harness_normalizes_newlines_inside_quoted_strings(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1429,7 +1429,7 @@ return finish_research_from_search{
     def test_research_harness_normalizes_malformed_search_metadata(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1473,7 +1473,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
     def test_research_harness_sets_blocked_reason_when_reference_web_search_fails(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1508,7 +1508,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
     def test_research_harness_retries_zero_result_discovery_until_success(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1563,7 +1563,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
     def test_research_harness_exhausted_zero_results_sets_blocked_reason(self):
         assignment = {
             "id": "assignment-live-123",
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "research#open",
             "status": "open",
             "title": "Explore source discovery",
@@ -1646,7 +1646,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
                 {
                     "assignment": {
                         "id": "assignment-live-123",
-                        "assignmentTypeKey": "research.edition-candidate",
+                        "assignmentTypeKey": "research.candidate",
                         "queueKey": "edition:edition-2026-05-16:desk:automated-scientific-discovery:lane:reporting",
                         "queueStatusKey": "edition:edition-2026-05-16:desk:automated-scientific-discovery:lane:reporting#open",
                         "status": "open",
@@ -1679,7 +1679,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
                     },
                     "doctrine": [{"scope": "publication", "kind": "mission", "label": "Editorial Mission", "slug": "editorial-doctrine-mission", "body": ["Study publication systems as operational systems."]}],
                     "targets": [{"kind": "category", "id": "category-1", "lineageId": "category-1", "label": "Automated Scientific Discovery", "detail": "requests_work_on"}],
-                    "events": [{"id": "assignment-event-1", "assignmentId": "assignment-live-123", "assignmentTypeKey": "research.edition-candidate", "queueKey": "edition:edition-2026-05-16:desk:automated-scientific-discovery:lane:reporting", "eventType": "created", "createdAt": "2026-05-16T12:00:00Z"}],
+                    "events": [{"id": "assignment-event-1", "assignmentId": "assignment-live-123", "assignmentTypeKey": "research.candidate", "queueKey": "edition:edition-2026-05-16:desk:automated-scientific-discovery:lane:reporting", "eventType": "created", "createdAt": "2026-05-16T12:00:00Z"}],
                 }
             ),
         )
@@ -3772,7 +3772,7 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         candidate_content_items = [record["input"] for record in plan["records"] if record["modelName"] == "Item"]
         reporting_assignments = [
             record["input"] for record in plan["records"]
-            if record["modelName"] == "Assignment" and record["input"]["assignmentTypeKey"] == "reporting.edition-candidate"
+            if record["modelName"] == "Assignment" and record["input"]["assignmentTypeKey"] == "reporting.candidate"
         ]
         self.assertEqual(len(candidate_content_items), 5)
         self.assertTrue(all(item["stage"] == "report" and item["status"] == "draft" for item in candidate_content_items))

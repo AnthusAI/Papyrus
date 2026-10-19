@@ -231,10 +231,28 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "6c4366fe-c205-44fc-869b-dc039e7e240b",
+      "author": "unknown",
+      "text": "Decision (Ryan, 2026-10-18, storage card): support BOTH lab sources behind lab_for_account, central lab and embedded per-site storage, chosen per installation. Build toward central first; no cloud resources activated until Ryan says so. Papyrus-side glue is PR 268 (create_prospectus_publication_host).",
+      "created_at": "2026-10-18T13:10:45.654183Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "a3d50a4a-5398-49dd-b4eb-dd719e96b620",
+      "author": "unknown",
+      "text": "Standing requirement (Ryan, 2026-10-18, restating the earlier decision in c54fab): Papyrus supports BOTH a remote Cyclotron and a fully-integrated (embedded) Cyclotron, because one Cyclotron serves many Papyrus sites. Not an open question; do not re-ask. PR 268 implements both access paths behind the same Prospectus check.",
+      "created_at": "2026-10-18T13:12:11.305748Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-17T18:01:01.278262Z",
+  "updated_at": "2026-10-18T13:12:11.305986Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

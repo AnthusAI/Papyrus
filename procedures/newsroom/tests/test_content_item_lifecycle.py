@@ -14,6 +14,8 @@ from papyrus_content.content_item_lifecycle import (
     CONTENT_ITEM_STAGES,
     content_item_lineage_for_new_assignment,
     plan_content_item_backfill,
+    plan_content_item_stage_migration,
+    plan_undrafted_backfill_story_demotion,
     require_assignment_content_item_lineage_id,
 )
 from papyrus_content.copywriting import build_copywriting_run_plan
@@ -27,7 +29,7 @@ CONTENT_ITEM_LINEAGE_ID = "content-item-rising-ransomware-abc123"
 def reporting_assignment(**overrides):
     return {
         "id": "assignment-reporting-1",
-        "assignmentTypeKey": "reporting.edition-candidate",
+        "assignmentTypeKey": "reporting.candidate",
         "queueKey": "reporting:news:exploratory",
         "status": "completed",
         "title": "Rising ransomware",
@@ -67,7 +69,7 @@ class ContentItemLifecycleTests(unittest.TestCase):
     def test_stages_follow_the_newsroom_story_workflow(self) -> None:
         self.assertEqual(
             CONTENT_ITEM_STAGES,
-            ("idea", "assignment", "research", "report", "editor_select", "copywriting", "illustration", "typesetting", "published"),
+            ("idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published", "held", "spiked"),
         )
 
     def test_new_work_mints_one_content_item_version_at_its_stage(self) -> None:
@@ -77,14 +79,14 @@ class ContentItemLifecycleTests(unittest.TestCase):
             title="Rising ransomware",
             summary="Why now",
             section_key="news",
-            stage="research",
+            stage="reporting",
             actor_label="tester",
             now=NOW,
         )
         self.assertTrue(lineage_id.startswith("content-item-rising-ransomware-"))
         self.assertEqual(version["lineageId"], lineage_id)
         self.assertEqual(version["versionNumber"], 1)
-        self.assertEqual(version["stage"], "research")
+        self.assertEqual(version["stage"], "reporting")
         self.assertEqual(version["status"], "draft")
 
     def test_work_on_an_existing_content_item_reuses_its_lineage(self) -> None:
@@ -94,7 +96,7 @@ class ContentItemLifecycleTests(unittest.TestCase):
             title="Rising ransomware",
             summary=None,
             section_key="news",
-            stage="research",
+            stage="reporting",
             actor_label="tester",
             now=NOW,
         )
@@ -108,7 +110,7 @@ class ContentItemLifecycleTests(unittest.TestCase):
     def test_coverage_theme_candidate_is_a_content_item_at_the_report_stage(self) -> None:
         version = seed_content_item_version()
         self.assertEqual(version["lineageId"], CONTENT_ITEM_LINEAGE_ID)
-        self.assertEqual(version["stage"], "report")
+        self.assertEqual(version["stage"], "reporting")
 
     def test_editor_selection_continues_the_same_content_item(self) -> None:
         for decision in ("select", "brief"):
@@ -208,8 +210,8 @@ class ContentItemBackfillTests(unittest.TestCase):
         stage_by_lineage = {
             change["expected"]["lineageId"]: change["expected"]["stage"] for change in self.expected_records(plan, "Item").values()
         }
-        self.assertEqual(stage_by_lineage[assignments[in_progress["id"]]["expected"]["itemLineageId"]], "report")
-        self.assertEqual(stage_by_lineage[assignments[completed["id"]]["expected"]["itemLineageId"]], "editor_select")
+        self.assertEqual(stage_by_lineage[assignments[in_progress["id"]]["expected"]["itemLineageId"]], "assignment")
+        self.assertEqual(stage_by_lineage[assignments[completed["id"]]["expected"]["itemLineageId"]], "assignment")
         self.assertEqual(
             assignments[copywriting["id"]]["expected"]["itemLineageId"],
             assignments[completed["id"]]["expected"]["itemLineageId"],
@@ -239,6 +241,49 @@ class ContentItemBackfillTests(unittest.TestCase):
         self.assertEqual(len(plan["warnings"]), 2)
         self.assertIn("more than one draft lineage", plan["warnings"][0])
         self.assertIn("left unlinked", plan["warnings"][1])
+
+
+class UndraftedBackfillDemotionTests(unittest.TestCase):
+    def placeholder(self, **overrides):
+        return {
+            "id": "content-item-a-v1",
+            "lineageId": "content-item-a",
+            "versionNumber": 1,
+            "changeReason": "content-item-created",
+            "stage": "report",
+            "title": "Rising ransomware",
+            "body": [],
+            **overrides,
+        }
+
+    def test_unedited_placeholders_named_after_a_reporting_assignment_move_to_assignment(self) -> None:
+        reporting = [reporting_assignment(itemLineageId="content-item-a")]
+        changes = plan_undrafted_backfill_story_demotion(items=[self.placeholder()], reporting_assignments=reporting)
+        self.assertEqual([change["expected"]["stage"] for change in changes], ["assignment"])
+
+    def test_real_stories_are_left_alone(self) -> None:
+        reporting = [reporting_assignment(itemLineageId="content-item-a")]
+        items = [
+            self.placeholder(id="edited", body=[{"type": "paragraph"}]),
+            self.placeholder(id="revised", versionNumber=2),
+            self.placeholder(id="retitled", title="A different headline"),
+            self.placeholder(id="published", stage="published"),
+            self.placeholder(id="other-lineage", lineageId="content-item-b"),
+        ]
+        self.assertEqual(plan_undrafted_backfill_story_demotion(items=items, reporting_assignments=reporting), [])
+
+
+class ContentItemStageMigrationTests(unittest.TestCase):
+    def test_retired_stages_move_to_reporting_and_current_stages_stay(self) -> None:
+        items = [
+            {"id": "a", "stage": "research"},
+            {"id": "b", "stage": "report"},
+            {"id": "c", "stage": "editor_select"},
+            {"id": "d", "stage": "copywriting"},
+            {"id": "e", "stage": "assignment"},
+        ]
+        changes = plan_content_item_stage_migration(items=items)
+        self.assertEqual({change["expected"]["id"]: change["expected"]["stage"] for change in changes}, {"a": "reporting", "b": "reporting", "c": "reporting"})
 
 
 if __name__ == "__main__":

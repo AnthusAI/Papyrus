@@ -1,0 +1,51 @@
+{
+  "id": "PPY-9175780c-9e31-46c8-b1b7-5b85953014ad",
+  "title": "Chattic.us-web slice 1: wiki and blog Markdown (content/wiki, content/blog) as a Markus publication",
+  "description": "These are already frontmatter Markdown (9 wiki ideas; updates, agent-zoo and thoughts posts) rendered through lib/wiki.ts, lib/blog.ts and scripts/generate-wiki.ts. Re-render them through Papyrus build_markus_site with the Chatticus brand chrome, keeping wiki/blog URLs and OG images. The Chatticus package still generates product wiki pages; decide whether they are merged as Markus input.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6162bec3-cd02-4bf2-aa77-c8e291ab786d",
+      "author": "unknown",
+      "text": "Slice 1 landed: AnthusAI/Chattic.us-web PR 30 squash-merged to main (f53cc39). Wiki idea pages, product docs and blog posts (59 pages) now render through Papyrus build_markus_site via publication/build.py, same URLs, canonical/OG/Twitter tags and opengraph-image routes. Verified locally: build, typecheck, npm test, 81 behave scenarios, editorial copy checks. Not yet verified: the chattic.us pipeline run (Verify stage now builds a Python venv). Index pages (/wiki, /updates, /agent-zoo, /thoughts) remain Next routes for the next slice.",
+      "created_at": "2026-10-18T13:23:31.760460Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Sonnet 5.5",
+        "name": "Thread Claude",
+        "settings": {}
+      }
+    },
+    {
+      "id": "3ef41f69-56bd-4ada-b80d-1eceae93ae2a",
+      "author": "unknown",
+      "text": "Index pages landed: AnthusAI/Chattic.us-web PR 31 squash-merged to main (e4b3c34). /wiki, /updates, /agent-zoo and /thoughts are now built by the same Papyrus publication step from each app/<section>/page-content.ts; page text matches the previous build. Local checks: build, typecheck, npm test, 81 behave scenarios, editorial copy checks. The repo's GitHub Actions CI has failed within seconds on every run since 2026-10-13 (including main), so it does not gate this. Still unverified: the chattic.us CodePipeline run for PRs 30 and 31.",
+      "created_at": "2026-10-18T13:32:09.211160Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Sonnet 5.5",
+        "name": "Thread Claude",
+        "settings": {}
+      }
+    }
+  ],
+  "created_at": "2026-10-18T12:59:26.842355Z",
+  "updated_at": "2026-10-18T13:32:09.211481Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

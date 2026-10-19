@@ -12,7 +12,7 @@ frontend:
     preBuild:
       commands:
         # anthus-markus is not on PyPI; install from the tagged release on GitHub.
-        - pip install "git+https://github.com/AnthusAI/Markus@v0.5.0"
+        - pip install "git+https://github.com/AnthusAI/Markus@v0.7.0"
     build:
       commands:
         - cd web && python3 build.py

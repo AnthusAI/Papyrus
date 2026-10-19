@@ -24,6 +24,7 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
+from papyrus_content.biblicus_runtime import biblicus_python_executable
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
@@ -1144,7 +1145,7 @@ def papyrus_list_assignments(
     if type:
         type_token = str(type).strip()
         if type_token == "research":
-            # Research assignments span multiple keys (edition-candidate, tavily-deep, ...).
+            # Research assignments span multiple keys (candidate, tavily-deep, ...).
             assignments = [
                 item
                 for item in assignments
@@ -1328,9 +1329,6 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
         "note": str(payload.get("note") or f"Registered from console chat for {normalized_url}"),
         "ingestionRationale": ingestion_rationale or None,
         "actor": actor_label,
-        "createCurationAssignment": bool(
-            payload.get("createCurationAssignment", payload.get("create_curation_assignment", True))
-        ),
         "createIngestionRationaleMessage": bool(
             payload.get("createIngestionRationaleMessage", payload.get("create_ingestion_rationale_message"))
         ),
@@ -1435,7 +1433,7 @@ def papyrus_assignment_update(args: dict[str, Any]) -> dict[str, Any]:
     from_status = str(assignment.get("status") or "")
     queue_key = str(assignment.get("queueKey") or "").strip()
     section_key = str(assignment.get("sectionKey") or "").strip()
-    assignment_type_key = str(assignment.get("assignmentTypeKey") or "research.edition-candidate").strip()
+    assignment_type_key = str(assignment.get("assignmentTypeKey") or "research.candidate").strip()
     note = str(payload.get("note") or f"Updated assignment status: {from_status} -> {to_status}").strip()
 
     assignment_patch: dict[str, Any] = {
@@ -1502,7 +1500,7 @@ def papyrus_assignment_update(args: dict[str, Any]) -> dict[str, Any]:
 
 def _assignment_type_key_for_resource_type(resource_type: str) -> str:
     if str(resource_type).strip() == "research":
-        return "research.edition-candidate"
+        return "research.candidate"
     raise ValueError(f"Unsupported Assignment type: {resource_type}")
 
 
@@ -2080,7 +2078,7 @@ def papyrus_reference_quality_rate(
     )
 
 
-def papyrus_reference_insight_create(
+def papyrus_reference_note_create(
     *,
     reference_id: str,
     summary: str,
@@ -2088,9 +2086,9 @@ def papyrus_reference_insight_create(
     actor_label: str = "",
 ) -> dict[str, Any]:
     """
-    Canonical insight creation action for a reference.
+    Canonical note creation action for a reference.
     """
-    return reference_actions.create_reference_insight(
+    return reference_actions.create_reference_note(
         execute_graphql,
         reference_id=reference_id,
         summary=summary,
@@ -2099,17 +2097,17 @@ def papyrus_reference_insight_create(
     )
 
 
-def papyrus_reference_insight_list(reference_lineage_id: str) -> dict[str, Any]:
+def papyrus_reference_note_list(reference_lineage_id: str) -> dict[str, Any]:
     """
-    List insight messages for one reference lineage.
+    List note messages for one reference lineage.
     """
     payload = papyrus_list_reference_messages(reference_lineage_id)
     messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
-    insights = [message for message in messages if str(message.get("messageKind") or "") == "insight"]
+    notes = [message for message in messages if str(message.get("messageKind") or "") == "note"]
     return {
         "referenceLineageId": reference_lineage_id,
-        "items": insights,
-        "count": len(insights),
+        "items": notes,
+        "count": len(notes),
     }
 
 
@@ -3260,8 +3258,8 @@ def build_assignment_reporting_context_packet_plan(
 
     assignment_id = _required(assignment_payload.get("id"), "assignment.id")
     assignment_type = _required(assignment_payload.get("assignmentTypeKey"), "assignment.assignmentTypeKey")
-    if assignment_type != "reporting.edition-candidate":
-        raise ValueError("reporting context packets require assignment.assignmentTypeKey 'reporting.edition-candidate'")
+    if assignment_type != "reporting.candidate":
+        raise ValueError("reporting context packets require assignment.assignmentTypeKey 'reporting.candidate'")
     if not assignment_payload.get("queueKey"):
         raise ValueError("live assignment reporting packets require assignment.queueKey")
 
@@ -5147,10 +5145,7 @@ def _build_biblicus_block_context_pack(
 
 
 def _run_biblicus(args: list[str], corpus: dict[str, Any], stdin_text: str | None = None) -> dict[str, Any]:
-    python = BIBLICUS_ROOT / ".venv" / "bin" / "python"
-    if not python.exists():
-        raise ValueError(f"Biblicus virtualenv python not found: {python}")
-    command = [str(python), "-m", "biblicus", *args]
+    command = [biblicus_python_executable(), "-m", "biblicus", *args]
     result = subprocess.run(
         command,
         cwd=BIBLICUS_ROOT,

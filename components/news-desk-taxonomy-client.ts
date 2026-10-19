@@ -1,7 +1,8 @@
 "use client";
 
+import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
-import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
+import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -41,7 +42,7 @@ import type {
   UserDirectoryEntry,
 } from "../lib/category-repository";
 import { relationTypeKey } from "../lib/semantic-graph";
-import { contentItemStageKeys, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -690,14 +691,9 @@ type NewsroomSemanticRelationPageOptions = NewsroomPageOptions & {
 
 export type ForumThreadWithMessages = MessageThreadRecord & {
   messages: MessageRecord[];
-  scope: "edition" | "section" | "insight";
+  scope: "edition" | "section";
   sectionKey?: string | null;
   sectionTitle?: string | null;
-};
-
-export type InsightForumThreadsPage = {
-  threads: ForumThreadWithMessages[];
-  nextToken: string | null;
 };
 
 export type EditionForumThreadsResult = {
@@ -1097,6 +1093,27 @@ export async function loadEditorProcedureData(): Promise<{
   };
 }
 
+const UPDATE_ASSIGNMENT_DESK_MUTATION = `
+  mutation UpdateAssignmentDesk($input: UpdateAssignmentInput!) {
+    updateAssignment(input: $input) { id sectionId sectionKey }
+  }
+`;
+
+/** Puts an assignment on a desk's board, or takes it off every desk when `deskId` is null. */
+export async function saveNewsroomAssignmentDesk(assignmentId: string, deskId: string | null): Promise<void> {
+  if (isLocalPreviewEnabled()) return;
+  const dataClient = generateClient<Schema>();
+  const graphClient = dataClient as unknown as {
+    graphql: (options: Record<string, unknown>) => Promise<{ data?: Record<string, unknown> | null; errors?: unknown[] | null }>;
+  };
+  const response = await graphClient.graphql({
+    query: UPDATE_ASSIGNMENT_DESK_MUTATION,
+    variables: { input: { id: assignmentId, sectionId: deskId, sectionKey: deskId } },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  assertNoGraphQLErrors(response.errors);
+}
+
 export async function saveProcedureDefinitionRecord(input: Record<string, unknown>) {
   const dataClient = generateClient<Schema>();
   const graphClient = dataClient as unknown as {
@@ -1275,148 +1292,6 @@ export async function loadEditionForumThreads(options: {
     sectionThreads: sectionHydrated,
     threadCount: editionHydrated.length + sectionHydrated.length,
   };
-}
-
-export async function loadInsightForumThreads(options: {
-  domain?: string;
-  limit?: number;
-  nextToken?: string | null;
-  includeMessages?: boolean;
-} = {}): Promise<InsightForumThreadsPage> {
-  const testMock = getTestEditorNewsroomMock();
-  if (testMock?.insightForumThreads) {
-    const domain = String(options.domain || "").trim();
-    let threads = testMock.insightForumThreads;
-    if (domain) threads = threads.filter((thread) => thread.sectionKey === domain);
-    return { threads, nextToken: null };
-  }
-
-  const limit = Math.max(1, Math.min(options.limit ?? NEWSROOM_PAGE_LIMIT, 100));
-  const domain = String(options.domain || "").trim();
-  const includeMessages = options.includeMessages !== false;
-  type KindConnectionResponse = {
-    listMessagesByKindAndCreatedAt?: {
-      items?: Array<MessageRecord | null> | null;
-      nextToken?: string | null;
-    } | null;
-  };
-  const response: KindConnectionResponse = await runGraphql<KindConnectionResponse>(
-    LIST_MESSAGES_BY_KIND_AND_CREATED_AT_QUERY,
-    {
-      messageKind: "insight",
-      sortDirection: "DESC",
-      limit,
-      nextToken: options.nextToken ?? null,
-    },
-  );
-  const connection = response.listMessagesByKindAndCreatedAt;
-  const roots = (connection?.items ?? [])
-    .filter(Boolean)
-    .map((item) => normalizeMessageRecord(item as MessageRecord))
-    .filter(isInsightThreadRootMessage)
-    .filter((message) => !domain || message.messageDomain === domain);
-
-  const threads = await Promise.all(roots.map(async (root) => {
-    const messages = includeMessages
-      ? await loadInsightThreadMessages(root.id, root)
-      : [root];
-    return buildInsightForumThread(root, messages);
-  }));
-
-  return {
-    threads,
-    nextToken: connection?.nextToken ?? null,
-  };
-}
-
-export async function loadInsightForumThreadById(
-  threadId: string,
-  options: { includeMessages?: boolean } = {},
-): Promise<ForumThreadWithMessages | null> {
-  const normalized = String(threadId || "").trim();
-  if (!normalized) return null;
-  const testMock = getTestEditorNewsroomMock();
-  if (testMock?.insightForumThreads) {
-    return testMock.insightForumThreads.find((thread) => thread.id === normalized) ?? null;
-  }
-  const root = await getMessageRecordById(normalized);
-  if (!root || !isInsightThreadRootMessage(root)) return null;
-  const includeMessages = options.includeMessages !== false;
-  const messages = includeMessages
-    ? await loadInsightThreadMessages(normalized, root)
-    : [root];
-  return buildInsightForumThread(root, messages);
-}
-
-export async function appendInsightThreadReplyRecord(input: {
-  threadId: string;
-  summary: string;
-  content: string;
-  role?: string;
-  authorLabel?: string;
-  parentMessageId?: string | null;
-  metadata?: Record<string, unknown>;
-}): Promise<MessageRecord> {
-  const threadId = String(input.threadId || "").trim();
-  const summary = String(input.summary || "").trim();
-  const content = String(input.content || "").trim();
-  if (!threadId) throw new Error("threadId is required");
-  if (!summary) throw new Error("summary is required");
-  if (!content) throw new Error("content is required");
-  const root = await getMessageRecordById(threadId);
-  if (!root || !isInsightThreadRootMessage(root)) throw new Error(`Insight thread not found: ${threadId}`);
-  const existing = await listMessagesByThreadId(threadId, 1000);
-  const nextSequence = Math.max(1, ...existing.map((message) => Number(message.sequenceNumber || 0))) + 1;
-  const now = new Date().toISOString();
-  const message: MessageRecord = {
-    id: `message-insight-reply-${safeForumId(threadId)}-${String(nextSequence).padStart(4, "0")}`,
-    messageKind: "insight_reply",
-    messageDomain: root.messageDomain ?? "knowledge",
-    status: "active",
-    summary,
-    source: "newsroom.insights",
-    authorLabel: input.authorLabel?.trim() || "editor",
-    threadId,
-    parentMessageId: input.parentMessageId?.trim() || null,
-    sequenceNumber: nextSequence,
-    role: input.role || "human",
-    messageType: "insight_forum_reply",
-    content,
-    metadata: input.metadata ?? {},
-    createdAt: now,
-    updatedAt: now,
-    newsroomFeedKey: "messages",
-  };
-  const created = await runGraphql<{ createMessage?: MessageRecord | null }>(
-    CREATE_MESSAGE_MUTATION,
-    { input: message },
-  );
-  return normalizeMessageRecord(created.createMessage ?? message);
-}
-
-export async function deleteInsightThreadMessageRecord(input: {
-  threadId: string;
-  messageId: string;
-}): Promise<MessageRecord> {
-  const threadId = String(input.threadId || "").trim();
-  const messageId = String(input.messageId || "").trim();
-  if (!threadId) throw new Error("threadId is required");
-  if (!messageId) throw new Error("messageId is required");
-  const existing = await listMessagesByThreadId(threadId, 1000);
-  const target = existing.find((message) => message.id === messageId);
-  if (!target) throw new Error(`Message not found in thread: ${messageId}`);
-  const now = new Date().toISOString();
-  const updatedMessage = await runGraphql<{ updateMessage?: MessageRecord | null }>(
-    UPDATE_MESSAGE_MUTATION,
-    {
-      input: {
-        id: target.id,
-        status: "deleted",
-        updatedAt: now,
-      },
-    },
-  );
-  return normalizeMessageRecord(updatedMessage.updateMessage ?? { ...target, status: "deleted", updatedAt: now });
 }
 
 export async function ensureEditionForumThreadRecord(input: {
@@ -1682,14 +1557,6 @@ async function listMessagesByThreadId(threadId: string, limit = 400): Promise<Me
   return records;
 }
 
-function isInsightThreadRootMessage(message: MessageRecord): boolean {
-  if (String(message.messageKind || "") !== "insight") return false;
-  const threadId = String(message.threadId || "").trim();
-  const sequenceNumber = Number(message.sequenceNumber || 0);
-  if (threadId && threadId !== message.id && sequenceNumber > 1) return false;
-  return true;
-}
-
 async function getMessageRecordById(messageId: string): Promise<MessageRecord | null> {
   const normalized = String(messageId || "").trim();
   if (!normalized) return null;
@@ -1699,66 +1566,6 @@ async function getMessageRecordById(messageId: string): Promise<MessageRecord | 
   );
   const message = response.getMessage;
   return message ? normalizeMessageRecord(message) : null;
-}
-
-async function loadInsightThreadMessages(threadId: string, root: MessageRecord): Promise<MessageRecord[]> {
-  const threadMessages = await listMessagesByThreadId(threadId, 500);
-  const byId = new Map<string, MessageRecord>();
-  byId.set(root.id, root);
-  for (const message of threadMessages) byId.set(message.id, message);
-  const merged = [...byId.values()].sort(
-    (left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0),
-  );
-  return hydrateMessageRecordsContent(merged);
-}
-
-function insightForumThreadTitle(root: MessageRecord): string {
-  const metadata = normalizeJsonValue(root.metadata);
-  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
-    const explicit = String((metadata as Record<string, unknown>).insightTitle || "").trim();
-    if (explicit) return explicit;
-  }
-  const summary = String(root.summary || "").trim();
-  return summary || "Insight";
-}
-
-function buildInsightForumThread(root: MessageRecord, messages: MessageRecord[]): ForumThreadWithMessages {
-  const activeMessages = messages.filter((message) => String(message.status || "active") === "active");
-  const sorted = [...activeMessages].sort(
-    (left, right) => Number(left.sequenceNumber ?? 0) - Number(right.sequenceNumber ?? 0),
-  );
-  const lastMessage = sorted.at(-1) ?? root;
-  const activityAt = lastMessage.updatedAt ?? lastMessage.createdAt ?? root.updatedAt ?? root.createdAt;
-  return {
-    id: root.id,
-    threadKind: "insight_forum",
-    status: "active",
-    title: insightForumThreadTitle(root),
-    summary: formatInsightForumDomainLabel(root.messageDomain),
-    primaryAnchorKind: "message",
-    primaryAnchorId: root.id,
-    primaryAnchorLineageId: root.id,
-    primaryAnchorKey: `message#${root.id}`,
-    createdByLabel: root.authorLabel ?? null,
-    messageCount: sorted.length,
-    lastMessageId: lastMessage.id,
-    lastMessageAt: activityAt,
-    metadata: normalizeJsonValue(root.metadata) as Record<string, unknown>,
-    createdAt: root.createdAt,
-    updatedAt: activityAt,
-    newsroomFeedKey: "messages",
-    messages: sorted.length ? sorted : [root],
-    scope: "insight",
-    sectionKey: root.messageDomain ?? null,
-  };
-}
-
-function formatInsightForumDomainLabel(domain: string | null | undefined): string {
-  const value = String(domain || "").trim();
-  if (value === "assignment_work") return "Assignment research";
-  if (value === "knowledge") return "Reference knowledge";
-  if (!value) return "Insight";
-  return value.replace(/_/g, " ");
 }
 
 async function hydrateMessageRecordsContent(messages: MessageRecord[]): Promise<MessageRecord[]> {
@@ -2156,47 +1963,61 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
     newsroomFeedKey: "assignments",
     limit: options.limit,
     nextToken: options.nextToken,
-    matches: equalityMatcher({
+    matches: (assignment) => isEditorialWorkAssignment(assignment) && (equalityMatcher<AssignmentRecord>({
       assignmentTypeKey: options.type,
       status: options.status,
-    }),
+    })?.(assignment) ?? true),
   });
 }
 
 const CONTENT_ITEMS_BY_STAGE_QUERY = `
   query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
     listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline slug section updatedAt }
+      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt }
       nextToken
     }
   }
 `;
 
-export async function loadNewsroomContentItemVersions(): Promise<ContentItemVersionRecord[]> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewContentItemVersions();
+export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
+
+export type ContentItemStagePage = {
+  versions: ContentItemVersionRecord[];
+  nextToken: string | null;
+};
+
+/** One newest-updated-first page of the content items in one stage, so a board column can load as it is scrolled. */
+export async function loadNewsroomContentItemStagePage(
+  stage: string,
+  nextToken: string | null = null,
+  limit: number = CONTENT_ITEM_COLUMN_PAGE_LIMIT,
+): Promise<ContentItemStagePage> {
+  if (isLocalPreviewEnabled()) {
+    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage);
+    const offset = nextToken ? Number(nextToken) : 0;
+    const followingOffset = offset + limit;
+    return {
+      versions: versionsInStage.slice(offset, followingOffset),
+      nextToken: followingOffset < versionsInStage.length ? String(followingOffset) : null,
+    };
+  }
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const versionsPerStage = await Promise.all(contentItemStageKeys(getContentItemStageDefinitions()).map(async (stage) => {
-    const versions: ContentItemVersionRecord[] = [];
-    let nextToken: string | null = null;
-    do {
-      const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-        query: CONTENT_ITEMS_BY_STAGE_QUERY,
-        variables: { stage, sortDirection: "DESC", limit: NEWSROOM_PAGE_LIMIT, nextToken },
-        authMode: USER_POOL_AUTH_MODE,
-      });
-      assertNoGraphQLErrors(response.errors);
-      const connection = response.data?.[field];
-      if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-      versions.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
-      nextToken = connection.nextToken ?? null;
-    } while (nextToken);
-    return versions;
-  }));
-  return versionsPerStage.flat();
+  const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+    query: CONTENT_ITEMS_BY_STAGE_QUERY,
+    variables: { stage, sortDirection: "DESC", limit, nextToken },
+    authMode: USER_POOL_AUTH_MODE,
+  });
+  assertNoGraphQLErrors(response.errors);
+  const connection = response.data?.[field];
+  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+  return {
+    versions: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[],
+    nextToken: connection.nextToken ?? null,
+  };
 }
 
 const PUBLISHED_ITEMS_QUERY = `
@@ -2222,6 +2043,7 @@ type PublishedItemBoardRow = {
 };
 
 export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) return createLocalPreviewRealPublishedVersions();
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;
@@ -2675,7 +2497,6 @@ export function hasTestEditorOverride(): boolean {
 
 type TestEditorNewsroomMock = {
   forumThreadsByEdition?: Record<string, ForumThreadWithMessages[]>;
-  insightForumThreads?: ForumThreadWithMessages[];
   messages?: MessageRecord[];
   payloads?: Record<string, HydratedModelPayload[]>;
   referenceAttachments?: ReferenceAttachmentRecord[];
@@ -3798,6 +3619,25 @@ export async function loadCyclotronStatus(cyclotronId: string): Promise<import("
   const { cyclotronStatusPayloadId, latestCyclotronStatus } = await import("../lib/relevance-status");
   const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", cyclotronStatusPayloadId(cyclotronId), ["raw_payload"]);
   return latestCyclotronStatus(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
+}
+
+/** The relevance cyclotron's latest cyclotron-shadow-agreement/v1 payload: suggestions compared with later human decisions. */
+export async function loadCyclotronShadowAgreement(cyclotronId: string): Promise<import("../lib/cyclotron-suggestions").ShadowAgreement | null> {
+  const { latestShadowAgreement, shadowAgreementPayloadId } = await import("../lib/cyclotron-suggestions");
+  const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", shadowAgreementPayloadId(cyclotronId), ["raw_payload"]);
+  return latestShadowAgreement(payloads.map((payload) => ({ json: payload.json, updatedAt: payload.attachment.updatedAt })));
+}
+
+/** The site cyclotron's latest per-Section agreement payload, as the Section sweep recorded it. */
+export async function loadSiteSectionAgreement(cyclotronId: string): Promise<import("../lib/site-section-suggestions").SiteSectionAgreement | null> {
+  const { shadowAgreementPayloadId } = await import("../lib/cyclotron-suggestions");
+  const { parseSiteSectionAgreement } = await import("../lib/site-section-suggestions");
+  const payloads = await loadModelPayloadsForOwner("knowledgeRawPayload", shadowAgreementPayloadId(cyclotronId), ["raw_payload"]);
+  const parsed = payloads
+    .map((payload) => ({ agreement: parseSiteSectionAgreement(payload.json), updatedAt: payload.attachment.updatedAt }))
+    .filter((entry) => entry.agreement !== null)
+    .sort((left, right) => String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")));
+  return parsed.length ? parsed[0].agreement : null;
 }
 
 /** Ask the next decide-relevance sweep to set or clear a manual review rate. */

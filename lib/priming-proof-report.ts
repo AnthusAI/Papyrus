@@ -36,6 +36,7 @@ export const primingProofReportSchema = z.object({
     fingerprint: z.string().min(1),
     frozenAt: z.string().min(1),
     source: z.string().min(1),
+    design: z.string().min(1).optional(),
   }),
   priming: z.object({
     acceptedExamples: z.number().int().min(0),

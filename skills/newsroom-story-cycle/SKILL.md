@@ -174,7 +174,7 @@ not the edition theme decision in phase 1.
 
 Reporting assignments should use:
 
-- `assignmentTypeKey = "reporting.edition-candidate"`;
+- `assignmentTypeKey = "reporting.candidate"`;
 - `sectionKey` / `sectionId` for the desk lens;
 - `topicScopeCategoryKeys` and `primaryFocusCategoryKey` for taxonomy scope;
 - coverage concept metadata such as `coverageConceptKey`;

@@ -10,7 +10,7 @@ import { pythonLambdaCode, type SiteBundleFile } from "../shared/python-bundle";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(dirname, "../../..");
 
-export const contentActionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.5.1", "Pillow>=11.3,<12", "awscrt>=0.23,<1"];
+export const contentActionsRequirements = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12", "awscrt>=0.23,<1"];
 
 function installCheckoutRequirements(outputDir: string): void {
   const requirementsPath = path.join(projectRoot, "amplify/functions/content-actions/requirements.txt");
