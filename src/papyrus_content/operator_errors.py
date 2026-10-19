@@ -26,6 +26,9 @@ class GraphQLRequestError(RuntimeError):
 
 
 def credential_recovery_guidance() -> str:
+    from .cli_user_auth import user_auth_requested
+    if user_auth_requested():
+        return "Check your newsroom identity/publication permissions with `papyrus auth status`; renew with `papyrus login` if needed."
     profile = os.environ.get("AWS_PROFILE", "").strip() or "<profile>"
     return f"Your AWS session may have expired or lack access. Run `aws sso login --profile {profile}` and retry."
 

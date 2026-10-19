@@ -269,6 +269,10 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         print(__version__)
         return 0
 
+    if args[0] in {"login", "logout", "whoami", "auth"}:
+        from papyrus_content.cli_user_auth import command as auth_command
+        return auth_command(args)
+
     if not allow_cross_root:
         _enforce_root_guard(args)
     group = args[0]

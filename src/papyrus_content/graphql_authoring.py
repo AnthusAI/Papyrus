@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 from .env import graphql_endpoint, graphql_timeout_seconds
 from .guest_auth import refuse_guest_auth
-from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, iam_signed_graphql_headers
+from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
 from .operator_errors import GraphQLRequestError, credential_recovery_guidance
 from .tenancy import (
     TENANT_MODELS,
@@ -610,14 +610,17 @@ class PapyrusGraphQLAuthoringClient:
     def _request_headers(self, payload: bytes) -> dict[str, str]:
         if self.header_factory is not None:
             return self.header_factory(payload)
-        return iam_signed_graphql_headers(self.endpoint, payload)
+        return graphql_request_headers(endpoint=self.endpoint, body=payload)
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
         headers = self._request_headers(payload)
         body: dict[str, Any] | None = None
         last_error: Exception | None = None
-        for attempt in range(2):
+        from .cli_user_auth import user_auth_requested
+        # An uncertain user-authenticated mutation must not be submitted again.
+        attempts = 1 if user_auth_requested() else 2
+        for attempt in range(attempts):
             try:
                 connection = self._connection or self._open_connection()
                 connection.request("POST", self._endpoint_path, body=payload, headers=headers)
@@ -633,7 +636,7 @@ class PapyrusGraphQLAuthoringClient:
             except (TimeoutError, OSError, http.client.HTTPException, json.JSONDecodeError, RuntimeError) as error:
                 last_error = error
                 self._reset_connection()
-                if attempt == 1:
+                if attempt == attempts - 1:
                     if isinstance(error, GraphQLRequestError):
                         raise
                     raise GraphQLRequestError(f"GraphQL request failed: {error}") from error
