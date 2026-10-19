@@ -651,7 +651,9 @@ class PapyrusWorld {
       });
     }
     this.page.on("console", (message) => {
-      if (message.type() === "error") {
+      // The account menu probes Prospectus sign-in; a site without it answers 503 by design.
+      const optionalProspectusProbe = message.location().url.endsWith("/api/auth/prospectus/session");
+      if (message.type() === "error" && !optionalProspectusProbe) {
         this.consoleErrors.push(message.text());
       }
     });
