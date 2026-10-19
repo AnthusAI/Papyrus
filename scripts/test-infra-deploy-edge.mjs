@@ -18,6 +18,8 @@ const joined = argumentsList.join(" ");
 if (joined.startsWith("cloudformation list-stack-resources")) {
   const present = (process.env.FAKE_AWS_PRESENT_LOGICAL_IDS || "").split(",").filter(Boolean);
   process.stdout.write(JSON.stringify({ StackResourceSummaries: present.map((id) => ({ LogicalResourceId: id })) }));
+} else if (joined.startsWith("cloudformation describe-stacks")) {
+  process.stdout.write(JSON.stringify({ Stacks: [{ Parameters: [{ ParameterKey: "CertificateArn", ParameterValue: "arn:current" }] }] }));
 } else if (joined.startsWith("cloudformation wait change-set-create-complete")) {
   process.exit(process.env.FAKE_AWS_NO_CHANGES ? 255 : 0);
 } else if (joined.startsWith("cloudformation describe-change-set")) {
@@ -35,7 +37,7 @@ try {
   fs.writeFileSync(path.join(binDirectory, "aws"), fakeAwsSource, { mode: 0o755 });
   const adoptionTemplate = path.join(work, "adoption.yaml");
   const finalTemplate = path.join(work, "final.yaml");
-  const templateText = "AWSTemplateFormatVersion: x\nParameters:\n  CertificateArn:\n    Type: String\n  ReaderCertificateArn:\n    Type: String\nResources:\n  A:\n    Type: X\n";
+  const templateText = "AWSTemplateFormatVersion: x\nParameters:\n  CertificateArn:\n    Type: String\n  ReaderCertificateArn:\n    Type: String\n  MarketingBucketDomainName:\n    Type: String\n    Default: bucket.example\nResources:\n  A:\n    Type: X\n";
   fs.writeFileSync(adoptionTemplate, templateText);
   fs.writeFileSync(finalTemplate, templateText);
   const adoptResources = path.join(work, "adopt.json");
@@ -56,6 +58,7 @@ try {
   assert.match(adopting.calls, /create-change-set .*--change-set-type UPDATE/);
   assert.match(adopting.calls, /ParameterKey=CertificateArn,UsePreviousValue=true/);
   assert.match(adopting.calls, /ParameterKey=ReaderCertificateArn,ParameterValue=arn:reader/);
+  assert.doesNotMatch(adopting.calls, /MarketingBucketDomainName/, "a parameter the stack does not have yet takes its template default, never UsePreviousValue");
   assert.match(adopting.calls, /cloudfront delete-function --name papyrus-legacy-reader-redirect --if-match ETAGVALUE/);
 
   const alreadyAdopted = runEdgeDeploy({ FAKE_AWS_PRESENT_LOGICAL_IDS: "ReaderEdgeFunction", FAKE_AWS_NO_CHANGES: "1" });
