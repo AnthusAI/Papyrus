@@ -42,6 +42,7 @@ export type CmsConfig = {
   stagingDomainPrefix?: string;
   redirects?: CmsRedirect[];
   prospectusAccountsApiStageArn?: string;
+  deployStackInBuild?: boolean;
 };
 
 export type AmplifyAppShellSiteConfig = {
@@ -281,7 +282,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "deployStackInBuild"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -291,6 +292,9 @@ function parseCms(value: unknown): CmsConfig {
   }
   if (cmsRecord.applyCognitoDomainPrefix !== undefined && typeof cmsRecord.applyCognitoDomainPrefix !== "boolean") {
     fail("cms.applyCognitoDomainPrefix", `must be a boolean, got ${JSON.stringify(cmsRecord.applyCognitoDomainPrefix)}`);
+  }
+  if (cmsRecord.deployStackInBuild !== undefined && typeof cmsRecord.deployStackInBuild !== "boolean") {
+    fail("cms.deployStackInBuild", `must be a boolean, got ${JSON.stringify(cmsRecord.deployStackInBuild)}`);
   }
   const cms: CmsConfig = {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
@@ -309,6 +313,7 @@ function parseCms(value: unknown): CmsConfig {
     stagingDomainName: optionalString(cmsRecord.stagingDomainName, "cms.stagingDomainName", HOST_NAME_PATTERN, "host name"),
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     redirects: parseRedirects(cmsRecord.redirects),
+    deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
     prospectusAccountsApiStageArn: optionalString(
       cmsRecord.prospectusAccountsApiStageArn,

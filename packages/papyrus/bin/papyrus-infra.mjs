@@ -3,11 +3,13 @@
  * papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]
  * papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]
  * papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader
- * Synthesizes the app-shell stack for a publication from its own site.json, or
- * prints one of the generated Amplify build specs. Synth only: deploying is a
- * separate, reviewed step.
+ * papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]
+ * Synthesizes the app-shell stack for a publication from its own site.json,
+ * prints one of the generated Amplify build specs, or deploys the stack from
+ * inside the Amplify build of the one branch that owns it.
  */
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { buildSpecFor } from "../infra/build-specs.js";
@@ -17,6 +19,7 @@ const USAGE = [
   "Usage: papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]",
   "       papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]",
   "       papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader",
+  "       papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]",
 ].join("\n");
 
 const args = process.argv.slice(2);
@@ -25,7 +28,7 @@ const opt = (name, fallback) => {
   return i >= 0 ? args[i + 1] : fallback;
 };
 const command = args[0];
-if (command !== "synth" && command !== "print-buildspec") {
+if (command !== "synth" && command !== "print-buildspec" && command !== "deploy") {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
 }
@@ -75,6 +78,41 @@ if (command === "print-buildspec") {
     process.exit(1);
   }
   process.exit(0);
+}
+
+if (command === "deploy") {
+  const buildAppId = process.env.AWS_APP_ID;
+  const buildBranch = process.env.AWS_BRANCH;
+  const owningBranch = opt("only-branch", "main");
+  const owningAppId = opt("only-app-id");
+  if (!buildAppId || !buildBranch) {
+    console.log("papyrus-infra deploy: not running inside an Amplify build, skipping");
+    process.exit(0);
+  }
+  if (buildBranch !== owningBranch || (owningAppId && buildAppId !== owningAppId)) {
+    console.log(`papyrus-infra deploy: ${buildAppId}/${buildBranch} does not own the stack, skipping`);
+    process.exit(0);
+  }
+  const outputDirectory = path.resolve(opt("out", process.env.CDK_OUTDIR ?? "cdk.out"));
+  const synthCommand = [
+    process.execPath,
+    path.resolve(process.argv[1]),
+    "synth",
+    "--site",
+    path.resolve(opt("site", "infra/site.json")),
+    "--out",
+    outputDirectory,
+    "--account",
+    opt("account", process.env.CDK_DEFAULT_ACCOUNT ?? "335163751677"),
+    "--region",
+    opt("region", process.env.CDK_DEFAULT_REGION ?? "us-east-1"),
+  ].map((part) => JSON.stringify(part)).join(" ");
+  const deployment = spawnSync(
+    "npx",
+    ["--yes", "aws-cdk@2", "deploy", "--app", synthCommand, "--require-approval", "never", `AmplifyAppShell-${config.siteId}`],
+    { stdio: "inherit" },
+  );
+  process.exit(deployment.status ?? 1);
 }
 
 let AmplifyAppShellStack;
