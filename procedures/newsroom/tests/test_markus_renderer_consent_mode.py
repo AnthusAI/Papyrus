@@ -64,6 +64,7 @@ def _head_script_with_consent(html: str) -> str:
     return re.search(r"<script>\n(window\.dataLayer.*?)</script>", html, re.S).group(1)
 
 
+
 class ConsentModeDisabledTests(unittest.TestCase):
     def test_snippet_without_consent_mode_is_byte_identical_to_the_previous_output(self) -> None:
         self.assertEqual(
@@ -99,10 +100,22 @@ class ConsentDefaultsTests(unittest.TestCase):
     def test_defaults_precede_js_and_config(self) -> None:
         defaults = [m.start() for m in re.finditer(r"gtag\('consent','default'", self.script)]
         self.assertEqual(len(defaults), 2)
-        self.assertLess(max(defaults), self.script.index("gtag('js'"))
-        self.assertLess(max(defaults), self.script.index("gtag('config'"))
         self.assertLess(self.script.index("function gtag"), min(defaults))
-        self.assertLess(self.script.index("c.apply(stored.granted)"), self.script.index("gtag('config'"))
+        self.assertNotIn("gtag('js'", self.script)
+        self.assertNotIn("gtag('config'", self.script)
+        config = self.html.index("gtag('config'")
+        self.assertLess(self.html.index("c.apply(stored.granted)"), config)
+        self.assertLess(self.html.index("consent','default'"), config)
+
+    def test_loader_comes_after_consent_defaults_and_before_config(self) -> None:
+        loader = self.html.index("googletagmanager.com/gtag/js")
+        self.assertLess(self.html.index("consent','default'"), loader)
+        self.assertLess(self.html.index("ads_data_redaction"), loader)
+        self.assertLess(self.html.index("consent','update'"), loader)
+        self.assertLess(self.html.index("function gtag"), loader)
+        self.assertLess(loader, self.html.index("gtag('js'"))
+        self.assertLess(loader, self.html.index("gtag('config'"))
+        self.assertEqual(self.html.count("googletagmanager.com/gtag/js"), 1)
 
     def test_regional_default_denies_everything_and_global_default_grants_only_analytics(self) -> None:
         regional, general = re.findall(r"gtag\('consent','default',(\{.*?\})\);", self.script)
@@ -276,7 +289,7 @@ class ConsentConfigurationTests(unittest.TestCase):
 
 NODE_HARNESS = """
 const html = require('fs').readFileSync(0, 'utf8');
-const script = html.match(/<script>\\n(window\\.dataLayer[\\s\\S]*?)<\\/script>/)[1];
+const script = [...html.matchAll(/<script>\\n((?:window\\.dataLayer|gtag\\('js')[\\s\\S]*?)<\\/script>/g)].map((m) => m[1]).join('\\n');
 const state = JSON.parse(process.argv[1]);
 global.window = global;
 global.localStorage = {

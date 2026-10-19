@@ -47,7 +47,8 @@ def render_ga4_snippet(
 
     With ``consent_mode`` the Consent Mode v2 defaults, ``ads_data_redaction``,
     ``url_passthrough`` and any stored visitor choice are emitted after
-    ``gtag`` is defined and before ``gtag('js')`` and ``gtag('config')``.
+    ``gtag`` is defined, in their own inline script before the async loader, which
+    is followed by ``gtag('js')`` and ``gtag('config')``.
     """
     if not isinstance(measurement_id, str) or not _GA_ID_RE.fullmatch(measurement_id):
         raise ValueError(
@@ -67,20 +68,32 @@ def render_ga4_snippet(
             f"if(localStorage.getItem(k)==='1')window[{json.dumps('ga-disable-' + measurement_id)}]=true"
             "}catch(e){}})();</script>\n"
         )
-    consent_script = (
-        render_consent_defaults_script(consent_mode, site_name=site_name)
-        if consent_mode is not None
-        else ""
-    )
-    return opt_out + (
-        f'<script async src="https://www.googletagmanager.com/gtag/js?id={safe}"></script>\n'
+    loader = f'<script async src="https://www.googletagmanager.com/gtag/js?id={safe}"></script>\n'
+    configuration = (
         "<script>\n"
-        "window.dataLayer = window.dataLayer || [];\n"
-        "function gtag(){dataLayer.push(arguments);}\n"
-        f"{consent_script}"
         "gtag('js', new Date());\n"
         f"gtag('config', {json.dumps(measurement_id)});\n"
         "</script>"
+    )
+    if consent_mode is None:
+        return opt_out + (
+            loader
+            + "<script>\n"
+            "window.dataLayer = window.dataLayer || [];\n"
+            "function gtag(){dataLayer.push(arguments);}\n"
+            "gtag('js', new Date());\n"
+            f"gtag('config', {json.dumps(measurement_id)});\n"
+            "</script>"
+        )
+    return (
+        opt_out
+        + "<script>\n"
+        "window.dataLayer = window.dataLayer || [];\n"
+        "function gtag(){dataLayer.push(arguments);}\n"
+        + render_consent_defaults_script(consent_mode, site_name=site_name)
+        + "</script>\n"
+        + loader
+        + configuration
     )
 
 
