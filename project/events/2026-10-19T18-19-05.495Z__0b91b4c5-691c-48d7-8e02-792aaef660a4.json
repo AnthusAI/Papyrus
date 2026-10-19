@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "0b91b4c5-691c-48d7-8e02-792aaef660a4",
+  "issue_id": "PPY-c32c35e3-f6d7-4390-8222-71207f28141e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T18:19:05.495Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Run every Biblicus call through one BiblicusRunner (PyPI Biblicus, BIBLICUS_WORKDIR)",
+    "description": "Replace the five hand-written Biblicus subprocess bridges (and the other uv run / python -m biblicus call sites) with papyrus_content.biblicus_runner.BiblicusRunner, which runs the installed biblicus console script, owns environment, working directory, JSON parsing and typed errors, and validates output with biblicus.api models. Remove BIBLICUS_ROOT, the sibling-checkout default, uv run and the dependency-retry fallback. BIBLICUS_WORKDIR is required. Links to Biblicus blbs-af04bd. Corpus data migrations are out of scope.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
