@@ -15,7 +15,9 @@ from .tenancy import (
     row_belongs_to_tenant,
     rows_for_tenant,
     tenant_id_from_environment,
+    tenant_row_with_bare_record_id,
     tenant_scoped_index,
+    tenant_scoped_record_id,
     tenant_scoped_value,
     tenant_stamped_payload,
     validate_tenant_id,
@@ -740,7 +742,13 @@ class PapyrusGraphQLAuthoringClient:
             next_token = connection.get("nextToken")
             if not next_token:
                 break
-        return rows_for_tenant(model_name, self.tenant_id, items)
+        return self._rows_with_bare_ids(model_name, rows_for_tenant(model_name, self.tenant_id, items))
+
+    def _rows_with_bare_ids(self, model_name: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [tenant_row_with_bare_record_id(model_name, self.tenant_id, row) for row in rows]
+
+    def _stored_record_id(self, model_name: str, record_id: str) -> str:
+        return tenant_scoped_record_id(model_name, self.tenant_id, record_id)
 
     def list_published_item_summaries(self) -> list[dict[str, Any]]:
         return rows_for_tenant("PublishedItem", self.tenant_id, self.list_records("PublishedItemSummary"))
@@ -748,9 +756,22 @@ class PapyrusGraphQLAuthoringClient:
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]
         query = _get_query(definition["field"], definition["fields"])
-        result = self.graphql(query, {"id": record_id})
+        result = self.graphql(query, {"id": self._stored_record_id(model_name, record_id)})
         row = result.get(definition["field"])
-        return row if row_belongs_to_tenant(model_name, self.tenant_id, row) else None
+        if not row_belongs_to_tenant(model_name, self.tenant_id, row):
+            return None
+        return tenant_row_with_bare_record_id(model_name, self.tenant_id, row)
+
+    def get_record_unscoped(self, model_name: str, record_id: str) -> dict[str, Any] | None:
+        definition = GET_DEFINITIONS[model_name]
+        query = _get_query(definition["field"], definition["fields"])
+        result = self.graphql(query, {"id": record_id})
+        return result.get(definition["field"])
+
+    def update_record_unscoped(self, model_name: str, input_payload: dict[str, Any]) -> None:
+        if model_name not in MUTATIONS:
+            raise ValueError(f"Unsupported model for update: {model_name}")
+        self.graphql(MUTATIONS[model_name]["update"], {"input": input_payload})
 
     def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
         unique_ids = [record_id for record_id in dict.fromkeys(record_ids) if record_id]
@@ -837,7 +858,7 @@ class PapyrusGraphQLAuthoringClient:
         if model_name not in MUTATIONS:
             raise ValueError(f"Unsupported model for delete: {model_name}")
         self._require_row_in_tenant(model_name, record_id)
-        self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": record_id}})
+        self.graphql(MUTATIONS[model_name]["delete"], {"input": {"id": self._stored_record_id(model_name, record_id)}})
 
     def safe_list_records(self, model_name: str) -> list[dict[str, Any]]:
         try:

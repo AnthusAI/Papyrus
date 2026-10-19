@@ -180,7 +180,7 @@ internal evidence, source snapshots, proposed references, unresolved gaps,
 queries, source-diversity notes, and an intake handoff. Fresh web findings are
 source-material prospects, not accepted evidence.
 
-`reporting_context_packet` is the edition-candidate product. It packages the
+`reporting_context_packet` is the candidate product. It packages the
 context required for possible copywriting of one article or brief. It should
 include:
 
@@ -342,7 +342,7 @@ copyediting/layout step after a draft exists.
 
 - `Queue`: lifecycle and worker coordination, including claim, release,
   complete, cancel, and reopen.
-- `Story Budget`: editorial budget review for `reporting.edition-candidate`
+- `Story Budget`: editorial budget review for `reporting.candidate`
   assignments grouped by edition and section.
 
 Keep those workflows separate. Lifecycle actions answer "who is working this
@@ -354,7 +354,7 @@ this reporting packet?"
 Researchers use `procedures/newsroom/research_explorer.tac` or
 `procedures/newsroom/researcher.tac` to produce `research_packet` payloads.
 Reporters use `procedures/newsroom/reporter.tac` to produce
-`reporting_context_packet` payloads for live `reporting.edition-candidate`
+`reporting_context_packet` payloads for live `reporting.candidate`
 assignments. Agents do not own persistence mechanics; the CLI/procedure layer
 turns payloads into deterministic `Message`, `ModelAttachment`, and
 `SemanticRelation` writes.

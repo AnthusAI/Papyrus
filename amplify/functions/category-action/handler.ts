@@ -4,7 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
-import { curationActorKind, referenceCurationMetadata } from "../shared/reference-curation-metadata";
+import { curationActorKind, referenceCurationMetadata, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
   CURATION_DELEGATION_OWNER_TYPE,
   CURATION_DELEGATION_PAYLOAD_KIND,
@@ -12,14 +12,28 @@ import {
   delegationRefusalMessage,
   delegationVerdict,
   newDelegationToken,
+  PENDING_REQUEST_GRANTOR_SUB,
   type CurationDelegation,
 } from "../shared/curation-delegation";
+import {
+  approveDelegation,
+  delegationResult as flowDelegationResult,
+  delegationStatus,
+  denyDelegation,
+  livePendingRequests,
+  requestDelegation,
+  type DelegationStore,
+} from "../shared/curation-delegation-flow";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
 type CreateCurationDelegationHandler = Schema["createCurationDelegation"]["functionHandler"];
 type RevokeCurationDelegationHandler = Schema["revokeCurationDelegation"]["functionHandler"];
 type ListCurationDelegationsHandler = Schema["listCurationDelegations"]["functionHandler"];
+type RequestCurationDelegationHandler = Schema["requestCurationDelegation"]["functionHandler"];
+type ApproveCurationDelegationHandler = Schema["approveCurationDelegation"]["functionHandler"];
+type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionHandler"];
+type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
@@ -39,6 +53,10 @@ type CategoryActionEvent =
   | Parameters<CreateCurationDelegationHandler>[0]
   | Parameters<RevokeCurationDelegationHandler>[0]
   | Parameters<ListCurationDelegationsHandler>[0]
+  | Parameters<RequestCurationDelegationHandler>[0]
+  | Parameters<ApproveCurationDelegationHandler>[0]
+  | Parameters<DenyCurationDelegationHandler>[0]
+  | Parameters<GetCurationDelegationStatusHandler>[0]
   | Parameters<RecordDelegatedCurationHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
@@ -108,6 +126,10 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
   if (fieldName === "revokeCurationDelegation") return revokeCurationDelegation(event as Parameters<RevokeCurationDelegationHandler>[0]);
   if (fieldName === "listCurationDelegations") return listCurationDelegations(event as Parameters<ListCurationDelegationsHandler>[0]);
+  if (fieldName === "requestCurationDelegation") return requestCurationDelegationAction(event as Parameters<RequestCurationDelegationHandler>[0]);
+  if (fieldName === "approveCurationDelegation") return approveCurationDelegationAction(event as Parameters<ApproveCurationDelegationHandler>[0]);
+  if (fieldName === "denyCurationDelegation") return denyCurationDelegationAction(event as Parameters<DenyCurationDelegationHandler>[0]);
+  if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
@@ -193,6 +215,11 @@ async function reviewReferenceCuration(
   const nextStatus = referenceCurationStatusForAction(action);
   const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode, action === "reject");
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const sectionRecord = requestedSectionId
+    ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
+    : null;
+  const sectionId = validatedCurationSectionId(requestedSectionId, action, sectionRecord);
   const now = new Date().toISOString();
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
@@ -259,6 +286,7 @@ async function reviewReferenceCuration(
       decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
       shareable: event.arguments.shareable ?? null,
       actorKind: delegation ? "human" : curationActorKind(event.identity),
+      sectionId,
       delegation,
     }),
     { filename: "metadata.json", now },
@@ -370,15 +398,66 @@ async function writeCurationDelegation(client: DataClient, delegation: CurationD
 }
 
 function delegationResult(delegation: CurationDelegation, token: string | null) {
+  return { ...flowDelegationResult(delegation, new Date().toISOString()), token };
+}
+
+async function listPendingCurationDelegations(client: DataClient): Promise<CurationDelegation[]> {
+  const pending: CurationDelegation[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
+      { ownerId: PENDING_REQUEST_GRANTOR_SUB, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
+      { nextToken },
+    );
+    assertNoDataErrors(page.errors, "list pending curation delegations");
+    for (const payload of page.data ?? []) {
+      const delegation = await readCurationDelegation(client, payload.id);
+      if (delegation) pending.push(delegation);
+    }
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return pending;
+}
+
+function curationDelegationStore(client: DataClient): DelegationStore {
   return {
-    ok: true,
-    delegationId: delegation.delegationId,
-    token,
-    agentLabel: delegation.agentLabel,
-    grantorLabel: delegation.grantorLabel,
-    expiresAt: delegation.expiresAt,
-    revokedAt: delegation.revokedAt,
+    read: (delegationId) => readCurationDelegation(client, delegationId),
+    write: (delegation, now, created) => writeCurationDelegation(client, delegation, now, created),
+    listPending: () => listPendingCurationDelegations(client),
   };
+}
+
+async function requestCurationDelegationAction(event: Parameters<RequestCurationDelegationHandler>[0]) {
+  const client = await getDataClient();
+  return requestDelegation(
+    curationDelegationStore(client),
+    {
+      delegationId: normalizeRequiredString(event.arguments.delegationId, "delegationId"),
+      tokenHash: normalizeRequiredString(event.arguments.tokenHash, "tokenHash"),
+      agentLabel: normalizeRequiredString(event.arguments.agentLabel, "agentLabel"),
+      hours: event.arguments.hours,
+    },
+    new Date().toISOString(),
+  );
+}
+
+async function approveCurationDelegationAction(event: Parameters<ApproveCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  return { ...(await approveDelegation(curationDelegationStore(client), person, normalizeRequiredString(event.arguments.userCode, "userCode"), now)), token: null };
+}
+
+async function denyCurationDelegationAction(event: Parameters<DenyCurationDelegationHandler>[0]) {
+  const person = requireSignedInPerson(event);
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  return { ...(await denyDelegation(curationDelegationStore(client), person, normalizeRequiredString(event.arguments.userCode, "userCode"), now)), token: null };
+}
+
+async function getCurationDelegationStatusAction(event: Parameters<GetCurationDelegationStatusHandler>[0]) {
+  const client = await getDataClient();
+  return delegationStatus(curationDelegationStore(client), normalizeRequiredString(event.arguments.delegationId, "delegationId"), new Date().toISOString());
 }
 
 async function createCurationDelegation(event: Parameters<CreateCurationDelegationHandler>[0]) {
@@ -406,7 +485,7 @@ async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegati
   const client = await getDataClient();
   const delegation = await readCurationDelegation(client, normalizeRequiredString(event.arguments.delegationId, "delegationId"));
   if (!delegation) throw new Error("That delegation was not found.");
-  if (delegation.grantorSub !== person.sub && !person.isAdmin) throw new Error("Only the person who granted a delegation can revoke it.");
+  if (delegation.grantorSub !== person.sub && delegation.grantorSub !== PENDING_REQUEST_GRANTOR_SUB && !person.isAdmin) throw new Error("Only the person who granted a delegation can revoke it.");
   const now = new Date().toISOString();
   const revoked = { ...delegation, revokedAt: delegation.revokedAt ?? now };
   await writeCurationDelegation(client, revoked, now, false);
@@ -430,6 +509,8 @@ async function listCurationDelegations(event: Parameters<ListCurationDelegations
     }
     nextToken = page.nextToken;
   } while (nextToken);
+  const now = new Date().toISOString();
+  delegations.push(...(await livePendingRequests(curationDelegationStore(client), now)));
   return delegations
     .sort((first, second) => second.createdAt.localeCompare(first.createdAt))
     .map((delegation) => delegationResult(delegation, null));
@@ -463,6 +544,7 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
       reasonCode: event.arguments.reasonCode,
       decisionRelationId: event.arguments.decisionRelationId,
       shareable: event.arguments.shareable,
+      sectionId: event.arguments.sectionId,
       actorSub: delegation.grantorSub,
       actorLabel: delegation.grantorLabel,
     },

@@ -106,7 +106,7 @@ export type ReportingStoryBudgetInput = {
   messagePayloads?: Record<string, unknown>;
 };
 
-const REPORTING_ASSIGNMENT_TYPE = "reporting.edition-candidate";
+const REPORTING_ASSIGNMENT_TYPE = "reporting.candidate";
 const REPORTING_PACKET_KIND = "reporting_context_packet";
 const RESEARCH_PACKET_KIND = "research_packet";
 
@@ -331,7 +331,7 @@ function buildResearchPacketIdsByReportingAssignment(assignments: AssignmentReco
     if (relation.subjectKind === "assignment" && relation.objectKind === "assignment") {
       const reporting = assignmentById.get(relation.subjectId);
       const research = assignmentById.get(relation.objectId);
-      if (reporting?.assignmentTypeKey !== REPORTING_ASSIGNMENT_TYPE || research?.assignmentTypeKey !== "research.edition-candidate") continue;
+      if (reporting?.assignmentTypeKey !== REPORTING_ASSIGNMENT_TYPE || research?.assignmentTypeKey !== "research.candidate") continue;
       for (const packetId of producedResearchPacketsByAssignment.get(research.id) ?? []) {
         result.set(reporting.id, addToSet(result.get(reporting.id), packetId));
       }

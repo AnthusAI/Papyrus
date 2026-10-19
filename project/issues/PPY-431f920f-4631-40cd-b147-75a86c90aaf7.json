@@ -1,0 +1,32 @@
+{
+  "id": "PPY-431f920f-4631-40cd-b147-75a86c90aaf7",
+  "title": "Scope NewsroomSection ids per tenant account",
+  "description": "Follow-up from PR 299. NewsroomSection is a tenant model but its record id is the bare section key (for example mission), so two tenants with the same section key collide on one row. Scope the stored id per tenant at the client boundary while single-tenant backends behave exactly as before. Gherkin: Given two tenants that both define a section named science, when each lists its sections, then each sees only its own; writing one never changes the other.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3ed014ad-5418-41de-a2fd-bee2134d0b9d",
+      "author": "unknown",
+      "text": "Merged in PR 327: tenant-scoped Section ids, Markus import and site cyclotron.",
+      "created_at": "2026-10-18T21:26:28.013030Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T21:13:06.146397Z",
+  "updated_at": "2026-10-18T21:26:28.730884Z",
+  "closed_at": "2026-10-18T21:26:28.730685Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

@@ -207,6 +207,7 @@ from .markus_derive_commands import content_markus_derive
 from .markus_export_commands import content_export_published
 from .backend_copy_commands import content_copy_backend
 from .markus_import_commands import content_import_markus
+from .tenant_adoption_commands import content_adopt_tenant_data
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
 from .renditions_commands import content_renditions
@@ -224,6 +225,7 @@ PORTED_COMMANDS = frozenset(
         "content:scrub-item-inline-body",
         "content:markus-derive",
         "content:import-markus",
+        "content:adopt-tenant-data",
         "content:publish",
         "content:unpublish",
         "content:rebuild",
@@ -247,6 +249,7 @@ PORTED_COMMANDS = frozenset(
         "references:review-curation",
         "references:approve",
         "references:reject",
+        "references:request-delegation",
         "references:list-predictions",
         "references:review-classification",
         "references:label",
@@ -274,12 +277,14 @@ PORTED_COMMANDS = frozenset(
         "references:export-analysis-manifest",
         "references:export-scope-training",
         "references:decide-relevance",
+        "references:decide-site-sections",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
         "references:prove-priming",
         "references:freeze-priming-cross-validation",
         "references:stamp-curation-actor-kind",
         "references:prove-priming-cross-validated",
+        "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -436,6 +441,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_markus_derive(flags)
     elif route == "content:import-markus":
         content_import_markus(flags)
+    elif route == "content:adopt-tenant-data":
+        content_adopt_tenant_data(flags)
     elif route == "content:publish":
         content_publish(flags)
     elif route == "content:unpublish":
@@ -482,6 +489,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route in ("references:approve", "references:reject"):
         from .references_commands import references_record_on_behalf_of
         references_record_on_behalf_of(flags, action=command)
+    elif route == "references:request-delegation":
+        from .references_commands import references_request_delegation
+        references_request_delegation(flags)
     elif route == "references:review-curation":
         references_review_curation(flags)
     elif route == "references:list-predictions":
@@ -550,6 +560,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:decide-relevance":
         from .relevance_sweep import references_decide_relevance
         references_decide_relevance(flags)
+    elif route == "references:decide-site-sections":
+        from .site_sweep import references_decide_site_sections
+        references_decide_site_sections(flags)
     elif route == "references:export-relevance-recording":
         from .relevance_recording import references_export_relevance_recording
         references_export_relevance_recording(flags)
@@ -568,6 +581,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:prove-priming-cross-validated":
         from .priming_proof import references_prove_priming_cross_validated
         references_prove_priming_cross_validated(flags)
+    elif route == "references:prove-site-sections":
+        from .section_proof import references_prove_site_sections
+        references_prove_site_sections(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-corpus-storage-paths":
@@ -1542,7 +1558,8 @@ def print_usage() -> None:
     print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
-    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
+    print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
+    print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json],")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")

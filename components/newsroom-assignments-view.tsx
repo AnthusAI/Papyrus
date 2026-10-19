@@ -117,7 +117,7 @@ function AssignmentDetailPanel({
   detailExtras?: ReactNode;
 }) {
   const terminal = assignment.status === "completed" || assignment.status === "canceled";
-  const isReporting = assignment.assignmentTypeKey === "reporting.edition-candidate";
+  const isReporting = assignment.assignmentTypeKey === "reporting.candidate";
 
   return (
     <div

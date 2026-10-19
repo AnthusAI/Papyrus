@@ -1,0 +1,41 @@
+{
+  "id": "PPY-3ba3d92b-fecc-4f2b-997a-e2b9c489024c",
+  "title": "Delegation by device authorization: no secret passes through a person",
+  "description": "Ryan refuses to paste tokens into chat. The agent generates its own token secret and sends only the hash with a request; the server returns a short user code; the person approves on the newsroom Delegations screen; the agent polls status and already holds the token. Scoped, expiring, revocable, with the quoted --instruction. Gherkin: Given an agent requests a delegation, when nobody approves within ten minutes, then it expires and the token never works. Given the agent requested one, when Ryan approves the user code on the Delegations screen, then the agent's token records human decisions with the quoted instruction and the token never appeared in chat. Given an approved delegation, when Ryan revokes it, then the token is refused.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "cc8eee34-a0ee-458f-b297-87a5cca5ef3d",
+      "author": "unknown",
+      "text": "Merged in PR 329. Approve screen (Mac) still to build: operations listed in docs/story-reporting.md 'For the approve screen'.",
+      "created_at": "2026-10-18T21:50:24.918987Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "0d3fa559-9285-485e-949a-c3a8cbe6c3db",
+      "author": "unknown",
+      "text": "APPROVE SCREEN SPEC (Mac, frontend, so a cold start can pick it up). Backend merged in PR 329 (docs/story-reporting.md, section 'For the approve screen'). Screen: the newsroom Delegations screen (components/administration-delegations-panel.tsx, client components/curation-delegation-client.ts, helpers lib/curation-delegation-helpers.ts). 1) Remove the create-a-token form: no secret may be displayed or pasted. 2) Add a Pending requests block at the top, fed by listCurationDelegations (state=pending): agent label, the user code XXXX-XXXX large, requested hours, countdown to pendingExpiresAt, Approve and Deny buttons. 3) approveCurationDelegation(userCode: String!) returns state approved (any case, hyphen optional; unknown/expired/decided codes error 'No pending delegation request has that code...'); denyCurationDelegation(userCode: String!) returns state denied; revokeCurationDelegation(delegationId) unchanged and also works on pending. 4) Approved delegations stay listed with Revoke as today; show state, grantorLabel, expiresAt. 5) Result type CurationDelegationResult new fields: state, userCode (pending only), requestedHours, pendingExpiresAt, approvedAt, deniedAt; token is always null now. Newsprint style (no rounded corners, no inversion, text not faint, rules only between things). Local preview fixtures for pending requests, a script test in scripts/test-curation-delegation*.ts, then verify in the preview. Needs deployment of PR 329 (schema) to TI before the real flow works; after that run /mnt/project-files/cyclotron-priming/ti-end-to-end-check.md.",
+      "created_at": "2026-10-18T23:36:46.008910Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T21:36:42.222772Z",
+  "updated_at": "2026-10-18T23:36:46.009095Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

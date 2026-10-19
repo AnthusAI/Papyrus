@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "83b472d2-ab26-4540-a3e9-fcc620d81e48",
+  "issue_id": "PPY-db28dabc-feb8-44c8-8dff-ac5c2224c765",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:51:20.927Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Tactus books 4: Learning Tactus snippet includes, metadata, cover decision, switch Pages deploy",
+    "description": "Part of PPY-81c9b9. Needs snippet includes and meta substitution from the builder book mode. Cover (cover.html, custom-cover.css, checkpoint-dot animation) is a frontend design call for the Mac session; the build does not depend on it. Keep the Quarto PDF job. Needs push access to the repo.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": [
+      "tactus-books"
+    ]
+  }
+}

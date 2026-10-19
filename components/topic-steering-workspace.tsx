@@ -56,6 +56,7 @@ import {
   type NewsroomRecordPage,
   loadCyclotronStatus,
   loadCyclotronShadowAgreement,
+  loadSiteSectionAgreement,
   requestCyclotronPriming,
   loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
@@ -162,6 +163,8 @@ import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
 import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type ShadowAgreement } from "../lib/cyclotron-suggestions";
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
+import { createLocalPreviewSectionFixtures } from "../lib/local-preview-section-fixtures";
+import { currentSectionSuggestions, siteCyclotronIdOf, type SiteSectionAgreement } from "../lib/site-section-suggestions";
 import {
   buildPrimingRequest,
   buildReviewRateRequest,
@@ -862,6 +865,35 @@ function NewsDeskDashboard({
     [dashboard.newsroomSections],
   );
   const [newsroomSections, setNewsroomSections] = useState(fallbackNewsroomSections);
+  const sectionChoices = useMemo(
+    () => newsroomSections
+      .filter((section) => section.enabled !== false && section.enabledStatus !== "disabled")
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((section) => ({ id: section.id, title: section.title })),
+    [newsroomSections],
+  );
+  const sectionPreviewFixtures = useMemo(
+    () => (isLocalPreviewEnabled() ? createLocalPreviewSectionFixtures(references, sectionChoices.map((section) => section.id)) : null),
+    [references, sectionChoices],
+  );
+  const sectionSuggestions = useMemo(
+    () => currentSectionSuggestions(sectionPreviewFixtures ? [...semanticRelations, ...sectionPreviewFixtures.relations] : semanticRelations),
+    [sectionPreviewFixtures, semanticRelations],
+  );
+  const siteCyclotronId = useMemo(() => siteCyclotronIdOf(sectionSuggestions), [sectionSuggestions]);
+  const [siteSectionAgreement, setSiteSectionAgreement] = useState<SiteSectionAgreement | null>(null);
+  useEffect(() => {
+    if (sectionPreviewFixtures) {
+      setSiteSectionAgreement(sectionPreviewFixtures.agreement);
+      return;
+    }
+    if (!siteCyclotronId || dashboard.isDemo) return;
+    let cancelled = false;
+    loadSiteSectionAgreement(siteCyclotronId)
+      .then((loaded) => { if (!cancelled) setSiteSectionAgreement(loaded); })
+      .catch(() => { if (!cancelled) setSiteSectionAgreement(null); });
+    return () => { cancelled = true; };
+  }, [dashboard.isDemo, sectionPreviewFixtures, siteCyclotronId]);
   const [procedureDefinitions, setProcedureDefinitions] = useState(dashboard.procedureDefinitions ?? []);
   const [procedureVersions, setProcedureVersions] = useState(dashboard.procedureVersions ?? []);
   const [procedureRuns, setProcedureRuns] = useState(dashboard.procedureRuns ?? []);
@@ -1586,6 +1618,7 @@ function NewsDeskDashboard({
     note?: string,
     reasonCode?: ReferenceRejectionReasonCode | null,
     relevance?: { decisionRelationId: string; shareable: boolean },
+    sectionId?: string | null,
   ) {
     const nextStatus = referenceCurationStatusForAction(action);
     setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
@@ -1615,6 +1648,7 @@ function NewsDeskDashboard({
           curationStatus: nextStatus,
           reasonCode: action === "reject" ? reasonCode ?? null : null,
           ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
+          ...(action === "accept" && sectionId ? { sectionId } : {}),
         },
       }, ...current]);
       setSemanticRelations((current) => [{
@@ -1657,6 +1691,7 @@ function NewsDeskDashboard({
               reasonCode: action === "reject" ? reasonCode ?? undefined : undefined,
               decisionRelationId: relevance?.decisionRelationId,
               shareable: relevance ? relevance.shareable : undefined,
+              sectionId: action === "accept" ? sectionId ?? undefined : undefined,
             },
             { authMode: USER_POOL_AUTH_MODE },
           );
@@ -3265,7 +3300,10 @@ function NewsDeskDashboard({
               normalizeReferenceRejectionReasonCode(curation.reasonCode),
               { decisionRelationId: curation.decisionRelationId, shareable: curation.shareable },
             )}
-            onReview={(reference, action) => runReferenceCurationAction(reference, action)}
+            sections={sectionChoices}
+            sectionSuggestions={sectionSuggestions}
+            sectionAgreement={siteSectionAgreement}
+            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, undefined, undefined, undefined, options?.sectionId)}
             referenceAttachments={referenceAttachments}
             references={references}
           />
@@ -12330,7 +12368,7 @@ function ReportingStoryBudgetBoard({
           section={section}
           selectedAssignmentId={selectedAssignmentId}
         />
-      )) : <EmptyRow label="No reporting edition-candidate assignments found" />}
+      )) : <EmptyRow label="No reporting candidate assignments found" />}
     </div>
   );
 }
@@ -14530,7 +14568,7 @@ function buildUiReportingPacketReviewPlan({
   event: AssignmentEventRecord;
   relations: SemanticRelationRecord[];
 } {
-  if (assignment.assignmentTypeKey !== "reporting.edition-candidate") throw new Error("Only reporting edition-candidate assignments can review reporting packets.");
+  if (assignment.assignmentTypeKey !== "reporting.candidate") throw new Error("Only reporting candidate assignments can review reporting packets.");
   if (message.messageKind !== "reporting_context_packet") throw new Error("Only reporting context packets can be reviewed.");
   if (decision === "merge" && !targetItem?.id && !targetItemId.trim()) throw new Error("Merge Packet requires a target Item ID.");
   const resolvedTargetItem = targetItem ?? (targetItemId.trim() ? { id: targetItemId.trim(), lineageId: targetItemId.trim(), versionNumber: null } : null);

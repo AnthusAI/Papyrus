@@ -106,6 +106,66 @@ judgment never becomes a label this way.
    words as you quoted them. The token proves the person let you relay decisions,
    not that they made this one, so the quote is what makes each label auditable.
 
+### Getting a delegation without pasting a secret (device authorization)
+
+Prefer this flow: the secret is made on the agent's machine and never passes
+through chat or through the server in plaintext.
+
+1. The agent runs:
+
+   ```bash
+   papyrus references request-delegation --agent <your name> [--hours 8] --wait
+   ```
+
+   It generates `curation-delegation-<uuid>~<random secret>`, writes it to a
+   private file (mode 0600, by default under `~/.config/papyrus/delegations/`,
+   or `--token-file <path>`), sends only the SHA-256 hash
+   (`requestCurationDelegation`), and prints only an approval code such as
+   `ABCD-2345` and the file path. The secret is never printed.
+2. Tell the person: open the Newsroom, Delegations, approve that code. The
+   request is pending for ten minutes, and at most five can be pending at once.
+3. The person approves (`approveCurationDelegation`) or denies
+   (`denyCurationDelegation`). Approval makes them the grantor and starts the
+   requested lifetime (default eight hours, 72 at most). `--wait` polls
+   `getCurationDelegationStatus` until approved, denied or expired.
+4. Record decisions with the file, so the token never appears in a prompt:
+
+   ```bash
+   papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
+     --agent <your name> --instruction "<the person's exact words>" --delegation-file <path>
+   ```
+
+   `--delegation-token` and `PAPYRUS_DELEGATION_TOKEN` still work.
+
+`recordDelegatedCuration` refuses a delegation that is pending, denied or
+unapproved (`not-approved`) and keeps every other check. A person can still
+revoke an approved delegation at any time.
+
+#### For the approve screen
+
+All of these need a signed-in Newsroom editor, except the two the agent calls.
+
+- `listCurationDelegations` (query) returns a list of `CurationDelegationResult`:
+  `ok`, `delegationId`, `token` (always null here), `agentLabel`,
+  `grantorLabel`, `expiresAt`, `revokedAt`, plus the new `state`
+  (`pending|approved|denied|expired|revoked`), `userCode` (`XXXX-XXXX`, only
+  while pending), `requestedHours`, `pendingExpiresAt`, `approvedAt`,
+  `deniedAt`. Live pending requests from every agent are included; for a
+  pending request `expiresAt` equals `pendingExpiresAt`.
+- `approveCurationDelegation(userCode: String!)` (mutation) returns a
+  `CurationDelegationResult` with `state: approved`. The code is accepted in
+  any case, with or without the hyphen. Unknown, expired or already decided
+  codes are refused.
+- `denyCurationDelegation(userCode: String!)` (mutation) returns a
+  `CurationDelegationResult` with `state: denied`.
+- `revokeCurationDelegation(delegationId: ID!)` still revokes an approved
+  delegation (and also works on a pending one).
+- Agent only (IAM): `requestCurationDelegation(delegationId, tokenHash,
+  agentLabel, hours)` returns `{ ok, delegationId, userCode, pendingExpiresAt,
+  requestedHours }`; `getCurationDelegationStatus(delegationId)` returns
+  `{ delegationId, state, expiresAt, grantorLabel }`. Neither returns a secret
+  or hash.
+
 Only relay what the person actually said. If you are unsure, quote their words in
 `--note` and ask. A delegation lets you record a human decision; it does not let
 you decide.
@@ -115,3 +175,21 @@ still write curation metadata itself. The delegation makes the honest path
 verifiable, and the audit trail (delegation id, agent, grantor) lets a person
 check it; removing direct write access to curation Messages is a separate
 hardening step.
+
+### Naming the section
+
+An accept, direct or relayed, can also say which newsroom Section the Reference
+belongs in:
+
+```bash
+papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
+  --agent <your name> --instruction "<the person's exact words>" --section <newsroom section id>
+papyrus references review-curation --reference <record id> --action accept --section <newsroom section id>
+```
+
+`reviewReferenceCuration` and `recordDelegatedCuration` take an optional
+`sectionId`. It must be the id of an enabled `NewsroomSection`; an unknown or
+disabled section is refused before anything is written, and a section on a
+reject, reopen or archive is refused. The id is stored as `sectionId` in the
+curation Message metadata beside `actorKind`. Only an accept that the signed-in
+person made, or that the person delegated, counts as their section label.

@@ -1,6 +1,4 @@
-export const DEFAULT_DELEGATION_HOURS = 8;
-export const MINIMUM_DELEGATION_HOURS = 1;
-export const MAXIMUM_DELEGATION_HOURS = 72;
+export type CurationDelegationState = "pending" | "approved" | "denied" | "expired" | "revoked";
 
 export type CurationDelegationRecord = {
   delegationId: string;
@@ -8,24 +6,14 @@ export type CurationDelegationRecord = {
   grantorLabel: string | null;
   expiresAt: string;
   revokedAt: string | null;
+  state?: CurationDelegationState | null;
+  /** XXXX-XXXX, present only while the request is pending. */
+  userCode?: string | null;
+  requestedHours?: number | null;
+  pendingExpiresAt?: string | null;
+  approvedAt?: string | null;
+  deniedAt?: string | null;
 };
-
-export type DelegationInputValidation =
-  | { ok: true; agentLabel: string; hours: number }
-  | { ok: false; message: string };
-
-export function validateDelegationInput(agentLabelText: string, hoursText: string): DelegationInputValidation {
-  const agentLabel = agentLabelText.trim();
-  if (!agentLabel) return { ok: false, message: "Enter the name of the agent you are trusting." };
-  if (/\s/.test(agentLabel)) return { ok: false, message: "The agent name cannot contain spaces. Use the name the agent passes as --agent." };
-  const trimmedHours = hoursText.trim();
-  if (!/^\d+$/.test(trimmedHours)) return { ok: false, message: `Enter a whole number of hours from ${MINIMUM_DELEGATION_HOURS} to ${MAXIMUM_DELEGATION_HOURS}.` };
-  const hours = Number(trimmedHours);
-  if (hours < MINIMUM_DELEGATION_HOURS || hours > MAXIMUM_DELEGATION_HOURS) {
-    return { ok: false, message: `A delegation lasts from ${MINIMUM_DELEGATION_HOURS} to ${MAXIMUM_DELEGATION_HOURS} hours.` };
-  }
-  return { ok: true, agentLabel, hours };
-}
 
 export function delegationExpiryText(expiresAt: string, revokedAt: string | null, nowMilliseconds: number): string {
   if (revokedAt) return "Revoked";
@@ -41,11 +29,6 @@ export function isDelegationActive(record: CurationDelegationRecord, nowMillisec
   return !record.revokedAt && Date.parse(record.expiresAt) > nowMilliseconds;
 }
 
-export function buildDelegatedCommandLine(input: { email: string; agentLabel: string; token: string; action?: "approve" | "reject" }): string {
-  const email = input.email.trim() || "<your-email>";
-  return `papyrus references ${input.action ?? "approve"} <reference-id> --on-behalf-of ${email} --agent ${input.agentLabel} --instruction "<the person's own words>" --delegation-token ${input.token}`;
-}
-
 export function describeDelegationError(error: unknown): string {
   const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   const graphql = (error as { errors?: Array<{ message?: string }> } | null)?.errors?.[0]?.message ?? "";
@@ -56,4 +39,31 @@ export function describeDelegationError(error: unknown): string {
   if (text.includes("network") || text.includes("failed to fetch")) return "Could not reach the server. Check your connection and try again.";
   const detail = (graphql || raw).trim();
   return detail ? `The server refused the request: ${detail}` : "Something went wrong. Nothing was changed.";
+}
+
+/** A pending request that an agent started and nobody has approved, denied or let lapse. */
+export function isPendingDelegation(record: CurationDelegationRecord, nowMilliseconds: number): boolean {
+  return record.state === "pending" && Boolean(record.userCode) && Date.parse(record.pendingExpiresAt ?? record.expiresAt) > nowMilliseconds;
+}
+
+/** "9:41 left" for a request that is still open, "Expired" once its window has passed. */
+export function pendingCountdownText(pendingExpiresAt: string | null | undefined, nowMilliseconds: number): string {
+  const remaining = Date.parse(pendingExpiresAt ?? "") - nowMilliseconds;
+  if (!Number.isFinite(remaining) || remaining <= 0) return "Expired";
+  const totalSeconds = Math.ceil(remaining / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")} left`;
+}
+
+/** The state of a decided or lapsed delegation in words an editor reads in the list. */
+export function delegationStateText(record: CurationDelegationRecord, nowMilliseconds: number): string {
+  if (record.state === "denied") return "Denied";
+  if (record.state === "pending") return pendingCountdownText(record.pendingExpiresAt ?? record.expiresAt, nowMilliseconds) === "Expired" ? "Request expired" : "Waiting for a decision";
+  return delegationExpiryText(record.expiresAt, record.revokedAt, nowMilliseconds);
+}
+
+export function requestedHoursText(hours: number | null | undefined): string {
+  if (!hours || hours <= 0) return "Duration not stated";
+  return `Asks for ${hours} ${hours === 1 ? "hour" : "hours"}`;
 }

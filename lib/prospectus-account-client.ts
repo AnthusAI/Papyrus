@@ -18,6 +18,7 @@ type FetchImplementation = (input: string, init?: RequestInit) => Promise<Respon
 
 const SESSION_PATH = "/api/auth/prospectus/session";
 const SELECTION_PATH = "/api/auth/prospectus/selection";
+const ACCOUNTS_PATH = "/api/auth/prospectus/accounts";
 const SIGN_IN_PATH = "/api/auth/prospectus/sign-in";
 
 export function prospectusSignInUrl(returnPath: string): string {
@@ -60,5 +61,30 @@ export async function selectProspectusAccount(
   });
   const body = await response.json().catch(() => null) as { selectedAccountId?: string; role?: string; message?: string } | null;
   if (!response.ok || !body?.selectedAccountId) return { error: body?.message ?? "That account could not be selected." };
+  return { selectedAccountId: body.selectedAccountId, role: body.role ?? "" };
+}
+
+/**
+ * Create a publishing account for the signed-in person and select it. Each call carries a fresh idempotency key,
+ * so a retried request after a dropped response cannot create a second account.
+ */
+export async function createProspectusAccount(
+  name: string,
+  fetchImplementation: FetchImplementation = fetch,
+  idempotencyKey: string = crypto.randomUUID(),
+): Promise<{ selectedAccountId: string; role: string } | { error: string }> {
+  let response: Response;
+  try {
+    response = await fetchImplementation(ACCOUNTS_PATH, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: name.trim() || undefined, idempotencyKey }),
+    });
+  } catch {
+    return { error: "The publishing account could not be created. Check your connection and try again." };
+  }
+  const body = await response.json().catch(() => null) as { selectedAccountId?: string; role?: string; message?: string } | null;
+  if (!response.ok || !body?.selectedAccountId) return { error: body?.message ?? "The publishing account could not be created." };
   return { selectedAccountId: body.selectedAccountId, role: body.role ?? "" };
 }

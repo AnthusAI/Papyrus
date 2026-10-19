@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { editionsEnabled } from "../../../../lib/site-brand";
 import { EditionRoutePage } from "./edition-route-page";
 import { generateEditionDateStaticParams } from "../../../../lib/reader-static-params";
 
@@ -17,6 +19,7 @@ type DateEditionPageProps = {
 };
 
 export default async function DateEditionPage({ params }: DateEditionPageProps) {
+  if (!editionsEnabled()) notFound();
   const { year, month, day } = await params;
   return <EditionRoutePage day={day} month={month} year={year} />;
 }

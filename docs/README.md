@@ -61,6 +61,8 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [internal-knowledge-research.md](internal-knowledge-research.md): `knowledgeQuery` context packs for accepted references and the graph.
 - [agent-loop-patterns.md](agent-loop-patterns.md): bounded explorer loops vs one-shot researchers.
 - [cyclotron-priming.md](cyclotron-priming.md): relevance cyclotron, priming examples, the proof number and the publication panel.
+- [cyclotron-ti-end-to-end-check.md](cyclotron-ti-end-to-end-check.md): the runbook that checks delegated Reference approval and Cyclotron training on a deployed site.
+- [cyclotron-chatgpt-test-prompt.md](cyclotron-chatgpt-test-prompt.md): the prompt for a ChatGPT research session that tests the deployed flow.
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
 
 ## CLI and API

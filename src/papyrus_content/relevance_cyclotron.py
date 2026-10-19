@@ -41,7 +41,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     _refuse_secrets(raw, FIELD)
     known = {"cyclotronId", "classifierId", "question", "labels", "positiveLabel", "decisionModel",
              "optimizer", "store", "maxRequestsPerSweep", "reviewProgram", "reviewControl", "enabled",
-             "maxDecisionsPerDay"}
+             "maxDecisionsPerDay", "approvedProofPath"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ValueError(f"{FIELD} has unknown fields: {', '.join(unknown)}.")
@@ -93,6 +93,9 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     max_decisions_per_day = raw.get("maxDecisionsPerDay")
     if max_decisions_per_day is not None and (type(max_decisions_per_day) is not int or max_decisions_per_day < 1):
         raise ValueError(f"{FIELD}.maxDecisionsPerDay must be a positive integer.")
+    approved_proof_path = raw.get("approvedProofPath")
+    if approved_proof_path is not None and (not isinstance(approved_proof_path, str) or not approved_proof_path.strip()):
+        raise ValueError(f"{FIELD}.approvedProofPath must be a file path.")
     program = raw.get("reviewProgram") or {}
     if not isinstance(program, dict) or set(program) - set(REVIEW_PROGRAM_FIELDS):
         raise ValueError(f"{FIELD}.reviewProgram fields are {', '.join(REVIEW_PROGRAM_FIELDS)}.")
@@ -111,6 +114,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
         "reviewControl": review_control,
         "enabled": enabled,
         "maxDecisionsPerDay": max_decisions_per_day,
+        "approvedProofPath": approved_proof_path,
     }
 
 
@@ -142,6 +146,7 @@ class RelevanceCyclotronPlan:
     review_control: str = "labels"
     enabled: bool = True
     max_decisions_per_day: int | None = None
+    approved_proof_path: str | None = None
 
 
 def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
@@ -159,7 +164,8 @@ def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequ
     return RelevanceCyclotronPlan(definition, {classifier.id: doctrine_seed_rubric(doctrine)}, program,
                                   dict(block["decisionModel"]), dict(block["optimizer"]) if block["optimizer"] else None,
                                   block["store"]["localPath"], block["store"]["s3Prefix"], block["maxRequestsPerSweep"],
-                                  block["reviewControl"], block.get("enabled", True), block.get("maxDecisionsPerDay"))
+                                  block["reviewControl"], block.get("enabled", True), block.get("maxDecisionsPerDay"),
+                                  block.get("approvedProofPath"))
 
 
 def decision_model_identity(plan: RelevanceCyclotronPlan) -> str:

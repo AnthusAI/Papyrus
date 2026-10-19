@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { EditionRoutePage } from "../../edition-route-page";
 import { parseEditionPageRoute } from "../../../../../../lib/edition-routes";
-import { getDefaultPretextLayout, getForcedPresentation } from "../../../../../../lib/site-brand";
+import { editionsEnabled, getDefaultPretextLayout, getForcedPresentation } from "../../../../../../lib/site-brand";
 import { generateEditionPageStaticParams } from "../../../../../../lib/reader-static-params";
 // Keep in sync with READER_REVALIDATE_SECONDS in lib/reader-route-config.ts
 export const revalidate = 60;
@@ -20,6 +20,7 @@ type EditionPageRouteProps = {
 };
 
 export default async function EditionPageRoute({ params }: EditionPageRouteProps) {
+  if (!editionsEnabled()) notFound();
   const { year, month, day, pageNumber } = await params;
   const route = parseEditionPageRoute({ year, month, day, pageNumber });
   if (!route) notFound();

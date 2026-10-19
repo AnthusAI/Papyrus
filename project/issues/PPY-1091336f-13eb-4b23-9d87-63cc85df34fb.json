@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1091336f-13eb-4b23-9d87-63cc85df34fb",
+  "title": "Adopt legacy bare-id rows into a tenant",
+  "description": "Merged in PR 328: content adopt-tenant-data --tenant (dry run by default, idempotent), import-markus adopts legacy items, Gherkin features/tenant-scoping.feature. Open: run the read-only dry run on the Mac against p.apyr.us, read the output, then apply with Ryan's approval.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T21:41:22.113113Z",
+  "updated_at": "2026-10-18T21:41:22.113351Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

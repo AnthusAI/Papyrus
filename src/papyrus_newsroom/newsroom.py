@@ -1145,7 +1145,7 @@ def papyrus_list_assignments(
     if type:
         type_token = str(type).strip()
         if type_token == "research":
-            # Research assignments span multiple keys (edition-candidate, tavily-deep, ...).
+            # Research assignments span multiple keys (candidate, tavily-deep, ...).
             assignments = [
                 item
                 for item in assignments
@@ -1433,7 +1433,7 @@ def papyrus_assignment_update(args: dict[str, Any]) -> dict[str, Any]:
     from_status = str(assignment.get("status") or "")
     queue_key = str(assignment.get("queueKey") or "").strip()
     section_key = str(assignment.get("sectionKey") or "").strip()
-    assignment_type_key = str(assignment.get("assignmentTypeKey") or "research.edition-candidate").strip()
+    assignment_type_key = str(assignment.get("assignmentTypeKey") or "research.candidate").strip()
     note = str(payload.get("note") or f"Updated assignment status: {from_status} -> {to_status}").strip()
 
     assignment_patch: dict[str, Any] = {
@@ -1500,7 +1500,7 @@ def papyrus_assignment_update(args: dict[str, Any]) -> dict[str, Any]:
 
 def _assignment_type_key_for_resource_type(resource_type: str) -> str:
     if str(resource_type).strip() == "research":
-        return "research.edition-candidate"
+        return "research.candidate"
     raise ValueError(f"Unsupported Assignment type: {resource_type}")
 
 
@@ -3230,8 +3230,8 @@ def build_assignment_reporting_context_packet_plan(
 
     assignment_id = _required(assignment_payload.get("id"), "assignment.id")
     assignment_type = _required(assignment_payload.get("assignmentTypeKey"), "assignment.assignmentTypeKey")
-    if assignment_type != "reporting.edition-candidate":
-        raise ValueError("reporting context packets require assignment.assignmentTypeKey 'reporting.edition-candidate'")
+    if assignment_type != "reporting.candidate":
+        raise ValueError("reporting context packets require assignment.assignmentTypeKey 'reporting.candidate'")
     if not assignment_payload.get("queueKey"):
         raise ValueError("live assignment reporting packets require assignment.queueKey")
 

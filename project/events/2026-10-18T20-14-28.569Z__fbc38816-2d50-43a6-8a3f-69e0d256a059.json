@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fbc38816-2d50-43a6-8a3f-69e0d256a059",
+  "issue_id": "PPY-70311cb3-de35-4ac6-8018-38ce064c8d34",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:14:28.569Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Show the suggested Section and per-Section agreement in References (UI, Mac)",
+    "description": "UI, done on the Mac against a dev server Ryan can open. Show the selector's suggested Section on each pending Reference, a Section picker on accept that records the human Section label, and per-Section agreement beside the status strip. Backend fields come from the stories above.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

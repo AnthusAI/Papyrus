@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1d32697c-6432-4c9d-871a-b7e9b22d8f68",
+  "issue_id": "PPY-3ba3d92b-fecc-4f2b-997a-e2b9c489024c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T21:36:42.222Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Delegation by device authorization: no secret passes through a person",
+    "description": "Ryan refuses to paste tokens into chat. The agent generates its own token secret and sends only the hash with a request; the server returns a short user code; the person approves on the newsroom Delegations screen; the agent polls status and already holds the token. Scoped, expiring, revocable, with the quoted --instruction. Gherkin: Given an agent requests a delegation, when nobody approves within ten minutes, then it expires and the token never works. Given the agent requested one, when Ryan approves the user code on the Delegations screen, then the agent's token records human decisions with the quoted instruction and the token never appeared in chat. Given an approved delegation, when Ryan revokes it, then the token is refused.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+    "labels": []
+  }
+}

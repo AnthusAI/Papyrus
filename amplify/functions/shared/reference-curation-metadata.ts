@@ -13,6 +13,7 @@ export type ReferenceCurationMetadataInput = {
   decisionRelationId?: string | null
   shareable?: boolean | null
   actorKind?: CurationActorKind | null
+  sectionId?: string | null
   delegation?: { delegationId: string; relayedBy: string; instruction: string } | null
 }
 
@@ -39,6 +40,7 @@ export function referenceCurationMetadata(input: ReferenceCurationMetadataInput)
     referenceId: input.referenceId,
     referenceLineageId: input.referenceLineageId,
     ...(input.actorKind ? {actorKind: input.actorKind} : {}),
+    ...(input.sectionId?.trim() ? {sectionId: input.sectionId.trim()} : {}),
     ...(input.delegation
       ? {attestation: "delegated", relayedBy: input.delegation.relayedBy, delegationId: input.delegation.delegationId,
          instruction: input.delegation.instruction}
@@ -46,4 +48,33 @@ export function referenceCurationMetadata(input: ReferenceCurationMetadataInput)
     ...(decisionRelationId ? {decisionRelationId} : {}),
     ...(decisionRelationId ? {shareable: input.shareable === true} : {}),
   }
+}
+
+export type CurationSectionCandidate = {
+  id?: string | null
+  enabled?: boolean | null
+  enabledStatus?: string | null
+} | null | undefined
+
+/**
+ * A curation may name the newsroom Section the Reference belongs in, but only
+ * when it accepts the Reference and the Section exists and is enabled.
+ */
+export function validatedCurationSectionId(
+  requestedSectionId: string | null | undefined,
+  action: string,
+  section: CurationSectionCandidate,
+): string | null {
+  const sectionId = requestedSectionId?.trim() || null
+  if (!sectionId) return null
+  if (action !== "accept") {
+    throw new Error("A section can be recorded only when accepting a reference.")
+  }
+  if (!section || section.id !== sectionId) {
+    throw new Error(`Newsroom section ${sectionId} was not found.`)
+  }
+  if (section.enabled === false || section.enabledStatus === "disabled") {
+    throw new Error(`Newsroom section ${sectionId} is disabled.`)
+  }
+  return sectionId
 }

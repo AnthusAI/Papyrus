@@ -1,4 +1,5 @@
 import { isLocalPreviewEnabled } from "./local-preview";
+import { areEditionsEnabled } from "./site-env";
 import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
 import type { Article, ArticleVideoAsset } from "./articles";
@@ -157,6 +158,11 @@ export type SiteBrand = {
   fonts?: SiteBrandFont[];
   demoEdition?: SiteBrandDemoEdition;
   video?: SiteBrandVideo;
+  /**
+   * Editions are an optional setting, off unless `{ enabled: true }`. When off the
+   * publication is a plain stream of items: no edition date routes, archive or masthead date.
+   */
+  editions?: { enabled: boolean };
 };
 
 const SERIF_TEXT_FONT = 'Georgia, "Times New Roman", serif';
@@ -252,6 +258,11 @@ export function getRootRoute(brand: SiteBrand = SITE_BRAND): RootRouteConfig {
 }
 
 export const rootRoute = getRootRoute();
+
+/** The brand setting wins when present; otherwise the PAPYRUS_EDITIONS_ENABLED switch decides. */
+export function editionsEnabled(brand: Pick<SiteBrand, "editions"> = SITE_BRAND): boolean {
+  return brand.editions?.enabled ?? areEditionsEnabled();
+}
 
 export function enforcePresentation(presentation: EditionPresentationFormat): EditionPresentationFormat {
   return SITE_BRAND.forcedPresentation ?? presentation;
