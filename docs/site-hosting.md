@@ -504,6 +504,18 @@ branch and grant their compute role and `content-actions` role the read themselv
 5. Wait for ACM validation and registrar NS propagation before accepting
    `https://<domain>` as done.
 
+## Which account `papyrus-infra` targets
+
+`papyrus-infra synth` and `papyrus-infra deploy` never default to a fixed AWS account. The account is the first of:
+
+1. `--account <id>`
+2. `CDK_DEFAULT_ACCOUNT`
+3. the account returned by `aws sts get-caller-identity` for the current credentials (the aws CLI must be on `PATH`)
+
+If none of these yields a 12-digit account id, the command exits with `cannot determine the AWS account` and the reason. The region is `--region`, then `AWS_REGION`, `AWS_DEFAULT_REGION`, `CDK_DEFAULT_REGION`, and finally `us-east-1`. Amplify builds set none of the `CDK_DEFAULT_*` variables, so a deploy from a build uses the build role's own account; passing `--account` in the postinstall hook is still allowed and wins.
+
+Before Papyrus 1.19.x the account silently fell back to the legacy account, which made `papyrus-infra deploy` try to assume the legacy CDK deploy role from other accounts.
+
 ## Cross-account domains
 
 Lessons from the failed p.apyr.us cutover (the Route 53 zone stayed in the legacy account while the new app lives in the production account):
