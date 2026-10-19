@@ -22,6 +22,32 @@ class CurationNotReady(ValueError):
     """A host-authored readiness message safe to display without source errors."""
 
 
+class ExtractionIncomplete(ValueError):
+    """Existing reference extraction did not complete; carries the machine code and message.
+
+    ``transient`` is true when the cause is an unavailable service (GROBID down or
+    out of memory, a hung Biblicus child), so the same request may succeed later.
+    """
+    def __init__(self,code:str,message:str,*,transient:bool=False):
+        self.code=code;self.reason_message=message;self.transient=transient
+        super().__init__(f'existing reference extraction did not complete: {code}: {message}')
+
+
+def _extraction_incomplete(extraction:dict[str,Any])->ExtractionIncomplete:
+    failures=extraction.get('failures') or []
+    if failures:
+        reason=(failures[0] or {}).get('reason')
+        reason=reason if isinstance(reason,dict) else {}
+        return ExtractionIncomplete(str(reason.get('code') or 'unknown_failure'),str(reason.get('message') or (failures[0] or {}).get('error') or 'no message'),
+                                    transient=reference_url_text.is_transient_failure_reason(reason))
+    fallbacks=extraction.get('filterFallbacks') or []
+    if fallbacks:
+        reason=(fallbacks[0] or {}).get('reason')
+        reason=reason if isinstance(reason,dict) else {}
+        return ExtractionIncomplete('article_filter_fallback',f"{reason.get('code') or 'article_filter_failed'}: {reason.get('message') or 'no message'}")
+    return ExtractionIncomplete('no_extraction_plans','extraction produced no attachment plans')
+
+
 class PapyrusPrimingCuration:
     def __init__(self,*,corpus:dict[str,Any],classifier_id:str,publication_name:str,model:str|None=None,grobid_url:str|None=None,authorize_source=None):
         self.corpus=corpus;self.classifier_id=classifier_id;self.publication_name=publication_name;self.model=model;self.grobid_url=grobid_url;self.authorize_source=authorize_source
@@ -43,7 +69,7 @@ class PapyrusPrimingCuration:
                  'reference_ids':{reference['id']},'force':True,'allow_discovery':True,'grobid_url':self.grobid_url}
         if self.model:options['model']=self.model
         extraction=reference_url_text.build_reference_url_text_attachment_plans(**options)
-        if extraction.get('failures') or extraction.get('filterFallbacks') or not extraction.get('plans'):raise ValueError('existing reference extraction did not complete')
+        if extraction.get('failures') or extraction.get('filterFallbacks') or not extraction.get('plans'):raise _extraction_incomplete(extraction)
         for record in extraction.get('referenceRecords',[]):
             if record['expected']['id']==reference['id']:reference={**reference,**record['expected']}
         selected=next((plan for plan in extraction['plans'] if plan['record']['expected'].get('role')=='extracted_text'),None)
