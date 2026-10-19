@@ -66,10 +66,24 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "e2a7e829-dfec-4f10-bc58-b7834de93495",
+      "author": "home",
+      "text": "First CI head 7d90d1b2 passed Python unit tests but backend BDD failed two obsolete operator-cli assertions: help must omit auth and auth refresh must report unsupported group. These directly conflict with the new authorized native-auth CLI. Updated help spec to require auth status/Google sign-in and unsupported-operation spec to reject refresh without a traceback; removed the unused no-auth step. No production behavior was weakened or new credentials/configuration introduced. Revalidating operator CLI + native auth together before pushing the correction.\n",
+      "created_at": "2026-10-19T11:11:19.251554Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-19T10:36:38.396717Z",
-  "updated_at": "2026-10-19T11:06:20.596435Z",
+  "updated_at": "2026-10-19T11:11:19.251641Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
