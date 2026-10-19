@@ -1,0 +1,27 @@
+{
+  "id": "PPY-236beef8-00af-49eb-9989-3b105b7e8bb9",
+  "title": "Sign in to Papyrus CLI with Google and select the authorized publication",
+  "description": "Issue filing only, explicitly requested by Ryan. No implementation, login, new credentials, security/configuration changes or deployment is authorized. Parent epic: PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7. Reference: Apricity authorization-code+PKCE login, keychain refresh session and renewal, https://github.com/AnthusAI/Apricity/blob/ffe8a023b0418445aa67893a52ae9e173c366d42/crates/apricity-cli/src/cloud.rs#L206. Preserve existing newsroom authorization and agent attribution; do not conflate CLI auth with hosted procedure execution.\n\nAs a newsroom user I can run papyrus login using normal Google/newsroom identity so editorial CLI commands use my existing permissions without a personal AWS SSO session.\n\nFeature: Normal newsroom CLI identity\n  Scenario: First Google login\n    Given a configured supported publication OAuth client and an authorized newsroom user\n    And no personal AWS credentials or SSO session\n    When the user runs papyrus login and completes Google sign-in in the system browser\n    Then the CLI reports the verified person and publication\n    And code+PKCE/state and a registered loopback callback protect the flow\n    And no password, token or client secret is printed or requested in chat\n  Scenario: Select a publication with existing permission\n    Given a signed-in user with account/publication grants\n    When the user selects a publication and requests a protected action\n    Then the server checks current grants and the exact tenant/resource binding\n    And absent, revoked or stale grants deny the action without broader IAM fallback\n    And ambiguous selection is resolved explicitly rather than guessed\n\nCoordinate API trust/permission boundary and intentional IAM-only CLI policy revision with PPY-58f1 before implementation. Do not infer a new native client is already registered or accepted by existing APIs. Acceptance evidence must include real user-permission parity and negative cross-publication tests, with identity distinct from content author/agent metadata.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T10:37:33.706171Z",
+  "updated_at": "2026-10-19T10:37:33.706295Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "ChatGPT",
+    "settings": {}
+  },
+  "agent_assignment": null
+}
