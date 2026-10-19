@@ -10,9 +10,21 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "75887df7-000a-4e57-a4db-dc4b30177b62",
+      "author": "home",
+      "text": "Branch feature/PPY-c32c35-biblicus-runner, PR https://github.com/AnthusAI/Papyrus/pull/365 (supersedes #364). Verification: CI python, ts and smoke all green on the PR. Local: CI pytest command 22 failed (all pre-existing environmental, identical to develop baseline) / 1127 passed; behave failing set unchanged; pilot-identifier guard OK. Not yet merged to develop; issue stays in_progress.",
+      "created_at": "2026-10-19T18:43:55.077447Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5"
+      }
+    }
+  ],
   "created_at": "2026-10-19T18:19:05.495644Z",
-  "updated_at": "2026-10-19T18:19:09.533898Z",
+  "updated_at": "2026-10-19T18:43:55.077494Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
