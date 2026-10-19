@@ -1,4 +1,5 @@
 import { isLocalPreviewEnabled } from "./local-preview";
+import { areEditionsEnabled } from "./site-env";
 import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
 import type { Article, ArticleVideoAsset } from "./articles";
@@ -258,9 +259,9 @@ export function getRootRoute(brand: SiteBrand = SITE_BRAND): RootRouteConfig {
 
 export const rootRoute = getRootRoute();
 
-/** True only when the brand explicitly turns editions on. */
+/** The brand setting wins when present; otherwise the PAPYRUS_EDITIONS_ENABLED switch decides. */
 export function editionsEnabled(brand: Pick<SiteBrand, "editions"> = SITE_BRAND): boolean {
-  return brand.editions?.enabled === true;
+  return brand.editions?.enabled ?? areEditionsEnabled();
 }
 
 export function enforcePresentation(presentation: EditionPresentationFormat): EditionPresentationFormat {
