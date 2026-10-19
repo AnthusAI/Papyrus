@@ -38,10 +38,24 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "44776f10-0d02-48e0-91b6-342431dc9dd6",
+      "author": "home",
+      "text": "Local implementation committed as e755b9f0 on fix/PPY-98af-newsroom-publication-root. Push to origin was denied by automatic approval review: it considered remote publication an external repository commitment not clearly authorized by the prepare/report instruction. This was a denial before execution, not an uncertain push. No remote branch or PR was created, and no workaround/retry was attempted. Explicit authorization to push/open the draft PR is now required. All local patch, regression and live verification work described above is complete; no merge, deployment, tenant adoption or paid run occurred. Status remains in_progress.\n",
+      "created_at": "2026-10-19T00:09:01.324964Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-18T23:57:51.136729Z",
-  "updated_at": "2026-10-19T00:08:08.635942Z",
+  "updated_at": "2026-10-19T00:09:01.325051Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
