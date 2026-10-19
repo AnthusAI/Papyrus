@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1b17888f-ee46-4673-b900-050eaedab1a6",
+  "title": "Record the Section a person assigns as a training label",
+  "description": "Backend then UI on the Mac. Today a Reference carries only accepted or rejected, so there is no human ground truth for which Section it belongs in. Add an optional Section on a human (or delegated) accept, stored in the curation metadata with the same human-only rule and delegation quote, exposed through recordDelegatedCuration and the CLI. Section labels count only when a person explicitly set them; links inferred from stories are proposals a person must confirm, never labels.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T20:13:33.228270Z",
+  "updated_at": "2026-10-18T20:13:33.228701Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

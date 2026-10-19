@@ -424,7 +424,7 @@ class CoverageThemeCloudProcedureTests(unittest.TestCase):
                 "story-cycle.reporting",
                 "story-cycle.reporting",
             ])
-            self.assertEqual(calls[0]["input_payload"]["assignment_json"]["assignmentTypeKey"], "research.edition-candidate")
+            self.assertEqual(calls[0]["input_payload"]["assignment_json"]["assignmentTypeKey"], "research.candidate")
             self.assertEqual(calls[1]["input_payload"]["source_research_packet_id"], result["researchRuns"][0]["messageId"])
             self.assertEqual(result["researchRuns"][0]["cloudProcedure"]["procedureKey"], "newsroom.research.explorer")
             self.assertEqual(result["reportingRuns"][0]["cloudProcedure"]["procedureKey"], "newsroom.reporting.context")

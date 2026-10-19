@@ -61,7 +61,7 @@ def check_reference_action_contract(_flags: list[str]) -> None:
     required_mutations = {
         "reviewReferenceCuration",
         "setReferenceQualityRating",
-        "createReferenceInsight",
+        "createReferenceNote",
         "moveReferenceCorpus",
         "startReferenceCuration",
     }

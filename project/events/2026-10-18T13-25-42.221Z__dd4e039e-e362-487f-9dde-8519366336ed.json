@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dd4e039e-e362-487f-9dde-8519366336ed",
+  "issue_id": "PPY-1850021c-cc32-4005-8a18-0fd3c6fb88f0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T13:25:42.221Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Cyclotron-web slice 4: standalone island bundle, drop Next from the build",
+    "description": "Slice 2 (PR 136) ships named islands but the site still builds with Next. Produce the full standalone island bundle (Prospectus-web web/island pattern) so the Papyrus projection build replaces next build. Feeds PPY-698f2e (pipeline switch, DevOps). Numbered 4 because PPY-698f2e is already slice 3.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3764949c-061b-45ac-9243-3c2682a968e7",
+    "labels": []
+  }
+}

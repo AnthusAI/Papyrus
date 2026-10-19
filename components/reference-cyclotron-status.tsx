@@ -48,14 +48,14 @@ export function ReferenceCyclotronStatus({
     <section aria-label="Relevance cyclotron" className="space-y-2" data-reference-cyclotron-status>
       <CyclotronStatusView status={status} />
       {stale ? (
-        <p className="text-xs text-muted-foreground" data-reference-cyclotron-status-stale>
+        <p className="text-xs text-foreground" data-reference-cyclotron-status-stale>
           <span aria-hidden="true">⚠ </span>
           Snapshot from {Math.round(ageHours)} hours ago; the next sweep refreshes it.
         </p>
       ) : null}
       <button
         aria-expanded={open}
-        className="text-xs text-muted-foreground underline underline-offset-4"
+        className="text-xs text-foreground underline underline-offset-4"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
@@ -75,7 +75,7 @@ export function ReferenceCyclotronStatus({
               }}
             >
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Review rate for confident decisions</span>
+                <span className="text-xs text-foreground">Review rate for confident decisions</span>
                 <select aria-label="Manual review rate" onChange={(event) => setRate(Number(event.target.value))} value={rate}>
                   {RATE_CHOICES.map((choice) => (
                     <option key={choice} value={choice}>{Math.round(choice * 100)}%</option>
@@ -83,7 +83,7 @@ export function ReferenceCyclotronStatus({
                 </select>
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">For</span>
+                <span className="text-xs text-foreground">For</span>
                 <select aria-label="How long the manual rate lasts" onChange={(event) => setDays(Number(event.target.value))} value={days}>
                   {DAY_CHOICES.map((choice) => (
                     <option key={choice} value={choice}>{choice} day{choice === 1 ? "" : "s"}</option>
@@ -96,7 +96,7 @@ export function ReferenceCyclotronStatus({
                   Clear manual rate
                 </button>
               ) : null}
-              <p className="basis-full text-xs text-muted-foreground">
+              <p className="basis-full text-xs text-foreground">
                 Low-confidence decisions and the random audit share are always reviewed.
               </p>
               {message ? <p className="basis-full text-xs" role="status">{message}</p> : null}

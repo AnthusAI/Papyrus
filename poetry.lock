@@ -233,15 +233,15 @@ files = [
 
 [[package]]
 name = "anthus-markus"
-version = "0.5.1"
+version = "0.7.0"
 description = "Markus: GitHub-flavored Markdown with semantic layout directives."
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"markus\""
 files = [
-    {file = "anthus_markus-0.5.1-py3-none-any.whl", hash = "sha256:22ab7048f4489f66e7dec8c1ee0eb64741911211b417c07b2886223a16b03058"},
-    {file = "anthus_markus-0.5.1.tar.gz", hash = "sha256:9f466140fee6b8cae380b7f0cae131a90c3b71fafa3e405fae0f37931d31161b"},
+    {file = "anthus_markus-0.7.0-py3-none-any.whl", hash = "sha256:95d0cacb363415bdc5b963d4a0ffe99fde1c5bb2dfbb173301666e3396ed5172"},
+    {file = "anthus_markus-0.7.0.tar.gz", hash = "sha256:568e061415997886af57d130ea30101274cb4743c04b7f7100f9a79ac242ab2a"},
 ]
 
 [package.dependencies]
@@ -1271,7 +1271,7 @@ files = [
 
 [[package]]
 name = "decision-flywheel"
-version = "0.22.0"
+version = "0.26.0"
 description = "Model-neutral decision context optimization"
 optional = false
 python-versions = ">=3.10"
@@ -1293,7 +1293,7 @@ uvicorn = {version = ">=0.30,<1", extras = ["standard"], optional = true}
 [package.extras]
 accounts = ["PyJWT[crypto] (>=2.10,<3)", "botocore (>=1.43,<2)", "decision-flywheel[web]", "strawberry-graphql[fastapi] (>=0.332,<1)"]
 accounts-cloud = ["decision-flywheel[accounts,priming]", "mangum (==0.19.0)"]
-dev = ["decision-flywheel[accounts,accounts-cloud,priming,reviewer]", "fastapi (>=0.115,<1)", "httpx (>=0.27,<1)", "pytest (>=8)", "pytest-bdd (>=8,<9)", "strawberry-graphql[fastapi] (>=0.280,<1)"]
+dev = ["decision-flywheel[accounts,accounts-cloud,priming,reviewer]", "fastapi (>=0.115,<1)", "httpx (>=0.27,<1)", "pytest (>=8)", "pytest-bdd (>=8,<9)", "ruff (>=0.15.5,<0.16)", "strawberry-graphql[fastapi] (>=0.280,<1)"]
 foundry = ["httpx (>=0.27)"]
 jev = ["python-dotenv (>=1,<2)", "typesafe-sdk (>=0.7,<0.8)"]
 kev = ["httpx (>=0.27)"]
@@ -1310,8 +1310,8 @@ web = ["decision-flywheel[priming]", "fastapi (>=0.115,<1)", "httpx (>=0.27,<1)"
 [package.source]
 type = "git"
 url = "https://github.com/AnthusAI/Cyclotron.git"
-reference = "505bbf06d1f81bfd09147a18a4b8a7580e132a2f"
-resolved_reference = "505bbf06d1f81bfd09147a18a4b8a7580e132a2f"
+reference = "29bd94476946501d23b493029339543f9726c010"
+resolved_reference = "29bd94476946501d23b493029339543f9726c010"
 
 [[package]]
 name = "defusedxml"
@@ -6839,4 +6839,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "5f96b3683c1854dbb3d6a2837deff153631db2adf6558f550734d2f759b9c67f"
+content-hash = "21770efe51daa5e6aee0a0f9e690b8a4f8d739cc4479d30879ca74318bd8dca1"

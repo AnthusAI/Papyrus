@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import markusmd
+
 from papyrus_content.markus_renderer.content_markup import split_front_matter
 from papyrus_content.markus_renderer.derive import (
     MAX_BODY_IR_BYTES,
@@ -30,7 +32,7 @@ class MarkusDeriveTests(unittest.TestCase):
         self.assertEqual(document["children"][0]["type"], "paragraph")
         self.assertEqual(document["schema_version"], 1)
         self.assertEqual(result.body_ir["schemaVersion"], 1)
-        self.assertEqual(result.body_ir["markus"]["version"], "0.5.1")
+        self.assertEqual(result.body_ir["markus"]["version"], markusmd.__version__)
 
     def test_plain_paragraphs_match_the_source(self) -> None:
         result = derive_fixture("plain.md")

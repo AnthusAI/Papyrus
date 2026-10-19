@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "277ce11b-e018-424b-8607-559ebcb54931",
+  "issue_id": "PPY-116dd438-1b12-4452-aa6a-a68c02583bd7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T20:51:05.748Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Tactus books 3: Programming Tactus gated Papyrus docs build, compare, switch Pages deploy",
+    "description": "Part of PPY-81c9b9. Same steps as the Nutshell move, after the builder book mode lands. Needs push access to the repo.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": [
+      "tactus-books"
+    ]
+  }
+}

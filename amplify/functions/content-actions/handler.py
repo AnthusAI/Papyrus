@@ -22,6 +22,7 @@ from papyrus_content.rebuild_trigger import (
     trigger_rebuild,
     trigger_staging_build,
 )
+from papyrus_content.story_reporting import save_story_version
 from papyrus_content.publishing import (
     ItemFields,
     PublishError,
@@ -188,6 +189,28 @@ def run_projection_task(task: dict) -> dict:
 
 def save_item_draft_action(arguments: dict, actor: str) -> dict:
     client, _claims = create_authoring_client()
+    if arguments.get("newVersion") and arguments.get("id"):
+        existing = client.get_record("Item", arguments["id"])
+        if existing is None:
+            raise PublishError("not-found", "That story was not found.")
+        record = save_story_version(
+            client,
+            existing.get("lineageId") or existing["id"],
+            front_matter_yaml=arguments.get("frontMatterYaml"),
+            body_markus=arguments.get("bodyMarkus") or "",
+            actor=actor,
+            change_reason=arguments.get("changeReason") or "edited in the newsroom",
+        )
+        return {
+            "ok": True,
+            "item": {
+                "id": record["id"],
+                "contentHash": record["contentHash"],
+                "status": record["status"],
+                "slug": record["slug"],
+                "versionNumber": record.get("versionNumber"),
+            },
+        }
     fields = ItemFields(
         type=arguments["type"],
         slug=arguments["slug"],

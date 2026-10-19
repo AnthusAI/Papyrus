@@ -16,6 +16,7 @@ from .backend_copy import (
     build_plan,
     parse_selection,
     render_table,
+    tenant_media_source_store,
     write_manifests,
 )
 from .backend_copy_aws import (
@@ -27,6 +28,7 @@ from .backend_copy_aws import (
     resolve_location,
 )
 from .options import normalize_positive_integer, normalize_string, parse_options
+from .tenancy import validate_tenant_id
 
 NO_PREFIXES_KEYWORD = "none"
 AUTO_TRANSFER = "auto"
@@ -132,6 +134,9 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
         normalize_string(options.get("s3-prefixes")), normalize_string(options.get("s3-keys"))
     )
     key_field_defaults = parse_key_field_defaults(normalize_string(options.get("key-field-defaults")))
+    tenant_id = normalize_string(options.get("stamp-tenant"))
+    if tenant_id:
+        validate_tenant_id(tenant_id)
 
     source = GraphQLRowBackend(source_location.endpoint, read_only=True, session=source_session)
     target = GraphQLRowBackend(target_location.endpoint, read_only=False, session=target_session)
@@ -139,6 +144,8 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
     if source_location.bucket and target_location.bucket:
         source_store = S3ObjectStore(source_location.bucket, source_location.region, session=source_session)
         source_store.client = ReadOnlyS3Client(source_store.client)
+        if tenant_id:
+            source_store = tenant_media_source_store(source_store, tenant_id)
         target_store = S3ObjectStore(
             target_location.bucket, target_location.region, session=target_session, transfer=transfer
         )
@@ -154,6 +161,7 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
         key_field_defaults=key_field_defaults,
         source_account=source_account,
         target_account=target_account,
+        tenant_id=tenant_id,
     )
     if apply:
         apply_plan(plan, target, source_store, target_store, workers=workers, progress=make_progress_reporter())
@@ -172,6 +180,7 @@ def content_copy_backend(flags: list[str], session_factory: Callable[[str | None
                 key_field_defaults=key_field_defaults,
                 source_account=source_account,
                 target_account=target_account,
+                tenant_id=tenant_id,
             )
         write_manifests(Path(manifest_directory), manifest_plan)
 

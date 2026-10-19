@@ -1,52 +1,52 @@
 {
  "custom-chrome-no-vendor-css": {
-  "articles/alpha.html": "4c8b7a2870e87a0c77780c2ecb64f865e4629b52f06d1e3635c5a47a1bcdf537",
-  "articles/beta.html": "350e0f94d309543aa5ff03102aa60335e95f9596f05bbbb2892f19403c3ef59f",
+  "articles/alpha.html": "ab1be95e8b6bc170c167e87d40e93995f1885bf8e0519c6bfdf256277921f4d8",
+  "articles/beta.html": "67b2f056d7f8423554d3e414fd74dc7c2afaf09f24647a0a333bdfd102880549",
   "articles/gamma-note.html": "d1751fde65bf95b0b37d1914ababf4341d2b93faf479659431cbd6282feeaa09",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "22f5c8919271577a11f85a5f490d3f213416d9c41272c4fb0caced06e1c11841",
+  "index.html": "7941bea72d5c79f92657fa3f58697d5206c0cd64afd4b8fb24d003555f9f19eb",
   "notes/field-note.html": "a59aa2c53c1cedeaa2890ab2510750a8d227b8b217a2bab9f3e28f5232a577d0"
  },
  "fixture-default-citations": {
-  "articles/alpha.html": "4652edb7f16acd7ec4e00e74e903582986dc8bf9ad557beec59f61e50bca8d30",
-  "articles/beta.html": "b02e1fbe8439b598505c78b7b7ff2c2240f924f27f7ce521739dbcd7934fb6a8",
-  "articles/gamma-note.html": "78fdd3190244cd71472b1d13563dcac8605ac56596cd3f0560cf610b6b1839e3",
+  "articles/alpha.html": "ca1454ce809db9bd8fcca33c51083d403acd2059c76b5751d8543f68cd888f59",
+  "articles/beta.html": "85f2e7e0ddee6091f11359313910698f3d8bae0103722c686f58c2a03bc33c85",
+  "articles/gamma-note.html": "0df26933515df49d8a0c10978a852b979a6f534615000a4d43fed4b10eea3399",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
-  "css/markus-vendor.css": "d1b28729b25fb0fb5f3028106f6ef2e64ece60d8e208a84eb7b321e7299db526",
+  "css/markus-vendor.css": "9a941c24181e19168f916677bfce0018244eb51a5b7935c91ecd7c7f2f571fd2",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "498d04d5ee724115feca7e9b19d347874c2ad228d67f70618010c1f42de6bdf2"
+  "index.html": "14bf7782bfd370a75933c3557ae2ceb02a94979c0c0ba23bfb35edcd5ece6a9f"
  },
  "fixture-no-index-md": {
-  "articles/alpha.html": "4652edb7f16acd7ec4e00e74e903582986dc8bf9ad557beec59f61e50bca8d30",
-  "articles/beta.html": "b02e1fbe8439b598505c78b7b7ff2c2240f924f27f7ce521739dbcd7934fb6a8",
-  "articles/gamma-note.html": "78fdd3190244cd71472b1d13563dcac8605ac56596cd3f0560cf610b6b1839e3",
+  "articles/alpha.html": "ca1454ce809db9bd8fcca33c51083d403acd2059c76b5751d8543f68cd888f59",
+  "articles/beta.html": "85f2e7e0ddee6091f11359313910698f3d8bae0103722c686f58c2a03bc33c85",
+  "articles/gamma-note.html": "0df26933515df49d8a0c10978a852b979a6f534615000a4d43fed4b10eea3399",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
-  "css/markus-vendor.css": "d1b28729b25fb0fb5f3028106f6ef2e64ece60d8e208a84eb7b321e7299db526",
+  "css/markus-vendor.css": "9a941c24181e19168f916677bfce0018244eb51a5b7935c91ecd7c7f2f571fd2",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "5444289c031cdcd3f9f50feaa349334c99f4ba0c0484c0d748fcc4054f947326",
-  "notes/field-note.html": "de52272268de0e970814f84c13b8f7362d4e71649b1a76f1770ff9c7e4af0f07"
+  "index.html": "7dc2b952338b2647814ead97dcee7de4c7eafe0da6001d144acd571e543e47a7",
+  "notes/field-note.html": "84f4d6d1e37bdf8a584a30b35da7ab57e20ae12d70b93592e8dd2d2343f12dd6"
  },
  "fixture-notes-section-no-theme": {
-  "articles/alpha.html": "2821f34aae7f9107174a8ba86d408aa510692c961aa852322180e401bc3339e4",
-  "articles/beta.html": "9c7646be95c40a2323cbdf29f8d85e2b231844845fac6458fc98d20581a06b17",
-  "articles/gamma-note.html": "1303b31fcb3670ee6fc17beb0fece8ecfc846f498c03e5f68ea0f09e0a7fd82c",
+  "articles/alpha.html": "b833727b8d9fe8de9e53d3f84b097e6a8503b1584788c8d20e9f9f7caca5d8b3",
+  "articles/beta.html": "031aff39578459405a7183c323b7ce095327c76833be8da5a81dbe8b4e7899a9",
+  "articles/gamma-note.html": "aef38c9dd9dc435405550ce59cf67b8f31ea09bc639f99a69429ebc00cb8e523",
   "assets/data/x.json": "547b8a378ac3a98c6f0d0f8326c028604423e6e62247d9947301c0a2307c8703",
   "assets/site.js": "4341b75450f829d67e7f9e8b4516124951fd83f5a6b63ef7768bc2684254c435",
-  "css/markus-vendor.css": "0cbbd09170f54be364c7d43c732c3a222114f312f43b35e5c2d7cc14a449fe5e",
+  "css/markus-vendor.css": "3fa31841f6c964e7e496093b8882dea4ac434aaff1d60ad44be12c2cbd8740e7",
   "css/site-theme.css": "b5f28ada962c621bbda9eb1908e6003c499385e3e108b27b96c7bf1e1e34950a",
-  "index.html": "305da13092f0a6bb7ad3a506cb60564cb6f228b8150ff6ae9b9ef84bdadcb5ee",
-  "notes/field-note.html": "7fe8dab7ef7f912205c20bee7f8d6bc8bcc1b6b584e1bbc5c3eb34e965e1cc37"
+  "index.html": "9107f98e009ab27f41857093cb3e8ca29c30378173fbb0c9c296cb3799778902",
+  "notes/field-note.html": "c864891783f728acaee84bed45807f55275d1fa5a2edf438de81a5b47def7679"
  },
  "papyrus-own-site": {
-  "articles/sample.html": "e9ce55702f471e1a7de95d51fd81f21bacb6abce333da28598dce3c80d0336f7",
-  "articles/second-note.html": "d7869d2f897247996c47c8b077b3a62303ab6c25d80d28b5f204adc83f91d2fb",
+  "articles/sample.html": "0db25fe42ee637a1da8beb21b487efe0c780e94beb0b639a8c073156d8669f39",
+  "articles/second-note.html": "24d5463f71de8e245dbec31ca80876503b98ef7242af0fef0ea62c97a70a6e16",
   "assets/state-diagram.svg": "abfa5ae38ea0a1262dad764e2f466332ccb1a8b157ed1bb24dd5ccd7f822794a",
-  "css/markus-vendor.css": "d1b28729b25fb0fb5f3028106f6ef2e64ece60d8e208a84eb7b321e7299db526",
+  "css/markus-vendor.css": "9a941c24181e19168f916677bfce0018244eb51a5b7935c91ecd7c7f2f571fd2",
   "css/site-theme.css": "652d7096c3a7ea7004433b5e2a3807439daeb6ed86f0dfb8ec12e0e0519dd24a",
-  "index.html": "a4409da92230af281b443d452ecf2732b16351bcb24c421ca5d3813728e193ba"
+  "index.html": "88d828e8cba0d7c92f9d0e9f94254cc265f0e25721b5094214a05df02e37e6dd"
  }
 }

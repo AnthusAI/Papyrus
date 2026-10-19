@@ -1,0 +1,43 @@
+{
+  "id": "PPY-db28dabc-feb8-44c8-8dff-ac5c2224c765",
+  "title": "Tactus books 4: Learning Tactus snippet includes, metadata, cover decision, switch Pages deploy",
+  "description": "Part of PPY-81c9b9. Needs snippet includes and meta substitution from the builder book mode. Cover (cover.html, custom-cover.css, checkpoint-dot animation) is a frontend design call for the Mac session; the build does not depend on it. Keep the Quarto PDF job. Needs push access to the repo.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+  "labels": [
+    "tactus-books"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "10fd6aa2-21c5-435a-a296-44b0c568f983",
+      "author": "unknown",
+      "text": "Papyrus docs workflow merged on main and deployed (build and deploy jobs green). Quarto publish workflow is now manual-only. Live site content and old chapters/*.html redirects still need a check from a machine that can reach github.io.",
+      "created_at": "2026-10-18T23:55:49.804932Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "6b08b902-f1ba-4fc9-9eab-653f8b9b5435",
+      "author": "unknown",
+      "text": "Learning Tactus uses the standard Papyrus masthead; the animated cover needs a Mac frontend decision. PDF only via manual Quarto dispatch with build_pdf, no longer linked from the site.",
+      "created_at": "2026-10-18T23:55:50.465781Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T20:51:20.926846Z",
+  "updated_at": "2026-10-18T23:55:50.465996Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

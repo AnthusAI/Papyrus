@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "738bd712-ebd9-41e1-9c58-4493ee43bd83",
+  "issue_id": "PPY-16a4d450-e6fa-4067-9a6a-93348303715e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:49:30.233Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Accept supported Markus range (>=0.5.1,<1.0.0) in markus_renderer version check",
+    "description": "assert_markus_version, convert_text_in_process and derive _markus_document require Markus exactly 0.5.1, so the Markus docs site (AnthusAI/Markus PR #9/#10) cannot build with Markus 0.6.0+. Decision (Ryan, 2026-10-18): accept the pyproject range >=0.5.1,<1.0.0; still fail on unparseable or out-of-range Markus. bodyIr records the actual Markus version. Follow-up: bump papyrus-newsroom pin in Markus docsite/requirements.txt after release.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

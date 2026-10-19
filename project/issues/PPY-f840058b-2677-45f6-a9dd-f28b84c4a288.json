@@ -1,0 +1,37 @@
+{
+  "id": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "title": "Self-training Cyclotron: shadow mode on Threat Intelligence",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "40a16b49-8295-4bb8-98be-0bd365ccff5c",
+      "author": "unknown",
+      "text": "Ryan 2026-10-18 20:10Z asked for one site-wide cyclotron with a classifier per Section plus a Section selector. Tracked in epic PPY-0a285b53-456c-46a3-b179-a9898f3d67ec (kanbus does not allow an epic under an epic). It reuses this epic's human-only labels, shadow mode and proof gate.",
+      "created_at": "2026-10-18T20:14:29.228070Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T17:32:08.462880Z",
+  "updated_at": "2026-10-18T20:14:29.228224Z",
+  "closed_at": null,
+  "right_now_summary": "The team is building a human-approved shadow test with audit logs, safeguards, and a second publication trial.",
+  "right_now_updated_at": "2026-10-18T17:33:23.261734Z",
+  "custom": {},
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "Mac thread",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

@@ -66,7 +66,8 @@ def relevance_decision_records(reference: Mapping[str, Any], decision: Mapping[s
                                positive_label: str, now: str,
                                current_relations: Sequence[Mapping[str, Any]] = (),
                                question: str | None = None, labels: Sequence[str] | None = None,
-                               review_control: str | None = None) -> list[dict[str, Any]]:
+                               review_control: str | None = None,
+                               provenance: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Records for one decision (the SDK's Decision.to_json()) and the decisions it supersedes."""
     (classifier, result), = decision["classifiers"].items()
     label = result["label"]
@@ -106,6 +107,7 @@ def relevance_decision_records(reference: Mapping[str, Any], decision: Mapping[s
             "labels": list(labels) if labels else list(probabilities),
             "positiveLabel": positive_label,
             "reviewControl": review_control,
+            **({"provenance": dict(provenance)} if provenance else {}),
         },
     })
     relation["expected"]["id"] = f"semantic-relation-{hash_short([RELEVANCE_RELATION, decision['decisionId']])}"
@@ -162,6 +164,49 @@ def relevance_label_for_review(reference: Mapping[str, Any], messages: Sequence[
     outcome = scope_training_label_for_reference(dict(reference), [dict(message) for message in messages])
     positive, negative = labels
     return {"positive": positive, "negative": negative}.get(outcome)
+
+
+HUMAN_CURATION_ACTOR_KIND = "human"
+
+
+def curation_was_made_by_a_human(messages: Sequence[Mapping[str, Any]]) -> bool:
+    """True only when the latest curation message says, in its own metadata, that a person made it."""
+    if not messages:
+        return False
+    return (messages[-1].get("metadata") or {}).get("actorKind") == HUMAN_CURATION_ACTOR_KIND
+
+
+def human_label_for_review(reference: Mapping[str, Any], messages: Sequence[Mapping[str, Any]],
+                           *, labels: Sequence[str]) -> str | None:
+    """The scope-training label, but only when a person explicitly made the curation.
+
+    References an agent found, or curation an agent or an unknown actor recorded,
+    never become training labels, whatever their status says.
+    """
+    if not curation_was_made_by_a_human(messages):
+        return None
+    return relevance_label_for_review(reference, messages, labels=labels)
+
+
+def human_section_for_review(reference: Mapping[str, Any], messages: Sequence[Mapping[str, Any]],
+                             section_ids: Sequence[str]) -> str | None:
+    """The newsroom Section a person chose when accepting the Reference, else None.
+
+    Only an explicit human (or delegated) accept that names one of the known
+    section ids teaches a section. Agents, unknown actors, rejections and
+    unrecognised ids never produce a section label.
+    """
+    if not curation_was_made_by_a_human(messages):
+        return None
+    if reference.get("curationStatus") != "accepted":
+        return None
+    metadata = messages[-1].get("metadata") or {}
+    if metadata.get("action") != "accept":
+        return None
+    section_id = metadata.get("sectionId")
+    if not isinstance(section_id, str) or section_id not in set(section_ids):
+        return None
+    return section_id
 
 
 def _strip(record: Mapping[str, Any]) -> dict[str, Any]:

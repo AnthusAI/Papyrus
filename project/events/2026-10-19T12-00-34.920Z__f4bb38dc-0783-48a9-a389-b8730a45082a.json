@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f4bb38dc-0783-48a9-a389-b8730a45082a",
+  "issue_id": "PPY-69d6dc4e-295c-4f76-8cbe-fefbd18c6ca4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T12:00:34.920Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "SiteBrand setting: editions on/off (default off), shared by reader, CLI and agents",
+    "description": "Add a typed SiteBrand option (for example editions: { enabled: boolean }) defaulting to off, plus the Python-side reader of the same setting from papyrus.config. Off on every site today. Keep it minimal (YAGNI).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+    "labels": []
+  }
+}

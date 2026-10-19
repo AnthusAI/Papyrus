@@ -10,9 +10,19 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0c7bb635-11eb-4a0a-bfb7-a29809f4040d",
+      "author": "unknown",
+      "text": "2026-10-18 Papyrus-web cutover done on the Mac (papyrus-production 712236451410): p.apyr.us and apyr.us now on marketing distribution E17ZRAI87DN065 (cert 6b83eeb4-ecde-4665-89f0-c480e7877ac4, redirect function papyrus-legacy-reader-redirect); reader on read.p.apyr.us via new distribution E2EM0JLBC2W9WW (cert 5daf7da4-bdc1-42fe-93c4-a4fe2f948805); Cognito pool us-east-1_1sQaEOwsH client prospectus-google-only has the read.p.apyr.us callback. Rollback: E2QW8WOFWQT0H4 and Amplify ds6yswxui41yi untouched; old DNS target d1tkckmrakzztv.cloudfront.net. Browser sign-in/save on read.p.apyr.us still to be tested. Prospectus-web: stacks deployed, pr.ospect.us serves 200, pipeline Source stage fails (connection cannot see AnthusAI/Prospectus-web); needs Ryan to add the repo to the AWS Connector installation. Apricity-web and Auritus-web wait for Ryan's account-move confirmation.",
+      "created_at": "2026-10-18T13:30:48.339614Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:26:51.436172Z",
-  "updated_at": "2026-10-17T22:26:51.436392Z",
+  "updated_at": "2026-10-18T13:30:48.339846Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

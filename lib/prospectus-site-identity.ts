@@ -49,6 +49,7 @@ export interface ProspectusRequest {
   body?: unknown;
   humanAccessToken?: string;
   identityToken?: string;
+  idempotencyKey?: string;
 }
 
 export type ProspectusTransport = (request: ProspectusRequest) => Promise<unknown>;
@@ -84,7 +85,7 @@ export function signedProspectusTransport(options: SignedProspectusTransportOpti
   }
   const runtimeCredentials = options.runtimeCredentials ?? defaultProvider();
   const fetcher = options.fetcher ?? fetch;
-  return async ({ path, method, body, humanAccessToken, identityToken }) => {
+  return async ({ path, method, body, humanAccessToken, identityToken, idempotencyKey }) => {
     const credentials = await runtimeCredentials();
     if (!credentials.sessionToken || (credentials.expiration && credentials.expiration.getTime() <= Date.now())) {
       throw new Error("Prospectus calls require the site's temporary runtime credentials; static access keys are refused.");
@@ -95,6 +96,7 @@ export function signedProspectusTransport(options: SignedProspectusTransportOpti
       host: url.host,
       ...(humanAccessToken ? { "x-prospectus-human-token": humanAccessToken } : {}),
       ...(identityToken ? { "x-prospectus-identity-token": identityToken } : {}),
+      ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
       ...(payload ? { "content-type": "application/json" } : {}),
     };
     const signer = new SignatureV4({ service: "execute-api", region: options.region, credentials, sha256: Sha256 });
@@ -142,6 +144,16 @@ export class ProspectusSiteAccounts {
       body: { operation },
       humanAccessToken,
     }) as Promise<ProspectusAccountAuthorization>;
+  }
+
+  createAccount(humanAccessToken: string, accountName: string, idempotencyKey: string): Promise<{ account: { id: string; name: string; role: ProspectusRole } }> {
+    return this.transport({
+      path: "/v1/accounts",
+      method: "POST",
+      body: { name: accountName },
+      humanAccessToken,
+      idempotencyKey,
+    }) as Promise<{ account: { id: string; name: string; role: ProspectusRole } }>;
   }
 
   accountDirectory(humanAccessToken: string): Promise<{ person: ProspectusPerson | null; accounts: ProspectusDirectoryAccount[] }> {

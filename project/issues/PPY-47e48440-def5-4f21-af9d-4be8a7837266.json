@@ -1,0 +1,22 @@
+{
+  "id": "PPY-47e48440-def5-4f21-af9d-4be8a7837266",
+  "title": "An agent records a person's approval as that person's human label, through a delegation they grant",
+  "description": "Ryan (2026-10-18): tell a research agent in a live session that a Reference is approved and have the cyclotron treat it as his label. Design: the person creates a short-lived, scoped, revocable delegation in the Newsroom (signed in); the agent passes the token with papyrus references approve/reject --on-behalf-of. The curation Lambda verifies it and records actorKind human, attestation delegated, relayedBy agent, delegationId. Agent judgment alone never counts. Needs: Delegation model + schema, create/revoke mutation (human sign-in only), Lambda verification, CLI commands, UI to create and revoke (Mac), docs in story-reporting.md (written, marked not yet available).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b2b73e78-c524-464b-8841-a7b743968f40",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T18:10:58.581405Z",
+  "updated_at": "2026-10-18T18:10:58.581935Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

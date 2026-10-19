@@ -7,26 +7,12 @@ function resolveTags() {
 
 const tags = resolveTags();
 
-module.exports = {
-  default: {
-    paths: ["features/**/*.feature"],
-    require: ["features/support/**/*.js", "features/step_definitions/**/*.js"],
-    tags,
-    format: ["progress", "summary"],
-    publishQuiet: true,
-  },
-  canonical: {
-    paths: ["features/**/*.feature"],
-    require: ["features/support/**/*.js", "features/step_definitions/**/*.js"],
-    tags,
-    format: ["progress", "summary"],
-    publishQuiet: true,
-  },
-  fork: {
-    paths: ["features/**/*.feature"],
-    require: ["features/support/**/*.js", "features/step_definitions/**/*.js"],
-    tags,
-    format: ["progress", "summary"],
-    publishQuiet: true,
-  },
+const defaultProfile = {
+  paths: ["features/**/*.feature"],
+  require: ["features/support/**/*.js", "features/step_definitions/**/*.js"],
+  tags,
+  format: ["progress", "summary"],
+  publishQuiet: true,
 };
+
+module.exports = { default: defaultProfile };

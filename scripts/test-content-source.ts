@@ -69,6 +69,10 @@ injectModule("./lib/amplify-server-runtime.ts", {
       return args.operation();
     },
   }),
+  runWithGuestAmplifyContext: async (operation: () => Promise<unknown>) => {
+    calls.push({ model: "runtime", method: "nextServerContext", authMode: null, input: null });
+    return operation();
+  },
 });
 injectModule("next/headers", { cookies: () => "cookie-store" });
 

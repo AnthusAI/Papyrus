@@ -5,7 +5,7 @@ import { AmplifyClientProvider } from "../components/amplify-client-provider";
 import { PapyrusConsoleShell } from "../components/papyrus-console-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { resolveBrandFontAssets } from "../lib/brand-fonts";
-import { getPresentationChoices, getSiteBrand } from "../lib/site-brand";
+import { DEFAULT_SITE_BRAND_ICONS, getPresentationChoices, getSiteBrand } from "../lib/site-brand";
 import { getSiteStack } from "../lib/site-stack";
 import { isIndexable, showStagingBanner } from "../lib/site-env";
 import { StagingBanner } from "../components/staging-banner";
@@ -34,9 +34,10 @@ export async function generateMetadata(): Promise<Metadata> {
     ...(isIndexable() ? {} : { robots: { index: false, follow: false } }),
     icons: {
       icon: [
-        { url: `/icon-light.png?v=${faviconVersion}`, type: "image/png" },
-        { url: `/icon.png?v=${faviconVersion}`, type: "image/png" },
+        { url: `${siteBrand.icons?.light ?? DEFAULT_SITE_BRAND_ICONS.light}?v=${faviconVersion}`, type: "image/png" },
+        ...(siteBrand.icons ? [] : [{ url: `${DEFAULT_SITE_BRAND_ICONS.fallback}?v=${faviconVersion}`, type: "image/png" }]),
       ],
+      ...(siteBrand.icons?.appleTouch ? { apple: [{ url: `${siteBrand.icons.appleTouch}?v=${faviconVersion}`, type: "image/png" }] } : {}),
     },
   };
 }
@@ -46,6 +47,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const presentationChoices = getPresentationChoices(siteBrand);
   const siteStack = getSiteStack(siteBrand);
   const brandFonts = resolveBrandFontAssets(siteBrand.fonts);
+  const lightIconPath = siteBrand.icons?.light ?? DEFAULT_SITE_BRAND_ICONS.light;
+  const darkIconPath = siteBrand.icons ? siteBrand.icons.dark ?? siteBrand.icons.light : DEFAULT_SITE_BRAND_ICONS.dark;
 
   return (
     <html
@@ -78,8 +81,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <Script id="papyrus-favicon-color-scheme" strategy="beforeInteractive">
           {`(() => {
   const version = "${faviconVersion}";
-  const lightHref = "/icon-light.png?v=" + version;
-  const darkHref = "/icon-dark.png?v=" + version;
+  const lightHref = ${JSON.stringify(lightIconPath)} + "?v=" + version;
+  const darkHref = ${JSON.stringify(darkIconPath)} + "?v=" + version;
   const settingsStorageKey = "papyrus:reader-settings";
   const defaultTheme = "${defaultTheme}";
 

@@ -4,7 +4,10 @@ import datetime as dt
 import hashlib
 import json
 import re
+import secrets
+import time
 import uuid
+from pathlib import Path
 from typing import Any, Callable
 
 
@@ -90,9 +93,9 @@ RELATION_TYPE_FIELDS = {
         "relationTypeKey": "comment",
         "relationDomain": "commentary",
     },
-    "insight_about": {
-        "relationTypeId": "semantic-relation-type-insight-about",
-        "relationTypeKey": "insight_about",
+    "note_about": {
+        "relationTypeId": "semantic-relation-type-note-about",
+        "relationTypeKey": "note_about",
         "relationDomain": "knowledge",
     },
 }
@@ -167,6 +170,175 @@ query GetReferenceCurationStatus($assignmentId: ID!) {
 """
 
 
+RECORD_DELEGATED_CURATION_MUTATION = """
+mutation RecordDelegatedCuration(
+  $referenceId: ID!, $action: String!, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
+  $onBehalfOf: String!, $instruction: String!, $note: String, $reasonCode: String, $decisionRelationId: ID, $shareable: Boolean, $sectionId: ID
+) {
+  recordDelegatedCuration(
+    referenceId: $referenceId, action: $action, delegationId: $delegationId, delegationToken: $delegationToken,
+    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, instruction: $instruction, note: $note, reasonCode: $reasonCode,
+    decisionRelationId: $decisionRelationId, shareable: $shareable, sectionId: $sectionId
+  ) {
+    ok
+    action
+    referenceId
+    status
+    reasonCode
+    messageId
+    relationId
+  }
+}
+"""
+
+
+GET_NEWSROOM_SECTION_QUERY = """
+query GetNewsroomSection($id: ID!) {
+  getNewsroomSection(id: $id) {
+    id
+    enabled
+    enabledStatus
+  }
+}
+"""
+
+
+REQUEST_CURATION_DELEGATION_MUTATION = """
+mutation RequestCurationDelegation($delegationId: ID!, $tokenHash: String!, $agentLabel: String!, $hours: Int) {
+  requestCurationDelegation(delegationId: $delegationId, tokenHash: $tokenHash, agentLabel: $agentLabel, hours: $hours) {
+    ok
+    delegationId
+    userCode
+    pendingExpiresAt
+    requestedHours
+  }
+}
+"""
+
+
+GET_CURATION_DELEGATION_STATUS_QUERY = """
+query GetCurationDelegationStatus($delegationId: ID!) {
+  getCurationDelegationStatus(delegationId: $delegationId) {
+    delegationId
+    state
+    expiresAt
+    grantorLabel
+  }
+}
+"""
+
+DELEGATION_TERMINAL_STATES = ("approved", "denied", "expired", "revoked")
+
+
+def new_delegation_token() -> str:
+    """Make a delegation token whose secret half exists only on the machine that made it."""
+    return f"curation-delegation-{uuid.uuid4()}~{secrets.token_urlsafe(24)}"
+
+
+def hash_delegation_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def read_delegation_token_file(path: str | Path) -> str:
+    token = Path(path).expanduser().read_text(encoding="utf-8").strip()
+    if not token:
+        raise ValueError("The delegation file is empty.")
+    return token
+
+
+def request_curation_delegation(
+    graphql: GraphqlInvoker,
+    *,
+    delegation_token: str,
+    agent_label: str,
+    hours: int | None = None,
+) -> dict[str, Any]:
+    """Ask for a delegation. Only the hash of the token leaves this machine; a person approves the returned code."""
+    return _call(
+        graphql,
+        REQUEST_CURATION_DELEGATION_MUTATION,
+        "requestCurationDelegation",
+        {
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "tokenHash": hash_delegation_token(delegation_token),
+            "agentLabel": _required(agent_label, "agent_label"),
+            "hours": hours,
+        },
+    )
+
+
+def get_curation_delegation_status(graphql: GraphqlInvoker, *, delegation_id: str) -> dict[str, Any]:
+    return _call(
+        graphql,
+        GET_CURATION_DELEGATION_STATUS_QUERY,
+        "getCurationDelegationStatus",
+        {"delegationId": _required(delegation_id, "delegation_id")},
+    )
+
+
+def wait_for_curation_delegation(
+    graphql: GraphqlInvoker,
+    *,
+    delegation_id: str,
+    poll_interval_seconds: float = 5.0,
+    timeout_seconds: float = 660.0,
+    sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> dict[str, Any]:
+    """Poll until a person approves or denies the request, or it expires, or the timeout passes."""
+    deadline = monotonic() + timeout_seconds
+    while True:
+        status = get_curation_delegation_status(graphql, delegation_id=delegation_id)
+        if status.get("state") in DELEGATION_TERMINAL_STATES:
+            return status
+        if monotonic() >= deadline:
+            return {**status, "state": status.get("state") or "pending", "timedOut": True}
+        sleep(poll_interval_seconds)
+
+
+def delegation_id_from_token(token: str) -> str:
+    delegation_id, separator, _ = token.partition("~")
+    if not separator or not delegation_id:
+        raise ValueError("That is not a delegation token. Ask the person to create one in the Newsroom.")
+    return delegation_id
+
+
+def record_delegated_curation(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    action: str,
+    delegation_token: str,
+    agent_label: str,
+    on_behalf_of: str,
+    instruction: str,
+    note: str = "",
+    reason_code: str = "",
+    section_id: str = "",
+) -> dict[str, Any]:
+    """Record a person's decision, relayed by an agent, with the delegation the person granted it."""
+    resolved_action = _normalize_curation_action(action)
+    if resolved_action not in ("accept", "reject"):
+        raise ValueError("A delegation can record only accept or reject.")
+    return _call(
+        graphql,
+        RECORD_DELEGATED_CURATION_MUTATION,
+        "recordDelegatedCuration",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "action": resolved_action,
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "delegationToken": delegation_token,
+            "agentLabel": _required(agent_label, "agent_label"),
+            "onBehalfOf": _required(on_behalf_of, "on_behalf_of"),
+            "instruction": _required(instruction, "instruction"),
+            "note": _optional(note) or None,
+            "reasonCode": _optional(reason_code) or None,
+            "sectionId": _optional(section_id) or None,
+        },
+    )
+
+
 def review_reference_curation(
     graphql: GraphqlInvoker,
     *,
@@ -175,6 +347,7 @@ def review_reference_curation(
     actor_label: str = "",
     note: str = "",
     reason_code: str = "",
+    section_id: str = "",
 ) -> dict[str, Any]:
     resolved_reference_id = _required(reference_id, "reference_id")
     resolved_action = _normalize_curation_action(action)
@@ -183,6 +356,7 @@ def review_reference_curation(
     user_note = _optional(note)
     now = _now_iso()
     reference = _get_required_reference(graphql, resolved_reference_id)
+    resolved_section_id = _validated_section_id(graphql, section_id, resolved_action)
     reference_lineage_id = _optional(reference.get("lineageId")) or resolved_reference_id
     reference_title = _reference_title(reference)
     message_id = (
@@ -230,6 +404,7 @@ def review_reference_curation(
             "reasonCode": _optional(reason_code),
             "referenceId": resolved_reference_id,
             "referenceLineageId": reference_lineage_id,
+            **({"sectionId": resolved_section_id} if resolved_section_id else {}),
         },
     )
     _create_semantic_relation(
@@ -258,9 +433,24 @@ def review_reference_curation(
         "referenceId": resolved_reference_id,
         "status": next_status,
         "reasonCode": _optional(reason_code),
+        "sectionId": resolved_section_id,
         "messageId": message_id,
         "relationId": relation_id,
     }
+
+
+def _validated_section_id(graphql: GraphqlInvoker, section_id: str, action: str) -> str | None:
+    requested_section_id = _optional(section_id)
+    if not requested_section_id:
+        return None
+    if action != "accept":
+        raise ValueError("A section can be recorded only when accepting a reference.")
+    section = _call(graphql, GET_NEWSROOM_SECTION_QUERY, "getNewsroomSection", {"id": requested_section_id})
+    if not section:
+        raise ValueError(f"Newsroom section {requested_section_id} was not found.")
+    if section.get("enabled") is False or section.get("enabledStatus") == "disabled":
+        raise ValueError(f"Newsroom section {requested_section_id} is disabled.")
+    return requested_section_id
 
 
 def set_reference_quality_rating(
@@ -284,7 +474,7 @@ def set_reference_quality_rating(
     )
 
 
-def create_reference_insight(
+def create_reference_note(
     graphql: GraphqlInvoker,
     *,
     reference_id: str,
@@ -300,27 +490,27 @@ def create_reference_insight(
     reference = _get_required_reference(graphql, resolved_reference_id)
     reference_lineage_id = _optional(reference.get("lineageId")) or resolved_reference_id
     message_id = (
-        f"message-reference-insight-{_safe_id(reference_lineage_id)}-"
+        f"message-reference-note-{_safe_id(reference_lineage_id)}-"
         f"{now.replace(':', '').replace('-', '')[:15]}-{uuid.uuid4().hex[:8]}"
     )
     relation_id = "semantic-relation-" + _hash_short(
         [
             _semantic_version_key("message", message_id),
-            "insight_about",
+            "note_about",
             _semantic_version_key("reference", resolved_reference_id),
         ]
     )
     _create_message(
         graphql,
         message_id=message_id,
-        message_kind="insight",
+        message_kind="note",
         message_domain="knowledge",
         summary=resolved_summary,
         body=resolved_body,
         actor_label=actor,
         now=now,
         metadata={
-            "kind": "reference.insight.created",
+            "kind": "reference.note.created",
             "targetKind": "reference",
             "targetId": resolved_reference_id,
             "targetLineageId": reference_lineage_id,
@@ -329,7 +519,7 @@ def create_reference_insight(
     _create_semantic_relation(
         graphql,
         relation_id=relation_id,
-        predicate="insight_about",
+        predicate="note_about",
         subject_kind="message",
         subject_id=message_id,
         subject_lineage_id=message_id,
@@ -339,7 +529,7 @@ def create_reference_insight(
         object_lineage_id=reference_lineage_id,
         object_version_number=_optional_int(reference.get("versionNumber")),
         metadata={
-            "kind": "reference.insight",
+            "kind": "reference.note",
             "summary": resolved_summary,
             "actor": actor,
         },

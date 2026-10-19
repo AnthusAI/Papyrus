@@ -10,9 +10,37 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c34a195a-985f-4b17-9135-15f97bc5c34c",
+      "author": "unknown",
+      "text": "Inventory and plan written: /anthus-sites-to-papyrus/chattic-us-web-inventory-and-plan.md. 31 plain-Markdown content files (about 16,700 words), no MDX or in-content components; deploy already goes through CodePipeline. Slice 1 (cloud): convert content to Markus with a link and field checker. Slice 2 (Mac): publication layout and marketing sections. Intake forms stay a separate service.",
+      "created_at": "2026-10-18T23:37:32.336165Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "cd7e2e0b-b552-48c7-9432-8d8b8941019a",
+      "author": "unknown",
+      "text": "Link check on the 27 content files: front matter is complete and relatedPosts resolve against content/blog. Five internal wiki links have no matching page in content/wiki: cost-vs-sla, computer-manifold, product (two posts), design-challenges, messaging. Slice 1 needs a decision per link: write the page, point elsewhere, or drop the link.",
+      "created_at": "2026-10-18T23:38:06.832206Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    },
+    {
+      "id": "e0760e1d-4471-4f27-bc77-f6a2c32b4548",
+      "author": "unknown",
+      "text": "Chattic.us-web PR 34 merged: scripts/check_content_links.py checks front matter (title, description) and internal links for the 24 published content files, wired into ci.yml and ci-local.sh. Five wiki links (product, messaging, design-challenges, cost-vs-sla, computer-manifold) have no page; they are listed in content/known-unresolved-links.txt until someone writes the pages or relinks. GitHub Actions CI is red on that repo for every run since 2026-10-13 (unusable on the private repo, deploy is CodePipeline), so the check ran locally. Chattic PRs 30 to 33 had already moved the wiki, blog, index, legal and feature pages onto Papyrus.",
+      "created_at": "2026-10-19T00:19:07.970785Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:25:53.576750Z",
-  "updated_at": "2026-10-17T22:25:53.576967Z",
+  "updated_at": "2026-10-19T00:19:07.970955Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

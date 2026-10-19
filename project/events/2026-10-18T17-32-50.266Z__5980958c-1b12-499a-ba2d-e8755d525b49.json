@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "5980958c-1b12-499a-ba2d-e8755d525b49",
+  "issue_id": "PPY-ae4fd14f-bd70-4a86-b366-02d1e937150d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T17:32:50.266Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Confirm review labels reach the decision prompt (evidence gap)",
+    "description": "The proof used reviews as in-context priming examples (priming_proof.py:179). The live sweep sends them as review() labels (relevance_sweep.py:359-387). Confirm whether those enter the decision prompt in the external Cyclotron engine, or add the priming-examples step before each sweep.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "Mac thread"
+    }
+  }
+}

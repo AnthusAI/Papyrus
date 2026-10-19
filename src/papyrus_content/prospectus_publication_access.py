@@ -10,6 +10,7 @@ it without touching the resolver or the publication BFF.
 from dataclasses import dataclass
 import inspect
 
+import httpx
 from decision_flywheel.publication_lab import PublicationAccess, PublicationActor, PublicationError
 
 PROSPECTUS_ROLE_PUBLICATION_CAPABILITIES = {
@@ -86,3 +87,96 @@ class ProspectusPublicationAccess:
         actor = PublicationActor(authorization.account_id, authorization.person_id, grants)
         execution_guard = self.execution_guard_for(connection) if self.execution_guard_for else None
         return PublicationAccess(lab, actor, execution_guard)
+
+
+def create_prospectus_publication_host(
+    *,
+    resolve_selection,
+    authorize_account_operation,
+    lab_for_account,
+    grants_for=role_based_publication_grants,
+    execution_guard_for=None,
+):
+    from decision_flywheel.publication_lab import create_publication_host
+    from .publication_bff import PublicationBFF
+
+    publication_access = ProspectusPublicationAccess(
+        authorize_account_operation=authorize_account_operation,
+        lab_for_account=lab_for_account,
+        grants_for=grants_for,
+        execution_guard_for=execution_guard_for,
+    )
+    return create_publication_host(
+        PublicationBFF(resolve_selection=resolve_selection, resolve_access=publication_access),
+        require_execution_guard=False,
+    )
+
+
+class ProspectusCentralPublicationAccess:
+    """Central-lab counterpart of ProspectusPublicationAccess.
+
+    The site runs no lab. After a fresh Prospectus authorization and the same
+    role-capped grant rule, it returns a client pinned to the selected account
+    for the central lab's publication contract.
+    central_http_client_for(account_id) supplies the transport and credentials.
+    publication_ids_for(account_id) lists the publications bound to that account.
+    """
+    def __init__(self, *, authorize_account_operation, central_http_client_for, publication_ids_for, grants_for=role_based_publication_grants):
+        self.authorize_account_operation = authorize_account_operation
+        self.central_http_client_for = central_http_client_for
+        self.publication_ids_for = publication_ids_for
+        self.grants_for = grants_for
+
+    async def __call__(self, connection, publication, capability):
+        from decision_flywheel.publication_lab import HTTPPublicationClient
+
+        operation = PROSPECTUS_OPERATION_FOR_PUBLICATION_CAPABILITY.get(capability)
+        if operation is None:
+            raise PublicationError('publication capability refused', 403)
+        authorization = await resolved(self.authorize_account_operation(connection, operation))
+        if not isinstance(authorization, ProspectusAccountAuthorization) or authorization.operation != operation:
+            raise PublicationError('account access refused', 403)
+        bound_publications = tuple(await resolved(self.publication_ids_for(authorization.account_id)))
+        role_ceiling = set(publication_capabilities_for_prospectus_role(authorization.role))
+        grants = frozenset(
+            (publication_id, granted_capability)
+            for publication_id, granted_capability in self.grants_for(authorization, bound_publications)
+            if granted_capability in role_ceiling and publication_id in bound_publications
+        )
+        if (publication, capability) not in grants:
+            raise PublicationError('publication capability refused', 403)
+        http_client = await resolved(self.central_http_client_for(authorization.account_id))
+        return HTTPPublicationClient(http_client, account_id=authorization.account_id)
+
+
+class ProspectusSiteCredentialAuth(httpx.Auth):
+    """httpx auth that attaches a fresh account-service credential to each central-lab call."""
+    def __init__(self, credential_for, account_id):
+        self.credential_for = credential_for
+        self.account_id = account_id
+
+    async def async_auth_flow(self, request):
+        credential = await resolved(self.credential_for(self.account_id))
+        if not isinstance(credential, str) or not credential.strip():
+            raise PublicationError('site credential unavailable', 503)
+        request.headers['Authorization'] = f'Bearer {credential.strip()}'
+        yield request
+
+
+def central_lab_http_client_factory(*, endpoint, credential_for, transport=None):
+    """central_http_client_for for ProspectusCentralPublicationAccess.
+
+    credential_for(account_id) returns the signed-in person's current Prospectus
+    session access token, which the lab re-verifies with Prospectus on every call.
+    It is read on every call, never cached here, so a revoked membership stops
+    working at once.
+    """
+    def client_for(account_id):
+        return httpx.AsyncClient(
+            base_url=endpoint,
+            auth=ProspectusSiteCredentialAuth(credential_for, account_id),
+            transport=transport,
+            follow_redirects=False,
+        )
+
+    return client_for

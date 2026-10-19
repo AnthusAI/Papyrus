@@ -39,6 +39,9 @@ on:
       - "amplify/storage/resource.ts"
       - ".github/workflows/inbound-email-tests.yml"
 
+permissions:
+  contents: read
+
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -53,16 +56,14 @@ jobs:
         run: poetry install --no-interaction --extras newsroom
       - name: Email submission unit tests
         run: |
-          poetry run python -m unittest \
-            procedures.newsroom.tests.test_email_submissions \
-            procedures.newsroom.tests.test_email_submission_feedback \
-            procedures.newsroom.tests.test_email_submission_replies \
-            procedures.newsroom.tests.test_email_pdf_intake \
-            -v
+          poetry run pytest -q \
+            procedures/newsroom/tests/test_email_submissions.py \
+            procedures/newsroom/tests/test_email_submission_feedback.py \
+            procedures/newsroom/tests/test_email_submission_replies.py \
+            procedures/newsroom/tests/test_email_pdf_intake.py
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Install TypeScript (the smoke test transpiles email-submission.ts)
-        run: npm install --no-save --no-package-lock typescript@^6.0.3
+      - run: npm ci
       - name: Inbound email MIME classification smoke test
         run: node amplify/functions/shared/email-submission.test.mjs

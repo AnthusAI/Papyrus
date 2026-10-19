@@ -403,7 +403,7 @@ export function NewsroomTopicsView({
         }}
         open={mobileDetailOpen && Boolean(selectedProposal)}
       >
-        <SheetContent className="gap-0 p-0 md:hidden" side="bottom">
+        <SheetContent backdropClassName="md:hidden" className="gap-0 p-0 md:hidden" side="bottom">
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="text-left text-base">Topic proposal</SheetTitle>
           </SheetHeader>

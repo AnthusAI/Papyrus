@@ -876,9 +876,9 @@ Then("the reference detail quality message should mention {string}", async funct
   }, message, { timeout: 10_000 });
 });
 
-When("I open the reference detail insight composer", async function () {
+When("I open the reference detail note composer", async function () {
   const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-insight-trigger]").click();
+  await page.locator("[data-news-desk-reference-note-trigger]").click();
 });
 
 When("I switch the reference detail extracted text tab to {string}", async function (tabName) {
@@ -901,8 +901,8 @@ Then("the reference detail should render topic workflow and corpus selector", as
   await page.locator("[data-reference-corpus-input] select").waitFor({ state: "visible", timeout: 10_000 });
 });
 
-Then("the reference detail insight composer should be visible", async function () {
-  await requirePage(this).locator("[data-news-desk-reference-insight-form]").waitFor({ state: "visible", timeout: 10_000 });
+Then("the reference detail note composer should be visible", async function () {
+  await requirePage(this).locator("[data-news-desk-reference-note-form]").waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the reference detail should place extracted text below metadata", async function () {
@@ -1829,7 +1829,7 @@ Then("assignment {string} should show a private reporting packet", async functio
   const page = requirePage(this);
   const candidate = page.locator(`.news-desk-assignment-row[data-assignment-candidate="${assignmentId}"]`);
   await candidate.waitFor({ state: "visible", timeout: 10_000 });
-  await candidate.locator("text=reporting.edition-candidate").waitFor({ state: "visible", timeout: 10_000 });
+  await candidate.locator("text=reporting.candidate").waitFor({ state: "visible", timeout: 10_000 });
   await candidate.locator("text=Reporting packet").waitFor({ state: "visible", timeout: 10_000 });
   await candidate.locator("text=Reporting context packet: model-release accountability angle").waitFor({ state: "visible", timeout: 10_000 });
 });

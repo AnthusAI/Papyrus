@@ -275,11 +275,11 @@ def _email_agent_instructions() -> str:
         "(newsletter forwards may contain many links — file the real references, skip "
         "unsubscribe/footer/nav links).\n"
         "2. When prose discusses a specific reference (commentary, summary, critique), "
-        "create an insight Message on that reference lineage via papyrus.reference.insight_create.\n"
+        "create a note Message on that reference lineage via papyrus.reference.note_create.\n"
         "3. When the submitter asks a question or gives a command (knowledge search, list "
         "recent references, curation review), use the appropriate tools — do not treat "
-        "commands as insights.\n"
-        "4. Decide per paragraph: filing-only, editorial insight, question, or follow-up command.\n"
+        "commands as notes.\n"
+        "4. Decide per paragraph: filing-only, editorial note, question, or follow-up command.\n"
     )
 
 

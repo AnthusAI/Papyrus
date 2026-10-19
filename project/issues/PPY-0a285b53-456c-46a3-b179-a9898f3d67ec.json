@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "title": "One shared site cyclotron with a classifier per Section and a section selector",
+  "description": "Ryan 2026-10-18 20:10Z: automatically maintain ONE shared cyclotron for the whole Papyrus site. A separate binary classifier per Section (is this Reference right for that Section?) plus ONE multi-class classifier that selects the correct Section. The list of Sections is kept in parity with the normal Section curation in Papyrus (NewsroomSection records). Training still comes only from explicit human decisions (a person, or a person's scoped delegation), never agent-found or unreviewed References, never the cyclotron's own outputs. Shadow mode first, behind the proof gate (PPY-0e4ec8). Backend in the cloud, UI on the Mac. Related epic: PPY-f84005 (self-training in shadow mode); kanbus does not allow an epic under an epic, so this sits beside it.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T20:12:26.994965Z",
+  "updated_at": "2026-10-18T20:12:26.995309Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

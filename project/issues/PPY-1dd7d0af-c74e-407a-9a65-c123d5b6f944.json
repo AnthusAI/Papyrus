@@ -1,0 +1,25 @@
+{
+  "id": "PPY-1dd7d0af-c74e-407a-9a65-c123d5b6f944",
+  "title": "Shadow mode: record each suggestion beside the editor decision",
+  "description": "Classifier suggests, nothing decides. Log suggestion vs editor decision per publication to measure live agreement.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-18T17:32:36.696514Z",
+  "updated_at": "2026-10-18T17:32:36.696549Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "Mac thread"
+  },
+  "right_now_summary": "The classifier records each suggestion beside the editor’s decision for every publication.",
+  "right_now_updated_at": "2026-10-18T17:32:38.408063Z",
+  "custom": {}
+}

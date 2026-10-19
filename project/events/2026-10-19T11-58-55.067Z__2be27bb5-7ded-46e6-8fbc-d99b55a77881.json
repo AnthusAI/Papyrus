@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2be27bb5-7ded-46e6-8fbc-d99b55a77881",
+  "issue_id": "PPY-8b3b4ddc-85fd-458c-9a12-c076f2572ccf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T11:58:55.067Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Editions are an optional per-publication feature, off on every current site",
+    "description": "Ryan 2026-10-19: editions become a configurable per-publication setting (SiteBrand), off on all current sites (Papyrus, Threat Intelligence, Anth.us, Pilobolus and the rest). When off, Papyrus imposes no edition URL paths, routes, archive, masthead date, planning CLI or agent assumptions: a publication is a plain stream of items. No backward compatibility or redirects (both pre-production). Edition stack stays in the codebase for when the setting is on (YAGNI on making it more configurable). read.p.apyr.us is the Papyrus stream reader; the /information path on p.apyr.us is vestigial and goes away. Audit: /mnt/project-files/editions-audit/editions-audit.md. Frontend/reader work happens on the Mac.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

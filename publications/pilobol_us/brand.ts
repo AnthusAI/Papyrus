@@ -4,6 +4,7 @@ import { PILOBOL_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
 export const pilobolUsBrand: SiteBrand = {
   id: "pilobol-us",
   appTitle: "Pilobolus",
+  icons: { light: "/brand/pilobol-us/icon-32.png", appleTouch: "/brand/pilobol-us/icon-192.png" },
   appDescription: "Pilobolus publication on Papyrus (Pilobol.us).",
   mastheadTitle: "PILOBOL.US",
   mastheadSubtitle: "Field notes",

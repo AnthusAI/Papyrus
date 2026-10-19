@@ -7,22 +7,49 @@
 export type ContentItemStageDefinition = {
   key: string;
   label: string;
+  /** Closed or rarely visited stage: its board column starts collapsed and its cards load only when it is opened. */
+  collapsedUntilOpened?: boolean;
 };
 
+export const PUBLISHED_STAGE_KEY = "published";
+
+/** Stage keys written before the story stages were simplified, read as the stage that replaced them. */
+export const LEGACY_CONTENT_ITEM_STAGE_ALIASES: Readonly<Record<string, string>> = {
+  research: "reporting",
+  report: "reporting",
+  editor_select: "reporting",
+};
+
+/** Stages for work that has not become a story yet; they appear on the assignments board only. */
+export const ASSIGNMENT_PHASE_STAGE_KEYS: readonly string[] = ["idea", "assignment"];
+
 export const DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS: readonly ContentItemStageDefinition[] = [
-  { key: "idea", label: "Idea" },
-  { key: "assignment", label: "Assignment" },
-  { key: "research", label: "Research" },
-  { key: "report", label: "Report" },
-  { key: "editor_select", label: "Editor select" },
+  { key: "reporting", label: "Reporting" },
   { key: "copywriting", label: "Copywriting" },
   { key: "illustration", label: "Illustration" },
   { key: "typesetting", label: "Typesetting" },
+  { key: "spiked", label: "Spiked", collapsedUntilOpened: true },
+  { key: "held", label: "Held" },
   { key: "published", label: "Published" },
 ];
 
 export function contentItemStageKeys(stageDefinitions: readonly ContentItemStageDefinition[]): string[] {
   return stageDefinitions.map(definition => definition.key);
+}
+
+export function canonicalContentItemStage(
+  stage: string,
+  stageDefinitions: readonly ContentItemStageDefinition[] = DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS,
+): string {
+  const isDefined = stageDefinitions.some(definition => definition.key === stage);
+  return isDefined ? stage : LEGACY_CONTENT_ITEM_STAGE_ALIASES[stage] ?? stage;
+}
+
+export function legacyStageKeysToLoad(stageDefinitions: readonly ContentItemStageDefinition[]): string[] {
+  const definedKeys = contentItemStageKeys(stageDefinitions);
+  return Object.entries(LEGACY_CONTENT_ITEM_STAGE_ALIASES)
+    .filter(([legacyKey, replacementKey]) => !definedKeys.includes(legacyKey) && definedKeys.includes(replacementKey))
+    .map(([legacyKey]) => legacyKey);
 }
 
 export function contentItemStageLabel(
@@ -41,6 +68,8 @@ export type ContentItemVersionRecord = {
   status: string;
   title?: string | null;
   headline?: string | null;
+  deck?: string | null;
+  metadata?: unknown;
   slug: string;
   section?: string | null;
   updatedAt?: string | null;

@@ -164,9 +164,9 @@ export function bundleFromCheckout(outputDir: string, options: PythonBundleOptio
     path.join(packageRoot, "amplify/functions", options.functionDir, "handler.py"),
     path.join(outputDir, "handler.py"),
   );
-  for (const module of options.modules) {
-    fs.mkdirSync(path.join(outputDir, module), { recursive: true });
-    fs.cpSync(path.join(packageRoot, "src", module), path.join(outputDir, module), { recursive: true });
+  for (const moduleName of options.modules) {
+    fs.mkdirSync(path.join(outputDir, moduleName), { recursive: true });
+    fs.cpSync(path.join(packageRoot, "src", moduleName), path.join(outputDir, moduleName), { recursive: true });
   }
   options.checkoutExtras?.(outputDir);
   copySiteFiles(outputDir, options.siteFiles);

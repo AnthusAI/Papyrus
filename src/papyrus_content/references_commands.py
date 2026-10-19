@@ -91,6 +91,13 @@ DOCKER_CANDIDATE_PATHS = (
 )
 
 
+def _section_option(options: dict[str, Any]) -> str:
+    section = options.get("section") or options.get("section-id")
+    if section is True:
+        raise ValueError("--section requires a newsroom section id.")
+    return str(section or "")
+
+
 def references_review_curation(flags: list[str]) -> None:
     options = parse_options(flags)
     reference_id = options.get("reference") or options.get("reference-id")
@@ -110,11 +117,112 @@ def references_review_curation(flags: list[str]) -> None:
         note=str(options.get("note") or ""),
         actor_label=str(options.get("actor") or "Papyrus content CLI"),
         reason_code=reason_code or "",
+        section_id=_section_option(options),
     )
     print(
         f"references\treview-curation\t{review.get('referenceId')}\t{review.get('action')}\t"
         f"{review.get('status')}\t{review.get('reasonCode') or ''}\t{review.get('messageId') or ''}"
     )
+
+
+def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
+    """papyrus references approve|reject --reference <id> --on-behalf-of <person's sign-in email>
+    --agent <your name> --instruction "<the person's words>" [--delegation-file <path> or --delegation-token <token> or PAPYRUS_DELEGATION_TOKEN] [--reason-code ...] [--note ...] [--section <newsroom section id>, accept only]
+
+    Records a decision a person made, using the delegation they granted this agent.
+    The cyclotron counts it as the person's label. Never use it for your own judgment.
+    """
+    import os
+
+    options = parse_options(flags)
+    reference_id = options.get("reference") or options.get("reference-id")
+    on_behalf_of = options.get("on-behalf-of")
+    agent_label = options.get("agent")
+    delegation_file = options.get("delegation-file")
+    token = (
+        options.get("delegation-token")
+        or (newsroom_reference_actions.read_delegation_token_file(str(delegation_file)) if delegation_file and delegation_file is not True else None)
+        or os.environ.get("PAPYRUS_DELEGATION_TOKEN")
+    )
+    missing = [name for name, value in (("--reference", reference_id), ("--on-behalf-of", on_behalf_of),
+                                        ("--agent", agent_label), ("--instruction", options.get("instruction")), ("--delegation-file, --delegation-token or PAPYRUS_DELEGATION_TOKEN", token))
+               if not value or value is True]
+    if missing:
+        raise ValueError(f"references {action} requires {', '.join(missing)}.")
+    reason_code = normalize_reference_rejection_reason_code(
+        options.get("reason-code") or options.get("reasonCode"), required=action == "reject")
+    client, _ = create_authoring_client()
+    recorded = newsroom_reference_actions.record_delegated_curation(
+        client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
+        agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
+        instruction=str(options["instruction"]), note=str(options.get("note") or ""),
+        reason_code=reason_code or "", section_id=_section_option(options))
+    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
+          f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+
+
+DELEGATION_REQUEST_POLL_INTERVAL_SECONDS = 5.0
+DELEGATION_REQUEST_WAIT_TIMEOUT_SECONDS = 660.0
+
+
+def default_delegation_token_path(delegation_id: str) -> Path:
+    configuration_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(configuration_home) / "papyrus" / "delegations" / f"{delegation_id}.token"
+
+
+def write_delegation_token_file(path: Path, token: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(token)
+    os.chmod(path, 0o600)
+
+
+def references_request_delegation(
+    flags: list[str],
+    *,
+    graphql: Any = None,
+    sleep: Any = time.sleep,
+    poll_interval_seconds: float = DELEGATION_REQUEST_POLL_INTERVAL_SECONDS,
+    timeout_seconds: float = DELEGATION_REQUEST_WAIT_TIMEOUT_SECONDS,
+) -> None:
+    """papyrus references request-delegation --agent <your name> [--hours N] [--wait] [--token-file <path>]
+
+    Asks for permission to relay a person's curation decisions without any secret passing through a person.
+    The secret is made here and written to a private file; only its hash is sent. Tell the person the printed
+    code. With --wait, polls until they approve or deny it. Then pass --delegation-file <path> to approve/reject.
+    """
+    options = parse_options(flags)
+    agent_label = options.get("agent")
+    if not agent_label or agent_label is True:
+        raise ValueError("references request-delegation requires --agent.")
+    hours = normalize_positive_integer(options.get("hours"), "--hours")
+    if graphql is None:
+        graphql = create_authoring_client()[0].graphql
+    token = newsroom_reference_actions.new_delegation_token()
+    delegation_id = newsroom_reference_actions.delegation_id_from_token(token)
+    requested = newsroom_reference_actions.request_curation_delegation(
+        graphql, delegation_token=token, agent_label=str(agent_label), hours=hours)
+    user_code = str(requested.get("userCode") or "")
+    if not user_code:
+        raise ValueError("The Newsroom did not return an approval code.")
+    given_path = options.get("token-file")
+    token_path = Path(str(given_path)).expanduser() if given_path and given_path is not True else default_delegation_token_path(delegation_id)
+    write_delegation_token_file(token_path, token)
+    print(f"Open the Newsroom, Delegations, approve code {user_code}")
+    print(f"The code expires at {requested.get('pendingExpiresAt')}. After approval, use --delegation-file {token_path}")
+    if not options.get("wait"):
+        return
+    status = newsroom_reference_actions.wait_for_curation_delegation(
+        graphql, delegation_id=delegation_id, poll_interval_seconds=poll_interval_seconds,
+        timeout_seconds=timeout_seconds, sleep=sleep)
+    state = status.get("state")
+    if state == "approved":
+        print(f"references\trequest-delegation\tapproved\tby {status.get('grantorLabel') or 'a person'}\texpires {status.get('expiresAt')}")
+        return
+    if status.get("timedOut"):
+        raise ValueError("Timed out waiting for approval. The request stays valid until its code expires.")
+    raise ValueError(f"The delegation request was {state}. Ask the person if you should request again.")
 
 
 def references_list_predictions(flags: list[str]) -> None:

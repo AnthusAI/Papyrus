@@ -47,6 +47,7 @@ export type CmsConfig = {
 export type AmplifyAppShellSiteConfig = {
   siteId: string;
   repository: string;
+  repositoryAccessTokenSecretArn?: string;
   brand: string;
   frontend: "pretext" | "markus-static";
   hostedZoneId?: string;
@@ -85,6 +86,7 @@ export const DEFAULT_CI_BRANCHES = ["main", "staging"];
 
 const SITE_ID_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const REPOSITORY_PATTERN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const SECRETS_MANAGER_SECRET_ARN_PATTERN = /^arn:aws:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+$/;
 const HOSTED_ZONE_ID_PATTERN = /^Z[A-Z0-9]+$/;
 const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 const DOMAIN_PREFIX_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
@@ -392,12 +394,15 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
     "site",
   );
 
   const siteId = requireString(record.siteId, "siteId", SITE_ID_PATTERN, "kebab-case");
   const repository = requireString(record.repository, "repository", REPOSITORY_PATTERN, "https://github.com/<org>/<repo>");
+  const repositoryAccessTokenSecretArn = record.repositoryAccessTokenSecretArn === undefined
+    ? undefined
+    : requireString(record.repositoryAccessTokenSecretArn, "repositoryAccessTokenSecretArn", SECRETS_MANAGER_SECRET_ARN_PATTERN, "Secrets Manager secret ARN");
   const brand = requireString(record.brand, "brand");
   const frontend = requireString(record.frontend, "frontend");
   if (frontend !== "pretext" && frontend !== "markus-static") {
@@ -480,6 +485,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const config: AmplifyAppShellSiteConfig = {
     siteId,
     repository,
+    repositoryAccessTokenSecretArn,
     brand,
     frontend,
     hostedZoneId,

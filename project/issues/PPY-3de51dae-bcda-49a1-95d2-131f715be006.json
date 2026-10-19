@@ -1,0 +1,32 @@
+{
+  "id": "PPY-3de51dae-bcda-49a1-95d2-131f715be006",
+  "title": "Decide per Section and select the Section in shadow mode",
+  "description": "Backend. The sweep decides, for each pending Reference, the section selector and each Section's relevance as suggestions only, never changing curation status. Store them beside the existing relevance decision with provenance (priming set and doctrine hashes), a shared daily cap and the off switch. Live agreement is reported per Section and for the selector, comparing suggestions with later human decisions.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6cfbd2ce-f528-4f9e-bea1-d4c43edbeb4e",
+      "author": "unknown",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/317 merged to develop: site_sweep.py, references decide-site-sections, site_sweep_test.py (11 tests), docs. Parity for Section changes still PPY-f579a2.",
+      "created_at": "2026-10-18T20:36:01.059152Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T20:13:50.606517Z",
+  "updated_at": "2026-10-18T20:47:57.048346Z",
+  "closed_at": "2026-10-18T20:47:57.048186Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

@@ -25,6 +25,7 @@ import {
 import {
   currentProspectusPublishingSelection,
   handleProspectusAccountSelection,
+  handleProspectusPublishingAccountCreation,
   handleProspectusSessionRead,
   handleProspectusSignInCallback,
   handleProspectusSignInStart,
@@ -289,6 +290,7 @@ async function signInRouteTests() {
   assert.equal((await noLab.json()).cyclotronLabAccess, false, "a disabled cyclotron product grants no Lab access");
 
   await accountSelectionTests(sessionCookie, person);
+  await publishingAccountCreationTests(sessionCookie, person);
 
   const signOut = await handleProspectusSignOut(browserRequest("/api/auth/prospectus/sign-out", { [PROSPECTUS_SESSION_COOKIE]: sessionCookie }, "POST"), routeOptions(runtime));
   assert.equal(signOut.status, 303);
@@ -297,6 +299,60 @@ async function signInRouteTests() {
   assert.equal(logout.searchParams.get("client_id"), "googleonlyclient");
   assert.equal(logout.searchParams.get("logout_uri"), "https://p.apyr.us/");
   assertCleared(signOut, PROSPECTUS_SESSION_COOKIE, "sign-out");
+}
+
+function creationRequest(cookies: Record<string, string>, body: unknown, origin: string | null = siteOrigin): NextRequest {
+  const cookieHeader = Object.entries(cookies).map(([name, value]) => `${name}=${value}`).join("; ");
+  return new NextRequest(new URL("/api/auth/prospectus/accounts", siteOrigin), {
+    method: "POST",
+    headers: { cookie: cookieHeader, "content-type": "application/json", ...(origin ? { origin } : {}) },
+    body: JSON.stringify(body),
+  });
+}
+
+async function publishingAccountCreationTests(sessionCookie: string, person: { id: string; createdAt: string }) {
+  const createdDirectory = {
+    person,
+    accounts: [{ id: "new-account", name: "Papyrus", role: "owner", products: [{ product: "papyrus-p-apyr-us", status: "active" }] }],
+  };
+  const requests: ProspectusRequest[] = [];
+  const runtime: ProspectusSignInRuntime = {
+    accounts: new ProspectusSiteAccounts(async (request) => {
+      requests.push(request);
+      if (request.method === "GET" && request.path === "/v1/account-directory") return createdDirectory;
+      if (request.path === "/v1/identities/me") return { person };
+      if (request.method === "POST" && request.path === "/v1/accounts") return { account: { id: "new-account", name: "Papyrus", role: "owner" } };
+      if (request.path === "/v1/accounts/new-account/authorize") {
+        return { allowed: true, accountId: "new-account", personId: person.id, product: "papyrus-p-apyr-us", role: "owner", operation: "console:read", revision: 1 };
+      }
+      throw new Error(`unexpected ${request.method} ${request.path}`);
+    }),
+    cognitoClient,
+    sealingSecret,
+  };
+  const options = routeOptions(runtime);
+  const cookies = { [PROSPECTUS_SESSION_COOKIE]: sessionCookie };
+  const idempotencyKey = "0b9c2f4e-6d1a-4c58-9a3b-7e5d8f1a2c40";
+
+  assert.equal((await handleProspectusPublishingAccountCreation(creationRequest(cookies, { name: "Papyrus", idempotencyKey }, "https://evil.example"), options)).status, 403, "another origin cannot create accounts");
+  assert.equal((await handleProspectusPublishingAccountCreation(creationRequest({}, { name: "Papyrus", idempotencyKey }), options)).status, 401);
+  assert.equal((await handleProspectusPublishingAccountCreation(creationRequest(cookies, { name: "Papyrus" }), options)).status, 400, "an idempotency key is required");
+  assert.equal((await handleProspectusPublishingAccountCreation(creationRequest(cookies, { name: "Papyrus", idempotencyKey: "not-a-uuid" }), options)).status, 400);
+  assert.equal((await handleProspectusPublishingAccountCreation(creationRequest(cookies, { name: "x".repeat(151), idempotencyKey }), options)).status, 400);
+  assert.equal(requests.length, 0, "invalid requests never reach Prospectus");
+
+  const created = await handleProspectusPublishingAccountCreation(creationRequest(cookies, { name: " Papyrus ", idempotencyKey }), options);
+  assert.equal(created.status, 201);
+  assert.deepEqual(await created.json(), { selectedAccountId: "new-account", role: "owner", publicationCapabilities: ["read", "review", "decide", "steer"] });
+  const creationCall = requests.find((request) => request.method === "POST" && request.path === "/v1/accounts")!;
+  assert.deepEqual(creationCall.body, { name: "Papyrus" });
+  assert.equal(creationCall.idempotencyKey, idempotencyKey, "the caller's key reaches Prospectus so retries are idempotent");
+  const createdCookie = cookieValue(setCookie(created, PROSPECTUS_SESSION_COOKIE));
+  assert.equal(openProspectusCookie<{ selectedAccountId: string }>(sealingSecret, PROSPECTUS_SESSION_COOKIE, createdCookie, nowInSeconds)?.selectedAccountId, "new-account", "the new account is selected");
+
+  await handleProspectusPublishingAccountCreation(creationRequest(cookies, { idempotencyKey }), options);
+  const unnamedCall = requests.filter((request) => request.method === "POST" && request.path === "/v1/accounts").at(-1)!;
+  assert.deepEqual(unnamedCall.body, { name: "Publishing account" }, "an omitted name gets the default");
 }
 
 async function accountSelectionTests(sessionCookie: string, person: { id: string; createdAt: string }) {

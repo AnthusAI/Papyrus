@@ -38,7 +38,7 @@ Goal:
 Rules:
 - This is dry-run only. Never claim records were written.
 - Live Assignment inputs are workflow records; do not claim, complete, or mutate them unless a separate lifecycle action is requested.
-- Live reporting.edition-candidate Assignments must produce a
+- Live reporting.candidate Assignments must produce a
   reporting_context_packet payload. Do not generate Papyrus persistence snippets
   or call plan_assignment_reporting_context_packet; the outer CLI writes Message,
   ModelAttachment, and SemanticRelation records deterministically.
@@ -82,7 +82,7 @@ Procedure {
         corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
         context_profile = field.string{default = "", description = "Optional live context profile override"},
         max_evidence_items = field.integer{default = 5, description = "Maximum Biblicus evidence items to use"},
-        knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and insight retrieval defaults"},
+        knowledge_query_scope = field.object{required = false, description = "Optional knowledge-query scope filters for assignment and note retrieval defaults"},
         source_research_assignment_id = field.string{default = "", description = "Optional source research Assignment.id for packet lineage"},
         source_research_packet_id = field.string{default = "", description = "Optional source research packet Message.id for packet lineage"},
         source_research_packet_path = field.string{default = "", description = "Optional dry-run source research packet path for operator traceability"}
@@ -147,7 +147,7 @@ Inline reporting Assignment JSON is available for fallback use:
 
         local scope_defaults = {
             includeObjectKinds = {"reference", "item", "category", "semanticNode", "newsroomSection", "assignment", "message"},
-            includeMessageKinds = {"insight"},
+            includeMessageKinds = {"note"},
             includeAssignmentTypeKeys = {"research.*", "reporting.*"},
         }
         local requested_scope = input.knowledge_query_scope
@@ -196,7 +196,7 @@ Required tool flow:
 4. For live Assignment queue work, run one broad knowledge_query seeded from
    assignment target/brief before deciding optional web checks. Include
    knowledge trace in source_trail and related metadata fields.
-   For assignment-oriented retrieval, include assignment + insight scope
+   For assignment-oriented retrieval, include assignment + note scope
    filters in that broad knowledge_query call, for example:
    local knowledge = knowledge_query{
        query = "broad assignment-focused query",
@@ -211,7 +211,7 @@ Required tool flow:
 5. Optionally run anchored knowledge_query (uri/objectUri) or papyrus.resolve_uri
    follow-up when specific internal hits need inspection.
 6. Use item_get only when live Assignment context is unavailable.
-7. For live reporting.edition-candidate Assignments, return a reporting_context_packet payload only.
+7. For live reporting.candidate Assignments, return a reporting_context_packet payload only.
 8. When fresh source verification is needed, use local web = require("tactus.web") and call web.search or web.synthesize inside execute_tactus after internal orientation.
    A zero-result first search is not terminal; continue through bounded diversified retries and only mark blocked when discovery is exhausted.
 9. Do not call Papyrus persistence planners. The outer CLI builds any record plan.

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "57cd68e9-58e6-4477-b7ff-b83b5dfddbd6",
+  "issue_id": "PPY-431f920f-4631-40cd-b147-75a86c90aaf7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T21:13:06.146Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Scope NewsroomSection ids per tenant account",
+    "description": "Follow-up from PR 299. NewsroomSection is a tenant model but its record id is the bare section key (for example mission), so two tenants with the same section key collide on one row. Scope the stored id per tenant at the client boundary while single-tenant backends behave exactly as before. Gherkin: Given two tenants that both define a section named science, when each lists its sections, then each sees only its own; writing one never changes the other.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

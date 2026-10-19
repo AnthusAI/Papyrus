@@ -4,15 +4,24 @@ import {
   type PrimingProofReport,
 } from "../lib/priming-proof-report";
 
-function ProofMethod({ heldOutSize, teachingSource }: { heldOutSize: number | null; teachingSource: string | null }) {
+function ProofMethod({ heldOutSize, teachingSource, design }: { heldOutSize: number | null; teachingSource: string | null; design: string | null }) {
   return (
     <section aria-labelledby="priming-proof-method" className="space-y-2 text-sm leading-relaxed">
       <h2 id="priming-proof-method" className="text-base font-semibold uppercase tracking-wide">How the number is made</h2>
-      <p>
-        Editors already decided which candidate sources belong in this publication. A fixed, balanced sample of those
-        decisions{heldOutSize === null ? "" : ` (${heldOutSize} sources)`} is frozen as the held-out set and never used
-        for teaching. A classifier that always gives the same answer agrees on half of it.
-      </p>
+      {design === null ? (
+        <p>
+          Editors already decided which candidate sources belong in this publication. A fixed, balanced sample of those
+          decisions{heldOutSize === null ? "" : ` (${heldOutSize} sources)`} is frozen as the held-out set and never used
+          for teaching. A classifier that always gives the same answer agrees on half of it.
+        </p>
+      ) : (
+        <p>
+          Editors already decided which candidate sources belong in this publication
+          {heldOutSize === null ? "" : `, ${heldOutSize} of them`}. Design: {design}. No source is ever judged by a
+          classifier that was taught from that same source. The two outcomes are not equally common, so read agreement
+          beside precision and recall: a classifier that always gives the majority answer would still agree often.
+        </p>
+      )}
       <p>
         Editors teach the classifier with labels: their other reviews of candidate sources, and sources they paste,
         check after Papyrus extracts them, and mark publish or reject.
@@ -33,7 +42,7 @@ export function PrimingProofPage({ report }: { report: PrimingProofReport | null
           <h1 className="text-3xl font-bold">Does teaching the classifier work?</h1>
           <p className="text-muted-foreground">No approved proof run has been published for this publication yet.</p>
         </header>
-        <ProofMethod heldOutSize={null} teachingSource={null} />
+        <ProofMethod heldOutSize={null} teachingSource={null} design={null} />
       </main>
     );
   }
@@ -84,7 +93,7 @@ export function PrimingProofPage({ report }: { report: PrimingProofReport | null
           </table>
         </div>
       </section>
-      <ProofMethod heldOutSize={report.heldOut.size} teachingSource={report.priming.source} />
+      <ProofMethod heldOutSize={report.heldOut.size} teachingSource={report.priming.source} design={report.heldOut.design ?? null} />
       <p className="break-all text-xs text-muted-foreground">
         Held-out fingerprint {report.heldOut.fingerprint}
         {report.priming.fingerprint ? ` · labels fingerprint ${report.priming.fingerprint}` : ""}

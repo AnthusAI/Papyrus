@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { IssueCollection, IssueDetailPanel } from "@kanbus/ui";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
+import "@kanbus/ui/styles/newsprint.css";
 import "./newsroom-newsprint-board.css";
 import { PlusIcon } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "../lib/utils";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
   ASSIGNMENT_BOARD_TYPE,
@@ -15,22 +15,34 @@ import {
   canReadNewsroomBoard,
   contentItemBoardConfig,
   contentItemBoardType,
+  deskBoardConfig,
+  deskContainsAssignment,
+  deskContainsContentItem,
   projectAssignmentBoard,
   projectContentItemBoard,
   type NativeBoardIssue,
 } from "../lib/newsroom-board";
-import type { AssignmentRecord } from "../lib/category-repository";
-import { getContentItemName, SITE_BRAND } from "../lib/site-brand";
+import type { AssignmentRecord, NewsroomSectionRecord } from "../lib/category-repository";
+import { displayNewsroomSectionShortTitle, newsroomDeskOptions } from "../lib/newsroom-sections";
+import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { loadNewsroomAssignmentPage, loadNewsroomContentItemVersions, loadNewsroomPublishedContentItemVersions } from "./news-desk-taxonomy-client";
+import { loadNewsroomAssignmentPage, loadNewsroomPublishedContentItemVersions, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
+import { usePagedContentItemVersions } from "./use-paged-content-item-versions";
+import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { NewsroomArticleEditor } from "./newsroom-article-editor";
+import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
+/** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
+const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
 const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
+const COLUMN_LOAD_MORE_DISTANCE_PIXELS = 240;
 
 async function loadEveryNewsroomAssignment() {
   const assignments: AssignmentRecord[] = [];
@@ -43,43 +55,68 @@ async function loadEveryNewsroomAssignment() {
   return assignments;
 }
 
-export type NewsroomBoardSubject = "contentItem" | "assignment";
+export type NewsroomBoardSubject = "contentItem" | "assignment" | "desk";
 
 /** Read-only board of one record kind over authenticated CMS records; existing workspaces own every mutation. */
-export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }) {
+export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardSubject; deskId?: string }) {
   const session = useOptionalNewsDeskClient();
   const allowed = canReadNewsroomBoard(session?.shell.phase);
   const theme = useResolvedPapyrusTheme();
   const [lowMotion, setLowMotion] = useState(false);
-  const [issues, setIssues] = useState<NativeBoardIssue[]>([]);
+  const [assignmentBoardIssues, setAssignmentBoardIssues] = useState<NativeBoardIssue[]>([]);
+  const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
   const [view, setView] = useState<"board" | "list">("board");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const selected = searchParams.get(SELECTED_ISSUE_PARAMETER);
+  const setSelected = useCallback((issueId: string | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (issueId) next.set(SELECTED_ISSUE_PARAMETER, issueId); else next.delete(SELECTED_ISSUE_PARAMETER);
+    const query = next.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+  const [supportingRecordsLoading, setSupportingRecordsLoading] = useState(false);
+  const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
+  const boardBodyRef = useRef<HTMLDivElement | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string | null>("all");
+  const showsContentItems = subject !== "assignment";
+  const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
+  const boardType = subject === "assignment" ? ASSIGNMENT_BOARD_TYPE : contentItemBoardType();
+  const deskAssignmentIssues = useMemo(() => subject === "desk" && deskId
+    ? projectAssignmentBoard(assignments.filter(assignment => deskContainsAssignment(assignment, deskId))) : [], [assignments, deskId, subject]);
+  const columnStateConfig = useMemo(() => subject === "contentItem" ? contentItemBoardConfig([])
+    : subject === "desk" ? deskBoardConfig(deskAssignmentIssues)
+    : assignmentBoardConfig(assignmentBoardIssues), [assignmentBoardIssues, deskAssignmentIssues, subject]);
+  const columnState = useBoardColumnState({ config: columnStateConfig, storageKey: `papyrus.cms.columns.v1.${SITE_BRAND.id}.${subject}` });
+  const openedCollapsedUntilOpenedStages = useMemo(() => !showsContentItems ? [] : getContentItemStageDefinitions()
+    .filter(definition => definition.collapsedUntilOpened && !columnState.collapsedColumns.has(`${contentItemColumnKeyPrefix}${definition.key}`))
+    .map(definition => definition.key), [contentItemColumnKeyPrefix, columnState.collapsedColumns, showsContentItems]);
+  const pagedContentItems = usePagedContentItemVersions({ enabled: allowed && showsContentItems, openedCollapsedUntilOpenedStages });
   useEffect(() => {
     setLowMotion(readLocalReaderSettings().motion === "low");
     return subscribeReaderSettingsChanges(settings => setLowMotion(settings.motion === "low"));
   }, []);
   useEffect(() => {
     const request = ++generation.current;
-    setIssues([]); setSelected(null); setError(null);
-    if (!allowed) { setLoading(false); return; }
-    const loadIssues = () => subject === "contentItem"
-      ? Promise.all([
-        Promise.all([loadNewsroomContentItemVersions(), loadNewsroomPublishedContentItemVersions()]).then(([workingVersions, publishedVersions]) => [...workingVersions, ...publishedVersions]),
-        loadEveryNewsroomAssignment(),
-      ]).then(([contentItemVersions, assignments]) => projectContentItemBoard({ contentItemVersions, assignments }))
-      : loadEveryNewsroomAssignment().then(projectAssignmentBoard);
+    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSupportingRecordsError(null);
+    if (!allowed) { setSupportingRecordsLoading(false); return; }
+    const loadSupportingRecords = () => subject !== "assignment"
+      ? Promise.all([loadNewsroomPublishedContentItemVersions(), loadEveryNewsroomAssignment()]).then(([published, everyAssignment]) => {
+        if (generation.current === request) { setPublishedVersions(published); setAssignments(everyAssignment); }
+      })
+      : loadEveryNewsroomAssignment().then(everyAssignment => {
+        if (generation.current === request) { setAssignments(everyAssignment); setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment)); }
+      });
     const refresh = (initial: boolean) => {
-      if (initial) setLoading(true);
-      loadIssues().then(loadedIssues => {
-        if (generation.current !== request) return;
-        setIssues(loadedIssues);
-        setError(null);
+      if (initial) setSupportingRecordsLoading(true);
+      loadSupportingRecords().then(() => {
+        if (generation.current === request) setSupportingRecordsError(null);
       }).catch((reason: unknown) => {
-        if (generation.current === request && initial) setError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
-      }).finally(() => { if (generation.current === request && initial) setLoading(false); });
+        if (generation.current === request && initial) setSupportingRecordsError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
+      }).finally(() => { if (generation.current === request && initial) setSupportingRecordsLoading(false); });
     };
     refresh(true);
     const refreshWhenVisible = () => { if (document.visibilityState === "visible") refresh(false); };
@@ -87,32 +124,75 @@ export function NewsroomBoardView({ subject }: { subject: NewsroomBoardSubject }
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => { generation.current = request + 1; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenVisible); };
   }, [allowed, subject]);
-  const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
-  const boardType = subject === "contentItem" ? contentItemBoardType() : ASSIGNMENT_BOARD_TYPE;
-  const pageTitle = subject === "contentItem" ? getContentItemName().plural : "Assignments";
+  const issues = useMemo(() => {
+    if (subject === "assignment") return assignmentBoardIssues;
+    if (subject === "contentItem") return projectContentItemBoard({ contentItemVersions: [...pagedContentItems.versions, ...publishedVersions], assignments });
+    const versionsOnDesk = [...pagedContentItems.versions, ...publishedVersions].filter(version => deskId && deskContainsContentItem(version, deskId));
+    return [...projectContentItemBoard({ contentItemVersions: versionsOnDesk, assignments: assignments.filter(assignment => deskId && deskContainsAssignment(assignment, deskId)) }), ...deskAssignmentIssues];
+  }, [assignmentBoardIssues, assignments, deskAssignmentIssues, deskId, pagedContentItems.versions, publishedVersions, subject]);
+  const loading = supportingRecordsLoading || (showsContentItems && pagedContentItems.loading);
+  const error = supportingRecordsError ?? (showsContentItems ? pagedContentItems.error : null);
+  const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : subject === "desk" ? deskBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
+  const columnStageFromElement = (element: Element | null) => {
+    const columnKey = element?.closest("[data-column-key]")?.getAttribute("data-column-key");
+    return columnKey?.startsWith(contentItemColumnKeyPrefix) ? columnKey.slice(contentItemColumnKeyPrefix.length) : null;
+  };
+  const loadMoreWhenColumnIsNearItsEnd = (columnScroll: HTMLElement) => {
+    const distanceToEnd = columnScroll.scrollHeight - columnScroll.scrollTop - columnScroll.clientHeight;
+    const stage = columnStageFromElement(columnScroll);
+    if (stage && distanceToEnd < COLUMN_LOAD_MORE_DISTANCE_PIXELS) pagedContentItems.loadMoreForStage(stage);
+  };
+  const handleBoardScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (showsContentItems && target.classList?.contains("kb-column-scroll")) loadMoreWhenColumnIsNearItsEnd(target);
+  };
+  useEffect(() => {
+    if (!showsContentItems) return;
+    boardBodyRef.current?.querySelectorAll<HTMLElement>(".kb-column-scroll").forEach(loadMoreWhenColumnIsNearItsEnd);
+  });
+  const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
+  const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
+  const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
+  const changeAssignmentDesk = async (record: AssignmentRecord, deskId: string | null) => {
+    await saveNewsroomAssignmentDesk(record.id, deskId);
+    const moved = { ...record, sectionId: deskId, sectionKey: deskId };
+    setAssignments(current => current.map(candidate => candidate.id === record.id ? moved : candidate));
+    setAssignmentBoardIssues(current => current.map(candidate => candidate.nativeId === record.id ? { ...candidate } : candidate));
+  };
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
-  return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
+  return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
     headerActions={<>
-      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
-      {subject === "contentItem" && (
-        <Link className={cn(buttonVariants({ size: "sm" }))} data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
-          <PlusIcon aria-hidden="true" />
+      <span role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</span>
+      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
+      {showsContentItems && (
+        <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
+          <PlusIcon size={14} aria-hidden="true" />
           {`New ${getContentItemName().singular.toLowerCase()}`}
         </Link>
       )}
     </>}>
-    <div className="organizer-native-board papyrus-newsprint-board" data-color-mode={theme}>
+    <div className="organizer-native-board papyrus-newsprint-board" data-kanbus-theme="newsprint" data-color-mode={theme}>
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
-      <p role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</p>
-      <div className="organizer-board-body" data-detail-open={Boolean(issue)}>
-        <IssueCollection issues={issues} config={config} query={{ type: boardType }} view={view}
+      {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
+      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
+        <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
           motion={lowMotion ? STATIC_MOTION : undefined}
-          columnStateKey={`papyrus.cms.columns.v1.${SITE_BRAND.id}.${subject}`} initialScroll="start"
+          collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
           emptyMessage={loading ? "Loading records…" : error ? "Records could not be loaded." : "No records in this selection."} />
-        {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[{ label: "CMS record ID", value: issue.nativeId }, { label: "Status", value: issue.nativeStatus }]}>
-          <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type}</Link>
+        {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
+          {issue.kind === "contentItem"
+            ? <>
+              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded />
+              <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
+            </>
+            : (() => {
+              const record = assignments.find(candidate => candidate.id === issue.nativeId);
+              return record
+                ? <NewsroomAssignmentDetail assignment={record} deskOptions={deskOptions} onDeskChange={deskId => changeAssignmentDesk(record, deskId)} pageHref={getNewsroomNavHref(issue.href)} showTitle={false} />
+                : <Link href={getNewsroomNavHref(issue.href)}>Open {issue.type}</Link>;
+            })()}
         </IssueDetailPanel>}
       </div>
     </div>

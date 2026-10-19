@@ -13,7 +13,7 @@ export function resolveNewsDeskTab(
     : raw === "desks" && !organizer ? "topics" : raw;
   switch (value) {
     case "desks": case "administration": case "topics": case "concepts":
-    case "references": case "insights": case "messages": case "assignments": case "search":
+    case "references": case "messages": case "assignments": case "search":
       return value;
     default: return "overview";
   }

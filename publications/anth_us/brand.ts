@@ -1,5 +1,6 @@
 import type { SiteBrand } from "../../lib/site-brand";
 import { ANTH_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
+import { AnthUsLogo } from "./logo";
 
 /**
  * Site definition for the Anth.us publication on Papyrus.
@@ -9,7 +10,7 @@ import { ANTH_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
  * **editorial identity** (`style-profile.yml`, `editorial-rewrite-skill.yml`,
  * `reference-samples/`) and is not touched by this file.
  *
- * Every string below is read off the live Gatsby site at `AnthusAI/Anth.us`:
+ * Every string below is read off the live Gatsby site at `AnthusAI/Anth.us-legacy-Gatsby`:
  * `gatsby-config.mjs` `siteMetadata` for the title/description/author,
  * `src/components/header.js` for the wordmark, `gatsby-plugin-manifest` for
  * "Anth.us AI Solutions", and `src/components/seo.js` for the
@@ -18,6 +19,7 @@ import { ANTH_US_THEME_PACK_TOKENS } from "../../lib/site-stack";
 export const anthUsBrand: SiteBrand = {
   id: "anth-us",
   appTitle: "Anthus",
+  icons: { light: "/brand/anth-us/icon-32.png", appleTouch: "/brand/anth-us/icon-192.png" },
   appDescription:
     "Anthus builds and operates self-aligning AI systems — custom models, agent harnesses, and evaluation loops with a human in the loop, grounded in 14 years of production operations.",
   // The live header renders the bare word "Anthus" (Jersey 25, weight 900),
@@ -42,7 +44,7 @@ export const anthUsBrand: SiteBrand = {
   hosting: { kind: "amplify-ssr" },
   readerDeployment: {
     kind: "amplify-static",
-    repository: "https://github.com/AnthusAI/Anth.us-Papyrus",
+    repository: "https://github.com/AnthusAI/Anth.us-web",
     // `domain` and `amplifyAppId` are deliberately unset.
     //
     // This reader is a **staging** port of a live marketing site. Production
@@ -65,4 +67,5 @@ export const anthUsBrand: SiteBrand = {
   newsroomSectionsConfigPath: "corpora/anth-us-newsroom-sections.yml",
   analysisProfilesPath: "corpora/anth-us-analysis-profiles.yml",
   publicationName: "Anthus",
+  components: { NewsroomLogo: AnthUsLogo },
 };

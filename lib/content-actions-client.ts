@@ -13,6 +13,9 @@ export type SaveItemDraftInput = {
   bodyMarkus: string;
   aliases: string[];
   expectedContentHash: string | null;
+  /** Records a new draft version of the story instead of correcting the current one in place. */
+  newVersion?: boolean;
+  changeReason?: string | null;
 };
 
 export type DeriveMarkusResult = { ok: true; bodyIrBytes: number; bodyIr?: unknown; errors: [] };
