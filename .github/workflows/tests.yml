@@ -51,6 +51,10 @@ jobs:
           path: ~/.cache/pypoetry
           key: poetry-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
       - run: poetry install --no-interaction --extras "newsroom markus priming" --with cyclotron
+      - name: Biblicus is the released PyPI package
+        run: |
+          poetry run python -c "import biblicus, sys; assert 'site-packages' in biblicus.__file__, biblicus.__file__"
+          poetry run biblicus --help > /dev/null
       - name: Pilot identifiers stay out of application logic
         run: python procedures/guards/check_pilot_identifiers.py
       # Explicit exclusions, each with a reason; nothing is skipped silently.

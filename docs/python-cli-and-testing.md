@@ -10,9 +10,8 @@ Papyrus now packages its Python newsroom tooling as the Poetry-managed
 Use Poetry as the canonical Python entrypoint:
 
 ```bash
-poetry install
-# Editable sibling ../Biblicus (entity extraction, HTML heuristics, graph NER dev):
-./scripts/install-biblicus-local.sh
+poetry install --extras newsroom
+export BIBLICUS_WORKDIR=/path/to/biblicus-workdir
 poetry run papyrus --help
 poetry run papyrus assignments build-context --assignment <assignment-id>
 poetry run papyrus procedures execute-tactus 'return api_list{}'
