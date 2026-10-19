@@ -254,6 +254,8 @@ def write_redirects_from_former_chapter_urls(book: QuartoBook, output_directory:
     for position, chapter in enumerate(book.chapters):
         former_path = posixpath.splitext(chapter.source_path)[0] + ".html"
         target = "index.html" if position == 0 else f"articles/{published_page_slug(markdown_page_path(chapter.source_path))}.html"
+        if former_path == target:
+            continue
         depth_prefix = "../" * former_path.count("/")
         former_file = output_directory / former_path
         former_file.parent.mkdir(parents=True, exist_ok=True)
@@ -274,6 +276,7 @@ def build_book_site(
     tagline: str = "",
     source_repository_url: str,
     theme: str = "catppuccin",
+    published_site_url: str = "",
 ) -> BuildResult:
     with tempfile.TemporaryDirectory(prefix="papyrus-book-site-") as work_name:
         documentation_directory = Path(work_name) / "docs"
@@ -287,6 +290,7 @@ def build_book_site(
                 source_repository_url=source_repository_url,
                 theme=theme,
                 navigation=navigation,
+                published_site_url=published_site_url,
             ),
             output_directory,
         )
@@ -302,6 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tagline", default="")
     parser.add_argument("--source-url", required=True)
     parser.add_argument("--theme", default="catppuccin")
+    parser.add_argument("--site-url", default="")
     arguments = parser.parse_args(argv)
     result = build_book_site(
         arguments.project,
@@ -310,6 +315,7 @@ def main(argv: list[str] | None = None) -> int:
         tagline=arguments.tagline,
         source_repository_url=arguments.source_url,
         theme=arguments.theme,
+        published_site_url=arguments.site_url,
     )
     print(f"Built {len(result.pages)} pages into {result.out_dir}")
     return 0
