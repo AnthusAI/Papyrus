@@ -21,6 +21,10 @@ Operator groups:
   videos        Video pipeline commands
   editorial     Editorial quality loop commands
   batch         Batch registration and enrichment
+  login         Google newsroom sign-in using a configured native OAuth client
+  logout        Remove the local user session and attempt provider revocation
+  whoami        Renew and identify the selected newsroom user
+  auth status   Inspect the selected user session without opening a browser
 
 Backend selection:
   Use --backend local|cloud, PAPYRUS_BACKEND, or .papyrus/operator-cli.config.yaml.

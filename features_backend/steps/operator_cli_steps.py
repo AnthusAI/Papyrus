@@ -285,12 +285,6 @@ def step_stdout_mentions_groups(context):
         assert item in output
 
 
-@then("stdout should not list an `auth` group")
-def step_stdout_has_no_auth_group(context):
-    lines = (context.last_result.stdout or "").splitlines()
-    assert not any(line.split()[:1] == ["auth"] for line in lines)
-
-
 @then('stdout should mention `{item}`')
 def step_stdout_mentions(context, item):
     assert item in (context.last_result.stdout or "")

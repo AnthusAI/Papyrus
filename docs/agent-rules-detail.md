@@ -88,15 +88,17 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
   articles are seeded with `poetry run papyrus ops content seed-edition`). `.env*` must stay ignored, and `.env.example` is the
   committed template.
 - **GraphQL auth split (do not mix):**
-  - **CLI and other non-Lambda tools** use `PAPYRUS_GRAPHQL_ENDPOINT` plus
-    AWS credentials from the standard credential chain (SSO profile, assumed
-    role, OIDC role, Amplify build role). Every request is signed with SigV4
-    (IAM). Run locally with `AWS_PROFILE=<profile> papyrus ops content ...`
-    where the profile assumes the site's `<siteId>-papyrus-authoring` role.
-    **No long-lived token exists anywhere in the Papyrus design:** do not add a
-    JWT, API key, shared secret, custom Lambda authorizer, `refresh-jwt`
-    command, Papyrus editor login flow, or local auth-session cache for CLI
-    publishing.
+  - **Editorial CLI users** may use the configured native Google/Cognito login
+    in [CLI login](cli-login.md), under the same server-checked user permissions
+    as the newsroom. Renewable session material belongs only in macOS Keychain;
+    public publication/client selection metadata may be persisted separately.
+    Never scrape browser cookies, log tokens, invent grants, use API-key/guest
+    authoring, or fall back to a broader IAM identity when user auth fails.
+  - **Operator IAM commands** explicitly use `PAPYRUS_GRAPHQL_AUTH=iam` and the
+    standard AWS chain (SSO, assumed role, OIDC or build role). Native user login
+    does not grant deployment or infrastructure authority. This user-auth lane
+    intentionally replaces the former IAM-only CLI policy; it does not change
+    Lambda role auth or introduce a custom authorizer.
   - **Deployed Lambda functions** call AppSync with **IAM only** (SigV4 /
     `authMode: "iam"` on the Amplify data client). The same signing code serves
     CLI and Lambdas. Do not set secrets on Lambdas for GraphQL access, and do

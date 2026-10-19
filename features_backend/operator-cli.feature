@@ -35,7 +35,8 @@ Feature: Operator CLI
     When I run `papyrus --help`
     Then the exit code should be 0
     And stdout should mention `references`, `assignments`, and `knowledge`
-    And stdout should not list an `auth` group
+    And stdout should mention `auth status`
+    And stdout should mention `Google newsroom sign-in`
     And stdout should explain that backend selection comes from project config or `--backend`
 
   @install
@@ -250,10 +251,10 @@ Feature: Operator CLI
   # ---------------------------------------------------------------------------
 
   @auth @cloud-backend
-  Scenario: The auth group no longer exists because no token is minted
+  Scenario: Unsupported auth operations do not mint or expose a token
     When I run `papyrus auth refresh`
     Then the exit code should be 2
-    And stderr should mention `Unsupported papyrus group: auth`
+    And stderr should mention `invalid choice: 'refresh'`
     And stderr should not contain "Traceback"
 
   @auth @cloud-backend

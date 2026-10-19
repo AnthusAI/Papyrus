@@ -68,6 +68,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 ## CLI and API
 
 - [operator-cli.md](operator-cli.md): one `papyrus` command over local pod and cloud backends.
+- [cli-login.md](cli-login.md): native Google CLI session, secure storage, renewal and required provider configuration.
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.
 - [schema-and-api-alignment.md](schema-and-api-alignment.md): fix schema drift by deploying, never by shims.
 - [local-dev-431-troubleshooting.md](local-dev-431-troubleshooting.md): `HTTP 431` from oversized localhost cookies.
