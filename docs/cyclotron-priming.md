@@ -568,10 +568,37 @@ sweep stores the gate's verdict beside the live agreement as `autoDecision`:
   human labels have arrived since it was run, it is more than 30 days old, or
   its agreement at the largest label count is under 0.9.
 - `allowed: true` with `scope: "reject-clear-misses"` otherwise. Accepting is
-  never automatic, and nothing in the sweep acts on the gate yet.
+  never automatic. The sweep acts on the gate only through the opt-in auto-reject below.
 
 `proof_is_due` gives the reason a fresh draft proof should be run (new labels or
 age), for the scheduled proof that follows.
+
+### Auto-reject of clear misses (opt in, off by default)
+
+```yaml
+relevanceCyclotron:
+  autoReject:
+    enabled: true                  # default false
+    minimumRejectProbability: 0.95 # default 0.95
+    maxRejectsPerSweep: 10         # default 10
+```
+
+With `--apply`, the sweep moves a pending Reference to rejected only when all of
+these hold: `autoReject.enabled`; the gate says `allowed` with scope
+`reject-clear-misses`; the decision is the negative label with probability at
+least `minimumRejectProbability`; the Reference has no curation history at all
+(a person who reviewed, or reopened, a Reference is never overruled); and the
+sweep is under `maxRejectsPerSweep` and the daily decision cap. It never accepts.
+
+Each rejection writes the usual `reference_curation` Message with
+`actorKind: "cyclotron"`, reason code `out_of_scope`, and the cyclotron id,
+probability, proof id and decision id in its metadata and reason, so the
+Newsroom can show it was automatic and a person can reopen it. Because the actor
+kind is not `human`, an auto-rejection is never a training label and never counts
+toward the gate's human label count. The result and `--json` output list them as
+`autoRejected` (`lineageId`, `probability`, `proofId`). A dry run lists what
+would be rejected from decisions already recorded, and writes nothing. The Site
+(Section) cyclotron stays shadow-only.
 
 ### Withdrawn labels
 
