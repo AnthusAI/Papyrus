@@ -1,0 +1,56 @@
+{
+  "id": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
+  "title": "One editorial context for reporting agents and newsroom workers",
+  "description": "As a Papyrus reporting or writing agent, I want one current publication-scoped editorial context, so that configurable policy reaches external agents and canned workers without duplicating evolving policy in static skills.\n\nApproved scope: shared resolver/renderer for publication and optional section/story/assignment; structured CLI with explicit live versus local Git source, provenance/revisions, precedence/conflict warnings, truthful missing/unauthorized failures, required policies preserved under budgeting; same resolved content in research/reporting/copywriting workers; reuse Limatus packaged copy-edit skill while retaining explicit human option selection. Reconcile existing Python/GraphQL doctrine lookup rather than building a parallel store. No Cyclotron steering/delegation, infrastructure, credentials, deployment or main promotion.\n\nCurrent evidence: newsroom.py papyrus_build_assignment_agent_context renders doctrine but loses source revision fields, suppresses read failures and mixes live section policy with assignment snapshots; researcher.tac's research harness loads Assignment without resolving doctrine. getAssignmentContext's TypeScript handler still chooses category-based desk doctrine while Python uses NewsroomSection. Existing YAML files are seeds, not proof of current hosted policy.\n\nMilestones: canonical resolve/render/CLI and observable tests; shared worker integration and context-budget behavior; authorized API parity, skills and documentation. Code owner must verify missing/unauthorized behavior, revisions and required-policy preservation, with mocked scoped records and actual CLI local-file tests; live source/model calls are not required. Keep completed implementation reviewable in a draft PR and leave unimplemented acceptance explicit. No merge or deployment authorized.\n",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "cc3ffdc4-f53e-4323-b0be-27f87fa530e1",
+      "author": "home",
+      "text": "Implementation review: draft PR https://github.com/AnthusAI/Papyrus/pull/311 on feature/PPY-e081de-editorial-context; commits a75b54e4 and f98be004. 41 focused Python tests, six Behave scenarios/19 steps, Node assignment API checks, all three Tactus DSL validations, both skill validators, and changed-file ESLint pass. Full newsroom run 160 pass/9 fail in out-of-slice corpus/tokenizer checks; current CI already excludes that environment-dependent suite. Full typecheck lacks existing UI/generated modules, with no errors in changed TS files. Generated-text GraphQL operation and approved ProcedureVersion synchronization remain explicit follow-up; direct copywriter callers must provide resolved context. No merge, deploy, infrastructure, credentials or Cyclotron label changes. Keep epic/stories in_progress pending review and remaining acceptance.",
+      "created_at": "2026-10-18T19:16:25.040022Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "4cdcff0d-c1ec-46e5-958e-056eff51eab6",
+      "author": "home",
+      "text": "Review boundaries: source-only CLI, workers, static skills and private GraphQL contract are implemented in draft PR311. No hosted content writes, publication, Cyclotron work, infrastructure deployment, IAM changes, installs, merge or release. Current corpus ownership model supports one canonical corpus per backend; multiple canonical corpora fail explicitly. Assignments without tenant fields require a scoped linked story/section under tenant configuration. Local broad suite/typecheck failures were reproduced at the exact fork; release and live acceptance remain outstanding.",
+      "created_at": "2026-10-18T19:30:46.007620Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    }
+  ],
+  "created_at": "2026-10-18T18:59:27.140198Z",
+  "updated_at": "2026-10-18T19:30:46.007758Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "ChatGPT",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

@@ -67,7 +67,10 @@ function frontendSection(preBuildCommands: string[], buildCommands: string[], ar
   return lines;
 }
 
+const DEPLOY_STACK_IN_BUILD = "npx papyrus-infra deploy --site infra/site.json --only-branch main";
+
 export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): string {
+  const deployStackCommands = config.cms?.deployStackInBuild ? [DEPLOY_STACK_IN_BUILD] : [];
   return [
     "version: 1",
     "backend:",
@@ -77,6 +80,7 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
     ...commandLines(
       [
         NPM_CLEAN_INSTALL,
+        ...deployStackCommands,
         "if [ -z \"${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}\" ]; then export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true; fi",
         "npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID",
       ],

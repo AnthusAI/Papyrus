@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "d6b83608-480b-4c5c-9d88-d2b53a507a41",
+  "issue_id": "PPY-98af3ff6-40fa-4c0d-b2c2-97af1a6628a9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T23:57:51.137Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom runtime ignores the selected publication root during attachment hydration",
+    "description": "The newsroom runtime hard-codes its shared code checkout as PAPYRUS_ROOT, ignoring the explicit publication root already supported by papyrus_content.env. In the TI OpenCode trial, genuine matching outputs exist in the publication checkout and assignment text attachments are byte-verified, but runtime hydration returns no text because it looks in the shared checkout. Reuse the existing root resolver; preserve the configured Biblicus directory. No tenant adoption, schema fallback, budget implementation, deployment or paid execution.\n\nFeature: Selected publication root for newsroom runtime\n  Scenario: Hydrate stored assignment text from the selected publication\n    Given an explicit publication root with genuine storage configuration\n    And stored brief and instructions for an assignment\n    When the newsroom runtime reads assignment context\n    Then it reads text from that publication storage\n    And it uses the configured knowledge work directory\n  Scenario: Preserve default root behavior\n    Given no explicit publication root\n    When the newsroom runtime starts\n    Then it uses the existing content runtime root resolution\n\nScope: minimal constant binding correction and isolated regression tests; non-paid live verification using the existing TI records and outputs. Keep procedure disabled, preserve all draft versions and legacy data. No merges or deployments.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "ChatGPT"
+    }
+  }
+}

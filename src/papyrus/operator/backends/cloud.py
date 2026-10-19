@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from papyrus_content.env import load_dotenv
-from papyrus_content.graphql_http import aws_credentials_available
+from papyrus_content.graphql_http import authoring_credentials_available
 
 from ..config import OperatorConfig
 from ..errors import OperatorError
@@ -29,7 +29,7 @@ class CloudBackend(OperatorBackend):
     load_dotenv()
     if self._fixture_root():
       return
-    if not aws_credentials_available():
+    if not authoring_credentials_available():
       raise OperatorError(
         "No AWS credentials for cloud authoring. Set AWS_PROFILE to a profile that can assume the "
         "papyrus-authoring role (for example: aws sso login --profile <profile>).",

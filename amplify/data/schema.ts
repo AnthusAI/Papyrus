@@ -779,6 +779,7 @@ const baseDefinitions = {
   }),
 
   AssignmentContext: a.customType({
+    editorialContext: a.json().required(),
     assignment: a.ref("AssignmentSummary"),
     doctrine: a.ref("AssignmentDoctrineSummary").array().required(),
     targets: a.ref("AssignmentTargetSummary").array().required(),
@@ -805,6 +806,19 @@ const baseDefinitions = {
       limit: a.integer(),
     })
     .returns(a.ref("AssignmentContext").array().required())
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(a.handler.function(assignmentAction)),
+
+  getEditorialContext: a
+    .query()
+    .arguments({
+      publicationKey: a.string().required(),
+      sectionId: a.id(),
+      storyLineageId: a.id(),
+      assignmentId: a.id(),
+      maxCharacters: a.integer(),
+    })
+    .returns(a.json().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(a.handler.function(assignmentAction)),
 

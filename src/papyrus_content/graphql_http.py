@@ -1,8 +1,8 @@
 """Shared AppSync GraphQL HTTP client for CLI tools and newsroom helpers.
 
-Every request is signed with SigV4 from the standard AWS credential chain
-(environment, shared config and SSO profiles, assumed roles, web identity /
-OIDC, container and instance credentials). There is no stored token.
+Configured editorial sessions use normal Cognito user authorization; explicit
+operator IAM calls use the standard AWS credential chain. Failed user sessions
+never escalate to IAM. Renewable user secrets live only in OS secure storage.
 """
 
 from __future__ import annotations
@@ -48,10 +48,21 @@ def aws_credentials_available() -> bool:
     return True
 
 
+def authoring_credentials_available() -> bool:
+    from .cli_user_auth import user_auth_requested
+    # The selected user session is checked/renewed at request time, without an
+    # AWS credential probe or escalation when that user session has expired.
+    return user_auth_requested() or aws_credentials_available()
+
+
 def graphql_request_headers(*, endpoint: str, body: bytes) -> dict[str, str]:
     from .guest_auth import refuse_guest_auth
 
     refuse_guest_auth("this command")
+    from .cli_user_auth import selected_headers
+    user_headers = selected_headers(endpoint)
+    if user_headers is not None:
+        return user_headers
     return iam_signed_graphql_headers(endpoint, body)
 
 

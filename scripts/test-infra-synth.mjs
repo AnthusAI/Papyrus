@@ -479,6 +479,26 @@ try {
   assert.match(staticSpec, /^\s*- papyrus ops content export-published /m);
   assert.equal(/papyrus content /.test(staticSpec), false, "reader spec calls the nonexistent 'papyrus content'");
 
+  const deployingSite = JSON.parse(fs.readFileSync(path.join(shell, "examples/pilobol-us.site.json"), "utf8"));
+  const productionSpecWithoutDeploy = run("node", [cli, "print-buildspec", "--site", path.join(shell, "examples/pilobol-us.site.json"), "--app", "cms-production"], { cwd: infraApp });
+  assert.equal(productionSpecWithoutDeploy.includes("papyrus-infra deploy"), false, "deployment from the build is opt in");
+  deployingSite.cms.deployStackInBuild = true;
+  const deployingSitePath = path.join(work, "deploying.site.json");
+  fs.writeFileSync(deployingSitePath, JSON.stringify(deployingSite));
+  const productionSpecWithDeploy = run("node", [cli, "print-buildspec", "--site", deployingSitePath, "--app", "cms-production"], { cwd: infraApp });
+  assert.match(productionSpecWithDeploy, /npx papyrus-infra deploy --site infra\/site.json --only-branch main/);
+
+  const pilobolSitePath = path.join(shell, "examples/pilobol-us.site.json");
+  const environmentWithoutAmplify = { ...process.env };
+  delete environmentWithoutAmplify.AWS_APP_ID;
+  delete environmentWithoutAmplify.AWS_BRANCH;
+  const outsideAmplify = run("node", [cli, "deploy", "--site", pilobolSitePath], { cwd: infraApp, env: environmentWithoutAmplify });
+  assert.match(outsideAmplify, /not running inside an Amplify build, skipping/);
+  const otherBranch = run("node", [cli, "deploy", "--site", pilobolSitePath], { cwd: infraApp, env: { ...environmentWithoutAmplify, AWS_APP_ID: "dapp1", AWS_BRANCH: "staging" } });
+  assert.match(otherBranch, /does not own the stack, skipping/);
+  const otherApp = run("node", [cli, "deploy", "--site", pilobolSitePath, "--only-app-id", "downer"], { cwd: infraApp, env: { ...environmentWithoutAmplify, AWS_APP_ID: "dapp1", AWS_BRANCH: "main" } });
+  assert.match(otherApp, /does not own the stack, skipping/);
+
   console.log("infra synth tests passed");
 } finally {
   fs.rmSync(work, { recursive: true, force: true });

@@ -1,0 +1,101 @@
+{
+  "id": "PPY-98af3ff6-40fa-4c0d-b2c2-97af1a6628a9",
+  "title": "Newsroom runtime ignores the selected publication root during attachment hydration",
+  "description": "The newsroom runtime hard-codes its shared code checkout as PAPYRUS_ROOT, ignoring the explicit publication root already supported by papyrus_content.env. In the TI OpenCode trial, genuine matching outputs exist in the publication checkout and assignment text attachments are byte-verified, but runtime hydration returns no text because it looks in the shared checkout. Reuse the existing root resolver; preserve the configured Biblicus directory. No tenant adoption, schema fallback, budget implementation, deployment or paid execution.\n\nFeature: Selected publication root for newsroom runtime\n  Scenario: Hydrate stored assignment text from the selected publication\n    Given an explicit publication root with genuine storage configuration\n    And stored brief and instructions for an assignment\n    When the newsroom runtime reads assignment context\n    Then it reads text from that publication storage\n    And it uses the configured knowledge work directory\n  Scenario: Preserve default root behavior\n    Given no explicit publication root\n    When the newsroom runtime starts\n    Then it uses the existing content runtime root resolution\n\nScope: minimal constant binding correction and isolated regression tests; non-paid live verification using the existing TI records and outputs. Keep procedure disabled, preserve all draft versions and legacy data. No merges or deployments.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a2cd61b1-7200-4782-a905-45049cac7ae1",
+      "author": "home",
+      "text": "Root resolver reuse fixes publication selection, but live verification exposed an existing direct-S3 HeadObject 403 for the authoring role. No IAM changes or denied S3 retries. Extend the minimal fix to use the existing supported ModelAttachment download reader, already proven to authorize/download these exact objects, instead of shelling out to S3. This is the existing API path, not new infrastructure or auth. Add regression coverage through the public assignment-context method and preserve all record IDs/tenant state.",
+      "created_at": "2026-10-19T00:02:14.172454Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "49b0e051-2a0f-4c5a-bff0-a02b730ccd25",
+      "author": "home",
+      "text": "Implemented on fix/PPY-98af-newsroom-publication-root from origin/develop. The newsroom now reuses papyrus_content.env root resolution (PAPYRUS_ROOT and BIBLICUS_WORKDIR), and assignment text downloads use the existing authorized ModelAttachment download API rather than direct AWS S3 calls. Denied attachment reads propagate instead of silently removing guidance. No IAM, backend, tenant adoption, budget, or editorial-context changes.\n\nRegression proof: original hardcoded-root implementation failed the publication hydration scenario; the root-only patch then failed direct-S3-denied regression. Final patch passed 29 focused pytest tests, 15 existing newsroom tests (113 deselected), two Behave scenarios/eight steps, pilot identifier guard and git diff --check.\n\nNonpaid live verification using the existing TI authoring role and genuine generated outputs hydrated the persisted 152-character brief and 1174-character instructions byte-for-byte. Procedure code hash remained a0d0901133abc83afac7109c3fabe9da05afb9182a48f12c9aa7a49c8c87eddd; definition remains disabled. OpenCode v2 remains current draft/reporting with nine consulted references and two preserved versions. Zero model calls; no run started. This explicitly loads the proposed local patch: it is not deployed, and the existing local canned-procedure symlink still points to the older runtime.\n\nA subsequent read-only follow-up stopped before API access because papyrus-production SSO expired and refresh failed. The earlier successful verification is retained at ../opencode-reporting/setup-approved/root-fix-live-verification.json. Tenant-scoped frontend visibility remains unverified; no tenant was guessed/adopted and no legacy rows recreated. Human dollar ceiling plus enforceable shared model/search/retry budget remain separate blockers to paid execution. Keep this issue in_progress pending review/landing; draft PR will target develop, with no merge/deploy.\n",
+      "created_at": "2026-10-19T00:08:08.635862Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "44776f10-0d02-48e0-91b6-342431dc9dd6",
+      "author": "home",
+      "text": "Local implementation committed as e755b9f0 on fix/PPY-98af-newsroom-publication-root. Push to origin was denied by automatic approval review: it considered remote publication an external repository commitment not clearly authorized by the prepare/report instruction. This was a denial before execution, not an uncertain push. No remote branch or PR was created, and no workaround/retry was attempted. Explicit authorization to push/open the draft PR is now required. All local patch, regression and live verification work described above is complete; no merge, deployment, tenant adoption or paid run occurred. Status remains in_progress.\n",
+      "created_at": "2026-10-19T00:09:01.324964Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "a25ab7ce-762b-4244-b621-08653962c069",
+      "author": "home",
+      "text": "Ryan explicitly authorized the previously denied push and draft PR. Rechecked latest origin/develop 79cbbf6d and origin/main cf9e51f5; neither contains the fix and no duplicate open fix exists. Branch pushed successfully; draft PR https://github.com/AnthusAI/Papyrus/pull/343 targets develop, head 6c27ec56377287a7fee7661306d8773406fa8323. 44 focused/existing pytest tests and two BDD scenarios/eight steps passed, plus live nonpaid exact brief/instructions hydration. CI pending. No merge/deploy. Existing papyrus-production SSO read-only check still fails TokenRetrievalError: expired token and refresh failed; no login initiated. Procedure disabled and no paid calls.",
+      "created_at": "2026-10-19T09:45:02.675581Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "07fb1cb8-6203-4c7e-88ce-db65b2a2d2b8",
+      "author": "home",
+      "text": "Ryan subsequently authorized one paid execution of the existing OpenCode research assignment using its existing eight-item/run limits, without adding a budget system. This supersedes the earlier budget decision blocker. Preflight at 2026-10-19T09:45:22Z still failed before STS/API access: existing papyrus-production SSO TokenRetrievalError, token expired and refresh failed. No procedure enable attempted, no run ID, no model call, no login initiated. Direct web update research continues locally; publication imports blocked by this same access failure.",
+      "created_at": "2026-10-19T09:46:47.794239Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    }
+  ],
+  "created_at": "2026-10-18T23:57:51.136729Z",
+  "updated_at": "2026-10-19T09:46:47.794318Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "source": "shared",
+    "project_label": "PPY"
+  },
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "ChatGPT",
+    "settings": {}
+  },
+  "agent_assignment": null
+}

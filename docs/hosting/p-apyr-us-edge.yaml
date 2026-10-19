@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFront edge for p.apyr.us (CMS, marketing and reader) in front of Amplify default domains and the marketing bucket
+Parameters:
+  CertificateArn:
+    Type: String
+  ReaderCertificateArn:
+    Type: String
+  MarketingCertificateArn:
+    Type: String
+  AmplifyAppId:
+    Type: String
+  MarketingBucketDomainName:
+    Type: String
+    Default: papyrus-web-marketing-712236451410-us-east-1.s3.us-east-1.amazonaws.com
+  MarketingOriginAccessControlId:
+    Type: String
+    Default: E23SVM97AX6ZLI
+  ProductionHost:
+    Type: String
+    Default: p.apyr.us
+  StagingHost:
+    Type: String
+    Default: p-staging.apyr.us
+  ApexHost:
+    Type: String
+    Default: apyr.us
+  ReaderHost:
+    Type: String
+    Default: read.p.apyr.us
+Resources:
+  ForwardHostFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-forward-host'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Redirect apex to production host; copy Host to x-forwarded-host
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var host = request.headers.host.value;
+          if (host === '${ApexHost}') {
+            var query = '';
+            var keys = Object.keys(request.querystring);
+            if (keys.length > 0) {
+              query = '?' + keys.map(function (k) {
+                var q = request.querystring[k];
+                return q.value === '' ? k : k + '=' + q.value;
+              }).join('&');
+            }
+            return {
+              statusCode: 301,
+              statusDescription: 'Moved Permanently',
+              headers: { location: { value: 'https://${ProductionHost}' + request.uri + query } }
+            };
+          }
+          request.headers['x-forwarded-host'] = { value: host };
+          return request;
+        }
+  ReaderEdgeFunction:
+    Type: AWS::CloudFront::Function
+    DeletionPolicy: Retain
+    Properties:
+      Name: papyrus-reader-edge
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Send newsroom paths to the CMS host; copy Host to x-forwarded-host; pass everything else through
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          var host = request.headers.host.value;
+          if (uri === '/newsroom' || uri.indexOf('/newsroom/') === 0) {
+            var query = '';
+            var keys = Object.keys(request.querystring);
+            if (keys.length > 0) {
+              query = '?' + keys.map(function (k) {
+                var q = request.querystring[k];
+                return q.value === '' ? k : k + '=' + q.value;
+              }).join('&');
+            }
+            return {
+              statusCode: 302,
+              statusDescription: 'Found',
+              headers: { location: { value: 'https://${ProductionHost}' + uri + query } }
+            };
+          }
+          request.headers['x-forwarded-host'] = { value: host };
+          return request;
+        }
+  ProductionDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: p.apyr.us production
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: !Sub 'main.${AmplifyAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+  StagingDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: p-staging.apyr.us staging
+        Aliases: [!Ref StagingHost]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: !Sub 'staging.${AmplifyAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+  MarketingDistribution:
+    Type: AWS::CloudFront::Distribution
+    DeletionPolicy: Retain
+    Properties:
+      Tags:
+        - Key: Project
+          Value: Papyrus-web
+      DistributionConfig:
+        Enabled: true
+        Comment: papyrus-web-marketing-candidate
+        Aliases: [!Ref ProductionHost, !Ref ApexHost]
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          AcmCertificateArn: !Ref MarketingCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: cms-amplify
+            DomainName: !Sub 'main.${AmplifyAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+          - Id: marketing-s3
+            DomainName: !Ref MarketingBucketDomainName
+            OriginAccessControlId: !Ref MarketingOriginAccessControlId
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: marketing-s3
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+        CacheBehaviors:
+          - PathPattern: /newsroom*
+            TargetOriginId: cms-amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: /_next/*
+            TargetOriginId: cms-amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: /api/*
+            TargetOriginId: cms-amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+  ReaderDistribution:
+    Type: AWS::CloudFront::Distribution
+    DeletionPolicy: Retain
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: read.p.apyr.us reader
+        Aliases: [!Ref ReaderHost]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref ReaderCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: !Sub 'main.${AmplifyAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ReaderEdgeFunction.FunctionARN
+Outputs:
+  ProductionDistributionId:
+    Value: !Ref ProductionDistribution
+  StagingDistributionId:
+    Value: !Ref StagingDistribution
+  MarketingDistributionId:
+    Value: !Ref MarketingDistribution
+  ReaderDistributionId:
+    Value: !Ref ReaderDistribution

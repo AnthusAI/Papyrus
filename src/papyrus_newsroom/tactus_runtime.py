@@ -295,6 +295,11 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         limit=args.get("limit", 25),
     ),
     ("assignment", "get"): lambda args: newsroom.papyrus_get_assignment(args.get("id") or args.get("assignment_id")),
+    ("editorial", "context"): lambda args: newsroom.papyrus_editorial_context(
+        assignment_id=args.get("assignment_id") or "",
+        section_id=args.get("section_id") or "",
+        story_lineage_id=args.get("story_lineage_id") or "",
+    ),
     ("assignment", "context"): lambda args: newsroom.papyrus_get_assignment_context(
         args.get("id") or args.get("assignment_id")
     ),
@@ -883,6 +888,7 @@ HELPER_BINDINGS: tuple[tuple[str, str, str], ...] = (
     ("edition_items", "edition", "items"),
     ("item_get", "item", "get"),
     ("assignment_get", "assignment", "get"),
+    ("editorial_context", "editorial", "context"),
     ("assignment_context", "assignment", "context"),
     ("assignment_agent_context", "assignment", "agent_context"),
     ("assignment_context_to_item", "assignment", "context_to_item"),

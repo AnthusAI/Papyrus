@@ -77,6 +77,9 @@ Rules:
 
 Procedure {
     input = {
+        editorial_context_json = field.string{default = "", description = "Resolved editorial context source provenance for the run audit"},
+        editorial_context_text = field.string{default = "", description = "Required resolved live editorial context; fetch with papyrus editorial context"},
+        editorial_context_hash = field.string{default = "", description = "Resolved editorial context provenance hash"},
         assignment_item_id = field.string{default = "", description = "Papyrus Assignment.id or legacy assignment Item.id"},
         assignment_json = field.string{default = "", description = "Inline Assignment or assignment Item JSON for deterministic tests or offline runs"},
         corpus_key = field.string{required = true, description = "Papyrus steering corpus key"},
@@ -98,6 +101,9 @@ Procedure {
         summary = field.string{required = true}
     },
     function(input)
+        if input.editorial_context_text == "" or input.editorial_context_hash == "" then
+            error("Resolved editorial context text and hash are required before starting an editorial worker")
+        end
         local assignment_source = input.assignment_item_id
         if input.assignment_json ~= "" then
             assignment_source = "inline assignment_json"
@@ -321,7 +327,7 @@ Set reporting_context_packet.summary to a concise packet-level summary.
         local output = {}
         local retry_message = message
         while attempt <= max_attempts do
-            local result = newsroom_reporter({message = retry_message})
+            local result = newsroom_reporter({message = input.editorial_context_text .. "\nContext hash: " .. input.editorial_context_hash .. "\n\n" .. retry_message})
             output = normalize_agent_output(result)
             local ok, failure = has_required_reporting_output(output)
             if ok then
@@ -486,6 +492,8 @@ Feature: Newsroom reporter procedure
 
   Scenario: Reporter returns a legacy draft update plan
     Given the procedure has started
+    And the input editorial_context_text is "Synthetic test publication policy"
+    And the input editorial_context_hash is "synthetic-fixture-context"
     And the input assignment_item_id is "assignment-abc123"
     And the input corpus_key is "AI-ML-research"
     And the agent "newsroom_reporter" calls tool "execute_tactus" with args {"tactus": "local item = item_get{ id = \"assignment-abc123\" }; local evidence = biblicus_query{ corpus_key = \"AI-ML-research\", query = \"AI Agents Enter the Lab\", max_total_items = 5 }; return { item = item, evidence = evidence }"}
@@ -498,6 +506,8 @@ Feature: Newsroom reporter procedure
 
   Scenario: Reporter accepts a live reporting Assignment context
     Given the procedure has started
+    And the input editorial_context_text is "Synthetic test publication policy"
+    And the input editorial_context_hash is "synthetic-fixture-context"
     And the input assignment_item_id is "assignment-live-123"
     And the input corpus_key is "AI-ML-research"
     And the input context_profile is "reporting"

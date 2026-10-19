@@ -269,6 +269,10 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         print(__version__)
         return 0
 
+    if args[0] in {"login", "logout", "whoami", "auth"}:
+        from papyrus_content.cli_user_auth import command as auth_command
+        return auth_command(args)
+
     if not allow_cross_root:
         _enforce_root_guard(args)
     group = args[0]
@@ -342,6 +346,11 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         if command is None:
             raise ValueError("papyrus videos requires <command>.")
         _delegate_content("videos", command, flags)
+        return 0
+    if group == "editorial" and command == "context":
+        from papyrus_content.editorial_context import editorial_context_command
+
+        editorial_context_command(flags)
         return 0
     if group == "editorial":
         if command is None:

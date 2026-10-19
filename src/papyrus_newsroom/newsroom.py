@@ -25,6 +25,7 @@ from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
 from papyrus_content.biblicus_runtime import biblicus_python_executable
+from papyrus_content.env import BIBLICUS_ROOT, PAPYRUS_ROOT
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
@@ -35,8 +36,6 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only in stripped env
     yaml = None
 
 
-PAPYRUS_ROOT = Path(__file__).resolve().parents[2]
-BIBLICUS_ROOT = PAPYRUS_ROOT.parent / "Biblicus"
 STEERING_CONFIG_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-steering.yml"
 RESEARCH_TRACKS_PATH = PAPYRUS_ROOT / "procedures" / "newsroom" / "tracks"
 NEWSROOM_VERSION = "newsroom-v1"
@@ -1578,7 +1577,10 @@ def papyrus_get_assignment_context(assignment_id: str) -> dict[str, Any]:
     _hydrate_assignment_payloads(assignment)
     relations = _assignment_relations_for_assignment(assignment_id)
     targets = _assignment_targets_from_relations(relations)
-    doctrine = _assignment_doctrine_context(assignment)
+    editorial_context = papyrus_editorial_context(assignment_id=assignment_id)
+    doctrine = [{"scope": "desk" if entry["scope"] == "section" else entry["scope"], "kind": entry["kind"],
+                 "label": entry["kind"], "slug": entry["source"].get("id") or entry["kind"],
+                 "body": [entry["text"]], "source": entry["source"]} for entry in editorial_context["entries"]]
     events = _assignment_events_for_assignments([assignment_id])
     for event in events:
         if isinstance(event, dict):
@@ -1587,6 +1589,7 @@ def papyrus_get_assignment_context(assignment_id: str) -> dict[str, Any]:
         "assignment_context": {
             "assignment": assignment,
             "doctrine": doctrine,
+            "editorialContext": editorial_context,
             "targets": targets,
             "events": events,
         }
@@ -1638,52 +1641,19 @@ def _assignment_targets_from_relations(relations: list[dict[str, Any]]) -> list[
     return targets
 
 
+def papyrus_editorial_context(assignment_id: str = "", section_id: str = "", story_lineage_id: str = "") -> dict[str, Any]:
+    from papyrus_content.editorial_context import configured_context
+
+    return configured_context(assignment_id=assignment_id or None, section_id=section_id or None,
+                              story_lineage_id=story_lineage_id or None)
+
+
 def _assignment_doctrine_context(assignment: dict[str, Any]) -> list[dict[str, Any]]:
-    doctrine: list[dict[str, Any]] = []
-    for kind, label, slug in (
-        ("mission", "Editorial Mission", "editorial-doctrine-mission"),
-        ("policy", "Editorial Policy", "editorial-doctrine-policy"),
-    ):
-        record = _doctrine_item_by_slug(slug)
-        if not record:
-            continue
-        doctrine.append(
-            {
-                "scope": "publication",
-                "kind": kind,
-                "label": label,
-                "slug": slug,
-                "body": _normalize_string_array(record.get("body") or []),
-                "categoryKey": None,
-                "categoryLineageId": None,
-            }
-        )
-    section_key = assignment.get("sectionKey") or assignment.get("sectionId")
-    section = _newsroom_section_by_id(section_key)
-    if section:
-        doctrine.append(
-            {
-                "scope": "desk",
-                "kind": "mission",
-                "label": "Desk Mission",
-                "slug": f"desk-section-{section.get('id')}-mission",
-                "body": _normalize_string_array([section.get("editorialMission")]),
-                "categoryKey": section.get("id"),
-                "categoryLineageId": section.get("id"),
-            }
-        )
-        doctrine.append(
-            {
-                "scope": "desk",
-                "kind": "policy",
-                "label": "Desk Policies",
-                "slug": f"desk-section-{section.get('id')}-policy",
-                "body": _normalize_string_array([section.get("editorialPolicy")]),
-                "categoryKey": section.get("id"),
-                "categoryLineageId": section.get("id"),
-            }
-        )
-    return doctrine
+    pack = papyrus_editorial_context(assignment_id=assignment["id"])
+    return [{"scope": "desk" if entry["scope"] == "section" else entry["scope"],
+             "kind": entry["kind"], "label": entry["kind"], "slug": entry["source"].get("id") or entry["kind"],
+             "body": [entry["text"]], "source": entry["source"],
+             "contextHash": pack["contextHash"]} for entry in pack["entries"]]
 
 
 def _newsroom_section_by_id(section_id: Any) -> dict[str, Any] | None:
@@ -1819,6 +1789,7 @@ def papyrus_build_assignment_agent_context(
         assignment=assignment,
         metadata=metadata,
         doctrine=_normalize_jsonish(context.get("doctrine") or []),
+        editorial_context=context["editorialContext"],
         desk_category=desk_category,
         focus_category=focus_category,
         semantic_nodes=semantic_node_matches,
@@ -4082,35 +4053,14 @@ query GetModelAttachment($id: ID!) {
 
 
 def _download_model_attachment_body(attachment: dict[str, Any]) -> str | None:
-    storage_path = str(attachment.get("storagePath") or "").strip()
-    if not storage_path:
-        return None
-    bucket = _storage_bucket_name()
-    if not bucket:
-        return None
-    result = subprocess.run(
-        ["aws", "s3", "cp", f"s3://{bucket}/{storage_path}", "-"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    return result.stdout
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.model_attachments import download_attachment_buffer
 
-
-def _storage_bucket_name() -> str | None:
-    outputs_path = PAPYRUS_ROOT / "amplify_outputs.json"
-    if not outputs_path.exists():
+    if not attachment.get("storagePath"):
         return None
-    try:
-        outputs = json.loads(outputs_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    storage = outputs.get("storage") if isinstance(outputs, dict) else None
-    if not isinstance(storage, dict):
-        return None
-    return str(storage.get("bucket_name") or storage.get("bucketName") or "").strip() or None
+    client, _ = create_authoring_client()
+    body = download_attachment_buffer(client, attachment)
+    return body.decode("utf-8") if body is not None else None
 
 
 def _resolve_corpus(corpus_key: str, config_path: str = "") -> dict[str, Any]:
@@ -4739,6 +4689,7 @@ def _build_assignment_context_blocks(
     assignment: dict[str, Any],
     metadata: dict[str, Any],
     doctrine: list[dict[str, Any]],
+    editorial_context: dict[str, Any],
     desk_category: dict[str, Any] | None,
     focus_category: dict[str, Any] | None,
     semantic_nodes: list[dict[str, Any]],
@@ -4755,59 +4706,8 @@ def _build_assignment_context_blocks(
     blocks: list[dict[str, Any]] = []
     publication_doctrine = [entry for entry in doctrine if entry.get("scope") == "publication"]
     desk_doctrine = [entry for entry in doctrine if entry.get("scope") == "desk"]
-    blocks.append(
-        _context_block(
-            "doctrine-publication",
-            "doctrine",
-            _format_doctrine_block("Publication Doctrine", publication_doctrine),
-            required=True,
-            metadata={"scope": "publication"},
-        )
-    )
-    if desk_doctrine:
-        blocks.append(
-            _context_block(
-                "doctrine-desk",
-                "doctrine",
-                _format_doctrine_block("Desk Doctrine", desk_doctrine),
-                required=True,
-                metadata={"scope": "desk", "deskCategoryKey": (desk_category or {}).get("categoryKey")},
-            )
-        )
-    section_key = assignment.get("sectionKey") or metadata.get("sectionKey") or assignment.get("sectionId") or metadata.get("sectionId")
-    if section_key:
-        blocks.append(
-            _context_block(
-                "doctrine-section",
-                "doctrine",
-                "\n".join([
-                    f"Section: {metadata.get('sectionTitle') or section_key}",
-                    f"section_key: {section_key}",
-                    f"section_type: {assignment.get('sectionType') or metadata.get('sectionType') or 'unknown'}",
-                    f"mission: {metadata.get('sectionMission') or metadata.get('editorialMission') or ''}",
-                    f"policy: {metadata.get('sectionPolicies') or metadata.get('editorialPolicy') or metadata.get('sectionPolicy') or ''}",
-                    f"guidance: {metadata.get('assignmentGuidance') or ''}",
-                    f"kill_criteria: {metadata.get('killCriteria') or ''}",
-                ]),
-                required=True,
-                metadata={"scope": "section", "sectionKey": section_key},
-            )
-        )
-    blocks.append(
-        _context_block(
-            "doctrine-inclusion",
-            "doctrine",
-            _format_inclusion_risk_block(
-                assignment,
-                lane_key=lane_key,
-                profile_key=profile_key,
-                publication_doctrine=publication_doctrine,
-                desk_doctrine=desk_doctrine,
-            ),
-            required=True,
-            metadata={"scope": "generated"},
-        )
-    )
+    blocks.append(_context_block("editorial-context", "doctrine", editorial_context["text"], required=True,
+                                 metadata={"contextHash": editorial_context["contextHash"], "sources": editorial_context["sources"]}))
     if desk_category:
         blocks.append(
             _context_block(
@@ -5141,7 +5041,11 @@ def _build_biblicus_block_context_pack(
     )
     if result["status"] != "ok":
         raise RuntimeError(result["stderr"] or f"Biblicus block context build failed for profile {profile_key}")
-    return json.loads(result["stdout"])
+    pack = json.loads(result["stdout"])
+    for block in blocks:
+        if block.get("required") and block["text"] not in (pack.get("text") or ""):
+            raise ValueError("Context budget did not preserve required editorial context; increase the token budget.")
+    return pack
 
 
 def _run_biblicus(args: list[str], corpus: dict[str, Any], stdin_text: str | None = None) -> dict[str, Any]:

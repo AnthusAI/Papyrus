@@ -10,6 +10,7 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | `threat-intelligence-media.yaml` | `papyrus-edge-threat-intelligence` (proposed) | Same stack plus a `/api/media/media/*` behavior that serves the media bucket through an origin access control. Not deployed. See `docs/video-loading.md` |
 | `threat-intelligence-reader-cache.yaml` | `papyrus-edge-threat-intelligence` (proposed) | The deployed template plus a `ReaderPagesCachePolicy` on the main distribution's default behavior (honours the origin `s-maxage` and `stale-while-revalidate`, keys on the Next RSC headers, ignores cookies and query strings). `/newsroom*`, `/api/*` and `/_next/image*` keep CachingDisabled. The staging distribution is unchanged because staging serves drafts. Not deployed (PPY-79e668) |
 | `p-apyr-us-reader-cache.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The same change for the p.apyr.us production distribution. Not deployed (PPY-79e668) |
+| `../../docs/hosting/p-apyr-us-edge.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The full intended p.apyr.us edge: the stack's own production and staging distributions, plus the two live distributions that sit outside the stack today (`E17ZRAI87DN065` marketing, `E2EM0JLBC2W9WW` reader) and the `papyrus-reader-edge` function. The reader function only redirects `/newsroom` to the CMS host and forwards the host header; the legacy `/information` redirect function is gone and the marketing default behavior uses the stack's forward-host function for the apex redirect. Not deployed |
 | `anth-us.yaml` | `papyrus-edge-anth-us` (rollback) | The retired Anth.us Amplify reader. Updating the stack with this template moves the origin back, and only works while the Amplify reader app exists |
 
 Update a stack with a change set, never in place, and read the change set before executing it.
@@ -43,3 +44,12 @@ aws cloudformation describe-change-set --stack-name papyrus-edge-p-apyr-us --cha
 ```
 
 Expected change set: one added `AWS::CloudFront::CachePolicy`, and a modify of the main (production) distribution only. Roll back by updating the stack with `threat-intelligence.yaml` or the previously deployed p.apyr.us template. Media: `threat-intelligence-media.yaml` follows `docs/video-loading.md`; it ships after the Papyrus backend deploy that adds the CloudFront statement to the media bucket policy.
+
+## p.apyr.us edge: adopting the two live distributions
+
+`docs/hosting/p-apyr-us-edge.yaml` expects an IMPORT change set first, because `E17ZRAI87DN065`, `E2EM0JLBC2W9WW` and `papyrus-reader-edge` already exist. The import carries the live (legacy) definitions; the update that follows moves them to the template's definitions. Both steps are read-before-execute, in account 712236451410:
+
+1. Import: resources `MarketingDistribution` (`E17ZRAI87DN065`), `ReaderDistribution` (`E2EM0JLBC2W9WW`) and `ReaderEdgeFunction` (`papyrus-reader-edge`). An import change set can contain no other change, so the template given to it holds these three resources exactly as live (legacy function code, legacy function association on the marketing distribution).
+2. Update with `docs/hosting/p-apyr-us-edge.yaml`: replaces the reader function code, swaps the marketing distribution's `papyrus-legacy-reader-redirect` association for `ForwardHostFunction`, and leaves everything else unchanged. Afterwards delete the `papyrus-legacy-reader-redirect` function, which nothing references.
+
+Expected diff in step 2: `ReaderEdgeFunction` code, one `FunctionAssociations` entry on `MarketingDistribution`'s default behavior. Nothing is replaced.
