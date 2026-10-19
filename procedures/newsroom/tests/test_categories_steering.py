@@ -2,6 +2,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -18,6 +19,19 @@ from papyrus_content.categories_steering import (  # noqa: E402
 
 
 FIXTURE_PATH = REPO_ROOT / "procedures" / "newsroom" / "tests" / "fixtures" / "steering-export-minimal.json"
+
+
+def _steering_export_bundle() -> dict:
+    return {
+        "generated_at": "2026-01-01T00:00:00Z",
+        "corpus": {
+            "corpus_uri": "file:///corpora/AI-ML-research",
+            "corpus_path": "/corpora/AI-ML-research",
+            "name": "AI-ML-research",
+            "generated_at": "2026-01-01T00:00:00Z",
+            "item_count": 0,
+        },
+    }
 
 
 class CategoriesSteeringTests(unittest.TestCase):
@@ -119,28 +133,42 @@ class CategoriesSteeringTests(unittest.TestCase):
         self.assertEqual(proposal_record["expected"]["evidenceItemIds"], evidence_ids)
         self.assertEqual(proposal_record["expected"]["suggestedSeedItemIds"], evidence_ids[:20])
 
-    @mock.patch("papyrus_content.categories_steering.subprocess.run")
-    def test_load_steering_bundle_from_biblicus_invokes_uv(self, mock_run):
-        mock_run.return_value = mock.Mock(returncode=0, stdout='{"generated_at":"2026-01-01T00:00:00Z"}', stderr="")
-        bundle = load_steering_bundle_from_biblicus(
-            corpus="corpora/AI-ML-research",
-            classifier="ai-ml-v1",
-            biblicus_workdir="/tmp/Biblicus",
-        )
+    def test_load_steering_bundle_from_biblicus_runs_the_console_script_in_the_workdir(self):
+        from papyrus_content import biblicus_runner
+
+        bundle_json = json.dumps(_steering_export_bundle())
+        with tempfile.TemporaryDirectory() as workdir, mock.patch.object(
+            biblicus_runner, "resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus")
+        ), mock.patch.object(biblicus_runner.subprocess, "run") as mock_run:
+            mock_run.return_value = mock.Mock(returncode=0, stdout=bundle_json, stderr="")
+            bundle = load_steering_bundle_from_biblicus(
+                corpus="corpora/AI-ML-research",
+                classifier="ai-ml-v1",
+                biblicus_workdir=workdir,
+            )
+            expected_workdir = pathlib.Path(workdir).resolve()
         self.assertEqual(bundle["generated_at"], "2026-01-01T00:00:00Z")
         mock_run.assert_called_once()
         args, kwargs = mock_run.call_args
-        self.assertEqual(args[0][:2], ["uv", "run"])
-        self.assertIn("biblicus", args[0])
-        self.assertIn("steering", args[0])
-        self.assertEqual(kwargs["cwd"], pathlib.Path("/tmp/Biblicus"))
+        self.assertEqual(
+            args[0],
+            ["/venv/bin/biblicus", "steering", "export", "--corpus", "corpora/AI-ML-research", "--classifier", "ai-ml-v1"],
+        )
+        self.assertEqual(kwargs["cwd"], expected_workdir)
 
-    @mock.patch("papyrus_content.categories_steering.subprocess.run")
-    def test_load_steering_bundle_from_biblicus_raises_on_failure(self, mock_run):
-        mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="export failed")
-        with self.assertRaises(RuntimeError) as context:
-            load_steering_bundle_from_biblicus(corpus="corpora/AI-ML-research", classifier="ai-ml-v1")
+    def test_load_steering_bundle_from_biblicus_raises_on_failure(self):
+        from papyrus_content import biblicus_runner
+
+        with tempfile.TemporaryDirectory() as workdir, mock.patch.object(
+            biblicus_runner, "resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus")
+        ), mock.patch.object(biblicus_runner.subprocess, "run") as mock_run:
+            mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="export failed")
+            with self.assertRaises(RuntimeError) as context:
+                load_steering_bundle_from_biblicus(
+                    corpus="corpora/AI-ML-research", classifier="ai-ml-v1", biblicus_workdir=workdir
+                )
         self.assertIn("Biblicus steering export failed", str(context.exception))
+        self.assertIn("export failed", str(context.exception))
 
 
 if __name__ == "__main__":
