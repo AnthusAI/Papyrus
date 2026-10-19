@@ -424,6 +424,13 @@ def test_bad_stored_session_is_a_clean_error_not_a_traceback(fixture):
     with pytest.raises(AuthError,match='invalid'):s.headers(c.graphql_endpoint)
 
 
+def test_missing_stored_identity_label_is_a_clean_status_error(fixture):
+    c, clock, store, p, seen, session = fixture
+    store.set(c.key, json.dumps({'subject':'person-1', 'refresh_token':'synthetic', 'created_at':1000}))
+    with pytest.raises(AuthError, match='invalid'):
+        session.status()
+
+
 def test_explicit_new_person_login_invalidates_old_process_cached_identity(fixture):
     c,clock,store,p,seen,s=fixture;s.login()
     second=Session(c,store=store,provider=p,clock=lambda:clock[0],receive=lambda *a:'new-code')

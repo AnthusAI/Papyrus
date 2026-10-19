@@ -290,9 +290,12 @@ class Session:
             raise AuthError('No newsroom session for this publication; run `papyrus login`.')
         try:
             record = json.loads(raw)
-            if not isinstance(record.get('refresh_token'), str) or not record['refresh_token'] or not record.get('subject'):
+            if (not isinstance(record.get('refresh_token'), str) or not record['refresh_token']
+                    or not isinstance(record.get('subject'), str) or not record['subject']
+                    or not isinstance(record.get('label'), str)):
                 raise ValueError()
-            if not math.isfinite(float(record['created_at'])):
+            record['created_at'] = float(record['created_at'])
+            if not math.isfinite(record['created_at']):
                 raise ValueError()
             return record
         except (KeyError, ValueError, AttributeError, TypeError):
