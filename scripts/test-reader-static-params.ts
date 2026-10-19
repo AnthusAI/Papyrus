@@ -34,6 +34,7 @@ async function main() {
   assert((await generateEditionSectionStaticParams()).length === 0, "drafts: no section params");
   delete process.env.PAPYRUS_CONTENT_SOURCE;
 
+  process.env.PAPYRUS_EDITIONS_ENABLED = "true";
   const stubContent = (editionDate: string) => ({
     editionDate,
     items: [{ slug: "first-story" }, { slug: "page" }, { slug: "second-story" }],
