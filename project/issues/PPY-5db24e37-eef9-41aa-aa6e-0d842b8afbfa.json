@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5db24e37-eef9-41aa-aa6e-0d842b8afbfa",
+  "title": "Decision: move hosted newsroom content and pods to S3 text + DynamoDB catalog",
+  "description": "PLATFORM DECISIONS (thread \"Platform decisions\", 2026-10-17; source report /mnt/project-files/platform-decisions.md).\n\nOPEN DECISION for Ryan: should hosted newsroom content and pods move to S3 text + DynamoDB catalog (same rule settled 2026-10-15 for Cyclotron/Lab)? Recommendation: yes. Newsroom content still lives in DynamoDB via AppSync.\n\nSource: Claude Code Projects handoff, 2026-10-19.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:42:48.824491Z",
+  "updated_at": "2026-10-19T16:42:48.824716Z",
+  "closed_at": null,
+  "right_now_summary": "Ryan must decide whether to move hosted newsroom content and pods to S3 with a DynamoDB catalog.",
+  "right_now_updated_at": "2026-10-19T16:42:50.513837Z",
+  "custom": {}
+}
