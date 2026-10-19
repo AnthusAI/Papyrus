@@ -85,7 +85,7 @@ if (accountStack !== undefined) {
   const { App } = createRequire(path.join(process.cwd(), "noop.js"))("aws-cdk-lib");
   const app = new App({ outdir: path.resolve(opt("out", "cdk.out")) });
   new GithubOidcProviderStack(app, "GithubOidcProviderStack", {
-    env: { account: opt("account", "335163751677"), region: opt("region", "us-east-1") },
+    env: { account: opt("account", process.env.CDK_DEFAULT_ACCOUNT ?? "335163751677"), region: opt("region", process.env.CDK_DEFAULT_REGION ?? "us-east-1") },
     stackName: "github-oidc-provider",
   });
   app.synth();
@@ -132,6 +132,8 @@ if (command === "deploy") {
     process.exit(0);
   }
   const outputDirectory = path.resolve(opt("out", process.env.CDK_OUTDIR ?? "cdk.out"));
+  const explicitAccount = opt("account");
+  const explicitRegion = opt("region");
   const synthCommand = [
     process.execPath,
     path.resolve(process.argv[1]),
@@ -140,14 +142,12 @@ if (command === "deploy") {
     path.resolve(opt("site", "infra/site.json")),
     "--out",
     outputDirectory,
-    "--account",
-    opt("account", process.env.CDK_DEFAULT_ACCOUNT ?? "335163751677"),
-    "--region",
-    opt("region", process.env.CDK_DEFAULT_REGION ?? "us-east-1"),
+    ...(explicitAccount ? ["--account", explicitAccount] : []),
+    ...(explicitRegion ? ["--region", explicitRegion] : []),
   ].map((part) => JSON.stringify(part)).join(" ");
   const deployment = spawnSync(
     "npx",
-    ["--yes", "aws-cdk@2", "deploy", "--app", synthCommand, "--require-approval", "never", `AmplifyAppShell-${config.siteId}`],
+    ["--yes", "aws-cdk@2", "deploy", "--app", synthCommand, "--require-approval", "never", "--output", outputDirectory, `AmplifyAppShell-${config.siteId}`],
     { stdio: "inherit" },
   );
   process.exit(deployment.status ?? 1);
@@ -164,7 +164,7 @@ try {
 const { App } = createRequire(path.join(process.cwd(), "noop.js"))("aws-cdk-lib");
 const app = new App({ outdir: path.resolve(opt("out", "cdk.out")) });
 new AmplifyAppShellStack(app, `AmplifyAppShell-${config.siteId}`, config, {
-  env: { account: opt("account", "335163751677"), region: opt("region", "us-east-1") },
+  env: { account: opt("account", process.env.CDK_DEFAULT_ACCOUNT ?? "335163751677"), region: opt("region", process.env.CDK_DEFAULT_REGION ?? "us-east-1") },
   stackName: resolveStackName(config),
 });
 app.synth();
