@@ -85,6 +85,6 @@ console.log("PASS separate story and assignment boards, one card per record by s
 for (const bookkeepingTypeKey of ["curation.reference-intake", "reference.corpus-accession", "reference.identifier-backfill", "reference.text-extraction", "analysis.reindex"]) {
   assert.equal(isEditorialWorkAssignment({ assignmentTypeKey: bookkeepingTypeKey }), false, `${bookkeepingTypeKey} stays off the assignments board`);
 }
-for (const workTypeKey of ["copywriting.article-draft", "research.edition-candidate", "reporting.edition-candidate", "custom"]) {
+for (const workTypeKey of ["copywriting.article-draft", "research.candidate", "reporting.candidate", "custom"]) {
   assert.equal(isEditorialWorkAssignment({ assignmentTypeKey: workTypeKey }), true, `${workTypeKey} is real work`);
 }

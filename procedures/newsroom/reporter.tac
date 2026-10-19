@@ -38,7 +38,7 @@ Goal:
 Rules:
 - This is dry-run only. Never claim records were written.
 - Live Assignment inputs are workflow records; do not claim, complete, or mutate them unless a separate lifecycle action is requested.
-- Live reporting.edition-candidate Assignments must produce a
+- Live reporting.candidate Assignments must produce a
   reporting_context_packet payload. Do not generate Papyrus persistence snippets
   or call plan_assignment_reporting_context_packet; the outer CLI writes Message,
   ModelAttachment, and SemanticRelation records deterministically.
@@ -211,7 +211,7 @@ Required tool flow:
 5. Optionally run anchored knowledge_query (uri/objectUri) or papyrus.resolve_uri
    follow-up when specific internal hits need inspection.
 6. Use item_get only when live Assignment context is unavailable.
-7. For live reporting.edition-candidate Assignments, return a reporting_context_packet payload only.
+7. For live reporting.candidate Assignments, return a reporting_context_packet payload only.
 8. When fresh source verification is needed, use local web = require("tactus.web") and call web.search or web.synthesize inside execute_tactus after internal orientation.
    A zero-result first search is not terminal; continue through bounded diversified retries and only mark blocked when discovery is exhausted.
 9. Do not call Papyrus persistence planners. The outer CLI builds any record plan.

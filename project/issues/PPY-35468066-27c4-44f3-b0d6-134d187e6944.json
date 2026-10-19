@@ -1,0 +1,22 @@
+{
+  "id": "PPY-35468066-27c4-44f3-b0d6-134d187e6944",
+  "title": "Edition-based demo publication: a Miami Beach local events site",
+  "description": "Backlog (Ryan 2026-10-19). A demo publication that publishes in editions, to exercise the edition feature once it is an opt-in setting. Idea: a local events site for Miami Beach with natural cadence editions: Art Basel edition, Spring Music edition, Summer Festival edition. Depends on PPY-8b3b4d. Not started; YAGNI until then.",
+  "type": "initiative",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T11:59:47.727184Z",
+  "updated_at": "2026-10-19T11:59:47.727522Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "06d01fda-18e6-42cd-a7c1-6b02a22da80f",
+  "issue_id": "PPY-c5ad67ff-cbd1-403e-936e-79ae2c68de73",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T12:01:25.764Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Site configs: editions off on p.apyr.us and Threat Intelligence",
+    "description": "After the reader supports off: update papyrus.config.ts and infra/site.json in AnthusAI/p.apyr.us and AnthusAI/Threat-Intelligence (drop PAPYRUS_EDITION_SLUG, mastheadSource edition); delete TI date routes and edition front page model. Marketing copy mentioning editions is Ryan's visual scope. Content is placeholder, no migration.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+    "labels": []
+  }
+}
