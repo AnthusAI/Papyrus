@@ -1,0 +1,22 @@
+{
+  "id": "PPY-dddd50dc-06bb-42a9-94dc-6de9ca591a00",
+  "title": "Verify read.p.apyr.us serves the stream with no redirect after deploy-edge",
+  "description": "State as of 2026-10-19 16:40Z. read.p.apyr.us still redirects to /information, which returns 404. The fix ships with the 1.19.1 bump on p.apyr.us (PR 42) and the in-build deploy-edge.\n\nLive checks once the p.apyr.us build finishes: read.p.apyr.us/ serves the stream with no redirect; /information is gone; apyr.us still redirects to p.apyr.us; the edge distributions E17ZRAI87DN065 and E2EM0JLBC2W9WW are adopted.\nNext step: run the checks after the deploy; if any fail, read the Amplify build log for app ds6yswxui41yi and the edge adoption output.\nBlocker: waits on p.apyr.us PR 42 merging and its build.\nOwner thread: Papyrus CMS fix on the Mac (offline) or any session with network access.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:45:52.952895Z",
+  "updated_at": "2026-10-19T16:45:52.953301Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

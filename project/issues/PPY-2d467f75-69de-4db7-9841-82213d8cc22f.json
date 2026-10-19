@@ -42,10 +42,19 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "847026b8-b05c-428f-95ef-2a47f1fb32d0",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: in-build deploys approved by Ryan. Papyrus 1.19.1 is on npm. Pilobol.us PR 96 merged; p.apyr.us PR 42 waiting on CI. Child tasks filed for the bump confirmation and the Pilobolus stack apply.",
+      "created_at": "2026-10-19T16:48:04.313746Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-13T23:08:41.361433Z",
-  "updated_at": "2026-10-17T14:49:06.699082Z",
+  "updated_at": "2026-10-19T16:48:04.313946Z",
   "closed_at": null,
   "right_now_summary": "Merging to main now triggers automatic CMS builds without personal AWS credentials.",
   "right_now_updated_at": "2026-10-13T23:09:27.518903Z",

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4a6f7607-01ef-4c2e-bcac-9958ae52e4f5",
+  "issue_id": "PPY-1e75b495-8262-4f91-a0ba-2f775a12a8f3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T16:47:42.996Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Reconnect the Mac Remote Control session (BlackbookM1, ~/Projects/Chattic.us)",
+    "description": "State as of 2026-10-19 16:40Z. The Mac Remote Control session ended (went offline 16:14Z). All frontend work, AWS reads and Mac-only steps are queued behind it: PPY-376494 Cyclotron-web, PPY-217d9f Tactus-web, the cyclotron actor-kind UI, the reader and site configs under PPY-8b3b4d, AWS confirmations for the Pilobolus stack and membership index, and the Cyclotron backfill and proof.\nNext step: Ryan writes in thread Papyrus CMS fix on the Mac to restart it, or starts a new session in that folder.\nBlocker: only Ryan can reconnect his device.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": []
+  }
+}

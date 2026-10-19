@@ -1,0 +1,22 @@
+{
+  "id": "PPY-fa293985-9c8d-4f56-951b-423c33e64b20",
+  "title": "TI label backfill and real-data Section proof for the cyclotron",
+  "description": "State as of 2026-10-19 16:40Z. Ryan approved both (2026-10-19): the real-data Section proof, the TI label backfill, and off-by-default auto-reject. Auto-reject is merged (PR 358). Train only from explicit human Reference decisions; agent judgments stay advisory. The Mac was given the backfill dry run and the Section proof runs, but both are blocked on Mac allow rules.\nNext step: run the backfill dry run and the Section proof on the Mac, read the reports in the Cyclotron priming flow thread, then apply the backfill.\nBlocker: Mac allow rules and the ended Mac Remote Control session. Cloud threads have no AWS access.\nOwner thread: Cyclotron priming flow.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f840058b-2677-45f6-a9dd-f28b84c4a288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:47:25.375201Z",
+  "updated_at": "2026-10-19T16:47:25.375576Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

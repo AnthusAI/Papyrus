@@ -1,0 +1,22 @@
+{
+  "id": "PPY-c85d7839-12be-4dc1-ad29-46a29caf354b",
+  "title": "Show cyclotron as an actor kind in the newsroom UI (Papyrus PR 358)",
+  "description": "State as of 2026-10-19 16:40Z. Papyrus PR 358 (auto-reject, off by default) is merged and adds cyclotron as an actor kind. The newsroom UI does not show it yet. This is frontend work, so it is done on the Mac against the :3002 dev server, previewed, then a PR is opened and merged.\nNext step: show the cyclotron actor wherever actor kinds appear (Messages, Reference decisions).\nBlocker: the Mac Remote Control session has ended; Ryan must write in thread Papyrus CMS fix on the Mac to reconnect it.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:47:06.955278Z",
+  "updated_at": "2026-10-19T16:47:06.955746Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

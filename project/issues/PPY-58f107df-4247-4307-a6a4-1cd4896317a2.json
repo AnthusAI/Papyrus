@@ -249,10 +249,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "67ac5bc1-9170-4d57-ae3d-ff4581e1e02e",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: Prospectus PR 1 closed; PRs 18, 20, 23, 25 merged; 24 (docs) in CI; 21 and 26 fixes pushed, waiting on CI. Next: merge each as CI goes green, then the membership index backfill (see its sub-task) and the PR switching membershipLookup to indexed. Pilobolus compute role is registered in Prospectus; AWS confirmation is pending on the Mac. Blocker: Ryan's typed approval for the write step.",
+      "created_at": "2026-10-19T16:47:59.264014Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-18T13:12:11.305986Z",
+  "updated_at": "2026-10-19T16:47:59.264156Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
