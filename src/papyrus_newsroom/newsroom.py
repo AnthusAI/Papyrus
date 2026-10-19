@@ -25,6 +25,7 @@ from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
 from papyrus_content.biblicus_runtime import biblicus_python_executable
+from papyrus_content.env import BIBLICUS_ROOT, PAPYRUS_ROOT
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
@@ -35,8 +36,6 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only in stripped env
     yaml = None
 
 
-PAPYRUS_ROOT = Path(__file__).resolve().parents[2]
-BIBLICUS_ROOT = PAPYRUS_ROOT.parent / "Biblicus"
 STEERING_CONFIG_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-steering.yml"
 RESEARCH_TRACKS_PATH = PAPYRUS_ROOT / "procedures" / "newsroom" / "tracks"
 NEWSROOM_VERSION = "newsroom-v1"
@@ -4082,35 +4081,14 @@ query GetModelAttachment($id: ID!) {
 
 
 def _download_model_attachment_body(attachment: dict[str, Any]) -> str | None:
-    storage_path = str(attachment.get("storagePath") or "").strip()
-    if not storage_path:
-        return None
-    bucket = _storage_bucket_name()
-    if not bucket:
-        return None
-    result = subprocess.run(
-        ["aws", "s3", "cp", f"s3://{bucket}/{storage_path}", "-"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    return result.stdout
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.model_attachments import download_attachment_buffer
 
-
-def _storage_bucket_name() -> str | None:
-    outputs_path = PAPYRUS_ROOT / "amplify_outputs.json"
-    if not outputs_path.exists():
+    if not attachment.get("storagePath"):
         return None
-    try:
-        outputs = json.loads(outputs_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    storage = outputs.get("storage") if isinstance(outputs, dict) else None
-    if not isinstance(storage, dict):
-        return None
-    return str(storage.get("bucket_name") or storage.get("bucketName") or "").strip() or None
+    client, _ = create_authoring_client()
+    body = download_attachment_buffer(client, attachment)
+    return body.decode("utf-8") if body is not None else None
 
 
 def _resolve_corpus(corpus_key: str, config_path: str = "") -> dict[str, Any]:
