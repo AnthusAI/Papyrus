@@ -142,17 +142,36 @@ def test_legacy_reference_deduplicated_without_recuration():
 def test_simultaneous_first_intake_uses_conditional_create():
     c = IntakeClient()
     gate = threading.Barrier(4)
-    normal_list = c.list_records
-    def synchronized_list(model):
-        result = normal_list(model)
-        gate.wait(timeout=5)
-        return result
-    c.list_records = synchronized_list
+    normal_create = c.create_record
+    reference_conflicts = []
+    def racing_create(model, record):
+        if model == "Reference":
+            # All four reads must see absence before any conditional create.
+            # A list barrier alone can let one worker finish before the rest
+            # reach create and would not exercise the losing-writer branch.
+            gate.wait(timeout=5)
+        try:
+            return normal_create(model, record)
+        except RuntimeError:
+            if model == "Reference": reference_conflicts.append(record["id"])
+            raise
+    c.create_record = racing_create
+    def request(index):
+        identity = copy.deepcopy(IDENTITY)
+        identity["sub"] = identity["claims"]["sub"] = f"editor-{index}"
+        data = payload()
+        data["items"][0]["ingestion_rationale"] = f"Rationale from editor {index}"
+        return intake_references(c, data, identity)
     with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
         with ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(lambda _: intake_references(c, payload(), IDENTITY), range(4)))
-    assert len({r["references"][0]["id"] for r in results}) == 1
+            results = list(pool.map(request, range(4)))
+    assert len(reference_conflicts) == 3
+    assert all(r["references"] == results[0]["references"] for r in results)
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
+    winner = next(iter(c.tables["Reference"].values()))
+    provenance = json.loads(next(iter(c.uploads.values())))
+    assert provenance["actorSub"] == winner["versionCreatedBy"].removeprefix("user:")
+    assert provenance["rationale"] == winner["curationStatusReason"]
 
 
 def test_handler_uses_validated_identity_and_returns_denials():
