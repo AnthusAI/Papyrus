@@ -52,10 +52,24 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "a5792c03-553a-457a-96ea-df439fd9e08b",
+      "author": "home",
+      "text": "Draft PR: https://github.com/AnthusAI/Papyrus/pull/344\nBranch: feature/PPY-7c458d-cli-login\nImplementation commit: bbb095bbb0ca084bd745fbd38ca57a2f2753ea42\n\n59 focused Python tests and 4 Behave scenarios/16 steps pass locally; identifier guard and whitespace validation pass. Python, TypeScript, package smoke and unit CI checks are running on the review branch. Local broad-suite limitations and live activation requirements are documented in the PR and docs/cli-login.md. Not merged into develop or main; no deployment or provider/security configuration changed. Related records remain in_progress.\n",
+      "created_at": "2026-10-19T11:06:20.596349Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-19T10:36:38.396717Z",
-  "updated_at": "2026-10-19T11:05:06.429680Z",
+  "updated_at": "2026-10-19T11:06:20.596435Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
