@@ -53,3 +53,5 @@ Expected change set: one added `AWS::CloudFront::CachePolicy`, and a modify of t
 2. Update with `docs/hosting/p-apyr-us-edge.yaml`: replaces the reader function code, swaps the marketing distribution's `papyrus-legacy-reader-redirect` association for `ForwardHostFunction`, and leaves everything else unchanged. Afterwards delete the `papyrus-legacy-reader-redirect` function, which nothing references.
 
 Expected diff in step 2: `ReaderEdgeFunction` code, one `FunctionAssociations` entry on `MarketingDistribution`'s default behavior. Nothing is replaced.
+
+The p.apyr.us site runs this adoption from its own Amplify build with `papyrus-infra deploy-edge`. A template parameter the live stack does not have yet takes its template default, so adding a parameter never blocks the change set.
