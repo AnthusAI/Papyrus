@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -9,13 +8,13 @@ from typing import Any
 import yaml
 
 from .categories_steering import semantic_state_key
-from .env import BIBLICUS_ROOT, PAPYRUS_ROOT
+from .biblicus_runner import resolve_biblicus_workdir
+from .env import PAPYRUS_ROOT
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .options import normalize_string, parse_options
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .steering import require_corpus_config
 
-DEFAULT_BIBLICUS_WORKDIR = BIBLICUS_ROOT
 DEFAULT_ANALYSIS_PROFILES_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-analysis-profiles.yml"
 
 VALID_SCOPES = frozenset(
@@ -216,9 +215,7 @@ def build_analysis_reindex_plan(
         f"analysis-reindex-{safe_id(profile['key'])}-{safe_id(selected_corpus_key)}-"
         f"{hash_short([selected_mode, raw_effective])}"
     )
-    resolved_biblicus_workdir = Path(
-        biblicus_workdir or os.environ.get("BIBLICUS_WORKDIR") or DEFAULT_BIBLICUS_WORKDIR
-    ).resolve()
+    resolved_biblicus_workdir = resolve_biblicus_workdir(biblicus_workdir)
     effective = _resolve_parameter_placeholders(
         raw_effective,
         {
@@ -506,7 +503,7 @@ def print_analysis_reindex_plan(plan: dict[str, Any]) -> None:
     command_plan = plan.get("commandPlan") or []
     print(f"analysis-reindex\tcommands\t{len(command_plan)}")
     for command in command_plan:
-        print(f"analysis-reindex\tcommand\t{command['label']}\t{command['executable']} {' '.join(command['args'])}")
+        print(f"analysis-reindex\tcommand\t{command['label']}\tbiblicus {' '.join(command['arguments'])}")
     destructive = plan.get("destructivePlan") or {}
     print(f"analysis-reindex\tdestructive-now\t{'yes' if destructive.get('mutatesGraphqlNow') else 'no'}")
     for generated_output in destructive.get("generatedOutputs") or []:
@@ -711,7 +708,6 @@ def _build_command_plan(
                     *_graph_override_args(effective, profile),
                 ],
                 mode=mode,
-                extras=["topic-modeling", "openai", "neo4j", "ner"],
             )
         ]
     raise ValueError(f"Unsupported analysis profile scope {profile['scope']}.")
@@ -868,18 +864,11 @@ def _command(
     args: list[str],
     *,
     mode: str,
-    extras: list[str] | None = None,
 ) -> dict[str, Any]:
-    extra_values = extras or ["topic-modeling", "openai"]
-    uv_args: list[str] = ["run"]
-    for extra in extra_values:
-        uv_args.extend(["--extra", extra])
-    uv_args.extend(["biblicus", *args])
     return {
         "label": label,
         "cwd": str(cwd),
-        "executable": "uv",
-        "args": uv_args,
+        "arguments": list(args),
         "metadata": {"mode": mode},
     }
 

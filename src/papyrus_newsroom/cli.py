@@ -17,7 +17,6 @@ from .coverage_theme import (
     story_budget_output,
 )
 from .newsroom import (
-    BIBLICUS_ROOT,
     PAPYRUS_ROOT,
     papyrus_build_assignment_agent_context,
     papyrus_reference_curation_start,
@@ -352,7 +351,7 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             "module": "papyrus_newsroom",
             "python": sys.executable,
             "papyrusRoot": str(PAPYRUS_ROOT),
-            "biblicusRoot": str(BIBLICUS_ROOT),
+            "biblicusWorkdir": os.environ.get("BIBLICUS_WORKDIR"),
         }
     json.dump(payload, sys.stdout)
     sys.stdout.write("\n")

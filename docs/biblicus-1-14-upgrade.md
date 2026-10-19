@@ -13,8 +13,14 @@ and never interprets item `metadata`, so Papyrus keeps all of its own catalog fi
 - Catalogs are located with `Corpus.catalog_path` (`metadata/catalog.json`). The `.biblicus/catalog.json`
   and mixed-case corpus folder fallbacks are gone.
 - Graph snapshot manifests and extraction snapshot folders are located with the `Corpus` layout accessors.
-- Biblicus subprocesses use the installed package. A sibling checkout is only used when
-  `BIBLICUS_WORKDIR/src/biblicus` exists, and `BIBLICUS_WORKDIR` remains the directory holding `corpora/`.
+- Every Biblicus subprocess runs through `BiblicusRunner` (`papyrus_content.biblicus_runner`), which
+  runs the `biblicus` console script installed in the same environment as Papyrus. There is no
+  sibling checkout, `uv run`, or `python -m biblicus` path, and no `BIBLICUS_ROOT` default.
+  `BIBLICUS_WORKDIR` (or `--biblicus-workdir`) is required and names the directory holding `corpora/`;
+  commands fail with a clear message when it is missing.
+- The `newsroom` extra installs `biblicus[dspy,markitdown,neo4j,ner,openai,topic-modeling,web]`, the
+  Biblicus extras the bridges need. Lambda bundles install Papyrus without extras, so BERTopic and spaCy
+  stay out of the Lambda runtime.
 - GROBID auto-start uses `BIBLICUS_GROBID_URL`, `BIBLICUS_GROBID_CONTAINER_NAME` and
   `BIBLICUS_GROBID_DOCKER_IMAGE`. The default container is now `biblicus-grobid`; the old
   `PAPYRUS_GROBID_*` variables are no longer read.

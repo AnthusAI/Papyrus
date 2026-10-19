@@ -19,7 +19,8 @@ def resolve_papyrus_root() -> Path:
 
 
 PAPYRUS_ROOT = resolve_papyrus_root()
-BIBLICUS_ROOT = Path(os.environ.get("BIBLICUS_WORKDIR", str(PAPYRUS_ROOT.parent / "Biblicus")))
+
+
 def required_environment_value(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:

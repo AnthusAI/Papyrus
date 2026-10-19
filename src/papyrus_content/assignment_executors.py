@@ -14,7 +14,8 @@ from typing import Any
 from .accession import execute_reference_accession_assignment
 from .assignments import assignment_metadata
 from .corpora import maybe_sync_corpus_from_cloud_before_analysis
-from .env import BIBLICUS_ROOT, PAPYRUS_ROOT
+from .biblicus_runner import BiblicusRunner
+from .env import PAPYRUS_ROOT
 from .options import normalize_string
 from .steering import require_steering_config
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
@@ -74,23 +75,22 @@ def execute_analysis_reindex_assignment(
         raise ValueError(
             f"Assignment {assignment['id']} must be claimed before execution (current={assignment.get('status')})."
         )
+    _require_runner_command_plan(assignment["id"], command_plan)
     run_id = str(options.get("run-id") or metadata.get("planRunId") or f"analysis-reindex-{assignment['id']}")
     run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     max_runtime_seconds = _analysis_max_runtime_seconds(metadata, options)
     command_results: list[dict[str, Any]] = []
     run_started = time.monotonic()
-    total_commands = sum(1 for command in command_plan if (command.get("argv") or command.get("executable")))
+    total_commands = sum(1 for command in command_plan if command.get("arguments"))
     for index, command in enumerate(command_plan, start=1):
-        argv = [str(part) for part in command.get("argv") or []]
-        if not argv and command.get("executable"):
-            argv = [str(command["executable"]), *[str(part) for part in command.get("args") or []]]
-        if not argv:
+        biblicus_arguments = [str(part) for part in command.get("arguments") or []]
+        if not biblicus_arguments:
             continue
         cwd_value = command.get("cwd")
-        cwd = Path(cwd_value) if isinstance(cwd_value, str) and cwd_value else BIBLICUS_ROOT
-        if not cwd.is_absolute():
-            cwd = (PAPYRUS_ROOT / cwd).resolve()
+        runner = BiblicusRunner.from_environment(workdir=cwd_value if isinstance(cwd_value, str) and cwd_value else None)
+        argv = runner.command(biblicus_arguments)
+        cwd = runner.workdir
         label = str(command.get("label") or f"command-{index:02d}")
         stdout_log = run_dir / f"{label}.stdout.log"
         stderr_log = run_dir / f"{label}.stderr.log"
@@ -111,6 +111,7 @@ def execute_analysis_reindex_assignment(
         completed = _execute_streamed_command(
             argv=argv,
             cwd=cwd,
+            environment=runner.environment,
             timeout_seconds=timeout_seconds,
             label=label,
         )
@@ -223,6 +224,18 @@ def _analysis_max_runtime_seconds(metadata: dict[str, Any], options: dict[str, A
     return value if value > 0 else None
 
 
+def _require_runner_command_plan(assignment_id: Any, command_plan: list[Any]) -> None:
+    for index, command in enumerate(command_plan, start=1):
+        arguments = command.get("arguments") if isinstance(command, dict) else None
+        if not isinstance(arguments, list) or not arguments:
+            label = command.get("label") if isinstance(command, dict) else None
+            raise ValueError(
+                f"Assignment {assignment_id} carries an analysis command plan that predates the BiblicusRunner: "
+                f"command {label or index} has no 'arguments' list. Plans are not converted; "
+                "regenerate the plan with the current Papyrus and queue a new assignment."
+            )
+
+
 def _analysis_command_timeout_seconds(max_runtime_seconds: int | None, elapsed_seconds: float) -> int | None:
     if max_runtime_seconds is None:
         return None
@@ -234,12 +247,14 @@ def _execute_streamed_command(
     *,
     argv: list[str],
     cwd: Path,
+    environment: dict[str, str],
     timeout_seconds: int | None,
     label: str,
 ) -> dict[str, Any]:
     process = subprocess.Popen(
         argv,
         cwd=cwd,
+        env=environment,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

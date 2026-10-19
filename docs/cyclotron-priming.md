@@ -310,10 +310,9 @@ authorization.
 
 ### Local setup and previews
 
-- Biblicus: the web worker commands come from the Biblicus source pin
-  `e4001ea1c2378a66d2b58bae4ee793c7e5a2fe38`. Use `scripts/install-biblicus-local.sh`
-  (honors `BIBLICUS_WORKDIR`, defaults to extras `web,ner,markitdown`) or the
-  Poetry newsroom extra. See [newsroom-worker-bootstrap.md](newsroom-worker-bootstrap.md)
+- Biblicus: the web worker commands come from the released `biblicus` package
+  installed by the Poetry newsroom extra (`BiblicusRunner` runs its console script;
+  `BIBLICUS_WORKDIR` names the directory holding the corpora). See [newsroom-worker-bootstrap.md](newsroom-worker-bootstrap.md)
   for cloud corpus workers.
 - GROBID for PDFs: run `lfoppiano/grobid:0.8.0` bound to `127.0.0.1:8070`; the
   automatic Docker launch publishes on all interfaces and is disabled here.

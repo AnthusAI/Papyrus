@@ -7,6 +7,8 @@ import unittest
 from typing import Any
 from unittest import mock
 
+from biblicus.web_transform import MODEL as ARTICLE_TEXT_PINNED_MODEL
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -1393,19 +1395,19 @@ class ReferenceCommandsTests(unittest.TestCase):
         self.assertEqual(result["agenticLoop"]["rounds_used"], 4)
         self.assertEqual(result["error"]["details"]["retry_trace"][0]["failure_code"], "old_str_not_found")
 
-    @mock.patch("papyrus_content.reference_url_text._biblicus_python_executable", return_value="/usr/bin/python3")
-    @mock.patch("papyrus_content.reference_url_text.BIBLICUS_ROOT", pathlib.Path("/tmp"))
-    @mock.patch("papyrus_content.reference_url_text.subprocess.run")
+    @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
+    @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})
+    @mock.patch("papyrus_content.biblicus_runner.subprocess.run")
     def test_run_biblicus_article_text_times_out(self, mock_run, _mock_python):
         mock_run.side_effect = subprocess.TimeoutExpired(
-            cmd=["python3", "-m", "biblicus", "extract", "article-text"],
+            cmd=["biblicus", "extract", "article-text"],
             timeout=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
         )
         with self.assertRaisesRegex(
             RuntimeError,
             f"timed out after {ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS} seconds",
         ):
-            _run_biblicus_article_text({"extracted_text": "hello"})
+            _run_biblicus_article_text({"extracted_text": "hello", "model": ARTICLE_TEXT_PINNED_MODEL})
 
     @mock.patch("papyrus_content.reference_metadata_generation._apply_metadata_attachment_records")
     @mock.patch("papyrus_content.reference_metadata_generation.resolve_storage_bucket_name", return_value="test-bucket")
@@ -1539,9 +1541,9 @@ class ReferenceCommandsTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {"PAPYRUS_MEDIA_BUCKET_NAME": "explicit-bucket"}, clear=True):
             self.assertEqual(resolve_storage_bucket_name(), "explicit-bucket")
 
-    @mock.patch("papyrus_content.reference_url_text._biblicus_python_executable", return_value="/usr/bin/python3")
-    @mock.patch("papyrus_content.reference_url_text.BIBLICUS_ROOT", pathlib.Path("/tmp"))
-    @mock.patch("papyrus_content.reference_url_text.subprocess.run")
+    @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
+    @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})
+    @mock.patch("papyrus_content.biblicus_runner.subprocess.run")
     def test_extract_url_text_uses_biblicus_cli_success(self, mock_run, _mock_python):
         mock_run.return_value = mock.Mock(
             returncode=0,
@@ -1556,6 +1558,7 @@ class ReferenceCommandsTests(unittest.TestCase):
                     "content_type": "text/html",
                     "prompt_version": "url-text-v1",
                     "attempts": [{"step": "web_markdown_fetch", "result": "ok"}],
+                    "error": None,
                 }
             ),
             stderr="",
@@ -1592,9 +1595,9 @@ class ReferenceCommandsTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "not reachable"):
             _ensure_cli_grobid_runtime("http://grobid.internal:8070")
 
-    @mock.patch("papyrus_content.reference_url_text._biblicus_python_executable", return_value="/usr/bin/python3")
-    @mock.patch("papyrus_content.reference_url_text.BIBLICUS_ROOT", pathlib.Path("/tmp"))
-    @mock.patch("papyrus_content.reference_url_text.subprocess.run")
+    @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
+    @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})
+    @mock.patch("papyrus_content.biblicus_runner.subprocess.run")
     def test_extract_url_text_uses_biblicus_structured_failure(self, mock_run, _mock_python):
         mock_run.return_value = mock.Mock(
             returncode=2,
@@ -1605,9 +1608,9 @@ class ReferenceCommandsTests(unittest.TestCase):
             _extract_url_text("https://example.com/article")
         self.assertEqual(context.exception.reason["code"], "blocked")
 
-    @mock.patch("papyrus_content.reference_url_text._biblicus_python_executable", return_value="/usr/bin/python3")
-    @mock.patch("papyrus_content.reference_url_text.BIBLICUS_ROOT", pathlib.Path("/tmp"))
-    @mock.patch("papyrus_content.reference_url_text.subprocess.run")
+    @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
+    @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})
+    @mock.patch("papyrus_content.biblicus_runner.subprocess.run")
     def test_extract_url_text_passes_grobid_url_to_biblicus_env(self, mock_run, _mock_python):
         mock_run.return_value = mock.Mock(
             returncode=0,
@@ -1616,11 +1619,15 @@ class ReferenceCommandsTests(unittest.TestCase):
                     "status": "ok",
                     "text": "Extracted from Biblicus",
                     "markdown": "Extracted from Biblicus",
+                    "title": None,
                     "source_kind": "pdf",
                     "strategy": "pdf-grobid-only",
                     "content_type": "application/pdf",
                     "method": "grobid",
                     "grobid": {"base_url": "http://127.0.0.1:8070"},
+                    "prompt_version": "url-text-v1",
+                    "attempts": [],
+                    "error": None,
                 }
             ),
             stderr="",

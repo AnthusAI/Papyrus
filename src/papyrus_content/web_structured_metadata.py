@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import json
-import os
 import re
-import shutil
-import subprocess
 from typing import Any, Callable
 
-from .env import BIBLICUS_ROOT
-from .biblicus_runtime import biblicus_python_executable
-from .reference_url_text import _biblicus_env, _json_object_or_none
+from .biblicus_runner import BiblicusRunner, BiblicusRunnerError
 
 _HTTP_URI_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
 _LOCAL_HTML_SOURCE_URI = "https://papyrus.local/imported-html"
@@ -171,75 +165,10 @@ def _web_metadata_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _run_biblicus_web_metadata(payload: dict[str, Any]) -> dict[str, Any]:
-    if not BIBLICUS_ROOT.is_dir():
-        raise WebStructuredMetadataError(
-            reason={
-                "code": "biblicus_checkout_missing",
-                "message": f"Biblicus checkout not found at {BIBLICUS_ROOT}.",
-            }
-        )
-    command = [
-        biblicus_python_executable(),
-        "-m",
-        "biblicus",
-        "extract",
-        "web-metadata",
-        "--input-json",
-        "-",
-    ]
-    env = _biblicus_env()
-    completed = subprocess.run(
-        command,
-        cwd=BIBLICUS_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-        input=json.dumps(payload),
-        env=env,
-    )
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-    parsed = _json_object_or_none(stdout)
-    if completed.returncode != 0 and shutil.which("uv"):
-        uv_command = [
-            "uv",
-            "run",
-            "--extra",
-            "web",
-            "biblicus",
-            "extract",
-            "web-metadata",
-            "--input-json",
-            "-",
-        ]
-        completed = subprocess.run(
-            uv_command,
-            cwd=BIBLICUS_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-            input=json.dumps(payload),
-            env=env,
-        )
-        stdout = (completed.stdout or "").strip()
-        stderr = (completed.stderr or "").strip()
-        parsed = _json_object_or_none(stdout)
-    if completed.returncode != 0:
-        reason = (
-            parsed.get("error")
-            if isinstance(parsed, dict) and isinstance(parsed.get("error"), dict)
-            else {
-                "code": "biblicus_cli_failed",
-                "message": stderr or stdout or f"Biblicus web-metadata exited {completed.returncode}.",
-            }
-        )
-        raise WebStructuredMetadataError(reason=reason)
-    if not isinstance(parsed, dict) or str(parsed.get("status") or "") != "ok":
-        raise WebStructuredMetadataError(
-            reason={
-                "code": "invalid_biblicus_output",
-                "message": "Biblicus web-metadata returned invalid output.",
-                "details": {"stdout": stdout},
-            }
-        )
-    return {key: value for key, value in parsed.items() if key != "status"}
+    from biblicus.api import WebMetadataRequest
+
+    try:
+        response = BiblicusRunner.from_environment().extract_web_metadata(WebMetadataRequest(**payload))
+    except BiblicusRunnerError as error:
+        raise WebStructuredMetadataError(reason=error.failure_reason()) from error
+    return response.model_dump(mode="json", exclude={"status"})

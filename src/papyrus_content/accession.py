@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import json
 import mimetypes
-import os
 import re
 import shutil
 import signal
-import subprocess
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -16,6 +14,7 @@ from urllib.parse import urlparse
 
 import yaml
 
+from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
 from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import semantic_relation_record
@@ -33,7 +32,6 @@ from .steering import (
     load_steering_config,
     require_corpus_config,
     require_steering_config,
-    resolve_biblicus_runtime_dir,
     resolve_corpus_local_path,
 )
 
@@ -247,7 +245,7 @@ def execute_reference_accession_assignment(
     corpus_config = require_corpus_config(steering_config, metadata["corpusKey"], "assignment.metadata.corpusKey")
     corpus_id = knowledge_corpus_id(corpus_config)
     corpus_path = resolve_corpus_local_path(corpus_config, steering_config)
-    biblicus_workdir = resolve_biblicus_runtime_dir(options)
+    biblicus_workdir = resolve_biblicus_workdir(options.get("biblicus-workdir") or options.get("biblicusWorkdir"))
 
     source_material = download_reference_source_material(
         reference,
@@ -410,49 +408,26 @@ def write_reference_source_accession(
 def run_biblicus_reindex_for_accession(*, corpus_path: Path, biblicus_workdir: Path, run_dir: Path) -> dict[str, Any]:
     stdout_log = run_dir / "biblicus-reindex.stdout.log"
     stderr_log = run_dir / "biblicus-reindex.stderr.log"
-    uv_path = shutil.which("uv")
-    if not uv_path:
-        raise ReferenceAccessionError(
-            "Biblicus reindex requires the uv executable on PATH.",
-            kind="biblicus_reindex_failed",
-        )
-
     resolved_corpus_path = corpus_path.resolve()
-    command = [uv_path, "run", "biblicus", "reindex", "--corpus", str(resolved_corpus_path)]
     run_dir.mkdir(parents=True, exist_ok=True)
-    with stdout_log.open("w", encoding="utf-8") as stdout_handle, stderr_log.open("w", encoding="utf-8") as stderr_handle:
-        process = subprocess.Popen(
-            command,
-            cwd=biblicus_workdir,
-            stdout=stdout_handle,
-            stderr=stderr_handle,
-            env=_biblicus_subprocess_env(),
-            start_new_session=True,
-        )
-        returncode = process.wait()
-
-    if returncode != 0:
+    runner = BiblicusRunner.from_environment(workdir=biblicus_workdir)
+    try:
+        output = runner.run(["reindex", "--corpus", str(resolved_corpus_path)])
+    except BiblicusCommandError as error:
+        stdout_log.write_text(error.stdout, encoding="utf-8")
+        stderr_log.write_text(error.stderr, encoding="utf-8")
         detail = _subprocess_failure_detail(stdout_log, stderr_log)
         raise ReferenceAccessionError(
             (
                 f"Biblicus reindex failed for {resolved_corpus_path} "
-                f"(exit {_format_subprocess_exit(returncode)}). {detail} "
+                f"(exit {_format_subprocess_exit(error.exit_code)}). {detail} "
                 f"See {stderr_log} and {stdout_log}."
             ),
             kind="biblicus_reindex_failed",
-        )
+        ) from error
+    stdout_log.write_text(output.stdout, encoding="utf-8")
+    stderr_log.write_text(output.stderr, encoding="utf-8")
     return {"label": "biblicus-reindex", "stdoutLogPath": str(stdout_log), "stderrLogPath": str(stderr_log)}
-
-
-def _biblicus_subprocess_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env.pop("VIRTUAL_ENV", None)
-    path_entries = [entry for entry in str(env.get("PATH") or "").split(os.pathsep) if entry]
-    for extra in ("/opt/homebrew/bin", "/usr/local/bin"):
-        if extra not in path_entries:
-            path_entries.append(extra)
-    env["PATH"] = os.pathsep.join(path_entries)
-    return env
 
 
 def _format_subprocess_exit(returncode: int) -> str:
@@ -860,10 +835,6 @@ def reference_accession_filename(*, item_id: str, source_uri: str, title: str | 
     extension = mimetypes.guess_extension(media_type) or Path(urlparse(source_uri).path).suffix or ".bin"
     slug = safe_id(title or item_id)[:80]
     return f"{item_id}--{slug}{extension}"
-
-
-def resolve_biblicus_workdir(options: dict[str, Any]) -> Path:
-    return resolve_biblicus_runtime_dir(options)
 
 
 class ReferenceAccessionError(RuntimeError):
