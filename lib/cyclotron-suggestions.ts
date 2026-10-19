@@ -92,13 +92,13 @@ export function latestShadowAgreement(payloads: Array<{ json: unknown; updatedAt
 }
 
 const STOP_REASON_WORDS: Record<string, string> = {
-  disabled: "The relevance cyclotron is switched off in the steering config, so it is making no suggestions.",
-  "daily decision cap": "The last sweep stopped at the daily decision cap, so some references have no suggestion yet.",
+  disabled: "Suggestions are switched off in the settings, so none are being made.",
+  "daily decision cap": "The last check reached the daily limit, so some references have no suggestion yet.",
 };
 
 /** The sentence an editor reads for a stop reason; unknown reasons are shown as given. */
 export function stopReasonSentence(reason: string): string {
-  return STOP_REASON_WORDS[reason] ?? `The last sweep stopped early: ${reason}.`;
+  return STOP_REASON_WORDS[reason] ?? `The last check stopped early: ${reason}.`;
 }
 
 /**
@@ -123,14 +123,14 @@ export function agreementStripState(agreement: ShadowAgreement | null): Agreemen
   };
 }
 
-/** "Loop on" or "Loop off", the word the strip leads with. */
+/** "Suggestions on" or "Suggestions off", the words the panel leads with. */
 export function loopStateWords(loop: CyclotronLoopState): string {
-  return loop.enabled ? "Loop on" : "Loop off";
+  return loop.enabled ? "Suggestions on" : "Suggestions off";
 }
 
 /** The daily cap in words; no cap is said plainly. */
 export function dailyCapWords(loop: CyclotronLoopState): string {
-  return loop.maxDecisionsPerDay === null ? "No daily decision cap" : `Daily cap ${loop.maxDecisionsPerDay} decisions`;
+  return loop.maxDecisionsPerDay === null ? "No daily limit" : `Daily limit ${loop.maxDecisionsPerDay} decisions`;
 }
 
 export function formatPercentage(fraction: number | null): string {
@@ -202,10 +202,10 @@ export function provenanceSummary(decision: RelevanceDecisionView): ProvenanceSu
   if (!provenance) return null;
   const plural = (count: number, singular: string) => `${count} ${singular}${count === 1 ? "" : "s"}`;
   return {
-    teachingLabelsSentence: `Taught by ${plural(provenance.teachingLabels, "label")} that editors set themselves`,
-    primingExamplesSentence: `${plural(provenance.primingExamples, "priming example")} supplied as starting examples`,
+    teachingLabelsSentence: `Based on ${plural(provenance.teachingLabels, "decision")} that editors made themselves`,
+    primingExamplesSentence: `${plural(provenance.primingExamples, "example reference")} supplied as starting examples`,
     doctrineShortHash: provenance.doctrineFingerprint ? provenance.doctrineFingerprint.slice(0, SHORT_HASH_LENGTH) : null,
-    modelVersion: decision.version === null ? null : `version ${decision.version}`,
+    modelVersion: decision.version === null ? null : `revision ${decision.version}`,
     decidedAt: decision.decidedAt,
   };
 }

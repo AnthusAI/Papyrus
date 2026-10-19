@@ -67,7 +67,7 @@ export function ReferenceRelevanceReview({
           onChange={(event) => setShareable(event.target.checked)}
           type="checkbox"
         />
-        My explanation may be quoted publicly (for the Cyclotron example page)
+        My explanation may be quoted publicly (on a public example page)
       </label>
       {error ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
     </section>
