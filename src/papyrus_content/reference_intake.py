@@ -97,7 +97,8 @@ def _provenance(client, ref: dict, publication: str) -> None:
     entry = build_json_model_payload_attachment({
         "ownerKind": "reference", "ownerId": ref["id"], "ownerLineageId": ref["lineageId"],
         "ownerVersionNumber": 1, "ownerVersionKey": f"reference#{ref['id']}",
-        "role": "metadata", "sortKey": "editorial-intake", "importRunId": run_id, "now": now,
+        "role": "metadata", "sortKey": "editorial-intake", "filename": "editorial-intake.json",
+        "importRunId": run_id, "now": now,
         "content": {"kind": "editorial-reference-intake", "publicationEndpoint": publication,
                     "actorSub": ref["versionCreatedBy"].removeprefix("user:"),
                     "sourceUri": ref["sourceUri"], "title": ref.get("title"),

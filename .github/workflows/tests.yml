@@ -67,6 +67,10 @@ jobs:
       #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
       #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
       #   publication_modes_test vetting PPY-a1867d (loads a fixtures file that was never committed)
+      # Keep this boundary visible independently of broad-suite collection: it
+      # imports and executes the real Lambda handler, including payload upload.
+      - name: Pending Reference intake handler and concurrency
+        run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
       - name: Python unit tests
         run: |
           poetry run pytest -q \

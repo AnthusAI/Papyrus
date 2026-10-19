@@ -55,10 +55,40 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "b4422fcc-fe59-47b2-b50b-c3c0a86cc1fc",
+      "author": "home",
+      "text": "Follow-up review found and repaired two patch issues before merge: use editorial-intake.json so provenance cannot collide with normal metadata.json S3 payloads, and patch process globals once around concurrency workers. Added a real Lambda-handler/upload-protocol execution test (only managed client and HTTP boundary faked), a metadata-path noncollision regression, and an explicit verbose focused CI step before the broad suite so handler execution is visible. Focused tests: 17 pass; broader regression and Gherkin rerun in progress. Auth review: deployed issuer plus subject/claims match and editor/admin role, endpoint equality, same-backend corpus existence; tenant claims/configuration rejected. Generated Amplify create resolver uses absent-key conditions, supporting first-writer concurrency. No IAM policy/pool grant changes. PR367 remains unmerged; monitor latest head checks at its persistent checks page. Deployment and two-source acceptance commands remain unchanged in the external handoff.",
+      "created_at": "2026-10-19T22:48:17.246265Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "ChatGPT",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "3d86c3f1-9100-4891-9fb5-18f5206a56c7",
+      "author": "home",
+      "text": "Follow-up verification is green locally: 101 Python tests passed, including real handler plus upload/complete helper execution with only client/network boundaries faked; 17 focused intake tests; 8 Gherkin scenarios/25 steps. CI now has a dedicated verbose handler/concurrency step before the broad suite. Generic knowledge model auth and managed role policies unchanged. Await terminal CI for the follow-up head; release and consumer backend deployment remain explicitly unapproved for execution in this turn.",
+      "created_at": "2026-10-19T22:48:46.455264Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "ChatGPT",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-19T22:34:19.020547Z",
-  "updated_at": "2026-10-19T22:44:19.931532Z",
+  "updated_at": "2026-10-19T22:48:46.455307Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

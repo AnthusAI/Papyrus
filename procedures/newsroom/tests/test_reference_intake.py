@@ -102,8 +102,11 @@ def test_repeat_and_parallel_intake_preserve_first_actor_and_payload():
     identity = copy.deepcopy(IDENTITY); identity["sub"] = identity["claims"]["sub"] = "another-editor"
     assert submit(c, data, identity)["references"] == first["references"]
     assert c.tables == original
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda _: submit(c), range(8)))
+    # Patch process globals once: worker-local patch contexts can restore another
+    # worker's environment/helper while its intake is still executing.
+    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(lambda _: intake_references(c, payload(), IDENTITY), range(8)))
     assert all(r["references"] == first["references"] for r in results)
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
 
@@ -205,3 +208,60 @@ def test_schema_preserves_read_only_models_and_scoped_group_action():
             assert '.to(["read"])' in block
     roles = (root / "amplify/functions/model-attachment-upload/handler.ts").read_text().split("ALLOWED_ROLES", 1)[1].split("]);", 1)[0]
     assert '"metadata"' in roles
+
+
+def test_intake_provenance_does_not_collide_with_normal_reference_metadata():
+    from papyrus_content.model_attachments import build_json_model_payload_attachment
+    c = IntakeClient()
+    ref_id = submit(c)["references"][0]["id"]
+    provenance = next(iter(c.tables["ModelAttachment"].values()))
+    normal = build_json_model_payload_attachment({
+        "ownerKind": "reference", "ownerId": ref_id, "role": "metadata", "sortKey": "metadata",
+        "content": {"title": "Enrichment"}, "now": "2026-10-19T00:00:00Z",
+    })["attachment"]
+    assert provenance["id"] != normal["id"]
+    assert provenance["storagePath"] != normal["storagePath"]
+    assert provenance["filename"] == "editorial-intake.json"
+
+
+def test_real_handler_executes_upload_protocol_without_external_credentials():
+    import importlib.util
+    import hashlib
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("intake_upload_actions", Path(__file__).resolve().parents[3] / "amplify/functions/content-actions/handler.py")
+    handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
+    c = IntakeClient()
+    slots = []; completions = []; requests = []
+    def slot(attachment):
+        assert attachment["role"] == "metadata"
+        assert attachment["filename"] == "editorial-intake.json"
+        assert c.get_record("Reference", attachment["ownerId"]) is not None
+        slots.append(copy.deepcopy(attachment))
+        return {"uploadId": attachment["id"], "uploadUrl": "https://upload.example.test/slot", "requiredHeaders": {"content-type": "application/json"}, "storagePath": attachment["storagePath"], "method": "PUT"}
+    def complete(upload_id, attachment):
+        assert upload_id == slots[-1]["id"]
+        assert hashlib.sha256(requests[-1].data).hexdigest() == attachment["sha256"]
+        completions.append(upload_id)
+        c.tables.setdefault("ModelAttachment", {})[attachment["id"]] = copy.deepcopy(attachment)
+        return attachment
+    class Response:
+        status = 200
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+    def put(request):
+        assert request.get_method() == "PUT"
+        assert request.full_url == "https://upload.example.test/slot"
+        requests.append(request)
+        return Response()
+    c.create_model_attachment_upload = slot
+    c.complete_model_attachment_upload = complete
+    e = {"fieldName": "intakePendingReferences", "arguments": {"input": json.dumps(payload())}, "identity": IDENTITY}
+    # Only the managed API client and network boundary are faked. The actual
+    # handler, intake service, attachment builder and upload/complete helper run.
+    with patch.dict("os.environ", ENV), patch.object(handler, "create_authoring_client", return_value=(c, {})), patch("urllib.request.urlopen", put):
+        first = handler.handler(e, None)
+        assert first["ok"]
+        second = handler.handler(e, None)
+        assert second["references"] == first["references"]
+    assert len(slots) == len(completions) == len(requests) == 1
+    assert json.loads(requests[0].data)["actorSub"] == "editor-sub"

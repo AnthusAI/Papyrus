@@ -52,7 +52,8 @@ import mechanisms do not acquire a global canonical-URL lock; do not run a
 separate import of the same source concurrently.
 
 Each new source has a deterministic KnowledgeImportRun and a private JSON
-ModelAttachment (`reference`, role `metadata`, sort key `editorial-intake`). It
+ModelAttachment (`reference`, role `metadata`, sort key `editorial-intake`, filename `editorial-intake.json`). The distinct
+filename prevents collision with normal Reference metadata attachments. It
 records publication endpoint, validated actor subject, canonical source URI,
 title, rationale, timestamp and initial pending status. Existing upload/complete
 operations validate payload hash and size. Corpus-wide counts are not overwritten
