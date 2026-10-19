@@ -299,7 +299,7 @@ poetry run papyrus knowledge topics draft-promote \
 Prefer the repeatable cycle command over hand-running every step:
 
 ```bash
-export BIBLICUS_WORKDIR="<path-to-biblicus-checkout>"
+export BIBLICUS_WORKDIR="<path-to-directory-holding-corpora>"
 poetry run papyrus ops categories run-curation-cycle --config corpora/papyrus-steering.yml
 ```
 
@@ -338,9 +338,10 @@ The cycle runs:
 reference counts are zero after references exist, inspect projection import
 resolution first.
 
-Biblicus topic modeling is an optional Biblicus extra. The Papyrus cycle invokes
-Biblicus with `uv run --extra topic-modeling`; do not change Biblicus source to
-work around missing optional dependencies.
+Biblicus topic modeling is an optional Biblicus extra. The Papyrus `newsroom` extra
+installs it, and the Papyrus cycle runs the installed `biblicus` console script through
+`BiblicusRunner`; do not change Biblicus source to work around missing optional
+dependencies.
 
 ## Manual Troubleshooting Commands
 
@@ -379,32 +380,32 @@ Biblicus taxonomy and graph proposal commands so rejected child topics,
 relationships, labels, and weak patterns are suppressed in future proposal
 cycles.
 
-Typical Biblicus loop from the Biblicus checkout:
+Typical Biblicus loop from the Biblicus working directory, with the Papyrus Poetry environment active so the `biblicus` console script is on `PATH`:
 
 ```bash
 cd $BIBLICUS_WORKDIR
 
-uv run biblicus taxonomy record \
+biblicus taxonomy record \
   --corpus corpora/AI-ML-research \
   --input /tmp/accepted-category-tree.json
 
-uv run biblicus taxonomy discover \
+biblicus taxonomy discover \
   --corpus corpora/AI-ML-research \
   --classifier ai-ml-research \
   --steering-feedback /tmp/papyrus-steering-feedback.json \
   --record
 
-uv run biblicus steering render-seed-manifest \
+biblicus steering render-seed-manifest \
   --input /tmp/accepted-category-set.json \
   --output corpora/AI-ML-research/metadata/topic-classifiers/ai-ml-research/seed-manifest.json
 
-uv run --extra topic-modeling biblicus topic-classifier train \
+biblicus topic-classifier train \
   --corpus corpora/AI-ML-research \
   --manifest corpora/AI-ML-research/metadata/topic-classifiers/ai-ml-research/seed-manifest.json \
   --configuration configurations/topic-classifier.yml \
   --extraction-snapshot <snapshot-ref>
 
-uv run --extra topic-modeling biblicus topic-classifier project \
+biblicus topic-classifier project \
   --classifier-corpus corpora/AI-ML-research \
   --target-corpus corpora/AI-ML-history \
   --classifier ai-ml-research \

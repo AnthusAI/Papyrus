@@ -321,8 +321,8 @@ poetry run papyrus references create-from-catalog \
    current pilot, journalism/publishing/automated-news papers belong in
    `AI-ML-journalism` unless they are intentionally part of the canonical
    `AI-ML-research` authority corpus.
-2. Run or verify Biblicus ingest/extraction from the Biblicus checkout with
-   `uv run biblicus ...`, producing local corpus artifacts.
+2. Run or verify Biblicus ingest/extraction from `$BIBLICUS_WORKDIR` with
+   `biblicus ...` from the Papyrus Poetry environment, producing local corpus artifacts.
 3. Sync the changed corpus working copy to the configured S3 prefix. Review the
    dry run first and do not use `--delete` unless explicitly reconciling the
    complete prefix. Prefer the Papyrus wrapper so endpoint/bucket mismatches are
@@ -371,7 +371,7 @@ Prefer the full repeatable cycle when the goal is category/reference visibility
 after new corpus work:
 
 ```bash
-export BIBLICUS_WORKDIR="<path-to-biblicus-checkout>"
+export BIBLICUS_WORKDIR="<path-to-directory-holding-corpora>"
 poetry run papyrus ops categories run-curation-cycle --config corpora/papyrus-steering.yml
 ```
 
