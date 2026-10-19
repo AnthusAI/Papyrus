@@ -499,6 +499,19 @@ try {
   const otherApp = run("node", [cli, "deploy", "--site", pilobolSitePath, "--only-app-id", "downer"], { cwd: infraApp, env: { ...environmentWithoutAmplify, AWS_APP_ID: "dapp1", AWS_BRANCH: "main" } });
   assert.match(otherApp, /does not own the stack, skipping/);
 
+  const fakeBinDirectory = path.join(work, "fake-bin");
+  fs.mkdirSync(fakeBinDirectory);
+  const recordedArguments = path.join(work, "npx-arguments.txt");
+  fs.writeFileSync(path.join(fakeBinDirectory, "npx"), `#!/bin/sh\nprintf '%s\\n' "$@" > "${recordedArguments}"\n`, { mode: 0o755 });
+  const deployOutputDirectory = path.join(work, "deploy-out");
+  run("node", [cli, "deploy", "--site", pilobolSitePath, "--out", deployOutputDirectory, "--account", "123456789012"], {
+    cwd: infraApp,
+    env: { ...environmentWithoutAmplify, AWS_APP_ID: "dapp1", AWS_BRANCH: "main", PATH: `${fakeBinDirectory}${path.delimiter}${process.env.PATH}` },
+  });
+  const deployArguments = fs.readFileSync(recordedArguments, "utf8").split("\n");
+  assert.equal(deployArguments[deployArguments.indexOf("--app") + 1], deployOutputDirectory, "the deploy passes the synthesized directory as the app, not a command string");
+  assert.ok(fs.existsSync(path.join(deployOutputDirectory, "manifest.json")), "the deploy synthesizes before it runs the deploy");
+
   console.log("infra synth tests passed");
 } finally {
   fs.rmSync(work, { recursive: true, force: true });

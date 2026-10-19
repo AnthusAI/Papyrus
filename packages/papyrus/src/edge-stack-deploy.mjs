@@ -25,15 +25,22 @@ function logicalIdsInStack(stackName, region) {
   return new Set(JSON.parse(completed.stdout).StackResourceSummaries.map((summary) => summary.LogicalResourceId));
 }
 
-function templateParameterFlags(parameterValues, templateFile) {
+function parameterNamesInStack(stackName, region) {
+  const completed = runAws(["cloudformation", "describe-stacks", "--stack-name", stackName, "--region", region, "--output", "json"], { allowFailure: true });
+  if (completed.status !== 0) return new Set();
+  const stack = JSON.parse(completed.stdout).Stacks?.[0];
+  return new Set((stack?.Parameters ?? []).map((parameter) => parameter.ParameterKey));
+}
+
+function templateParameterFlags(parameterValues, templateFile, parameterNamesInStackNow) {
   const templateText = fs.readFileSync(templateFile, "utf8");
   const parametersSection = templateText.split("\nResources:")[0].split("\nParameters:\n")[1] ?? "";
   const parameterNames = [...parametersSection.matchAll(/^  ([A-Za-z0-9]+):\s*$/gm)].map((match) => match[1]);
-  return parameterNames.map((name) =>
-    name in parameterValues
-      ? `ParameterKey=${name},ParameterValue=${parameterValues[name]}`
-      : `ParameterKey=${name},UsePreviousValue=true`,
-  );
+  return parameterNames.flatMap((name) => {
+    if (name in parameterValues) return [`ParameterKey=${name},ParameterValue=${parameterValues[name]}`];
+    if (parameterNamesInStackNow.has(name)) return [`ParameterKey=${name},UsePreviousValue=true`];
+    return [];
+  });
 }
 
 export function applyChangeSet({ stackName, region, templateFile, parameterValues, adoptions }) {
@@ -47,7 +54,7 @@ export function applyChangeSet({ stackName, region, templateFile, parameterValue
     "--template-body", `file://${path.resolve(templateFile)}`,
     "--capabilities", "CAPABILITY_IAM",
     "--region", region,
-    "--parameters", ...templateParameterFlags(parameterValues, templateFile),
+    "--parameters", ...templateParameterFlags(parameterValues, templateFile, parameterNamesInStack(stackName, region)),
   ];
   if (adoptions) createArguments.push("--resources-to-import", JSON.stringify(adoptions));
   runAws(createArguments);
