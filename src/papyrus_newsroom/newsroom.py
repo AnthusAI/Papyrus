@@ -24,8 +24,8 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
-from papyrus_content.biblicus_runtime import biblicus_python_executable
-from papyrus_content.env import BIBLICUS_ROOT, PAPYRUS_ROOT
+from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
+from papyrus_content.env import PAPYRUS_ROOT
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
 from papyrus_content.model_defaults import DEFAULT_SMALL_LLM_MODEL
@@ -4072,7 +4072,7 @@ def _resolve_corpus(corpus_key: str, config_path: str = "") -> dict[str, Any]:
             path_value = _required(resolved.get("path"), f"corpora[{key}].path")
             path = Path(path_value)
             if not path.is_absolute():
-                path = BIBLICUS_ROOT / path
+                path = resolve_biblicus_workdir() / path
             resolved["path"] = str(path)
             return resolved
     raise ValueError(f"Unknown corpus_key in steering config: {key}")
@@ -5034,14 +5034,13 @@ def _build_biblicus_block_context_pack(
         "max_tokens": max_tokens,
         "section_budgets": [{"section": section, "share": share} for section, share in section_shares.items()],
     }
-    result = _run_biblicus(
-        ["context-pack", "build-blocks"],
-        {"profile": profile_key},
-        stdin_text=json.dumps(request_payload),
-    )
-    if result["status"] != "ok":
-        raise RuntimeError(result["stderr"] or f"Biblicus block context build failed for profile {profile_key}")
-    pack = json.loads(result["stdout"])
+    from biblicus.api import ContextPackBuildBlocksRequest
+
+    request = ContextPackBuildBlocksRequest.model_validate(request_payload)
+    try:
+        pack = BiblicusRunner.from_environment().build_context_pack_from_blocks(request).model_dump(mode="json")
+    except BiblicusCommandError as error:
+        raise RuntimeError(error.stderr or f"Biblicus block context build failed for profile {profile_key}") from error
     for block in blocks:
         if block.get("required") and block["text"] not in (pack.get("text") or ""):
             raise ValueError("Context budget did not preserve required editorial context; increase the token budget.")
@@ -5049,22 +5048,25 @@ def _build_biblicus_block_context_pack(
 
 
 def _run_biblicus(args: list[str], corpus: dict[str, Any], stdin_text: str | None = None) -> dict[str, Any]:
-    command = [biblicus_python_executable(), "-m", "biblicus", *args]
-    result = subprocess.run(
-        command,
-        cwd=BIBLICUS_ROOT,
-        input=stdin_text,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    runner = BiblicusRunner.from_environment()
+    try:
+        output = runner.run(args, stdin_text=stdin_text)
+    except BiblicusCommandError as error:
+        return {
+            "status": "error",
+            "returnCode": error.exit_code,
+            "corpus": corpus,
+            "command": list(error.command),
+            "stdout": error.stdout,
+            "stderr": error.stderr,
+        }
     return {
-        "status": "ok" if result.returncode == 0 else "error",
-        "returnCode": result.returncode,
+        "status": "ok",
+        "returnCode": 0,
         "corpus": corpus,
-        "command": command,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "command": list(output.command),
+        "stdout": output.stdout,
+        "stderr": output.stderr,
     }
 
 

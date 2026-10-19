@@ -150,7 +150,7 @@ class CategoriesRootRebuildTests(unittest.TestCase):
             corpus_path = pathlib.Path(tmpdir) / "corpus"
             corpus_path.mkdir(parents=True, exist_ok=True)
             mock_resolve_corpus_path.return_value = corpus_path
-            with self.assertRaises(ValueError):
+            with mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": tmpdir}), self.assertRaises(ValueError):
                 categories_rebuild_roots(["--yes", "--dry-run", "--output-dir", str(pathlib.Path(tmpdir) / "run")])
 
 

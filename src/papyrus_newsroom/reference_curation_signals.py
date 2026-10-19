@@ -14,7 +14,6 @@ import html
 import json
 import os
 import re
-import subprocess
 import sys
 import threading
 import urllib.error
@@ -38,8 +37,8 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
 from papyrus_content.graphql_http import execute_graphql
-from papyrus_content.biblicus_runtime import biblicus_corpus_catalog_path, biblicus_python_executable
-from papyrus_content.env import BIBLICUS_ROOT
+from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
+from papyrus_content.biblicus_runtime import biblicus_corpus_catalog_path
 from papyrus_content.model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
 
@@ -3535,53 +3534,29 @@ def _run_biblicus_summarize_map_reduce(
     context: dict[str, Any],
     model: str,
 ) -> dict[str, Any]:
-    if not BIBLICUS_ROOT.is_dir():
-        raise RuntimeError(f"Biblicus checkout not found at {BIBLICUS_ROOT}")
-    command = [
-        biblicus_python_executable(),
-        "-m",
-        "biblicus",
-        "summarize",
-        "map-reduce",
-        "--task",
-        output_kind,
-        "--model",
-        model,
-        "--input-json",
-        "-",
-        "--format",
-        "json",
-    ]
-    input_payload = {
-        "extracted_text": context.get("extractedText") or "",
-        "original_title": context.get("originalTitle") or "",
-        "original_subtitle": context.get("originalSubtitle") or "",
-        "reference_title": reference.get("title") or "",
-        "source_uri": reference.get("sourceUri") or "",
-        "source_publication_date": str(reference["sourcePublishedAt"])[:10] if reference.get("sourcePublishedAt") else None,
-        "source_is_archived": reference.get("sourceIsArchived") if isinstance(reference.get("sourceIsArchived"), bool) else None,
-        "generated_title": context.get("generatedTitle") or "",
-    }
-    from papyrus_content.reference_url_text import _biblicus_env
-    env = _biblicus_env()
-    completed = subprocess.run(
-        command,
-        cwd=BIBLICUS_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-        input=json.dumps(input_payload),
-        env=env,
+    from biblicus.api import SummarizeMapReduceRequest
+
+    source_publication_date = reference.get("sourcePublishedAt")
+    request = SummarizeMapReduceRequest.model_validate(
+        {
+            "task": output_kind,
+            "model": model,
+            "extracted_text": context.get("extractedText") or "",
+            "original_title": context.get("originalTitle") or "",
+            "original_subtitle": context.get("originalSubtitle") or "",
+            "reference_title": reference.get("title") or "",
+            "source_uri": reference.get("sourceUri") or "",
+            "source_publication_date": str(source_publication_date)[:10] if source_publication_date else None,
+            "source_is_archived": reference.get("sourceIsArchived") if isinstance(reference.get("sourceIsArchived"), bool) else None,
+            "generated_title": context.get("generatedTitle") or "",
+        },
+        strict=False,
     )
-    if completed.returncode != 0:
-        detail = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(
-            "Biblicus summarize map-reduce command failed: "
-            f"{detail or f'exit status {completed.returncode}'}"
-        )
-    parsed = _jsonish((completed.stdout or "").strip())
-    if not isinstance(parsed, dict):
-        raise RuntimeError("Biblicus summarize map-reduce command returned invalid JSON output.")
+    try:
+        result = BiblicusRunner.from_environment().summarize_map_reduce(request)
+    except BiblicusCommandError as error:
+        raise RuntimeError(f"Biblicus summarize map-reduce command failed: {error.failure_message()}") from error
+    parsed = result.model_dump(mode="json")
     if _clean_text(parsed.get("task")) != output_kind:
         raise RuntimeError("Biblicus summarize map-reduce command returned an unexpected task payload.")
     return parsed
@@ -5444,7 +5419,7 @@ def _catalog_local_source_text(item: dict[str, Any]) -> str:
     if relpath.startswith("/"):
         path = Path(relpath)
     else:
-        for candidate in (BIBLICUS_ROOT / "corpora").iterdir():
+        for candidate in (resolve_biblicus_workdir() / "corpora").iterdir():
             candidate_path = candidate / relpath
             if candidate_path.exists() and candidate_path.is_file():
                 path = candidate_path
@@ -5496,8 +5471,8 @@ def _local_source_path_for_reference(reference: dict[str, Any]) -> Path | None:
         return None
     parts = storage_path.split("/")
     if len(parts) >= 3 and parts[0] == "corpora":
-        return BIBLICUS_ROOT / "corpora" / parts[1] / Path(*parts[2:])
-    candidate = BIBLICUS_ROOT / storage_path
+        return resolve_biblicus_workdir() / "corpora" / parts[1] / Path(*parts[2:])
+    candidate = resolve_biblicus_workdir() / storage_path
     return candidate
 
 
@@ -5518,13 +5493,13 @@ def _catalog_location_for_reference(reference: dict[str, Any]) -> tuple[Path | N
 
 def _corpus_path_for_local_source(local_source: Path) -> Path | None:
     try:
-        relative = local_source.resolve().relative_to((BIBLICUS_ROOT / "corpora").resolve())
+        relative = local_source.resolve().relative_to((resolve_biblicus_workdir() / "corpora").resolve())
     except Exception:
         return None
     parts = relative.parts
     if not parts:
         return None
-    return BIBLICUS_ROOT / "corpora" / parts[0]
+    return resolve_biblicus_workdir() / "corpora" / parts[0]
 
 
 def _read_yaml_file(filepath: Path) -> dict[str, Any]:

@@ -126,12 +126,12 @@ def test_concurrent_requests_cannot_cross_the_ceiling(tmp_path):
 
 
 def test_worker_scope_removes_real_credentials_and_is_not_shared_across_threads(tmp_path,monkeypatch):
-    from papyrus_content.reference_url_text import _biblicus_env
+    from papyrus_content.biblicus_runner import build_biblicus_environment
     b,_=budget(tmp_path);grant(b)
     monkeypatch.setenv('OPENAI_API_KEY','REAL SECRET MUST STAY OUT')
     monkeypatch.setenv('AWS_SECRET_ACCESS_KEY','OTHER SECRET MUST STAY OUT')
     with b.execution({'id':'job','inputs':{'url':SOURCE}}):
-        env=_biblicus_env()
+        env=build_biblicus_environment()
         assert env['OPENAI_API_KEY']==b.capability('job')
         assert env['OPENAI_BASE_URL']=='http://127.0.0.1:8902/provider/v1'
         assert 'AWS_SECRET_ACCESS_KEY' not in env and 'REAL SECRET' not in str(env)
@@ -139,26 +139,23 @@ def test_worker_scope_removes_real_credentials_and_is_not_shared_across_threads(
     assert worker_environment() is None
 
 
-def test_existing_worker_commands_share_the_scoped_proxy_without_package_install(tmp_path,monkeypatch):
-    from types import SimpleNamespace
+def test_existing_worker_commands_share_the_scoped_proxy_through_the_runner(tmp_path,monkeypatch):
+    from biblicus_runner_support import completed,fake_biblicus_subprocess
     from papyrus_content import reference_url_text as extraction
     from papyrus_newsroom import reference_curation_signals as metadata
-    b,_=budget(tmp_path);grant(b);calls=[]
-    monkeypatch.setattr(extraction,'BIBLICUS_ROOT',tmp_path)
-    monkeypatch.setattr(metadata,'BIBLICUS_ROOT',tmp_path)
+    b,_=budget(tmp_path);grant(b)
     def worker(command,**kwargs):
-        calls.append((command,kwargs))
         env=kwargs['env']
         assert env['OPENAI_API_KEY']==b.capability('job')
         assert env['OPENAI_BASE_URL'].endswith('/provider/v1')
         if 'article-text' in command:
-            return SimpleNamespace(returncode=1,stdout=json.dumps({'error':{'code':'missing_dspy','message':'Optional worker dependency missing'}}),stderr='')
-        return SimpleNamespace(returncode=0,stdout=json.dumps({'task':'summary','value':'Offline contract value'}),stderr='')
-    monkeypatch.setattr(extraction.subprocess,'run',worker)
+            return completed(returncode=1,stdout=json.dumps({'error':{'code':'missing_dspy','message':'Optional worker dependency missing'}}))
+        return completed(stdout=json.dumps({'status':'ok','task':'summary','value':'Offline contract value'}))
+    calls=fake_biblicus_subprocess(monkeypatch,tmp_path/'workdir',worker)
     with b.execution({'id':'job','inputs':{'url':SOURCE}}):
-        with pytest.raises(RuntimeError):extraction._run_biblicus_article_text({'extracted_text':'Offline source'})
+        with pytest.raises(RuntimeError):extraction._run_biblicus_article_text({'extracted_text':'Offline source','model':MODEL})
         metadata._run_biblicus_summarize_map_reduce(output_kind='summary',reference={},context={'extractedText':'Offline source'},model=MODEL)
-    assert len(calls)==2 and all(command[0]!='uv' for command,_ in calls)
+    assert len(calls)==2 and all(call['command'][0].endswith('/biblicus') for call in calls)
 
 
 def test_real_job_http_composition_enforces_capability_and_cancel_boundary(tmp_path):

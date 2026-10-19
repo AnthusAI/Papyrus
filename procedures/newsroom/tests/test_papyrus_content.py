@@ -209,35 +209,45 @@ class PapyrusContentTests(unittest.TestCase):
         self.assertIn("threat-intelligence", resolved.as_posix())
         self.assertNotIn(temp_dir, resolved.as_posix())
 
-    @mock.patch("papyrus_content.accession.subprocess.Popen")
-    def test_run_biblicus_reindex_for_accession_streams_logs_and_raises_on_failure(self, mock_popen) -> None:
+    def test_run_biblicus_reindex_for_accession_records_logs_and_raises_on_failure(self) -> None:
+        from papyrus_content import biblicus_runner
         from papyrus_content.accession import ReferenceAccessionError, run_biblicus_reindex_for_accession
 
-        process = mock.MagicMock()
-        process.wait.return_value = 2
-        mock_popen.return_value = process
-
-        def _write_failure_logs(*_args, **_kwargs) -> mock.MagicMock:
-            stderr_log = run_dir / "biblicus-reindex.stderr.log"
-            stdout_log = run_dir / "biblicus-reindex.stdout.log"
-            stderr_log.write_text("Not a Biblicus corpus\n", encoding="utf-8")
-            stdout_log.write_text("", encoding="utf-8")
-            process = mock.MagicMock()
-            process.wait.return_value = 2
-            return process
-
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as workdir, mock.patch.object(
+            biblicus_runner, "resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus")
+        ), mock.patch.object(biblicus_runner.subprocess, "run") as mock_run:
             run_dir = pathlib.Path(temp_dir)
-            mock_popen.side_effect = _write_failure_logs
+            mock_run.return_value = mock.Mock(returncode=2, stdout="", stderr="Not a Biblicus corpus\n")
             with self.assertRaises(ReferenceAccessionError) as error:
                 run_biblicus_reindex_for_accession(
                     corpus_path=pathlib.Path("/tmp/example-corpus"),
-                    biblicus_workdir=pathlib.Path("/tmp/Biblicus"),
+                    biblicus_workdir=pathlib.Path(workdir),
                     run_dir=run_dir,
                 )
+            stderr_log_text = (run_dir / "biblicus-reindex.stderr.log").read_text(encoding="utf-8")
         self.assertIn("exit 2", str(error.exception))
         self.assertIn("Not a Biblicus corpus", str(error.exception))
-        mock_popen.assert_called_once()
+        self.assertEqual(stderr_log_text, "Not a Biblicus corpus")
+        mock_run.assert_called_once()
+        self.assertEqual(mock_run.call_args.args[0][1:3], ["reindex", "--corpus"])
+
+    def test_run_biblicus_reindex_for_accession_writes_logs_on_success(self) -> None:
+        from papyrus_content import biblicus_runner
+        from papyrus_content.accession import run_biblicus_reindex_for_accession
+
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as workdir, mock.patch.object(
+            biblicus_runner, "resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus")
+        ), mock.patch.object(biblicus_runner.subprocess, "run") as mock_run:
+            run_dir = pathlib.Path(temp_dir)
+            mock_run.return_value = mock.Mock(returncode=0, stdout="reindexed\n", stderr="")
+            result = run_biblicus_reindex_for_accession(
+                corpus_path=pathlib.Path("/tmp/example-corpus"),
+                biblicus_workdir=pathlib.Path(workdir),
+                run_dir=run_dir,
+            )
+            stdout_log_text = pathlib.Path(result["stdoutLogPath"]).read_text(encoding="utf-8")
+        self.assertEqual(result["label"], "biblicus-reindex")
+        self.assertEqual(stdout_log_text, "reindexed")
 
     def test_source_download_uri_for_reference_uses_acm_pdf_url(self) -> None:
         from papyrus_content.accession import source_download_uri_for_reference

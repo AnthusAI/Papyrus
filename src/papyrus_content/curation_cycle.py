@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .categories_steering import load_json_file, write_json_file
-from .env import BIBLICUS_ROOT
+from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
 from .ids import knowledge_corpus_id
 from .steering import require_corpus_config
 
@@ -24,7 +23,7 @@ def build_curation_cycle_plan(config: dict[str, Any], options: dict[str, Any] | 
         raise ValueError("A steering config is required to run the curation cycle.")
     run_id = options.get("runId") or timestamp_run_id()
     run_dir = Path(options.get("outputDir") or Path(".papyrus-runs") / run_id).resolve()
-    biblicus_workdir = Path(options.get("biblicusWorkdir") or BIBLICUS_ROOT).resolve()
+    biblicus_workdir = resolve_biblicus_workdir(options.get("biblicusWorkdir"))
     canonical_corpus = require_corpus_config(config, config["canonicalTopicSet"]["corpusKey"], "canonicalTopicSet.corpusKey")
     canonical_classifier_id = config["canonicalTopicSet"]["classifierId"]
     source_projections = []
@@ -103,38 +102,19 @@ def latest_pipeline_snapshot(bundle: dict[str, Any]) -> str | None:
     return f"pipeline:{artifacts[0]['snapshot_id']}" if artifacts else None
 
 
-def ensure_uv_biblicus_extras(args: list[str], required_extras: list[str]) -> list[str]:
-    next_args = list(args)
-    if not next_args or next_args[0] != "run":
-        return next_args
-    biblicus_index = next_args.index("biblicus") if "biblicus" in next_args else -1
-    if biblicus_index <= 0:
-        return next_args
-    extras = set()
-    index = 1
-    while index < biblicus_index:
-        if next_args[index] == "--extra" and index + 1 < biblicus_index:
-            extras.add(str(next_args[index + 1]))
-        index += 1
-    insert_at = biblicus_index
-    for extra in required_extras:
-        if extra in extras:
-            continue
-        next_args[insert_at:insert_at] = ["--extra", extra]
-        insert_at += 2
-    return next_args
-
-
 def run_biblicus(plan: dict[str, Any], args: list[str], label: str) -> str:
     log_prefix = Path(plan["runDir"]) / re.sub(r"[^A-Za-z0-9_.-]", "-", label)
     print(f"Biblicus: {label}")
-    uv_args = ensure_uv_biblicus_extras(["run", "--extra", "topic-modeling", "biblicus", *args], ["topic-modeling", "openai"])
-    result = subprocess.run(["uv", *uv_args], cwd=plan["biblicusWorkdir"], capture_output=True, text=True, check=False)
-    log_prefix.with_suffix(".stdout.log").write_text(result.stdout or "", encoding="utf-8")
-    log_prefix.with_suffix(".stderr.log").write_text(result.stderr or "", encoding="utf-8")
-    if result.returncode != 0:
-        raise RuntimeError(f"Biblicus {label} failed. See {log_prefix}.stderr.log")
-    return result.stdout or ""
+    runner = BiblicusRunner.from_environment(workdir=plan["biblicusWorkdir"])
+    try:
+        output = runner.run(args)
+    except BiblicusCommandError as error:
+        log_prefix.with_suffix(".stdout.log").write_text(error.stdout, encoding="utf-8")
+        log_prefix.with_suffix(".stderr.log").write_text(error.stderr, encoding="utf-8")
+        raise RuntimeError(f"Biblicus {label} failed. See {log_prefix}.stderr.log") from error
+    log_prefix.with_suffix(".stdout.log").write_text(output.stdout, encoding="utf-8")
+    log_prefix.with_suffix(".stderr.log").write_text(output.stderr, encoding="utf-8")
+    return output.stdout
 
 
 def run_biblicus_json(plan: dict[str, Any], args: list[str], label: str, output_path: str) -> None:

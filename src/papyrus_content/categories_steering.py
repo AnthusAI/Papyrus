@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
-import subprocess
 import unicodedata
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -14,7 +12,8 @@ from urllib.parse import urlparse
 
 import yaml
 
-from .env import BIBLICUS_ROOT, PAPYRUS_ROOT
+from .biblicus_runner import BiblicusCommandError, BiblicusRunner
+from .env import PAPYRUS_ROOT
 from .ids import (
     category_lineage_id_for,
     category_set_id_for,
@@ -68,20 +67,17 @@ def load_steering_bundle_from_biblicus(
         raise ValueError("--corpus is required when --bundle is omitted.")
     if not classifier:
         raise ValueError("--classifier is required when --bundle is omitted.")
-    args = ["run", "biblicus", "steering", "export", "--corpus", corpus, "--classifier", classifier]
+    from biblicus.steering import SteeringExportBundle
+
+    arguments = ["steering", "export", "--corpus", corpus, "--classifier", classifier]
     if topic_governance_snapshot:
-        args.extend(["--topic-governance-snapshot", topic_governance_snapshot])
-    workdir = Path(biblicus_workdir or os.environ.get("BIBLICUS_WORKDIR") or BIBLICUS_ROOT)
-    result = subprocess.run(
-        ["uv", *args],
-        cwd=workdir,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"Biblicus steering export failed:\n{result.stderr or result.stdout}")
-    return json.loads(result.stdout)
+        arguments.extend(["--topic-governance-snapshot", topic_governance_snapshot])
+    runner = BiblicusRunner.from_environment(workdir=biblicus_workdir)
+    try:
+        bundle = runner.run_typed(arguments, SteeringExportBundle)
+    except BiblicusCommandError as error:
+        raise RuntimeError(f"Biblicus steering export failed:\n{error.stderr or error.stdout}") from error
+    return bundle.model_dump(mode="json")
 
 
 def build_steering_import_records(bundle: dict[str, Any], options: dict[str, Any] | None = None) -> dict[str, Any]:

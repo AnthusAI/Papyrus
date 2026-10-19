@@ -31,7 +31,7 @@ def selected_text(context):
 
 @then('the configured knowledge work directory is preserved')
 def selected_knowledge_directory(context):
-    assert context.publication_result['knowledgeRoot'] == str(context.publication_root/'knowledge')
+    assert context.publication_result['knowledgeRoot'] == str((context.publication_root/'knowledge').resolve())
 
 
 @then('the assignment context read fails with the download error')

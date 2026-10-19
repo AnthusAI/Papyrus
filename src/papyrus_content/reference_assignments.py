@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
-from .accession import assignment_created_event_record, resolve_biblicus_workdir
+from .accession import assignment_created_event_record
+from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
 from .catalog import semantic_relation_record
 from .env import PAPYRUS_ROOT
 from .ids import hash_short, knowledge_corpus_id
@@ -280,7 +280,7 @@ def run_biblicus_text_extraction_for_corpus(
     run_dir.mkdir(parents=True, exist_ok=True)
     stdout_log = run_dir / "biblicus-extract.stdout.log"
     stderr_log = run_dir / "biblicus-extract.stderr.log"
-    args = ["run", "--extra", "topic-modeling", "biblicus", "extract", "build", "--corpus", str(corpus_path)]
+    args = ["extract", "build", "--corpus", str(corpus_path)]
     if options.get("configuration"):
         args.extend(["--configuration", str(options["configuration"])])
     else:
@@ -290,20 +290,21 @@ def run_biblicus_text_extraction_for_corpus(
         args.append("--force")
     if options.get("max-workers"):
         args.extend(["--max-workers", str(options["max-workers"])])
-    completed = subprocess.run(["uv", *args], cwd=biblicus_workdir, capture_output=True, text=True, check=False)
-    stdout_log.write_text(completed.stdout or "", encoding="utf-8")
-    stderr_log.write_text(completed.stderr or "", encoding="utf-8")
-    if completed.returncode != 0:
-        raise RuntimeError(
-            f"Biblicus text extraction failed for {corpus_path}. See {stderr_log}."
-        )
+    runner = BiblicusRunner.from_environment(workdir=biblicus_workdir)
+    try:
+        output = runner.run(args)
+    except BiblicusCommandError as error:
+        stdout_log.write_text(error.stdout, encoding="utf-8")
+        stderr_log.write_text(error.stderr, encoding="utf-8")
+        raise RuntimeError(f"Biblicus text extraction failed for {corpus_path}. See {stderr_log}.") from error
+    stdout_log.write_text(output.stdout, encoding="utf-8")
+    stderr_log.write_text(output.stderr, encoding="utf-8")
     return {
         "label": "biblicus-extract-build",
-        "executable": "uv",
-        "args": args,
+        "command": list(output.command),
         "stdoutLogPath": str(stdout_log),
         "stderrLogPath": str(stderr_log),
-        "exitStatus": completed.returncode,
+        "exitStatus": 0,
     }
 
 
@@ -330,7 +331,7 @@ def execute_reference_text_extraction_assignment(client, assignment: dict[str, A
     corpus_config = require_corpus_config(steering_config, metadata["corpusKey"], "assignment.metadata.corpusKey")
     corpus_id = knowledge_corpus_id(corpus_config)
     corpus_path = Path(corpus_config["path"]).resolve()
-    biblicus_workdir = resolve_biblicus_workdir(options)
+    biblicus_workdir = resolve_biblicus_workdir(options.get("biblicus-workdir") or options.get("biblicusWorkdir"))
     actor_label = options.get("actor") or options.get("assignee-key") or "papyrus-cli"
     extraction_result = run_biblicus_text_extraction_for_corpus(
         corpus_path=corpus_path,

@@ -1,6 +1,7 @@
 """Opt-in real Biblicus CLI -> local gateway proof, with fake provider/source.
 
-Set BIBLICUS_CONTRACT_CHECKOUT to the assigned owner's pinned checkout.
+Set BIBLICUS_CONTRACT_WORKDIR to an empty directory to use as BIBLICUS_WORKDIR; the real `biblicus`
+console script from the Papyrus environment runs through BiblicusRunner.
 Only disposable loopback ports/stores are used; no paid or source network calls.
 """
 from contextlib import contextmanager
@@ -18,9 +19,8 @@ from papyrus_content.priming_curation import PapyrusPrimingCuration
 from papyrus_content.priming_http import CurationJobs, create_transformer_app
 from papyrus_content.priming_provider_budget import MODEL, PrimingProviderBudget
 
-ROOT=os.environ.get('BIBLICUS_CONTRACT_CHECKOUT')
-PYTHON=os.environ.get('BIBLICUS_CONTRACT_PYTHON')
-pytestmark=pytest.mark.skipif(not ROOT or not PYTHON,reason='Explicit pinned Biblicus checkout/interpreter required')
+WORKDIR=os.environ.get('BIBLICUS_CONTRACT_WORKDIR')
+pytestmark=pytest.mark.skipif(not WORKDIR,reason='Explicit BIBLICUS_CONTRACT_WORKDIR required')
 SOURCE='https://www.cisa.gov/news-events/alerts/2021/01/07/supply-chain-compromise'
 BODY='Synthetic public source paragraph about a software supply chain compromise. No human judgment.'
 
@@ -45,10 +45,7 @@ def gateway(tmp_path,transport):
 def configure(monkeypatch,body=BODY):
     from papyrus_content import reference_url_text as extraction
     from papyrus_newsroom import reference_curation_signals as metadata
-    root=Path(ROOT).resolve();assert (root/'src/biblicus/web_transform.py').is_file()
-    for module in (extraction,metadata):
-        monkeypatch.setattr(module,'BIBLICUS_ROOT',root)
-        monkeypatch.setattr(module,'_biblicus_python_executable',lambda:Path(PYTHON))
+    monkeypatch.setenv('BIBLICUS_WORKDIR',str(Path(WORKDIR).resolve()))
     # Only source IO is a fixture; planners, CLI subprocesses, gateway and result
     # validation run as shipped. Human preview/catalog are never opened.
     monkeypatch.setattr(extraction,'resolve_source_site_enrichment',lambda **kwargs:{})

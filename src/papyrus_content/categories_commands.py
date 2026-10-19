@@ -35,7 +35,8 @@ from .curation_cycle import (
     timestamp_run_id,
     validate_cycle_corpus_paths,
 )
-from .env import BIBLICUS_ROOT, PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
+from .biblicus_runner import resolve_biblicus_workdir
+from .env import PAPYRUS_ROOT, storage_bucket_from_amplify_outputs
 from .graphql_authoring import create_authoring_client
 from .ids import hash_short, hash_stable, knowledge_corpus_id
 from .options import parse_boolean_option, parse_comma_list, parse_options, resolve_mutation_apply
@@ -1071,7 +1072,7 @@ def categories_rebuild_roots(flags: list[str]) -> None:
     plan = {
         "runId": run_id,
         "runDir": str(run_dir),
-        "biblicusWorkdir": str(Path(options.get("biblicus-workdir") or BIBLICUS_ROOT).resolve()),
+        "biblicusWorkdir": str(resolve_biblicus_workdir(options.get("biblicus-workdir"))),
     }
     corpus_path = str(resolve_biblicus_corpus_path(plan, corpus_config))
     if not Path(corpus_path).exists():
@@ -1236,7 +1237,7 @@ def categories_rebuild_roots_promote(flags: list[str]) -> None:
     plan = {
         "runId": run_id,
         "runDir": str(run_dir),
-        "biblicusWorkdir": str(Path(options.get("biblicus-workdir") or BIBLICUS_ROOT).resolve()),
+        "biblicusWorkdir": str(resolve_biblicus_workdir(options.get("biblicus-workdir"))),
     }
     corpus_path = str(resolve_biblicus_corpus_path(plan, corpus_config))
     if not Path(corpus_path).exists():
