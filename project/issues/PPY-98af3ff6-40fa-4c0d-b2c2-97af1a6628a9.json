@@ -52,10 +52,38 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "a25ab7ce-762b-4244-b621-08653962c069",
+      "author": "home",
+      "text": "Ryan explicitly authorized the previously denied push and draft PR. Rechecked latest origin/develop 79cbbf6d and origin/main cf9e51f5; neither contains the fix and no duplicate open fix exists. Branch pushed successfully; draft PR https://github.com/AnthusAI/Papyrus/pull/343 targets develop, head 6c27ec56377287a7fee7661306d8773406fa8323. 44 focused/existing pytest tests and two BDD scenarios/eight steps passed, plus live nonpaid exact brief/instructions hydration. CI pending. No merge/deploy. Existing papyrus-production SSO read-only check still fails TokenRetrievalError: expired token and refresh failed; no login initiated. Procedure disabled and no paid calls.",
+      "created_at": "2026-10-19T09:45:02.675581Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "07fb1cb8-6203-4c7e-88ce-db65b2a2d2b8",
+      "author": "home",
+      "text": "Ryan subsequently authorized one paid execution of the existing OpenCode research assignment using its existing eight-item/run limits, without adding a budget system. This supersedes the earlier budget decision blocker. Preflight at 2026-10-19T09:45:22Z still failed before STS/API access: existing papyrus-production SSO TokenRetrievalError, token expired and refresh failed. No procedure enable attempted, no run ID, no model call, no login initiated. Direct web update research continues locally; publication imports blocked by this same access failure.",
+      "created_at": "2026-10-19T09:46:47.794239Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-18T23:57:51.136729Z",
-  "updated_at": "2026-10-19T00:09:01.325051Z",
+  "updated_at": "2026-10-19T09:46:47.794318Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
