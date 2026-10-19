@@ -80,10 +80,24 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "da7aeabf-f0eb-40fd-bc6d-a86ecb34b98f",
+      "author": "home",
+      "text": "Draft PR #344 implementation now b0d49e73904c91b0afe51248812a0d181280e661 on feature/PPY-7c458d-cli-login. Follow-up rejects incomplete secure-store identity records with a clean operator error. 60 focused Python tests pass; four native-auth BDD scenarios and both changed operator help/auth scenarios pass. Combined local operator run has one unrelated sparse-config failure (canonicalTopicSet.corpusKey missing before backend validation); that scenario passed in the first full CI run. First CI passed all Python unit tests, TypeScript, package smoke and inbound-email unit checks; its only BDD failures were the two corrected obsolete auth assertions.\n\nFinal CI is running after these corrections. Exact final receipt will be saved at /Users/home/Documents/Codex/2026-10-18/task-2/papyrus-cli-login-design/CI-RECEIPT.json and summarized in the handoff. Review branch only, no merge/deployment. Live client configuration, regular-user permission parity and true elapsed >=24h acceptance remain pending; not a currently usable TI app-auth session. No real login or session credential operation was run. Epic/stories stay in_progress.\n",
+      "created_at": "2026-10-19T11:13:13.116673Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-19T10:36:38.396717Z",
-  "updated_at": "2026-10-19T11:11:19.251641Z",
+  "updated_at": "2026-10-19T11:13:13.116751Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
