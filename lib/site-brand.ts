@@ -114,6 +114,11 @@ export type SiteBrand = {
   mastheadWordSplit: boolean;
   mastheadDateFormat: "raw" | "formatted";
   mastheadSource: "edition" | "brand";
+  /**
+   * Whether the publication publishes in dated editions. Off unless enabled.
+   * When off, the reader has no edition URL paths, archive or edition masthead.
+   */
+  editions?: { enabled: boolean };
   sectionLinkStrategy: "route" | "anchor";
   defaultVideoCredit?: string;
   themePack: ThemePackId;
@@ -244,6 +249,10 @@ export function getContentItemName(brand: SiteBrand = SITE_BRAND): ContentItemNa
 
 export function getContentItemStageDefinitions(brand: SiteBrand = SITE_BRAND): readonly ContentItemStageDefinition[] {
   return brand.contentItemStages?.length ? brand.contentItemStages : DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS;
+}
+
+export function areEditionsEnabled(brand: SiteBrand = SITE_BRAND): boolean {
+  return brand.editions?.enabled === true;
 }
 
 /** Root-route config for a brand, defaulting to `{ kind: "reader" }`. */

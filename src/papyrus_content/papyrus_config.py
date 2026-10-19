@@ -39,6 +39,22 @@ DEFAULT_TOPIC_IGNORE_TERMS = (
 )
 
 
+def editions_enabled(config: dict[str, Any] | None = None) -> bool:
+    override = os.environ.get("PAPYRUS_EDITIONS_ENABLED")
+    if override is not None and override.strip():
+        return override.strip().lower() in {"1", "true", "yes", "on"}
+    config = config if config is not None else load_papyrus_config()
+    return bool(((config or {}).get("editions") or {}).get("enabled"))
+
+
+def require_editions_enabled(command_name: str) -> None:
+    if not editions_enabled():
+        raise ValueError(
+            f"{command_name} is unavailable: this publication does not publish in editions. "
+            "Set editions.enabled in the Papyrus config (or PAPYRUS_EDITIONS_ENABLED=true) to turn editions on."
+        )
+
+
 def resolve_papyrus_config_path(config_path: str | None = None, *, required: bool = False) -> Path | None:
     configured = config_path or os.environ.get("PAPYRUS_CONFIG") or DEFAULT_PAPYRUS_CONFIG
     resolved = Path(configured)
@@ -79,9 +95,15 @@ def normalize_papyrus_config(raw_config: Any, config_path: str) -> dict[str, Any
     if openai is not None and not isinstance(openai, dict):
         raise ValueError("Papyrus config openai must be an object.")
     openai = openai if isinstance(openai, dict) else {}
+    editions = raw_config.get("editions") or {}
+    if not isinstance(editions, dict):
+        raise ValueError("Papyrus config editions must be an object.")
     return {
         "configPath": config_path,
         "schemaVersion": 1,
+        "editions": {
+            "enabled": editions.get("enabled") is True,
+        },
         "topics": {
             "steeringConfigPath": _optional_string(topics.get("steeringConfigPath")) or DEFAULT_STEERING_CONFIG_PATH,
             "lexicalConfigPath": _optional_string(topics.get("lexicalConfigPath")) or DEFAULT_LEXICAL_STEERING_PATH,
