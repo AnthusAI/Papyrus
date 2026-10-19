@@ -391,6 +391,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
+  // AppSync validates the token; pending intake additionally binds its actor
+  // and publication to this deployment's pool and existing API endpoint.
+  contentActionsLambda.addEnvironment(
+    "PAPYRUS_USER_POOL_ISSUER",
+    `https://cognito-idp.${Stack.of(contentActionsLambda).region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`,
+  );
   contentActionsLambda.addEnvironment(
     "PAPYRUS_GRAPHQL_ENDPOINT",
     backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,

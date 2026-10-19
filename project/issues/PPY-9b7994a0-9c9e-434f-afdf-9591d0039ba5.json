@@ -1,0 +1,59 @@
+{
+  "id": "PPY-9b7994a0-9c9e-434f-afdf-9591d0039ba5",
+  "title": "Editors register pending sources without direct knowledge-model access",
+  "description": "Feature: Publication-scoped pending source intake\nScenario: Authorized editor registers a source\nGiven a validated editor of the deployed publication\nWhen a source URL and rationale are submitted through the supported CLI\nThen a pending immutable Reference and attributable provenance are returned\nAnd generic knowledge models remain read-only\nScenario: Unauthorized or cross-publication intake\nGiven an unauthenticated actor or mismatched publication\nWhen intake is requested\nThen no data is written\nScenario: Repeated canonical source intake\nGiven a source already registered\nWhen its canonical URL is submitted again or concurrently\nThen the same Reference identity is returned without replacement or duplicate provenance\nScenario: Consulted story evidence\nGiven a pending registered Reference and existing unpublished Reporting story\nWhen the editor links the returned record as consulted\nThen the link is readable and prior story versions and Messages are preserved",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f6981769-b05d-48ff-9548-c1d9317cb0d5",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8c3dafc1-d314-4d82-b9ff-09fc8cb2b063",
+      "author": "home",
+      "text": "Implementation in isolated fix/PPY-9b7994-user-reference-intake from origin/develop 9212c7cf. Added failing executable Gherkin/unit specifications first; now new intake and CLI tests pass. Existing content-actions managed IAM role is reused, generic knowledge models remain user-read-only. Server binds editor sub/issuer and API endpoint, refuses tenant claims, requires local corpus, deduplicates canonical URL, conditionally creates immutable first record and recoverable provenance. No production mutation/deploy. Broader Python checks pass except sandbox-denied loopback tests; rerunning outside sandbox. Shared Node dependencies lack cyclotron/@kanbus/ui/videoml packages; full typecheck currently blocked, no changed TS file reported.",
+      "created_at": "2026-10-19T22:40:00.108578Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "ChatGPT",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "9c085b2b-d783-4ce3-82db-2b2d19270240",
+      "author": "home",
+      "text": "Verification: 99 Python tests pass; new Gherkin 8 scenarios/25 steps pass. Full ESLint, schema parity, identity-pool model access, guest read auth and pilot-identifier guard pass. Full typecheck has exactly the same 41 errors on unmodified origin/develop (verified by temporary baseline run with restoration) and repair: missing local cyclotron/@kanbus/ui/videoml dependencies; full build not run on that incomplete tree. Existing backend-node policy violations remain unrelated; Poetry absent locally. Live acceptance NOT RUN: new action must ship via normal main release and TI consumer backend upgrade; no deployments or live story writes. New API uses existing editor/admin groups and existing content-actions managed access, with no IAM policy, Cognito grant or credential changes.",
+      "created_at": "2026-10-19T22:42:59.972244Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "ChatGPT",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
+  "created_at": "2026-10-19T22:34:19.020547Z",
+  "updated_at": "2026-10-19T22:42:59.972282Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "name": "ChatGPT",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

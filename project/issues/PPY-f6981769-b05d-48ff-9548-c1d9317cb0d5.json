@@ -1,0 +1,27 @@
+{
+  "id": "PPY-f6981769-b05d-48ff-9548-c1d9317cb0d5",
+  "title": "Authorized pending Reference intake for editorial user sessions",
+  "description": "As an authenticated publication editor, I want pending source intake and provenance through the supported API so reporting can attach sources without generic knowledge-model writes. Existing Google-auth CLI catalog intake fails remotely: Not Authorized to access updateKnowledgeCorpus on type Mutation. Scope: validated publication and actor, canonical URL deduplication, idempotent pending References/provenance, supported CLI path; generic models remain read-only. No publication, labels, new credentials, unrelated releases, or IAM authoring fallback. Done: executable authorization/isolation/repeat/linking specs pass, reviewable PR and deployment permissions documented, existing TI DeepSeek story live acceptance verified only after deployed route is available.",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T22:34:05.945552Z",
+  "updated_at": "2026-10-19T22:34:24.645178Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
