@@ -1,6 +1,6 @@
 ---
 name: edition-planning
-description: Use this skill when creating a dated Papyrus edition, planning edition slots, dispatching surplus research or reporting assignments, overassigning candidate work, or preparing edition-candidate selection workflows.
+description: Use this skill when creating a dated Papyrus edition, planning edition slots, dispatching surplus research or reporting assignments, overassigning candidate work, or preparing candidate selection workflows.
 ---
 
 # Edition Planning Skill
@@ -206,9 +206,9 @@ UI picked the wrong default edition.
 
 ## Assignment Contract
 
-For edition-candidate research, use:
+For candidate research, use:
 
-- `assignmentTypeKey`: `research.edition-candidate`
+- `assignmentTypeKey`: `research.candidate`
 - `queueKey`: `edition:<editionSlug>:desk:<rootCategoryKey>:lane:<laneKey>`
 - `queueStatusKey`: `<queueKey>#<status>` when the model requires it
 - `status`: start with the current open/dispatched status expected by the

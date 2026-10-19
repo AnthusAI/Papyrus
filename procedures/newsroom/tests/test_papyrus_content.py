@@ -355,14 +355,13 @@ if __name__ == "__main__":
 class EditionsSettingTests(unittest.TestCase):
     def test_editions_are_off_without_configuration(self) -> None:
         with mock.patch.dict(os.environ, {"PAPYRUS_EDITIONS_ENABLED": ""}):
-            self.assertFalse(editions_enabled({"editions": {"enabled": False}}))
-            self.assertFalse(editions_enabled({}))
+            self.assertFalse(editions_enabled())
 
     def test_edition_commands_refuse_when_editions_are_off(self) -> None:
         with mock.patch.dict(os.environ, {"PAPYRUS_EDITIONS_ENABLED": "false"}):
             with self.assertRaisesRegex(ValueError, "does not publish in editions"):
                 editions_plan([])
 
-    def test_environment_override_turns_editions_on(self) -> None:
+    def test_environment_turns_editions_on(self) -> None:
         with mock.patch.dict(os.environ, {"PAPYRUS_EDITIONS_ENABLED": "true"}):
-            self.assertTrue(editions_enabled({}))
+            self.assertTrue(editions_enabled())

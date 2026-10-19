@@ -5,12 +5,6 @@ topics:
   steeringConfigPath: corpora/papyrus-steering.yml
   lexicalConfigPath: corpora/papyrus-lexical-steering.yml
 
-# Whether this publication publishes in dated editions. Off by default; when off,
-# the editions plan and dispatch commands refuse to run. Keep it in step with
-# SiteBrand.editions.enabled. PAPYRUS_EDITIONS_ENABLED overrides this.
-editions:
-  enabled: false
-
 # Public web UI used in outbound emails (submission feedback links to references).
 # Override in Lambda with PAPYRUS_PUBLIC_SITE_BASE_URL when config file is absent.
 publicSite:

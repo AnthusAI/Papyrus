@@ -11,7 +11,7 @@ from .ids import hash_short, safe_id
 from .model_attachments import attachment_record, build_json_model_payload_attachment
 from .options import normalize_string
 
-REPORTING_ASSIGNMENT_TYPE = "reporting.edition-candidate"
+REPORTING_ASSIGNMENT_TYPE = "reporting.candidate"
 REPORTING_PACKET_KIND = "reporting_context_packet"
 REPORTING_REVIEW_DECISIONS = frozenset({"select", "merge", "brief", "hold", "kill"})
 COPYWRITING_ARTICLE_ASSIGNMENT_TYPE = "copywriting.article-draft"

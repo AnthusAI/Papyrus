@@ -20,6 +20,11 @@ export function getSiteEnv(environment: EnvironmentVariables = process.env): Sit
   return configured as SiteEnv;
 }
 
+export function areEditionsEnabled(environment: EnvironmentVariables = process.env): boolean {
+  const configured = (environment.PAPYRUS_EDITIONS_ENABLED ?? "").trim().toLowerCase();
+  return configured === "true" || configured === "1" || configured === "yes" || configured === "on";
+}
+
 export function getContentSource(environment: EnvironmentVariables = process.env): ContentSource {
   const configured = (environment.PAPYRUS_CONTENT_SOURCE ?? "").trim();
   if (!configured) return "published";

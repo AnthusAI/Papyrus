@@ -194,7 +194,7 @@ export function applyPilobolusDemoDashboardContent(
   });
 
   localized.assignments = localized.assignments.map((assignment, index) => {
-    if (assignment.assignmentTypeKey === "reporting.edition-candidate") {
+    if (assignment.assignmentTypeKey === "reporting.candidate") {
       return {
         ...assignment,
         title: "Field-notes reporting candidate 1: Strangler-fig control-loop shift",

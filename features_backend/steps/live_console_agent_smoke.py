@@ -1049,7 +1049,7 @@ def _seed_update_assignment(client: GraphqlClient, marker: str) -> str:
     assignment_id = f"assignment-research-{marker}-seed-{uuid.uuid4().hex[:8]}"
     assignment_input = {
         "id": assignment_id,
-        "assignmentTypeKey": "research.edition-candidate",
+        "assignmentTypeKey": "research.candidate",
         "queueKey": "research:technology:exploratory",
         "queueStatusKey": "research:technology:exploratory#open",
         "status": "open",
