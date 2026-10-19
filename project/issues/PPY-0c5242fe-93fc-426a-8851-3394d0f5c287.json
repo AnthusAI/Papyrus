@@ -10,9 +10,19 @@
   "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f4ed4b35-a995-4005-9c56-e4a1fa7f20d0",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: p.apyr.us tenant data adopted 2026-10-19. Remaining on this story is the p.apyr.us 1.19.1 bump (PR 42) and the live checks in the read.p.apyr.us verification task.",
+      "created_at": "2026-10-19T16:48:04.988946Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T18:00:55.803522Z",
-  "updated_at": "2026-10-17T18:00:55.803772Z",
+  "updated_at": "2026-10-19T16:48:04.989083Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

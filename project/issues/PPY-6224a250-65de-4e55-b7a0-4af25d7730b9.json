@@ -1,0 +1,22 @@
+{
+  "id": "PPY-6224a250-65de-4e55-b7a0-4af25d7730b9",
+  "title": "Apply the Pilobolus app-shell stack and confirm its compute role",
+  "description": "State as of 2026-10-19 16:40Z. The Pilobolus app-shell stack has not been applied; it applies in the Pilobol.us Amplify build (PR 96 merged, app d1eiwl0gedkmnj). The Prospectus registry has papyrus-pilobol-us with role amplify-app-shell-pilobol-AmplifyComputeRoleD988057-cBnMtgLxcwD1.\n\nNext step: after the build, confirm on the Mac with read-only AWS: aws cloudformation describe-stack-resources --stack-name amplify-app-shell-pilobol-us-cms --query \"StackResources[?ResourceType=='AWS::IAM::Role'].[LogicalResourceId,PhysicalResourceId]\" --output text. If the physical id differs, update the Prospectus registry with the new ARN.\nBlocker: needs AWS access (papyrus-production 712236451410), which only the Mac has. Cloud threads have none.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:46:10.530315Z",
+  "updated_at": "2026-10-19T16:46:10.530686Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

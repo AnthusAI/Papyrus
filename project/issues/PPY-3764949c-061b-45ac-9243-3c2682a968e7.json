@@ -19,10 +19,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "0c5bb61d-6e2d-4fd8-b7e9-72a15107a646",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: cloud part done (4 articles, link check). The prose routes are React pages that need the Papyrus shell and theme, so the rest is Mac frontend work on a dev server. Blocked on reconnecting the Mac Remote Control session.",
+      "created_at": "2026-10-19T16:48:00.444274Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-17T22:25:40.105149Z",
-  "updated_at": "2026-10-17T22:32:36.462958Z",
+  "updated_at": "2026-10-19T16:48:00.444442Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

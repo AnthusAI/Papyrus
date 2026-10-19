@@ -10,9 +10,19 @@
   "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6b0600c3-2a9e-4719-a7df-ec0dc03722c4",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: Mac frontend task, not done. Covers no edition URL paths, archive or masthead when editions are off; TI home as its posts feed (TI PRs 56 and 57 merged, the live TI home now lists all 18 articles per Amplify job 38); read.p.apyr.us as the Papyrus stream reader with /information and its redirects removed. Live read.p.apyr.us still redirects to /information (404) until the 1.19.1 bump and deploy-edge land. Blocked on the Mac session.",
+      "created_at": "2026-10-19T16:48:03.016108Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-19T12:00:51.938793Z",
-  "updated_at": "2026-10-19T12:00:51.939142Z",
+  "updated_at": "2026-10-19T16:48:03.016264Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

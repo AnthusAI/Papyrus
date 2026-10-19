@@ -1,0 +1,22 @@
+{
+  "id": "PPY-3f14adf9-0432-49d7-95a6-accbe588c4d9",
+  "title": "Membership index backfill for Prospectus accounts, then switch membershipLookup to indexed",
+  "description": "State as of 2026-10-19 16:40Z. Prospectus PR 1 closed; PRs 18 and 20 merged (membership index, listings stay in scan mode). PRs 21, 23, 24, 25 and 26 were being landed: 23 and 25 merged, 24 (docs) in CI, 21 and 26 had fixes pushed and were waiting on CI.\n\nNext step, Mac, read-only first: (1) aws amplify list-jobs --app-id d15sc1sptohtqb --branch-name main --max-items 3 to confirm the PR 18 build succeeded; (2) PROSPECTUS_BUILD_IDENTITY_S3=true npm run build:identity-files, then PROSPECTUS_ACCOUNTS_BUCKET=prospectus-records-712236451410 PROSPECTUS_ACCOUNTS_OWNER=712236451410 node --import tsx scripts/rebuild-membership-index.ts and send back the printed JSON. Then the write step (--write with PROSPECTUS_MEMBERSHIP_INDEX_APPROVAL=712236451410/prospectus-records-712236451410), which writes create-only markers to production S3.\nBlocker: the write step needs Ryan's own typed approval on the Mac. After it runs, open the PR switching membershipLookup to indexed.\nOwner thread: Prospectus accounts integration.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T16:46:49.184638Z",
+  "updated_at": "2026-10-19T16:46:49.185093Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

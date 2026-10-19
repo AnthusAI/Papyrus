@@ -10,9 +10,19 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1f47c620-3744-47eb-a56f-5978142d2778",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: Cyclotron and Kanbus docs already have gated workflows. The Tactus docs workflow is PR 112 in the Tactus repo: GitHub refuses the merge until one approving review (Derek is the requested reviewer) and two more checks pass. Ryan's step: review Tactus PR 112. Biblicus and the Kanbus mkdocs site were still to be checked.",
+      "created_at": "2026-10-19T16:48:01.790507Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:26:07.495419Z",
-  "updated_at": "2026-10-17T22:26:07.495697Z",
+  "updated_at": "2026-10-19T16:48:01.790680Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

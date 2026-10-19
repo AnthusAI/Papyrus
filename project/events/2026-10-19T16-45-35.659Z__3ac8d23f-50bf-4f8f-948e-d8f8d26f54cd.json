@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3ac8d23f-50bf-4f8f-948e-d8f8d26f54cd",
+  "issue_id": "PPY-5602d543-93a4-4a78-a3da-87eda93f7e88",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T16:45:35.659Z",
+  "actor_id": "unknown",
+  "payload": {
+    "title": "Rollout: Papyrus 1.19.1 bumps on p.apyr.us and Pilobol.us, confirm in-build deploys ran",
+    "description": "State as of 2026-10-19 16:40Z. Papyrus 1.19.1 is on npm (deploy quoting fix and edge parameter fix). Pilobol.us PR 96 merged, so its Amplify build (app d1eiwl0gedkmnj) now runs papyrus-infra deploy. p.apyr.us PR 42 was waiting on CI; merge it, then its build (app ds6yswxui41yi) runs deploy-edge, which adopts CloudFront E17ZRAI87DN065 and E2EM0JLBC2W9WW.\n\nNext step: merge p.apyr.us 42 when CI is green, then confirm from the Amplify job logs that both builds ran their infra deploy and report the outcome.\nBlocker: none known; cloud threads cannot read AWS, so build confirmation comes from GitHub checks or the Mac.\nOwner thread: MVP rollout merges.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+    "labels": []
+  }
+}

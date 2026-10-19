@@ -10,9 +10,19 @@
   "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e4d4278f-5cfa-46a3-a2de-54468e97d55e",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: Mac frontend work, same as PPY-376494. Not started. Blocked on reconnecting the Mac Remote Control session.",
+      "created_at": "2026-10-19T16:48:01.132432Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-17T22:26:22.141538Z",
-  "updated_at": "2026-10-17T22:26:22.141809Z",
+  "updated_at": "2026-10-19T16:48:01.132621Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
