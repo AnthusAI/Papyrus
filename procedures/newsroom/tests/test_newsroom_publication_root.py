@@ -37,6 +37,7 @@ with patch.object(newsroom, 'execute_graphql', side_effect=graphql), \
      patch.object(newsroom.subprocess, 'run', side_effect=AssertionError('Direct S3 is not permitted for this reader')), \
      patch.object(newsroom, '_assignment_relations_for_assignment', return_value=[]), \
      patch.object(newsroom, '_assignment_doctrine_context', return_value=[]), \
+     patch.object(newsroom, 'papyrus_editorial_context', return_value={'entries':[], 'text':'', 'contextHash':'test'}), \
      patch.object(newsroom, '_assignment_events_for_assignments', return_value=[]):
     assignment = newsroom.papyrus_get_assignment_context('assignment-one')['assignment_context']['assignment']
 print(json.dumps({'root':str(newsroom.PAPYRUS_ROOT), 'contentRoot':str(env.PAPYRUS_ROOT),
