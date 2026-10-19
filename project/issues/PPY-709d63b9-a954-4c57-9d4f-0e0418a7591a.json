@@ -1,0 +1,32 @@
+{
+  "id": "PPY-709d63b9-a954-4c57-9d4f-0e0418a7591a",
+  "title": "Anth.us Amplify app link: create GitHub token secret and set repositoryAccessTokenSecretArn (Mac)",
+  "description": "Papyrus PR 335 lets the app shell set the Amplify repository from site.json via repositoryAccessTokenSecretArn (Secrets Manager). Remaining, on the Mac: create the GitHub token secret in the papyrus-production account, add its ARN to the Anth.us site.json by PR, and let the stack pipeline deploy it, so Amplify app d7s858igkyct5 moves off anthusai/anth.us-papyrus. No manual deploy.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "df2a7869-4580-41fa-914e-b6442041d114",
+      "author": "unknown",
+      "text": "Superseded: no token-free API path exists and a token is not possible. The Anth.us repo link (Amplify d7s858igkyct5, anthusai/anth.us-papyrus) needs the one-time Amplify console GitHub App connect, see docs/site-hosting.md.",
+      "created_at": "2026-10-18T23:55:51.793485Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
+  "created_at": "2026-10-18T23:36:45.958847Z",
+  "updated_at": "2026-10-18T23:55:51.793652Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
+  "agent": null,
+  "agent_assignment": null
+}

@@ -327,7 +327,7 @@ try {
   assert.equal(sealingSecretReads.length, 1, "prospectus: the compute role reads the sealing secret");
   assert.deepEqual(sealingSecretReads[0].Resource, { Ref: sealingSecretKeys[0] }, "prospectus: sealing secret read is scoped to that secret");
 
-  const synthVariant = (label, example, change) => {
+  const synthVariant = (label, example, change, { repositoryConnected = false } = {}) => {
     const config = JSON.parse(fs.readFileSync(path.join(shell, "examples", example), "utf8"));
     change(config);
     const variantSite = path.join(work, `${label}.site.json`);
@@ -335,9 +335,9 @@ try {
     const variantOut = path.join(infraApp, `cdk.out.${label}`);
     run("node", [cli, "synth", "--site", variantSite, "--out", variantOut], { cwd: infraApp });
     const text = fs.readFileSync(path.join(variantOut, fs.readdirSync(variantOut).find((name) => name.endsWith(".template.json"))), "utf8");
-    assert.equal(text.includes("AccessToken"), false, `${label}: AccessToken`);
+    assert.equal(text.includes("AccessToken"), repositoryConnected, `${label}: AccessToken`);
     assert.equal(text.includes("OauthToken"), false, `${label}: OauthToken`);
-    assert.equal(text.includes("Repository"), false, `${label}: Repository`);
+    assert.equal(text.includes("Repository"), repositoryConnected, `${label}: Repository`);
     return JSON.parse(text);
   };
   const removeDomains = (config) => {
@@ -452,6 +452,18 @@ try {
     message = String(error.stderr);
   }
   assert.match(message, /optional peer dependencies/, "synth without the CDK must explain the optional peers");
+
+  const connectedRepositoryArn = "arn:aws:secretsmanager:us-east-1:712236451410:secret:github-amplify-token-AbCdEf";
+  const connected = synthVariant("connected-repository", "pilobol-us.site.json", (config) => {
+    config.repositoryAccessTokenSecretArn = connectedRepositoryArn;
+  }, { repositoryConnected: true });
+  const connectedApps = resourcesOfType(connected, "AWS::Amplify::App");
+  assert.equal(connectedApps.length, 2, "connected repository: both apps present");
+  for (const app of connectedApps) {
+    assert.equal(app.Properties.Repository, "https://github.com/AnthusAI/Pilobol.us", "connected repository: app points at the site repository");
+    assert.equal(app.Properties.AccessToken, `{{resolve:secretsmanager:${connectedRepositoryArn}:SecretString}}`, "connected repository: token is a dynamic reference");
+  }
+  assert.equal(JSON.stringify(connected).includes("ghp_"), false, "connected repository: no literal token in the template");
 
   const renamed = synthVariant("renamed-stack", "pilobol-us.site.json", (config) => {
     config.stackName = "pilobol-us-new";

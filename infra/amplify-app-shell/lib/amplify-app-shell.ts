@@ -46,11 +46,22 @@ The stack also creates the `<siteId>-papyrus-authoring` role. The CLI signs
  * AppSync requests (SigV4) with credentials for that role (SSO, OIDC or any
  * principal in the account that may assume it); no token is stored anywhere.
  *
- * No repository and no access token are configured: the apps are manual-deploy
- * until Amplify's GitHub App is connected once in the console
- * (docs/site-hosting.md). The Papyrus backend itself is created inside the CMS
+ * Unless `repositoryAccessTokenSecretArn` is set, no repository and no access
+ * token are configured: the apps are manual-deploy until Amplify's GitHub App is
+ * connected once in the console (docs/site-hosting.md). When it is set, both apps
+ * are created against `repository` and read the GitHub token from that Secrets
+ * Manager secret through a CloudFormation dynamic reference, so the token never
+ * appears in site.json or the synthesized template. The Papyrus backend itself is created inside the CMS
  * app by `ampx pipeline-deploy` from the production build.
  */
+function repositoryConnectionProperties(config: AmplifyAppShellSiteConfig): { repository?: string; accessToken?: string } {
+  if (config.repositoryAccessTokenSecretArn === undefined) return {};
+  return {
+    repository: config.repository,
+    accessToken: `{{resolve:secretsmanager:${config.repositoryAccessTokenSecretArn}:SecretString}}`,
+  };
+}
+
 export class AmplifyAppShellStack extends Stack {
   public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
@@ -130,7 +141,10 @@ export class AmplifyAppShellStack extends Stack {
       );
     }
 
+    const repositoryConnection = repositoryConnectionProperties(config);
+
     const cmsApp = new amplify.CfnApp(this, "App", {
+      ...repositoryConnection,
       name: cmsAppName,
       description: `Papyrus newsroom CMS for ${config.siteId} (WEB_COMPUTE)`,
       platform: "WEB_COMPUTE",
@@ -389,6 +403,7 @@ export class AmplifyAppShellStack extends Stack {
     );
 
     const readerApp = new amplify.CfnApp(this, "ReaderApp", {
+      ...repositoryConnectionProperties(config),
       name: readerAppName,
       description: `Papyrus static reader for ${config.siteId} (WEB)`,
       platform: "WEB",

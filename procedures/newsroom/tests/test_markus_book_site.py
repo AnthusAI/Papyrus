@@ -164,6 +164,34 @@ class BookSourceTests(unittest.TestCase):
         former_address = (output_directory / "chapters" / "02-tools.html").read_text(encoding="utf-8")
         self.assertIn("../articles/chapters-02-tools.html", former_address)
 
+    @unittest.skipUnless(shutil.which("markus"), "markus executable not installed")
+    def test_home_page_is_the_real_first_chapter_and_not_a_redirect_to_itself(self) -> None:
+        output_directory = self.temporary_directory / "site"
+        build_book_site(self.project_directory, output_directory, source_repository_url="https://example.test/book")
+        home_page = (output_directory / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn('http-equiv="refresh"', home_page)
+        self.assertIn("Preface", home_page)
+
+    @unittest.skipUnless(shutil.which("markus"), "markus executable not installed")
+    def test_site_with_a_public_address_gets_an_articles_index_a_sitemap_and_a_not_found_page(self) -> None:
+        output_directory = self.temporary_directory / "site"
+        build_book_site(
+            self.project_directory,
+            output_directory,
+            source_repository_url="https://example.test/book",
+            published_site_url="https://example.test/book/",
+        )
+        articles_index = (output_directory / "articles" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("chapters-03-state.html", articles_index)
+        sitemap = (output_directory / "sitemap.xml").read_text(encoding="utf-8")
+        self.assertIn("https://example.test/book/index.html", sitemap)
+        self.assertIn("https://example.test/book/articles/chapters-03-state.html", sitemap)
+        self.assertNotIn("404.html", sitemap)
+        self.assertNotIn("chapters/02-tools.html", sitemap)
+        not_found_page = (output_directory / "404.html").read_text(encoding="utf-8")
+        self.assertIn('<base href="https://example.test/book/articles/">', not_found_page)
+        self.assertIn("Page not found", not_found_page)
+
 
 if __name__ == "__main__":
     unittest.main()
