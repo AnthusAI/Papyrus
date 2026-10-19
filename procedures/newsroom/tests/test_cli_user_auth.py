@@ -303,23 +303,56 @@ def test_failed_keychain_delete_cannot_report_successful_local_logout(fixture):
         with pytest.raises(AuthError,match='locked'):s.logout()
 
 
-def test_callback_rejects_wrong_state_then_accepts_matching_callback():
+@pytest.mark.parametrize('host', ['127.0.0.1', 'localhost'])
+def test_callback_keeps_ipv4_loopback_binding_and_rejects_wrong_state_or_path(host):
     from papyrus_content.cli_user_auth import receive_code
     import socket,threading,urllib.request,urllib.error
     with socket.socket() as free:
         free.bind(('127.0.0.1',0));port=free.getsockname()[1]
-    uri=f'http://127.0.0.1:{port}/oauth/callback';observed=[];threads=[]
+    from http.server import HTTPServer
+    bindings=[]
+    class RecordedServer(HTTPServer):
+        def server_bind(self):
+            bindings.append(self.server_address)
+            return super().server_bind()
+    uri=f'http://{host}:{port}/oauth/callback';observed=[];threads=[]
     def browser(_):
         def visit():
-            for state in ['wrong','expected']:
+            for address in [uri+'?state=wrong&code=fixture-code',
+                            f'http://{host}:{port}/wrong-path?state=expected&code=fixture-code',
+                            uri+'?state=expected&code=fixture-code']:
                 try:
-                    with urllib.request.urlopen(uri+'?state='+state+'&code=fixture-code',timeout=2) as response:observed.append(response.status)
+                    with urllib.request.urlopen(address,timeout=2) as response:observed.append(response.status)
                 except urllib.error.HTTPError as error:observed.append(error.code)
         thread=threading.Thread(target=visit);thread.start();threads.append(thread);return True
-    with patch('webbrowser.open',side_effect=browser):
+    with patch('webbrowser.open',side_effect=browser), patch('papyrus_content.cli_user_auth.HTTPServer', RecordedServer):
         assert receive_code(uri,'https://auth.example.test','expected',2)=='fixture-code'
     for thread in threads:thread.join(timeout=3)
-    assert observed==[400,200]
+    assert observed==[400,400,200]
+    assert bindings==[('127.0.0.1',port)]
+
+
+def test_registered_localhost_is_preserved_in_oauth_redirect_and_exchange(fixture):
+    from dataclasses import replace
+    c, clock, store, provider, seen, session = fixture
+    session.config = replace(c, callback_uri='http://localhost:3001/')
+    session.login()
+    assert parse_qs(urlparse(seen['url']).query)['redirect_uri'] == ['http://localhost:3001/']
+    assert provider.calls[0][1]['redirect_uri'] == 'http://localhost:3001/'
+
+
+@pytest.mark.parametrize('callback', [
+    'http://localhost.evil.test:3001/', 'http://localhost.:3001/',
+    'http://0.0.0.0:3001/', 'http://127.1:3001/', 'http://[::1]:3001/',
+    'https://localhost:3001/', 'http://localhost/', 'http://localhost:80/',
+    'http://person@localhost:3001/', 'http://localhost:3001/?redirect=evil',
+    'http://localhost:3001/#fragment', 'http://localhost:70000/',
+])
+def test_callback_url_expansion_still_rejects_unapproved_hosts_and_components(fixture, callback):
+    from dataclasses import replace
+    c, *_ = fixture
+    with pytest.raises(AuthError):
+        replace(c, callback_uri=callback)
 
 
 def test_login_timeout_is_bounded_and_does_not_store_a_session():

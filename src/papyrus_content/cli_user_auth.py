@@ -67,9 +67,9 @@ class AuthConfig:
             valid_port = callback.port is not None and 1024 <= callback.port <= 65535
         except ValueError:
             valid_port = False
-        if (callback.scheme != 'http' or callback.hostname != '127.0.0.1' or not valid_port
+        if (callback.scheme != 'http' or callback.hostname not in ('127.0.0.1', 'localhost') or not valid_port
                 or callback.username or callback.password or callback.query or callback.fragment):
-            raise AuthError('Native OAuth callback must be a registered http://127.0.0.1:<port>/ path.')
+            raise AuthError('Native OAuth callback must be a registered HTTP URL on literal 127.0.0.1 or localhost with a fixed unprivileged port.')
         if not self.client_id or not isinstance(self.client_id, str):
             raise AuthError('A registered native OAuth client id is required.')
         if self.refresh_lifetime_seconds is not None and (type(self.refresh_lifetime_seconds) is not int or self.refresh_lifetime_seconds <= 0):
@@ -256,6 +256,8 @@ def receive_code(callback_uri: str, authorization_url: str, state: str, timeout:
             connection.settimeout(min(5, timeout))
             return connection, address
     try:
+        # Preserve the exact registered redirect host in OAuth, but never resolve
+        # it to choose the listening interface or bind to wildcard interfaces.
         server = CallbackServer(('127.0.0.1', callback.port), Callback)
     except OSError:
         raise AuthError('Native OAuth callback port is unavailable; close the conflicting login and retry.') from None

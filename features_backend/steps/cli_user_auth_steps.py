@@ -1,6 +1,7 @@
 """Credential-free OAuth behavior through the real CLI dispatcher/session code."""
 import json
 import os
+from dataclasses import replace
 from contextlib import redirect_stdout
 from io import StringIO
 import tempfile
@@ -25,6 +26,12 @@ def configured_login(context):
         context.interactions.append('browser sign-in')
         return 'fixture-code'
     context.session = Session(context.auth_config,store=context.store,provider=context.provider,clock=lambda:context.clock[0],receive=receive)
+
+
+@given('its registered callback uses literal localhost')
+def registered_localhost(context):
+    context.auth_config = replace(context.auth_config, callback_uri='http://localhost:3001/')
+    context.session.config = context.auth_config
 
 
 @when('the user completes the CLI Google sign-in')

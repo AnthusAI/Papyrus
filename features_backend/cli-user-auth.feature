@@ -6,6 +6,12 @@ Feature: Renewable normal-user CLI authentication
     When the user completes the CLI Google sign-in
     Then the CLI identifies the user and publication without exposing tokens
 
+  Scenario: An already registered localhost callback can be used
+    Given a configured newsroom login with an isolated OAuth provider and secure store
+    And its registered callback uses literal localhost
+    When the user completes the CLI Google sign-in
+    Then the CLI identifies the user and publication without exposing tokens
+
   Scenario: Renew across process restarts after 24 simulated hours
     Given a configured newsroom login with an isolated OAuth provider and secure store
     When the user completes the CLI Google sign-in

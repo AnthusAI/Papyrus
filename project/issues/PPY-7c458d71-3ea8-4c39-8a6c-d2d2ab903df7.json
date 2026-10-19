@@ -94,10 +94,38 @@
         "name": "ChatGPT",
         "settings": {}
       }
+    },
+    {
+      "id": "3fe86ca0-65f4-4621-934a-111df990ab4b",
+      "author": "home",
+      "text": "Authorized follow-up under PR #344: accept literal localhost callback URLs in addition to literal 127.0.0.1, while keeping callback HTTPServer binding fixed to 127.0.0.1 and retaining PKCE/state/path/timeout/URL validation. Add positive/negative validation and real local callback regression coverage, update docs/PR, verify CI. No login or credential storage is authorized yet; parent is awaiting Ryan's live test approval.\n\nCorrection from live read-only inspection: the existing TI public client 4cesh0kl5ujqufcge656llome5 already supports Google/code/no-secret login, callback http://localhost:3001/, revocation and a 30-day refresh validity. TI AppSync accepts its pool without a client restriction. Therefore new live client/callback/TTL/grants are not prerequisites for a basic login + read-only access test; current code's numeric-host-only validation is the immediate blocker. The one-hour Prospectus server client is separate and need not be modified. Identity/login does not prove model/account permissions; any denied request remains denied.\n",
+      "created_at": "2026-10-19T11:33:08.046320Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
+    },
+    {
+      "id": "63ebe9fb-d8bd-4079-871f-f0e111aca69d",
+      "author": "home",
+      "text": "Localhost implementation validation: new BDD scenario failed before code change and passes afterward. 74 focused Python tests pass; 5 native-auth Behave scenarios/20 steps pass; git diff --check passes. Real fixture callback tests cover both localhost and 127.0.0.1, prove the listener binds only 127.0.0.1, reject wrong state and path, and retain timeout tests. Negative config tests reject remote/deceptive DNS, wildcard/alternate IP, IPv6, HTTPS callback, missing/privileged/out-of-range port, userinfo, query and fragment.\n\nExisting TI public metadata now validates offline without constructing Keychain or opening browser. Exact pending-approval command and public config: /Users/home/Documents/Codex/2026-10-18/task-2/papyrus-cli-login-design/live-test-proposal/ . Live login and credential storage remain pending Ryan's approval through parent. Updating draft PR #344 and checking CI on the new head; no merge/deployment or live settings change.\n",
+      "created_at": "2026-10-19T11:34:41.880360Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "ChatGPT",
+        "settings": {}
+      }
     }
   ],
   "created_at": "2026-10-19T10:36:38.396717Z",
-  "updated_at": "2026-10-19T11:13:13.116751Z",
+  "updated_at": "2026-10-19T11:34:41.880462Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

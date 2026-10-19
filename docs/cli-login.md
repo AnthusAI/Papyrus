@@ -1,6 +1,6 @@
 # Native newsroom CLI login
 
-`papyrus login` opens normal Google sign-in through a **configured native
+`papyrus login` opens normal Google sign-in through a **reviewed public
 Cognito app client**, then stores the renewable session in macOS Keychain.
 Editorial requests use the same Cognito user-pool authorization as the newsroom;
 AppSync remains responsible for validating the token and enforcing permissions.
@@ -15,10 +15,12 @@ session or extend browser sessions as part of setup.
 
 Before a **real** login, the identity/publication owner must review and configure:
 
-- An approved public native client on the existing publication user pool, using
+- An approved public client on the existing publication user pool, using
   Google, authorization code and PKCE S256; no embedded client secret.
-- Its exact loopback callback. This implementation binds only `127.0.0.1` and
-  refuses callbacks on other hosts. Register a fixed available port/path.
+- Its exact loopback callback. URLs may use literal `127.0.0.1` or `localhost`;
+  the listener always binds only `127.0.0.1`, never a hostname or wildcard
+  interface. Use a registered fixed available port/path. Other callback hosts,
+  credentials, query strings and fragments are refused.
 - The client/audience accepted by the publication API, normal user/group
   permissions, token revocation and the chosen refresh/rotation policy. No new
   grants, identity pool credentials or custom authorizer are introduced here.
@@ -33,6 +35,15 @@ These are action-time provider/security configuration decisions. No live app
 client, credentials, callback, role, session lifetime or deployment was changed
 while developing this PR. There is no production client id to copy from this
 example.
+
+An existing reviewed public web client can also support a basic native login
+test if it already admits Google code/PKCE, has no secret, registers an allowed
+loopback URL and has an appropriate existing refresh policy. A separate native
+client is not intrinsically required for that test. Reuse the exact registered
+URL; substituting `127.0.0.1` for `localhost` fails OAuth's redirect match. Do not
+change live client settings or grant permissions merely to make a test pass.
+This corrects the earlier assumption that every live test needs a new client.
+The separate short-lived Prospectus server client remains unsuitable.
 
 Save reviewed **public metadata** as `.papyrus/cli-auth.json` in the selected
 publication, or point `PAPYRUS_CLI_AUTH_CONFIG` at it:
@@ -77,6 +88,11 @@ valid. A protected API request must still succeed under server authorization.
 The CLI never fabricates a human editorial label from a signed-in identity;
 agent authorship/approval attribution remains the caller's explicit content
 metadata and the existing server action's responsibility.
+
+For a `localhost` redirect, the browser must reach the IPv4 loopback listener.
+If another application occupies the registered port, login fails safely; do not
+stop a user's server or bind a public interface. Check port availability before
+an approved interactive test.
 
 The active public selection is stored in a private metadata directory
 (`~/.config/papyrus` by default, override `PAPYRUS_CLI_STATE_DIR`). Renewable
