@@ -13,6 +13,7 @@ import json, os
 from pathlib import Path
 from unittest.mock import patch
 from papyrus_content import env
+from papyrus_content.biblicus_runner import resolve_biblicus_workdir
 from papyrus_newsroom import newsroom
 reads = []
 class Downloads:
@@ -41,7 +42,7 @@ with patch.object(newsroom, 'execute_graphql', side_effect=graphql), \
      patch.object(newsroom, '_assignment_events_for_assignments', return_value=[]):
     assignment = newsroom.papyrus_get_assignment_context('assignment-one')['assignment_context']['assignment']
 print(json.dumps({'root':str(newsroom.PAPYRUS_ROOT), 'contentRoot':str(env.PAPYRUS_ROOT),
-    'knowledgeRoot':str(newsroom.BIBLICUS_ROOT), 'steering':str(newsroom.STEERING_CONFIG_PATH),
+    'knowledgeRoot':str(resolve_biblicus_workdir()), 'steering':str(newsroom.STEERING_CONFIG_PATH),
     'brief':assignment.get('brief'), 'instructions':assignment.get('instructions'), 'reads':reads}))
 '''
 
@@ -51,6 +52,7 @@ def publication_fixture():
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
         (root/'amplify_outputs.json').write_text(json.dumps({'storage':{'bucket_name':'selected-publication-bucket'}}))
+        (root/'knowledge').mkdir()
         (root/'brief.txt').write_text('Selected brief')
         (root/'instructions.txt').write_text('Selected instructions')
         environment = dict(os.environ, PAPYRUS_ROOT=str(root), BIBLICUS_WORKDIR=str(root/'knowledge'),
@@ -81,7 +83,7 @@ def test_assignment_text_uses_supported_download_without_direct_s3_access():
 
 def test_configured_knowledge_work_directory_is_preserved():
     root, result = configured_publication_context()
-    assert result['knowledgeRoot'] == str(root/'knowledge')
+    assert result['knowledgeRoot'] == str((root/'knowledge').resolve())
 
 
 def test_denied_attachment_does_not_become_missing_guidance():
@@ -96,5 +98,5 @@ def test_default_root_uses_existing_content_resolution():
     environment = dict(os.environ, PYTHONPATH=str(SOURCE_ROOT), PYTHONDONTWRITEBYTECODE='1')
     environment.pop('PAPYRUS_ROOT', None)
     environment.pop('BIBLICUS_WORKDIR', None)
-    completed = subprocess.run([sys.executable, '-c', 'from papyrus_content import env; from papyrus_newsroom import newsroom; assert newsroom.PAPYRUS_ROOT == env.PAPYRUS_ROOT; assert newsroom.BIBLICUS_ROOT == env.BIBLICUS_ROOT'], env=environment, cwd=SOURCE_ROOT.parent, text=True, capture_output=True)
+    completed = subprocess.run([sys.executable, '-c', 'from papyrus_content import env; from papyrus_newsroom import newsroom; assert newsroom.PAPYRUS_ROOT == env.PAPYRUS_ROOT'], env=environment, cwd=SOURCE_ROOT.parent, text=True, capture_output=True)
     assert completed.returncode == 0, completed.stderr

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4d79357b-18fe-40bb-bf9a-462e99bc0fb4",
+  "issue_id": "PPY-742c9ffd-fd32-4c20-9fa8-5d10d92aec57",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T21:50:39.161Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Make the organizer shell the only newsroom shell",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

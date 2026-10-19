@@ -1708,16 +1708,23 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(assignment["liveAssignment"]["doctrine"][0]["scope"], "publication")
         self.assertEqual(item["layout"]["source"], "newsroom-live-assignment")
 
-    def test_biblicus_tool_resolves_config_and_uses_project_venv(self):
+    def test_biblicus_tool_resolves_config_and_runs_the_console_script_in_the_workdir(self):
         completed = mock.Mock(returncode=0, stdout="ok", stderr="")
-        with mock.patch.object(papyrus_newsroom.subprocess, "run", return_value=completed) as run:
-            result = papyrus_newsroom.biblicus_steering_artifacts("AI-ML-research")
+        with tempfile.TemporaryDirectory() as workdir:
+            config_path = pathlib.Path(workdir) / "steering.yml"
+            config_path.write_text("corpora:\n  - key: demo-corpus\n    path: corpora/demo-corpus\n", encoding="utf-8")
+            with mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": workdir}), mock.patch(
+                "papyrus_content.biblicus_runner.resolve_biblicus_executable",
+                return_value=pathlib.Path("/venv/bin/biblicus"),
+            ), mock.patch.object(papyrus_newsroom.subprocess, "run", return_value=completed) as run:
+                result = papyrus_newsroom.biblicus_steering_artifacts("demo-corpus", str(config_path))
+            resolved_workdir = pathlib.Path(workdir).resolve()
 
         self.assertEqual(result["status"], "ok")
         command = run.call_args.args[0]
-        self.assertEqual(command[1:4], ["-m", "biblicus", "steering"])
-        self.assertIn("/Users/ryan/Projects/Biblicus/.venv/bin/python", command[0])
-        self.assertIn("/Users/ryan/Projects/Biblicus/corpora/AI-ML-research", command)
+        self.assertEqual(command[:3], ["/venv/bin/biblicus", "steering", "artifacts"])
+        self.assertIn(str(resolved_workdir / "corpora/demo-corpus"), command)
+        self.assertEqual(run.call_args.kwargs["cwd"], resolved_workdir)
 
     def test_semantic_key_builders_match_relation_indexes(self):
         self.assertEqual(
@@ -2275,9 +2282,8 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             "sourcePublishedAt": "2021-01-07T00:00:00Z",
             "sourceIsArchived": True,
         }
-        with mock.patch(
-            "papyrus_newsroom.reference_curation_signals.BIBLICUS_ROOT",
-            pathlib.Path(__file__).resolve().parent,
+        with mock.patch.dict(
+            "os.environ", {"BIBLICUS_WORKDIR": str(pathlib.Path(__file__).resolve().parent)}
         ), mock.patch(
             "papyrus_newsroom.reference_curation_signals._semantic_client",
             return_value=mock.Mock(),
@@ -2288,10 +2294,10 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
             "papyrus_newsroom.reference_curation_signals._load_reference_metadata_payload",
             return_value={},
         ), mock.patch(
-            "papyrus_newsroom.reference_curation_signals._biblicus_python_executable",
-            return_value=pathlib.Path("/tmp/fake-biblicus-python"),
+            "papyrus_content.biblicus_runner.resolve_biblicus_executable",
+            return_value=pathlib.Path("/tmp/fake-biblicus"),
         ), mock.patch(
-            "papyrus_newsroom.reference_curation_signals.subprocess.run",
+            "papyrus_content.biblicus_runner.subprocess.run",
         ) as run_subprocess:
             def fake_subprocess(command, **kwargs):
                 task = command[command.index("--task") + 1]
@@ -2314,18 +2320,12 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
                     returncode=0,
                     stdout=json.dumps(
                         {
+                            "status": "ok",
                             "task": task,
                             "value": value,
                             "prompt_version": "summarize-map-reduce-v2",
                             "model": "gpt-5.4-nano",
-                            "map_reduce": {
-                                "chunk_count": 1,
-                                "map": [{"chunk_index": 1, "candidate": value}],
-                                "reduce": {
-                                    "summary" if task == "summary" else task: value,
-                                    "rationale": "Reduced deterministically.",
-                                },
-                            },
+                            "map_reduce": {"map_calls": 1, "reduce_calls": 1, "chunk_count": 1},
                         }
                     ),
                     stderr="",

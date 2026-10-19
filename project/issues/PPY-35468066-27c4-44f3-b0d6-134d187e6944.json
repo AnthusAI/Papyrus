@@ -10,9 +10,19 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "06846992-5cfb-4061-aaac-c0ae35548d1b",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: backlog only, nothing started. Depends on the editions switch (PPY-8b3b4d) landing and on the reader work (PPY-079d73) so a publication can turn editions on.",
+      "created_at": "2026-10-19T16:48:02.421370Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-19T11:59:47.727184Z",
-  "updated_at": "2026-10-19T11:59:47.727522Z",
+  "updated_at": "2026-10-19T16:48:02.421531Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

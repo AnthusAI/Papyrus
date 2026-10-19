@@ -10,9 +10,19 @@
   "parent": "PPY-b21e0548-8274-40a4-8f23-e1c10104c439",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "87b28604-512e-4894-941e-7cfb67e34885",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: Mac task, not done. Papyrus PR 345 (editions setting, one source of truth PAPYRUS_EDITIONS_ENABLED, assignment types renamed to candidate) was waiting on CI when last reported. Site configs for p.apyr.us and Threat Intelligence still need editions off. Blocked on the Mac session.",
+      "created_at": "2026-10-19T16:48:03.662019Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
+    }
+  ],
   "created_at": "2026-10-19T12:01:25.764147Z",
-  "updated_at": "2026-10-19T12:01:25.764610Z",
+  "updated_at": "2026-10-19T16:48:03.662182Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -22,9 +22,6 @@ export const NEWSROOM_INBOX_ROW_ACTIVE =
 export const NEWSROOM_SIDEBAR_NAV_ACTIVE =
   "bg-primary/10 text-foreground shadow-none hover:bg-primary/15";
 
-export const NEWSROOM_SIDEBAR_NAV_INACTIVE =
-  "text-muted-foreground hover:bg-muted/50 hover:text-foreground";
-
 export function newsroomListRowClassName(active: boolean, className?: string): string {
   return cn(
     NEWSROOM_LIST_ROW_BASE,

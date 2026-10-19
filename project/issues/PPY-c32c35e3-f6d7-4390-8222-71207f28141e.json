@@ -1,0 +1,48 @@
+{
+  "id": "PPY-c32c35e3-f6d7-4390-8222-71207f28141e",
+  "title": "Run every Biblicus call through one BiblicusRunner (PyPI Biblicus, BIBLICUS_WORKDIR)",
+  "description": "Replace the five hand-written Biblicus subprocess bridges (and the other uv run / python -m biblicus call sites) with papyrus_content.biblicus_runner.BiblicusRunner, which runs the installed biblicus console script, owns environment, working directory, JSON parsing and typed errors, and validates output with biblicus.api models. Remove BIBLICUS_ROOT, the sibling-checkout default, uv run and the dependency-retry fallback. BIBLICUS_WORKDIR is required. Links to Biblicus blbs-af04bd. Corpus data migrations are out of scope.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "75887df7-000a-4e57-a4db-dc4b30177b62",
+      "author": "home",
+      "text": "Branch feature/PPY-c32c35-biblicus-runner, PR https://github.com/AnthusAI/Papyrus/pull/365 (supersedes #364). Verification: CI python, ts and smoke all green on the PR. Local: CI pytest command 22 failed (all pre-existing environmental, identical to develop baseline) / 1127 passed; behave failing set unchanged; pilot-identifier guard OK. Not yet merged to develop; issue stays in_progress.",
+      "created_at": "2026-10-19T18:43:55.077447Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5"
+      }
+    },
+    {
+      "id": "90020269-7c1f-495b-8016-08c70123548c",
+      "author": "home",
+      "text": "Merged to develop in AnthusAI/Papyrus#365 (merge a0dfc282) after review; CI green (python, smoke, ts). Not yet on main: lands with the next develop->main release.",
+      "created_at": "2026-10-19T18:45:11.138295Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "claude"
+      }
+    }
+  ],
+  "created_at": "2026-10-19T18:19:05.495644Z",
+  "updated_at": "2026-10-19T18:45:11.164517Z",
+  "closed_at": "2026-10-19T18:45:11.164481Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

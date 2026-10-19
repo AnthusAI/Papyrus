@@ -177,20 +177,6 @@ def _optional_string(value: Any) -> str | None:
     return value.strip()
 
 
-def looks_like_biblicus_project(path: Path) -> bool:
-    if not path.exists():
-        return False
-    if (path / "src" / "biblicus").is_dir():
-        return True
-    pyproject = path / "pyproject.toml"
-    if not pyproject.exists():
-        return False
-    try:
-        return "biblicus" in pyproject.read_text(encoding="utf-8", errors="ignore").lower()
-    except OSError:
-        return False
-
-
 def resolve_corpus_local_path(corpus: dict[str, Any], steering_config: dict[str, Any]) -> Path:
     config_path = steering_config.get("configPath")
     if not isinstance(config_path, str) or not config_path.strip():
@@ -222,23 +208,6 @@ def resolve_corpus_local_path(corpus: dict[str, Any], steering_config: dict[str,
                 return candidate
         raise ValueError(f"Corpus path does not exist: {resolved}")
     return resolved
-
-
-def resolve_biblicus_runtime_dir(options: dict[str, Any]) -> Path:
-    from .env import BIBLICUS_ROOT
-
-    raw = _optional_string(options.get("biblicus-workdir")) or _optional_string(options.get("biblicusWorkdir"))
-    candidate = Path(raw) if raw else BIBLICUS_ROOT
-    resolved = candidate.expanduser().resolve()
-    if looks_like_biblicus_project(resolved):
-        return resolved
-    sibling = (PAPYRUS_ROOT.parent / "Biblicus").resolve()
-    if looks_like_biblicus_project(sibling):
-        return sibling
-    raise ValueError(
-        f"Biblicus project directory was not found at {resolved}. "
-        "Set --biblicus-workdir to a Biblicus checkout (with src/biblicus/)."
-    )
 
 
 def find_corpus_config_by_path(config: dict[str, Any] | None, corpus_path: str | None) -> dict[str, Any] | None:

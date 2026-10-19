@@ -48,7 +48,7 @@ Papyrus can generate narrated summary videos for Threat Intelligence seed articl
 3. **Worktree note:** `.papyrus/` is per-checkout and gitignored. When running from a git worktree that does not have its own `.papyrus/config.yaml`, either copy the file from the main clone or set:
 
    ```bash
-   export PAPYRUS_CONFIG=/Users/ryan/Projects/Threat-Intelligence/.papyrus/config.yaml
+   export PAPYRUS_CONFIG=/path/to/main-clone/.papyrus/config.yaml
    ```
 
 ## Commands

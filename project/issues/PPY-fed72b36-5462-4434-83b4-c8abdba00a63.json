@@ -1,0 +1,24 @@
+{
+  "id": "PPY-fed72b36-5462-4434-83b4-c8abdba00a63",
+  "title": "GROBID title boilerplate leaks into priming title",
+  "description": "Found by the Cyclotron session (read-only; refs at origin/main a35694b).\n\n`src/papyrus_content/priming_curation.py:55` (`title=str(metadata.get(title) or )`; the task cited :52) prefers GROBID metadata title. For arxiv.org/abs/1706.03762 the title came out as \"Provided proper attribution is provided, Google hereby grants permission... Attention Is All You Need\".\n\n```gherkin\nFeature: Clean priming titles\n  Scenario: GROBID title carries licence boilerplate\n    Given GROBID returns a title starting with permission boilerplate for arxiv.org/abs/1706.03762\n    When priming curation derives the title\n    Then the title is \"Attention Is All You Need\"\n```\nAcceptance: add a boilerplate guard (reject licence/permission text) and/or fall back to the arXiv abs-page title; regression spec uses 1706.03762.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T21:56:38.054760Z",
+  "updated_at": "2026-10-19T21:56:38.054806Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

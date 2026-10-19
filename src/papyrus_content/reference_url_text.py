@@ -4,17 +4,14 @@ import hashlib
 import json
 import os
 import re
-import shutil
-import subprocess
-import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from .biblicus_runtime import biblicus_python_executable, environment_with_biblicus_source_checkout
-from .env import BIBLICUS_ROOT, load_amplify_outputs, storage_bucket_from_amplify_outputs
+from .biblicus_runner import BiblicusCommandError, BiblicusRunner, BiblicusRunnerError
+from .env import load_amplify_outputs, storage_bucket_from_amplify_outputs
 from .corpus_storage_paths import corpus_storage_path_prefix
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
 from .model_defaults import DEFAULT_REFERENCE_FILTER_MODEL
@@ -2024,145 +2021,28 @@ def _filter_article_text(
 
 
 def _run_biblicus_url_text(payload: dict[str, Any], *, grobid_url: str | None = None) -> dict[str, Any]:
-    if not BIBLICUS_ROOT.is_dir():
-        raise ReferenceUrlTextExtractionError(
-            reason={
-                "code": "biblicus_checkout_missing",
-                "message": f"Biblicus checkout not found at {BIBLICUS_ROOT}.",
-            }
-        )
-    command = [
-        str(_biblicus_python_executable()),
-        "-c",
-        "import json,sys; from biblicus.url_text import extract_url_text; "
-        "print(json.dumps(extract_url_text(**json.load(sys.stdin))))",
-    ]
-    env = _biblicus_env(grobid_url=grobid_url)
-    completed = subprocess.run(
-        command,
-        cwd=BIBLICUS_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-        input=json.dumps(payload),
-        env=env,
-    )
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-    parsed_stdout = _json_object_or_none(stdout)
-    if completed.returncode != 0:
-        reason = (
-            parsed_stdout.get("error")
-            if isinstance(parsed_stdout, dict) and isinstance(parsed_stdout.get("error"), dict)
-            else {
-                "code": "biblicus_cli_failed",
-                "message": stderr or stdout or f"Biblicus URL text command exited {completed.returncode}.",
-            }
-        )
-        raise ReferenceUrlTextExtractionError(reason=reason)
-    if not isinstance(parsed_stdout, dict):
-        raise ReferenceUrlTextExtractionError(
-            reason={
-                "code": "invalid_biblicus_output",
-                "message": "Biblicus URL text command returned invalid JSON output.",
-                "details": {"stdout": stdout},
-            }
-        )
-    return parsed_stdout
+    from biblicus.api import UrlTextRequest
+
+    try:
+        runner = BiblicusRunner.from_environment(grobid_url=grobid_url)
+        response = runner.extract_url_text(UrlTextRequest(**payload))
+    except BiblicusRunnerError as error:
+        raise ReferenceUrlTextExtractionError(reason=error.failure_reason()) from error
+    return response.model_dump(mode="json", exclude_unset=True)
 
 
 def _run_biblicus_article_text(payload: dict[str, Any]) -> dict[str, Any]:
-    if not BIBLICUS_ROOT.is_dir():
-        raise RuntimeError(f"Biblicus checkout not found at {BIBLICUS_ROOT}.")
-    command = [
-        str(_biblicus_python_executable()),
-        "-m",
-        "biblicus",
-        "extract",
-        "article-text",
-        "--input-json",
-        "-",
-        "--format",
-        "json",
-    ]
+    from biblicus.web_transform import ArticleInput
+
+    runner = BiblicusRunner.from_environment()
     try:
-        completed = subprocess.run(
-            command,
-            cwd=BIBLICUS_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-            input=json.dumps(payload),
-            env=_biblicus_env(),
-            timeout=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
+        result = runner.extract_article_text(
+            ArticleInput.model_validate(payload, strict=False),
+            timeout_seconds=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
         )
-    except subprocess.TimeoutExpired as error:
-        raise RuntimeError(
-            f"Biblicus article-text command timed out after {ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS} seconds."
-        ) from error
-    stdout = (completed.stdout or "").strip()
-    stderr = (completed.stderr or "").strip()
-    parsed_stdout = _json_object_or_none(stdout)
-    from .priming_provider_budget import worker_environment
-    if worker_environment() is None and _is_missing_dspy_error(parsed_stdout) and shutil.which("uv"):
-        uv_command = [
-            "uv",
-            "run",
-            "--extra",
-            "dspy",
-            "--extra",
-            "openai",
-            "biblicus",
-            "extract",
-            "article-text",
-            "--input-json",
-            "-",
-            "--format",
-            "json",
-        ]
-        try:
-            completed = subprocess.run(
-                uv_command,
-                cwd=BIBLICUS_ROOT,
-                capture_output=True,
-                text=True,
-                check=False,
-                input=json.dumps(payload),
-                env=_biblicus_env(),
-                timeout=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise RuntimeError(
-                f"Biblicus article-text command timed out after {ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS} seconds."
-            ) from error
-        stdout = (completed.stdout or "").strip()
-        stderr = (completed.stderr or "").strip()
-        parsed_stdout = _json_object_or_none(stdout)
-    if completed.returncode != 0:
-        if isinstance(parsed_stdout, dict) and isinstance(parsed_stdout.get("error"), dict):
-            error = parsed_stdout["error"]
-            raise RuntimeError(str(error.get("message") or error.get("code") or "Biblicus article-text command failed."))
-        raise RuntimeError(stderr or stdout or f"Biblicus article-text command exited {completed.returncode}.")
-    if not isinstance(parsed_stdout, dict):
-        raise RuntimeError("Biblicus article-text command returned invalid JSON output.")
-    return parsed_stdout
-
-
-def _biblicus_env(*, grobid_url: str | None = None) -> dict[str, str]:
-    env = dict(os.environ)
-    from .priming_provider_budget import worker_environment
-    scoped = worker_environment()
-    if scoped is not None:
-        env = {name:value for name,value in env.items() if name in {'PATH','PYTHONPATH','HOME','LANG','LC_ALL','TMPDIR','SYSTEMROOT','OPENBLAS_NUM_THREADS','OMP_NUM_THREADS','BIBLICUS_WORKDIR'}}
-        env.update(scoped)
-    env = environment_with_biblicus_source_checkout(env)
-    resolved_grobid = str(grobid_url or env.get("BIBLICUS_GROBID_URL") or "").strip()
-    if resolved_grobid:
-        env["BIBLICUS_GROBID_URL"] = resolved_grobid
-    return env
-
-
-_biblicus_python_executable = biblicus_python_executable
+    except BiblicusCommandError as error:
+        raise RuntimeError(error.failure_message()) from error
+    return result.model_dump(mode="json")
 
 
 def _read_attachment_text_from_s3(*, s3_client: Any, bucket: str, attachment: dict[str, Any]) -> str:
@@ -2175,32 +2055,6 @@ def _read_attachment_text_from_s3(*, s3_client: Any, bucket: str, attachment: di
     if not text:
         raise ValueError(f"Attachment {attachment.get('id') or '-'} is empty.")
     return text
-
-
-def _json_object_or_none(raw_text: str) -> dict[str, Any] | None:
-    if not raw_text:
-        return None
-    try:
-        parsed = json.loads(raw_text)
-        return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
-        stripped = raw_text.strip()
-        if not stripped:
-            return None
-        decoder = json.JSONDecoder()
-        for index, character in enumerate(stripped):
-            if character != "{":
-                continue
-            try:
-                candidate, end_index = decoder.raw_decode(stripped[index:])
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(candidate, dict):
-                continue
-            if stripped[index + end_index :].strip():
-                continue
-            return candidate
-        return None
 
 
 def _bounded_retry_trace(value: Any, *, limit: int) -> list[dict[str, Any]]:
@@ -2255,13 +2109,6 @@ def _coerce_non_negative_int(value: Any) -> int | None:
     return parsed
 
 
-def _is_missing_markitdown_error(payload: dict[str, Any] | None) -> bool:
-    if not isinstance(payload, dict):
-        return False
-    error = payload.get("error")
-    return isinstance(error, dict) and str(error.get("code") or "") == "missing_markitdown_dependency"
-
-
 def _looks_like_pdf_uri(value: Any) -> bool:
     raw = str(value or "").strip().lower()
     if not raw:
@@ -2289,17 +2136,6 @@ def _should_passthrough_youtube_content(*, source_uri: str, extracted: dict[str,
         return True
     strategy = str(extracted.get("strategy") or "").strip().lower()
     return strategy == "youtube-direct-markitdown"
-
-
-def _is_missing_dspy_error(payload: dict[str, Any] | None) -> bool:
-    if not isinstance(payload, dict):
-        return False
-    error = payload.get("error")
-    if not isinstance(error, dict):
-        return False
-    code = str(error.get("code") or "").strip()
-    message = str(error.get("message") or "").lower()
-    return code in {"missing_dspy_dependency", "article_text_filter_failed"} and "biblicus[dspy]" in message
 
 
 def _is_grobid_failure_reason(reason: dict[str, Any] | None) -> bool:

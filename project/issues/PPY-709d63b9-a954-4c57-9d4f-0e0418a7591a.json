@@ -19,10 +19,19 @@
       "comment_type": "default",
       "data": {},
       "agent": null
+    },
+    {
+      "id": "015cd576-6e4c-40b6-9211-216c65bad6d7",
+      "author": "unknown",
+      "text": "Status 2026-10-19 16:40Z: Anth.us Amplify app d7s858igkyct5 is not building. Amplify cannot link the repo without a one-time console click (no token-free API path). Ryan's step: reconnect the app to AnthusAI/Anth.us-web in the Amplify console. Nothing else is left on this item.",
+      "created_at": "2026-10-19T16:47:59.840404Z",
+      "comment_type": "default",
+      "data": {},
+      "agent": null
     }
   ],
   "created_at": "2026-10-18T23:36:45.958847Z",
-  "updated_at": "2026-10-18T23:55:51.793652Z",
+  "updated_at": "2026-10-19T16:47:59.840660Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

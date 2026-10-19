@@ -1,61 +1,47 @@
-"""Integration tests for shared web structured metadata (requires Biblicus checkout)."""
+"""Integration tests for shared web structured metadata, run through the installed Biblicus console script."""
 
 from __future__ import annotations
 
-import json
-import subprocess
+import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from papyrus_content import web_structured_metadata
+from papyrus_content.biblicus_runner import BiblicusRunner
 from papyrus_content.catalog import normalize_catalog_reference_item
-from papyrus_content.env import BIBLICUS_ROOT
 from papyrus_content.source_site_plugins import resolve_source_site_enrichment
 from papyrus_newsroom import reference_curation_signals
 
-_BIBLICUS_FIXTURES = BIBLICUS_ROOT / "tests" / "fixtures" / "html_heuristics"
-_BLOG_FIXTURE = _BIBLICUS_FIXTURES / "synthetic_blog_json_ld.html"
-_NEWS_FIXTURE = _BIBLICUS_FIXTURES / "synthetic_news_open_graph.html"
+_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "web_metadata"
+_BLOG_FIXTURE = _FIXTURES / "synthetic_blog_json_ld.html"
+_NEWS_FIXTURE = _FIXTURES / "synthetic_news_open_graph.html"
 
 
-def _biblicus_available() -> bool:
-    return BIBLICUS_ROOT.is_dir() and _BLOG_FIXTURE.is_file()
-
-
-@unittest.skipUnless(_biblicus_available(), "Biblicus checkout and HTML fixtures required")
 class WebStructuredMetadataIntegrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        workdir = tempfile.TemporaryDirectory()
+        self.addCleanup(workdir.cleanup)
+        environment = patch.dict(os.environ, {"BIBLICUS_WORKDIR": workdir.name})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_biblicus_cli_matches_python_api(self):
         html = _BLOG_FIXTURE.read_text(encoding="utf-8")
+        from biblicus.api import WebMetadataRequest
         from biblicus.web_reference_metadata import extract_web_reference_metadata_from_html
 
         api_payload = extract_web_reference_metadata_from_html(
             html,
             source_uri="https://fixture.test/blog/post",
         )
-        proc = subprocess.run(
-            [
-                str(BIBLICUS_ROOT / ".venv" / "bin" / "python")
-                if (BIBLICUS_ROOT / ".venv" / "bin" / "python").is_file()
-                else "python3",
-                "-m",
-                "biblicus",
-                "extract",
-                "web-metadata",
-                "--input-json",
-                "-",
-            ],
-            cwd=BIBLICUS_ROOT,
-            input=json.dumps({"source_uri": "https://fixture.test/blog/post", "html_content": html}),
-            capture_output=True,
-            text=True,
-            check=False,
+        cli_response = BiblicusRunner.from_environment().extract_web_metadata(
+            WebMetadataRequest(source_uri="https://fixture.test/blog/post", html_content=html)
         )
-        self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
-        cli_payload = json.loads(proc.stdout)
-        self.assertEqual(cli_payload.get("status"), "ok")
-        self.assertEqual(cli_payload.get("title"), api_payload.get("title"))
-        self.assertEqual(cli_payload.get("authors"), api_payload.get("authors"))
+        self.assertEqual(cli_response.status, "ok")
+        self.assertEqual(cli_response.title, api_payload.get("title"))
+        self.assertEqual(cli_response.authors, api_payload.get("authors"))
 
     def test_papyrus_subprocess_resolves_blog_fixture(self):
         html = _BLOG_FIXTURE.read_text(encoding="utf-8")
@@ -88,15 +74,17 @@ class WebStructuredMetadataIntegrationTests(unittest.TestCase):
         self.assertTrue(metadata.get("title") or metadata.get("webStructuredMetadata"))
 
 
-class WebStructuredMetadataFallbackTests(unittest.TestCase):
-    def test_missing_biblicus_raises_clear_error(self):
-        with patch.object(web_structured_metadata, "BIBLICUS_ROOT", Path("/nonexistent/biblicus")):
+class WebStructuredMetadataConfigurationTests(unittest.TestCase):
+    def test_missing_workdir_raises_clear_error(self):
+        with patch.dict(os.environ):
+            os.environ.pop("BIBLICUS_WORKDIR", None)
             with self.assertRaises(web_structured_metadata.WebStructuredMetadataError) as ctx:
                 web_structured_metadata.resolve_web_reference_metadata(
                     "https://example.test/article",
                     html_content="<html><title>Hi</title></html>",
                 )
-        self.assertEqual(ctx.exception.reason.get("code"), "biblicus_checkout_missing")
+        self.assertEqual(ctx.exception.reason.get("code"), "biblicus_runner_failed")
+        self.assertIn("BIBLICUS_WORKDIR is required", ctx.exception.reason.get("message"))
 
 
 if __name__ == "__main__":

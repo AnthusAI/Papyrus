@@ -15,9 +15,9 @@ from .analysis_graph import (
     hydrate_graph_reference_map_sync,
     plan_graph_artifact_import,
 )
+from .biblicus_runner import resolve_biblicus_workdir
 from .analysis_profiles import (
     DEFAULT_ANALYSIS_PROFILES_PATH,
-    DEFAULT_BIBLICUS_WORKDIR,
     analysis_profile_by_key,
     build_analysis_reindex_assignment_records,
     build_analysis_reindex_plan,
@@ -77,7 +77,7 @@ def analysis_entity_graph_preflight(flags: list[str]) -> None:
     from .corpus_storage_paths import default_corpus_path
 
     corpus_path = Path(default_corpus_path(corpus))
-    biblicus_workdir = Path(options.get("biblicus-workdir") or plan.get("biblicusWorkdir") or DEFAULT_BIBLICUS_WORKDIR).resolve()
+    biblicus_workdir = resolve_biblicus_workdir(options.get("biblicus-workdir") or plan.get("biblicusWorkdir"))
     payload: dict[str, Any] | None = None
     if snapshot_resolved and snapshot_ref:
         snapshot_manifest = _resolve_snapshot_manifest_path(biblicus_workdir, corpus_path, snapshot_ref)
@@ -829,7 +829,7 @@ def _analysis_publish_graph_snapshot_internal(
     steering_config = require_steering_config(options.get("config"))
     corpus = require_corpus_config(steering_config, corpus_key, "--corpus-key")
     corpus_id = knowledge_corpus_id(corpus)
-    biblicus_workdir = Path(options.get("biblicus-workdir") or DEFAULT_BIBLICUS_WORKDIR).resolve()
+    biblicus_workdir = resolve_biblicus_workdir(options.get("biblicus-workdir"))
     from .corpus_storage_paths import default_corpus_path
 
     corpus_path = Path(default_corpus_path(corpus))
@@ -1074,7 +1074,7 @@ def _extractor_from_graph_extract_command(command_result: dict[str, Any], plan: 
             return str(argv[index + 1])
     command_plan = plan.get("commandPlan") if isinstance(plan.get("commandPlan"), list) else []
     graph_extract = next((entry for entry in command_plan if entry.get("label") == "graph-extract"), None)
-    args = [str(part) for part in (graph_extract or {}).get("args") or []]
+    args = [str(part) for part in (graph_extract or {}).get("arguments") or []]
     for index, part in enumerate(args):
         if part == "--extractor" and index + 1 < len(args):
             return str(args[index + 1])

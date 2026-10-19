@@ -10,9 +10,8 @@ Papyrus now packages its Python newsroom tooling as the Poetry-managed
 Use Poetry as the canonical Python entrypoint:
 
 ```bash
-poetry install
-# Editable sibling ../Biblicus (entity extraction, HTML heuristics, graph NER dev):
-./scripts/install-biblicus-local.sh
+poetry install --extras newsroom
+export BIBLICUS_WORKDIR=/path/to/biblicus-workdir
 poetry run papyrus --help
 poetry run papyrus assignments build-context --assignment <assignment-id>
 poetry run papyrus procedures execute-tactus 'return api_list{}'
@@ -61,7 +60,7 @@ and excludes live-agent scenarios.
 
 `npm run test:bdd:agent-live` runs only the backend live-agent Gherkin smoke
 suite via Behave (Python).
-The live-agent suite is sandbox-only (`/Users/ryan/Projects/Papyrus` workspace)
+The live-agent suite is sandbox-only (a dedicated sandbox checkout, never a production workspace)
 and defaults the chat-agent model policy to `gpt-5-nano`.
 Live scenarios persist tagged test records by default for dogfooding
 (`behave-live-agent-*` prefixes); set `PAPYRUS_LIVE_AGENT_CLEANUP=1` to delete

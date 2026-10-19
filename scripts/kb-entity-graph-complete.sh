@@ -12,7 +12,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PROD_ENV="${PAPYRUS_PRODUCTION_ENV:-/Users/ryan/Projects/Papyrus-production/.env}"
+PROD_ENV="${PAPYRUS_PRODUCTION_ENV:?set PAPYRUS_PRODUCTION_ENV to the production .env file}"
 CONFIG="${PAPYRUS_STEERING_CONFIG:-$PROD_ENV/../corpora/papyrus-steering.yml}"
 CORPUS_KEY="AI-ML-research"
 SNAPSHOT=""

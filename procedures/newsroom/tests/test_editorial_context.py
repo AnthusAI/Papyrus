@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from papyrus_content.editorial_context import resolve_editorial_context, load_local_context
 
@@ -145,10 +146,14 @@ class EditorialWorkerTests(unittest.TestCase):
 
     def test_compactor_cannot_drop_required_policy(self):
         from unittest.mock import patch
+        from biblicus.api import ContextPackBuildBlocksResponse
+        from papyrus_content.biblicus_runner import BiblicusRunner
         from papyrus_newsroom.newsroom import _build_biblicus_block_context_pack
-        with patch('papyrus_newsroom.newsroom._run_biblicus', return_value={'status':'ok','stdout':json.dumps({'text':'evidence only'})}):
+        pack = ContextPackBuildBlocksResponse(text='evidence only', total_tokens=2, total_characters=13)
+        runner = patch.object(BiblicusRunner, 'from_environment', return_value=Mock(build_context_pack_from_blocks=Mock(return_value=pack)))
+        with runner:
             with self.assertRaisesRegex(ValueError, 'required editorial context'):
-                _build_biblicus_block_context_pack(blocks=[{'required':True,'text':'Publication policy'}], profile_key='reporting', max_tokens=20)
+                _build_biblicus_block_context_pack(blocks=[{'block_id':'policy','section':'doctrine','required':True,'text':'Publication policy'}], profile_key='reporting', max_tokens=20)
 
     def test_runtime_exposes_same_context_resolver(self):
         from unittest.mock import patch

@@ -1,0 +1,24 @@
+{
+  "id": "PPY-7aef08d5-9cec-47a8-b442-2e54c741fe2e",
+  "title": "Biblicus subprocess.run has no timeout; GROBID cold start hangs",
+  "description": "Found by the Cyclotron session (read-only; refs at origin/main a35694b).\n\n`src/papyrus_content/reference_url_text.py:2041` calls `subprocess.run` with no `timeout`. A Biblicus cold start of GROBID (docker run plus up to a 120 s readiness wait) hung a test for more than 5 minutes. The same pattern is at lines 2089 and 2124.\n\n```gherkin\nFeature: Bounded extraction subprocess\n  Scenario: Biblicus child hangs\n    Given the Biblicus subprocess does not exit\n    When extraction runs\n    Then it is killed after the configured timeout\n    And a failure with a timeout reason code is returned instead of hanging\n```\nAcceptance: all three subprocess.run calls pass a timeout (greater than the 120 s readiness wait, configurable); TimeoutExpired becomes a structured failure; spec covers it.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-19T21:56:37.273590Z",
+  "updated_at": "2026-10-19T21:56:37.273850Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
