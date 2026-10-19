@@ -127,10 +127,10 @@ export function isPrimingOutcome(value: unknown): value is PrimingOutcome {
     || (outcome.state === "failed" && typeof outcome.message === "string");
 }
 
-/** In words: waiting for the next sweep, applied as version N, or failed with the reason. */
+/** In plain words: Adding, Added, or Couldn't add with the reason. */
 export function primingStateText(view: PrimingRequestView): string {
-  if (!view.outcome) return "Waiting for the next sweep";
+  if (!view.outcome) return "Adding";
   return view.outcome.state === "applied"
-    ? `Applied as version ${view.outcome.version}`
-    : `Failed: ${view.outcome.message}`;
+    ? "Added"
+    : `Couldn't add: ${view.outcome.message}`;
 }

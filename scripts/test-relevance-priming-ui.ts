@@ -29,16 +29,16 @@ async function main() {
   const waiting = { request, outcome: null };
   const applied = { request, outcome: { state: "applied" as const, version: 2, at: "t" } };
   const failed = { request, outcome: { state: "failed" as const, message: "The page could not be read.", at: "t" } };
-  assert.equal(primingStateText(waiting), "Waiting for the next sweep");
-  assert.equal(primingStateText(applied), "Applied as version 2");
-  assert.equal(primingStateText(failed), "Failed: The page could not be read.");
+  assert.equal(primingStateText(waiting), "Adding");
+  assert.equal(primingStateText(applied), "Added");
+  assert.equal(primingStateText(failed), "Couldn't add: The page could not be read.");
 
   const html = renderToStaticMarkup(createElement(ReferenceCyclotronPriming, {
     labels, requests: [waiting, applied, failed], onRequestPriming: () => undefined,
   }));
-  for (const text of ["Prime with a URL", "Priming URL", "Priming label", ">include</option>",
-    ">exclude</option>", "Why (optional)", "Save", "Waiting for the next sweep",
-    "Applied as version 2", "Failed: The page could not be read."]) {
+  for (const text of ["Add a reference by URL", "Reference URL", "Include or exclude", ">include</option>",
+    ">exclude</option>", "Why (optional)", "Add reference", "Adding",
+    "Added", "Couldn&#x27;t add: The page could not be read."]) {
     assert.ok(html.includes(text), `form shows: ${text}`);
   }
   console.log("relevance priming ui: ok");
