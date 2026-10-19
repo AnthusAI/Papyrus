@@ -27,5 +27,50 @@ class RelevancePrimingHelpersTest(unittest.TestCase):
                          "knowledge-raw-payload-cyclotron-priming-request-papyrus-relevance-req-1")
 
 
+class TransientFailureTest(unittest.TestCase):
+    def test_service_outage_codes_are_transient_and_source_problems_are_not(self):
+        from papyrus_content.reference_url_text import is_transient_failure_reason
+        for code in ("grobid_unreachable", "grobid_request_failed", "grobid_timeout", "biblicus_timeout"):
+            self.assertTrue(is_transient_failure_reason({"code": code}), code)
+        self.assertTrue(is_transient_failure_reason({"code": "x", "details": {"fetch_error": {"code": "grobid_unreachable"}}}))
+        for code in ("empty_text", "grobid_structured_unavailable", "biblicus_cli_failed"):
+            self.assertFalse(is_transient_failure_reason({"code": code}), code)
+
+    def test_a_hung_biblicus_child_becomes_a_timeout_reason(self):
+        from papyrus_content.biblicus_runner import BiblicusCommandTimeoutError
+        reason = BiblicusCommandTimeoutError(command=["biblicus"], timeout_seconds=300).failure_reason()
+        self.assertEqual(reason["code"], "biblicus_timeout")
+
+    def test_url_text_extraction_is_killed_after_the_timeout(self):
+        import subprocess
+        from pathlib import Path
+        from unittest import mock
+        from papyrus_content.biblicus_runner import BiblicusCommandTimeoutError, BiblicusRunner
+        from papyrus_content.reference_url_text import URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS, _url_text_timeout_seconds
+        self.assertGreater(URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS, 120)
+        self.assertEqual(_url_text_timeout_seconds(), URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS)
+        with mock.patch.dict("os.environ", {"PAPYRUS_URL_TEXT_TIMEOUT_SECONDS": "42"}):
+            self.assertEqual(_url_text_timeout_seconds(), 42.0)
+        from biblicus.api import UrlTextRequest
+        runner = BiblicusRunner(workdir=Path("."), environment={}, executable=Path("biblicus"))
+        with mock.patch("papyrus_content.biblicus_runner.subprocess.run",
+                        side_effect=subprocess.TimeoutExpired(cmd="biblicus", timeout=7)) as run:
+            with self.assertRaises(BiblicusCommandTimeoutError):
+                runner.extract_url_text(UrlTextRequest(source_uri="https://example.org/a"), timeout_seconds=7)
+        self.assertEqual(run.call_args.kwargs["timeout"], 7)
+
+    def test_liveness_check_asks_grobid_and_treats_silence_as_down(self):
+        import urllib.error
+        from unittest import mock
+        from papyrus_content.relevance_priming import grobid_is_alive
+        self.assertTrue(grobid_is_alive(""))
+        with mock.patch("papyrus_content.relevance_priming.urllib.request.urlopen") as urlopen:
+            urlopen.return_value.__enter__.return_value.status = 200
+            self.assertTrue(grobid_is_alive("http://grobid.invalid:8070/"))
+            self.assertEqual(urlopen.call_args.args[0], "http://grobid.invalid:8070/api/isalive")
+            urlopen.side_effect = urllib.error.URLError("refused")
+            self.assertFalse(grobid_is_alive("http://grobid.invalid:8070"))
+
+
 if __name__ == "__main__":
     unittest.main()

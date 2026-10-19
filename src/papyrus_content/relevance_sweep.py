@@ -37,7 +37,8 @@ from .records import apply_record_changes, build_record_change_from_current
 from .reference_policy import normalize_reference_curation_status
 from .relevance_cyclotron import (RelevanceCyclotronPlan, build_relevance_cyclotron, decision_model_from_environment,
                                   optimizer_from_environment)
-from .relevance_priming import (PRIMING_OUTCOME_ROLE, PRIMING_REQUEST_KIND, ExtractUrl, default_url_extractor,
+from .relevance_priming import (MAX_TRANSIENT_ATTEMPTS, PRIMING_ATTEMPTS_ROLE, PRIMING_OUTCOME_ROLE, TRANSIENT_GIVE_UP_MESSAGE,
+                                UNREADABLE_MESSAGE, grobid_is_alive, priming_attempts_record, PRIMING_REQUEST_KIND, ExtractUrl, default_url_extractor,
                                 normalize_priming_url, priming_item_id, priming_label, priming_outcome_record,
                                 readable_engine_refusal)
 from .relevance_decisions import (RELEVANCE_RELATION, curation_was_made_by_a_human, current_relevance_decision, relevance_decision_records,
@@ -63,6 +64,7 @@ class SweepResult:
     decided: int = 0
     primed: int = 0
     priming_failed: int = 0
+    priming_retrying: int = 0
     reviews: int = 0
     primed_from_human_reviews: int = 0
     retired_labels: int = 0
@@ -75,7 +77,7 @@ class SweepResult:
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
-                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "autoRejected": self.auto_rejected, "stoppedBecause": self.stopped_because,
+                "primed": self.primed, "primingFailed": self.priming_failed, "primingRetrying": self.priming_retrying, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "autoRejected": self.auto_rejected, "stoppedBecause": self.stopped_because,
                 "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings,
                 **({"classifierSet": self.classifier_set} if self.classifier_set is not None else {})}
 
@@ -196,12 +198,15 @@ def reference_item(reference: Mapping[str, Any], *, source_content: Mapping[str,
 def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *, apply: bool, worker: str,
                          max_count: int | None = None, model=None, optimizer=None, snapshots=None,
                          now: Callable[[], str] | None = None, priming_snapshot=None,
-                         extract_url: ExtractUrl | None = None) -> SweepResult:
+                         extract_url: ExtractUrl | None = None,
+                         grobid_alive: Callable[[], bool] | None = None) -> SweepResult:
     """Run one sweep; an explicit accepted priming snapshot seeds a new store only.
 
     Editors' priming requests are applied to the running store whatever the
     snapshot; ``extract_url`` turns a pasted URL into item values and defaults
-    to the existing Papyrus priming curation.
+    to the existing Papyrus priming curation. ``grobid_alive`` is the liveness
+    preflight run before any priming request is extracted; it defaults to a
+    real check only with the default extractor.
 
     Omitting priming_snapshot preserves normal operation. Models/optimizers and
     snapshot transport still default to the configured providers.
@@ -259,7 +264,8 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
         try:
             _apply_review_rate_request(client, cyclotron, plan, result.warnings)
             records = _apply_priming_requests(
-                client, cyclotron, plan, extract_url or default_url_extractor(steering_config, corpus), now, result)
+                client, cyclotron, plan, extract_url or default_url_extractor(steering_config, corpus), now, result,
+                grobid_alive=grobid_alive if grobid_alive is not None else (grobid_is_alive if extract_url is None else None))
             result.primed_from_human_reviews = _prime_from_human_reviews(
                 client, cyclotron, plan, corpus_id, result.warnings)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
@@ -386,13 +392,17 @@ def _apply_review_rate_request(client, cyclotron, plan: RelevanceCyclotronPlan, 
 
 
 def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, extract_url: ExtractUrl,
-                            now: Callable[[], str], result: SweepResult) -> list[dict[str, Any]]:
+                            now: Callable[[], str], result: SweepResult,
+                            grobid_alive: Callable[[], bool] | None = None) -> list[dict[str, Any]]:
     """Prime the running cyclotron with each editor request that has no outcome yet.
 
     A request is a KnowledgeRawPayload the Newsroom writes. Its outcome is a
     ``priming_outcome`` attachment on the same payload: applied (with the
     version the examples created) or failed (with a reason an editor can read).
-    A failed request never stops the sweep. Returns the outcome records, which
+    A failed request never stops the sweep. A source that cannot be read because
+    an extraction service is down is not failed: it stays without an outcome and
+    is tried again next sweep, up to ``MAX_TRANSIENT_ATTEMPTS`` tries. When the
+    GROBID liveness preflight fails, no request is extracted this sweep. Returns the outcome records, which
     the sweep writes with its other records.
     """
     from decision_flywheel import Item, LabeledItem
@@ -410,6 +420,9 @@ def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, ext
         if _latest_payload(client, record, PRIMING_OUTCOME_ROLE) is None:
             requests.append((str(request.get("requestedAt") or ""), record["id"], record, request))
     outcomes = []
+    if requests and grobid_alive is not None and not grobid_alive():
+        result.warnings.append(f"GROBID is not responding; {len(requests)} priming request(s) left pending for the next sweep")
+        return outcomes
     for _, _, record, request in sorted(requests, key=lambda entry: entry[:2]):
         outcome = {"requestId": request.get("requestId"), "url": request.get("url"), "label": request.get("label"),
                    "at": now()}
@@ -419,7 +432,10 @@ def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, ext
             try:
                 values = dict(extract_url(url))
             except Exception as error:
-                raise ValueError(f"The page at {url} could not be read: {error}") from error
+                if getattr(error, "transient", False):
+                    raise
+                outcome.update(detail=str(error), code=getattr(error, "code", None))
+                raise ValueError(UNREADABLE_MESSAGE.format(url=url)) from error
             explanation = str(request.get("explanation") or "").strip()
             example = LabeledItem(Item(priming_item_id(url), values), label, "trusted",
                                   {"human_feedback": explanation} if explanation else {})
@@ -428,7 +444,21 @@ def _apply_priming_requests(client, cyclotron, plan: RelevanceCyclotronPlan, ext
             outcome.update(state="applied", version=added["versions"][classifier.id], itemId=example.item.id)
             result.primed += 1
         except Exception as error:
-            outcome.update(state="failed", message=readable_engine_refusal(error))
+            if getattr(error, "transient", False):
+                previous = _latest_payload(client, record, PRIMING_ATTEMPTS_ROLE) or {}
+                attempts = int(previous.get("attempts") or 0) + 1
+                code, detail = getattr(error, "code", None), str(error)
+                if attempts < MAX_TRANSIENT_ATTEMPTS:
+                    result.priming_retrying += 1
+                    result.warnings.append(f"priming request {request.get('requestId')} will be retried "
+                                           f"(attempt {attempts} of {MAX_TRANSIENT_ATTEMPTS}): {detail}")
+                    outcomes.append(priming_attempts_record(
+                        record["id"], {"attempts": attempts, "lastCode": code, "lastError": detail, "at": outcome["at"]},
+                        now=outcome["at"]))
+                    continue
+                outcome.update(state="failed", message=TRANSIENT_GIVE_UP_MESSAGE, code=code, detail=detail, attempts=attempts)
+            else:
+                outcome.update(state="failed", message=readable_engine_refusal(error))
             result.priming_failed += 1
             result.warnings.append(f"priming request {request.get('requestId')} failed: {outcome['message']}")
         outcomes.append(priming_outcome_record(record["id"], outcome, now=outcome["at"]))

@@ -162,7 +162,7 @@ def test_timeout_raises_a_typed_timeout_error(fake_biblicus: Path, workdir: Path
     assert caught.value.timeout_seconds == 0.2
     assert caught.value.command == (str(fake_biblicus), "reindex")
     assert isinstance(caught.value, BiblicusRunnerError)
-    assert caught.value.failure_reason()["code"] == "biblicus_runner_failed"
+    assert caught.value.failure_reason()["code"] == "biblicus_timeout"
 
 
 def test_missing_workdir_configuration_is_a_clear_error() -> None:
