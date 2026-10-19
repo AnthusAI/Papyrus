@@ -12,8 +12,8 @@ from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .options import normalize_string, parse_comma_list
 from .steering import default_corpus_key
 
-RESEARCH_EDITION_ASSIGNMENT_TYPE = "research.edition-candidate"
-REPORTING_EDITION_ASSIGNMENT_TYPE = "reporting.edition-candidate"
+RESEARCH_EDITION_ASSIGNMENT_TYPE = "research.candidate"
+REPORTING_EDITION_ASSIGNMENT_TYPE = "reporting.candidate"
 
 
 def load_edition_planning_state(client: PapyrusGraphQLAuthoringClient) -> dict[str, Any]:

@@ -103,7 +103,7 @@ decides whether a claim is required:
 - `analysis.reindex`: exclusive claim required before any Biblicus command runs.
 - `curation.reference-intake`: exclusive claim is preferred before accept/reject
   decisions.
-- `research.edition-candidate`: claim is optional unless the assignment should
+- `research.candidate`: claim is optional unless the assignment should
   produce one canonical packet.
 
 For agent or worker claims, prefer a run-scoped `assigneeKey` and a TTL:
@@ -309,7 +309,7 @@ paths in `papyrus`; do not hand-edit
 ## Reporting Packet Flow
 
 Use reporting packets when the assignment is
-`assignmentTypeKey = "reporting.edition-candidate"`. A reporting packet is the
+`assignmentTypeKey = "reporting.candidate"`. A reporting packet is the
 private context required to decide whether a candidate should become reader copy.
 It is not a draft article.
 

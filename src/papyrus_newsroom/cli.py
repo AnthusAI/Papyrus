@@ -39,6 +39,7 @@ from .reference_curation_signals import (
     reference_list,
     reference_summaries,
 )
+from papyrus_content.papyrus_config import require_editions_enabled
 from papyrus_content.steering import default_corpus_key
 from .tactus_runtime import execute_tactus_harnessed
 from papyrus_knowledge_query.cli import (
@@ -537,6 +538,7 @@ def _run_signals_command(args: argparse.Namespace) -> dict:
 
 
 def _run_editions_command(args: argparse.Namespace) -> dict:
+    require_editions_enabled(f"newsroom editions {args.editions_command}")
     if args.editions_command == "plan":
         sections = parse_csv(args.sections)
         return editions_plan(

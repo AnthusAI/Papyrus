@@ -11,10 +11,12 @@ from .edition_planning import (
     write_edition_planning_report,
 )
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
+from .papyrus_config import require_editions_enabled
 from .options import normalize_string, parse_options, resolve_mutation_apply
 
 
 def editions_plan(flags: list[str]) -> None:
+    require_editions_enabled("editions plan")
     options = parse_options(flags)
     client, _ = create_authoring_client()
     plan, report = build_edition_planning_command_plan(client, options)
@@ -90,6 +92,7 @@ def _dispatch_edition_planning(flags: list[str], *, reporting: bool) -> None:
 
 
 def _dispatch_edition_planning_from_options(options: dict, *, reporting: bool) -> None:
+    require_editions_enabled("editions dispatch-reporting" if reporting else "editions dispatch-research")
     apply = resolve_mutation_apply(
         options,
         "editions dispatch-reporting" if reporting else "editions dispatch-research",

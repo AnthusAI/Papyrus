@@ -128,7 +128,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     research_mode = normalize_research_mode(options.get("research-mode") or options.get("researchMode"))
     now = _utc_now()
-    assignment_type_key = normalize_string(options.get("type")) or "research.edition-candidate"
+    assignment_type_key = normalize_string(options.get("type")) or "research.candidate"
     tavily_deep = assignment_type_key == "research.tavily-deep"
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
@@ -276,9 +276,9 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     section_key = normalize_string(options.get("section"))
     corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
     now = _utc_now()
-    assignment_type_key = normalize_string(options.get("type")) or "reporting.edition-candidate"
-    if assignment_type_key != "reporting.edition-candidate":
-        raise ValueError("assignments create-reporting only supports --type reporting.edition-candidate.")
+    assignment_type_key = normalize_string(options.get("type")) or "reporting.candidate"
+    if assignment_type_key != "reporting.candidate":
+        raise ValueError("assignments create-reporting only supports --type reporting.candidate.")
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
     queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
@@ -468,7 +468,7 @@ def run_research_assignment(flags: list[str]) -> None:
         research,
         assignment={
             "id": assignment_id,
-            "assignmentTypeKey": "research.edition-candidate",
+            "assignmentTypeKey": "research.candidate",
             "queueKey": "",
         },
         assignment_meta={"researchMode": research_mode, "corpusKey": corpus_key},

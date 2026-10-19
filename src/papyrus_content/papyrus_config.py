@@ -39,6 +39,18 @@ DEFAULT_TOPIC_IGNORE_TERMS = (
 )
 
 
+def editions_enabled() -> bool:
+    return os.environ.get("PAPYRUS_EDITIONS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def require_editions_enabled(command_name: str) -> None:
+    if not editions_enabled():
+        raise ValueError(
+            f"{command_name} is unavailable: this publication does not publish in editions. "
+            "Set PAPYRUS_EDITIONS_ENABLED=true to turn editions on."
+        )
+
+
 def resolve_papyrus_config_path(config_path: str | None = None, *, required: bool = False) -> Path | None:
     configured = config_path or os.environ.get("PAPYRUS_CONFIG") or DEFAULT_PAPYRUS_CONFIG
     resolved = Path(configured)
