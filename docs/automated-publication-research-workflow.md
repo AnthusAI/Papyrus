@@ -15,8 +15,8 @@ should work for another publication.
 
 | Need | Start here |
 | --- | --- |
-| Planning run | [`skills/edition-planning/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/edition-planning/SKILL.md) |
-| Run/review cycle | [`skills/newsroom-story-cycle/SKILL.md`](/Users/ryan/Projects/Papyrus/skills/newsroom-story-cycle/SKILL.md) |
+| Planning run | [`skills/edition-planning/SKILL.md`](../skills/edition-planning/SKILL.md) |
+| Run/review cycle | [`skills/newsroom-story-cycle/SKILL.md`](../skills/newsroom-story-cycle/SKILL.md) |
 | Data contract truth | This file |
 
 ## Mental Model

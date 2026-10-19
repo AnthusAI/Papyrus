@@ -100,14 +100,20 @@ def test_nonzero_exit_raises_command_error_with_command_exit_code_and_stderr(fak
     assert "exited 1" in str(error)
 
 
-def test_structured_error_is_read_from_standard_error_then_standard_output(fake_biblicus: Path, workdir: Path) -> None:
+def test_structured_error_is_read_only_from_the_declared_stream(fake_biblicus: Path, workdir: Path) -> None:
     with pytest.raises(BiblicusCommandError) as from_stderr:
-        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["extract", "url-text"])
+        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["extract", "web-metadata"], error_stream="stderr")
     assert from_stderr.value.structured_error() == {"code": "invalid_input_json", "message": "bad input"}
     assert from_stderr.value.failure_reason() == {"code": "invalid_input_json", "message": "bad input"}
     with pytest.raises(BiblicusCommandError) as from_stdout:
-        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail-on-stdout").run(["extract", "url-text"])
+        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail-on-stdout").run(["summarize", "map-reduce"], error_stream="stdout")
     assert from_stdout.value.failure_message() == "provider said no"
+    with pytest.raises(BiblicusCommandError) as wrong_stream:
+        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["extract", "url-text"], error_stream="stdout")
+    assert wrong_stream.value.structured_error() is None
+    with pytest.raises(BiblicusCommandError) as undeclared:
+        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["reindex"])
+    assert undeclared.value.structured_error() is None
 
 
 def test_failure_message_without_any_output_names_the_exit_code(fake_biblicus: Path, workdir: Path) -> None:
@@ -117,15 +123,17 @@ def test_failure_message_without_any_output_names_the_exit_code(fake_biblicus: P
     assert "no output" in str(caught.value)
 
 
-def test_structured_error_without_an_error_object_is_none(fake_biblicus: Path, workdir: Path) -> None:
-    error = BiblicusCommandError(command=["biblicus"], exit_code=1, stdout='{"status": "failed"}', stderr="")
-    assert error.structured_error() is None
-    assert BiblicusCommandError(command=["biblicus"], exit_code=1, stdout="prefix {not json", stderr="").structured_error() is None
-    assert BiblicusCommandError(command=["biblicus"], exit_code=1, stdout='["list"]', stderr="").structured_error() is None
-    trailing = BiblicusCommandError(command=["biblicus"], exit_code=1, stdout='{"a": 1} trailing', stderr="")
-    assert trailing.structured_error() is None
-    embedded = BiblicusCommandError(command=["biblicus"], exit_code=1, stdout='log line {"error": {"code": "c"}}', stderr="")
-    assert embedded.structured_error() == {"code": "c"}
+def test_structured_error_requires_the_whole_stream_to_be_one_json_object_with_an_error(fake_biblicus: Path, workdir: Path) -> None:
+    def parse(stdout: str) -> object:
+        return BiblicusCommandError(command=["biblicus"], exit_code=1, stdout=stdout, stderr="", error_stream="stdout").structured_error()
+
+    assert parse('{"status": "failed"}') is None
+    assert parse("prefix {not json") is None
+    assert parse('["list"]') is None
+    assert parse('{"error": "text"}') is None
+    assert parse('{"a": 1} trailing') is None
+    assert parse('log line {"error": {"code": "c"}}') is None
+    assert parse('{"error": {"code": "c"}}') == {"code": "c"}
 
 
 def test_invalid_json_raises_output_error_with_the_raw_output(fake_biblicus: Path, workdir: Path) -> None:

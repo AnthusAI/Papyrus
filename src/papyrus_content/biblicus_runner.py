@@ -19,7 +19,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -107,13 +107,25 @@ class BiblicusCommandError(BiblicusRunnerError):
     :vartype stdout: str
     :ivar stderr: Captured standard error, stripped.
     :vartype stderr: str
+    :ivar error_stream: The one stream the command prints its structured failure to, or None when
+        the command prints none.
+    :vartype error_stream: str or None
     """
 
-    def __init__(self, *, command: Sequence[str], exit_code: int, stdout: str, stderr: str) -> None:
+    def __init__(
+        self,
+        *,
+        command: Sequence[str],
+        exit_code: int,
+        stdout: str,
+        stderr: str,
+        error_stream: Literal["stdout", "stderr"] | None = None,
+    ) -> None:
         self.command = tuple(command)
         self.exit_code = exit_code
         self.stdout = stdout
         self.stderr = stderr
+        self.error_stream = error_stream
         detail = stderr or stdout or "no output"
         super().__init__(f"Biblicus command {' '.join(self.command)} exited {exit_code}: {detail}")
 
@@ -121,17 +133,21 @@ class BiblicusCommandError(BiblicusRunnerError):
         """
         Return the structured ``error`` object Biblicus printed, if any.
 
-        Biblicus prints ``{"status": "failed", "error": {...}}`` to standard error for input
-        failures and to standard output for transform and extraction failures; standard error is
-        read first.
+        Each typed command declares the one stream its failure JSON is written to; only that
+        stream is parsed, as a whole, with ``json.loads``. A command that declares no stream, or a
+        stream that is not a JSON object holding an ``error`` object, yields None.
 
-        :return: The ``error`` object, or None when neither stream holds one.
+        :return: The ``error`` object, or None.
         :rtype: dict[str, Any] or None
         """
-        for stream in (self.stderr, self.stdout):
-            payload = _trailing_json_object(stream)
-            if payload is not None and isinstance(payload.get("error"), dict):
-                return payload["error"]
+        if self.error_stream is None:
+            return None
+        try:
+            payload = json.loads(self.stdout if self.error_stream == "stdout" else self.stderr)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(payload, dict) and isinstance(payload.get("error"), dict):
+            return payload["error"]
         return None
 
     def failure_reason(self) -> dict[str, Any]:
@@ -216,23 +232,6 @@ class BiblicusCommandOutput:
     command: tuple[str, ...]
     stdout: str
     stderr: str
-
-
-def _trailing_json_object(text: str) -> dict[str, Any] | None:
-    stripped = text.strip()
-    if not stripped:
-        return None
-    decoder = json.JSONDecoder()
-    for index, character in enumerate(stripped):
-        if character != "{":
-            continue
-        try:
-            candidate, end_index = decoder.raw_decode(stripped[index:])
-        except json.JSONDecodeError:
-            continue
-        if isinstance(candidate, dict) and not stripped[index + end_index :].strip():
-            return candidate
-    return None
 
 
 def resolve_biblicus_workdir(explicit_workdir: str | Path | None = None, *, environment: Mapping[str, str] | None = None) -> Path:
@@ -375,6 +374,7 @@ class BiblicusRunner:
         *,
         stdin_text: str | None = None,
         timeout_seconds: float | None = None,
+        error_stream: Literal["stdout", "stderr"] | None = None,
     ) -> BiblicusCommandOutput:
         """
         Run a Biblicus command and require exit status zero.
@@ -385,6 +385,8 @@ class BiblicusRunner:
         :type stdin_text: str or None
         :param timeout_seconds: Seconds before the command is abandoned.
         :type timeout_seconds: float or None
+        :param error_stream: The one stream the command prints its structured failure to.
+        :type error_stream: str or None
         :return: Captured output.
         :rtype: BiblicusCommandOutput
         :raises BiblicusCommandError: If the command exits with a nonzero status.
@@ -407,7 +409,13 @@ class BiblicusRunner:
         stdout = (completed.stdout or "").strip()
         stderr = (completed.stderr or "").strip()
         if completed.returncode != 0:
-            raise BiblicusCommandError(command=command, exit_code=completed.returncode, stdout=stdout, stderr=stderr)
+            raise BiblicusCommandError(
+                command=command,
+                exit_code=completed.returncode,
+                stdout=stdout,
+                stderr=stderr,
+                error_stream=error_stream,
+            )
         return BiblicusCommandOutput(command=tuple(command), stdout=stdout, stderr=stderr)
 
     def run_json(
@@ -416,6 +424,7 @@ class BiblicusRunner:
         *,
         stdin_text: str | None = None,
         timeout_seconds: float | None = None,
+        error_stream: Literal["stdout", "stderr"] | None = None,
     ) -> Any:
         """
         Run a Biblicus command and parse its standard output as JSON.
@@ -426,11 +435,13 @@ class BiblicusRunner:
         :type stdin_text: str or None
         :param timeout_seconds: Seconds before the command is abandoned.
         :type timeout_seconds: float or None
+        :param error_stream: The one stream the command prints its structured failure to.
+        :type error_stream: str or None
         :return: The decoded JSON value.
         :rtype: Any
         :raises BiblicusOutputError: If standard output is not valid JSON.
         """
-        output = self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds)
+        output = self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds, error_stream=error_stream)
         try:
             return json.loads(output.stdout)
         except json.JSONDecodeError as error:
@@ -443,6 +454,7 @@ class BiblicusRunner:
         *,
         stdin_text: str | None = None,
         timeout_seconds: float | None = None,
+        error_stream: Literal["stdout", "stderr"] | None = None,
     ) -> ResponseModelType:
         """
         Run a Biblicus command and validate its standard output against a response model.
@@ -455,11 +467,13 @@ class BiblicusRunner:
         :type stdin_text: str or None
         :param timeout_seconds: Seconds before the command is abandoned.
         :type timeout_seconds: float or None
+        :param error_stream: The one stream the command prints its structured failure to.
+        :type error_stream: str or None
         :return: The validated response.
         :rtype: pydantic.BaseModel
         :raises BiblicusOutputError: If the output is not JSON or does not satisfy the model.
         """
-        output = self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds)
+        output = self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds, error_stream=error_stream)
         try:
             return response_model.model_validate_json(output.stdout)
         except ValidationError as error:
@@ -473,7 +487,8 @@ class BiblicusRunner:
         :type request: biblicus.api.UrlTextRequest
         :return: The extraction response.
         :rtype: biblicus.api.UrlTextResponse
-        :raises BiblicusCommandError: If extraction fails; the structured error carries the failure code.
+        :raises BiblicusCommandError: If extraction fails. Failures print the response to standard output;
+            input failures print to standard error and are not parsed (see ``BiblicusCommandError``).
         """
         from biblicus.api import UrlTextResponse
 
@@ -481,6 +496,7 @@ class BiblicusRunner:
             ["extract", "url-text", "--input-json", "-", "--format", "json"],
             UrlTextResponse,
             stdin_text=request.model_dump_json(),
+            error_stream="stdout",
         )
 
     def extract_web_metadata(self, request: "WebMetadataRequest") -> "WebMetadataResponse":
@@ -499,6 +515,7 @@ class BiblicusRunner:
             ["extract", "web-metadata", "--input-json", "-"],
             WebMetadataResponse,
             stdin_text=request.model_dump_json(),
+            error_stream="stderr",
         )
 
     def extract_article_text(self, request: "ArticleInput", *, timeout_seconds: float | None = None) -> "TransformResult":
@@ -521,6 +538,7 @@ class BiblicusRunner:
             TransformResult,
             stdin_text=request.model_dump_json(),
             timeout_seconds=timeout_seconds,
+            error_stream="stdout",
         )
 
     def summarize_map_reduce(self, request: "SummarizeMapReduceRequest") -> "TransformResult":
@@ -551,6 +569,7 @@ class BiblicusRunner:
             ],
             TransformResult,
             stdin_text=source_payload,
+            error_stream="stdout",
         )
 
     def build_context_pack_from_blocks(self, request: "ContextPackBuildBlocksRequest") -> "ContextPackBuildBlocksResponse":

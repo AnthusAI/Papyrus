@@ -75,6 +75,7 @@ def execute_analysis_reindex_assignment(
         raise ValueError(
             f"Assignment {assignment['id']} must be claimed before execution (current={assignment.get('status')})."
         )
+    _require_runner_command_plan(assignment["id"], command_plan)
     run_id = str(options.get("run-id") or metadata.get("planRunId") or f"analysis-reindex-{assignment['id']}")
     run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -221,6 +222,18 @@ def _analysis_max_runtime_seconds(metadata: dict[str, Any], options: dict[str, A
         return None
     value = int(str(raw))
     return value if value > 0 else None
+
+
+def _require_runner_command_plan(assignment_id: Any, command_plan: list[Any]) -> None:
+    for index, command in enumerate(command_plan, start=1):
+        arguments = command.get("arguments") if isinstance(command, dict) else None
+        if not isinstance(arguments, list) or not arguments:
+            label = command.get("label") if isinstance(command, dict) else None
+            raise ValueError(
+                f"Assignment {assignment_id} carries an analysis command plan that predates the BiblicusRunner: "
+                f"command {label or index} has no 'arguments' list. Plans are not converted; "
+                "regenerate the plan with the current Papyrus and queue a new assignment."
+            )
 
 
 def _analysis_command_timeout_seconds(max_runtime_seconds: int | None, elapsed_seconds: float) -> int | None:
