@@ -14,7 +14,6 @@ import {
 } from "../lib/site-brand-tenant";
 
 export type NewsDeskPageProps = {
-  sectionPageId?: string | null;
   section?: string | string[] | null;
   selectionPath?: string[] | null;
   searchParams?: Promise<{
@@ -40,10 +39,10 @@ export type NewsDeskPageProps = {
   }>;
 };
 
-export async function NewsDeskPage({ section: routeSection, sectionPageId, selectionPath, searchParams }: NewsDeskPageProps) {
+export async function NewsDeskPage({ section: routeSection, selectionPath, searchParams }: NewsDeskPageProps) {
   const resolvedSearchParams = await searchParams;
   const brand = resolveActiveSiteBrand();
-  const initialTab = resolveNewsDeskTab(routeSection ?? getSearchParam(resolvedSearchParams, "section"), getSearchParam(resolvedSearchParams, "tab"), brand.newsroomLayout === "organizer");
+  const initialTab = resolveNewsDeskTab(routeSection ?? getSearchParam(resolvedSearchParams, "section"), getSearchParam(resolvedSearchParams, "tab"));
   const routeSelection = parseRouteSelection(initialTab, selectionPath);
   const initialSelection = {
     assignment: routeSelection.assignment ?? getFirstSearchParam(resolvedSearchParams, "assignment"),
@@ -70,7 +69,7 @@ export async function NewsDeskPage({ section: routeSection, sectionPageId, selec
   const dashboard = useDemoDashboard
     ? createDemoCategorySteeringDashboard(brand.id, getBrandNewsroomSectionsConfigPath(brand))
     : await loadCategorySteeringDashboard();
-  return <NewsDeskWorkspace analysisProfiles={analysisProfiles} configuredCorpora={configuredCorpora} dashboard={dashboard} initialSelection={initialSelection} initialTab={initialTab} sectionPageId={sectionPageId ?? null} />;
+  return <NewsDeskWorkspace analysisProfiles={analysisProfiles} configuredCorpora={configuredCorpora} dashboard={dashboard} initialSelection={initialSelection} initialTab={initialTab} />;
 }
 
 function parseRouteSelection(tab: NewsDeskTab, selectionPath: string[] | null | undefined): { assignment?: string | null; category?: string | null; message?: string | null; panel?: string | null; reference?: string | null; forumThread?: string | null } {

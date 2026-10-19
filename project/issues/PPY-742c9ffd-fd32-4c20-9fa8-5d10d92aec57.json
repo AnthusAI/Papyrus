@@ -1,0 +1,40 @@
+{
+  "id": "PPY-742c9ffd-fd32-4c20-9fa8-5d10d92aec57",
+  "title": "Make the organizer shell the only newsroom shell",
+  "description": "",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "6d697926-f167-42e8-a5ed-65f6886b903c",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/368 on feature/single-newsroom-shell. typecheck, lint, next build, newsroom node tests green; BDD: no new red vs develop (25 pre-existing).",
+      "created_at": "2026-10-19T22:51:08.082850Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "d732e3fb-8065-4f8c-bdb5-bc0df5c983d5",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/368 on feature/single-newsroom-shell. typecheck, lint, next build, newsroom node tests green; BDD: no new red vs develop (25 pre-existing).",
+      "created_at": "2026-10-19T22:51:10.029363Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-19T21:50:39.161476Z",
+  "updated_at": "2026-10-19T22:51:10.029390Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

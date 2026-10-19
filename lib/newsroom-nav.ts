@@ -18,22 +18,19 @@ export type NewsroomNavItem = {
   label: string;
   detail: string;
   href: string;
-  mobilePrimary?: boolean;
 };
 
 export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
-  { id: "overview", label: "Overview", detail: "Desk home", href: newsroomHref(), mobilePrimary: true },
-  { id: "articles", label: getContentItemName().plural, detail: "Drafts & published", href: newsroomHref("articles"), mobilePrimary: true },
-  { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments"), mobilePrimary: true },
-  { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references"), mobilePrimary: true },
+  { id: "overview", label: "Overview", detail: "Desk home", href: newsroomHref() },
+  { id: "articles", label: getContentItemName().plural, detail: "Drafts & published", href: newsroomHref("articles") },
+  { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments") },
+  { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references") },
   { id: "messages", label: "Messages", detail: "Forum", href: newsroomHref("messages") },
-  { id: "topics", label: "Topics", detail: "Taxonomy", href: newsroomHref("topics"), mobilePrimary: true },
+  { id: "topics", label: "Topics", detail: "Taxonomy", href: newsroomHref("topics") },
   { id: "concepts", label: "Concept wiki", detail: "Knowledge graph", href: newsroomHref("concepts") },
   { id: "search", label: "Search", detail: "Knowledge base", href: newsroomHref("search") },
   { id: "administration", label: "Administration", detail: "Users & policies", href: newsroomHref("administration") },
 ];
-
-export const NEWSROOM_MOBILE_PRIMARY_NAV = NEWSROOM_OPS_NAV.filter((item) => item.mobilePrimary);
 
 export function getNewsroomNavHref(href: string, demo?: boolean): string {
   const path = toPublicNewsroomPath(href);

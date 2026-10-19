@@ -232,14 +232,6 @@ Feature: Newspaper layout scenarios
     Then the newsroom ops desks should not render on overview-only surfaces
 
   @brand-agnostic
-  Scenario: Deep newsroom section pages omit operational tabs
-    Given I open the edition path "/newsroom/sections/news?demo=1" at 1280 by 900
-    Then the deep newsroom section page should show "News"
-    And the deep newsroom section page should still show "News" after 2500 milliseconds
-    And the deep newsroom section page should omit operational tabs
-    And no browser console errors should occur
-
-  @brand-agnostic
   Scenario: Demo newsroom navigation keeps the desk visible
     Given I open the newsroom at 1280 by 900
     When I follow the newsroom overview link for "References"

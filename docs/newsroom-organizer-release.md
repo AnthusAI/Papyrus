@@ -1,9 +1,12 @@
 # Organizer CMS release — PPY-ca252a
 
 This is a presentation and read-only Board release around the existing CMS,
-not a replacement backend. Publications opt in with `newsroomLayout: "organizer"`
-on their SiteBrand. Default consumers, including Anth.us, retain their existing
-shell until their own configuration explicitly opts in.
+not a replacement backend. The organizer is the only newsroom shell: the former
+`newsroomLayout` SiteBrand option and the legacy ops shell (top bar, fixed sidebar,
+bottom tabs) are removed, so there is nothing to opt into. Publications that set
+`newsroomLayout: "organizer"` must delete that field. The Overview page remains
+the `/newsroom` landing page, reached from the brand link; Search is the header
+search box; Topic proposals sit under Taxonomy.
 
 ## Implemented
 
@@ -15,8 +18,9 @@ shell until their own configuration explicitly opts in.
 - Native CMS Articles, Assignments, References/curation, Messages (including notes),
   Taxonomy, Topic proposals, Concepts, Knowledge search, Policies, Sections,
   Procedures and Users/identity merging remain original components/commands.
-  Existing server permissions remain authoritative. Desks routing restores the
-  original taxonomy editor only for opted-in publications; legacy aliases stay.
+  Existing server permissions remain authoritative. Desks routing opens the
+  original taxonomy editor for every publication; the retired Users and Doctrine
+  aliases redirect to Administration.
 - Board uses released @kanbus/ui 0.2.0 IssueCollection and IssueDetailPanel. It
   projects native Item rows, current Reference revisions and Assignment rows,
   preserving identities/statuses and linking to their original mutation UI.
@@ -46,7 +50,7 @@ Beads interoperability, passed before merge.
 ## Gates still to verify
 
 - Product branch TypeScript/package smoke checks and an actual packed-package
-  consumer/Amplify build, followed by opt-in per consumer.
+  consumer/Amplify build, followed by each consumer upgrading.
 - Responsive browser layout, deep links, manual/system themes, low/reduced
   motion, keyboard navigation and unchanged signed-out gates in the production
   host. Physical iPad/Safari is not claimed by automated Chromium checks.

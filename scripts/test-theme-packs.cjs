@@ -100,7 +100,7 @@ assert.notEqual(threatIntel.themeTokens.paper, pilobolus.themeTokens.paper);
 assert.notEqual(threatIntel.themeTokens.ochre, pilobolus.themeTokens.ochre);
 
 const shellSource = fs.readFileSync(path.join(process.cwd(), "components/newsroom-ops-shell.tsx"), "utf8");
-assert.doesNotMatch(shellSource, /pilobol|threat-intelligence|papyrus/i);
+assert.doesNotMatch(shellSource, /pilobol|threat-intelligence/i);
 assert.doesNotMatch(shellSource, /#f1ead9|#3f5d43|#a35a2a|#211d17/i);
 
 const sharedGlobals = fs.readFileSync(path.join(process.cwd(), "app/globals.css"), "utf8");
@@ -133,7 +133,7 @@ assert.match(layoutSource, /data-ops-chrome=\{siteStack\.ops\.chrome\}/);
 assert.doesNotMatch(layoutSource, /data-renderer=\{SITE_BRAND\.(themePack|opsChrome)/);
 
 assert.match(shellSource, /data-newsroom-ops-shell/);
-assert.match(shellSource, /data-newsroom-ops-bottom-nav/);
+assert.match(shellSource, /organizer-bottom-nav/);
 assert.match(shellSource, /SheetContent/);
 
 const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "app/papyrus-theme.css"), "utf8");

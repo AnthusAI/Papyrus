@@ -51,7 +51,7 @@ theme from `renderer`.
 
 | Layer | v1 | Later |
 | --- | --- | --- |
-| **Ops chrome** | Shared Shadcn `NewsroomAppShell` when `opsChrome` is `app` | Optional newsprint ops shell |
+| **Ops chrome** | The organizer newsroom shell (`NewsroomOpsShell`), the only newsroom shell | Optional newsprint ops shell |
 | **Ops theme** | Packs `papyrus`, `threat-intelligence`, `pilobol-us` | Additional packs |
 | **Renderer** | Field is configured and published as `data-renderer` | Markus/static reader path; extra kinds |
 | **Hosting** | Typed on the brand | Amplify WEB static pipeline |

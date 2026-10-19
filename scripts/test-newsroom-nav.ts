@@ -52,7 +52,7 @@ function run() {
   }
 
   assert.match(OVERVIEW_SOURCE, /NEWSROOM_OPS_NAV\.filter/, "landing page destinations must derive from the shared navigation");
-  assert.match(SHELL_SOURCE, /NEWSROOM_OPS_NAV\.map/, "shell sidebar must render the shared navigation");
+  assert.match(SHELL_SOURCE, /ORGANIZER_NAV_GROUPS\.(flatMap|map)/, "shell sidebar must render the organizer navigation");
 
   console.log("newsroom navigation ok");
 }

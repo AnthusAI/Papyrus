@@ -1,4 +1,3 @@
-import { isLocalPreviewEnabled } from "./local-preview";
 import { areEditionsEnabled } from "./site-env";
 import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
@@ -134,8 +133,6 @@ export type SiteBrand = {
   /** Public URL prefix for the Pretext reader (home, editions, articles, archive, settings). Default `""`; e.g. `/information`. */
   readerBasePath?: string;
   opsChrome: OpsChrome;
-  /** Opt-in CMS viewport layout; independent of the public reader renderer/theme. */
-  newsroomLayout?: "organizer";
   corpusKey: string;
   steeringConfigPath: string;
   newsroomSectionsConfigPath: string;
@@ -205,11 +202,7 @@ const REGISTERED_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
   ...Object.fromEntries((papyrusSite.brands ?? []).map((brand) => [brand.id, brand])),
 };
 
-const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = isLocalPreviewEnabled()
-  ? Object.fromEntries(
-      Object.entries(REGISTERED_SITE_BRANDS).map(([id, brand]) => [id, { ...brand, newsroomLayout: "organizer" as const }]),
-    )
-  : REGISTERED_SITE_BRANDS;
+const SITE_BRANDS: Record<SiteBrandId, SiteBrand> = REGISTERED_SITE_BRANDS;
 
 export function normalizeSiteBrandId(value: string | undefined | null): SiteBrandId | null {
   if (!value) return null;

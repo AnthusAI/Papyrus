@@ -3749,95 +3749,6 @@ img {
   gap: 0;
 }
 
-.newsroom-deep-section {
-  border-top: 2px solid var(--rule);
-  display: grid;
-  grid-template-columns: repeat(var(--news-desk-page-columns), minmax(0, 1fr));
-  margin-top: calc(var(--paper-rhythm) * 2);
-  min-width: 0;
-  row-gap: calc(var(--paper-rhythm) * 1.5);
-}
-
-.newsroom-deep-section__header {
-  border-bottom: 1px solid rgb(var(--rule-rgb) / 0.52);
-  display: grid;
-  grid-column: 1 / -1;
-  gap: calc(var(--paper-rhythm) * 0.5);
-  padding: calc(var(--paper-rhythm) * 0.75) 0;
-}
-
-.newsroom-deep-section__header h2,
-.newsroom-deep-section > h2 {
-  color: rgb(var(--ink-solid-rgb) / var(--ink-display-alpha));
-  font-size: 3rem;
-  font-weight: 900;
-  letter-spacing: 0;
-  line-height: 0.92;
-  margin: 0;
-}
-
-.newsroom-deep-section__header a {
-  color: var(--muted);
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.newsroom-deep-section__header-actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--paper-rhythm);
-}
-
-.newsroom-deep-section__header-actions button {
-  background: transparent;
-  border: 1px solid rgb(var(--rule-rgb) / 0.62);
-  color: rgb(var(--ink-solid-rgb) / var(--ink-display-alpha));
-  cursor: pointer;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  min-height: var(--paper-rhythm);
-  padding: 0 calc(var(--paper-rhythm) * 0.5);
-  text-transform: uppercase;
-}
-
-.newsroom-deep-section__header-actions button:disabled {
-  color: var(--muted);
-  cursor: not-allowed;
-}
-
-.newsroom-deep-section__body {
-  column-gap: var(--news-desk-column-gap);
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(var(--news-desk-page-columns), minmax(0, 1fr));
-  row-gap: calc(var(--paper-rhythm) * 1.5);
-}
-
-.newsroom-deep-section__field {
-  border-top: 1px solid rgb(var(--rule-rgb) / 0.42);
-  grid-column: span 2;
-  min-width: 0;
-  padding-top: calc(var(--paper-rhythm) * 0.5);
-}
-
-.newsroom-deep-section__field--lead {
-  grid-column: span 3;
-}
-
-.newsroom-deep-section__field p:not(.story-label),
-.newsroom-deep-section > p:not(.story-label) {
-  color: var(--muted-strong);
-  font-size: 1.05rem;
-  line-height: var(--news-desk-text-leading, var(--paper-rhythm));
-  margin: calc(var(--paper-rhythm) * 0.5) 0 0;
-}
-
 .newsroom-recent-panel__header {
   border-bottom: 1px solid rgb(var(--rule-rgb) / 0.42);
   min-height: calc(var(--paper-rhythm, 19px) * 3);
@@ -8825,10 +8736,6 @@ img {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .newsroom-deep-section__field,
-  .newsroom-deep-section__field--lead {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 785px) {
@@ -10261,87 +10168,5 @@ img {
     font-size: 0.75rem;
     font-weight: 400;
   }
-}
-
-/* Ops app chrome: sans-only content surfaces; moss primary on navigation/actions */
-[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-}
-
-[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h1,
-[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h2,
-[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] h3,
-[data-newsroom-chrome="app"][data-newsroom-ops-shell="true"] .story-label {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-}
-
-[data-newsroom-chrome="app"] [data-category-steering] {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-}
-
-[data-theme-pack="pilobol-us"] [data-newsroom-ops-shell="true"] a:focus-visible,
-[data-theme-pack="pilobol-us"] [data-newsroom-ops-shell="true"] button:focus-visible {
-  --tw-ring-color: var(--theme-moss);
-}
-
-/* List-row selection in ops chrome: tint wash + foreground copy; never invert to primary-foreground. */
-[data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
-[data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
-[data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
-[data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
-[data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
-[data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
-[data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
-[data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"] {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--foreground);
-}
-
-[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__title,
-[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__body,
-[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__kicker,
-[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__meta,
-[data-newsroom-chrome="app"] .newsroom-card[data-active="true"] .newsroom-card__stamp,
-[data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"] strong,
-[data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"] strong,
-[data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"] strong {
-  color: var(--foreground);
-}
-
-[data-newsroom-chrome="app"] [role="tab"][aria-selected="true"] {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
-  :root:not([data-papyrus-theme="light"]):not(.light-theme) [data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"] {
-    background: color-mix(in srgb, var(--foreground) 8%, transparent);
-  }
-}
-
-:root.dark-theme [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] [data-newsroom-list-row][data-selected="true"],
-:root.dark-theme [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] [data-newsroom-list-row][aria-current="true"],
-:root.dark-theme [data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .newsroom-card[data-active="true"],
-:root.dark-theme [data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-data-grid__row[data-active="true"],
-:root.dark-theme [data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-topic-root-button[data-selected="true"],
-:root.dark-theme [data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-topic-focus-row[data-selected="true"],
-:root.dark-theme [data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-topic-focus-button[data-selected="true"],
-:root.dark-theme [data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"],
-:root[data-papyrus-theme="dark"] [data-newsroom-chrome="app"] .news-desk-desk-card[data-selected="true"] {
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
