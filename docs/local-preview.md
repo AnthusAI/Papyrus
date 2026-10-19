@@ -13,7 +13,7 @@ How it works:
 - `NEXT_PUBLIC_PAPYRUS_LOCAL_PREVIEW=1` (set by the script) turns on `lib/local-preview.ts`. Without it nothing changes.
 - `NewsroomClientShell` hands the provider the demo dashboard, so the access gate sees a ready, signed-in session.
 - The three Board loaders in `components/news-desk-taxonomy-client.ts` return the records from `lib/local-preview-seed.ts` instead of calling GraphQL.
-- Every registered brand gets `newsroomLayout: "organizer"` so `/newsroom/work` exists on any brand. Set `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` to preview a specific publication's chrome and stages.
+- `/newsroom/work` (the Board) exists on every brand. Set `NEXT_PUBLIC_PAPYRUS_SITE_BRAND` to preview a specific publication's chrome and stages.
 - The script swaps `amplify_outputs.json` for the demo stub while it runs and restores your real file on exit.
 
 The seed uses the same record shapes the Board reads from GraphQL, so Board code changes show up without touching the seed.

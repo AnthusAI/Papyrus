@@ -47,7 +47,7 @@ Given("I open the newsroom at {int} by {int}", async function (width, height) {
 
 Then("I should see the newsroom app shell", async function () {
   const page = requirePage(this);
-  await page.waitForSelector("[data-newsroom-chrome='app']", { state: "visible", timeout: 15_000 });
+  await page.waitForSelector("[data-newsroom-chrome='organizer']", { state: "visible", timeout: 15_000 });
   await page.waitForSelector("[data-newsroom-ops-shell='true']", { state: "visible", timeout: 15_000 });
   await page.waitForSelector("[data-newsroom-ops-topbar]", { state: "visible", timeout: 15_000 });
   const title = await page.locator("[data-newsroom-ops-title]").innerText();
@@ -59,7 +59,7 @@ Then("I should not see a newspaper masthead or paper page in the newsroom chrome
   const chrome = await page.evaluate(() => ({
     paperPage: Boolean(document.querySelector("[data-news-desk] .paper-page, [data-news-desk-access] .paper-page")),
     masthead: Boolean(document.querySelector("[data-news-desk] .masthead, [data-news-desk-access] .masthead, .news-desk-masthead")),
-    appShell: Boolean(document.querySelector("[data-newsroom-chrome='app']")),
+    appShell: Boolean(document.querySelector("[data-newsroom-chrome='organizer']")),
   }));
   assert.equal(chrome.appShell, true, "Expected newsroom app chrome");
   assert.equal(chrome.paperPage, false, "Expected no paper-page wrapper in newsroom chrome");
@@ -413,7 +413,7 @@ Then("the newsroom should render", async function () {
   assert.equal(await page.locator("[data-news-desk]").getAttribute("data-category-steering-demo"), "true");
   await page.locator("[data-newsroom-ops-title]", { hasText: "Overview" }).waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-news-desk-tab='topics']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-tab='desks']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='concepts']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='references']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='administration']").waitFor({ state: "visible", timeout: 10_000 });
@@ -598,32 +598,10 @@ Then("the newsroom section rail should not render", async function () {
   assert.equal(await page.locator("[data-newsroom-section-rail]").count(), 0);
 });
 
-Then("the deep newsroom section page should show {string}", async function (expectedTitle) {
-  const page = requirePage(this);
-  await page.locator("[data-newsroom-deep-section]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-deep-section-eyebrow]", { hasText: "Section" }).waitFor({ state: "visible", timeout: 10_000 });
-  const title = await page.locator("[data-newsroom-deep-section-title]").innerText();
-  assert.equal(title.trim(), expectedTitle);
-});
-
-Then("the deep newsroom section page should still show {string} after {int} milliseconds", async function (expectedTitle, delayMs) {
-  const page = requirePage(this);
-  await page.waitForTimeout(delayMs);
-  await page.locator("[data-newsroom-deep-section]").waitFor({ state: "visible", timeout: 10_000 });
-  const title = await page.locator("[data-newsroom-deep-section-title]").innerText();
-  assert.equal(title.trim(), expectedTitle);
-});
-
-Then("the deep newsroom section page should omit operational tabs", async function () {
-  const page = requirePage(this);
-  await page.locator("[data-newsroom-deep-section]").waitFor({ state: "visible", timeout: 10_000 });
-  assert.equal(await page.locator("[data-news-desk-tab]").count(), 0);
-});
-
 Then("the topics desk should render", async function () {
   const page = requirePage(this);
   await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-news-desk-tab='topics'][aria-current='page']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-tab='desks'][aria-current='page']").waitFor({ state: "visible", timeout: 10_000 });
   const shell = page.locator("[data-news-desk-section='topics']");
   await shell.waitFor({ state: "visible", timeout: 10_000 });
   assert.equal(await shell.getAttribute("data-detail-open"), "false");

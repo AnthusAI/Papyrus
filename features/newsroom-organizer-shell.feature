@@ -11,7 +11,7 @@ Feature: Production newsroom organizer shell
 
   Scenario: The complete CMS survives a navigation change
     Given an editor has an authorized session and existing newsroom records
-    When the publication enables the organizer newsroom layout
+    When an editor opens the newsroom
     Then taxonomy, concepts, knowledge search, reference curation and policies remain reachable
     And sections, procedures, messages, assignments and article editing retain their original commands
     And administrator identity merging retains its original authorization
@@ -19,11 +19,11 @@ Feature: Production newsroom organizer shell
     And unsupported semantic graph merging is not reported as completed
 
   Scenario: Taxonomy retains its own editor
-    Given the organizer newsroom layout is enabled
+    Given an editor has an authorized session
     When an editor opens Taxonomy or a saved taxonomy category link
     Then the original taxonomy editor opens with its save and doctrine handlers
     And Topic proposals remains a separate destination
-    And other publications retain their existing route aliases
+    And the retired Users and Doctrine aliases open Administration
 
   Scenario: Board projects native records without changing their workflow
     Given an editor is authorized to read CMS records
@@ -35,10 +35,10 @@ Feature: Production newsroom organizer shell
     And a signed-out or forbidden session loads no board records
 
   Scenario: Complete navigation is consistent on desktop and mobile
-    Given a publication has enabled the organizer newsroom layout
-    When an editor opens a newsroom destination
+    Given an editor opens a newsroom destination
+    When the navigation is shown
     Then desktop navigation and the mobile menu show the same grouped destinations and descriptions
-    And Overview, Board and Articles are the leading destinations
+    And Articles and Assignments lead the Editorial work group
     And bottom tabs show icons and labels without descriptions
 
   Scenario: Collapsing desktop navigation returns space to the workspace
@@ -64,10 +64,10 @@ Feature: Production newsroom organizer shell
     When I inspect the newsroom controls
     Then no synthetic prediction or local service is presented as a live integration
 
-  Scenario: Existing publication chrome remains unchanged until opted in
-    Given a publication has not enabled the organizer newsroom layout
+  Scenario: Every publication uses the organizer shell
+    Given any publication, with no layout option to set
     When I open the newsroom
-    Then its existing CMS shell and commands remain unchanged
+    Then the organizer shell is shown with all of its destinations and commands
 
   Scenario: Settings works on a CMS hosted at the root
     Given the publication hosts its newsroom at the root path
