@@ -722,7 +722,9 @@ def start_cloud_procedure_run(
     output_markers: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     procedure_key = required_procedure_key_for(alias)
-    procedure_input = normalize_cloud_procedure_input(input_payload)
+    from .editorial_context import prepare_editorial_worker_input
+
+    procedure_input = normalize_cloud_procedure_input(prepare_editorial_worker_input(client, alias, input_payload))
     try:
         definition = get_cloud_procedure_definition_by_key(client, procedure_key)
     except Exception as error:

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "502b411a-ce32-44a4-955f-b17fb387e709",
+  "issue_id": "PPY-e081def4-c046-4013-8ac5-4da2135d82ef",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-18T18:59:27.140Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One editorial context for reporting agents and newsroom workers",
+    "description": "As a Papyrus reporting or writing agent, I want one current publication-scoped editorial context, so that configurable policy reaches external agents and canned workers without duplicating evolving policy in static skills.\n\nApproved scope: shared resolver/renderer for publication and optional section/story/assignment; structured CLI with explicit live versus local Git source, provenance/revisions, precedence/conflict warnings, truthful missing/unauthorized failures, required policies preserved under budgeting; same resolved content in research/reporting/copywriting workers; reuse Limatus packaged copy-edit skill while retaining explicit human option selection. Reconcile existing Python/GraphQL doctrine lookup rather than building a parallel store. No Cyclotron steering/delegation, infrastructure, credentials, deployment or main promotion.\n\nCurrent evidence: newsroom.py papyrus_build_assignment_agent_context renders doctrine but loses source revision fields, suppresses read failures and mixes live section policy with assignment snapshots; researcher.tac's research harness loads Assignment without resolving doctrine. getAssignmentContext's TypeScript handler still chooses category-based desk doctrine while Python uses NewsroomSection. Existing YAML files are seeds, not proof of current hosted policy.\n\nMilestones: canonical resolve/render/CLI and observable tests; shared worker integration and context-budget behavior; authorized API parity, skills and documentation. Code owner must verify missing/unauthorized behavior, revisions and required-policy preservation, with mocked scoped records and actual CLI local-file tests; live source/model calls are not required. Keep completed implementation reviewable in a draft PR and leave unimplemented acceptance explicit. No merge or deployment authorized.\n",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "ChatGPT"
+    }
+  }
+}

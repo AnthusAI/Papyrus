@@ -135,6 +135,15 @@ async function readTextFromStorage(storagePath: string): Promise<string> {
   }
 }
 
+/** Strict read for required private editorial payloads; storage failures propagate. */
+export async function readEditorialAttachment(attachment: { storagePath?: string | null }): Promise<string> {
+  if (!attachment.storagePath) throw new Error("Editorial attachment has no storage path.");
+  const result = await s3.send(new GetObjectCommand({ Bucket: payloadBucketName(), Key: attachment.storagePath }));
+  const text = await result.Body?.transformToString("utf8");
+  if (!text?.trim()) throw new Error("Editorial attachment is empty.");
+  return text;
+}
+
 function isMissingStorageKeyError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const record = error as Record<string, unknown>;
