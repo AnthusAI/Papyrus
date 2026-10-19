@@ -134,20 +134,24 @@ if (command === "deploy") {
   const outputDirectory = path.resolve(opt("out", process.env.CDK_OUTDIR ?? "cdk.out"));
   const explicitAccount = opt("account");
   const explicitRegion = opt("region");
-  const synthCommand = [
+  const synthesis = spawnSync(
     process.execPath,
-    path.resolve(process.argv[1]),
-    "synth",
-    "--site",
-    path.resolve(opt("site", "infra/site.json")),
-    "--out",
-    outputDirectory,
-    ...(explicitAccount ? ["--account", explicitAccount] : []),
-    ...(explicitRegion ? ["--region", explicitRegion] : []),
-  ].map((part) => JSON.stringify(part)).join(" ");
+    [
+      path.resolve(process.argv[1]),
+      "synth",
+      "--site",
+      path.resolve(opt("site", "infra/site.json")),
+      "--out",
+      outputDirectory,
+      ...(explicitAccount ? ["--account", explicitAccount] : []),
+      ...(explicitRegion ? ["--region", explicitRegion] : []),
+    ],
+    { stdio: "inherit" },
+  );
+  if (synthesis.status !== 0) process.exit(synthesis.status ?? 1);
   const deployment = spawnSync(
     "npx",
-    ["--yes", "aws-cdk@2", "deploy", "--app", synthCommand, "--require-approval", "never", "--output", outputDirectory, `AmplifyAppShell-${config.siteId}`],
+    ["--yes", "aws-cdk@2", "deploy", "--app", outputDirectory, "--require-approval", "never", `AmplifyAppShell-${config.siteId}`],
     { stdio: "inherit" },
   );
   process.exit(deployment.status ?? 1);
