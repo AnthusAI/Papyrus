@@ -12368,7 +12368,7 @@ function ReportingStoryBudgetBoard({
           section={section}
           selectedAssignmentId={selectedAssignmentId}
         />
-      )) : <EmptyRow label="No reporting edition-candidate assignments found" />}
+      )) : <EmptyRow label="No reporting candidate assignments found" />}
     </div>
   );
 }
@@ -14568,7 +14568,7 @@ function buildUiReportingPacketReviewPlan({
   event: AssignmentEventRecord;
   relations: SemanticRelationRecord[];
 } {
-  if (assignment.assignmentTypeKey !== "reporting.edition-candidate") throw new Error("Only reporting edition-candidate assignments can review reporting packets.");
+  if (assignment.assignmentTypeKey !== "reporting.candidate") throw new Error("Only reporting candidate assignments can review reporting packets.");
   if (message.messageKind !== "reporting_context_packet") throw new Error("Only reporting context packets can be reviewed.");
   if (decision === "merge" && !targetItem?.id && !targetItemId.trim()) throw new Error("Merge Packet requires a target Item ID.");
   const resolvedTargetItem = targetItem ?? (targetItemId.trim() ? { id: targetItemId.trim(), lineageId: targetItemId.trim(), versionNumber: null } : null);

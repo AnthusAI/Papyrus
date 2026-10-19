@@ -51,6 +51,8 @@ class DocsSiteConfig:
     """Write an index.html redirect at each page's former directory URL (for example from MkDocs)."""
     excluded_page_patterns: tuple[str, ...] = ()
     """Glob patterns matched against each page's path under the docs directory; matching pages are never published."""
+    published_site_url: str = ""
+    """The site's public address ending in a slash; when set, the build also writes ``sitemap.xml`` and ``404.html``."""
 
 
 def source_documentation_pages(config: DocsSiteConfig) -> list[Path]:
@@ -191,7 +193,57 @@ def stage_docs_content(config: DocsSiteConfig, staging_directory: Path) -> int:
         published_file = staging_directory / PUBLISHED_ASSET_DIRECTORY_NAME / asset_path_for_documentation_file(needed_file)
         published_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(config.documentation_directory / needed_file, published_file)
+    if config.published_site_url:
+        stage_generated_pages(staging_directory)
     return len(source_pages)
+
+
+GENERATED_ARTICLES_INDEX_NAME = "index"
+GENERATED_NOT_FOUND_NAME = "not-found"
+
+
+def stage_generated_pages(staging_directory: Path) -> None:
+    """Add an index of every article and a page-not-found page beside the pages the author wrote."""
+    articles_directory = staging_directory / "articles"
+    article_lines = [
+        f"- [{page_title(article)}]({article.stem}.html)"
+        for article in sorted(articles_directory.glob("*.md"))
+        if article.stem not in (GENERATED_ARTICLES_INDEX_NAME, GENERATED_NOT_FOUND_NAME)
+    ]
+    articles_index = articles_directory / f"{GENERATED_ARTICLES_INDEX_NAME}.md"
+    if not articles_index.exists():
+        articles_index.write_text("# All articles\n\n" + "\n".join(article_lines) + "\n", encoding="utf-8")
+    (articles_directory / f"{GENERATED_NOT_FOUND_NAME}.md").write_text(
+        "# Page not found\n\nThat page does not exist. Try [all articles](index.html) or the [home page](../index.html).\n",
+        encoding="utf-8",
+    )
+
+
+def write_sitemap_and_not_found_page(config: DocsSiteConfig, output_directory: Path) -> None:
+    """Write ``sitemap.xml`` and a root ``404.html`` whose relative links resolve from any address."""
+    site_url = config.published_site_url
+    page_addresses = sorted(
+        page.relative_to(output_directory).as_posix()
+        for page in output_directory.rglob("*.html")
+        if page.name not in ("404.html", f"{GENERATED_NOT_FOUND_NAME}.html") and not is_redirect_stub(page)
+    )
+    sitemap_entries = "".join(f"<url><loc>{html.escape(site_url + address)}</loc></url>" for address in page_addresses)
+    (output_directory / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{sitemap_entries}</urlset>',
+        encoding="utf-8",
+    )
+    not_found_page = output_directory / "articles" / f"{GENERATED_NOT_FOUND_NAME}.html"
+    base_element = f'<base href="{html.escape(site_url)}articles/">'
+    (output_directory / "404.html").write_text(
+        not_found_page.read_text(encoding="utf-8").replace("<head>", f"<head>{base_element}", 1),
+        encoding="utf-8",
+    )
+    not_found_page.unlink()
+
+
+def is_redirect_stub(page: Path) -> bool:
+    return 'http-equiv="refresh"' in page.read_text(encoding="utf-8")[:300]
 
 
 def page_title(source_page: Path) -> str:
@@ -342,6 +394,8 @@ def build_docs_site(config: DocsSiteConfig, output_directory: Path) -> BuildResu
         )
     if config.redirect_former_directory_urls:
         write_redirects_from_former_urls(config, output_directory)
+    if config.published_site_url:
+        write_sitemap_and_not_found_page(config, output_directory)
     return result
 
 
@@ -353,6 +407,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tagline", default="")
     parser.add_argument("--source-url", required=True)
     parser.add_argument("--theme", default="catppuccin")
+    parser.add_argument("--site-url", default="", help="Public address ending in a slash; enables sitemap.xml and 404.html.")
     parser.add_argument("--exclude", action="append", default=[], help="Glob of pages (relative to --docs) never to publish; repeatable.")
     parser.add_argument("--redirect-former-urls", action="store_true", help="Write redirects from former directory-style URLs.")
     arguments = parser.parse_args(argv)
@@ -364,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
             source_repository_url=arguments.source_url,
             theme=arguments.theme,
             redirect_former_directory_urls=arguments.redirect_former_urls,
+            published_site_url=arguments.site_url,
             excluded_page_patterns=tuple(arguments.exclude),
         ),
         arguments.out,

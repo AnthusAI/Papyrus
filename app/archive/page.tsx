@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { editionsEnabled } from "../../lib/site-brand";
 import { ArchiveShell } from "../../components/archive-shell";
 import { ArchiveGrid } from "../../components/archive-grid";
 import { loadArchiveEditionPreviews } from "../../lib/archive-data";
@@ -7,6 +9,7 @@ import { ARCHIVE_BATCH_SIZE } from "../../lib/archive-types";
 export const revalidate = 60;
 
 export default async function ArchivePage() {
+  if (!editionsEnabled()) notFound();
   const initialBatch = await loadArchiveEditionPreviews({ limit: ARCHIVE_BATCH_SIZE });
 
   return (

@@ -1829,7 +1829,7 @@ Then("assignment {string} should show a private reporting packet", async functio
   const page = requirePage(this);
   const candidate = page.locator(`.news-desk-assignment-row[data-assignment-candidate="${assignmentId}"]`);
   await candidate.waitFor({ state: "visible", timeout: 10_000 });
-  await candidate.locator("text=reporting.edition-candidate").waitFor({ state: "visible", timeout: 10_000 });
+  await candidate.locator("text=reporting.candidate").waitFor({ state: "visible", timeout: 10_000 });
   await candidate.locator("text=Reporting packet").waitFor({ state: "visible", timeout: 10_000 });
   await candidate.locator("text=Reporting context packet: model-release accountability angle").waitFor({ state: "visible", timeout: 10_000 });
 });

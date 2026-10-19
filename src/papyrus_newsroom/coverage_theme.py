@@ -3077,7 +3077,7 @@ def _reporting_assignments_for_edition_from_state(
 ) -> list[dict[str, Any]]:
     assignments = []
     for assignment in state.get("assignments") or []:
-        if str(assignment.get("assignmentTypeKey") or "") != "reporting.edition-candidate":
+        if str(assignment.get("assignmentTypeKey") or "") != "reporting.candidate":
             continue
         metadata = _metadata(assignment)
         if str(metadata.get("editionId") or "") != edition_id:
@@ -4640,7 +4640,7 @@ def story_budget_output(
     filtered = []
     for assignment in assignments:
         metadata = {**_assignment_graph_metadata(assignment, subject_relations), **_metadata(assignment)}
-        if assignment.get("assignmentTypeKey") not in {"research.edition-candidate", "reporting.edition-candidate", "copywriting.article-draft", "copywriting.brief-draft"}:
+        if assignment.get("assignmentTypeKey") not in {"research.candidate", "reporting.candidate", "copywriting.article-draft", "copywriting.brief-draft"}:
             continue
         if run_id and run_id not in {assignment.get("importRunId"), metadata.get("storyCycleRunId"), metadata.get("coverageThemeRunId"), metadata.get("runId")}:
             continue
@@ -4714,10 +4714,10 @@ def story_budget_output(
                 "expectedOutput": metadata.get("expectedOutput"),
             },
         }
-        if assignment.get("assignmentTypeKey") == "research.edition-candidate":
+        if assignment.get("assignmentTypeKey") == "research.candidate":
             section_entry["researchAssignments"].append(row)
             section_entry["counts"]["research"] += 1
-        elif assignment.get("assignmentTypeKey") == "reporting.edition-candidate":
+        elif assignment.get("assignmentTypeKey") == "reporting.candidate":
             packet = _packet_summary(packet_messages, state.get("modelAttachments", []), "reporting")
             row.update(packet)
             section_entry["reportingCandidates"].append(row)
@@ -5124,7 +5124,7 @@ def research_assignment_record(**kwargs: Any) -> dict[str, Any]:
     queue_key = f"coverage-theme:{date}:section:{section['id']}:lane:research"
     return {
         "id": f"assignment-coverage-theme-research-{_safe_id(run_id)}-{_safe_id(section['id'])}",
-        "assignmentTypeKey": "research.edition-candidate",
+        "assignmentTypeKey": "research.candidate",
         "queueKey": queue_key,
         "queueStatusKey": f"{queue_key}#open",
         "status": "open",
@@ -5225,7 +5225,7 @@ def reporting_assignment_record(**kwargs: Any) -> dict[str, Any]:
     return {
         "id": assignment_id,
         "itemLineageId": content_item_lineage_id_for_first_work(title=title, first_assignment_id=assignment_id),
-        "assignmentTypeKey": "reporting.edition-candidate",
+        "assignmentTypeKey": "reporting.candidate",
         "queueKey": queue_key,
         "queueStatusKey": f"{queue_key}#open",
         "status": "open",

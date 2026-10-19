@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { editionsEnabled } from "../../../../lib/site-brand";
 import { siteServesNextReaderRoutes } from "../../../../lib/reader-static-params";
 import { getSiteRenderer } from "../../../../lib/site-renderer";
 import type { PresentationTarget } from "../../../../renderers/pretext";
@@ -23,7 +24,7 @@ export async function EditionRoutePage({
   lockedPresentation,
   target = { kind: "edition" },
 }: EditionRoutePageProps) {
-  if (!siteServesNextReaderRoutes()) notFound();
+  if (!editionsEnabled() || !siteServesNextReaderRoutes()) notFound();
   const route = parseEditionDateRoute({ year, month, day });
   if (!route) notFound();
   if (!route.isCanonical) redirect(route.canonicalPath);

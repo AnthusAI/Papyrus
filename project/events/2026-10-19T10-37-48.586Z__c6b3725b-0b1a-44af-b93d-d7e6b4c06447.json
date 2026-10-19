@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "c6b3725b-0b1a-44af-b93d-d7e6b4c06447",
+  "issue_id": "PPY-8299049b-3cfc-4833-9f41-9babbb8b0775",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T10:37:48.586Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Renew Papyrus CLI sessions for at least 24 hours of unattended reporting",
+    "description": "Issue filing only, explicitly requested by Ryan. No implementation, login, new credentials, security/configuration changes or deployment is authorized. Parent epic: PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7. Reference: Apricity authorization-code+PKCE login, keychain refresh session and renewal, https://github.com/AnthusAI/Apricity/blob/ffe8a023b0418445aa67893a52ae9e173c366d42/crates/apricity-cli/src/cloud.rs#L206. Preserve existing newsroom authorization and agent attribution; do not conflate CLI auth with hosted procedure execution.\n\nAs an authorized reporter I can continue supported CLI work for at least 24 hours without interactive relogin while my session remains unrevoked and publication permissions remain valid.\n\nFeature: Renewable unattended CLI session\n  Scenario: Continue past short-lived token expiry\n    Given a secure renewable session whose configured lifetime exceeds 24 hours with margin\n    When access tokens expire across commands, process restarts and M1 sleep/resume\n    Then the CLI silently renews before protected work without opening a browser\n    And it uses short-lived tokens rather than a 24-hour access token\n  Scenario: Concurrent rotation or temporary failure\n    Given two commands share one renewable session\n    When token rotation or a timeout, throttling or provider outage occurs\n    Then refresh state replacement is atomic and bounded\n    And transient errors preserve an otherwise valid session\n    And uncertain protected mutations are not blindly replayed\n  Scenario: Demonstrate actual elapsed time\n    Given an approved end-to-end test with unchanged grants and available services\n    When more than 24 real hours elapse after initial login\n    Then a supported protected operation succeeds without interactive login\n    And timestamped redacted receipts include renewal and restart/sleep evidence\n\nReport configuration inspection, simulated-clock tests and actual elapsed >=24h testing separately. Configured lifetime or a simulated clock does not prove an elapsed 24-hour run; none has passed yet. Exact native-client refresh validity is a reviewed policy choice, not an assumed Apricity production setting. Recoverable expiry and revocation behavior is tracked in the sibling session-security story.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "ChatGPT"
+    }
+  }
+}
