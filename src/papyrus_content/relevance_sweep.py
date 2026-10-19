@@ -14,7 +14,8 @@ One sweep, run by a worker after research intake and on a schedule:
 5. Records the ``cyclotron-status/v1`` snapshot, saves the store to the
    private bucket, and releases the claim.
 
-It never changes a Reference's curation status. Nothing runs between sweeps:
+It changes a Reference's curation status only through the opt-in, audited
+auto-reject of clear misses (auto_reject.py). Nothing runs between sweeps:
 the worker, the store and the bucket all scale to zero.
 """
 from __future__ import annotations
@@ -28,6 +29,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .auto_decision_gate import auto_decision_gate, load_approved_proof
+from .auto_reject import clear_miss_probability, reject_reference_automatically
 from .assignments import active_claim_held_by_different_assignee, apply_assignment_action
 from .ids import knowledge_corpus_id, safe_id
 from .model_attachments import download_attachment_buffer, expand_private_payload_records, parse_jsonish
@@ -69,10 +71,11 @@ class SweepResult:
     status: dict[str, Any] | None = None
     warnings: list[str] = field(default_factory=list)
     classifier_set: dict[str, Any] | None = None
+    auto_rejected: list[dict[str, Any]] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
-                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "stoppedBecause": self.stopped_because,
+                "primed": self.primed, "primingFailed": self.priming_failed, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "autoRejected": self.auto_rejected, "stoppedBecause": self.stopped_because,
                 "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings,
                 **({"classifierSet": self.classifier_set} if self.classifier_set is not None else {})}
 
@@ -230,6 +233,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     decisions_allowed = decisions_remaining_today(recorded_usage, maximum_per_day=plan.max_decisions_per_day, today=today)
     result.pending = [reference["lineageId"] for reference in pending]
     if not apply:
+        result.auto_rejected = _auto_rejections_a_sweep_would_make(client, plan, corpus_id, pending, now())
         return result
 
     from decision_flywheel import Cyclotron
@@ -261,6 +265,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
             result.retired_labels = _retire_withdrawn_labels(client, cyclotron, plan, corpus_id, result.warnings)
             provenance = reproducibility_provenance(plan, cyclotron)
+            auto_reject_gate = _auto_reject_gate(client, plan, corpus_id, now())
             for reference in pending:
                 if decisions_allowed is not None and result.decided >= decisions_allowed:
                     result.stopped_because = "daily decision cap"
@@ -268,6 +273,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                         f"{plan.definition.id} reached its cap of {plan.max_decisions_per_day} decisions today.")
                     break
                 decision = asyncio.run(cyclotron.decide(reference_item(reference)))
+                _reject_clear_miss(client, plan, auto_reject_gate, reference, decision.to_json(), now(), result)
                 current = _decision_relations(client, reference["lineageId"])
                 existing = current_relevance_decision(current, reference["lineageId"])
                 if existing and json.loads(existing.get("metadata") or "{}").get("decisionId") == decision.decision_id:
@@ -298,6 +304,59 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     finally:
         lease.release()
     return result
+
+
+def _auto_reject_gate(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: str) -> dict[str, Any]:
+    classifier = plan.definition.classifiers[0]
+    return auto_decision_gate(load_approved_proof(plan.approved_proof_path),
+                              human_label_count=_human_label_count(client, classifier.labels, corpus_id), now=now)
+
+
+def _clear_miss_of_decision(plan: RelevanceCyclotronPlan, gate: Mapping[str, Any], decision: Mapping[str, Any]) -> float | None:
+    classifier = plan.definition.classifiers[0]
+    result = decision["classifiers"][classifier.id]
+    return clear_miss_probability(plan.auto_reject, gate, label=result["label"],
+                                  probabilities=result.get("probabilities") or {}, labels=classifier.labels,
+                                  positive_label=classifier.positive_label)
+
+
+def _reject_clear_miss(client, plan: RelevanceCyclotronPlan, gate: Mapping[str, Any], reference: Mapping[str, Any],
+                       decision: Mapping[str, Any], now: str, result: SweepResult) -> None:
+    """Reject a pending reference the cyclotron is clearly sure is a miss, within the sweep cap. Never accepts."""
+    if len(result.auto_rejected) >= plan.auto_reject["maxRejectsPerSweep"]:
+        return
+    probability = _clear_miss_of_decision(plan, gate, decision)
+    if probability is None or _curation_messages(client, reference["lineageId"]):
+        return
+    if reject_reference_automatically(client, reference, cyclotron_id=plan.definition.id, probability=probability,
+                                      proof_id=gate["proofId"], decision_id=decision["decisionId"], now=now):
+        result.auto_rejected.append({"lineageId": reference["lineageId"], "probability": probability,
+                                     "proofId": gate["proofId"]})
+
+
+def _auto_rejections_a_sweep_would_make(client, plan: RelevanceCyclotronPlan, corpus_id: str,
+                                        pending: Sequence[Mapping[str, Any]], now: str) -> list[dict[str, Any]]:
+    if not plan.enabled or not plan.auto_reject["enabled"]:
+        return []
+    gate = _auto_reject_gate(client, plan, corpus_id, now)
+    if not gate["allowed"]:
+        return []
+    classifier = plan.definition.classifiers[0]
+    would_reject = []
+    for reference in pending:
+        if len(would_reject) >= plan.auto_reject["maxRejectsPerSweep"]:
+            break
+        relation = current_relevance_decision(_decision_relations(client, reference["lineageId"]), reference["lineageId"])
+        if relation is None:
+            continue
+        recorded = json.loads(relation.get("metadata") or "{}")
+        probability = clear_miss_probability(plan.auto_reject, gate, label=recorded.get("label"),
+                                             probabilities=recorded.get("probabilities") or {},
+                                             labels=classifier.labels, positive_label=classifier.positive_label)
+        if probability is not None and not _curation_messages(client, reference["lineageId"]):
+            would_reject.append({"lineageId": reference["lineageId"], "probability": probability,
+                                 "proofId": gate["proofId"]})
+    return would_reject
 
 
 def _apply_review_rate_request(client, cyclotron, plan: RelevanceCyclotronPlan, warnings: list[str]) -> None:
@@ -635,5 +694,8 @@ def references_decide_relevance(flags: list[str]) -> None:
         print(f"references\tdecide-relevance\tprimed\t{result.primed}\tfailed\t{result.priming_failed}")
         rate = (result.status or {}).get("reviewRate") or {}
         print(f"references\tdecide-relevance\treview-rate\t{rate.get('state')}\t{rate.get('rate')}")
+    verb = "auto-rejected" if result.applied else "would-auto-reject"
+    for rejection in result.auto_rejected:
+        print(f"references\tdecide-relevance\t{verb}\t{rejection['lineageId']}\t{rejection['probability']}\t{rejection['proofId']}")
     for warning in result.warnings:
         print(f"references\tdecide-relevance\twarning\t{warning}")

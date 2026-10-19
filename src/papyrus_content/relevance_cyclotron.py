@@ -9,7 +9,7 @@ environment, never from configuration.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 DEFAULT_QUESTION = "Should this candidate source become a reference for this publication?"
@@ -30,6 +30,7 @@ REVIEW_PROGRAM_FIELDS = {
 }
 SECRET_WORDS = ("key", "token", "secret", "password", "credential")
 FIELD = "relevanceCyclotron"
+DEFAULT_AUTO_REJECT = {"enabled": False, "minimumRejectProbability": 0.95, "maxRejectsPerSweep": 10}
 
 
 def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
@@ -41,7 +42,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     _refuse_secrets(raw, FIELD)
     known = {"cyclotronId", "classifierId", "question", "labels", "positiveLabel", "decisionModel",
              "optimizer", "store", "maxRequestsPerSweep", "reviewProgram", "reviewControl", "enabled",
-             "maxDecisionsPerDay", "approvedProofPath"}
+             "maxDecisionsPerDay", "approvedProofPath", "autoReject"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ValueError(f"{FIELD} has unknown fields: {', '.join(unknown)}.")
@@ -96,6 +97,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     approved_proof_path = raw.get("approvedProofPath")
     if approved_proof_path is not None and (not isinstance(approved_proof_path, str) or not approved_proof_path.strip()):
         raise ValueError(f"{FIELD}.approvedProofPath must be a file path.")
+    auto_reject = _normalize_auto_reject(raw.get("autoReject"))
     program = raw.get("reviewProgram") or {}
     if not isinstance(program, dict) or set(program) - set(REVIEW_PROGRAM_FIELDS):
         raise ValueError(f"{FIELD}.reviewProgram fields are {', '.join(REVIEW_PROGRAM_FIELDS)}.")
@@ -115,7 +117,29 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
         "enabled": enabled,
         "maxDecisionsPerDay": max_decisions_per_day,
         "approvedProofPath": approved_proof_path,
+        "autoReject": auto_reject,
     }
+
+
+def _normalize_auto_reject(raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return dict(DEFAULT_AUTO_REJECT)
+    path = f"{FIELD}.autoReject"
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must be an object.")
+    unknown = sorted(set(raw) - set(DEFAULT_AUTO_REJECT))
+    if unknown:
+        raise ValueError(f"{path} has unknown fields: {', '.join(unknown)}.")
+    enabled = raw.get("enabled", DEFAULT_AUTO_REJECT["enabled"])
+    if type(enabled) is not bool:
+        raise ValueError(f"{path}.enabled must be true or false.")
+    minimum = raw.get("minimumRejectProbability", DEFAULT_AUTO_REJECT["minimumRejectProbability"])
+    if type(minimum) not in (int, float) or not 0.5 < minimum <= 1:
+        raise ValueError(f"{path}.minimumRejectProbability must be a number above 0.5 and at most 1.")
+    maximum = raw.get("maxRejectsPerSweep", DEFAULT_AUTO_REJECT["maxRejectsPerSweep"])
+    if type(maximum) is not int or maximum < 1:
+        raise ValueError(f"{path}.maxRejectsPerSweep must be a positive integer.")
+    return {"enabled": enabled, "minimumRejectProbability": float(minimum), "maxRejectsPerSweep": maximum}
 
 
 def doctrine_seed_rubric(doctrine: Sequence[Mapping[str, Any]]) -> str:
@@ -147,6 +171,7 @@ class RelevanceCyclotronPlan:
     enabled: bool = True
     max_decisions_per_day: int | None = None
     approved_proof_path: str | None = None
+    auto_reject: Mapping[str, Any] = field(default_factory=lambda: dict(DEFAULT_AUTO_REJECT))
 
 
 def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
@@ -165,7 +190,7 @@ def build_relevance_cyclotron(steering_config: Mapping[str, Any], doctrine: Sequ
                                   dict(block["decisionModel"]), dict(block["optimizer"]) if block["optimizer"] else None,
                                   block["store"]["localPath"], block["store"]["s3Prefix"], block["maxRequestsPerSweep"],
                                   block["reviewControl"], block.get("enabled", True), block.get("maxDecisionsPerDay"),
-                                  block.get("approvedProofPath"))
+                                  block.get("approvedProofPath"), dict(block.get("autoReject") or DEFAULT_AUTO_REJECT))
 
 
 def decision_model_identity(plan: RelevanceCyclotronPlan) -> str:
