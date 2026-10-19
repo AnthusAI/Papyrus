@@ -1110,8 +1110,8 @@ def _write_json_file(path: str, payload: Any) -> None:
 
 
 PLANNING_ASSIGNMENT_TYPE_KEYS = frozenset({
-    "research.edition-candidate",
-    "reporting.edition-candidate",
+    "research.candidate",
+    "reporting.candidate",
 })
 PLANNING_FORUM_THREAD_KINDS = frozenset({
     "edition_forum",

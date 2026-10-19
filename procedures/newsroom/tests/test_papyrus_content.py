@@ -15,7 +15,9 @@ from papyrus_content import cli as papyrus_content_cli
 from papyrus_content.catalog import build_prepared_reference_catalog, build_reference_catalog_registration_records, catalog_items
 from papyrus_content.ids import hash_short, knowledge_corpus_id, reference_lineage_id_for
 from papyrus_content.model_attachments import build_text_model_payload_attachment
+from papyrus_content.editions_commands import editions_plan
 from papyrus_content.papyrus_config import (
+    editions_enabled,
     build_newsroom_reference_public_url,
     load_papyrus_config,
     normalize_papyrus_config,
@@ -283,7 +285,7 @@ class PapyrusContentTests(unittest.TestCase):
         self.assertEqual(config["publicSite"]["baseUrl"], "https://p.apyr.us")
 
     def test_build_newsroom_reference_public_url(self) -> None:
-        with mock.patch.dict(
+        with mock.mock.patch.dict(
             os.environ,
             {"PAPYRUS_PUBLIC_SITE_BASE_URL": "https://staging.example.com"},
             clear=False,
@@ -300,7 +302,7 @@ class PapyrusContentTests(unittest.TestCase):
                 "schemaVersion: 1\npublicSite:\n  baseUrl: https://from-config.example.com\n",
                 encoding="utf-8",
             )
-            with mock.patch.dict(os.environ, {}, clear=False):
+            with mock.mock.patch.dict(os.environ, {}, clear=False):
                 os.environ.pop("PAPYRUS_PUBLIC_SITE_BASE_URL", None)
                 os.environ["PAPYRUS_CONFIG"] = str(config_path)
                 try:
@@ -338,7 +340,7 @@ class PapyrusContentTests(unittest.TestCase):
                 "schemaVersion: 1\nopenai:\n  api_key: from-config\n",
                 encoding="utf-8",
             )
-            with mock.patch.dict(
+            with mock.mock.patch.dict(
                 os.environ,
                 {"PAPYRUS_CONFIG": str(config_path), "OPENAI_API_KEY": "from-env"},
                 clear=False,
@@ -348,3 +350,18 @@ class PapyrusContentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EditionsSettingTests(unittest.TestCase):
+    def test_editions_are_off_without_configuration(self) -> None:
+        with mock.patch.dict(os.environ, {"PAPYRUS_EDITIONS_ENABLED": ""}):
+            self.assertFalse(editions_enabled())
+
+    def test_edition_commands_refuse_when_editions_are_off(self) -> None:
+        with mock.patch.dict(os.environ, {"PAPYRUS_EDITIONS_ENABLED": "false"}):
+            with self.assertRaisesRegex(ValueError, "does not publish in editions"):
+                editions_plan([])
+
+    def test_environment_turns_editions_on(self) -> None:
+        with mock.patch.dict(os.environ, {"PAPYRUS_EDITIONS_ENABLED": "true"}):
+            self.assertTrue(editions_enabled())

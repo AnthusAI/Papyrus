@@ -687,7 +687,7 @@ DOCS: dict[str, dict[str, Any]] = {
             "return Assignment.create{\n"
             "  type = \"research\",\n"
             "  title = \"Research recent AI newsroom reliability metrics\",\n"
-            "  summary = \"Find evidence and angles for an edition-candidate story.\",\n"
+            "  summary = \"Find evidence and angles for a candidate story.\",\n"
             "  sectionKey = \"technology\",\n"
             "  researchMode = \"source_discovery\",\n"
             "  apply = true,\n"
@@ -752,7 +752,7 @@ DOCS: dict[str, dict[str, Any]] = {
             "return Assignment.create{\n"
             "  type = \"research\",\n"
             "  title = \"Research recent AI newsroom reliability metrics\",\n"
-            "  summary = \"Find evidence and angles for an edition-candidate story.\",\n"
+            "  summary = \"Find evidence and angles for a candidate story.\",\n"
             "  sectionKey = \"technology\",\n"
             "  researchMode = \"source_discovery\",\n"
             "  apply = true,\n"
@@ -2220,7 +2220,7 @@ Example:
 return Assignment.create{
   type = "research",
   title = "Research recent AI newsroom reliability metrics",
-  summary = "Find evidence and angles for an edition-candidate story.",
+  summary = "Find evidence and angles for a candidate story.",
   sectionKey = "technology",
   researchMode = "source_discovery",
   apply = true,

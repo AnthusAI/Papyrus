@@ -1510,7 +1510,7 @@ export function createDemoCategorySteeringDashboard(
     assignments: [
       {
         id: assignmentReportingId,
-        assignmentTypeKey: "reporting.edition-candidate",
+        assignmentTypeKey: "reporting.candidate",
         queueKey: "edition:edition-demo:section:news:lane:reporting",
         queueStatusKey: "edition:edition-demo:section:news:lane:reporting#open",
         status: "open",
