@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "596b67bc-6d55-44e9-8c32-980d880e1cf2",
+  "issue_id": "PPY-fff86a33-1984-4d36-b655-005c3ca3bf9f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T04:28:44.415Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "[p.apyr.us] Read the newspaper links go to /information, which 301s to a 404",
+    "description": "**Problem**\nOn https://p.apyr.us/ the \"Read the newspaper\" button, the \"Newspaper\" nav link and the FAQ/footer links all point at /information. That path 301-redirects to https://read.p.apyr.us/information, which returns 404. The newspaper itself is at https://read.p.apyr.us/. A visitor clicking the primary call to action lands on an error page.\n\n**Evidence**\n- `curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://p.apyr.us/information` returns `301 https://read.p.apyr.us/information`\n- `curl -s -o /dev/null -w '%{http_code}' https://read.p.apyr.us/information` returns `404`\n- `curl -s -o /dev/null -w '%{http_code}' https://read.p.apyr.us/` returns `200`\n- The live page is built from the Papyrus-web repo: content/index.md:10 (`[Read the newspaper](/information)`) and web/projector.py:37 and :126 (nav and footer `href=\"/information\"`). The older public p.apyr.us repo has the same link in components/marketing/MarketingPage.tsx:41 and :55. The fix is tracked in Papyrus-web as a sibling issue.\n\n**Fix**\nLink to https://read.p.apyr.us/ instead of /information in content/index.md, web/projector.py and the FAQ text, or add a redirect that maps /information to the reader root. Rebuild and deploy.\n\n**How to verify**\n`curl -sL -o /dev/null -w '%{http_code}' https://p.apyr.us/information` returns 200, and every \"Read the newspaper\" / \"Newspaper\" link on https://p.apyr.us/ resolves to a 200 page.\n\nSource: Anthus repo audit, 2026-10-20.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "audit-filing"
+    }
+  }
+}
