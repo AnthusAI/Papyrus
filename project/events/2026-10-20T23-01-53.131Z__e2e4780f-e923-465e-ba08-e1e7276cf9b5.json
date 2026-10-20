@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "e2e4780f-e923-465e-ba08-e1e7276cf9b5",
+  "issue_id": "PPY-dd858c90-ae71-429e-a44a-0527ff84d777",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T23:01:53.131Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Use Biblicus's GROBID launcher instead of a Papyrus copy",
+    "description": "references_commands.py carries its own GROBID Docker launcher (lfoppiano/grobid:0.8.0, same container name biblicus-grobid, no restart policy, no memory limit, published on all interfaces). It can recreate the amd64 image that is OOM-killed under emulation on Apple Silicon. Replace it with biblicus.grobid_runtime.ensure_grobid_running and resolve_grobid_base_url, the official launcher in Biblicus 1.15.0. Follows PPY-e6f517 and Biblicus blbs-f41c9d / blbs-d59cb4.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "claude"
+    }
+  }
+}
