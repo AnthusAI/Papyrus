@@ -1,0 +1,31 @@
+{
+  "id": "PPY-357bfe47-879c-4f3d-9815-e0758381f708",
+  "title": "Deliver public asset references and published revisions consistently",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want usable asset metadata and current published versions, so that applications can display articles reliably.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Deliver public asset references and published revisions consistently\n  Scenario: Read article assets\n    Given a published article has public images or other media\n    When I fetch its JSON representation\n    Then I receive usable public asset references with available type, dimensions, alt text, caption and credit\n    And asset URL lifetime and refresh behavior are documented\n    And no private storage paths, credentials or draft-only assets are disclosed\n  Scenario: Refresh an application after publication changes\n    Given my application previously read a published article\n    When that article is revised or withdrawn\n    Then article retrieval and lists converge on the same published state within the shared freshness bound\n    And cache/version information allows documented client refresh behavior\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-29da48cd-8041-4ff0-a154-22afa9b2bc3b",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:17:35.476298Z",
+  "updated_at": "2026-10-20T03:11:18.641017Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

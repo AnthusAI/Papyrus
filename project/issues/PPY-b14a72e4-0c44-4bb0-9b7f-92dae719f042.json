@@ -1,0 +1,31 @@
+{
+  "id": "PPY-b14a72e4-0c44-4bb0-9b7f-92dae719f042",
+  "title": "Verify existing knowledge retrieval boundaries before Help reuse",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nTargeted design/verification dependency, not a new backend implementation. Consume the separate read-only architecture investigation; avoid duplicating its deep work.\n\nSupplied architecture evidence: Papyrus-sweep source a1019e76a23d411883e9d261eb42bda0b8d9911d implements knowledgeQuery vector retrieval plus bounded graph expansion/context packs. Source and extracted text live in S3; SemanticNode/Relation adjacency records are in AppSync/DynamoDB; current vector path uses OpenAI text-embedding-3-small, 1536 dimensions, and S3 Vectors. The populated active vector index was observed only on legacy app dbsyytcm9drqa. It is not evidence of current p.apyr.us readiness or equivalent population on other publications. Observed vector query filters lack an explicit publication/tenant filter, and multitenancy documentation scopes selected CMS models. Existing editor/admin knowledgeQuery therefore cannot be assumed suitable for public Help. Approximate table metadata from legacy app dbsyytcm9drqa, not current p.apyr.us, reported about 10,115 nodes and one edge; audit query scope, metadata freshness, materialization and actual counts before inferring a graph-population failure or useful graph coverage.\n\nDesign deliverable and future verification: map existing knowledgeQuery, source/catalog identity, index binding, authorized caller scope, publication/tenant ownership, published state and citation provenance to the Help contract. Provide an explicit authorized-versus-anonymous access matrix and negative cross-publication, cross-tenant, draft/withdrawal and revoked-permission cases. Verify isolation at retrieval, expansion, caches/context packs, snippets and citation links, not merely frontend filtering. Determine how current source versions, withdrawals and permission changes become visible within a documented freshness bound. Audit source extraction, index and graph coverage per intended documentation knowledge base; graph expansion remains conditional on useful verified population, not a requirement to build/populate a new graph for chat.\n\nResolve whether existing primitives can be safely reused, narrowed or need changes, with evidence and explicit remaining gaps. No guarantee that a global index is safe, no new RAG backend presumption, no public endpoint/auth change, no index/model call, live audit, deployment or implementation is authorized here. The optional Help chat story is blocked on this design/verification work.\n\nEvidence-scope correction from the owner production receipt in AnthusAI/Cyclotron PR 57 (https://github.com/AnthusAI/Cyclotron/pull/57): current p.apyr.us app is ds6yswxui41yi, explicitly not legacy dbsyytcm9drqa used in the separate read-only metadata inspection. Both the populated vector index and approximate node/single-relationship counts are legacy-deployment observations only. Do not infer current production graph sparsity, current index readiness or a current production failure from them. Before reusing retrieval for Help, resolve the actual intended target deployment and verify its own content/index/graph population, publication/tenant isolation, reader access and published-only behavior. Retain app/endpoint/index identity and evidence timestamps with readiness results. No new audit was performed for this correction; current-target readiness remains unverified.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:27:19.847462Z",
+  "updated_at": "2026-10-20T03:11:32.664902Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

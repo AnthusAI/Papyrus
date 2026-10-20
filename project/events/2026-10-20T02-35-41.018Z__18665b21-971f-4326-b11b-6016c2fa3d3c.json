@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "18665b21-971f-4326-b11b-6016c2fa3d3c",
+  "issue_id": "PPY-92de976d-7d0c-40ce-9a3b-2d7de0b6eb7d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T02:35:41.018Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want a minimal versioned delivery guide, so that I can integrate without relying on internal CMS models.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain the versioned headless delivery contract for applications\n  Scenario: Follow a delivery integration guide\n    Given a verified delivery contract\n    When I follow its article and listing examples\n    Then I can identify versioned fields, the Markus body string, public assets, filters and pagination\n    And identity, missing or withdrawn content, update consistency and caching behavior are documented\n    And examples disclose neither drafts nor credentials or private editorial fields\n    And deferred formats, Contentful compatibility and authenticated previews are not presented as requirements\n```\n\nKeep examples and contract field names synchronized with implemented capability; this planning record does not select routes or a backend. Explain shared published-content foundation and relation to existing M8 JSON.",
+        "to": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want a minimal versioned delivery guide, so that I can integrate without relying on internal CMS models.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain the versioned headless delivery contract for applications\n  Scenario: Follow a delivery integration guide\n    Given a verified delivery contract\n    When I follow its article and listing examples\n    Then I can identify versioned fields, the Markus body string, public assets, filters and pagination\n    And identity, missing or withdrawn content, update consistency and caching behavior are documented\n    And examples disclose neither drafts nor credentials or private editorial fields\n    And deferred formats, Contentful compatibility and authenticated previews are not presented as requirements\n```\n\nKeep examples and contract field names synchronized with implemented capability; this planning record does not select routes or a backend. Explain shared published-content foundation and relation to existing M8 JSON.\n\nAlso document automatic public-change refresh when headless outputs are enabled, including publish, saved published edits and unpublish, common published selection with feeds and sitemap, private-draft isolation, observable completion/failure and retry/reconciliation. Link PPY-defff04e-17b5-4e28-9bb5-df412601a102. Orchestration/atomicity and exact APIs remain design decisions until verified."
+      }
+    }
+  }
+}

@@ -33,6 +33,7 @@ export const threatIntelligenceBrand: SiteBrand = {
     ochre: "#ea580c",
     ink: "#44403c",
   },
+  kanbusTheme: "night-desk",
   renderer: { kind: "pretext" },
   hosting: { kind: "amplify-ssr" },
   opsChrome: "app",

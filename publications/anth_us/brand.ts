@@ -40,6 +40,7 @@ export const anthUsBrand: SiteBrand = {
   sectionLinkStrategy: "route",
   themePack: "anth-us",
   themeTokens: ANTH_US_THEME_PACK_TOKENS,
+  kanbusTheme: "newspaper-gothic",
   renderer: { kind: "markus" },
   hosting: { kind: "amplify-ssr" },
   readerDeployment: {

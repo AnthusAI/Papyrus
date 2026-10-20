@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 import type { EditionPresentationFormat } from "./content-types";
 import type { Article, ArticleVideoAsset } from "./articles";
 import type { BlogPageBackgroundProps } from "../components/blog-page-background";
+import type { KanbusThemeId } from "@kanbus/ui";
 import type { SiteBrandFont } from "./brand-fonts";
 import type { PictogramFigureProps } from "../components/pictogram-figure";
 import papyrusSite from "papyrus-site";
@@ -118,6 +119,13 @@ export type SiteBrand = {
   defaultVideoCredit?: string;
   themePack: ThemePackId;
   themeTokens: ThemePackTokens;
+  /**
+   * The Kanbus editorial theme the whole newsroom (sidebar, toolbar, boards,
+   * detail panel) renders in. Hard-coded per publication: editors cannot
+   * change it. Per-publication tweaks are `--kb-theme-*` overrides in the
+   * publication's `theme.css`, scoped to `[data-kanbus-theme]`.
+   */
+  kanbusTheme: KanbusThemeId;
   renderer: RendererConfig;
   hosting: HostingConfig;
   /** Static reader app when it is not co-hosted with this Papyrus checkout. */
@@ -182,6 +190,7 @@ const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     sectionLinkStrategy: "route",
     themePack: "papyrus",
     themeTokens: DEFAULT_THEME_PACK_TOKENS,
+    kanbusTheme: "broadsheet-green",
     renderer: { kind: "pretext" },
     hosting: { kind: "amplify-ssr" },
     opsChrome: "app",
@@ -236,6 +245,14 @@ export function getSiteBrand(id: SiteBrandId = resolveSiteBrandId()): SiteBrand 
 }
 
 export const SITE_BRAND = getSiteBrand();
+
+/** Mirrors `DEFAULT_KANBUS_THEME` from `@kanbus/ui` (a test keeps the two equal) without a runtime import. */
+export const FALLBACK_KANBUS_THEME: KanbusThemeId = "newspaper-gothic";
+
+/** The newsroom theme for a brand; a brand that predates the field falls back to the default theme. */
+export function getKanbusTheme(brand: Pick<SiteBrand, "kanbusTheme"> = SITE_BRAND): KanbusThemeId {
+  return brand.kanbusTheme ?? FALLBACK_KANBUS_THEME;
+}
 
 export function getContentItemName(brand: SiteBrand = SITE_BRAND): ContentItemName {
   return brand.contentItemName ?? DEFAULT_CONTENT_ITEM_NAME;

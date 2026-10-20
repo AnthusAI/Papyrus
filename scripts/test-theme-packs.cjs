@@ -140,26 +140,12 @@ const defaultPackCss = fs.readFileSync(path.join(process.cwd(), "app/papyrus-the
 assert.match(defaultPackCss, /data-theme-pack="papyrus"/);
 assert.match(defaultPackCss, /--theme-paper:\s*var\(--background\)/);
 
+// The Pilobolus newsroom takes its colours and type from the refined-newsprint Kanbus theme tokens;
+// its theme.css no longer carries a theme-pack palette or overrides of Kanbus internals.
 const themeCss = fs.readFileSync(path.join(process.cwd(), "publications/pilobol_us/theme.css"), "utf8");
-assert.match(themeCss, /--theme-paper:\s*#f1ead9/);
-assert.match(themeCss, /--theme-moss:\s*#3f5d43/);
-assert.match(themeCss, /--theme-ochre:\s*#a35a2a/);
-assert.match(themeCss, /--theme-ink:\s*#211d17/);
-assert.match(themeCss, /--theme-card:\s*#fbf6ea/);
-assert.match(themeCss, /--theme-line:\s*#d7cbb2/);
-assert.match(themeCss, /--theme-quote:\s*#4a3548/);
-assert.match(themeCss, /--theme-tip:\s*#4f6b3a/);
-assert.match(themeCss, /--theme-caution:\s*#8a3324/);
-assert.match(themeCss, /--theme-stage:\s*#ddd4bf/);
-assert.match(themeCss, /prefers-color-scheme:\s*dark/);
-assert.match(themeCss, /data-papyrus-theme="dark"/);
-assert.match(themeCss, /--theme-moss:\s*#b7d18a/);
-assert.match(themeCss, /--primary:\s*var\(--theme-moss\)/);
-assert.match(themeCss, /--accent:\s*var\(--theme-ochre\)/);
-assert.match(themeCss, /--destructive:\s*var\(--theme-caution\)/);
-assert.doesNotMatch(themeCss, /(?:^|[^-])font-family\s*:/);
+assert.doesNotMatch(themeCss, /--theme-(paper|moss|ochre|ink)\s*:/);
+assert.doesNotMatch(themeCss, /!important/);
 assert.doesNotMatch(themeCss, /@font-face/);
-assert.doesNotMatch(themeCss, /Iowan|Source Sans|IBM Plex|markus-serif|markus-sans/i);
 
 const demoOutputs = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), "amplify/fixtures/demo-amplify-outputs.json"), "utf8"),

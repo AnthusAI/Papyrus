@@ -1,0 +1,31 @@
+{
+  "id": "PPY-ac91457f-ad5f-42ba-907b-5c437bd7b9e4",
+  "title": "A section or desk editor makes attributed editorial triage decisions",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a section/desk editor, I want a higher-capability LLM to examine candidates alongside in-progress stories, so that news judgment and reporting effort reflect evidence and existing coverage.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: A section or desk editor makes attributed editorial triage decisions\n  Scenario: Evaluate newsworthiness and overlap\n    Given a nominated candidate, existing in-progress stories, section mission and current editorial guidelines\n    When the section or desk editor performs Editorial triage\n    Then it evaluates newsworthiness, evidence quality, story overlap and reporting needs\n    And it records an attributed rationale and the evidence and story revisions considered\n    And it may attach the reference to an existing story, propose or create a story according to policy, refer to another section, hold, or dismiss\n    And the selected outcome follows current publication policy and authorization\n    And agent decisions are never silently recorded as human Cyclotron labels\n```\n\nAccepted terminology: Editorial triage; section/desk editor; assignment planning/news judgment. LLM triage is distinct from classifier nomination and admission/curation. Preserve the existing content-item lineage and attributed audit trail; story creation/attachment here is future policy-governed behavior, not authorization to mutate editorial content in this task. Do not duplicate reporting-agent feedback epic PPY-b2b73e.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:19:16.799375Z",
+  "updated_at": "2026-10-20T03:11:24.165294Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

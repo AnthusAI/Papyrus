@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "2d52a246-275c-4f47-95cd-117e8d622dc0",
+  "issue_id": "PPY-10d53592-1a90-4e18-964e-370487733237",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:25:15.261Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Open structured Markus wiki/help through a conventional Help entry",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application user, I want an ordinary Help entry leading to structured documentation, so that I can browse and find product guidance without knowing its storage layout.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Open structured Markus wiki/help through a conventional Help entry\n  Scenario: Enter Help and browse documentation\n    Given an application configured with its documentation publication or knowledge base\n    When I open its conventional Help entry\n    Then I reach the appropriate structured Markus wiki/help with navigable topics and stable document links\n    And headings, code examples, related links and available page metadata render consistently\n    And deep links and narrow-screen or keyboard navigation remain usable\n  Scenario: Chat is disabled\n    Given optional chat is not configured\n    When I open Help\n    Then the complete wiki/help browsing experience is still available\n```\n\nConventional label is Help; exact route, navigation tree, search choice and version selector require design. Preserve source provenance and applicable lifecycle/supersession behavior from PPY-964472; do not create a second evidence/publishing engine.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

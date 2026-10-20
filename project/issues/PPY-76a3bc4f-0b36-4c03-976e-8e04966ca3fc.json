@@ -1,0 +1,36 @@
+{
+  "id": "PPY-76a3bc4f-0b36-4c03-976e-8e04966ca3fc",
+  "title": "Explain Editorial triage and assignment planning decisions",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a section editor, I want a guide to nomination and desk-editor news judgment, so that I can understand outcomes and allocate reporting effort.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain Editorial triage and assignment planning decisions\n  Scenario: Understand the triage workflow\n    Given a candidate is nominated for one or several sections\n    When I read the Editorial triage guide\n    Then it distinguishes fast Jev/Cyclotron nomination from higher-capability LLM desk-editor judgment\n    And it explains current guidance resolution, story overlap, evidence and attributed rationale\n    And it documents attach, propose or create under policy, refer, hold and dismiss outcomes\n    And it explains that agent decisions are not human training labels\n    And undecided budget amounts, hard caps and concurrency remain explicit\n```\n\nLink the existing shared-context and Section-classifier milestones, not a copied stale policy or new engine. Keep implementation state and actual configuration capability truthful.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T02:24:58.089961Z",
+  "updated_at": "2026-10-20T03:11:26.548664Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

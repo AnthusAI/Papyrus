@@ -1,0 +1,36 @@
+{
+  "id": "PPY-be20cbe7-ab0e-4ea9-8a7f-2729a2ad2cb5",
+  "title": "Receive newsletters or submissions at a publication/user-scoped address",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want a Papyrus-provided inbound address when the SES option is selected, so that newsletter and editorial messages arrive in the correct private intake scope.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Receive newsletters or submissions at a publication/user-scoped address\n  Scenario: Route a provided-address message\n    Given a Papyrus-provided address is separately provisioned and authorized for a publication or user\n    When a newsletter or editorial submission arrives\n    Then the resolved address binding determines its permitted intake scope\n    And the message retains sender and receipt provenance without treating sender text as trusted identity\n    And no other publication or user's mailbox data becomes visible\n    And retries do not create duplicate discoveries\n  Scenario: Unknown, ambiguous or disabled address\n    Given an address has no current authorized scope or has been disabled\n    When a message is received\n    Then the intake outcome is visible and follows the documented rejection or hold policy\n    And the message is not routed by guessing a publication\n```\n\nSES-provided inbound addresses are new feature design, not existing production capability. Decide verification/authentication policy, abuse/size/attachment controls, retention/privacy/access, domain/address ownership and operations later. Do not provision addresses or change MX/SES resources in this task.\n\nProvided-address email monitoring requires a usable human newsletter inbox/reader, not only hidden ingestion. Behavior PPY-7a2a53d7-0e93-4ee9-b8c3-732125a86537 covers readable originals, sender/date, derived-reference provenance, processing status/errors and deliberate human confirmation/unsubscribe actions. Scanners never activate account-action links. Pausing a Monitor is not unsubscribe. Full compose/reply mail client remains out of scope. Documentation behavior PPY-d97519f8-a11e-4501-a558-8be1027e9f2a and dependent acceptance review PPY-33aeaffa-2883-4b5f-99df-937f5110c378 are part of this milestone. No email action or connection now.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-7a2a53d7-0e93-4ee9-b8c3-732125a86537",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T03:03:27.446805Z",
+  "updated_at": "2026-10-20T03:11:37.833758Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

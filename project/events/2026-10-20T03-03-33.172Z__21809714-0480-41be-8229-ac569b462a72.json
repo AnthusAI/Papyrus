@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "21809714-0480-41be-8229-ac569b462a72",
+  "issue_id": "PPY-5d84a902-af3e-4e3f-b1e5-124ff514e2e4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:03:33.172Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Extract editorial email content while excluding actions and secret links",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want safe attributed extraction into common Monitoring intake, so that email content can inform classification without triggering message actions or leaking secrets.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Extract editorial email content while excluding actions and secret links\n  Scenario: Distinguish editorial content from message actions\n    Given an untrusted newsletter contains editorial links and body text alongside unsubscribe, preferences, login, magic-token and tracking links\n    When the message is prepared for intake\n    Then useful editorial links and body text retain message and publication/user provenance\n    And action or secret-bearing links are not followed or disclosed as research References or classifier inputs\n    And embedded instructions do not override Monitor policy or authorize actions\n  Scenario: Deduplicate safely\n    Given the same editorial item appears in several messages or tracking variants\n    When intake resolves its canonical identity\n    Then duplicate discoveries retain their distinct provenance without duplicating the canonical item\n    And meaningful new revisions remain eligible for re-evaluation\n    And canonicalization does not fetch secret URLs merely to discover their destination\n  Scenario: Make extraction failures inspectable\n    Given scope, privacy or extraction requirements cannot be satisfied\n    When intake prepares the message\n    Then the failure or hold state is visible and retryable under the documented policy\n    And private message content and secrets do not leak through logs or public outputs\n```\n\nSpecify body-versus-link provenance, consent, access/retention, safe URL normalization, allowed fetches, attachments and submission moderation before implementation. Human labels remain explicit human review; email intake is not automatic publication or training consent.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

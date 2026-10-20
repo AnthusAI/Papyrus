@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "0de652fe-e3be-46c8-bfd8-3a1693731480",
+  "issue_id": "PPY-0a763b51-4dc3-43ad-8967-c73efe866c8a",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T03:11:16.761Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a visitor, I want visible and machine-discoverable feed links, so that I can subscribe using a browser or reader.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Discover feed links without exposing private material\n  Scenario: Discover subscriptions\n    Given a public publication page and section page\n    When I inspect the page or use a feed-aware reader\n    Then I can find clearly labeled RSS and Atom links for the relevant scope\n    And machine-readable alternate links identify their formats\n    And feed responses use the correct format and content type\n  Scenario: Enforce published-only exposure\n    Given draft articles, private research, editorial notes and private assets exist\n    When I fetch a feed anonymously\n    Then none of those private values or draft asset URLs are included\n    And a draft-only article cannot be retrieved by guessing a feed URL\n```\n\n",
+        "to": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a visitor, I want visible and machine-discoverable feed links, so that I can subscribe using a browser or reader.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Discover feed links without exposing private material\n  Scenario: Discover subscriptions\n    Given a public publication page and section page\n    When I inspect the page or use a feed-aware reader\n    Then I can find clearly labeled RSS and Atom links for the relevant scope\n    And machine-readable alternate links identify their formats\n    And feed responses use the correct format and content type\n  Scenario: Enforce published-only exposure\n    Given draft articles, private research, editorial notes and private assets exist\n    When I fetch a feed anonymously\n    Then none of those private values or draft asset URLs are included\n    And a draft-only article cannot be retrieved by guessing a feed URL\n```"
+      },
+      "priority": {
+        "from": 2,
+        "to": 3
+      }
+    }
+  }
+}

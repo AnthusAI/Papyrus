@@ -1,0 +1,31 @@
+{
+  "id": "PPY-207f5e7a-dd46-4d21-9918-0b324cd428c1",
+  "title": "Subscribe to publication and section RSS/Atom feeds",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader, I want RSS and Atom subscriptions at publication and section scope, so that my reader follows only the material I selected.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Subscribe to publication and section RSS/Atom feeds\n  Scenario: Read publication and section subscriptions\n    Given a publication with published articles in two sections and unpublished drafts\n    When I request its publication RSS feed and Atom feed\n    Then both describe its eligible published articles with titles, canonical links and publication timestamps\n    When I request either format for one section\n    Then only eligible articles in that section appear\n    And an empty valid section produces a valid empty feed\n    And drafts and other publications never appear\n  Scenario: A public wiki page is not automatically a feed entry\n    Given a publication has ordinary public wiki or product pages outside its feed eligibility selection\n    When its RSS and Atom feeds are generated\n    Then those pages are not included merely because they are public, linked or included by another page\n    And both formats apply the same eligible published selection\n\n```\n\n\n\nFeed eligibility is separately enforced and shared between RSS and Atom; existing public page/content identity, path placement, wiki navigation or include selection does not by itself make a page a feed entry. Static wiki/help and product pages do not automatically enter subscription feeds. Define eligible editorial types and other selection with the common published projection, preserving ordinary-page authoring and independent publication/access/draft gates. This does not add a separate wiki model or require every page to be a news item.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33854a5d-da97-4597-9ad2-948a7dd23136",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:17:01.268448Z",
+  "updated_at": "2026-10-20T03:11:15.798086Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "523c6ecf-1c3b-49e8-b9b2-0ce5df4b3cfc",
+  "issue_id": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:03:15.899Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Email and newsletter monitoring intake",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor or user, I want email/newsletter sources to enter common Monitoring intake with correct provenance and privacy, so that useful content can be evaluated alongside other discoveries.\n\nNew feature planning. User correction is authoritative for capability scope: Papyrus must NOT be represented as already having working inbound email monitors. Existing outbound SES, security or submission-related source artifacts are not proof of a shipped inbound-monitoring capability or any current deployment. No extended email audit is needed in this filing; any reusable components must be verified by the implementation owner later without assuming readiness.\n\nDesign options: (1) an external IMAP/POP3 mailbox with a read-only connection and no mailbox mutation; (2) a Papyrus-provided SES inbound address scoped to the authorized publication/user for newsletters and editorial submissions. Preserve these as options until platform capability, address routing, sender policy, reader permissions, authentication/credential storage, privacy/retention/deletion, consent, costs and operational ownership are decided. No mailbox connection, MX/DNS/receipt-rule changes, address provisioning, newsletter subscription, purchase, credential handling or model call now.\n\nBoth options feed existing common intake rather than a second research engine. Extract useful editorial content links and body text, retain message/source/publication/user provenance, deduplicate replays and tracking variants without discarding meaningful updates, treat all message contents as untrusted, and distinguish editorial links from unsubscribe/preferences/login/magic-token actions or secret-bearing URLs. Do not follow action links or leak credentials/tokens into References, classifier inputs, logs or public outputs. Resolve publication/user routing and access before intake.\n\nSeparate related milestone to general Monitoring PPY-2d77c8, not under Markus for everything and not a prerequisite for the first recurring 3–5 source feed/crawler slice. Initial consumer interest includes academic Papyrus, Threat Intelligence and Anth.us through common configuration. Implementation remains unstarted.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

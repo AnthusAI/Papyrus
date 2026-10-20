@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "658b7b56-f7c3-4891-a9b5-6af3ddca38b7",
+  "issue_id": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:02:31.600Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Plan first recurring 3–5 source Monitoring slice for Papyrus, TI and Anth.us",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nLatest priority and initial consumers: inbound Monitoring is Ryan's highest near-term value, independent of Markus for everything, outbound RSS/Atom and headless delivery. Initial consumers are the academic Papyrus publication, Threat Intelligence AND Anth.us, configured through the same publication-agnostic Papyrus capability rather than special implementations. Morning relevant discoveries must reach the actual configured Cyclotron classifiers with attributable classification evidence; a manual research list alone is not completion. No automatic human labels. No blocking dependency on the Markus initiative, outgoing feeds, authored-page migration or email-monitor implementation is introduced.\n\nFirst small vertical slice: validate and configure 3–5 real sources across those consumers, prioritizing Hacker News, arXiv AI papers, the current Hugging Face paper offering, security/privacy publications and CVE/advisory sources. Final source/publication bindings are verified, not inferred. Cadence is configurable around 15 minutes where source limits and update frequency permit, with checkpoints, deduplication, new/updated-item handling, provenance and visible retryable failures. The desired “tonight or tomorrow” urgency expresses value, not permission to deploy or start coding.\n\nSource validation evidence from this planning pass: https://huggingface.co/papers currently identifies Daily Papers (daily/weekly/monthly views) and offers email subscription; no official RSS feed, stable API contract or Papers With Code successor status was established. Validate an allowed feed/API/crawler method before selecting it. Official arXiv RSS/Atom documentation https://info.arxiv.org/help/rss.html describes subject feeds and daily updates; its cadence need not be 15 minutes. Review current source terms/rate/access requirements before implementation. HN candidates remain https://news.ycombinator.com/rss and https://github.com/HackerNews/API . No subscriptions, mailbox connections, model calls or paid access in this task.\n\nImplementation-design deliverable: select the small validated source set, resolve the three publication configurations and existing classifier bindings, specify a repeatable bounded collection-to-intake-to-classification slice, and define morning acceptance evidence. Use common Papyrus Monitor configuration and existing intake/Reference/classifier contracts. Record configuration/capability gaps rather than substituting ad-hoc manual research. Determine checkpoints, update identity, cadence/backoff, scheduler execution identity, allowed model/budget policy, failure/retry visibility and privacy boundaries before implementation. No new service or engine is prescribed. Newsletter/email monitoring is separate new feature work and is not a prerequisite for feed/crawler first-slice delivery.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

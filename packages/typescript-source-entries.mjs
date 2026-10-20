@@ -10,7 +10,8 @@ function collectEntryTargets(value, targets) {
 }
 
 const TYPESCRIPT_SOURCE_TARGET = /\.(ts|tsx|mts|cts)$/;
-const DECLARATION_TARGET = /\.d\.(ts|mts|cts)$/;
+// Includes arbitrary-extension declarations such as `index.d.css.ts` (Fontsource).
+const DECLARATION_TARGET = /\.d\.([a-z0-9-]+\.)?(ts|mts|cts)$/;
 
 export function packageShipsTypeScriptSourceEntries(packageJson) {
   const targets = [];

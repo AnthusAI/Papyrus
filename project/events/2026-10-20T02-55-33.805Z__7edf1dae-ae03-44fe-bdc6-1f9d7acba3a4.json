@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "7edf1dae-ae03-44fe-bdc6-1f9d7acba3a4",
+  "issue_id": "PPY-01b5e07f-773e-407f-9057-941f4e4c5a0c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:55:33.805Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document include authoring and dependency-driven regeneration",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a page author and publication operator, I want a current include authoring and regeneration guide, so that I can compose pages and diagnose public updates without maintaining parallel dependency rules.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Document include authoring and dependency-driven regeneration\n  Scenario: Follow the authoring and operations guide\n    Given the supported include behavior and its implementation status are documented\n    When an author composes a single-page include or selected list and an operator follows a saved public change\n    Then the guide explains parsing, site-wide dependency-index updates and actual affected-page regeneration\n    And it explains nested and transitive includes, cycle reports and deduplicated regeneration\n    And it covers stale-entry replacement or removal, old/new type or featured matches and unpublish\n    And it explains publication isolation, public draft exclusion, retryable failures and stale-version protection\n    And RSS and Atom eligibility is documented separately from ordinary page or wiki membership\n    And examples distinguish proposed include syntax from verified shipped capability\n```\n\nFinal agreed authoring direction, planning only: “include” is the working construct name, not approved concrete syntax. It supports inclusion of a single page or a selected list. “Collection” means a selection of content, not a new storage object. On page/content save or compile, the supported pipeline scans/parses include constructs, updates the generated site-wide dependency index, and actually uses that index to regenerate affected pages; merely recording dependencies is incomplete. Reuse each include's rendering selection as the sole source of invalidation selection, with separate enforced publication/access/published gates. Nested/transitive includes, cycles, deduplication, edits/deletion and retries require observable behavior, not arbitrary-code inference.\n\nRSS/Atom feed eligibility is distinct from page existence, include membership and navigation. An ordinary static wiki/help or product page does not automatically become a feed entry. Define shared feed selection/metadata and editorial eligibility without building a separate page or wiki engine. Exact include syntax, extension ownership and selection schema remain design questions; current Anth.us custom Python homepage code is evidence of a migration gap, not proof the proposed include construct is shipped.\n\nCoordinate documentation epic PPY-9ad680 and its cross-cutting delivery and Help review tasks. Once syntax and ownership are agreed and implemented, verify examples against the real parser and operator workflow; do not publish invented include markup now. Behavior acceptance belongs to PPY-b6ede164-fad8-45da-a242-51362c5f8285 and post-save PPY-defff04e-17b5-4e28-9bb5-df412601a102.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3f55c3e1-65f6-4fc7-833e-6cecc6a85270",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "PPY-ec943e4f-0c73-456a-9d0c-9dd4ffd79efa",
+  "title": "List and filter published articles with predictable pagination",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want filtered paginated published article lists, so that I can build article streams and section views.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: List and filter published articles with predictable pagination\n  Scenario: Traverse a filtered list\n    Given a publication has more published articles than one page can hold\n    When I request a section-filtered list and follow its continuation information\n    Then each page contains only matching eligible published articles in documented stable order\n    And page size bounds, tie breaking and end-of-list behavior are documented\n    And traversal of an unchanged published snapshot has no duplicate or missing articles\n  Scenario: Handle changes and invalid parameters\n    Given published content changes between page requests\n    When I continue a listing or submit an invalid filter or page request\n    Then the contract documents change consistency and returns predictable continuation or validation behavior\n    And no draft or another publication's content appears\n```\n\nKeep filters minimal: publication and section; add further filters only for demonstrated application needs. Do not promise arbitrary query language or implement pagination now.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-29da48cd-8041-4ff0-a154-22afa9b2bc3b",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:17:29.766559Z",
+  "updated_at": "2026-10-20T03:11:18.172539Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
