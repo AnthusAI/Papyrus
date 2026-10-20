@@ -57,8 +57,6 @@ from papyrus_content.model_defaults import (  # noqa: E402
     DEFAULT_REFERENCE_SUMMARY_MODEL,
 )
 from papyrus_content.references_commands import (  # noqa: E402
-    _ensure_cli_grobid_runtime,
-    _resolve_grobid_url,
     references_fetch_url_text,
     references_filter_extracted_text,
     references_generate_metadata_from_text,
@@ -67,7 +65,7 @@ from papyrus_content.references_commands import (  # noqa: E402
 
 
 class ReferenceCommandsTests(unittest.TestCase):
-    @mock.patch("papyrus_content.references_commands._ensure_cli_grobid_runtime")
+    @mock.patch("biblicus.grobid_runtime.ensure_grobid_running", return_value="http://127.0.0.1:8070")
     @mock.patch("papyrus_content.references_commands.run_reference_identifier_dedupe")
     @mock.patch("papyrus_content.references_commands.run_reference_url_text_extraction")
     @mock.patch("papyrus_content.references_commands.create_authoring_client")
@@ -1574,31 +1572,56 @@ class ReferenceCommandsTests(unittest.TestCase):
         self.assertEqual(extracted["strategy"], "markdown-then-html-then-direct")
         self.assertEqual(extracted["promptVersion"], "url-text-v1")
 
-    def test_resolve_grobid_url_prefers_option_then_env_then_default(self):
-        with mock.patch.dict("os.environ", {"BIBLICUS_GROBID_URL": "http://env:8070"}, clear=True):
-            self.assertEqual(_resolve_grobid_url({}), "http://env:8070")
-            self.assertEqual(_resolve_grobid_url({"grobid-url": "http://flag:8070"}), "http://flag:8070")
-        with mock.patch.dict("os.environ", {}, clear=True):
-            self.assertEqual(_resolve_grobid_url({}), "http://127.0.0.1:8070")
+    def run_fetch_url_text_with_mocked_grobid(self, arguments, environment, *, ensure_side_effect=None):
+        extraction_result = {
+            "eligibleCount": 0, "skippedExistingCount": 0, "skippedMissingSourceCount": 0, "skippedNonPdfCount": 0,
+            "plannedCount": 0, "plannedAttachmentCount": 0, "plannedReferenceMetadataCount": 0,
+            "authorsParsedCount": 0, "authorsLinkedCount": 0, "citationsParsedCount": 0, "citationsUpsertedCount": 0,
+            "citationsSkippedLowConfidenceCount": 0, "citationRelationsCreatedCount": 0, "citationGraphWarnings": [],
+            "filteredCount": 0, "fallbackRawCount": 0, "changeCount": 0, "graphChangeCount": 0,
+            "referenceMetadataChangeCount": 0, "attachmentChangeCount": 0, "failures": [], "failedGrobidCount": 0,
+            "doiResolvedCount": 0, "doiPdfSelectedCount": 0, "doiPdfMissedCount": 0, "doiSearchUsedCount": 0,
+            "doiSearchHitCount": 0, "doiApiFallbackUsedCount": 0, "doiPaywalledOrBlockedCount": 0,
+            "changes": [], "items": [], "graphRecords": [], "filterFallbacks": [],
+        }
+        dedupe_result = {"duplicateGroupCount": 0, "referencesMergedCount": 0, "relationsRewiredCount": 0, "losersBlockedCount": 0}
+        client = mock.Mock()
+        client.list_records.return_value = []
+        with mock.patch.dict("os.environ", environment, clear=True), \
+            mock.patch("papyrus_content.references_commands._require_reference_process_runtime"), \
+            mock.patch("papyrus_content.references_commands.load_steering_config"), \
+            mock.patch("papyrus_content.references_commands.require_steering_config", return_value={"corpora": []}), \
+            mock.patch("papyrus_content.references_commands.create_authoring_client", return_value=(client, {})), \
+            mock.patch("papyrus_content.references_commands.run_reference_url_text_extraction", return_value=extraction_result) as mock_extraction, \
+            mock.patch("papyrus_content.references_commands.run_reference_identifier_dedupe", return_value=dedupe_result), \
+            mock.patch("biblicus.grobid_runtime.ensure_grobid_running", side_effect=ensure_side_effect, return_value="http://127.0.0.1:8070") as mock_ensure, \
+            mock.patch("subprocess.run") as mock_subprocess:
+            references_fetch_url_text(arguments)
+        mock_subprocess.assert_not_called()
+        return mock_ensure, mock_extraction
 
-    @mock.patch("papyrus_content.references_commands._await_grobid_ready")
-    @mock.patch("papyrus_content.references_commands._start_or_reuse_local_grobid_container")
-    @mock.patch("papyrus_content.references_commands._grobid_is_alive")
-    def test_ensure_cli_grobid_runtime_starts_local_container_when_unavailable(
-        self,
-        mock_alive,
-        mock_start,
-        mock_await,
-    ):
-        mock_alive.return_value = False
-        _ensure_cli_grobid_runtime("http://127.0.0.1:8070")
-        mock_start.assert_called_once_with(port=8070)
-        mock_await.assert_called_once_with("http://127.0.0.1:8070")
+    def test_fetch_url_text_defers_grobid_resolution_to_biblicus_runtime(self):
+        mock_ensure, mock_extraction = self.run_fetch_url_text_with_mocked_grobid(
+            ["--dry-run"], {"BIBLICUS_GROBID_URL": "http://env:8070/"}
+        )
+        mock_ensure.assert_called_once_with("http://env:8070")
+        self.assertEqual(mock_extraction.call_args.kwargs["grobid_url"], "http://127.0.0.1:8070")
 
-    @mock.patch("papyrus_content.references_commands._grobid_is_alive", return_value=False)
-    def test_ensure_cli_grobid_runtime_remote_endpoint_requires_live_service(self, _mock_alive):
-        with self.assertRaisesRegex(RuntimeError, "not reachable"):
-            _ensure_cli_grobid_runtime("http://grobid.internal:8070")
+    def test_fetch_url_text_without_configured_grobid_url_uses_the_biblicus_default(self):
+        mock_ensure, _ = self.run_fetch_url_text_with_mocked_grobid(["--dry-run"], {})
+        mock_ensure.assert_called_once_with("http://127.0.0.1:8070")
+
+    def test_fetch_url_text_grobid_url_option_overrides_the_environment(self):
+        mock_ensure, _ = self.run_fetch_url_text_with_mocked_grobid(
+            ["--dry-run", "--grobid-url", "http://flag:8070"], {"BIBLICUS_GROBID_URL": "http://env:8070"}
+        )
+        mock_ensure.assert_called_once_with("http://flag:8070")
+
+    def test_fetch_url_text_reports_biblicus_grobid_startup_failure(self):
+        with self.assertRaisesRegex(RuntimeError, "GROBID runtime preflight failed.*endpoint=http://127.0.0.1:8070.*no docker"):
+            self.run_fetch_url_text_with_mocked_grobid(
+                ["--dry-run"], {}, ensure_side_effect=RuntimeError("no docker")
+            )
 
     @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
     @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})
