@@ -1,7 +1,7 @@
 {
   "id": "PPY-73a0d2e9-e9e2-4eed-94c9-5033450a659d",
   "title": "TI-03: deploy domain-free TI app-shell stack in papyrus-production + revalidate SSM secret",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 3 G1/G8, 6 TI-03. ACCEPT: cdk diff create-only (1 App WEB_COMPUTE, 2 Branches, 0 Domain, no legacy account id); stack CREATE_COMPLETE; get-app repository null; main PRODUCTION + staging BETA with -cms prefix env; /papyrus/threat-intelligence/revalidate-secret exists (SecureString); outputs.json saved. Rollback: delete-stack.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 3 G1/G8, 6 TI-03. ACCEPT: cdk diff create-only (1 App WEB_COMPUTE, 2 Branches, 0 Domain, no legacy account id); stack CREATE_COMPLETE; get-app repository null; main PRODUCTION + staging BETA with -cms prefix env; /papyrus/threat-intelligence/revalidate-secret exists (SecureString); outputs.json saved. Rollback: delete-stack.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

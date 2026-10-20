@@ -1,0 +1,35 @@
+{
+  "id": "PPY-3c3d6134-f404-4fba-9c45-ee70fe0d17c8",
+  "title": "papyrus-infra deploy tooling and p.apyr.us edge codified from the owning build (#350 to #363)",
+  "description": "Filed 2026-10-20 to record merged work that named no issue. On 2026-10-19 these PRs merged to develop: #350 (6d44a535) codify the p.apyr.us reader and marketing edge; #351 (c1e0a1c7) papyrus-infra deploy runs the app-shell stack deploy from the owning Amplify build; #352 (7ba70e63) deploy-edge adopts live resources into an edge stack; #354 (0c4bef22) deploy takes account and region from the build credentials; #355 (9a05a3b4) deploy synthesizes first and deploys the synthesized directory; #357 (8f060240) deploy-edge takes template defaults for new parameters; #359 (25b9b6e9) quoting and parameter fixes released; #363 (f7c383c8) CDK account resolved via STS with no legacy default. Related docs: aa7a9523 (p.apyr.us edge adoption runbook), a9a6b0b5 (#260). PPY-1ad3c8 (closed) records only the #363 STS fix; this record covers the rest of the series.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f1489f6-e3bf-4564-83b8-4e0f9513f545",
+  "labels": [
+    "drift-fix"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a447826b-ba75-49ca-aca9-92dcd189b957",
+      "author": "home",
+      "text": "Closing as a record of finished work: all PRs listed in the description merged to develop on 2026-10-19 and are on main; this issue exists only so the work is findable on the board. The CDK-account-via-STS change (#363) is what PPY-1ad3c8 tracks.",
+      "created_at": "2026-10-20T13:22:03.306474Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-20T13:21:56.966469Z",
+  "updated_at": "2026-10-20T13:22:03.368983Z",
+  "closed_at": "2026-10-20T13:22:03.368910Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "drift-fix"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

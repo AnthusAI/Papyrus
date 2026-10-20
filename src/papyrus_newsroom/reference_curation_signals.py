@@ -37,7 +37,7 @@ except ModuleNotFoundError:  # pragma: no cover - PyYAML is a project dependency
 from .semantic import PapyrusSemanticClient, semantic_state_key, semantic_version_key
 from . import web_search_providers
 from papyrus_content.graphql_http import execute_graphql
-from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
+from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner, resolve_biblicus_workdir
 from papyrus_content.biblicus_runtime import biblicus_corpus_catalog_path
 from papyrus_content.model_defaults import DEFAULT_LLM_MODEL, DEFAULT_SMALL_LLM_MODEL
 
@@ -3554,7 +3554,7 @@ def _run_biblicus_summarize_map_reduce(
     )
     try:
         result = BiblicusRunner.from_environment().summarize_map_reduce(request)
-    except BiblicusCommandError as error:
+    except (BiblicusCommandError, BiblicusOutputError) as error:
         raise RuntimeError(f"Biblicus summarize map-reduce command failed: {error.failure_message()}") from error
     parsed = result.model_dump(mode="json")
     if _clean_text(parsed.get("task")) != output_kind:

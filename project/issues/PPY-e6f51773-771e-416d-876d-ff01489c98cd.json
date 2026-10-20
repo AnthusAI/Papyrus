@@ -1,0 +1,50 @@
+{
+  "id": "PPY-e6f51773-771e-416d-876d-ff01489c98cd",
+  "title": "Parse the Biblicus 1.15 failure envelope in BiblicusRunner",
+  "description": "Biblicus 1.15.0 prints one CommandFailure JSON object on stdout for every typed command failure (exit 2 request rejected, exit 1 operation failure). Parse it in BiblicusRunner, drop the per-method error_stream declarations, update url-text/transform callers and tests, raise the biblicus lower bound to >=1.15.0,<2, and correct the GROBID doc. Follows PPY-c32c35 and Biblicus blbs-fbf385 / blbs-83623f.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9ec8bc3a-8818-42b3-a78f-9d2b91967dfa",
+      "author": "home",
+      "text": "Branch feature/PPY-e6f517-biblicus-1-15-failure-envelope, PR https://github.com/AnthusAI/Papyrus/pull/386. Verification: CI pytest command 22 failed / 1102 passed with the same failure set as origin/develop (22 failed / 1083 passed, environmental); excluded suites 28 failures identical to develop; behave 13 failed scenarios identical to develop; pilot-identifier guard OK. Not merged; issue stays in_progress.",
+      "created_at": "2026-10-20T11:07:27.278501Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "claude"
+      }
+    },
+    {
+      "id": "5c4242f5-90d4-4512-8f56-fb06cd430633",
+      "author": "home",
+      "text": "CI on PR 386: python, smoke and ts all green. Awaiting merge.",
+      "created_at": "2026-10-20T11:18:20.510034Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "claude"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T10:50:07.040531Z",
+  "updated_at": "2026-10-20T11:18:20.510052Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5",
+    "name": "claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

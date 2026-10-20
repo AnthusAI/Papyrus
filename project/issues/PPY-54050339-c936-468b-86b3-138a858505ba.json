@@ -1,7 +1,7 @@
 {
   "id": "PPY-54050339-c936-468b-86b3-138a858505ba",
   "title": "TI-14: close-out - TI repo stale refs, migration doc, topology notes",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-14, 3 G5. ACCEPT: TI docs/bootstrap.md and skills/seed-update/SKILL.md no longer reference d3on1y5vlrxmam; Papyrus docs/migrations/ doc covers prefix rule, 429 outcome, R1/delete-first outcome, shared-root proof; epic comment posted with the Anth.us follow-up.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-14, 3 G5. ACCEPT: TI docs/bootstrap.md and skills/seed-update/SKILL.md no longer reference d3on1y5vlrxmam; Papyrus docs/migrations/ doc covers prefix rule, 429 outcome, R1/delete-first outcome, shared-root proof; epic comment posted with the Anth.us follow-up.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

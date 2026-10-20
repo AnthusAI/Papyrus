@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "cbeeee02-e81b-4662-ac64-7d72de3ffcab",
+  "issue_id": "PPY-9b7994a0-9c9e-434f-afdf-9591d0039ba5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-19T22:34:19.020Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editors register pending sources without direct knowledge-model access",
+    "description": "Feature: Publication-scoped pending source intake\nScenario: Authorized editor registers a source\nGiven a validated editor of the deployed publication\nWhen a source URL and rationale are submitted through the supported CLI\nThen a pending immutable Reference and attributable provenance are returned\nAnd generic knowledge models remain read-only\nScenario: Unauthorized or cross-publication intake\nGiven an unauthenticated actor or mismatched publication\nWhen intake is requested\nThen no data is written\nScenario: Repeated canonical source intake\nGiven a source already registered\nWhen its canonical URL is submitted again or concurrently\nThen the same Reference identity is returned without replacement or duplicate provenance\nScenario: Consulted story evidence\nGiven a pending registered Reference and existing unpublished Reporting story\nWhen the editor links the returned record as consulted\nThen the link is readable and prior story versions and Messages are preserved",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-f6981769-b05d-48ff-9548-c1d9317cb0d5",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "ChatGPT",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}

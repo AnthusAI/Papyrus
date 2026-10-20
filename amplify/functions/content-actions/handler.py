@@ -23,6 +23,7 @@ from papyrus_content.rebuild_trigger import (
     trigger_staging_build,
 )
 from papyrus_content.story_reporting import save_story_version
+from papyrus_content.reference_intake import IntakeError, intake_references
 from papyrus_content.publishing import (
     ItemFields,
     PublishError,
@@ -299,6 +300,12 @@ def handler(event, context):
     arguments = parse_input(event["arguments"]["input"])
     actor = actor_from_event(event)
     try:
+        if field == "intakePendingReferences":
+            client, _claims = create_authoring_client()
+            try:
+                return intake_references(client, arguments, event.get("identity") or {})
+            except IntakeError as error:
+                return {"ok": False, "errors": [{"code": "intake-rejected", "message": str(error)}]}
         if field == "deriveMarkus":
             return derive_markus_action(arguments)
         if field == "saveItemDraft":

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "17497464-5aa3-42d4-8ea8-24ffbfad552a",
+  "issue_id": "PPY-3106ee9b-72a8-4c99-b8f1-a998988da15a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T20:35:31.187Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Distinctive Mark runs its own Cyclotrons, separate from the shared Anthus/Data Parade relevance Cyclotron",
+    "description": "Decision (Ryan, 2026-10-20): Distinctive (trademark-law publication, repo AnthusAI/Distinctive-web, owner organization account 'Distinctive Mark') uses its own Cyclotron(s) for all screening: publication relevance and section fit. It does not participate in the shared remote Cyclotron used to screen nerdy stuff for Anthus and Data Parade (PPY-3212f1).\n\nFeature: Per-publication Cyclotrons for Distinctive\n  Scenario: Distinctive sources are screened only by Distinctive's Cyclotrons\n    Given a source discovered for Distinctive\n    When relevance and section fit are decided\n    Then only Cyclotrons owned by the Distinctive Mark account are consulted\n    And no shared Anthus/Data Parade relevance output is created or read for it\n  Scenario: Shared screening excludes Distinctive\n    Given the shared Anthus/Data Parade relevance Cyclotron\n    When it evaluates a discovered source\n    Then it produces no Distinctive output and routes nothing to Distinctive",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": []
+  }
+}

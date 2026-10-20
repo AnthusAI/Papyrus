@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import yaml
 
-from .biblicus_runner import BiblicusCommandError, BiblicusRunner
+from .biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner
 from .env import PAPYRUS_ROOT
 from .ids import (
     category_lineage_id_for,
@@ -75,8 +75,8 @@ def load_steering_bundle_from_biblicus(
     runner = BiblicusRunner.from_environment(workdir=biblicus_workdir)
     try:
         bundle = runner.run_typed(arguments, SteeringExportBundle)
-    except BiblicusCommandError as error:
-        raise RuntimeError(f"Biblicus steering export failed:\n{error.stderr or error.stdout}") from error
+    except (BiblicusCommandError, BiblicusOutputError) as error:
+        raise RuntimeError(f"Biblicus steering export failed:\n{error.failure_message()}") from error
     return bundle.model_dump(mode="json")
 
 

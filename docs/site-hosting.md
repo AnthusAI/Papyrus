@@ -456,7 +456,7 @@ backend: {
 }
 ```
 
-After a publish refreshes the reader, `content-actions` invalidates exactly the paths the reader reported as revalidated on each listed distribution (`PAPYRUS_REVALIDATE_DISTRIBUTION_IDS`, `cloudfront:CreateInvalidation` on those distribution ARNs, the same batching, back-off, never-a-wildcard rule and weekly path-count alarm as the S3 projection). The response gains `edgeInvalidated`; a failure is reported there and never fails the publish.
+After a publish refreshes the reader, `content-actions` invalidates the paths the reader reported as revalidated on each listed distribution (`PAPYRUS_REVALIDATE_DISTRIBUTION_IDS`, `cloudfront:CreateInvalidation` on those distribution ARNs, the same one-call, back-off, wildcard-collapse rule (the reader itself may never send a wildcard) and weekly path-count alarm as the S3 projection). The response gains `edgeInvalidated`; a failure is reported there and never fails the publish.
 
 | Secret | Where it lives | Set by |
 | --- | --- | --- |
@@ -664,7 +664,8 @@ A site that serves media as they were uploaded (no image pipeline, pages that re
 ### Edge caching and invalidation
 
 - **Cache-Control per object.** HTML and every other file a projection can rewrite (`sitemap`, `robots.txt`, unhashed CSS and JS, JSON) get `public, max-age=0, s-maxage=300, stale-while-revalidate=60`: the browser always revalidates, the edge keeps a page for at most five minutes even if a purge is lost. Renditions under `assets/responsive/` (except `.meta.json`), `_next/static/` and file names that end in an eight-or-more-digit hex content hash get `public, max-age=31536000, immutable`.
-- **Targeted invalidation.** After the writes, the projection invalidates exactly the changed and deleted paths (each `index.html` page in its `/x/index.html` and `/x/` forms), in batches of 500, with exponential back-off when CloudFront throttles. It never sends a wildcard: a wildcard is refused. The first 1,000 paths a month are free, then $0.005 per path.
+- **Targeted invalidation, one call per run.** After the writes, the projection makes one invalidation call (each `index.html` page in its `/x/index.html` and `/x/` forms), with exponential back-off when CloudFront throttles. Up to 10 distinct paths are listed exactly. More than 10, which is every full render and every site-wide follow-up, becomes a single `/*`: CloudFront bills a wildcard as one path, while listing a few hundred pages cost about $65 in 20 days. Callers still cannot pass a wildcard themselves; only this size rule chooses it. The first 1,000 paths a month are free, then $0.005 per path.
+- **Redirect writes.** A full render reads the KeyValueStore once and writes only redirects whose target changed, 50 keys per `UpdateKeys` call, and new-page redirect checks use one listing instead of a read per path when more than 10 paths are checked.
 - **Failure.** A failed purge does not make the item not live; the response says `edgePurged: false` and the function schedules an asynchronous `invalidate` task for the unpurged keys. If that keeps failing, Lambda sends it to the dead letter queue.
 - **Fallback.** `cache: { invalidation: "off" }` removes the invalidation call and its IAM statement and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`).
 - **Alarm.** Each invalidation call writes a CloudWatch embedded metric (`Papyrus/Edge` `InvalidatedPaths`, dimension `DistributionId`). The stack alarms when a week sums to 230 paths or more, which is the pace of the 1,000 free paths a month (CloudWatch cannot alarm across more than seven days).
@@ -816,8 +817,35 @@ else raises `ValueError`.
 `ga_owner_opt_out=True` additionally emits a tiny script before the snippet:
 visit any page with `?notrack=1` once per browser to stop counting that browser
 (localStorage flag `<sitename>-no-analytics`, which sets Google's
-`ga-disable-<ID>`); `?notrack=0` turns counting back on. There is no other
-consent handling.
+`ga-disable-<ID>`); `?notrack=0` turns counting back on.
+
+### Consent Mode v2 and the consent banner (opt-in)
+
+`SiteChrome.consent_mode` (requires `ga_measurement_id`; `None` by default, which
+leaves pages byte-identical) emits Google Consent Mode v2 defaults before
+`gtag('config')`, a first-party banner just before `</body>`, and its stylesheet
+in `<head>`. In a projection settings file, give `chrome.consent_mode` a mapping
+of `ConsentModeSettings` fields; `{}` takes every default.
+
+```json
+{"chrome": {"ga_measurement_id": "G-ABC123DEF4", "consent_mode": {"privacy_policy_url": "/privacy.html"}}}
+```
+
+- Visitors in `denied_by_default_regions` (shipped: EEA, GB, CH) start with all four
+  signals denied; everywhere else starts with `analytics_storage` granted and the
+  three `ad_*` signals denied. Region detection is gtag's, never client-side.
+- Accept all grants and Reject all denies all four signals via
+  `gtag('consent','update')`. The choice is stored in localStorage under
+  `<sitename>-consent` with `policy_version` and `retention_days` (default 183);
+  raising `policy_version` re-prompts everyone.
+- To let visitors change their choice, place
+  `<a href="#" data-papyrus-consent-reopen hidden>Cookie settings</a>` in
+  `footer_html` (the script unhides it, so it never shows without JS), or call
+  `window.papyrusOpenConsentChoices()`.
+- Banner wording (`banner_heading`, `banner_message`, `accept_label`,
+  `reject_label`, `banner_region_label`, `privacy_policy_url`,
+  `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped
+  wording is a draft that the site owner must approve.
 
 ## `SITE_ENV` and `PAPYRUS_CONTENT_SOURCE` (staging for Pretext sites)
 

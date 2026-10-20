@@ -554,14 +554,14 @@ vision = ["Pillow (>=9.2.0)", "accelerate (>=0.19.0)"]
 
 [[package]]
 name = "biblicus"
-version = "1.14.2"
+version = "1.15.0"
 description = "Command line interface and Python library for corpus ingestion, retrieval, and evaluation."
 optional = false
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
 files = [
-    {file = "biblicus-1.14.2-py3-none-any.whl", hash = "sha256:f56d497432e51479e3702c673d4230e8f193b4f41c5b3804980c7c3749144cbe"},
-    {file = "biblicus-1.14.2.tar.gz", hash = "sha256:a95c19cc0e95fcabcc8a73db78dd19f87c211fed2450e3c405fdf048f0d75e5b"},
+    {file = "biblicus-1.15.0-py3-none-any.whl", hash = "sha256:7f96f9fb08c0c019865f1e77526796b9cad0c0eb6b3bcbc281090dc265859347"},
+    {file = "biblicus-1.15.0.tar.gz", hash = "sha256:b4900b621ba93c1b9c4f209c8dc1fa078b79e2340c2e62acded6570adf27ec86"},
 ]
 
 [package.dependencies]
@@ -8756,4 +8756,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "3e1a81e95af74e48494f06ddc65f6fad3a65ccaf7330dcdce47711bc86a49300"
+content-hash = "b811367c3c7454723e3784fd4075262db7c82d233b5d76ef5eb29c6692f43faf"
