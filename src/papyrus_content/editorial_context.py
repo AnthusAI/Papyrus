@@ -5,14 +5,10 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
-import subprocess
 from typing import Any
 
-import yaml
-
-from .env import PAPYRUS_ROOT, graphql_endpoint, load_dotenv
-from .newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND, _normalize_doctrine_seed_entry
+from .env import graphql_endpoint, load_dotenv
+from .newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
 
 PRECEDENCE = ['publication', 'section', 'assignment']
 
@@ -70,18 +66,28 @@ def build_context(publication: dict, scope: dict, entries: list[dict], *, mode: 
     return payload
 
 
-def resolve_editorial_context(client, *, publication: dict, endpoint: str,
+def hosted_publication(client, requested_key: str | None = None) -> dict:
+    """The publication this backend serves: its one canonical KnowledgeCorpus (data, not repo configuration).
+
+    A requested key is only an assertion about which publication the caller believes it is talking to.
+    """
+    corpora = client.list_by_index('knowledgeCorporaByRoleAndName', 'canonical')
+    if (len(corpora) != 1 or corpora[0].get('role') != 'canonical' or not str(corpora[0].get('name') or '').strip()
+            or not str(corpora[0].get('id') or '').startswith('knowledge-corpus-')):
+        raise ValueError('The hosted backend has no single canonical corpus; missing or ambiguous publication binding.')
+    key = corpora[0]['id'].removeprefix('knowledge-corpus-')
+    if requested_key and requested_key != key:
+        raise ValueError(f'Requested publication {requested_key} does not match the hosted canonical corpus {key}; publication binding mismatch.')
+    return {'key': key, 'name': corpora[0]['name'], 'corpusId': corpora[0]['id'],
+            'tenantId': getattr(client, 'tenant_id', None)}
+
+
+def resolve_editorial_context(client, *, endpoint: str, publication_key: str | None = None,
                               section_id: str | None = None, story_lineage_id: str | None = None,
                               assignment_id: str | None = None, max_characters: int = 0) -> dict:
-    if not publication.get('key') or not endpoint:
-        raise ValueError('Explicit publication identity and endpoint are required for hosted editorial context.')
-    from .ids import knowledge_corpus_id
-    corpora = client.list_by_index('knowledgeCorporaByRoleAndName', 'canonical')
-    if (len(corpora) != 1 or corpora[0].get('id') != knowledge_corpus_id(publication)
-            or corpora[0].get('role') != 'canonical' or not str(corpora[0].get('name') or '').strip()):
-        raise ValueError('Requested publication does not match the hosted canonical corpus; missing or ambiguous publication binding.')
-    publication = {'key': corpora[0]['id'].removeprefix('knowledge-corpus-'), 'name': corpora[0]['name'],
-                   'corpusId': corpora[0]['id'], 'tenantId': getattr(client, 'tenant_id', None)}
+    if not endpoint:
+        raise ValueError('An endpoint is required for hosted editorial context.')
+    publication = hosted_publication(client, publication_key)
     entries = []
     warnings = []
     assignment = None
@@ -161,82 +167,27 @@ def _section_entries(entries: list, warnings: list, section: dict) -> None:
             warnings.append(f"Section {section['id']} intentionally has an empty {kind} slot; publication doctrine still applies.")
 
 
-def _yaml(path: Path) -> dict:
-    if not path.is_file():
-        raise ValueError(f'Editorial configuration not found: {path}')
-    value = yaml.safe_load(path.read_text())
-    if not isinstance(value, dict) or value.get('schemaVersion') != 1:
-        raise ValueError(f'Invalid editorial configuration: {path}')
-    return value
-
-
-def publication_identity(root: Path, requested: str | None = None) -> dict:
-    config = _yaml(root / 'corpora/papyrus-steering.yml')
-    key = (config.get('canonicalTopicSet') or {}).get('corpusKey')
-    if not key or requested and requested != key:
-        raise ValueError('Requested publication does not match the selected publication configuration.')
-    return {'key': key, 'name': (config.get('publication') or {}).get('name') or key}
-
-
-def load_local_context(root: Path, *, publication_key: str | None = None,
-                       section_id: str | None = None, max_characters: int = 0) -> dict:
-    root = root.resolve()
-    publication = publication_identity(root, publication_key)
-    path = root / 'corpora/papyrus-publication-doctrine.yml'
-    seed = _yaml(path)
-    entries = []
-    kinds = set()
-    for index, raw in enumerate(seed.get('doctrine') or []):
-        row = _normalize_doctrine_seed_entry(raw, index, path)
-        if row['kind'] in kinds:
-            raise ValueError(f"Duplicate local doctrine {row['kind']}.")
-        kinds.add(row['kind'])
-        entries.append(_entry('publication', row['kind'], '\n\n'.join(row['body']), {}, path=str(path), fileSha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-    if kinds != {'mission', 'policy'}:
-        raise ValueError('Local publication mission and policy are required.')
-    entries.sort(key=lambda row: 0 if row['kind'] == 'mission' else 1)
-    warnings = ['Local Git configuration is not current hosted policy; no hosted lookup or seed fallback was performed.']
-    if section_id:
-        sections_path = root / 'corpora/papyrus-newsroom-sections.yml'
-        rows = [row for row in _yaml(sections_path).get('sections', []) if row.get('id') == section_id]
-        if len(rows) != 1:
-            raise ValueError(f'Requested section not found or ambiguous: {section_id}')
-        start = len(entries)
-        _section_entries(entries, warnings, rows[0])
-        for entry in entries[start:]:
-            entry['source'].update(path=str(sections_path), fileSha256=hashlib.sha256(sections_path.read_bytes()).hexdigest())
-    commit = subprocess.run(['git', '-C', str(root), 'rev-parse', 'HEAD'], capture_output=True, text=True)
-    publication['gitCommit'] = commit.stdout.strip() if commit.returncode == 0 else None
-    return build_context(publication, {'sectionId': section_id, 'storyLineageId': None, 'assignmentId': None}, entries,
-                         mode='local', warnings=warnings, max_characters=max_characters)
-
-
-def configured_context(*, section_id=None, story_lineage_id=None, assignment_id=None, max_characters=0) -> dict:
+def configured_context(*, publication_key=None, section_id=None, story_lineage_id=None, assignment_id=None, max_characters=0) -> dict:
     from .graphql_authoring import create_authoring_client
     load_dotenv()
     client, _ = create_authoring_client()
-    return resolve_editorial_context(client, publication=publication_identity(PAPYRUS_ROOT), endpoint=graphql_endpoint(),
+    return resolve_editorial_context(client, endpoint=graphql_endpoint(), publication_key=publication_key,
                                      section_id=section_id, story_lineage_id=story_lineage_id,
                                      assignment_id=assignment_id, max_characters=max_characters)
 
 
 def editorial_context_command(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog='papyrus editorial context')
-    parser.add_argument('--backend', choices=['local', 'cloud'], required=True)
-    parser.add_argument('--publication', required=True)
+    parser.add_argument('--backend', choices=['cloud'], default='cloud')
+    parser.add_argument('--publication', help='Optional assertion of the hosted publication key.')
     parser.add_argument('--section')
     parser.add_argument('--story')
     parser.add_argument('--assignment')
     parser.add_argument('--max-characters', type=int, default=0)
     parser.add_argument('--format', choices=['json', 'text'], default='json')
     args = parser.parse_args(flags)
-    publication_identity(PAPYRUS_ROOT, args.publication)
-    if args.backend == 'local':
-        if args.story or args.assignment:
-            raise ValueError('Local editorial context supports publication and section only; story and assignment require cloud records.')
-        pack = load_local_context(PAPYRUS_ROOT, publication_key=args.publication, section_id=args.section, max_characters=args.max_characters)
-    else:
-        pack = configured_context(section_id=args.section, story_lineage_id=args.story, assignment_id=args.assignment, max_characters=args.max_characters)
+    pack = configured_context(publication_key=args.publication, section_id=args.section, story_lineage_id=args.story,
+                              assignment_id=args.assignment, max_characters=args.max_characters)
     print(json.dumps(pack, indent=2, ensure_ascii=False) if args.format == 'json' else pack['text'])
 
 
@@ -248,8 +199,7 @@ def prepare_editorial_worker_input(client, alias: str, payload: dict) -> dict:
     assignment_id = payload.get('assignment_item_id')
     if not assignment_id:
         raise ValueError('Editorial worker dispatch requires a live assignment id.')
-    pack = resolve_editorial_context(client, publication=publication_identity(PAPYRUS_ROOT),
-                                     endpoint=graphql_endpoint(), assignment_id=assignment_id)
+    pack = resolve_editorial_context(client, endpoint=graphql_endpoint(), assignment_id=assignment_id)
     return {**payload, 'editorial_context_text': pack['text'],
             'editorial_context_hash': pack['contextHash'],
             'editorial_context_json': json.dumps(pack, ensure_ascii=False)}

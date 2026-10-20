@@ -20,7 +20,7 @@ def editorial_database(context):
         async def classify_many(self, configs, target, training, **kwargs):
             context.editorial_requests.append(batch_request(configs, target, training)[0])
     def resolve():
-        pack = resolve_editorial_context(context.editorial_database, publication={'key': 'example'},
+        pack = resolve_editorial_context(context.editorial_database, 
                                          endpoint='https://example.invalid/graphql', section_id='science')
         return {'fit-science': pack}
     context.editorial_model = ContextualDecisionModel(Capture(), resolve)

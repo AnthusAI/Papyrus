@@ -14,10 +14,10 @@ A story is an Item lineage. All drafts, Reference links and Messages hang off th
 Before research, fetch current guidance from the selected publication:
 
 ```bash
-papyrus editorial context --backend cloud --publication PUBLICATION_KEY --story STORY_LINEAGE --format json
+papyrus editorial context --backend cloud --story STORY_LINEAGE --format json
 ```
 
-Apply its `text` and precedence, surface conflicts/warnings, and record `contextHash` plus source revisions in a story Message. Stop on unavailable required policy, scope mismatch or authorization errors. For explicitly offline work use `--backend local --publication PUBLICATION_KEY [--section SECTION_ID]`; this is Git configuration, not proof of current hosted edits. Never silently replace hosted policy with local seeds. Keep evolving policy out of this static skill and private doctrine out of reader copy.
+Apply its `text` and precedence, surface conflicts/warnings, and record `contextHash` plus source revisions in a story Message. Stop on unavailable required policy, scope mismatch or authorization errors. Never silently replace hosted policy with local seeds. Keep evolving policy out of this static skill and private doctrine out of reader copy.
 
 ## Preflight and source registration
 

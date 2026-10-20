@@ -38,8 +38,8 @@ def editorial_denied(context):
 def resolve(context, **kwargs):
     context.editorial_error = None
     try:
-        context.editorial_pack = resolve_editorial_context(context.editorial_records,
-            publication={'key':'example'}, endpoint='https://example.invalid', **kwargs)
+        context.editorial_pack = resolve_editorial_context(context.editorial_records, publication_key='example',
+            endpoint='https://example.invalid', **kwargs)
     except (ValueError, PermissionError) as error:
         context.editorial_error = str(error)
 
@@ -79,7 +79,7 @@ def editorial_no_snapshot(context):
 
 @when('the research worker is prepared with caller-supplied policy text')
 def editorial_worker(context):
-    with patch('papyrus_content.editorial_context.publication_identity', return_value={'key':'example'}), patch('papyrus_content.editorial_context.graphql_endpoint', return_value='https://example.invalid'):
+    with patch('papyrus_content.editorial_context.graphql_endpoint', return_value='https://example.invalid'):
         context.editorial_worker = prepare_editorial_worker_input(context.editorial_records,
             'assignments.run-research', {'assignment_item_id':'a1', 'editorial_context_text':'Old snapshot'})
 

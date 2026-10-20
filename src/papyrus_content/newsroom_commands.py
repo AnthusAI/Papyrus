@@ -476,16 +476,34 @@ def newsroom_backfill_operational_indexes(flags: list[str]) -> None:
         print(f"newsroom\tbackfill-operational-indexes\tnext\t{result['next']}")
 
 
+def import_missing_records(client, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One-time import of seed records into the database: create what is absent, never touch what exists.
+
+    The database is the source of truth once editors own it in the newsroom, so a re-run (or a deploy step)
+    must not overwrite a newer edit. A doctrine record counts as present when any Item has its slug.
+    """
+    changes: list[dict[str, Any]] = []
+    for record in records:
+        expected = record["expected"]
+        if record["modelName"] == "Item" and expected.get("slug"):
+            present = bool(client.list_by_index("itemBySlug", expected["slug"]))
+        else:
+            present = client.get_record(record["modelName"], expected["id"]) is not None
+        if present:
+            changes.append({**record, "action": "noop"})
+            continue
+        client.create_record(record["modelName"], expected)
+        changes.append({**record, "action": "create"})
+    return changes
+
+
 def newsroom_import_sections(flags: list[str]) -> None:
     options = parse_options(flags)
     config_path = options.get("config") or str(DEFAULT_NEWSROOM_SECTIONS_PATH)
     sections = load_newsroom_section_seeds(config_path)
     client, _ = create_authoring_client(tenant_id_from_options(options))
     records = build_newsroom_section_records(sections)
-    changes: list[dict[str, Any]] = []
-    for record in records:
-        action = client.upsert(record["modelName"], record["expected"])
-        changes.append({**record, "action": action})
+    changes = import_missing_records(client, records)
     print_category_import_summary("newsroom-sections", Path(config_path).name, changes)
 
 
@@ -495,10 +513,7 @@ def newsroom_import_doctrine(flags: list[str]) -> None:
     seed = load_publication_doctrine_seed(config_path)
     records = build_publication_doctrine_records(seed["doctrine"])
     client, _ = create_authoring_client()
-    changes: list[dict[str, Any]] = []
-    for record in records:
-        action = client.upsert(record["modelName"], record["expected"])
-        changes.append({**record, "action": action})
+    changes = import_missing_records(client, records)
     print_category_import_summary("publication-doctrine", Path(config_path).name, changes)
 
 

@@ -1,5 +1,5 @@
 @backend @editorial-checks
-Feature: Editorial checks plugin
+Feature: Editorial checks
   Editors check an article against the publication's editorial policies and ask
   for rewrite options without leaving the newsroom. Admins keep the policies in
   Papyrus: they start from a starter pack, write their own, try them on sample
@@ -7,11 +7,22 @@ Feature: Editorial checks plugin
   Papyrus owns the policies, the settings and the decisions.
 
   Background:
-    Given a site with the editorial checks plugin and these policies:
+    Given a site with editorial checks and these policies:
       | key      | scope       | severity | enabled | phrase        |
       | no-hype  | publication | warn     | yes     | game-changing |
       | jargon   | engineering | info     | yes     | synergy       |
       | retired  | publication | error    | no      | going forward |
+
+  Scenario: Editorial checks run by default when the publication stored no settings
+    Given the publication has stored no editorial check settings
+    When an editor checks "This game-changing release." in section "engineering"
+    Then the findings are for policies "no-hype"
+
+  Scenario: A publication turns editorial checks off in its stored settings
+    Given the editorial check settings turn editorial checks off
+    When an editor checks "This game-changing release." in section "engineering"
+    Then the check is refused because editorial checks are turned off
+    And Limatus was not asked to check
 
   Scenario: Check an article against publication and section policies
     When an editor checks "This game-changing synergy ships going forward." in section "engineering"

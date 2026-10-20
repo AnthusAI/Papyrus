@@ -73,12 +73,11 @@ class ContextualDecisionModel:
 def classification_model(model, client, steering, sections=()):
     """Bind a publication's existing model to live private records, never seeds."""
     from .site_cyclotron import enabled_sections_in_order, section_fit_classifier_id, section_selector_classifier_id
-    publication = {'key': steering['canonicalTopicSet']['corpusKey']}
     ordered = enabled_sections_in_order(sections)
 
     def resolve():
         def context(section=None):
-            return resolve_editorial_context(client, publication=publication, endpoint=client.endpoint, section_id=section)
+            return resolve_editorial_context(client, endpoint=client.endpoint, section_id=section)
         if not ordered:
             return {steering['relevanceCyclotron']['classifierId']: context()}
         packs = {section_fit_classifier_id(row['id']): context(row['id']) for row in ordered}

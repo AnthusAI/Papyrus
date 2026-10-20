@@ -27,14 +27,16 @@ export function useEditorialChecks({
   section,
   itemId,
 }: {
-  /** null turns editorial checks off. */
+  /** null when there is no backend to check against (a preview). Whether a publication runs checks is its stored setting. */
   backend: EditorialChecksBackend | null;
   body: string | null;
   section: string;
   itemId: string | null;
 }) {
-  const enabled = backend !== null;
+  const available = backend !== null;
   const [settings, setSettings] = useState<EditorialSettings>(DEFAULT_EDITORIAL_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const enabled = available && settings.enabled;
   const [result, setResult] = useState<EditorialCheckResult | null>(null);
   const [checkedBody, setCheckedBody] = useState<string | null>(null);
   const [status, setStatus] = useState<CheckStatus>({ state: "idle" });
@@ -46,9 +48,9 @@ export function useEditorialChecks({
   const sequence = useRef(0);
 
   useEffect(() => {
-    if (!enabled) return;
-    backend?.loadSettings().then(({ settings: loaded }) => setSettings(loaded)).catch(() => undefined);
-  }, [backend, enabled]);
+    if (!available) return;
+    backend?.loadSettings().then(({ settings: loaded }) => setSettings(loaded)).catch(() => undefined).finally(() => setSettingsLoaded(true));
+  }, [available, backend]);
 
   useEffect(() => {
     if (!enabled || !itemId) return;
@@ -57,7 +59,7 @@ export function useEditorialChecks({
 
   const check = useCallback(async () => {
     const text = latestBody.current;
-    if (!backend || text === null || !text.trim()) return;
+    if (!backend || !enabled || text === null || !text.trim()) return;
     const run = ++sequence.current;
     setStatus({ state: "checking" });
     try {
@@ -73,13 +75,13 @@ export function useEditorialChecks({
     } catch (error) {
       if (run === sequence.current) setStatus({ state: "error", message: error instanceof Error ? error.message : "The check failed." });
     }
-  }, [backend, section]);
+  }, [backend, enabled, section]);
 
   useEffect(() => {
-    if (!enabled || !settings.checkWhileTyping || body === null || body === checkedBody) return;
+    if (!enabled || !settingsLoaded || !settings.checkWhileTyping || body === null || body === checkedBody) return;
     const timer = window.setTimeout(() => void check(), CHECK_PAUSE_MS);
     return () => window.clearTimeout(timer);
-  }, [body, check, checkedBody, enabled, settings.checkWhileTyping]);
+  }, [body, check, checkedBody, enabled, settings.checkWhileTyping, settingsLoaded]);
 
   const record = useCallback(
     (finding: EditorialFinding, decision: FeedbackDecision, reason: string | null = null) => {
@@ -105,7 +107,7 @@ export function useEditorialChecks({
     [backend, section],
   );
 
-  const current = result && checkedBody === body;
+  const current = enabled && result && checkedBody === body;
   return {
     enabled,
     settings,

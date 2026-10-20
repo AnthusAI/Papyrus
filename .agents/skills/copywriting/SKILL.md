@@ -10,10 +10,10 @@ Resolve the intended publication and story lineage using its configuration and l
 Fetch guidance before writing:
 
 ```bash
-papyrus editorial context --backend cloud --publication PUBLICATION_KEY --story STORY_LINEAGE --format json
+papyrus editorial context --backend cloud --story STORY_LINEAGE --format json
 ```
 
-Use the returned `text`, precedence, warnings and source revisions; record `contextHash` and source identity in a story Message. Required-policy or authorization failures stop the writing pass. For explicitly offline work, `--backend local --publication PUBLICATION_KEY [--section SECTION_ID]` reads Git configuration and is labeled local, not current hosted policy. Never silently substitute seeds for unavailable hosted guidance. Policy text stays in the publication, not this skill.
+Use the returned `text`, precedence, warnings and source revisions; record `contextHash` and source identity in a story Message. Required-policy or authorization failures stop the writing pass. There is no offline policy mode. Never silently substitute seeds for unavailable hosted guidance. Policy text stays in the publication, not this skill.
 
 Write from the reporting evidence, preserving source qualifications and citation keys. Keep private doctrine and reporting notes out of reader copy. Save every substantial article change through `papyrus stories save-version`, with a reason and accurate author attribution; preserve prior versions. Report unresolved evidence gaps as Messages, scoped with `--reference REFERENCE_LINEAGE` and `--version N`. Citation role and classifier feedback remain independent.
 

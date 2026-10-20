@@ -3,9 +3,6 @@
  * over them. Limatus counts offsets in UTF-16 code units, which is exactly how
  * JavaScript indexes strings, so spans apply to the body text as they are.
  */
-import { pluginSettings, type PluginOutputs } from "./plugin-settings";
-
-export const EDITORIAL_CHECKS_PLUGIN = "editorial-checks";
 
 export type Span = { start: number; end: number };
 export type Severity = "info" | "warn" | "error";
@@ -90,10 +87,6 @@ export type EditorialFeedbackInput = {
 export const UNSAVED_ITEM_ID = "unsaved";
 
 const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
-
-export function editorialChecksEnabled(outputs: PluginOutputs | null | undefined): boolean {
-  return pluginSettings(outputs, EDITORIAL_CHECKS_PLUGIN) !== null;
-}
 
 /** Findings worth showing: not dismissed, not covering the whole document, most severe first, then in reading order. */
 export function visibleFindings(findings: EditorialFinding[], dismissed: ReadonlySet<string>): EditorialFinding[] {
