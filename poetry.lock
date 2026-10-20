@@ -2159,7 +2159,7 @@ description = "Lightweight in-process concurrent programming"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"newsroom\" and (sys_platform == \"win32\" or sys_platform == \"linux\" or platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\") and (sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"x86_64\" or platform_machine == \"ppc64le\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\")"
+markers = "extra == \"newsroom\" and (sys_platform == \"win32\" or platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\") and (platform_machine == \"x86_64\" or platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\")"
 files = [
     {file = "greenlet-3.5.0-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:29ea813b2e1f45fa9649a17853b2b5465c4072fbcb072e5af6cd3a288216574a"},
     {file = "greenlet-3.5.0-cp310-cp310-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:804a70b328e706b785c6ef16187051c394a63dd1a906d89be24b6ad77759f13f"},
@@ -2940,14 +2940,14 @@ sphinx = "*"
 
 [[package]]
 name = "limatus"
-version = "0.31.0"
+version = "0.32.0"
 description = "A diagnose-and-steer quality loop for AI-generated content."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "limatus-0.31.0-py3-none-any.whl", hash = "sha256:efc43ed85a10d6ab3dbad69aa524e1149ee0c5705f5066fa3443cc81fb374905"},
-    {file = "limatus-0.31.0.tar.gz", hash = "sha256:6c4b64926b3cb7005c656ffd16a169946c3ea5367fb933f454af9503bc49d609"},
+    {file = "limatus-0.32.0-py3-none-any.whl", hash = "sha256:f18932e9b82dc184ef9debf9f423b58644c8d18aa004d44d0daef3aa18db3dec"},
+    {file = "limatus-0.32.0.tar.gz", hash = "sha256:38aeaa799dc9c17a14824fe89a0a86840a46fc53540c9375f581b6793c65756f"},
 ]
 
 [package.dependencies]
@@ -4135,7 +4135,7 @@ description = "CUBLAS native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform != \"linux\" or platform_machine != \"aarch64\" and platform_machine != \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine != \"x86_64\" or sys_platform != \"linux\" and sys_platform != \"win32\")"
+markers = "(sys_platform != \"linux\" or platform_machine != \"aarch64\" and platform_machine != \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine != \"x86_64\" or sys_platform != \"win32\" and sys_platform != \"linux\")"
 files = [
     {file = "nvidia_cublas-13.8.1.7-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:803b9974cd7164a481d0b11c25826498d383d0ef0c372573bc6577a344ddf74e"},
     {file = "nvidia_cublas-13.8.1.7-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:c11a27fd4379510e5b1f84b367a2514d1e52fe5cc13442117a0e0a1addee3cf2"},
@@ -4179,7 +4179,7 @@ description = "NVRTC native runtime libraries"
 optional = true
 python-versions = ">=3"
 groups = ["main"]
-markers = "(sys_platform != \"linux\" or platform_machine != \"aarch64\" and platform_machine != \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine != \"x86_64\" or sys_platform != \"linux\" and sys_platform != \"win32\")"
+markers = "(sys_platform != \"linux\" or platform_machine != \"aarch64\" and platform_machine != \"x86_64\") and extra == \"newsroom\" and platform_system == \"Linux\" and (platform_machine != \"x86_64\" or sys_platform != \"win32\" and sys_platform != \"linux\")"
 files = [
     {file = "nvidia_cuda_nvrtc-13.4.92-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:5ce8c97b00b232c4f50c8c4b5a3b68cafee08bdb82ea86f2052ff01d03194f4a"},
     {file = "nvidia_cuda_nvrtc-13.4.92-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:24b9f5eccc6a5a19779038cf468aecb7cecfa8716269beaef5640bd989d21c28"},
@@ -8756,4 +8756,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "adef1f492a3570133a341e0d95d05e9fddcf07ed0d1bb3aa70a2d60bae65eb25"
+content-hash = "b811367c3c7454723e3784fd4075262db7c82d233b5d76ef5eb29c6692f43faf"

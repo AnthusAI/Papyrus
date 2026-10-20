@@ -13,7 +13,7 @@ const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const EDITORIAL_CHECKS_TIMEOUT_SECONDS = 28;
 
 /** Limatus with the Jev classifier lane; papyrus_content.editorial_checks does the work. */
-export const editorialChecksRequirements = ["limatus[jev]>=0.31,<0.32"];
+export const editorialChecksRequirements = ["limatus[jev]>=0.32,<0.33"];
 
 function installRequirements(outputDir: string): void {
   execFileSync(
