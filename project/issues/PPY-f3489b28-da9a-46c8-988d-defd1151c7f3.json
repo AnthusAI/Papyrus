@@ -10,11 +10,27 @@
   "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0b6059db-4f7f-4150-9860-2aa2222f2373",
+      "author": "home",
+      "text": "Findings (2026-10-14, read-only). Auto-build is off by hand, not by template: the app-shell template sets enableAutoBuild true on the main and staging branches; CloudFormation drift on amplify-app-shell-anth-us-cms shows Branch/EnableAutoBuild expected true, actual false. CloudTrail: 2026-10-12 09:00 repository connected in the console (UpdateApp), 09:03 UpdateApp + UpdateBranch main enableAutoBuild=false by CLI (the console-connect repair); staging branch updates 11:03-11:34 left it off. The Amplify branch-linker custom resource re-sends the branch's existing values, so it does not flip it back. The GitHub push webhook (amplify-webhooks, push events) on AnthusAI/Anth.us-Papyrus is active (last delivery 202), so enabling auto-build is a single update-branch call; no site.json change is needed because the template already says true (a later CDK deploy of the shell would also turn it on). Only anth-us-cms is connected to that repo in papyrus-production. NOT enabled: waiting for Ryan's go. Steps: assert account 712236451410; aws amplify update-branch --app-id d7s858igkyct5 --branch-name main --enable-auto-build; merge a no-op PR; confirm job starts and succeeds. Rollback: update-branch --no-enable-auto-build.",
+      "created_at": "2026-10-20T14:02:45.765044Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:08:58.034484Z",
-  "updated_at": "2026-10-13T23:08:58.034599Z",
+  "updated_at": "2026-10-20T14:02:45.765073Z",
   "closed_at": null,
   "right_now_summary": "The CMS main branch now builds automatically after merges without personal AWS credentials.",
   "right_now_updated_at": "2026-10-13T23:08:59.655728Z",
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

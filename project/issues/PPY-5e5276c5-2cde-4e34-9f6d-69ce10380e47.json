@@ -1,0 +1,28 @@
+{
+  "id": "PPY-5e5276c5-2cde-4e34-9f6d-69ce10380e47",
+  "title": "Share one guest credential provider per build process; single-flight, cache, jittered backoff; cap static generation workers",
+  "description": "TI main build on Amplify still fails at static prerender with TooManyRequestsException Rate exceeded despite #206. Cause: runWithAmplifyServerContext({nextServerContext:null}) builds a fresh Cognito credentials provider per call, so each page/read issues its own GetId/GetCredentialsForIdentity, multiplied by Next static-generation workers. Fix: one process-wide provider with single-flight and expiry cache, full-jitter backoff with a 2 minute budget, and capped static generation concurrency in withPapyrus.",
+  "type": "bug",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e64fd62a-6ec8-4665-a8d8-83d768d285a8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3eba5845-0f5f-425e-9fb8-8219b6798085",
+      "author": "home",
+      "text": "Fixed upstream: one shared guest credential provider per process, capped static generation (Papyrus #207, 86e74f45). Recovered from an uncommitted local board during the 2026-10-20 reconcile.",
+      "created_at": "2026-10-20T14:02:52.334290Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-20T14:02:29.643915Z",
+  "updated_at": "2026-10-20T14:02:52.413862Z",
+  "closed_at": "2026-10-20T14:02:52.413827Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

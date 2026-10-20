@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7227acea-e3f5-4bc2-b3c5-17f62568d49d",
+  "title": "Embed optional Cyclotron priming with existing reference curation planners",
+  "description": "As a Papyrus editor I want reusable Cyclotron preview and explicit label controls in References, so I can curate representative examples before relevance operation.\nFeature: Optional reference priming\n  Scenario: Research source\n    Given the existing scholarly reference extraction path\n    When a configured HTTP curation service transforms a source for priming\n    Then existing extraction yields title and abstract without registering source content in GraphQL\n  Scenario: Web source\n    Given the existing web extraction and metadata/summary path\n    When a source is prepared for priming\n    Then the full validated decision representation is previewed and source provenance is retained\n  Scenario: Embedded controls\n    Given host-supplied authenticated priming transport\n    When the References view enables optional example import\n    Then the shared Cyclotron preview and label/rationale controls are rendered\n    And cancellation or rejection never commits an example\nLocal tested slice only; no schema plugin framework, IAM change, provider calls or deployment. Linked core initiative decision-flywheel-da886c09-7acb-45d3-acf8-c81585f26d8a.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T14:02:30.121815Z",
+  "updated_at": "2026-10-20T14:02:30.121864Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
