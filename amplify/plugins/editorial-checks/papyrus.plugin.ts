@@ -21,6 +21,22 @@ export const EDITORIAL_CHECKS_FUNCTION_FIELDS = [
   "Mutation/fields/updateEditorialPolicy",
 ];
 
+export const EDITORIAL_CHECKS_SECRETS = ["TYPESAFE_API_KEY", "OPENAI_API_KEY"];
+
+/**
+ * SSM parameters holding the provider keys. A Python function reads its secret()
+ * values itself (Amplify only resolves them for Node functions), so it needs read
+ * access to the app's branch and shared secret paths, and to the sandbox paths.
+ */
+export function editorialChecksSecretParameters(region: string, account: string, appId: string): string[] {
+  const arn = (path: string) => `arn:aws:ssm:${region}:${account}:parameter/amplify/${path}`;
+  return EDITORIAL_CHECKS_SECRETS.flatMap((name) => [
+    arn(`papyrus/*/${name}`),
+    arn(`shared/papyrus/${name}`),
+    ...(appId ? [arn(`${appId}/*/${name}`), arn(`shared/${appId}/${name}`)] : []),
+  ]);
+}
+
 export const editorialChecksManifest: PluginManifest = {
   name: "editorial-checks",
   contract: 1,
@@ -48,8 +64,14 @@ export const editorialChecksPlugin: PapyrusPlugin<EditorialChecksPluginConfig, {
     const lambda = backend.editorialChecks.resources.lambda as LambdaFunction;
     const stack = Stack.of(lambda);
     lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", context.graphqlEndpoint);
-    backend.editorialChecks.addEnvironment("TYPESAFE_API_KEY", secret("TYPESAFE_API_KEY"));
-    backend.editorialChecks.addEnvironment("OPENAI_API_KEY", secret("OPENAI_API_KEY"));
+    for (const name of EDITORIAL_CHECKS_SECRETS) backend.editorialChecks.addEnvironment(name, secret(name));
+    lambda.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["ssm:GetParameter", "ssm:GetParameters"],
+        resources: editorialChecksSecretParameters(stack.region, stack.account, (process.env.AWS_APP_ID ?? "").trim()),
+      }),
+    );
     lambda.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
