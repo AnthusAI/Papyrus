@@ -23,6 +23,7 @@ jobs:
       - run: echo '{}' > amplify_outputs.json
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run test:assignment-data-access
       # Reader routes enumerate published editions from AppSync at build time. Staging drafts
       # mode skips that enumeration, so the build needs no deployed backend and no secrets.
       - run: npm run build
@@ -66,7 +67,6 @@ jobs:
       #   test_cloud_procedure_execution PPY-c22e1c (stale assertions)
       #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
       #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
-      #   publication_modes_test vetting PPY-a1867d (loads a fixtures file that was never committed)
       - name: Python unit tests
         run: |
           poetry run pytest -q \
@@ -77,7 +77,6 @@ jobs:
             --ignore=procedures/newsroom/tests/test_analysis_entity_graph_bridge.py \
             --ignore=procedures/newsroom/tests/test_cloud_procedure_execution.py \
             --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
-            --ignore=procedures/newsroom/tests/test_papyrus_content.py \
-            --deselect src/papyrus_content/publication_modes_test.py::test_existing_papyrus_curation_can_be_vetted_with_explicit_publication_feedback_in_both_modes
+            --ignore=procedures/newsroom/tests/test_papyrus_content.py
       # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
       - run: poetry run behave features_backend --tags=~@live-agent --exclude 'research-reporting-context'

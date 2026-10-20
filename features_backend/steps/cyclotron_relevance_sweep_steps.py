@@ -25,6 +25,8 @@ CORPUS_ID = "knowledge-corpus-example"
 DOCTRINE = [{"kind": "mission", "body": ["Publish practical AI security analysis."]},
             {"kind": "policy", "body": ["Prefer primary evidence over vendor marketing."]}]
 INDEX_MODELS = {
+    "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
+    "itemBySlug": "Item",
     "referencesByCurationStatusKey": "Reference",
     "semanticRelationsBySubjectState": "SemanticRelation",
     "semanticRelationsByObjectState": "SemanticRelation",
@@ -40,6 +42,13 @@ class SweepClient(FakeAuthoringClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bodies: dict[str, bytes] = {}
+        self.endpoint = 'https://example.invalid/graphql'
+        self._table('KnowledgeCorpus')[CORPUS_ID] = {'id': CORPUS_ID, 'name': 'Example', 'role': 'canonical'}
+        for kind in ('mission', 'policy'):
+            identifier = 'synthetic-doctrine-' + kind
+            self._table('Item')[identifier] = {'id': identifier, 'lineageId': identifier,
+                'slug': 'editorial-doctrine-' + kind, 'type': 'doctrine', 'status': 'private',
+                'versionState': 'current', 'versionNumber': 1, 'body': ['Synthetic publication ' + kind]}
 
     def list_by_index(self, index_name, key_value, **_kwargs):
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]

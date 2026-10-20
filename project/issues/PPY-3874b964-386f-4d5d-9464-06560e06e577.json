@@ -10,11 +10,27 @@
   "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "204de72b-702f-4687-b679-de15c3011d5c",
+      "author": "home",
+      "text": "Deferred this run. Estimate 3-4 days: guest-scoped AppSync auth mode or API key with field-level authorization on a published-only read model, WAF rate limit, schema/doc for the guest surface, test that unpublished items are invisible.",
+      "created_at": "2026-10-20T14:02:43.705284Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:09:20.080421Z",
-  "updated_at": "2026-10-13T23:09:20.080461Z",
+  "updated_at": "2026-10-20T14:02:43.705322Z",
   "closed_at": null,
   "right_now_summary": "The team is designing a public, rate-limited GraphQL API for published content on static pages.",
   "right_now_updated_at": "2026-10-13T23:09:21.906463Z",
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

@@ -10,6 +10,7 @@ import { editorialChecksSchemaDefinitions } from "../amplify/plugins/editorial-c
 import {
   EDITORIAL_CHECKS_FUNCTION_FIELDS,
   editorialChecksManifest,
+  editorialChecksSecretParameters,
   resolveEditorialChecksConfig,
 } from "../amplify/plugins/editorial-checks/papyrus.plugin";
 import { EDITORIAL_CHECKS_TIMEOUT_SECONDS } from "../amplify/plugins/editorial-checks/function/resource";
@@ -116,7 +117,14 @@ assert.equal(KNOWN_PLUGINS["editorial-checks"].manifest, editorialChecksManifest
 assert.ok(EDITORIAL_CHECKS_TIMEOUT_SECONDS < 30, "the function must finish inside AppSync's 30 second resolver limit");
 assert.deepEqual(
   EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()).sort(),
-  ["createEditorialPolicy", "getEditorialCheckSettings", "listEditorialFeedbacks", "listEditorialPolicies", "updateEditorialPolicy"],
+  ["createEditorialPolicy", "getEditorialCheckSettings", "getEditorialContext", "listEditorialFeedbacks", "listEditorialPolicies", "listKnowledgeCorporaByRoleAndName", "updateEditorialPolicy"],
 );
+
+// The function reads its provider keys from SSM itself; it may read exactly those two names.
+const secretArns = editorialChecksSecretParameters("us-east-1", "123456789012", "dabc123");
+assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/amplify/dabc123/*/TYPESAFE_API_KEY"));
+assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/amplify/shared/dabc123/OPENAI_API_KEY"));
+assert.ok(secretArns.every((arn) => arn.endsWith("/TYPESAFE_API_KEY") || arn.endsWith("/OPENAI_API_KEY")));
+assert.equal(editorialChecksSecretParameters("us-east-1", "123456789012", "").length, 4, "a sandbox gets only the sandbox paths");
 
 console.log("plugins ok");

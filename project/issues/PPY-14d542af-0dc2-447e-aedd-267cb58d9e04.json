@@ -10,11 +10,27 @@
   "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "586db55a-1758-4296-b8e8-cac5b2633d06",
+      "author": "home",
+      "text": "Done in Papyrus #204: S3PageWriter stores 404.html as text/html with no Cache-Control (behave scenario added). Throwaway proof: head-object on 404.html right after a deploy render shows ContentType text/html, no CacheControl. Anth.us PR #48 removes bin/fix_404_headers.py. Live production 404.html already has these headers (set by the script earlier).",
+      "created_at": "2026-10-20T14:02:43.072760Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:09:08.223983Z",
-  "updated_at": "2026-10-13T23:09:08.224015Z",
+  "updated_at": "2026-10-20T14:02:43.072781Z",
   "closed_at": null,
   "right_now_summary": "The renderer still writes 404.html with wrong headers, so a cleanup script is needed after each full render.",
   "right_now_updated_at": "2026-10-13T23:09:10.248463Z",
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

@@ -37,10 +37,34 @@
         "platform": "codex",
         "model": "gpt-6"
       }
+    },
+    {
+      "id": "010af8da-c2f9-42ec-b527-1b5402b0d847",
+      "author": "home",
+      "text": "Coordination 2026-10-20: Codex papyrus-monitoring owns this scoped tracker integration, coordinating the separate public-page research agent. Current claims checked eligible; no implementation ownership is claimed and concurrent Claude work is preserved. Source/standards investigation complete; runtime, routes, benchmarks and executable acceptance unimplemented. Existing planning stays open/P3. Shared foundation and post-save dependencies remain blockers. Only tracker changes are being delivered; local README/design patches remain outside this push.",
+      "created_at": "2026-10-20T12:12:42.345675Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "fbb9e6bd-9207-4c41-bcb6-c4ce59325269",
+      "author": "home",
+      "text": "Related planning extension under existing headless epic\nPPY-29da48cd-8041-4ff0-a154-22afa9b2bc3b: each PUBLIC published page should\noffer a discoverable Markus/Markdown alternate. Narrow child story: PPY-f172d76f-acab-46b6-b747-7bb4558a9253. It shares the same public-content\nallowlist, revision selection and post-save refresh/reconciliation foundation\nas feeds, but **does not change RSS/Atom eligibility**. A public homepage,\nproduct page or wiki/help page receives an alternate even when excluded from\nfeeds. Preserve this epic's scope/status/priority; no duplicate feed or\ndelivery epic, new publisher or runtime rollout is authorized.\n",
+      "created_at": "2026-10-20T12:13:31.171565Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T02:16:55.576020Z",
-  "updated_at": "2026-10-20T03:11:15.315112Z",
+  "updated_at": "2026-10-20T12:13:31.171592Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

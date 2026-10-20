@@ -1,0 +1,118 @@
+{
+  "id": "PPY-eba9cfd9-d3e1-467f-bbbd-1aa5f1aac362",
+  "title": "Current database doctrine reaches classification and copy-edit model requests",
+  "description": "As an editor, I want current publication doctrine and the selected section overlay to reach classification and copy-edit prompts so database edits govern behavior without stale seeds. Feature: Current scoped editorial guidance at model boundaries. Scenario: Inherit and isolate. Given current private publication doctrine and two section overlays When a candidate is classified and a draft checked or rewritten for one section Then the actual model request includes publication and selected section guidance And the other section guidance does not enter that classifier or edit scope. Scenario: Refresh changed policy. Given a previous request When publication or section policy is updated in the database Then the next request uses current text and a changed context fingerprint And missing, ambiguous, denied or mismatched required policy stops before any model call. Source fixes and local controlled tests are authorized; production writes, grants, deployments and live provider calls remain separately gated. Preserve all 50 human decisions; do not train.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-5aca7fa9-3384-4df7-9a1b-262489952c48",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "18142460-67fa-45b9-b8e2-80c12c9988e9",
+      "author": "home",
+      "text": "Implemented live database context at classification and editing boundaries. Relevance and section sweeps preflight current private records, include context hashes in item fingerprints, keep each classifier scoped, and reject a policy change between preparation and provider transmission. Native SDK/adapter tests show unchanged policy reuses a decision and changed policy issues a new request. Copy-edit checks and rewrites compose doctrine with same-key section rule overrides/additions and reload context per operation; existing authenticated context/pack commands and copy-edit skill are reused. Request tests are synthetic only. Required source wiring proposes two private read operations for the existing editorial-checks function: getEditorialContext and listKnowledgeCorporaByRoleAndName. No production grants, writes, deployment, live providers, human labels or training occurred. Relevant BDD: 24 scenarios/98 steps pass. Broader local priming checks encounter absent openpyxl; no packages installed.",
+      "created_at": "2026-10-20T11:55:20.986279Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "e143b5cb-b27b-4e7a-9503-e3682735673d",
+      "author": "home",
+      "text": "Delivered generic context propagation fixes and synthetic tests on feature/PPY-3212f1-hn-monitor in draft https://github.com/AnthusAI/Papyrus/pull/382 . Code commit 0be5761e; permission-contract test 27c667d2; final database desk-isolation regression 05cdf1dc. Local focused suite: 63 passed. Relevant BDD: 24 scenarios/98 steps passed. New-head CI is running; prior collector head 4a151214 passed all jobs. Existing owner develop changes, including provider-secret preparation, are preserved. No merge, production policy update, grant application, deployment, live provider call or learning. The selected consumer rollout must review two scoped private query reads and verify current effective context plus final provider-boundary traces. Private guideline drafts and received decisions remain outside Git.",
+      "created_at": "2026-10-20T12:03:46.334088Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "3411eca9-7d35-4a94-80af-bc0254859bed",
+      "author": "home",
+      "text": "Current verified checkpoint 2026-10-20: Codex papyrus-monitoring coordinates this work; preserve concurrent Claude/consumer changes. Draft PR https://github.com/AnthusAI/Papyrus/pull/382 head bbacf15ce703dc620dbcf583c13f1431226c3c5d passed all three CI checks (Python, TypeScript, package smoke). Focused local verification: 63 tests; 3 BDD features/24 scenarios/98 steps. Source review remains open; nothing merged or deployed. Private review holds 50 received human decisions, zero applied feedback/learning. Credential-free manual HN collection queued 30; parent reports hourly automation enabled, first automatic receipt still unverified. Full routing/classification is not running. Exact remaining gates: select deployed consumer/release and scoped read permissions; verify authenticated publication/tenant/section data and current context at provider boundary; obtain scoped policy-write/live-provider budget authorization where needed; bind predictions and human authority before feedback application; observe scheduled-run receipt. Keep policy, labels and rationales private.",
+      "created_at": "2026-10-20T12:13:36.766493Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "8686180b-9a7e-4eab-9a79-d941109cbed2",
+      "author": "home",
+      "text": "Coordination: Codex owns a newly reviewed offline --pack regression fix before release. Disabled policy guidance is currently promoted into unconditional local doctrine; add synthetic boundary regression before fixing. Release remains gated. A private zero-provider approval bundle and 50-decision application preflight are saved; no live outputs or feedback applied. Current intended TI build guard differs from legacy app; preserve guard and obtain verified intended target before rollout.",
+      "created_at": "2026-10-20T12:24:01.186453Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "acbf2718-d6e6-4250-b59c-7eb9d6656f0e",
+      "author": "home",
+      "text": "Review regression fixed locally: offline --pack now keeps explicit file guidance separate from individual controls, so disabled control guidance cannot leak into global doctrine or active check/rewrite prompts. Two synthetic actual-Limatus prompt variants failed before the fix and pass afterward; editorial-boundary plus routing suite 20/20 passes. Release remains blocked pending CI/review and verified intended consumer target/private query-read grant scope. No production permission/policy writes or provider calls occurred.",
+      "created_at": "2026-10-20T12:25:16.737971Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "132fdb1c-57dc-49f4-b0c1-1bfc1e8e6ce4",
+      "author": "home",
+      "text": "Fresh read-only correction: existing papyrus-production SSO works and confirms intended TI app d12wnrx15qbcc2/account712236451410, successful main job43 for merged plugin commit c1adba312f6547e7d15622e3d342327101e5d49e, deployed editorial-checks Lambda/role and API. No target discovery by Ryan is needed. The two proposed private query reads are absent from the deployed role. Canonical corpus, current private doctrine identifiers and six sections verified via IAM operator metadata query; no policy bodies published. However getEditorialContext fails at publication and both selected section scopes with malformed generated data environment configuration in assignment handler. Runtime blocker PPY-5aca7fa9-3384-4df7-9a1b-262489952c48 must be fixed/reviewed before rollout; two plugin reads alone are insufficient. Exact physical targets and proposed grant delta saved in private resolved approval bundle. Existing migration/context records checked open or in_progress, unassigned, soft claims eligible; PR367 does not fix this handler initialization. Codex owns read-only investigation; no migration/domain operation claimed. Zero policy/permission writes, providers or feedback application. Keep acceptance open.",
+      "created_at": "2026-10-20T12:32:03.923606Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "cc6c977c-0b08-4688-b119-71047772c2f1",
+      "author": "home",
+      "text": "PPY-5aca7f source/config repair is prepared with actual SDK synthesis/client regression coverage. Production access review must include the assignment role delta: selected API Query/* and Mutation/* (no subscriptions), one generated schema object GetObject, and five exact nonsecret resource-reference GetParameters. This is additional to the editorial-checks role two private query reads; exact target ARNs recorded privately. No grants, deployment, provider calls or policy writes occurred. Remain blocked on reviewed release/access scope and live zero-provider context acceptance.",
+      "created_at": "2026-10-20T12:42:07.120104Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T11:37:29.555867Z",
+  "updated_at": "2026-10-20T12:42:07.120130Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

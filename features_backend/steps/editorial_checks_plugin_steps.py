@@ -21,6 +21,12 @@ class FakeEditorialStore:
     def list_policies(self):
         return [dict(record) for record in self.policies.values()]
 
+    def get_editorial_context(self, section):
+        from papyrus_content.editorial_context import build_context
+        return build_context({'key': 'synthetic'}, {'sectionId': section},
+                             [{'scope': 'publication', 'kind': 'policy', 'text': 'Synthetic private guidance',
+                               'source': {'id': 'synthetic-policy'}}], mode='cloud')
+
     def get_settings(self):
         return self.settings
 
@@ -307,3 +313,42 @@ def step_cli_check(context, text):
 @then('the printed check result has a "{key}" finding on "{excerpt}"')
 def step_cli_finding(context, key, excerpt):
     assert [(f["policyId"], f["excerpt"]) for f in context.cli_result["findings"]] == [(key, excerpt)], context.cli_result["findings"]
+
+
+# --- provider keys ------------------------------------------------------------------
+
+PLACEHOLDER = "<value will be resolved during runtime>"
+
+
+@given('the function environment has Amplify secret placeholders for "{first}" and "{second}"')
+def step_secret_placeholders(context, first, second):
+    context.function_env = {
+        first: PLACEHOLDER,
+        second: PLACEHOLDER,
+        "AMPLIFY_SSM_ENV_CONFIG": json.dumps({first: {"path": f"/amplify/app/branch/{first}"}, second: {"path": f"/amplify/app/branch/{second}"}}),
+    }
+
+
+@given('SSM holds a value for "{name}" only')
+def step_ssm_holds(context, name):
+    context.ssm_values = {f"/amplify/app/branch/{name}": "stored-test-value"}
+
+
+@when("the function prepares its provider keys")
+def step_prepare_keys(context):
+    def read(parameter_name):
+        if parameter_name not in context.ssm_values:
+            raise RuntimeError(f"ParameterNotFound: {parameter_name}")
+        return context.ssm_values[parameter_name]
+
+    editorial.load_provider_keys(context.function_env, read_parameter=read)
+
+
+@then('"{name}" is the value stored in SSM')
+def step_key_resolved(context, name):
+    assert context.function_env.get(name) == "stored-test-value", context.function_env
+
+
+@then('"{name}" is not set, so rewrite suggestions report that they are not configured')
+def step_key_unset(context, name):
+    assert name not in context.function_env, context.function_env

@@ -10,11 +10,27 @@
   "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "86ec52fe-adf7-4f09-830a-cf1d9a2824a9",
+      "author": "home",
+      "text": "Papyrus PR #204 merged (7cfffa1, released in 1.0.0-next.54): reprojectOnDeploy now invokes content-actions synchronously with a deploy-render task (project_all, then reconcile dry-run); a failed render fails the stack update and the Amplify build; drift is returned, logged, emitted as Papyrus/Projection DeployRenderDrift and alarmed; nothing is deleted. Proven on throwaway stack papyrus-mid-test (papyrus-production, deleted afterwards): clean run, drift run (orphan reported, kept, alarm went ALARM), render failure (CFN CREATE_FAILED with the Lambda error). Anth.us PR AnthusAI/Anth.us-Papyrus#48 sets reprojectOnDeploy true (open, not merged). Production re-render not run.",
+      "created_at": "2026-10-20T14:02:44.208412Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
+    }
+  ],
   "created_at": "2026-10-13T23:09:03.284135Z",
-  "updated_at": "2026-10-13T23:09:03.284167Z",
+  "updated_at": "2026-10-20T14:02:44.208435Z",
   "closed_at": null,
   "right_now_summary": "The team is choosing how to trigger a full site render after each backend deploy.",
   "right_now_updated_at": "2026-10-13T23:09:05.065011Z",
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

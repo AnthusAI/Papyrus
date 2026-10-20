@@ -21,9 +21,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9e655bb2-08e3-45ae-a487-bd47347a33b5",
+      "author": "home",
+      "text": "Coordination/read-only evidence: intended account712 TI app d12wnrx15qbcc2 main job43 SUCCEED for c1adba312f6547e7d15622e3d342327101e5d49e. Existing app guard preserved; legacy job55 failure is separate and not evidence of intended-target deployment failure. Codex is investigating Monitoring/editorial-context acceptance only, not claiming migration/cutover work. Shared-context runtime failure is recorded as PPY-5aca7fa9-3384-4df7-9a1b-262489952c48; no infrastructure, grants, data, domains or provider operations changed.",
+      "created_at": "2026-10-20T12:32:04.849054Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
   "created_at": "2026-10-10T17:17:37.613148Z",
-  "updated_at": "2026-10-10T17:19:18.344473Z",
+  "updated_at": "2026-10-20T12:32:04.849071Z",
   "closed_at": null,
   "right_now_summary": "The CMS app setup awaits Google configuration, secret transfer, a rebuild, and sign-in checks.",
   "right_now_updated_at": "2026-10-10T17:19:19.768982Z",

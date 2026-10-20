@@ -75,6 +75,7 @@ def references():
 
 
 def sweep(steering, client, tmp_path, *, model=None, sections=SECTIONS, apply=True, now="2026-10-18T10:00:00Z", **options):
+    client._table('NewsroomSection').update({row['id']: dict(row) for row in sections})
     bodies = client.bodies
 
     def store_body(recording_client, attachment, body):

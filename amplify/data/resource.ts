@@ -2271,6 +2271,7 @@ const schema = a.schema({
       allow.groups(contentWriteGroups),
     ]),
 }).authorization((allow) => [
+  allow.resource(assignmentAction).to(["query", "mutate"]),
   allow.resource(categoryAction),
   allow.resource(contentActions),
   allow.resource(manageUserRole),
