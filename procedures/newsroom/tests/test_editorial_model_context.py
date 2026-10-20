@@ -87,9 +87,9 @@ def policy(key, scope, guidance):
                             'violation': {'answer': 'no'}, 'threshold': 0.8}])
 
 
-def test_actual_limatus_check_and_rewrite_prompts_receive_doctrine_and_rule_overlay():
+def test_actual_humanus_check_and_rewrite_prompts_receive_doctrine_and_rule_overlay():
     from papyrus_content.editorial_checks import Services, check_editorial, suggest_rewrite
-    from limatus.classifier_lane import DecisionAnswers
+    from humanus.classifier_lane import DecisionAnswers
     calls, prompts = [], []
     current = [context('a')]
     rows = [policy('shared', 'publication', 'BASE_RULE'), policy('shared', 'a', 'OVERRIDE_RULE'),
@@ -223,7 +223,7 @@ def test_database_section_update_refreshes_its_classifier_and_selector_without_o
 def test_offline_pack_keeps_disabled_controls_out_of_check_and_rewrite_prompts(tmp_path, guidance):
     from papyrus_content.editorial_commands import PackFileStore
     from papyrus_content.editorial_checks import Services, check_editorial, suggest_rewrite, policy_from_record
-    from limatus.classifier_lane import DecisionAnswers
+    from humanus.classifier_lane import DecisionAnswers
     disabled = policy('disabled', 'publication', 'DISABLED_CONTROL_GUIDANCE')
     disabled['enabled'] = False
     payload = {'schemaVersion': 1, 'packId': 'synthetic', 'version': '1', 'policies': [

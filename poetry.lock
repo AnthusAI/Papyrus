@@ -2609,6 +2609,26 @@ files = [
 pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_version >= \"3.8\""}
 
 [[package]]
+name = "humanus"
+version = "0.33.1"
+description = "Configurable editorial compliance checks: policy packs, deterministic rules, zero-shot decision models and rewrite suggestions."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "humanus-0.33.1-py3-none-any.whl", hash = "sha256:f521032bcda76f79d18a5c7ef8a9a79737c2b27965a3b71c4a3756d7fe6dce98"},
+]
+
+[package.dependencies]
+jsonschema = ">=4.18,<5"
+markdown-it-py = ">=3.0,<5"
+PyYAML = ">=6.0.2,<7.0.0"
+
+[package.extras]
+dev = ["behave (>=1.2.6)", "pytest (>=8.0.0)"]
+jev = ["typesafe-sdk (>=0.7.2,<0.8)"]
+
+[[package]]
 name = "idna"
 version = "3.15"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -2937,27 +2957,6 @@ pyyaml = "*"
 requests = "*"
 ruff = "0.15.5"
 sphinx = "*"
-
-[[package]]
-name = "limatus"
-version = "0.32.0"
-description = "A diagnose-and-steer quality loop for AI-generated content."
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "limatus-0.32.0-py3-none-any.whl", hash = "sha256:f18932e9b82dc184ef9debf9f423b58644c8d18aa004d44d0daef3aa18db3dec"},
-    {file = "limatus-0.32.0.tar.gz", hash = "sha256:38aeaa799dc9c17a14824fe89a0a86840a46fc53540c9375f581b6793c65756f"},
-]
-
-[package.dependencies]
-jsonschema = ">=4.18,<5"
-markdown-it-py = ">=3.0,<5"
-PyYAML = ">=6.0.2,<7.0.0"
-
-[package.extras]
-dev = ["behave (>=1.2.6)", "pytest (>=8.0.0)"]
-jev = ["typesafe-sdk (>=0.7.2,<0.8)"]
 
 [[package]]
 name = "linkify-it-py"
@@ -8756,4 +8755,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "b811367c3c7454723e3784fd4075262db7c82d233b5d76ef5eb29c6692f43faf"
+content-hash = "ee8309f53721b5346d1f7b627f425f2a5075a5575ae915146e202a7cfeb149ba"

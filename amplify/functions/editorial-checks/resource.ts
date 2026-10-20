@@ -9,11 +9,11 @@ import { pythonLambdaCode } from "../shared/python-bundle";
 
 const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-/** AppSync gives a resolver 30 seconds; Limatus's classifier deadline (settings, default 20 s) keeps a check inside this. */
+/** AppSync gives a resolver 30 seconds; Humanus's classifier deadline (settings, default 20 s) keeps a check inside this. */
 export const EDITORIAL_CHECKS_TIMEOUT_SECONDS = 28;
 
-/** Limatus with the Jev classifier lane; papyrus_content.editorial_checks does the work. */
-export const editorialChecksRequirements = ["limatus[jev]>=0.32,<0.33"];
+/** Humanus with the Jev classifier lane; papyrus_content.editorial_checks does the work. */
+export const editorialChecksRequirements = ["humanus[jev]>=0.33,<0.34"];
 
 function installRequirements(outputDir: string): void {
   execFileSync(

@@ -1,6 +1,6 @@
 /**
- * Editorial checks: the Limatus result shapes the newsroom uses, and pure helpers
- * over them. Limatus counts offsets in UTF-16 code units, which is exactly how
+ * Editorial checks: the Humanus result shapes the newsroom uses, and pure helpers
+ * over them. Humanus counts offsets in UTF-16 code units, which is exactly how
  * JavaScript indexes strings, so spans apply to the body text as they are.
  */
 

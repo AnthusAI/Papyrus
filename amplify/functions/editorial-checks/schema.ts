@@ -4,9 +4,9 @@ import { editorialChecks } from "./resource";
 const editors = ["editor", "admin"];
 
 /**
- * Core to every site's data API. Policies, settings and editors' decisions live in Papyrus; Limatus checks
+ * Core to every site's data API. Policies, settings and editors' decisions live in Papyrus; Humanus checks
  * content against them. Editors read policies and record decisions; admins
- * manage policies and settings. Only the function (IAM) calls Limatus.
+ * manage policies and settings. Only the function (IAM) calls Humanus.
  */
 export const editorialChecksSchemaDefinitions = {
     EditorialPolicy: a

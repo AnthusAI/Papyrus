@@ -8,9 +8,9 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "PyYAML >=6.0.2,<7.0.0",
     "citeproc-py >=0.8.2,<1.0.0",
-    # The `papyrus` CLI imports limatus at import time, and Papyrus is
+    # The `papyrus` CLI imports humanus at import time, and Papyrus is
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
-    "limatus >=0.32,<0.33",
+    "humanus >=0.33,<0.34",
     "biblicus >=1.15.0,<2",
 ]
 

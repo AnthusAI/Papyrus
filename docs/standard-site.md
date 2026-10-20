@@ -164,7 +164,7 @@ position: accept it; Amplify builds cache `node_modules`. Slim later (an
 infra-only entry or moving heavy dependencies to optional peers) if install time
 or cost becomes a real problem.
 
-**Python extras.** Base install = PyYAML, citeproc-py, `limatus`. `limatus` is a
+**Python extras.** Base install = PyYAML, citeproc-py, `humanus`. `humanus` is a
 **base** dependency because the `papyrus` CLI imports it at import time
 (`papyrus editorial`, `papyrus_content/editorial_checks.py`), and the core editorial-checks function bundles it.
 The `markus` extra is `anthus-markus`, Pillow and boto3 (the static Markus reader
@@ -182,7 +182,7 @@ bundling is unaffected: it installs with `--python-version 3.12
 
 **Removing a local `tactus @ file:///...` checkout path (done in PR #100).**
 `tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
-`file:` or `git+` requirement. `limatus` is pinned to one minor release (`limatus >=0.32,<0.33`): Limatus is
+`file:` or `git+` requirement. `humanus` is pinned to one minor release (`humanus >=0.33,<0.34`): Humanus is
 below 1.0, so a minor release may change its contracts; move the pin deliberately.
 Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published
@@ -649,14 +649,14 @@ folded into sections 1.3, 1.4, 1.10 and 4.
 
 Also measured: a sandbox backend deploy takes about 9.5 minutes. PR #101
 repaired the inbound-email CI job (it had been red on every run since June) by
-installing the `newsroom` extra and typescript; the same PR made `limatus` a
+installing the `newsroom` extra and typescript; the same PR made `humanus` a
 base dependency.
 
 ### Acceptance checklist
 
 Prerequisites
 - [ ] Name availability re-checked immediately before first publish (`@anthusai/papyrus`, `papyrus-newsroom`); npm scope ownership confirmed. (Needs Ryan.)
-- [x] `anthus-markus` on PyPI matches the `v0.5.1` tag; `tactus` and `limatus` resolve from PyPI; no `file://` or `git+` dependency remains in the wheel metadata.
+- [x] `anthus-markus` on PyPI matches the `v0.5.1` tag; `tactus` and `humanus` resolve from PyPI; no `file://` or `git+` dependency remains in the wheel metadata.
 
 Packages
 - [ ] Papyrus `develop` release workflow publishes `X.Y.Z-next.N` of both packages via Semantic Release with OIDC trusted publishing (no `NPM_TOKEN`/`PYPI_TOKEN`). Not done: spike used local packs.
