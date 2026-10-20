@@ -241,6 +241,11 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
         result.auto_rejected = _auto_rejections_a_sweep_would_make(client, plan, corpus_id, pending, now())
         return result
 
+    from .editorial_model_context import classification_model
+    model = classification_model(model if model is not None else decision_model_from_environment(plan),
+                                 client, steering_config)
+    model.verify_context()
+
     from decision_flywheel import Cyclotron
 
     assignment_id = ensure_sweep_assignment(client, plan, corpus_id, now())
@@ -255,7 +260,6 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                 archive = Path(scratch) / SNAPSHOT_NAME
                 if snapshots.download(snapshot_uri, archive):
                     Cyclotron.restore(archive, local, lease=_HeldLease())
-        model = model if model is not None else decision_model_from_environment(plan)
         optimizer = optimizer if optimizer is not None else optimizer_from_environment(plan)
         cyclotron = Cyclotron.open(local, plan.definition, model, optimizer, lease=_HeldLease(),
                                    max_requests=plan.max_requests, review_program=plan.review_program,
@@ -278,7 +282,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                     result.warnings.append(
                         f"{plan.definition.id} reached its cap of {plan.max_decisions_per_day} decisions today.")
                     break
-                decision = asyncio.run(cyclotron.decide(reference_item(reference)))
+                decision = asyncio.run(cyclotron.decide(model.prepare(reference_item(reference))))
                 _reject_clear_miss(client, plan, auto_reject_gate, reference, decision.to_json(), now(), result)
                 current = _decision_relations(client, reference["lineageId"])
                 existing = current_relevance_decision(current, reference["lineageId"])

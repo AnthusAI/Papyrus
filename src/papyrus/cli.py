@@ -276,6 +276,9 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     if not allow_cross_root:
         _enforce_root_guard(args)
     group = args[0]
+    if group == "monitors":
+        from papyrus_content.monitoring_commands import command as monitor_command
+        return monitor_command(args[1:])
     command = args[1] if len(args) > 1 else None
     flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
 

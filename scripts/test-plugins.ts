@@ -117,7 +117,7 @@ assert.equal(KNOWN_PLUGINS["editorial-checks"].manifest, editorialChecksManifest
 assert.ok(EDITORIAL_CHECKS_TIMEOUT_SECONDS < 30, "the function must finish inside AppSync's 30 second resolver limit");
 assert.deepEqual(
   EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()).sort(),
-  ["createEditorialPolicy", "getEditorialCheckSettings", "listEditorialFeedbacks", "listEditorialPolicies", "updateEditorialPolicy"],
+  ["createEditorialPolicy", "getEditorialCheckSettings", "getEditorialContext", "listEditorialFeedbacks", "listEditorialPolicies", "listKnowledgeCorporaByRoleAndName", "updateEditorialPolicy"],
 );
 
 // The function reads its provider keys from SSM itself; it may read exactly those two names.

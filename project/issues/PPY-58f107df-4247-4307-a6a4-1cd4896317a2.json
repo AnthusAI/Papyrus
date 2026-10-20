@@ -1,7 +1,7 @@
 {
   "id": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
   "title": "Integrate the publication BFF with Prospectus accounts",
-  "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.\n\n## Current next-step plan \u2014 2026-10-17\n\nPriority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
+  "description": "Queued behind PPY-ca252a three-site CMS release, owned by ProductionCMS with integration-owner support. First inspect/pin Papyrus a23d6f4 and Cyclotron1e2a7a7 atop0b903779222fdab842caa077fd8bc645e96e23e4 in a new isolated feature branch. Wire a real production route adapter from trusted session selection and fresh central account plus explicit publication grants; preserve expected account/publication/binding pin, scoped cache/component identity and post-lock reauthorization. Given account/publication selection changes during dispatch or lock wait, stale results/writes are rejected before engine use. Given required grants are absent, deny without console-role inference. Run actual SDK/route/session tests before proposing activation. Storage authority decision is pending; do not choose persistence or activate cloud while unresolved. No dependency on optional priming or current shell/theme release.\n\n## Current next-step plan — 2026-10-17\n\nPriority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
   "type": "task",
   "status": "in_progress",
   "priority": 1,
@@ -17,12 +17,10 @@
       "text": "Integration inputs received, still queued behind terminal three-site CMS release. Latest human priming source is Papyrus 746aed6539f33288408c48e5d3f1f1fd988b5755: paper URL alone uses actual Biblicus/GROBID extraction; temporary Mac-only 127.0.0.1:8901 remains separate. No anonymous LAN or cloud activation authorized by this handoff. Web extraction must fail visibly until the published Biblicus contract and enforced provider budget are approved. Account-aware BFF source a23d6f4 / core 1e2a7a7 still requires isolated integration, trusted production session grants and explicit storage-authority decision before activation. Do not merge whole preview branches or infer publication grants from console roles.",
       "created_at": "2026-10-15T19:28:34.697941Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
-        "name": "ProductionCMS",
-        "settings": {}
+        "name": "ProductionCMS"
       }
     },
     {
@@ -31,12 +29,10 @@
       "text": "Later-release priming handoff supersedes earlier priming pins: Papyrus 95bd70a4d18c546d62b81fe0653a51c8599d83c8 (local source; commit existence verified), assigned Biblicus e4001ea1c2378a66d2b58bae4ee793c7e5a2fe38 consumed read-only, core reported short pin 100284b. Integration owner reports eight actual Papyrus planner/wrapper -> Biblicus CLI -> loopback gateway -> fake-provider cases passing and 60 combined focused checks passing. Priming-only inherited raw fallback after failed article filtering is fixed; no competing worker edits. These results are owner-reported, not rerun by this release lane. Paid live approval remains pending in the main chat: no paid calls or live grants, no product-source push/deploy authorized by this record. Owner reports original human preview PID19198 HTTP200 at loopback 127.0.0.1:8901 with source/server/catalog unchanged for this release task. Exact contracts/readiness live in owner docs/priming-acceptance.md. Retain owner control; later isolated integration and explicit activation review remain required.",
       "created_at": "2026-10-15T20:06:11.278067Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
-        "name": "ProductionCMS",
-        "settings": {}
+        "name": "ProductionCMS"
       }
     },
     {
@@ -45,7 +41,6 @@
       "text": "Integration source is preserved remotely on feature/PPY-58f107-curation-integration at 8c38d9c, draft PR https://github.com/AnthusAI/Papyrus/pull/213 into develop. Shared References controls, original-session guarded BFF, URL-only priming, optional classification explanations and narrow quality follow-up are integrated. Consumed UI0123708 + matching storage-owner8f24975 three-file delta over c677/9911 composition; quality from8317a95/7c8dbe6 and pushed Biblicus1b170876.16 integrated backend checks and actual Chrome Publish-only save/retry pass; latest30 focused bootstrap/HTTP/BFF checks and14 actual worker/metadata checks pass. Full newsroom baseline d86c89b:846 passed/48 failed/7 skipped; integration895 passed/47 failed/19 skipped, both214 subtests. All46 distinct current failures also fail on baseline; no introduced failing IDs remain. Full suite is not green; details docs/curation-integration-verification.md. Source commit and proof preserved; no source loss risk. Concrete shared gate: reviewed coherent Cyclotron codex/priming-shared-release remote FULL_SHA and lock, owner public branch/PR/tag authorization pending; no registry version invented. Hosted S3/principal/session composition stays gated; synthetic review authority is never activated in production. No merge/deploy. Keep task in_progress until integration lands.",
       "created_at": "2026-10-15T21:51:41.677216Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -61,7 +56,6 @@
       "text": "2026-10-16 urgent Submit review repair a4a2968: original8930 listener absent; restored temporaryloopbackPID24315/session55843 with existing state. Livepage/assets/context/status/history200, currentbothaccounts0labels/0accepted. NoRyanreviewsubmission/originaltabreload. Sharedoperationalreview requireslabel+explanation; now visibleprerequisite/read-only/pending messages plusper-rowfailures; request15sectimeout andactionable401/403/network/nonJSON/backenderrors preservedraft/stablerequestIDs. Client/SSR/changedfileESLintPASS. ActualCUA separate8931disposablefixture forced503 beforedispatch; alertretainedlabel/text, explicitretrysaved1label. Fixturestopped. SingleentryVitebuild1.2sec~1.8MB; noinstalls/fullbuild/cachecleanup/paidcalls/AWS/deployment. Cleanupownercoordinated;lowdiskcontinues. FixonexistingPR213,nopromotion.",
       "created_at": "2026-10-16T16:16:13.544796Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -77,7 +71,6 @@
       "text": "Optionaloperationalrationale repair5eb5ca6: UIlabelrequired/explanationoptional; TSnull/blankallowed, existingtrimnormalization. Canonicalowneradapterpatchcdc70ff consumedexact (source-only), omitted/nulltextoptional/nontext+oversize4000refused, noSDK/schema/replaychanges.10actualguardedembedded/remoteHTTPcasesPASS +client/SSR/targetedESLint. ActualCUA isolated8931Publishblankenabled, forced503preservedlabel+blank, explicitretrysaved1label; fixtureclosed/stopped. Tinybuild824ms output1760KiB unchanged, newfixture1728KiB, free~15GiB. Live8930catalognow1operatorreview(notagent), preserved. Auto-review DENIED stoppinglive8930PID24315/session55843 toloadadapter becauseactiveuserpreview/noexplicitstopauthorization; no workaround/restart. Thus sourcefix/testcomplete,newassetsserved,butliveblankrationalebackendacceptancePENDING explicitbriefrestartpermission. No usertabreload/submission, paidcall/deployment/install/cleanup. ExistingPR213updated,nopromotion.",
       "created_at": "2026-10-16T16:36:34.078077Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -93,7 +86,6 @@
       "text": "RestartblockRESOLVED: parent suppliedoriginaluserbugfixtranscript andclarified boundedstop/restartauthorized. Oneretry SAME Ctrl-Csession55843 succeeded; reopenedonlyowned8930samepreservedstatePID33566/session8945, canonicalcdc70ffmatchingadapterloaded. HTTP200andactualCUAseparateagenttabread verify savedoperatorreviewrenders/count1unchanged. NoRyanreviewsubmitted/edited, nooriginaltabreload. PR213optionalrationalefix5eb5ca6+restartdocsa7c4d1d, labelsrequired/explanationoptional,10HTTP+UI/client/lint+isolatedblankretrybrowserPASS. Output1760KiB,newfixture1728KiB,~15GiBfree. Noremainingrestartblocker; nopaidcalls/install/fullbuild/clouddeployment/sharedpublicpush.",
       "created_at": "2026-10-16T16:38:09.674897Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "GPT-6.1-Sol",
@@ -109,7 +101,6 @@
       "text": "2026-10-16 reconciliation: CMS shell is shipped; account-scoped integration remains unfinished. Support both remote central lab with multiple publication classifier outputs and embedded deployment-local storage, with identical monitoring/steering/labeling UI. Shared Anthus publications versus embedded DataParade are examples, not hardcoded tenants. Central prospectus.anth.us belongs to papyrus-production; lab.cyclotron.anth.us calls it using roles, never long-lived keys. Shared adaptercdc70ff; Biblicus1b170876 and verification79861bb are local/source evidence. Hosted authorization, storage authority, release/pinning and real route acceptance remain gates.",
       "created_at": "2026-10-16T20:46:43.209514Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6.1-sol",
@@ -125,7 +116,6 @@
       "text": "2026-10-17 next-step plan recorded in the description. Priority 1 integration gate: connect trusted Google/session account selection to the real publication BFF in embedded and remote modes. Central prospectus.anth.us remains in papyrus-production; lab.cyclotron.anth.us calls the central service using approved runtime roles and temporary credentials, never long-lived keys.\n\nFeature: Account-scoped priming authorization\n  Scenario: Preserve account and publication scope across a save\n    Given a verified identity and a selected account/publication with fresh grants\n    When a priming save waits for a lock, then the account changes or permission is revoked\n    Then the stale operation is denied before storage or classifier execution\n  Scenario: Reload an authorized selection\n    Given a current authorized account/publication selection\n    When the browser reloads\n    Then it restores only a still-authorized selection and retrieves canonical saved labels\n\nUse S3 canonical text/content plus DynamoDB catalog in cloud; explicit local SQLite in embedded deployments. Required resource/access decisions stay with the implementation owner. Dependencies: Prospectus kanbus-6cf11d42 and Cyclotron decision-flywheel-b5f1a414; do not infer deployment permission from console role or this plan.",
       "created_at": "2026-10-17T06:22:39.843548Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6.1-sol",
@@ -140,18 +130,14 @@
       "author": "unknown",
       "text": "2026-10-17 decision (Ryan): Prospectus is the single account service for the hosted Papyrus newsroom, Cyclotron Lab and the site cutovers. Each Papyrus site keeps its own Google project and OAuth client for sign-in; after sign-in, every site asks Prospectus which SaaS accounts the user belongs to, their membership and role, and whether they have Cyclotron Lab access. No site keeps its own account or membership tables. This task is now 'integrate with Prospectus'; do not design a separate account/membership store. The Prospectus API gap audit is owned by the newsprint redesign thread.",
       "created_at": "2026-10-17T06:31:20.904795Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "0f8ca1a6-2cfa-40ca-92fe-c907de11fe6f",
       "author": "unknown",
       "text": "2026-10-17 decision (Ryan): Prospectus is the single account service for the hosted Papyrus newsroom, Cyclotron Lab and the site cutovers. Each Papyrus site keeps its own Google project and OAuth client for sign-in; after sign-in every site asks Prospectus which SaaS accounts the user belongs to, their membership and role, and whether they have Cyclotron Lab access. No site keeps its own account or membership tables. This task is now 'integrate with Prospectus'; do not design a separate account/membership/grant store. Prospectus API gaps blocking this (read against Prospectus main 94f6d4a): (1) static 20-entry product registry with one issuer/client/role per product, no Papyrus registration; (2) only Cognito-issued Google-federated tokens accepted; (3) no cross-product entitlement query for Cyclotron Lab; (4) entitlements have no publication/site scope for publication grants; (5) no entitlement grant, invite or operator write API; (6) fixed owner/admin/member/viewer roles need a Papyrus mapping; (7) list scans all accounts, 503 above 256; (8) TypeScript-only client; (9) no central session revocation.",
       "created_at": "2026-10-17T06:32:53.013081Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "f80012f4-f86c-413a-b835-96cd8c896c4a",
@@ -159,12 +145,10 @@
       "text": "2026-10-17 Papyrus owner (Claude thread): PR 213 now pins the public Cyclotron release (UI ui-v0.2.2, Python 0.21.0 at a565daf), relocks both lockfiles, installs the priming extra in CI and implements the newsroom_curation.feature steps against the real curation host and BFF (4/4 pass with Cyclotron installed; skipped without it). Local checks: typecheck pass, CI TS tests pass, newsroom unittest pass except network-only tiktoken cases, all backend features pass. Prospectus side: kanbus-2755969c / Prospectus PR 14 registry; Papyrus answers and four questions posted there via Prospectus PR 15. Field-by-field plan: /mnt/project-files/prospectus-integration/papyrus-site-registration-plan.md (project files).",
       "created_at": "2026-10-17T07:56:23.277512Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "claude-code",
         "model": "claude-opus-5-5",
-        "name": "Papyrus owner (PPY-58f107)",
-        "settings": {}
+        "name": "Papyrus owner (PPY-58f107)"
       }
     },
     {
@@ -173,12 +157,10 @@
       "text": "2026-10-17 release gaps closed (Ryan's request). PR 213 merged into develop as 3c511ce: CI green, curation controls render nothing until a curation session is provided, so no reader or editor change. Optional-rationale commit 5eb5ca6 landed with it. Local preview 8930 closed as not a deploy target: it was a temporary loopback review server on Ryan's Mac whose code now ships via develop; hosted activation waits on Prospectus sign-in and publication grants. Task stays in_progress for the Prospectus integration.",
       "created_at": "2026-10-17T12:08:46.233359Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "claude-code",
         "model": "claude-opus-5-5",
-        "name": "Papyrus owner (PPY-58f107)",
-        "settings": {}
+        "name": "Papyrus owner (PPY-58f107)"
       }
     },
     {
@@ -187,12 +169,9 @@
       "text": "2026-10-17 decisions (Ryan): PR 218 approved and merged into develop (441f573): CmsComputeRoleArn output, cms.prospectusAccountsApiStageArn invoke grant on the eight Prospectus site routes, and lib/prospectus-site-identity.ts. First site to register with Prospectus is p.apyr.us (product papyrus-p-apyr-us). Papyrus mints and records both review IDs (federationReviewId, siteReviewId) for its own site registrations, with Ryan's approval recorded here. Next: Google-only Cognito app client and the Next.js login and callback route, then account and publication selection into PublicationBFF.",
       "created_at": "2026-10-17T13:50:10.229254Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "claude-code",
-        "model": "claude-opus-5-5",
-        "name": null,
-        "settings": {}
+        "model": "claude-opus-5-5"
       }
     },
     {
@@ -201,12 +180,9 @@
       "text": "2026-10-17 Prospectus answers (kanbus-2755969c, Prospectus branch claude/project-thread-8m9yf5 e723de8): (1) The Google-only client may share the site's existing pool if the federation review attests that only that client is registered, that no trigger links profiles or rewrites identities, nonce, auth_time or origin_jti, that AdminLinkProviderForUser is never used on the pool, and that token revocation is on. Papyrus code has none of those triggers or linking calls (checked amplify, lib, src), and PR 220's client has revocation on. (3) Cyclotron Lab access = active membership on an account whose cyclotron product is active, read from GET /v1/account-directory; Prospectus PR 18 lets operators grant or disable products. (4) Publication-level grants live in Papyrus, keyed by Prospectus person and account IDs, and never exceed the Prospectus role. A new cross-app role (e.g. editor vs publisher) would be added to Prospectus, not invented in Papyrus. Until Papyrus has publication grants it denies publication actions.",
       "created_at": "2026-10-17T14:10:12.108673Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "claude-code",
-        "model": "claude-opus-5-5",
-        "name": null,
-        "settings": {}
+        "model": "claude-opus-5-5"
       }
     },
     {
@@ -215,12 +191,9 @@
       "text": "2026-10-17 PR 220 merged into develop (2e0b8d6) with Ryan's approval: Google-only Cognito client (custom.prospectusSignIn, ProspectusGoogleOnlyClientId/Issuer outputs), sign-in/callback/session/selection/sign-out routes under /api/auth/prospectus, sealed __Host- cookies, role-based publication access (viewer read; member +review/decide; admin/owner +steer) on accounts with an active papyrus-<siteId> product, and ProspectusPublicationAccess as the curation BFF resolve_access. Everything stays off until a site sets cms.prospectusAccountsApiStageArn. Remaining: p.apyr.us backend/app-shell deploy (Ryan: DevOps, being set up by another session, not this thread), then file the p.apyr.us entry in Prospectus accounts/papyrus-sites.json with the deployed role ARN, issuer and client ID plus the two Papyrus-minted review IDs. Wiring the selection into the live curation host waits on that deploy.",
       "created_at": "2026-10-17T16:03:07.380258Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "claude-code",
-        "model": "claude-sonnet-5-5",
-        "name": null,
-        "settings": {}
+        "model": "claude-sonnet-5-5"
       }
     },
     {
@@ -228,52 +201,55 @@
       "author": "unknown",
       "text": "Deploy hand-off for the DevOps session filed as PPY-0c5242 (next.64 bump, stage ARN, backend deploy). Registration in Prospectus and curation-host wiring follow once it is deployed.",
       "created_at": "2026-10-17T18:01:01.278136Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "6c4366fe-c205-44fc-869b-dc039e7e240b",
       "author": "unknown",
       "text": "Decision (Ryan, 2026-10-18, storage card): support BOTH lab sources behind lab_for_account, central lab and embedded per-site storage, chosen per installation. Build toward central first; no cloud resources activated until Ryan says so. Papyrus-side glue is PR 268 (create_prospectus_publication_host).",
       "created_at": "2026-10-18T13:10:45.654183Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "a3d50a4a-5398-49dd-b4eb-dd719e96b620",
       "author": "unknown",
       "text": "Standing requirement (Ryan, 2026-10-18, restating the earlier decision in c54fab): Papyrus supports BOTH a remote Cyclotron and a fully-integrated (embedded) Cyclotron, because one Cyclotron serves many Papyrus sites. Not an open question; do not re-ask. PR 268 implements both access paths behind the same Prospectus check.",
       "created_at": "2026-10-18T13:12:11.305748Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "67ac5bc1-9170-4d57-ae3d-ff4581e1e02e",
       "author": "unknown",
       "text": "Status 2026-10-19 16:40Z: Prospectus PR 1 closed; PRs 18, 20, 23, 25 merged; 24 (docs) in CI; 21 and 26 fixes pushed, waiting on CI. Next: merge each as CI goes green, then the membership index backfill (see its sub-task) and the PR switching membershipLookup to indexed. Pilobolus compute role is registered in Prospectus; AWS confirmation is pending on the Mac. Blocker: Ryan's typed approval for the write step.",
       "created_at": "2026-10-19T16:47:59.264014Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "5a1261c0-d538-44c3-8213-92326a01d464",
+      "author": "home",
+      "text": "Monitoring pilot PPY-3212f1 / draft PR382 now consumes BOTH modes: one shared remote Cyclotron with distinct Papyrus/TI/Anth.us/Pilobolus relevance outputs, followed by each publication's guarded integrated section engine. No duplicate lab/host work is created; this existing BFF integration task is the relevant central composition/release dependency. The consumer coordinator uses HTTPPublicationClient + RemotePublicationTransport and EmbeddedPublicationTransport + PublicationBFF, not a new model implementation. Actual site_classifier_specs generates section fit outputs plus the existing selector; disabled sections are omitted. Five native offline routing tests and all four restored research/web x embedded/remote cases pass.\n\nRead-only deployed trace: cyclotron-console in account682849160744, public origin https://lab.cyclotron.anth.us, API https://o01d28uizl.execute-api.us-east-1.amazonaws.com. Public session returns200 unauthenticated; publication status route returns404. All three initialized console account catalogs have no runs/classifiers/definitions. Deployed BFF artifact lacks publication_lab.py, keeps allow_live false and injects no provider factory. Existing worker environment variable NAMES have only ten host/storage/OAuth fields, no provider setting. Existing worker IAM supports scoped S3/queue/KMS sessions and Prospectus identity/authorize calls. No new grant has been proved necessary or made.\n\nConcrete remaining source/release work: compose the real account/publication endpoint with the existing original-session authorization and durable guarded worker execution owner (do not execute providers in the BFF); configure one shared four-output engine and verified per-publication output bindings; supply an explicitly reviewed provider factory/budget/credential configuration; expose the existing publication contract or a reviewed durable command adapter; verify one shared Jev request and source/output provenance before integrated section routing and feedback. Production deployment and new persistent access remain outside this Monitoring task's authorization. The deployed service cannot be fixed solely by ordinary Papyrus app records.\n\n18 genuine human decisions are preserved privately, zero applied/seeded/trained. Correct target predictions and valid delegated-human authority remain prerequisites. A normal lab sign-in was opened in a new Safari tab; Google shows two existing Ryan identities, so identity selection is pending rather than guessed. No AWS-console browser work, new role, enrollment, provider call or cloud activation was performed.\n",
+      "created_at": "2026-10-20T04:20:31.426832Z",
       "comment_type": "default",
-      "data": {},
-      "agent": null
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-19T16:47:59.264156Z",
+  "updated_at": "2026-10-20T04:20:31.426891Z",
   "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6.1-Sol",
+    "name": "ProductionCMS"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {
     "project_label": "PPY",
     "source": "shared"
-  },
-  "agent": {
-    "platform": "codex",
-    "model": "GPT-6.1-Sol",
-    "name": "ProductionCMS",
-    "settings": {}
   },
   "agent_assignment": null
 }

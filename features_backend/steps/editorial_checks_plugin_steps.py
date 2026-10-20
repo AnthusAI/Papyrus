@@ -21,6 +21,12 @@ class FakeEditorialStore:
     def list_policies(self):
         return [dict(record) for record in self.policies.values()]
 
+    def get_editorial_context(self, section):
+        from papyrus_content.editorial_context import build_context
+        return build_context({'key': 'synthetic'}, {'sectionId': section},
+                             [{'scope': 'publication', 'kind': 'policy', 'text': 'Synthetic private guidance',
+                               'source': {'id': 'synthetic-policy'}}], mode='cloud')
+
     def get_settings(self):
         return self.settings
 

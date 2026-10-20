@@ -19,15 +19,33 @@ editor, marked in the markup and on the preview.
 
 ## Before you start
 
-- AWS credentials for the site's authoring role (`AWS_PROFILE=...`), so the CLI
-  can read the site's policies. To work from a file instead, pass
+- Use the publication's configured authenticated editorial session. Read current
+  doctrine and the selected section overlay before editing:
+
+  ```bash
+  papyrus editorial context --backend cloud --publication PUBLICATION_KEY --section SECTION_ID --format json
+  papyrus editorial pack --section SECTION_ID
+  ```
+
+  Omit `--section` for publication-only work, or use the context command's
+  `--story`/`--assignment` selector to resolve the actual section. Doctrine and
+  Limatus rule controls are complementary; load both. Retain the effective
+  context hash and source revisions privately. A denied, missing, conflicting or
+  ambiguous required context stops the pass; do not substitute seed YAML or
+  escalate a failed user session to IAM. Explicit IAM operator access remains
+  available when that is the selected authorized lane.
+- Keep the returned doctrine, policy examples, model prompts and editorial
+  reasons private. Do not copy them into public source, fixtures, issues, logs,
+  feeds or reader content. Synthetic test guidance is safe for public tests.
+- For explicitly offline file work, pass
   `--pack pack.json` (a Limatus policy pack; `papyrus editorial pack` exports
-  the site's).
+  the site's private effective pack). File mode is not current hosted policy.
 - `TYPESAFE_API_KEY` for judgment policies (without it, rule policies still
   run and the result says the classifier lane is unavailable) and
   `OPENAI_API_KEY` for rewrite options.
 - Know the article's desk (`--section`): desk policies replace publication
-  policies with the same key.
+  controls with the same key. Doctrine still retains publication precedence and
+  adds selected section guidance; surface conflicts instead of silently overriding it.
 
 ## The cycle
 

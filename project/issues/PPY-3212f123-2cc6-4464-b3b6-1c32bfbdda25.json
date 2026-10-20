@@ -1,18 +1,22 @@
 {
   "id": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
-  "title": "First recurring Monitor-to-human-learning slice for Anth.us, Papyrus and TI",
-  "description": "LATEST acceptance experiment order: first collect and persist the real Hacker News batch and present titles/URLs/provenance and publication context promptly; then capture Ryan's explicit yes/no and optional reasons; then run/evaluate the real current classifier baseline; only AFTER that baseline may verified already-human-accepted examples with his reasons be exercised through the existing seed mechanism, followed by a comparison. Preserve evaluation items separately from training/seeds where feasible. Capturing human evaluation answers is not permission to feed them into the baseline learner before the baseline. If existing delegated-human/priming behavior cannot maintain that separation, report the exact limitation rather than silently contaminate the comparison or forge tokens/labels. Preserve counts, snapshots/model versions, decision and feedback receipts and exact ordering; tiny samples may support process evidence only, not meaningful accuracy claims. No new UI prerequisite.\n\nLATEST first milestone and implementation scope: real recurring Monitor -> persisted deduplicated References and provenance -> the correct publication's REAL Cyclotron prediction -> human review in the EXISTING curation UI -> an authorized human label under current authority rules -> verified applied steering/training receipt. Predictions, agent judgments and advisory feedback never count as human labels. Recorded, queued and applied feedback are distinct; claim training/optimization only with an applied receipt, never from prediction alone. Respect existing proof/authorization gates; do not bypass them to manufacture a receipt.\n\nOne configured Monitor per initial publication is sufficient. Start with 1–2 source adapters: Hacker News first, then a verified current Hugging Face paper/academic source only as a useful bounded increment. Initial consumers are Anth.us, the academic Papyrus publication and Threat Intelligence; exact source-to-publication mapping is flexible and one upstream source may serve multiple independently scoped classifiers. Verify current application/binding ownership and guidance; never assume legacy dbsyytcm9drqa. Pilobolus is not an initial target because its serendipitous content is harder to monitor, not because it is permanently excluded. Preserve recurring, source-appropriate cadence around 15 minutes, checkpoints, dedup/new/updated items, provenance and visible stage failures so relevant discoveries and the learning loop are available for morning review.\n\nRich Monitoring UI/new inbox, email/unsubscribe, expensive LLM section/desk triage and Markus for everything are MUCH LOWER priority and MUST NOT block this slice. Use existing capabilities and curation UI; choose the operator/configuration interface during implementation, with no required new configuration UI. Additional adapters, 3–5 source expansion and richer views are later increments. Reuse current scheduling/intake/classification/label paths and coordinate intake PR367 instead of duplicating it.\n\nRyan explicitly authorized implementation of THIS first slice after filing, with public-source intake/classification needed for it. That does not authorize production merge/deployment, new persistent access/IAM, purchases, mailbox/MX changes, subscriptions, AWS-console browser work or unrelated benchmarks. No fabricated human labels. Other new feature plans remain unstarted.\n\nDeliver a bounded Hacker News recurring discovery slice using existing scheduler/worker, intake, canonical Reference and Cyclotron contracts. Inspect active work/PR367 first. One Monitor per initial publication and 1–2 adapters suffice; select the smallest useful interface without building a configuration UI. Implement meaningful observable tests for persisted resumable intake, canonical dedup/revisions/provenance, correctly scoped real prediction metadata, existing human-review handoff, current authorized label transport and truthful applied-feedback receipts. New rich UI/email/triage/Markus work is not an acceptance prerequisite. Real source processing/classification is authorized; actual human review must remain human and a missing applied receipt is an explicit remaining acceptance gap rather than invented training.\n\nExplicit delivery sequence: checkpoint 1 gets the real Hacker News Monitor fetching/saving persisted deduplicated References with provenance and an executable scheduling path; report concrete evidence immediately. Checkpoint 2 immediately runs the correct publication-scoped real Cyclotron predictions on that collected batch and reports decision evidence. Checkpoint 3 follows through the existing human review/authorized-label/applied-feedback receipt path. Do not hold earlier checkpoints for the complete loop, and do not build a new UI first.\n\nCheckpoint 3 is specified in PPY-437a10e4-9647-4aa8-8f45-b7db98868cf5: conversational publication-specific yes/no and optional why, faithful existing delegated-human labeling with valid authority/token and message/actor provenance, received/applied receipt checks, inspection of truly human-accepted seed References without duplicate backfill, and meaningful evaluation where available. First HN collection and then actual scoped predictions remain primary early checkpoints; no new UI prerequisite. A missing delegation token is an explicit blocker, never permission to forge labels.",
+  "title": "First recurring Monitor learning slice for Anth.us, Papyrus, TI and Pilobolus",
+  "description": "## Current delivery status\n\nImplementation remains in progress; production two-layer classification and applied feedback are not complete.\n\n- Public HN collection succeeded at 2026-10-20T11:35:17Z: 30 deduplicated private review sources with separate discovery provenance, mode-0600 queue/checkpoint/export files and presentation deduplication. Collection-only staging is distinct from publication Reference intake and full routing.\n- Parent enabled an hourly automation in America/New_York. No first scheduled-run receipt or reliable next-run timestamp has been observed. Parent owns review-batch delivery and scheduled wake coordination; avoid overlapping manual collection.\n- Draft PR https://github.com/AnthusAI/Papyrus/pull/382 is pushed, unmerged. Collector head 4a151214 passed Python/TypeScript/smoke CI. Latest guideline/tracker head bbacf15ce703dc620dbcf583c13f1431226c3c5d has CI running; do not describe the latest head as green until verified.\n- 50 explicit human decisions and their explanations/message provenance are privately preserved and hash-verified. Zero applied feedback, labels, seeds or training. Individual labels and publication policy prose must not appear in public tracker records.\n- Database-guideline propagation is implemented and tested under PPY-6b80ab and PPY-eba9cf: 63 focused Python tests and 24 BDD scenarios/98 steps pass locally with synthetic providers. Source/CLI request evidence is not production deployment or live inference evidence.\n\n## Required architecture and acceptance\n\nThe same immutable discovered source revision must be evaluated once by ONE SHARED REMOTE Cyclotron across four publication-relevance outputs. Only relevant outputs continue to each publication's INTEGRATED Cyclotron, with section-fit outputs and its selector. Preserve shared decision identity plus account/publication/output/binding revision and prediction fingerprint. Independent first-stage engines or a local fallback do not satisfy this contract.\n\nRecurring collection -> persisted discovery/Reference provenance -> correctly scoped real shared decision -> integrated section decisions -> human review -> authorized, verified applied feedback is the intended full slice. Never treat predictions, advisory judgments or received JSON feedback as human-label application. Keep evaluation answers separate from seeds and preserve baseline-before-seeding order.\n\n## Exact remaining gates\n\n1. Verify the hourly automation's first actual run and resulting queue receipt.\n2. Reconcile and normally release the reviewed shared publication-host composition and trusted model-context adapter. Interactive sign-in was verified, but publication routing/provider composition remains undeployed and classifier execution disabled. No live predictions have run.\n3. Verify current account/person/publication grants, shared remote output/binding identities, and each integrated publication's canonical corpus/section bindings. Do not invent namespaces, grants, credentials or predictions.\n4. Review/roll out Papyrus context changes through the normal package/consumer pipeline. The existing editorial-checks role source proposes only private reads getEditorialContext and listKnowledgeCorporaByRoleAndName; no production grant was applied. Reconcile current consumer owner changes, including existing provider-secret fixes, rather than duplicating them.\n5. Under the correct authenticated publication, read current private mission/policy and section overlays, prepare exact preserved-content diffs, and verify effective context/request provenance. Production policy writes and any live model test require the exact target/scope and a bounded approved provider budget. Do not publish private prompt text in traces or artifacts.\n6. Apply received feedback only through the intended authority-bound human-feedback path after correct prediction/output targets and ordering are verified; retain actual applied receipts. No fabricated authority, seeds or synthetic predictions.\n\nOther RSS/headless/source-adapter plans remain design-only unless separately authorized. No merge, infrastructure, publication or deployment action follows from tracker upkeep.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 0,
   "assignee": null,
   "creator": null,
   "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
   "labels": [
-    "design-only",
-    "planning"
+    "implementation"
   ],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+      "type": "relates-to"
+    }
+  ],
   "comments": [
     {
       "id": "5f463258-3cbd-4284-8d7a-6aba68f7b13d",
@@ -25,10 +29,106 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "cf2f4c2b-8f7c-4334-a6f7-ec19f5b910de",
+      "author": "home",
+      "text": "Implementation started on feature/PPY-3212f1-hn-monitor. Inspected open intake PR367 (restricted editorial-session intake; no handler/schema duplication), active PRs and current source. First real HN RSS fetch returned 12 items, three presented for human publication-specific yes/no with reasons pending. Implementing checkpointed collection and existing-intake adapter first; real scoped baseline must remain before accepted-reference seed tests. No labels fabricated or applied, no production deployment or merge.",
+      "created_at": "2026-10-20T03:18:36.923921Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "1d952aa1-2646-48e4-8799-abc8df620ca1",
+      "author": "home",
+      "text": "Historical checkpoint superseded by the current status snapshot. Source intake, scoped routing and private human-feedback preservation were investigated. Individual source judgments, rationale and message provenance are retained privately outside Git; no application, training or publishing receipt is implied. See the latest implementation/verification status and draft PR382.",
+      "created_at": "2026-10-20T03:47:48.379830Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "eb188f4f-a3c9-4d21-afe9-b61d6929b54c",
+      "author": "home",
+      "text": "Draft PR: https://github.com/AnthusAI/Papyrus/pull/382 into develop, branch feature/PPY-3212f1-hn-monitor. Implementation commit 2962fc56; architecture correction 81bd5bd2. Not merged or deployed. Prior develop-to-main PR377 is merged; this feature is not in develop/main.\n\nVerified live receipts: Reference reference-knowledge-corpus-ai-ml-research-url-ref-b984a5c544e63137-v1 (HN50154540), reference-knowledge-corpus-ai-ml-research-yt-cnm4zyutwj0-v1 (HN50136126), reference-knowledge-corpus-threat-intelligence-url-ref-55c3c0be518a12ff-v1 (HN50159341). All pending; all private provenance bodies read back with correct HN sourceId/corpusId. No labels, predictions, seed or training applied.\n\nRyan's final architecture is captured in Monitoring epic PPY-2d77c8, pilot task, behavior PPY-b8b15c and feedback PPY-437a10: one shared REMOTE Cyclotron with distinct Papyrus/TI/Anth.us relevance outputs together on each source, then INTEGRATED per-publication Cyclotrons with section-specific outputs. Both require real end-to-end proof. No local first-stage or independent-model fallback.\n\nRemote connection remains unverified/pending, not denied: exact actual central lab/API endpoint, existing account/role grants and three-output binding are unknown. Current Cyclotron-web main README and infra README state static S3/CloudFront marketing, no application server; main/develop source inventory did not expose hosted API, and both Cyclotron/Cyclotron-web have no open PRs. Core does provide multi-output PublicationLab and HTTPPublicationClient: POST /publications/{publication}/operations, cyclotron-publication/v1, decide with bindingRevision and item id/values; it requires an injected authenticated host/verified actor. This source contract is not deployed proof. Existing Papyrus embedded snapshot is inventory only and was not modified. Per-publication integrated section bindings likewise need verification.\n\nNo new persistent access/IAM/infrastructure created. Next real classification must use verified remote host and shared engine, then integrated section engines. Human evaluation labels remain pending and must not seed baseline first. PR367 remains the separate restricted user-session intake/release dependency.\n",
+      "created_at": "2026-10-20T03:51:21.601864Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "ecc22423-ae5b-4d93-858e-17b17ce03692",
+      "author": "home",
+      "text": "Historical checkpoint superseded by the current status snapshot. Source intake, scoped routing and private human-feedback preservation were investigated. Individual source judgments, rationale and message provenance are retained privately outside Git; no application, training or publishing receipt is implied. See the latest implementation/verification status and draft PR382.",
+      "created_at": "2026-10-20T04:10:15.861892Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "b8241094-23c0-400c-b910-ac7b062bb972",
+      "author": "home",
+      "text": "Current verified checkpoint 2026-10-20: Codex papyrus-monitoring coordinates this work; preserve concurrent Claude/consumer changes. Draft PR https://github.com/AnthusAI/Papyrus/pull/382 head bbacf15ce703dc620dbcf583c13f1431226c3c5d passed all three CI checks (Python, TypeScript, package smoke). Focused local verification: 63 tests; 3 BDD features/24 scenarios/98 steps. Source review remains open; nothing merged or deployed. Private review holds 50 received human decisions, zero applied feedback/learning. Credential-free manual HN collection queued 30; parent reports hourly automation enabled, first automatic receipt still unverified. Full routing/classification is not running. Exact remaining gates: select deployed consumer/release and scoped read permissions; verify authenticated publication/tenant/section data and current context at provider boundary; obtain scoped policy-write/live-provider budget authorization where needed; bind predictions and human authority before feedback application; observe scheduled-run receipt. Keep policy, labels and rationales private.",
+      "created_at": "2026-10-20T12:13:32.568389Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "f44de292-658f-418c-9154-8cb2e338d5b7",
+      "author": "home",
+      "text": "Delivery receipt: tracker reconciliation pushed and remote-verified at fbd11dd6c0cb5d2240b4c1df30d41667de75f35d on feature/PPY-3212f1-hn-monitor, draft/open https://github.com/AnthusAI/Papyrus/pull/382 . Public-page issue changes are isolated in 1665a0ab; monitoring reconciliation and safe generated events follow in fbd11dd6. These commits touch tracker records/events only. Nothing merged into develop or main; no develop-to-main PR, rollout or deployment performed. Kanbus parent/status/dependency checks pass for affected records; full-board validation retains the same 15 pre-existing abbreviated missing-target errors. Code head bbacf15c passed Python/TypeScript/package-smoke CI; this later tracker head has not yet completed CI. Public-page implementation and executable acceptance remain unstarted. Other agents’ work and local documentation remain preserved.",
+      "created_at": "2026-10-20T12:15:20.264410Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "9cea4091-f166-4c45-afbf-962ba0608b08",
+      "author": "home",
+      "text": "Bounded release/verification bundle saved privately; source ownership checked against active PR386 and PR367 with no direct file overlap, preserving Claude work. Read-only evidence finds legacy consumer job failed at explicit app-ID guard; guard preserved, intended target requires fresh verification before any deployment. Proposed access is only two private editorial-context query reads on the selected consumer function role. Initial verification ceiling is zero provider requests/$0 and zero publication writes. Hash-verified private application preflight contains 50 explicit decisions plus 10 undecided entries kept separate; eight rows have historical intake candidates, zero actual prediction receipts, zero dispatchable/application/training operations. Resolve current account/publication/output bindings, authority and historical ordering before applying any feedback.",
+      "created_at": "2026-10-20T12:25:17.201872Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "412ed33f-8289-4a9b-83a1-368ea2fb2210",
+      "author": "home",
+      "text": "Fresh read-only correction: existing papyrus-production SSO works and confirms intended TI app d12wnrx15qbcc2/account712236451410, successful main job43 for merged plugin commit c1adba312f6547e7d15622e3d342327101e5d49e, deployed editorial-checks Lambda/role and API. No target discovery by Ryan is needed. The two proposed private query reads are absent from the deployed role. Canonical corpus, current private doctrine identifiers and six sections verified via IAM operator metadata query; no policy bodies published. However getEditorialContext fails at publication and both selected section scopes with malformed generated data environment configuration in assignment handler. Runtime blocker PPY-5aca7fa9-3384-4df7-9a1b-262489952c48 must be fixed/reviewed before rollout; two plugin reads alone are insufficient. Exact physical targets and proposed grant delta saved in private resolved approval bundle. Existing migration/context records checked open or in_progress, unassigned, soft claims eligible; PR367 does not fix this handler initialization. Codex owns read-only investigation; no migration/domain operation claimed. Zero policy/permission writes, providers or feedback application. Keep acceptance open.",
+      "created_at": "2026-10-20T12:32:03.440003Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T03:17:18.882932Z",
+  "updated_at": "2026-10-20T12:32:03.440040Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
