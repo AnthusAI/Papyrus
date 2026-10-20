@@ -14,6 +14,8 @@ export const EDITORIAL_CHECKS_MUTATIONS = ["importEditorialStarterPack", "recali
 
 /** The model operations the function performs with its own role. */
 export const EDITORIAL_CHECKS_FUNCTION_FIELDS = [
+  "Query/fields/listKnowledgeCorporaByRoleAndName",
+  "Query/fields/getEditorialContext",
   "Query/fields/listEditorialPolicies",
   "Query/fields/getEditorialCheckSettings",
   "Query/fields/listEditorialFeedbacks",

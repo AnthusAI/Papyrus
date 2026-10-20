@@ -38,6 +38,7 @@ POLICY_FIELDS = ("policyKey", "scope", "version", "title", "guidance", "severity
 
 
 class EditorialStore(Protocol):
+    def get_editorial_context(self, section: str | None) -> dict[str, Any]: ...
     def list_policies(self) -> list[dict[str, Any]]: ...
     def get_settings(self) -> dict[str, Any] | None: ...
     def list_feedback(self) -> list[dict[str, Any]]: ...
@@ -190,8 +191,9 @@ def compose_pack(records: list[dict[str, Any]], section: str | None, settings: d
 
 
 def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+    from .editorial_model_context import editing_pack
     settings = settings_from(services.store)
-    pack = compose_pack(services.store.list_policies(), arguments.get("section"), settings)
+    pack = editing_pack(services.store, arguments.get("section"), settings)
     examples = [
         {"policyId": f["policyId"], "detectorId": f["detectorId"], "text": f["text"], "violates": f["decision"] != "dismissed"}
         for f in services.store.list_feedback()
@@ -216,11 +218,12 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
 
 
 def suggest_rewrite(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+    from .editorial_model_context import editing_pack
     settings = settings_from(services.store)
     request: dict[str, Any] = {
         "schemaVersion": 1,
         "content": {"format": arguments.get("format") or "markus", "text": arguments["body"]},
-        "pack": compose_pack(services.store.list_policies(), arguments.get("section"), settings),
+        "pack": editing_pack(services.store, arguments.get("section"), settings),
         "options": {"model": settings["rewriteModel"], "count": 3},
     }
     if arguments.get("note"):
@@ -346,6 +349,27 @@ class GraphQLEditorialStore:
 
     def list_policies(self) -> list[dict[str, Any]]:
         return self._list(LIST_POLICIES, "listEditorialPolicies")
+
+    def get_editorial_context(self, section: str | None) -> dict[str, Any]:
+        from .editorial_model_context import checked_context
+        from .tenancy import tenant_id_from_environment
+        query = '''query CanonicalEditorialPublication($nextToken: String) {
+          listKnowledgeCorporaByRoleAndName(role: "canonical", limit: 100, nextToken: $nextToken) {
+            items { id name role } nextToken
+          }
+        }'''
+        rows = self._list(query, 'listKnowledgeCorporaByRoleAndName')
+        if (len(rows) != 1 or rows[0].get('role') != 'canonical'
+                or not str(rows[0].get('id', '')).startswith('knowledge-corpus-')):
+            raise ValueError('Exactly one verified publication is required for editorial context')
+        publication = rows[0]['id'].removeprefix('knowledge-corpus-')
+        result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
+          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId)
+        }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
+        pack = checked_context(_json(result, None), publication=publication, section=section)
+        if (pack['publication'].get('tenantId') or None) != (tenant_id_from_environment() or None):
+            raise ValueError('Editorial context tenant mismatch')
+        return pack
 
     def get_settings(self) -> dict[str, Any] | None:
         return self._execute(GET_SETTINGS, {"id": SETTINGS_ID})["getEditorialCheckSettings"]

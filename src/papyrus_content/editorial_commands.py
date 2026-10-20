@@ -51,6 +51,17 @@ class PackFileStore:
     def list_policies(self) -> list[dict[str, Any]]:
         return self._records
 
+    context_mode = 'local'
+
+    def get_editorial_context(self, section: str | None) -> dict[str, Any]:
+        from .editorial_context import build_context
+        entries = [{'scope': 'publication', 'kind': 'policy', 'text': row['guidance'],
+                    'source': {'id': row['id'], 'versionNumber': row['version']}} for row in self._records]
+        if self._guidance:
+            entries.append({'scope': 'publication', 'kind': 'guidance', 'text': self._guidance, 'source': {}})
+        return build_context({'key': 'explicit-policy-file'}, {'sectionId': section}, entries, mode='local',
+                             warnings=['Explicit file policy; not current hosted doctrine.'])
+
     def get_settings(self) -> dict[str, Any] | None:
         return {"settings": {"guidance": self._guidance}}
 
@@ -88,7 +99,8 @@ def editorial_pack(flags: list[str]) -> None:
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     store = GraphQLEditorialStore()
-    _emit(compose_pack(store.list_policies(), args.section, settings_from(store)), args.output)
+    from .editorial_model_context import editing_pack
+    _emit(editing_pack(store, args.section, settings_from(store)), args.output)
 
 
 def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, int]:

@@ -1,0 +1,50 @@
+{
+  "id": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
+  "title": "Refine publication doctrine from explicit Monitoring review rationales",
+  "description": "Implement and verify private database-driven editorial context for publication and section scopes. Preserve current publication guidance, selected-desk additions and rule overrides, authorization boundaries, source revisions and effective-context hashes. Connect current context to classification and copy-edit prompt constructors; reject denied, missing, ambiguous, mismatched or stale required context before provider transmission. Tests and public records use synthetic policy text only. Real publication prose and human rationale stay private outside Git or in authenticated database records. Production writes, grants, deployments and live model calls remain separately gated.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "68dd5a31-02f3-4dde-809c-43d618db1f15",
+      "author": "home",
+      "text": "Located publication-owned private policy surfaces and prepared additive local drafts outside Git. Public implementation uses only synthetic guidance. Source ownership and private review material are recorded locally, not published. No active policy update or provider call occurred.",
+      "created_at": "2026-10-20T11:21:51.254508Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "69cf3c46-025f-46f1-9af3-e26c109028f0",
+      "author": "home",
+      "text": "Read-only production inspection and controlled source tests identified separate doctrine and copy-edit rule cascades. Propagation fixes are being implemented under the child story. Exact private configuration observations remain outside Git. No production writes or live providers were invoked.",
+      "created_at": "2026-10-20T11:31:40.494086Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T11:19:21.882916Z",
+  "updated_at": "2026-10-20T11:53:27.174149Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

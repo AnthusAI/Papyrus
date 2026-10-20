@@ -22,10 +22,34 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "6cb5e8c5-4433-4f07-8e7c-4626f81b8969",
+      "author": "home",
+      "text": "Collector implementation committed and locally verified with synthetic fixtures. Initial run/push were blocked by approval review; later exact human approval permitted the bounded public-source run and draft-branch push. No deployment, app credentials, classifier execution or learning application. All received feedback stays private outside Git.",
+      "created_at": "2026-10-20T11:08:05.641405Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "584e18a0-8337-4695-9f8f-dd316052283f",
+      "author": "home",
+      "text": "Exact human approval resolved initial collector run/push denial. Draft PR382 head 4a151214 pushed; Python/TypeScript/smoke CI all passed. Public RSS run completed at 11:35:17 UTC with 30 private sources and no app credentials, predictions or learning. Parent enabled hourly collection automation; first scheduled execution not yet observed. Parent owns candidate delivery and presentation receipts; no overlapping manual collection. Received human feedback remains private and unapplied.",
+      "created_at": "2026-10-20T11:55:21.474602Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T11:02:36.927481Z",
-  "updated_at": "2026-10-20T11:06:47.298830Z",
+  "updated_at": "2026-10-20T11:55:21.474628Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

@@ -1,0 +1,38 @@
+{
+  "id": "PPY-eba9cfd9-d3e1-467f-bbbd-1aa5f1aac362",
+  "title": "Current database doctrine reaches classification and copy-edit model requests",
+  "description": "As an editor, I want current publication doctrine and the selected section overlay to reach classification and copy-edit prompts so database edits govern behavior without stale seeds. Feature: Current scoped editorial guidance at model boundaries. Scenario: Inherit and isolate. Given current private publication doctrine and two section overlays When a candidate is classified and a draft checked or rewritten for one section Then the actual model request includes publication and selected section guidance And the other section guidance does not enter that classifier or edit scope. Scenario: Refresh changed policy. Given a previous request When publication or section policy is updated in the database Then the next request uses current text and a changed context fingerprint And missing, ambiguous, denied or mismatched required policy stops before any model call. Source fixes and local controlled tests are authorized; production writes, grants, deployments and live provider calls remain separately gated. Preserve all 50 human decisions; do not train.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "18142460-67fa-45b9-b8e2-80c12c9988e9",
+      "author": "home",
+      "text": "Implemented live database context at classification and editing boundaries. Relevance and section sweeps preflight current private records, include context hashes in item fingerprints, keep each classifier scoped, and reject a policy change between preparation and provider transmission. Native SDK/adapter tests show unchanged policy reuses a decision and changed policy issues a new request. Copy-edit checks and rewrites compose doctrine with same-key section rule overrides/additions and reload context per operation; existing authenticated context/pack commands and copy-edit skill are reused. Request tests are synthetic only. Required source wiring proposes two private read operations for the existing editorial-checks function: getEditorialContext and listKnowledgeCorporaByRoleAndName. No production grants, writes, deployment, live providers, human labels or training occurred. Relevant BDD: 24 scenarios/98 steps pass. Broader local priming checks encounter absent openpyxl; no packages installed.",
+      "created_at": "2026-10-20T11:55:20.986279Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T11:37:29.555867Z",
+  "updated_at": "2026-10-20T11:55:20.986306Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -143,14 +143,10 @@ must not be substituted for those role checks. Integrated section construction
 already derives one fit output per enabled NewsroomSection plus its selector,
 but live site bindings and deployment composition still need verification.
 
-Ryan supplied eight explicit yes/no labels in message
-`Sentinel_bd250f6fa2e4819195e197b2b115d12a` at 2026-10-20T03:54:30Z. The
-pending feedback record, including undecided entries and supplied reasons,
-is kept privately outside Git. It has not been applied to curation, used as
-seeds or sent to a learner. The delegated-human path still requires a valid
-delegation, verified grantor identity and correct target prediction; received
-feedback is not an applied receipt. The CLI's private session metadata was
-inaccessible in this sandbox. No publishing approval follows from those labels.
+Human decisions, undecided entries, reasons, message provenance and supersession
+records stay private outside Git. Received feedback is not an applied receipt:
+application requires verified authority and the correct target prediction.
+Collection does not publish, seed or train.
 
 No real model prediction, applied feedback, training, merge or deployment is
 claimed by this pilot.
@@ -184,29 +180,17 @@ replies. Keep the file current from actual sent-message receipts. Previously
 received ratings remain in their existing private provenance files; this
 collector does not import, overwrite or apply them.
 
-Minimal recurring activation is an existing **local Codex thread heartbeat**
-that invokes the command, reads the resulting private batch and presents a
-small number of unseen source-linked candidates in the thread. Record actual
-presentation receipts after delivery. Keep user decisions separate from
-collection and preserve their message/publication/reason provenance without
-applying learning. Hourly scheduling is sufficient for a morning queue; the
+An approved existing scheduler invokes the command hourly. The parent task owns
+batch delivery; the collector only updates private files. Record actual
+presentation receipts after delivery. Keep human decisions separate from
+collection and preserve their provenance without applying learning. The
 900-second checkpoint also permits a separately approved 15-minute worker.
 The local host must be awake and the checkout available. No AWS deployment,
 IAM grant, persistent app credential, provider key or classifier activation is
-required for this local collector. A heartbeat is not installed by this PR.
+required for this local collector. This PR installs no scheduler.
 
-The first live `collect-local` validation was **rejected before execution** by
-automatic approval review, which cited the original design-only scope despite
-the subsequent parent instruction to resume HN implementation. No live queue
-or recurring collection is claimed from this change. Approval of this exact
-bounded public-feed/private-queue action must be resolved before activation;
-do not substitute an indirect run or use personal browser credentials.
-
-Further labels arrived in `Sentinel_ab732a5df51c819184ab1201748e8a79` at
-04:06:52Z and `Sentinel_ccc7c8f1c01081919875ae491dd950ad` at 04:08:04Z.
-There are 18 explicit yes/no decisions received across the batches, zero
-applied. The final Laminar/Pilobolus yes supersedes that pair's undecided state;
-Ryan's supplied ouroboros framing is editorial rationale, not a verified
-technical assertion. The Anth.us `#greatideas` suggestion is a section proposal,
-not an automatic section creation. All pending feedback stays private outside
-Git with message provenance; no missing reasons or labels are filled in.
+After exact human approval, bounded live public-feed validation completed with
+30 queued sources. Private files were verified at mode 0600. The parent enabled
+an hourly automation; its first scheduled execution remains to be verified.
+Manual collection evidence is not a scheduled-run receipt. No personal browser
+credentials are used by the collector.
