@@ -19,6 +19,7 @@ import { ProspectusAccountChooser, useProspectusAccountSummary } from "./prospec
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "./ui/sheet";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu";
 import "./newsroom-organizer.css";
+import { NewsroomThemeFonts, useNewsroomThemeAttributes } from "./newsroom-theme";
 
 export type NewsroomNavCount = {
   count: number | null;
@@ -85,11 +86,12 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
     media.addEventListener("change", close);
     return () => media.removeEventListener("change", close);
   }, []);
+  const themeAttributes = useNewsroomThemeAttributes();
   return <DropdownMenu open={open} onOpenChange={setOpen}>
     <DropdownMenuTrigger id={`organizer-account-trigger-${placement}`} className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
       <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{accountSummary ?? (auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session")}</small></span>
     </DropdownMenuTrigger>
-    <DropdownMenuContent className="organizer-account-popup" side={placement === "sidebar" ? "top" : "bottom"} align="end">
+    <DropdownMenuContent className="organizer-account-popup" {...themeAttributes} side={placement === "sidebar" ? "top" : "bottom"} align="end">
       <DropdownMenuGroup>
         <DropdownMenuLabel>{auth.label}</DropdownMenuLabel><DropdownMenuSeparator />
         <ProspectusAccountChooser />
@@ -104,6 +106,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
 
 export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabel, children, demo = false, headerActions, pageTitle, showNavigation = true }: NewsroomOpsShellProps) {
   const pathname = usePathname();
+  const themeAttributes = useNewsroomThemeAttributes();
   const session = useOptionalNewsDeskClient();
   const admin = demo || session?.shell.dashboard?.canManageUsers === true;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -145,7 +148,8 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
     aria-label={sidebarToggleLabel} aria-expanded={!collapsed} aria-controls="organizer-sidebar" onClick={() => setCollapsed(value => !value)}>
     {collapsed ? <PanelLeftOpen size={16} aria-hidden="true" /> : <PanelLeftClose size={16} aria-hidden="true" />}
   </button>;
-  return <div className="newsroom-organizer" data-news-desk data-newsroom-ops-shell="true" data-newsroom-chrome="organizer" data-sidebar-collapsed={collapsed || !showNavigation ? "true" : "false"}>
+  return <div className="newsroom-organizer" {...themeAttributes} data-news-desk data-newsroom-ops-shell="true" data-newsroom-chrome="organizer" data-sidebar-collapsed={collapsed || !showNavigation ? "true" : "false"}>
+    <NewsroomThemeFonts />
     {showNavigation && <aside className="organizer-sidebar" hidden={collapsed} id="organizer-sidebar">
       <div className="organizer-sidebar-head">
         <Link className="organizer-brand" href={getNewsroomNavHref("/newsroom", demo)}>{SITE_BRAND.components?.NewsroomLogo ? <SITE_BRAND.components.NewsroomLogo className="organizer-brand-logo" /> : appTitle}<small>The newsroom</small></Link>
@@ -167,7 +171,7 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
         href={getNewsroomNavHref(item.path, demo)} title={item.description} aria-label={item.label} aria-current={activeTab === item.key ? "page" : undefined}>
         <Icon size={18} aria-hidden="true" /><span>{item.label}</span></Link></li>; })}
       <li><Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger className="organizer-more" aria-label="More"><Menu size={18} aria-hidden="true" /><span>More</span></SheetTrigger>
-        <SheetContent side="bottom" className="organizer-menu"><SheetHeader><SheetTitle>Newsroom</SheetTitle><SheetDescription>Workspaces and administration</SheetDescription></SheetHeader>
+        <SheetContent side="bottom" className="organizer-menu" {...themeAttributes}><SheetHeader><SheetTitle>Newsroom</SheetTitle><SheetDescription>Workspaces and administration</SheetDescription></SheetHeader>
           <Navigation activePath={activePath} demo={demo} admin={admin} surface="menu" onNavigate={() => setMenuOpen(false)} />
         </SheetContent>
       </Sheet></li>

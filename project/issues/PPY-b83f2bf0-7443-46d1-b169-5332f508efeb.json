@@ -1,0 +1,36 @@
+{
+  "id": "PPY-b83f2bf0-7443-46d1-b169-5332f508efeb",
+  "title": "Review discoveries through publication, channel, Monitor and section lenses",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want a usable discovery inbox with shared preview and curation controls, so that I can review relevant intake rather than only edit Monitor settings.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Review discoveries through publication, channel, Monitor and section lenses\n  Scenario: Inspect the same discoveries through different lenses\n    Given deduplicated References retain multiple discovery and classifier associations\n    When I view the discovery inbox for the whole publication, a source channel, an individual Monitor or a section\n    Then the same underlying References are presented with their matching associations and provenance\n    And channel lenses can group configured sources such as all X, Reddit or email\n    And a section lens distinguishes found by that section's Monitors from relevant to that section according to classifier results\n    And changing a lens does not create duplicate or exclusively section-owned References\n  Scenario: Review with existing editorial controls\n    Given an authorized user opens a discovery\n    When the user previews its Reference and classifier results\n    Then the inbox reuses existing Reference preview, curation, Cyclotron confidence and label controls where applicable\n    And the current human, scoped delegation and agent-advisory authority rules govern every action\n    And an agent prediction or advisory decision is not silently treated as a human training label\n    And Editorial triage can attach to an existing story, propose or create under policy, refer, hold or dismiss with attributed rationale\n  Scenario: Expose intake and classification failures\n    Given a discovery has pending or failed collection, intake or classification work\n    When the user views the inbox or its source/Monitor lens\n    Then the source provenance and each available stage result are distinguishable\n    And missing classifier evidence is not presented as completed classification\n```\n\nRequired Monitoring UI, beyond CRUD settings. Reuse the existing Reference/preview/curation and Cyclotron UI contracts rather than inventing a second label store. Preserve publication and reader/editor permissions; channel examples do not imply X/Reddit/email adapters are already shipped or authorized. Follow current authoritative human/delegation/advisory boundaries and the existing Editorial triage stories; do not introduce training consent through a view/filter. Initial morning slice task PPY-3212f1 remains independent of Markus or outbound feeds.\n\nLATEST first milestone and implementation scope: real recurring Monitor -> persisted deduplicated References and provenance -> the correct publication's REAL Cyclotron prediction -> human review in the EXISTING curation UI -> an authorized human label under current authority rules -> verified applied steering/training receipt. Predictions, agent judgments and advisory feedback never count as human labels. Recorded, queued and applied feedback are distinct; claim training/optimization only with an applied receipt, never from prediction alone. Respect existing proof/authorization gates; do not bypass them to manufacture a receipt.\n\nOne configured Monitor per initial publication is sufficient. Start with 1–2 source adapters: Hacker News first, then a verified current Hugging Face paper/academic source only as a useful bounded increment. Initial consumers are Anth.us, the academic Papyrus publication and Threat Intelligence; exact source-to-publication mapping is flexible and one upstream source may serve multiple independently scoped classifiers. Verify current application/binding ownership and guidance; never assume legacy dbsyytcm9drqa. Pilobolus is not an initial target because its serendipitous content is harder to monitor, not because it is permanently excluded. Preserve recurring, source-appropriate cadence around 15 minutes, checkpoints, dedup/new/updated items, provenance and visible stage failures so relevant discoveries and the learning loop are available for morning review.\n\nRich Monitoring UI/new inbox, email/unsubscribe, expensive LLM section/desk triage and Markus for everything are MUCH LOWER priority and MUST NOT block this slice. Use existing capabilities and curation UI; choose the operator/configuration interface during implementation, with no required new configuration UI. Additional adapters, 3–5 source expansion and richer views are later increments. Reuse current scheduling/intake/classification/label paths and coordinate intake PR367 instead of duplicating it.\n\nRyan explicitly authorized implementation of THIS first slice after filing, with public-source intake/classification needed for it. That does not authorize production merge/deployment, new persistent access/IAM, purchases, mailbox/MX changes, subscriptions, AWS-console browser work or unrelated benchmarks. No fabricated human labels. Other new feature plans remain unstarted.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ac91457f-ad5f-42ba-907b-5c437bd7b9e4",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T03:06:06.137010Z",
+  "updated_at": "2026-10-20T03:11:40.201570Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

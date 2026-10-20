@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "2a7cf1d9-2751-4267-9fdd-f0b974076517",
+  "issue_id": "PPY-357bfe47-879c-4f3d-9815-e0758381f708",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T03:11:18.640Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want usable asset metadata and current published versions, so that applications can display articles reliably.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Deliver public asset references and published revisions consistently\n  Scenario: Read article assets\n    Given a published article has public images or other media\n    When I fetch its JSON representation\n    Then I receive usable public asset references with available type, dimensions, alt text, caption and credit\n    And asset URL lifetime and refresh behavior are documented\n    And no private storage paths, credentials or draft-only assets are disclosed\n  Scenario: Refresh an application after publication changes\n    Given my application previously read a published article\n    When that article is revised or withdrawn\n    Then article retrieval and lists converge on the same published state within the shared freshness bound\n    And cache/version information allows documented client refresh behavior\n```\n\n",
+        "to": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want usable asset metadata and current published versions, so that applications can display articles reliably.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Deliver public asset references and published revisions consistently\n  Scenario: Read article assets\n    Given a published article has public images or other media\n    When I fetch its JSON representation\n    Then I receive usable public asset references with available type, dimensions, alt text, caption and credit\n    And asset URL lifetime and refresh behavior are documented\n    And no private storage paths, credentials or draft-only assets are disclosed\n  Scenario: Refresh an application after publication changes\n    Given my application previously read a published article\n    When that article is revised or withdrawn\n    Then article retrieval and lists converge on the same published state within the shared freshness bound\n    And cache/version information allows documented client refresh behavior\n```"
+      },
+      "priority": {
+        "from": 2,
+        "to": 3
+      }
+    }
+  }
+}

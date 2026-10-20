@@ -1,0 +1,30 @@
+{
+  "id": "PPY-437a10e4-9647-4aa8-8f45-b7db98868cf5",
+  "title": "Verify conversational human feedback and existing seed/priming receipts",
+  "description": "LATEST acceptance experiment order: first collect and persist the real Hacker News batch and present titles/URLs/provenance and publication context promptly; then capture Ryan's explicit yes/no and optional reasons; then run/evaluate the real current classifier baseline; only AFTER that baseline may verified already-human-accepted examples with his reasons be exercised through the existing seed mechanism, followed by a comparison. Preserve evaluation items separately from training/seeds where feasible. Capturing human evaluation answers is not permission to feed them into the baseline learner before the baseline. If existing delegated-human/priming behavior cannot maintain that separation, report the exact limitation rather than silently contaminate the comparison or forge tokens/labels. Preserve counts, snapshots/model versions, decision and feedback receipts and exact ordering; tiny samples may support process evidence only, not meaningful accuracy claims. No new UI prerequisite.\n\nAs a publication editor, I want to discuss real discoveries and existing accepted sources conversationally and have only my explicit authorized decisions relayed through existing human-feedback paths, so that we can verify the learning loop before building new UI.\n\nAuthorized quick-win checkpoint 3 follows checkpoint 1 real HN collection/persistence and checkpoint 2 real scoped predictions. Use current delegated-human labeling and seed/priming mechanisms, preserving the exact human message, publication, Reference lineage/revision, actor and delegation provenance. Ask publication-specific yes/no with optional why in chat/voice; faithfully relay explicit decisions without second guessing them. Do not fabricate a decision, actor, label, delegation token or receipt. If the existing path requires a missing token/identity, surface the exact blocked action/target/requirement rather than bypass it.\n\nInspect a few already accepted References for Anth.us, the academic Papyrus publication and Threat Intelligence only after resolving current bindings. Verify acceptance provenance; merely present, cited or machine-predicted material is not human accepted. Present candidates and original provenance to Ryan for optional explanation or confirmation; do not duplicate historical backfill, re-import or silently relabel them. Exercise the existing seed/priming mechanism only under its real authorization and deduplication rules.\n\nAcceptance behavior:\n```gherkin\nFeature: Conversational human feedback and existing priming acceptance\n  Scenario: Relay an explicit publication-specific human decision\n    Given a real scoped discovery is available for publication-specific human evaluation\n    And the existing delegated-human authority and required token are valid\n    When Ryan explicitly answers yes or no for that publication with an optional explanation\n    Then the exact decision and explanation are relayed through the existing supported mechanism\n    And human message, actor, delegation, source revision and publication provenance are preserved\n    And received, queued and applied feedback states and version receipts are verified separately\n    And agent judgments do not substitute for his label\n  Scenario: Missing delegation authority\n    Given the required delegation token or identity is unavailable\n    When conversational labeling is attempted\n    Then the exact operation, target and missing requirement are reported\n    And no label is fabricated or sent through an alternate authority path\n  Scenario: Inspect previously accepted seed material\n    Given a few current References have verified human acceptance provenance in the selected publication\n    When they are presented for optional human explanation or confirmation and the existing seed mechanism is checked\n    Then cited or merely present References are not treated as accepted labels\n    And existing acceptance and priming receipts are inspected before any write\n    And duplicate backfill or replayed seed labels are not created\n  Scenario: Make learning claims from evidence\n    Given intake, predictions and feedback receipts are available\n    When progress is reported\n    Then training or steering is claimed only with real applied feedback and version receipts\n    And meaningful evaluation is reported where available\n    And ingestion alone is not claimed to improve accuracy\n```\n\nImplement focused BDD, author/operator documentation and a small acceptance script for real candidates, explicit decision capture and receipt checks. Use existing UI or conversational paths, not a new review interface. No production merge/deployment, new IAM, mailbox, purchase or subscription authorization. Public source/classification work and this bounded existing-mechanism verification are authorized; human labels still require Ryan's actual explicit decisions and valid delegation.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [
+    "monitoring"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T03:13:09.622426Z",
+  "updated_at": "2026-10-20T03:14:50.099617Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

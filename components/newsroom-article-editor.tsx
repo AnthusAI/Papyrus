@@ -48,7 +48,17 @@ import {
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
 import { cn } from "../lib/utils";
+import amplifyOutputs from "papyrus-amplify-outputs";
+import { applyReplacement, editorialChecksEnabled, inlineFindings, visibleFindings } from "../lib/editorial-checks";
+import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
+import { demoEditorialBackend } from "../lib/editorial-checks-demo";
+import type { PluginOutputs } from "../lib/plugin-settings";
+import type { FindingActions } from "./editorial-finding-card";
+import { EditorialFindingsPanel } from "./editorial-findings-panel";
+import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
+import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
 import { MarkusIrPreview } from "./markus-ir-preview";
+import { useEditorialChecks } from "./use-editorial-checks";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
@@ -118,6 +128,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [notice, setNotice] = useState<Notice | null>(null);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [unpublishOpen, setUnpublishOpen] = useState(false);
+  const [publishWarningOpen, setPublishWarningOpen] = useState(false);
+  const [previewPopover, setPreviewPopover] = useState<PreviewPopoverTarget | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("preview");
   const [focusedReferenceId, setFocusedReferenceId] = useState<string | null>(null);
   const [lineageId, setLineageId] = useState<string | null>(null);
@@ -133,7 +146,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [imageError, setImageError] = useState<string | null>(null);
 
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const bodyRef = useRef<MarkusBodyEditorHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const mediaBackend = useMemo(() => resolveMediaBackend(previewMode), [previewMode]);
   const validationSequence = useRef(0);
@@ -205,6 +218,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
 
   const frontMatterYaml = editor?.frontMatterYaml ?? null;
   const bodyMarkus = editor?.bodyMarkus ?? null;
+  const editorialBackend = useMemo(
+    () => (demo ? demoEditorialBackend : !previewMode && editorialChecksEnabled(amplifyOutputs as PluginOutputs) ? graphqlEditorialBackend : null),
+    [demo, previewMode],
+  );
+  const editorial = useEditorialChecks({
+    backend: editorialBackend,
+    body: bodyMarkus,
+    section: editor?.section ?? "",
+    itemId: editor?.id ?? null,
+  });
+  const editorialOpen = useMemo(
+    () => (editorial.result ? visibleFindings(editorial.result.findings, editorial.dismissed) : []),
+    [editorial.result, editorial.dismissed],
+  );
+  const editorialMarks = useMemo(() => inlineFindings(editorialOpen), [editorialOpen]);
 
   useEffect(() => {
     if (frontMatterYaml === null || bodyMarkus === null) return;
@@ -381,7 +409,45 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     }
   }, [aliases, backend, demo, editor]);
 
+  const requestPublish = () => {
+    if (editorial.openWarnings.length > 0) {
+      setPublishWarningOpen(true);
+      return;
+    }
+    void publish();
+  };
+
+  const applyEditorialRewrite = (
+    option: { span: { start: number; end: number }; replacement: string; expected: string },
+    finding: Parameters<typeof editorial.fixed>[0] | null,
+  ) => {
+    if (!editor) return;
+    const next = applyReplacement(editor.bodyMarkus, option.span, option.expected, option.replacement);
+    if (next === null) {
+      setNotice({ tone: "info", text: "That text changed since the check. Check again, then apply the rewrite." });
+      return;
+    }
+    patchEditor({ bodyMarkus: next });
+    if (finding) editorial.fixed(finding);
+    setPreviewPopover(null);
+  };
+
+  const editorialActions: FindingActions = {
+    onSelect: (finding) => {
+      editorial.setActiveFindingId(finding.id);
+      if (editorial.inlineResult && finding.excerpt) bodyRef.current?.reveal(finding.span.start, finding.span.end);
+    },
+    onDismiss: (finding, reason) => {
+      editorial.dismiss(finding, reason);
+      setPreviewPopover(null);
+    },
+    onAccept: editorial.accept,
+    onSuggest: editorial.suggest,
+    onApply: applyEditorialRewrite,
+  };
+
   const publish = async () => {
+    setPublishWarningOpen(false);
     if (!editor) return;
     let id = editor.id;
     if (editor.dirty || id === null) {
@@ -551,7 +617,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               <Button
                 data-newsroom-article-publish
                 disabled={publishBlocked}
-                onClick={() => void publish()}
+                onClick={requestPublish}
                 size="sm"
                 type="button"
               >
@@ -714,17 +780,28 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                     {imageError}
                   </p>
                 ) : null}
-                <Textarea
-                  className={TEXTAREA_CLASS}
-                  data-newsroom-article-body
-                  id="newsroom-article-body"
-                  onChange={(event) => patchEditor({ bodyMarkus: event.target.value })}
+                <MarkusBodyEditor
+                  activeFindingId={editorial.activeFindingId}
+                  findings={editorialMarks}
+                  onChange={(value) => patchEditor({ bodyMarkus: value })}
+                  onFindingClick={editorial.setActiveFindingId}
+                  onSelectionChange={editorial.setSelection}
                   ref={bodyRef}
-                  rows={28}
-                  spellCheck={false}
                   value={editor.bodyMarkus}
                 />
               </div>
+
+              {editorial.enabled ? (
+                <EditorialFindingsPanel
+                  {...editorialActions}
+                  activeFindingId={editorial.activeFindingId}
+                  dismissed={editorial.dismissed}
+                  onCheck={() => void editorial.check()}
+                  result={editorial.result}
+                  selection={editorial.selection}
+                  status={editorial.status}
+                />
+              ) : null}
 
               {validation.status === "unavailable" ? (
                 <NewsroomOpsStatusBanner tone="error">{validation.message}</NewsroomOpsStatusBanner>
@@ -763,7 +840,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               className={cn("min-w-0", mobileTab === "preview" ? "block" : "hidden")}
               data-newsroom-article-preview-column
             >
-              <div className="rounded-xl border border-border bg-card p-4" data-newsroom-article-preview>
+              <div className="relative rounded-xl border border-border bg-card p-4" data-newsroom-article-preview ref={previewRef}>
                 {(readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY)) ? (
                   <div className="newsroom-article-summary" data-newsroom-article-summary>
                     {readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) ? <p className="newsroom-article-subtitle">{readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY)}</p> : null}
@@ -774,12 +851,40 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                   <p className="mb-2 text-xs text-muted-foreground">Showing the last valid version.</p>
                 ) : null}
                 {bodyIr ? (
-                  <MarkusIrPreview bodyIr={bodyIr} imageUrls={imageUrls} />
+                  <MarkusIrPreview
+                    bodyIr={bodyIr}
+                    editorial={
+                      editorial.inlineResult
+                        ? {
+                            result: editorial.inlineResult,
+                            findings: editorialOpen,
+                            activeFindingIds: previewPopover?.kind === "findings" ? previewPopover.findingIds : editorial.activeFindingId ? [editorial.activeFindingId] : [],
+                            onOpenMark: (findingIds, anchor) => {
+                              editorial.setActiveFindingId(findingIds[0] ?? null);
+                              setPreviewPopover({ kind: "findings", findingIds, anchor: anchor.getBoundingClientRect() });
+                            },
+                            onSelectSource: (source, anchor) => setPreviewPopover({ kind: "selection", source, anchor }),
+                          }
+                        : undefined
+                    }
+                    imageUrls={imageUrls}
+                  />
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     {invalid ? "Fix the errors to see a preview." : "The preview appears once the markup is valid."}
                   </p>
                 )}
+                {previewPopover && editorial.enabled ? (
+                  <EditorialPreviewPopover
+                    actions={editorialActions}
+                    body={editor.bodyMarkus}
+                    container={previewRef.current}
+                    findings={editorialOpen}
+                    key={previewPopover.kind === "findings" ? previewPopover.findingIds.join() : `${previewPopover.source.start}-${previewPopover.source.end}`}
+                    onClose={() => setPreviewPopover(null)}
+                    target={previewPopover}
+                  />
+                ) : null}
               </div>
             </div>
           </div>
@@ -801,6 +906,28 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
           </DialogContent>
         </Dialog>
 
+        <Dialog onOpenChange={setPublishWarningOpen} open={publishWarningOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Publish with open editorial findings?</DialogTitle>
+              <DialogDescription>
+                {editorial.openWarnings.length === 1
+                  ? "One editorial finding is still open."
+                  : `${editorial.openWarnings.length} editorial findings are still open.`}{" "}
+                Findings are advice: you can publish anyway.
+              </DialogDescription>
+            </DialogHeader>
+            <ul className="max-h-48 list-disc space-y-1 overflow-auto pl-5 text-sm" data-newsroom-article-publish-warnings>
+              {editorial.openWarnings.slice(0, 8).map((finding) => (
+                <li key={finding.id}>{finding.message}{finding.excerpt ? `: “${finding.excerpt}”` : ""}</li>
+              ))}
+            </ul>
+            <DialogFooter>
+              <Button onClick={() => setPublishWarningOpen(false)} type="button" variant="outline">Keep editing</Button>
+              <Button data-newsroom-article-publish-anyway onClick={() => void publish()} type="button">Publish anyway</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog onOpenChange={setUnpublishOpen} open={unpublishOpen}>
           <DialogContent>
             <DialogHeader>

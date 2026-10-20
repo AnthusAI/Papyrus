@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "0e0d41f1-7fba-4c81-88b8-3e059cf8c02f",
+  "issue_id": "PPY-7a2a53d7-0e93-4ee9-b8c3-732125a86537",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:04:00.486Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Inspect newsletter messages and manage confirmation or unsubscribe manually",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication user, I want a usable newsletter inbox for my provided inbound address, so that I can read original messages and manage subscriptions while understanding intake results.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Inspect newsletter messages and manage confirmation or unsubscribe manually\n  Scenario: Read a scoped newsletter inbox\n    Given an authorized publication or user has a provided inbound address\n    When I open its newsletter inbox or reader\n    Then I can inspect original readable messages with sender and received date\n    And each message shows derived References and their source provenance\n    And processing status, pending work and errors are visible\n    And another publication or user's private messages are not exposed\n    And hidden ingestion without this reader does not satisfy provided-address delivery\n  Scenario: Manage subscription actions deliberately\n    Given a message contains a confirmation, unsubscribe, preferences or other account-action link\n    When the Monitor scans or processes the message\n    Then it does not activate the action link automatically\n    When the authorized human chooses to manage that action from the reader\n    Then the action is a deliberate user decision under the documented link and privacy policy\n    And the scanner does not treat it as an editorial content fetch\n  Scenario: Pause without pretending to unsubscribe\n    Given a newsletter subscription delivers to a provided address\n    When I pause its Monitor\n    Then collection or processing follows the documented pause behavior\n    And the UI does not report the external subscription as unsubscribed\n    And unsubscribe remains a separate deliberate human action\n```\n\nNew feature design, not an existing mailbox capability. Define safe readable original rendering, attachment/remote-image policy, access/retention, provenance navigation, status/error display and human action-link handling. Do not auto-fetch remote trackers, execute message instructions or leak secret-bearing links to classifiers/References. Full compose/reply mail-client functionality is out of scope unless separately requested. No address provisioning, subscription or link action now.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

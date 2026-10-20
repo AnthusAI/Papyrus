@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { CITATION_TOKEN, planPreview, selectionToSource, splitByMarks, type BlockAnnotation, type PreviewMark, type PreviewPlan } from "../lib/editorial-preview";
+import type { EditorialCheckResult, EditorialFinding, Span } from "../lib/editorial-checks";
 import {
   parseMarkusDocument,
   type MarkusBlock,
@@ -17,7 +19,20 @@ type PreviewSidecar = {
   bibliography: string[];
 };
 
+/** Editorial findings drawn on the preview (see lib/editorial-preview.ts). */
+export type PreviewEditorial = {
+  /** A check result computed for the same body the preview shows, and the findings to draw from it. */
+  result: EditorialCheckResult;
+  findings: EditorialFinding[];
+  activeFindingIds?: readonly string[];
+  /** A marked passage was clicked. */
+  onOpenMark: (findingIds: string[], anchor: HTMLElement) => void;
+  /** Text was selected inside one prose block: the source span of the sentences it touches. */
+  onSelectSource?: (source: Span, anchor: DOMRect) => void;
+};
+
 type PreviewContext = {
+  editorial?: PreviewEditorial & { plan: PreviewPlan; blocks: Map<string, BlockAnnotation> };
   sidecar: PreviewSidecar;
   citationNumbers: Map<string, number>;
   imageUrls: Record<string, string>;
@@ -91,7 +106,7 @@ function renderText(text: string, context: PreviewContext): ReactNode {
     if (!keys) continue;
     if (index > cursor) parts.push(text.slice(cursor, index));
     parts.push(
-      <sup className="text-primary" key={`${index}-${token}`}>
+      <sup className="text-primary" data-editorial-skip key={`${index}-${token}`}>
         {keys.map((key) => `[${context.citationNumbers.get(key)}]`).join("")}
       </sup>,
     );
@@ -127,7 +142,7 @@ function renderInlines(inlines: MarkusInline[], context: PreviewContext): ReactN
       }
       case "image":
         return (
-          <span className="rounded border border-dashed border-border px-1 text-xs text-muted-foreground" key={index}>
+          <span className="rounded border border-dashed border-border px-1 text-xs text-muted-foreground" data-editorial-skip key={index}>
             {`Image: ${node.src ?? ""} (${node.alt})`}
           </span>
         );
@@ -139,6 +154,92 @@ function renderInlines(inlines: MarkusInline[], context: PreviewContext): ReactN
         return <code className="font-mono text-xs" key={index}>{node.value}</code>;
     }
   });
+}
+
+const MARK_CLASSES: Record<PreviewMark["severity"], string> = {
+  error: "decoration-destructive",
+  warn: "decoration-amber-500",
+  info: "decoration-sky-500",
+};
+
+function markElement(text: string, mark: PreviewMark, key: string, context: PreviewContext): ReactNode {
+  const active = mark.findingIds.some((id) => context.editorial?.activeFindingIds?.includes(id));
+  return (
+    <mark
+      className={`cursor-pointer bg-transparent text-inherit underline underline-offset-4 ${mark.status === "review" ? "decoration-dotted" : "decoration-wavy"} ${MARK_CLASSES[mark.severity]} ${active ? "rounded-sm bg-ring/25" : ""}`}
+      data-editorial-mark={mark.findingIds.join(" ")}
+      key={key}
+      onClick={(event) => {
+        event.preventDefault();
+        context.editorial?.onOpenMark(mark.findingIds, event.currentTarget);
+      }}
+    >
+      {text}
+    </mark>
+  );
+}
+
+/** Like renderInlines, but splits rendered text at editorial marks (offsets as in inlineLeaves). */
+function renderMarkedInlines(inlines: MarkusInline[], context: PreviewContext, marks: PreviewMark[], cursor: { at: number }): ReactNode[] {
+  const marked = (text: string, keyPrefix: string): ReactNode[] => {
+    const start = cursor.at;
+    cursor.at += text.length;
+    return splitByMarks(start, start + text.length, marks).map((piece, pieceIndex) => {
+      const slice = text.slice(piece.start - start, piece.end - start);
+      return piece.mark ? markElement(slice, piece.mark, `${keyPrefix}-${pieceIndex}`, context) : slice;
+    });
+  };
+  return inlines.map((node, index) => {
+    switch (node.type) {
+      case "text": {
+        const parts: ReactNode[] = [];
+        let last = 0;
+        for (const match of node.text.matchAll(CITATION_TOKEN)) {
+          const at = match.index ?? 0;
+          if (at > last) parts.push(...marked(node.text.slice(last, at), `${index}-${last}`));
+          parts.push(<span key={`${index}-t${at}`}>{renderText(match[0], context)}</span>);
+          last = at + match[0].length;
+        }
+        if (last < node.text.length) parts.push(...marked(node.text.slice(last), `${index}-${last}`));
+        return <span key={index}>{parts}</span>;
+      }
+      case "emphasis":
+        return <em key={index}>{renderMarkedInlines(node.children, context, marks, cursor)}</em>;
+      case "strong":
+        return <strong key={index}>{renderMarkedInlines(node.children, context, marks, cursor)}</strong>;
+      case "strikethrough":
+        return <s key={index}>{renderMarkedInlines(node.children, context, marks, cursor)}</s>;
+      case "code_span":
+        return <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]" key={index}>{marked(node.code, `${index}`)}</code>;
+      case "link": {
+        const children = renderMarkedInlines(node.children, context, marks, cursor);
+        const custom = node.href ? context.renderLink?.(node.href, children) : null;
+        if (custom) return <span key={index}>{custom}</span>;
+        return node.href ? (
+          <a className="text-primary underline" href={node.href} key={index} rel="noopener noreferrer" target="_blank">{children}</a>
+        ) : (
+          <span key={index}>{children}</span>
+        );
+      }
+      case "soft_break":
+        cursor.at += 1;
+        return <span key={index}>{" "}</span>;
+      case "hard_break":
+        cursor.at += 1;
+        return <br key={index} />;
+      default:
+        return renderInlines([node], context)[0];
+    }
+  });
+}
+
+/** Render a prose block's inlines, with editorial marks when the block has an annotation. */
+function proseInlines(block: { inline: MarkusInline[] }, context: PreviewContext): { children: ReactNode[]; blockKey?: string } {
+  const annotation = context.editorial?.plan.get(block);
+  if (!context.editorial || !annotation) return { children: renderInlines(block.inline, context) };
+  const blockKey = String(context.editorial.blocks.size);
+  context.editorial.blocks.set(blockKey, annotation);
+  return { children: renderMarkedInlines(block.inline, context, annotation.marks, { at: 0 }), blockKey };
 }
 
 function soleToken(inlines: MarkusInline[]): string | null {
@@ -170,12 +271,14 @@ function renderBlock(block: MarkusBlock, index: number, context: PreviewContext)
           </ol>
         );
       }
-      return <p className="my-3 leading-relaxed" key={index}>{renderInlines(block.inline, context)}</p>;
+      const prose = proseInlines(block, context);
+      return <p className="my-3 leading-relaxed" data-editorial-block={prose.blockKey} key={index}>{prose.children}</p>;
     }
     case "heading": {
       const level = Math.min(Math.max(block.level, 1), 6);
       const Tag = `h${level}` as "h1";
-      return <Tag className={HEADING_CLASSES[level - 1]} key={index}>{renderInlines(block.inline, context)}</Tag>;
+      const prose = proseInlines(block, context);
+      return <Tag className={HEADING_CLASSES[level - 1]} data-editorial-block={prose.blockKey} key={index}>{prose.children}</Tag>;
     }
     case "list": {
       const items = block.items.map((item, itemIndex) => (
@@ -310,12 +413,45 @@ function renderBlocks(nodes: MarkusNode[], context: PreviewContext): ReactNode[]
   );
 }
 
+/** Characters of rendered text from the start of `block` to (node, offset), skipping citation and image furniture. */
+function renderedOffset(block: HTMLElement, node: Node, offset: number): number {
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let total = 0;
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    const skipped = current.parentElement?.closest("[data-editorial-skip]");
+    if (current === node) return total + (skipped ? 0 : offset);
+    if (!skipped) total += current.textContent?.length ?? 0;
+  }
+  return total;
+}
+
+function previewSelectionHandler(context: PreviewContext) {
+  return (event: ReactMouseEvent<HTMLDivElement>) => {
+    const editorial = context.editorial;
+    if (!editorial?.onSelectSource) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const startBlock = (range.startContainer.parentElement ?? null)?.closest<HTMLElement>("[data-editorial-block]");
+    const endBlock = (range.endContainer.parentElement ?? null)?.closest<HTMLElement>("[data-editorial-block]");
+    if (!startBlock || startBlock !== endBlock || !event.currentTarget.contains(startBlock)) return;
+    const annotation = editorial.blocks.get(startBlock.dataset.editorialBlock ?? "");
+    const source = selectionToSource(annotation, {
+      start: renderedOffset(startBlock, range.startContainer, range.startOffset),
+      end: renderedOffset(startBlock, range.endContainer, range.endOffset),
+    });
+    if (source) editorial.onSelectSource(source, range.getBoundingClientRect());
+  };
+}
+
 export function MarkusIrPreview({
   bodyIr,
   imageUrls = {},
   dynamicDirectives = {},
   renderLink,
+  editorial,
 }: {
+  editorial?: PreviewEditorial;
   bodyIr: unknown;
   imageUrls?: Record<string, string>;
   /** Live components for leaf directives whose content the host app computes, keyed by directive name. */
@@ -333,8 +469,13 @@ export function MarkusIrPreview({
       imageUrls,
       dynamicDirectives,
       renderLink,
+      editorial: editorial ? { ...editorial, plan: planPreview(document, editorial.result, editorial.findings), blocks: new Map() } : undefined,
     };
-    return <div data-markus-preview>{renderBlocks(document.children, context)}</div>;
+    return (
+      <div data-markus-preview onMouseUp={editorial?.onSelectSource ? previewSelectionHandler(context) : undefined}>
+        {renderBlocks(document.children, context)}
+      </div>
+    );
   } catch (error) {
     return (
       <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" data-markus-preview-error role="alert">

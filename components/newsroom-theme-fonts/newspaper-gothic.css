@@ -1,0 +1,9 @@
+@import "@fontsource-variable/libre-franklin/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+/* Fontsource names variable families "<Family> Variable"; the Kanbus theme names the plain family. */
+[data-kanbus-theme="newspaper-gothic"][data-kanbus-theme] {
+  --kb-theme-title-font: "Libre Franklin Variable", "Libre Franklin", system-ui, sans-serif;
+  --kb-theme-ui-font: "Libre Franklin Variable", "Libre Franklin", system-ui, sans-serif;
+  --kb-theme-mono-font: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}

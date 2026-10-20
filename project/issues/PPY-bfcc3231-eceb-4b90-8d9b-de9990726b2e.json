@@ -1,0 +1,31 @@
+{
+  "id": "PPY-bfcc3231-eceb-4b90-8d9b-de9990726b2e",
+  "title": "Request supported one-click unsubscribe only after a user clicks",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a newsletter reader, I want an Unsubscribe button for authenticated supported messages, so that I can request removal from the reader without automatic ingestion actions or a full mail client.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Request supported one-click unsubscribe only after a user clicks\n  Scenario: Explicitly request supported one-click unsubscribe\n    Given a message has a verified RFC 8058 one-click HTTPS target and authenticated required headers\n    When its authorized reader explicitly clicks Unsubscribe\n    Then the supported HTTPS POST is requested with the declared one-click body\n    And the reader shows request and result status or a visible failure\n    And a successful request is not claimed as proof the sender stopped delivery\n  Scenario: Never unsubscribe during ingestion\n    Given a newsletter contains confirmation, unsubscribe or other account-action links\n    When it is ingested, previewed, indexed or classified without that user click\n    Then no subscription or account action is triggered\n  Scenario: Use a truthful fallback\n    Given authenticated HTTPS one-click support is unavailable\n    When the user wants to unsubscribe\n    Then a suitable external unsubscribe page can be offered for deliberate user action\n    And unsupported or failed requests are not shown as completed unsubscription\n    And mailto-only limited outbound support remains an explicit design question\n    And no full compose or reply mail client is implied\n  Scenario: Pause separately\n    Given a newsletter Monitor is paused\n    When its status is shown\n    Then the status does not claim the sender subscription was canceled\n```\n\nNew feature planning only. RFC source: https://www.rfc-editor.org/rfc/rfc8058 . Implementation design must validate DKIM coverage of both List-Unsubscribe and List-Unsubscribe-Post, the HTTPS target and declared List-Unsubscribe=One-Click value. The receiver sends a consented POST without cookies or HTTP authorization context; it must not confuse header authentication with an authenticated browser session. Specify authorization, safe target handling, redirect/failure policy, request/result audit and secret-link privacy before implementation. External fallback remains a user action. No POST, unsubscribe, mailbox connection or outbound mail is performed here.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T03:06:33.921085Z",
+  "updated_at": "2026-10-20T03:11:40.685876Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
