@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from .biblicus_runner import BiblicusCommandError, BiblicusRunner, BiblicusRunnerError
+from .biblicus_runner import BiblicusFailureEnvelopeError, BiblicusRunner, BiblicusRunnerError
 from .env import load_amplify_outputs, storage_bucket_from_amplify_outputs
 from .corpus_storage_paths import corpus_storage_path_prefix
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
@@ -1892,16 +1892,6 @@ def _extract_url_text(source_uri: str, *, reference_title: str = "", grobid_url:
         "reference_title": reference_title or "",
     }
     result = _run_biblicus_url_text(payload, grobid_url=grobid_url)
-    status = str(result.get("status") or "").strip().lower()
-    if status != "ok":
-        reason = result.get("error") if isinstance(result.get("error"), dict) else None
-        if not reason:
-            reason = {
-                "code": "biblicus_url_text_failed",
-                "message": "Biblicus URL text extraction failed.",
-                "details": {"result": result},
-            }
-        raise ReferenceUrlTextExtractionError(reason=reason)
     text = str(result.get("text") or "").strip()
     if not text:
         raise ReferenceUrlTextExtractionError(
@@ -1960,6 +1950,8 @@ def _filter_article_text(
     }
     try:
         result = _run_biblicus_article_text(payload)
+    except BiblicusFailureEnvelopeError as error:
+        result = _article_text_failure_result(error, model=model)
     except Exception as error:
         return {
             "status": "failed",
@@ -2029,6 +2021,22 @@ def _filter_article_text(
     }
 
 
+def _article_text_failure_result(error: BiblicusFailureEnvelopeError, *, model: str) -> dict[str, Any]:
+    details = error.details
+    return {
+        "status": "failed",
+        "text": "",
+        "span_count": 0,
+        "prompt_version": details.get("prompt_version"),
+        "model": details.get("model") or model,
+        "warnings": details.get("warnings"),
+        "retry_trace": details.get("retry_trace"),
+        "retry_failure_count": details.get("retry_failure_count"),
+        "retry_rounds_used": details.get("retry_rounds_used"),
+        "error": error.failure_reason(),
+    }
+
+
 def _run_biblicus_url_text(payload: dict[str, Any], *, grobid_url: str | None = None) -> dict[str, Any]:
     from biblicus.api import UrlTextRequest
 
@@ -2052,14 +2060,10 @@ def _url_text_timeout_seconds() -> float:
 def _run_biblicus_article_text(payload: dict[str, Any]) -> dict[str, Any]:
     from biblicus.web_transform import ArticleInput
 
-    runner = BiblicusRunner.from_environment()
-    try:
-        result = runner.extract_article_text(
-            ArticleInput.model_validate(payload, strict=False),
-            timeout_seconds=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
-        )
-    except BiblicusCommandError as error:
-        raise RuntimeError(error.failure_message()) from error
+    result = BiblicusRunner.from_environment().extract_article_text(
+        ArticleInput.model_validate(payload, strict=False),
+        timeout_seconds=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
+    )
     return result.model_dump(mode="json")
 
 
