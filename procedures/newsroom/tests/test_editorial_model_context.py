@@ -173,6 +173,19 @@ def test_graphql_edit_context_is_reloaded_and_bound_to_backend_publication(monke
     assert first['contextHash'] != second['contextHash'] and len(seen) == 4
 
 
+def test_graphql_edit_context_accepts_the_awsjson_string_the_deployed_resolver_returns(monkeypatch):
+    # The deployed Lambda returns JSON.stringify(pack) for an AWSJSON field, so AppSync delivers a JSON string
+    # whose content is the JSON document: the client must decode it to the document, not stop at the string.
+    from papyrus_content.editorial_checks import GraphQLEditorialStore
+    monkeypatch.delenv('PAPYRUS_TENANT_ID', raising=False)
+    def execute(query, variables):
+        if 'CanonicalEditorialPublication' in query:
+            return {'listKnowledgeCorporaByRoleAndName': {'items': [
+                {'id': 'knowledge-corpus-example', 'name': 'Example', 'role': 'canonical'}], 'nextToken': None}}
+        return {'getEditorialContext': json.dumps(json.dumps(context('a')))}
+    assert GraphQLEditorialStore(execute).get_editorial_context('a')['contextHash'] == context('a')['contextHash']
+
+
 def test_database_section_update_refreshes_its_classifier_and_selector_without_other_desk_leakage():
     from procedures.newsroom.tests.test_editorial_context import Records
     from papyrus_content.editorial_model_context import classification_model, CONTEXT_HASHES
