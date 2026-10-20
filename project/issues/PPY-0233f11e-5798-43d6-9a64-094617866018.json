@@ -1,0 +1,32 @@
+{
+  "id": "PPY-0233f11e-5798-43d6-9a64-094617866018",
+  "title": "Editor feedback capture for calibration",
+  "description": "Capture editor decisions as labels for Limatus calibration.\n\n## Scope\n- Record dismiss/accept/fixed per finding in `EditorialFeedback` (policyId, policyVersion, segment hash, probability, decision, reason).\n- Periodic job calls Limatus `calibrate` and stores per-policy calibration in the pack.\n- Supply recent labeled examples for few-shot retrieval.\n- Reporting: per-policy dismiss rate to flag policies that need rewording.\n\n## Blocked by\nLIM-9ba0bf (Limatus feedback/calibration).",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ed678d3e-83c6-476f-84a7-ca44fa025583",
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4f539bc8-4ec6-4296-8bf7-b2f80d1e2d70",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-19T22:39:34.487385Z",
+  "updated_at": "2026-10-19T22:39:43.926165Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -6,6 +6,12 @@ function requirePage(world) {
   return world.page;
 }
 
+/** The story editor opens on the preview; writing happens on the Edit view. */
+async function showArticleView(world, view) {
+  const toggle = requirePage(world).locator(`[data-newsroom-article-view="${view}"]`);
+  if ((await toggle.count()) > 0 && (await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+}
+
 async function openArticlesPath(world, path, width, height, readySelector) {
   await world.openPath(path, width, height);
   await requirePage(world).waitForSelector(readySelector, { state: "visible", timeout: 20_000 });
@@ -41,14 +47,17 @@ Then("the articles list should show the status badge {string}", async function (
 });
 
 When("I enter the article title {string}", async function (title) {
-  await requirePage(this).locator("[data-newsroom-article-front-matter]").fill(`title: ${title}\n`);
+  await showArticleView(this, "edit");
+  await requirePage(this).locator('[data-newsroom-article-field="title"]').fill(title);
 });
 
 When("I enter the article body:", async function (docString) {
+  await showArticleView(this, "edit");
   await requirePage(this).locator("[data-newsroom-article-body]").fill(docString);
 });
 
 Then("the article validation errors should include a line-numbered error", async function () {
+  await showArticleView(this, "edit");
   const page = requirePage(this);
   await page.waitForSelector("[data-newsroom-article-errors]", { state: "visible", timeout: 10_000 });
   const text = await page.locator("[data-newsroom-article-errors]").innerText();
@@ -68,6 +77,7 @@ Then("the article should be reported as valid", async function () {
 });
 
 Then("the article preview should show {string}", async function (text) {
+  await showArticleView(this, "preview");
   const preview = requirePage(this).locator("[data-newsroom-article-preview]");
   await preview.getByText(text).waitFor({ state: "visible", timeout: 10_000 });
 });
@@ -113,17 +123,19 @@ Then("the articles screen should not scroll horizontally", async function () {
 
 Then("the article Edit and Preview tabs should be visible", async function () {
   const page = requirePage(this);
-  await page.getByRole("tab", { name: "Edit" }).waitFor({ state: "visible", timeout: 10_000 });
-  await page.getByRole("tab", { name: "Preview" }).waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator('[data-newsroom-article-view="edit"]').waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator('[data-newsroom-article-view="preview"]').waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the article Insert image button should be disabled", async function () {
+  await showArticleView(this, "edit");
   const button = requirePage(this).locator("[data-newsroom-article-insert-image]");
   await button.waitFor({ state: "visible", timeout: 10_000 });
   assert.equal(await button.isDisabled(), true);
 });
 
 Then("the article Insert image button should be enabled", async function () {
+  await showArticleView(this, "edit");
   const button = requirePage(this).locator("[data-newsroom-article-insert-image]");
   await button.waitFor({ state: "visible", timeout: 10_000 });
   await requirePage(this).waitForFunction(
@@ -137,18 +149,23 @@ When("I choose the image file {string}", async function (relativePath) {
   await requirePage(this).locator("[data-newsroom-article-image-input]").setInputFiles(relativePath);
 });
 
+// The body is a CodeMirror editor; it renders only visible lines, so read its whole document through the host element.
+function articleBodyValue() {
+  return document.querySelector("[data-newsroom-article-body-editor]")?.papyrusEditorValue?.() ?? "";
+}
+
 Then("the article body should contain {string}", async function (text) {
-  const body = requirePage(this).locator("[data-newsroom-article-body]");
-  await requirePage(this).waitForFunction(
-    (expected) => document.querySelector("[data-newsroom-article-body]")?.value.includes(expected),
+  const page = requirePage(this);
+  await page.waitForFunction(
+    (expected) => (document.querySelector("[data-newsroom-article-body-editor]")?.papyrusEditorValue?.() ?? "").includes(expected),
     text,
     { timeout: 10_000 },
   );
-  assert.ok((await body.inputValue()).includes(text));
+  assert.ok((await page.evaluate(articleBodyValue)).includes(text));
 });
 
 Then("the article body should not contain {string}", async function (text) {
-  const value = await requirePage(this).locator("[data-newsroom-article-body]").inputValue();
+  const value = await requirePage(this).evaluate(articleBodyValue);
   assert.ok(!value.includes(text), `Body unexpectedly contains ${text}`);
 });
 
@@ -160,6 +177,7 @@ Then("the article image error should say {string}", async function (text) {
 });
 
 Then("the article preview should show the uploaded image", async function () {
+  await showArticleView(this, "preview");
   const page = requirePage(this);
   await page.waitForFunction(
     () => {
