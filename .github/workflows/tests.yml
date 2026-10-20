@@ -77,7 +77,5 @@ jobs:
             --ignore=procedures/newsroom/tests/test_cloud_procedure_execution.py \
             --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
             --ignore=procedures/newsroom/tests/test_papyrus_content.py
-      # Excluded features, PPY-c22e1c (stale steps/assertions):
-      #   editorial-style-profile (step imports removed _FORBIDDEN_KEY_PATTERN)
-      #   research-reporting-context
-      - run: poetry run behave features_backend --tags=~@live-agent --exclude 'editorial-style-profile|research-reporting-context'
+      # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
+      - run: poetry run behave features_backend --tags=~@live-agent --exclude 'research-reporting-context'

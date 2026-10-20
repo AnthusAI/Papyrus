@@ -10,7 +10,7 @@ Two sibling directories, two different jobs — do not merge them:
 
 | Path | What it is |
 | --- | --- |
-| `publications/anthus/` | **Editorial identity**: `style-profile.yml`, `editorial-rewrite-skill.yml`, `reference-samples/`. Pre-existing. Untouched by this port. |
+| `publications/anthus/` | **Editorial identity**: `style-profile.yml` and `reference-samples/`, imported into the site's editorial policies with `papyrus editorial import`. Pre-existing. Untouched by this port. |
 | `publications/anth_us/` | **Site definition** (this directory): `brand.ts`, `theme.css`. |
 
 ## Status: staging port, not a cutover

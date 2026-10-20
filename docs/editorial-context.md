@@ -30,7 +30,7 @@ Both runtimes test the same synthetic contract fixture, including non-ASCII char
 
 ## Copywriting
 
-The static `.agents/skills/copywriting/SKILL.md` fetches this context and delegates copy editing to `limatus skill`, using the publication's existing style profile. No policy-to-style-profile converter or automatic selection of editing options is introduced. Limatus's explicit human option/id/anchor selection requirement remains. Save substantive article revisions as new Papyrus versions and keep citation promotion independent from classifier feedback.
+The static `.agents/skills/copywriting/SKILL.md` fetches this context and delegates copy editing to the editorial-checks cycle (`papyrus editorial check` / `suggest`, backed by Limatus and the site's `EditorialPolicy` rows). Editorial policies stay separate from this doctrine context, and no editing option is applied without a person choosing it. Save substantive article revisions as new Papyrus versions and keep citation promotion independent from classifier feedback.
 
 ## Verification
 

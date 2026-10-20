@@ -114,21 +114,12 @@ const themeCss = fs.readFileSync(
   path.join(process.cwd(), "publications/anth_us/theme.css"),
   "utf8",
 );
-assert.match(themeCss, /data-theme-pack="anth-us"/);
-assert.match(themeCss, /--theme-paper:\s*#f1f9fe/);
-assert.match(themeCss, /--theme-ink:\s*#333333/);
-assert.match(themeCss, /--theme-moss:\s*#dc5497/);
-assert.match(themeCss, /--theme-ochre:\s*#ff57b4/);
-assert.match(themeCss, /--theme-card:\s*#ffffff/);
-assert.match(themeCss, /--theme-line:\s*#cccccc/);
-assert.match(themeCss, /--theme-quote:\s*#9b165d/);
-assert.match(themeCss, /--theme-tip:\s*#0389d7/);
-assert.match(themeCss, /--theme-caution:\s*#e95800/);
-assert.match(themeCss, /--theme-stage:\s*#fedded/);
-assert.match(themeCss, /--primary:\s*var\(--theme-moss\)/);
-assert.match(themeCss, /--accent:\s*var\(--theme-ochre\)/);
-assert.match(themeCss, /--destructive:\s*var\(--theme-caution\)/);
-assert.match(themeCss, /color-scheme:\s*light/);
+// The newsroom takes colour and type from the newspaper-gothic Kanbus theme tokens; theme.css keeps only the
+// brand mark (and the Jersey 25 face) and carries no theme-pack palette or !important overrides.
+assert.equal(anthus.kanbusTheme, "newspaper-gothic");
+assert.doesNotMatch(themeCss, /--theme-(paper|moss|ochre|ink)\s*:/);
+assert.doesNotMatch(themeCss, /!important/);
+assert.match(themeCss, /anth-us-logo-word/);
 // Shadcn owns body typography: the pack ships only the Jersey 25 face for the CMS mark and headings,
 // and every other font-family must come from a variable.
 assert.doesNotMatch(themeCss.replace(/@font-face\s*\{[^}]*\}/g, ""), /(?:^|[^-])font-family\s*:[ \t]*(?!var\()\S/);

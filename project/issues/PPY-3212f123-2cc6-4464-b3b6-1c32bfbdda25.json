@@ -11,7 +11,12 @@
   "labels": [
     "implementation"
   ],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-58f107df-4247-4307-a6a4-1cd4896317a2",
+      "type": "relates-to"
+    }
+  ],
   "comments": [
     {
       "id": "5f463258-3cbd-4284-8d7a-6aba68f7b13d",
@@ -75,7 +80,7 @@
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T04:12:21.997228Z",
+  "updated_at": "2026-10-20T04:20:30.881222Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

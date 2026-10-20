@@ -44,7 +44,9 @@ class PapyrusContentTests(unittest.TestCase):
         self.assertFalse(papyrus_content_cli.is_ported_command("references", "source-status"))
         self.assertFalse(papyrus_content_cli.is_ported_command("references", "accession-now"))
         self.assertFalse(papyrus_content_cli.is_ported_command("assignments", "intake-proposals"))
-        self.assertTrue(papyrus_content_cli.is_ported_command("editorial", "diagnose"))
+        self.assertTrue(papyrus_content_cli.is_ported_command("editorial", "check"))
+        self.assertTrue(papyrus_content_cli.is_ported_command("editorial", "suggest"))
+        self.assertFalse(papyrus_content_cli.is_ported_command("editorial", "diagnose"))
 
     def test_seed_edition_payload_builds_current_edition_records(self) -> None:
         payload = load_seed_payload(REPO_ROOT / "amplify" / "seed" / "seed-edition-content.json")

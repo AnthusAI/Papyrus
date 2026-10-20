@@ -1,117 +1,168 @@
+"""`papyrus editorial`: the site's editorial policies, checked by Limatus from the command line.
+
+    papyrus editorial pack [--section KEY] [--output FILE]
+    papyrus editorial import --profile publications/<pub>/style-profile.yml [--replace]
+    papyrus editorial check --draft FILE [--section KEY] [--pack FILE] [--output FILE]
+    papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--pack FILE]
+
+Policies and settings come from the site (EditorialPolicy / EditorialCheckSettings,
+read with the authoring role) unless `--pack` names a Limatus policy-pack file.
+The newsroom's article editor runs the same checks; this is for agents and scripts.
+"""
+
 from __future__ import annotations
 
 import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
-from limatus import diagnose, generate_options, load_config, render_annotations
-from limatus.editorial_diagnosis_schema import validate_diagnosis
-from limatus.editorial_options_schema import validate_decisions
+import limatus
 
-from .editorial_rewrite_options import DEFAULT_EDITORIAL_REWRITE_SKILL_PATH
-from .model_defaults import DEFAULT_EDITORIAL_REWRITE_MODEL
+from .editorial_checks import (
+    PUBLICATION_SCOPE,
+    GraphQLEditorialStore,
+    Services,
+    check_editorial,
+    compose_pack,
+    policy_record_id,
+    record_from_policy,
+    settings_from,
+    suggest_rewrite,
+)
 
 
-def editorial_diagnose(flags: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog="papyrus editorial diagnose")
-    input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument("--draft", help="Path to the draft file (read-only).")
-    input_group.add_argument("--text", help="Draft text to diagnose without reading a file.")
-    parser.add_argument("--profile", required=True, help="Path to the style profile YAML.")
-    parser.add_argument("--output", default="", help="Optional path to write diagnostic JSON.")
-    parser.add_argument(
-        "--markup-out",
-        default="",
-        help="Optional path to write Markus-annotated Markdown (editorial-finding directives).",
-    )
-    parser.add_argument(
-        "--xml-out",
-        default="",
-        help="Optional path to write editorial annotation XML.",
-    )
-    args = parser.parse_args(flags)
+class PackFileStore:
+    """Serves one policy-pack file's policies, with no settings or decisions."""
 
-    profile_path = Path(args.profile).resolve()
-    if args.draft:
-        draft_path = Path(args.draft).resolve()
-        if not draft_path.is_file():
-            raise ValueError(f"Draft file not found: {draft_path}")
-        draft_text = draft_path.read_text(encoding="utf-8")
+    def __init__(self, path: Path) -> None:
+        pack = limatus.load_policy_pack(path)
+        text = path.read_text(encoding="utf-8")
+        if path.suffix.lower() == ".json":
+            payload = json.loads(text)
+        else:
+            import yaml
+
+            payload = yaml.safe_load(text)
+        self._records = [record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"file:{path.name}") for policy in payload["policies"]]
+        self._guidance = pack.guidance or ""
+
+    def list_policies(self) -> list[dict[str, Any]]:
+        return self._records
+
+    def get_settings(self) -> dict[str, Any] | None:
+        return {"settings": {"guidance": self._guidance}}
+
+    def list_feedback(self) -> list[dict[str, Any]]:
+        return []
+
+    def create_policy(self, record: dict[str, Any]) -> None:
+        raise ValueError("A policy-pack file is read-only here.")
+
+    update_policy = create_policy
+
+
+def _store(pack: str | None):
+    return PackFileStore(Path(pack).resolve()) if pack else GraphQLEditorialStore()
+
+
+def _emit(payload: Any, output: str | None) -> None:
+    text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    if output:
+        Path(output).write_text(text, encoding="utf-8")
     else:
-        draft_text = args.text
-
-    config = load_config(profile_path)
-    diagnosis = diagnose(draft_text, config=config)
-    rendered = json.dumps(diagnosis, indent=2) + "\n"
-
-    if args.markup_out:
-        markup_path = Path(args.markup_out).resolve()
-        markup_path.write_text(
-            render_annotations(draft_text, diagnosis, format="markus"),
-            encoding="utf-8",
-        )
-
-    if args.xml_out:
-        xml_path = Path(args.xml_out).resolve()
-        xml_path.write_text(
-            render_annotations(draft_text, diagnosis, format="xml"),
-            encoding="utf-8",
-        )
-
-    if args.output:
-        output_path = Path(args.output).resolve()
-        output_path.write_text(rendered, encoding="utf-8")
-        return
-
-    sys.stdout.write(rendered)
+        sys.stdout.write(text)
 
 
-def editorial_options(flags: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog="papyrus editorial options")
-    parser.add_argument("--draft", required=True, help="Path to the draft file (read-only).")
-    parser.add_argument("--profile", required=True, help="Path to the style profile YAML.")
-    parser.add_argument("--diagnosis", required=True, help="Path to validated diagnostic JSON.")
-    parser.add_argument("--decisions", required=True, help="Path to steering decisions JSON.")
-    parser.add_argument("--output", default="", help="Optional path to write options JSON.")
-    parser.add_argument("--model", default=DEFAULT_EDITORIAL_REWRITE_MODEL, help="OpenAI model id.")
-    parser.add_argument(
-        "--skill",
-        default="",
-        help="Optional path to editorial rewrite skill YAML.",
-    )
+def _read_draft(path: str) -> str:
+    draft = Path(path).resolve()
+    if not draft.is_file():
+        raise ValueError(f"Draft file not found: {draft}")
+    return draft.read_text(encoding="utf-8")
+
+
+def editorial_pack(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="papyrus editorial pack", description="Print the site's policy pack for a desk.")
+    parser.add_argument("--section", default=None, help="Desk key whose policies replace publication policies with the same key.")
+    parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
+    store = GraphQLEditorialStore()
+    _emit(compose_pack(store.list_policies(), args.section, settings_from(store)), args.output)
 
-    draft_path = Path(args.draft).resolve()
-    if not draft_path.is_file():
-        raise ValueError(f"Draft file not found: {draft_path}")
-    draft_text = draft_path.read_text(encoding="utf-8")
 
-    diagnosis_path = Path(args.diagnosis).resolve()
-    decisions_path = Path(args.decisions).resolve()
-    diagnosis_payload = json.loads(diagnosis_path.read_text(encoding="utf-8"))
-    decisions_payload = json.loads(decisions_path.read_text(encoding="utf-8"))
-    if not isinstance(decisions_payload, list):
-        raise ValueError("Decisions JSON must be a list.")
+def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, int]:
+    """Add a style profile's controls to the store as publication policies."""
+    existing = {policy_record_id(r["policyKey"], r["scope"]): r for r in store.list_policies()}
+    pack = limatus.policy_pack_from_style_profile(profile)
+    counts = {"created": 0, "replaced": 0, "skipped": 0}
+    for policy in pack["policies"]:
+        record = record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"style-profile:{pack['packId']}")
+        current = existing.get(record["id"])
+        if current is None:
+            store.create_policy(record)
+            counts["created"] += 1
+        elif replace:
+            store.update_policy({**record, "version": int(current.get("version") or 1) + 1})
+            counts["replaced"] += 1
+        else:
+            counts["skipped"] += 1
+    return counts
 
-    config = load_config(Path(args.profile).resolve())
-    validate_diagnosis(diagnosis_payload)
-    validate_decisions(decisions_payload)
 
-    skill_path = Path(args.skill or DEFAULT_EDITORIAL_REWRITE_SKILL_PATH).resolve()
-    options = generate_options(
-        draft_text,
-        config=config,
-        diagnosis=diagnosis_payload,
-        decisions=decisions_payload,
-        model=args.model,
-        skill_path=skill_path,
+def editorial_import(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog="papyrus editorial import",
+        description="Add a style profile's controls to the site as editorial policies (scope: publication).",
     )
-    rendered = json.dumps(options, indent=2) + "\n"
+    parser.add_argument("--profile", required=True, help="Style profile YAML/JSON, e.g. publications/anthus/style-profile.yml")
+    parser.add_argument("--replace", action="store_true", help="Overwrite policies that already exist with the same key.")
+    args = parser.parse_args(flags)
+    counts = import_style_profile(GraphQLEditorialStore(), Path(args.profile).resolve(), replace=args.replace)
+    print(f"{counts['created']} created, {counts['replaced']} replaced, {counts['skipped']} already present (--replace overwrites)")
 
-    if args.output:
-        output_path = Path(args.output).resolve()
-        output_path.write_text(rendered, encoding="utf-8")
-        return
 
-    sys.stdout.write(rendered)
+def editorial_check(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="papyrus editorial check", description="Check a draft against the site's editorial policies.")
+    parser.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
+    parser.add_argument("--section", default=None, help="Desk key, for desk policies.")
+    parser.add_argument("--pack", default=None, help="Use this Limatus policy-pack file instead of the site's policies.")
+    parser.add_argument("--output", default=None)
+    args = parser.parse_args(flags)
+    services = Services(store=_store(args.pack))
+    _emit(check_editorial({"body": _read_draft(args.draft), "format": "markus", "section": args.section}, services), args.output)
+
+
+def editorial_suggest(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(
+        prog="papyrus editorial suggest",
+        description="Rewrite options for one finding or a passage of a draft. Prints options; never edits the draft.",
+    )
+    parser.add_argument("--draft", required=True)
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--finding-id", help="A finding id from `papyrus editorial check` on the same draft.")
+    target.add_argument("--select", help="Exact text of the draft to rewrite.")
+    parser.add_argument("--note", default=None, help="Editor note, e.g. 'shorter'.")
+    parser.add_argument("--section", default=None)
+    parser.add_argument("--pack", default=None)
+    parser.add_argument("--output", default=None)
+    args = parser.parse_args(flags)
+    body = _read_draft(args.draft)
+    services = Services(store=_store(args.pack))
+    arguments: dict[str, Any] = {"body": body, "format": "markus", "section": args.section, "note": args.note}
+    if args.finding_id:
+        result = check_editorial({"body": body, "format": "markus", "section": args.section}, services)
+        finding = next((f for f in result["findings"] if f["id"] == args.finding_id), None)
+        if finding is None:
+            raise ValueError(f"No finding {args.finding_id} in this draft; run `papyrus editorial check` again.")
+        arguments["finding"] = json.dumps(finding)
+    else:
+        start = body.find(args.select)
+        if start < 0:
+            raise ValueError("--select text is not in the draft.")
+        to_utf16 = lambda index: len(body[:index].encode("utf-16-le")) // 2  # noqa: E731
+        arguments["selection"] = json.dumps({"start": to_utf16(start), "end": to_utf16(start + len(args.select))})
+    try:
+        _emit(suggest_rewrite(arguments, services), args.output)
+    except limatus.SuggestUnavailableError as error:
+        raise ValueError(str(error)) from error

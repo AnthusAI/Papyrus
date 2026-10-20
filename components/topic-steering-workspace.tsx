@@ -13,6 +13,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import amplifyOutputs from "papyrus-amplify-outputs";
+import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
 import { generateClient } from "aws-amplify/data";
@@ -246,7 +247,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups" | "editorial-checks";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4317,6 +4318,17 @@ function AdministrationDeskView({
                 <strong>Agent delegations</strong>
                 <span>Let an agent curate References for you</span>
               </Link>
+              {editorialChecksPluginEnabled() ? (
+                <Link
+                  href={administrationPanelHref("editorial-checks", isDemo)}
+                  data-news-desk-admin-nav="editorial-checks"
+                  data-active={administrationPanel === "editorial-checks" || undefined}
+                  onClick={() => onPanelChange("editorial-checks")}
+                >
+                  <strong>Editorial checks</strong>
+                  <span>Policies the article editor checks drafts against</span>
+                </Link>
+              ) : null}
               {signupPluginEnabled() ? (
                 <Link
                   href={administrationPanelHref("signups", isDemo)}
@@ -4331,6 +4343,7 @@ function AdministrationDeskView({
             </nav>}
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
+              {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
               {administrationPanel === "users" ? (
                 <AdministrationUsersPanel
@@ -12794,9 +12807,14 @@ function signupPluginEnabled(): boolean {
   return pluginSettings(amplifyOutputs as PluginOutputs, "signup") !== null;
 }
 
+function editorialChecksPluginEnabled(): boolean {
+  return pluginSettings(amplifyOutputs as PluginOutputs, "editorial-checks") !== null;
+}
+
 function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
   if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
+  if (value === "editorial-checks" && editorialChecksPluginEnabled()) return value;
   return "users";
 }
 

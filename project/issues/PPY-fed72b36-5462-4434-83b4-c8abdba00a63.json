@@ -3,17 +3,25 @@
   "title": "GROBID title boilerplate leaks into priming title",
   "description": "Found by the Cyclotron session (read-only; refs at origin/main a35694b).\n\n`src/papyrus_content/priming_curation.py:55` (`title=str(metadata.get(title) or )`; the task cited :52) prefers GROBID metadata title. For arxiv.org/abs/1706.03762 the title came out as \"Provided proper attribution is provided, Google hereby grants permission... Attention Is All You Need\".\n\n```gherkin\nFeature: Clean priming titles\n  Scenario: GROBID title carries licence boilerplate\n    Given GROBID returns a title starting with permission boilerplate for arxiv.org/abs/1706.03762\n    When priming curation derives the title\n    Then the title is \"Attention Is All You Need\"\n```\nAcceptance: add a boilerplate guard (reject licence/permission text) and/or fall back to the arXiv abs-page title; regression spec uses 1706.03762.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4303daba-4c84-4d6e-ab6f-e3aa663934e7",
+      "author": "home",
+      "text": "Fixed in PR #376 (squash-merged to develop) and promoted to main via PR #377; Release workflow succeeded, npm next tag now 2.0.0-next.4 (latest 2.0.2 unchanged). Priming title now prefers landing-page citation_title/og:title (arXiv abs page or export API for pdf URLs); GROBID title only when it passes a sanity guard. Tests cover 1706.03762 and 2303.08774 with recorded fixtures.",
+      "created_at": "2026-10-20T03:27:42.072072Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-19T21:56:38.054760Z",
-  "updated_at": "2026-10-19T21:56:38.054806Z",
-  "closed_at": null,
+  "updated_at": "2026-10-20T03:27:42.111037Z",
+  "closed_at": "2026-10-20T03:27:42.110992Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5"
