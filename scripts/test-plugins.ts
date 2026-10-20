@@ -6,14 +6,10 @@ import { signupSchemaDefinitions } from "../amplify/plugins/signup/schema";
 import { resolveSignupConfig, signupManifest } from "../amplify/plugins/signup/papyrus.plugin";
 import { addSignupRateLimit, SIGNUP_MUTATION_FIELD } from "../amplify/plugins/signup/waf";
 import { wirePlugins, PLUGINS_OUTPUT_KEY } from "../amplify/plugins/wire";
-import { editorialChecksSchemaDefinitions } from "../amplify/plugins/editorial-checks/schema";
-import {
-  EDITORIAL_CHECKS_FUNCTION_FIELDS,
-  editorialChecksManifest,
-  editorialChecksSecretParameters,
-  resolveEditorialChecksConfig,
-} from "../amplify/plugins/editorial-checks/papyrus.plugin";
-import { EDITORIAL_CHECKS_TIMEOUT_SECONDS } from "../amplify/plugins/editorial-checks/function/resource";
+import { schema } from "../amplify/data/schema";
+import { editorialChecksSchemaDefinitions } from "../amplify/functions/editorial-checks/schema";
+import { EDITORIAL_CHECKS_FUNCTION_FIELDS, editorialChecksSecretParameters } from "../amplify/functions/editorial-checks/wire";
+import { EDITORIAL_CHECKS_TIMEOUT_SECONDS } from "../amplify/functions/editorial-checks/resource";
 import { pluginSettings, signupForms } from "../lib/plugin-settings";
 import { csvCell, neutralizeFormula, signupEntriesToCsv } from "../lib/signup-csv";
 
@@ -103,17 +99,13 @@ assert.equal(
 );
 assert.equal(signupEntriesToCsv([]), "form,value,submittedAt\r\n");
 
-// editorial-checks: no options, nothing for guests, the manifest matches the schema.
-assert.deepEqual(resolvePlugins(["editorial-checks"])[0].config, {});
-assert.throws(() => resolveEditorialChecksConfig({ name: "editorial-checks", model: "x" }), /Unknown editorial-checks plugin settings: model/);
-assert.deepEqual(resolvePlugins(["editorial-checks", "signup"]).map(({ plugin }) => plugin.manifest.name), ["editorial-checks", "signup"]);
-const editorialDefinitions = editorialChecksSchemaDefinitions() as Record<string, unknown>;
-assert.deepEqual(
-  Object.keys(editorialDefinitions).sort(),
-  [...editorialChecksManifest.models, ...editorialChecksManifest.mutations].sort(),
-);
-assert.deepEqual(editorialChecksManifest.guest.mutations, []);
-assert.equal(KNOWN_PLUGINS["editorial-checks"].manifest, editorialChecksManifest);
+// Editorial checks are core, not a plugin: every site's base schema has them, and they cannot be requested as a plugin.
+assert.throws(() => resolvePlugins(["editorial-checks"]), /Unknown plugin "editorial-checks"/);
+assert.deepEqual(Object.keys(KNOWN_PLUGINS), ["signup"]);
+const baseSchemaText = schema.transform().schema;
+for (const name of Object.keys(editorialChecksSchemaDefinitions)) {
+  assert.ok(baseSchemaText.includes(name), `the base schema defines ${name}`);
+}
 assert.ok(EDITORIAL_CHECKS_TIMEOUT_SECONDS < 30, "the function must finish inside AppSync's 30 second resolver limit");
 assert.deepEqual(
   EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()).sort(),

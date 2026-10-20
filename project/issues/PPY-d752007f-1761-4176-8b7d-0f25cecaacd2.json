@@ -1,7 +1,7 @@
 {
   "id": "PPY-d752007f-1761-4176-8b7d-0f25cecaacd2",
   "title": "AN-04: Deploy domain-free app-shell stack amplify-app-shell-anth-us-cms in papyrus-production",
-  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-04. R yes for cdk deploy. ACCEPT: cdk diff is create-only (2 Amplify::App CMS WEB_COMPUTE + reader WEB, 3 branches, roles, 0 Domain, no legacy account id); get-app shows repository null and 0 domain associations; outputs.json saved; SSM prefix computed. Rollback: delete-stack.",
+  "description": "Plan: ~/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-04. R yes for cdk deploy. ACCEPT: cdk diff is create-only (2 Amplify::App CMS WEB_COMPUTE + reader WEB, 3 branches, roles, 0 Domain, no legacy account id); get-app shows repository null and 0 domain associations; outputs.json saved; SSM prefix computed. Rollback: delete-stack.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

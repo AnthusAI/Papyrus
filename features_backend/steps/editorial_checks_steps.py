@@ -10,7 +10,7 @@ from papyrus_content import editorial_checks as editorial
 
 
 class FakeEditorialStore:
-    """The plugin's three models, held in memory with the GraphQL store's contract (JSON fields as strings)."""
+    """The three editorial models, held in memory with the GraphQL store's contract (JSON fields as strings)."""
 
     def __init__(self) -> None:
         self.policies: dict[str, dict] = {}
@@ -67,7 +67,7 @@ def _services(context):
     return editorial.Services(store=context.store, decision_model=None, generator=context.generator)
 
 
-@given("a site with the editorial checks plugin and these policies:")
+@given("a site with editorial checks and these policies:")
 def step_site_policies(context):
     context.store = FakeEditorialStore()
     context.generator = FakeGenerator()
@@ -88,6 +88,26 @@ def step_settings(context, seconds):
     context.store.settings = {"id": "settings", "settings": json.dumps({"lanes": {"rules": True, "classifier": True}, "deadlineSeconds": seconds})}
 
 
+@given("the publication has stored no editorial check settings")
+def step_no_settings(context):
+    assert context.store.settings is None
+
+
+@given("the editorial check settings turn editorial checks off")
+def step_settings_off(context):
+    context.store.settings = {"id": "settings", "settings": json.dumps({"enabled": False})}
+
+
+@then("the check is refused because editorial checks are turned off")
+def step_refused(context):
+    assert isinstance(context.check_error, editorial.EditorialChecksDisabled), context.check_error
+
+
+@then("Limatus was not asked to check")
+def step_not_asked(context):
+    assert context.services.last_check_request is None
+
+
 @given('editors have recorded {count:d} decisions with text on policy "{key}"')
 def step_feedback_with_text(context, count, key):
     for index in range(count):
@@ -100,7 +120,11 @@ def step_feedback_with_text(context, count, key):
 def step_check(context, body, section):
     context.services = _services(context)
     context.body = body
-    context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section}, context.services)
+    context.check_error = None
+    try:
+        context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section}, context.services)
+    except editorial.EditorialChecksDisabled as error:
+        context.check_error = error
 
 
 @then('the check result is a valid Limatus "{schema}" document')

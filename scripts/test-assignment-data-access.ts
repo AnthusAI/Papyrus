@@ -13,11 +13,10 @@ import type { S3Client } from "@aws-sdk/client-s3";
 import { schema, schemaWithPlugins } from "../amplify/data/schema";
 import { assignmentAction } from "../amplify/functions/assignment-action/resource";
 import { ASSIGNMENT_DATA_FIELDS, scopeAssignmentDataAccess } from "../amplify/functions/assignment-action/data-access";
-import { editorialChecksSchemaDefinitions } from "../amplify/plugins/editorial-checks/schema";
 
 for (const [name, definition] of [
   ["base", schema],
-  ["editorial-checks", schemaWithPlugins(editorialChecksSchemaDefinitions())],
+  ["with plugin definitions", schemaWithPlugins({})],
 ] as const) {
   const registrations = definition.transform().functionSchemaAccess.filter(
     (access) => access.resourceProvider === assignmentAction,

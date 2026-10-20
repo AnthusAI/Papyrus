@@ -1,0 +1,25 @@
+{
+  "id": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
+  "title": "M3 Automation and insight: recurring drafts that need approval, publish-triggered alerts, delivery and engagement events",
+  "description": "Outcome: recurring and event-driven newsletters with guardrails, and editors can see how issues perform.\n\nScope:\n- Recurring cadence per newsletter (The Docket: every Friday): a recurring schedule assembles a draft from the period's published items a configurable time ahead and notifies admins. It never sends unattended: no admin approval, no issue.\n- Triggered alerts on a publish event (Distinctive Mark precedential alerts by topic), connected to the publication's own Cyclotron and section classifiers. Admin-chosen policy per alert type; a republish, edit or reprojection never triggers a send.\n- Events: SES delivery, bounce, complaint, open and click events to S3 (raw) with per-issue aggregates in DynamoDB; a custom click-tracking domain per site instead of awstrack.me; opens labelled as unreliable (Apple Mail Privacy Protection).\n- Newsroom view of issue performance and list health; the site privacy policy covers tracking.\n\nDone when: a Friday draft appears without anyone starting it and sends only after approval; publishing a precedential ruling produces an alert for subscribers to that topic exactly once; per-issue delivery, click and complaint figures are visible in the newsroom.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-31455fd1-82ca-4dbf-a1be-fd91aec680e0",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T22:12:56.570895Z",
+  "updated_at": "2026-10-20T22:13:05.696179Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

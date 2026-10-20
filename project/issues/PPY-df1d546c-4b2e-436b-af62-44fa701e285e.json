@@ -1,0 +1,25 @@
+{
+  "id": "PPY-df1d546c-4b2e-436b-af62-44fa701e285e",
+  "title": "M4 Platform hardening: import and export, account isolation review, adoption docs",
+  "description": "Outcome: a second publication can adopt newsletters from the docs alone, and subscriber data can move in and out.\n\nScope:\n- Subscriber import (with consent provenance: Mailchimp, Substack, CSV) and export.\n- Review of SES account isolation: whether busy sites need their own sending account or dedicated IPs, based on M1-M3 reputation data.\n- Operator runbook (warm-up, suppression review, pausing a site, deliverability incidents) and the site-enablement guide.\n\nDone when: a second Papyrus site enables newsletters by following the docs, without changes to Papyrus code.",
+  "type": "epic",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-31455fd1-82ca-4dbf-a1be-fd91aec680e0",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T22:12:56.635698Z",
+  "updated_at": "2026-10-20T22:13:05.765705Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

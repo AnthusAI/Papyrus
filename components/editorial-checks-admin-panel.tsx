@@ -21,7 +21,11 @@ import {
   type EditorialSettings,
 } from "../lib/editorial-checks-client";
 
-const STARTER_PACK = "ai-writing-tells";
+const STARTER_PACKS = [
+  { name: "ai-writing-tells", label: "AI-writing tells" },
+  { name: "plain-language", label: "Federal Plain Language Guidelines" },
+  { name: "asd-ste100", label: "ASD-STE100 Simplified Technical English" },
+] as const;
 const POLICY_KEY = /^[a-z0-9][a-z0-9._-]*$/;
 
 type Draft = {
@@ -87,6 +91,7 @@ export function EditorialChecksAdminPanel() {
   const [settings, setSettings] = useState<EditorialSettings>(DEFAULT_EDITORIAL_SETTINGS);
   const [settingsExist, setSettingsExist] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [starterPack, setStarterPack] = useState<string>(STARTER_PACKS[0].name);
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [tryText, setTryText] = useState("");
@@ -157,18 +162,22 @@ export function EditorialChecksAdminPanel() {
       <h4>Policies</h4>
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => { setDraft(draftFrom(emptyPolicy(), true)); setTryResult(null); }} size="sm" type="button">New policy</Button>
+        <select aria-label="Starter pack" onChange={(event) => setStarterPack(event.target.value)} value={starterPack}>
+          {STARTER_PACKS.map((pack) => <option key={pack.name} value={pack.name}>{pack.label}</option>)}
+        </select>
         <Button
           disabled={working !== null}
           onClick={() => run("import", async () => {
-            const outcome = await importStarterPack(STARTER_PACK);
+            const outcome = await importStarterPack(starterPack);
             await refresh();
-            return `Starter pack: ${outcome.created} policies added, ${outcome.skipped} already present.`;
+            const label = STARTER_PACKS.find((pack) => pack.name === starterPack)?.label ?? starterPack;
+            return `${label}: ${outcome.created} policies added, ${outcome.skipped} already present.`;
           })}
           size="sm"
           type="button"
           variant="outline"
         >
-          Add AI-writing tells starter pack
+          Add starter pack
         </Button>
         <Button
           disabled={working !== null}
@@ -320,6 +329,7 @@ export function EditorialChecksAdminPanel() {
           });
         }}
       >
+        <label><input checked={settings.enabled} data-editorial-enabled onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })} type="checkbox" /> Run editorial checks for this publication (turning this off stops checks and rewrites; policies are kept)</label>
         <label><input checked={settings.lanes.rules} onChange={(event) => setSettings({ ...settings, lanes: { ...settings.lanes, rules: event.target.checked } })} type="checkbox" /> Rule checks</label>
         <label><input checked={settings.lanes.classifier} onChange={(event) => setSettings({ ...settings, lanes: { ...settings.lanes, classifier: event.target.checked } })} type="checkbox" /> Judgment checks (decision model)</label>
         <label><input checked={settings.checkWhileTyping} onChange={(event) => setSettings({ ...settings, checkWhileTyping: event.target.checked })} type="checkbox" /> Check while editors type (after a short pause)</label>

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {
   applyReplacement,
-  editorialChecksEnabled,
   feedbackFor,
   groupByPolicy,
   inlineFindings,
@@ -12,6 +11,7 @@ import {
   type EditorialCheckResult,
   type EditorialFinding,
 } from "../lib/editorial-checks";
+import { DEFAULT_EDITORIAL_SETTINGS, type EditorialSettings } from "../lib/editorial-checks-settings";
 
 function finding(overrides: Partial<EditorialFinding>): EditorialFinding {
   return {
@@ -49,9 +49,9 @@ const result: EditorialCheckResult = {
 // Limatus spans are UTF-16, the same unit as JavaScript strings: the emoji counts as two.
 assert.equal(body.slice(0, 19), "Huge wins 🚀 ahead.");
 
-assert.equal(editorialChecksEnabled({ custom: { papyrusPlugins: { "editorial-checks": { contract: 1 } } } }), true);
-assert.equal(editorialChecksEnabled({ custom: { papyrusPlugins: { signup: { contract: 1 } } } }), false);
-assert.equal(editorialChecksEnabled(null), false);
+// Core and on by default: a publication with no stored settings runs checks, and its stored setting can turn them off.
+assert.equal(DEFAULT_EDITORIAL_SETTINGS.enabled, true);
+assert.equal({ ...DEFAULT_EDITORIAL_SETTINGS, ...({ enabled: false } as Partial<EditorialSettings>) }.enabled, false);
 
 const info = finding({ id: "f-info", severity: "info", span: { start: 20, end: 24 }, excerpt: "Calm" });
 const error = finding({ id: "f-error", severity: "error", policyId: "evidence", span: { start: 5, end: 9 }, excerpt: "wins" });

@@ -1,7 +1,7 @@
 {
   "id": "PPY-c4bfe4ae-2a23-4c6f-b287-4a1e4cf3b840",
   "title": "AN-14: Part B design: CMS content model and MDX import spike (3 articles byte-identical)",
-  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-14. Does not touch DNS. Decide which of 131 MDX nodes become Items (45 posts, 19 solutions, 11 platform, 56 top-level), what stays generated, media (8 JPG, 263 PNG, 9 SVG), authors/tags, and how web/build_via_papyrus.py reads content-export. ACCEPT: decision memo; 3 imported articles render with sha256-equal HTML versus the git build.",
+  "description": "Plan: ~/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-14. Does not touch DNS. Decide which of 131 MDX nodes become Items (45 posts, 19 solutions, 11 platform, 56 top-level), what stays generated, media (8 JPG, 263 PNG, 9 SVG), authors/tags, and how web/build_via_papyrus.py reads content-export. ACCEPT: decision memo; 3 imported articles render with sha256-equal HTML versus the git build.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

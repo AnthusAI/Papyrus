@@ -6,7 +6,7 @@ For each request a Limatus policy pack is composed from the stored policies --
 publication policies plus the article's desk policies, where a desk policy
 replaces a publication policy with the same key -- and Limatus is called.
 
-The editorial-checks plugin's function routes its GraphQL fields through
+The site's editorial-checks function (core to every Papyrus backend) routes its GraphQL fields through
 ``handle``; the ``papyrus editorial`` CLI uses the same operations.
 """
 from __future__ import annotations
@@ -24,6 +24,7 @@ from limatus.packs import builtin_pack
 PUBLICATION_SCOPE = "publication"
 SETTINGS_ID = "settings"
 DEFAULT_SETTINGS: dict[str, Any] = {
+    "enabled": True,
     "lanes": {"rules": True, "classifier": True},
     "classifierModel": "jev-latest",
     "rewriteModel": "gpt-6-luna",
@@ -165,6 +166,18 @@ def settings_from(store: EditorialStore) -> dict[str, Any]:
     return settings
 
 
+class EditorialChecksDisabled(ValueError):
+    """The publication turned editorial checks off in its stored settings."""
+
+
+def running_settings(store: EditorialStore) -> dict[str, Any]:
+    """Settings for an operation that runs checks; refuses when the publication turned them off."""
+    settings = settings_from(store)
+    if not settings["enabled"]:
+        raise EditorialChecksDisabled("Editorial checks are turned off for this publication (Administration > Editorial checks).")
+    return settings
+
+
 def compose_pack(records: list[dict[str, Any]], section: str | None, settings: dict[str, Any]) -> dict[str, Any]:
     """Publication policies, replaced key by key by the section's own policies."""
     chosen: dict[str, dict[str, Any]] = {}
@@ -192,7 +205,7 @@ def compose_pack(records: list[dict[str, Any]], section: str | None, settings: d
 
 def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     from .editorial_model_context import editing_pack
-    settings = settings_from(services.store)
+    settings = running_settings(services.store)
     pack = editing_pack(services.store, arguments.get("section"), settings)
     examples = [
         {"policyId": f["policyId"], "detectorId": f["detectorId"], "text": f["text"], "violates": f["decision"] != "dismissed"}
@@ -219,7 +232,7 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
 
 def suggest_rewrite(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     from .editorial_model_context import editing_pack
-    settings = settings_from(services.store)
+    settings = running_settings(services.store)
     request: dict[str, Any] = {
         "schemaVersion": 1,
         "content": {"format": arguments.get("format") or "markus", "text": arguments["body"]},
@@ -328,7 +341,7 @@ UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInp
 
 
 class GraphQLEditorialStore:
-    """The plugin's models through AppSync, signed the Papyrus way (IAM for functions and the CLI)."""
+    """The editorial models through AppSync, signed the Papyrus way (IAM for functions and the CLI)."""
 
     def __init__(self, execute: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None) -> None:
         if execute is None:

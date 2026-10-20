@@ -1,7 +1,7 @@
 {
   "id": "PPY-86b91dbb-e4b7-4200-a1c2-276dc40db495",
   "title": "TI-12: two-week soak and sign-off",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-12. ACCEPT: daily health of both hosts for 14 days, weekly baseline re-run equal, zone diff clean, Ryan signs off in chat.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-12. ACCEPT: daily health of both hosts for 14 days, weekly baseline re-run equal, zone diff clean, Ryan signs off in chat.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

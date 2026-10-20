@@ -1,15 +1,14 @@
 import { a } from "@aws-amplify/backend";
-import { editorialChecks } from "./function/resource";
+import { editorialChecks } from "./resource";
 
 const editors = ["editor", "admin"];
 
 /**
- * Policies, settings and editors' decisions live in Papyrus; Limatus checks
+ * Core to every site's data API. Policies, settings and editors' decisions live in Papyrus; Limatus checks
  * content against them. Editors read policies and record decisions; admins
  * manage policies and settings. Only the function (IAM) calls Limatus.
  */
-export function editorialChecksSchemaDefinitions() {
-  return {
+export const editorialChecksSchemaDefinitions = {
     EditorialPolicy: a
       .model({
         id: a.id().required(),
@@ -93,4 +92,3 @@ export function editorialChecksSchemaDefinitions() {
       .authorization((allow) => [allow.group("admin")])
       .handler(a.handler.function(editorialChecks)),
   };
-}

@@ -1,7 +1,7 @@
 {
   "id": "PPY-6c531f38-ff5c-4bff-8607-949ee6b31d92",
   "title": "TI-01: re-capture TI baselines (robots now 200, zone 36 records, six associations)",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-01. ACCEPT: two runs of run_all.sh give identical checksums.txt; routes show robots 200 Allow on production and Disallow+noindex on staging, sitemap 404; zone 36 records saved; list-domain-associations of the six apps and get-domain-association d2hbn1ig6nqyhy saved; Anth.us hashes+cert serial saved.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-01. ACCEPT: two runs of run_all.sh give identical checksums.txt; routes show robots 200 Allow on production and Disallow+noindex on staging, sitemap 404; zone 36 records saved; list-domain-associations of the six apps and get-domain-association d2hbn1ig6nqyhy saved; Anth.us hashes+cert serial saved.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

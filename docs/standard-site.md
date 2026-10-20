@@ -166,7 +166,7 @@ or cost becomes a real problem.
 
 **Python extras.** Base install = PyYAML, citeproc-py, `limatus`. `limatus` is a
 **base** dependency because the `papyrus` CLI imports it at import time
-(`papyrus editorial`, `papyrus_content/editorial_checks.py`), and the editorial-checks plugin's function bundles it.
+(`papyrus editorial`, `papyrus_content/editorial_checks.py`), and the core editorial-checks function bundles it.
 The `markus` extra is `anthus-markus`, Pillow and boto3 (the static Markus reader
 build needs base + `markus`; boto3 serves guest S3 media and the guest Cognito
 identity lane of `export-published --auth guest`). The `newsroom` extra is boto3, markitdown, tiktoken, tactus.
@@ -182,7 +182,7 @@ bundling is unaffected: it installs with `--python-version 3.12
 
 **Removing a local `tactus @ file:///...` checkout path (done in PR #100).**
 `tactus >=0.52,<1` from PyPI (0.52.0) replaces it; the wheel metadata has no
-`file:` or `git+` requirement. `limatus` is pinned to one minor release (`limatus >=0.31,<0.32`): Limatus is
+`file:` or `git+` requirement. `limatus` is pinned to one minor release (`limatus >=0.32,<0.33`): Limatus is
 below 1.0, so a minor release may change its contracts; move the pin deliberately.
 Local Tactus development uses a dev-only override
 (`[tool.uv.sources]` or a local `pip install -e`), never the published

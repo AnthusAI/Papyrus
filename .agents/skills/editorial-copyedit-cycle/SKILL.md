@@ -23,7 +23,7 @@ editor, marked in the markup and on the preview.
   doctrine and the selected section overlay before editing:
 
   ```bash
-  papyrus editorial context --backend cloud --publication PUBLICATION_KEY --section SECTION_ID --format json
+  papyrus editorial context --backend cloud --section SECTION_ID --format json
   papyrus editorial pack --section SECTION_ID
   ```
 

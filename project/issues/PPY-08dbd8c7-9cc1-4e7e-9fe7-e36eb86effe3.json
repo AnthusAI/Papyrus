@@ -1,0 +1,20 @@
+{
+  "id": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+  "title": "M1 Subscriptions and sending foundation: SES per site, double opt-in signup, subscriber records, one-click unsubscribe",
+  "description": "Outcome: a publication collects real, consented subscribers, and Distinctive Mark's existing signup forms go live (newsletter.signupEndpoint set; the subscribe page stops saying signups are not open). Worth shipping before any issue exists, because a list takes time to grow.\n\nScope:\n- Per-site SES sending identity: sending subdomain, Easy DKIM, custom MAIL FROM, SPF, DMARC (Route 53 records), configuration set per site; SES production access request for papyrus-production (a support case, about a day).\n- Bounce and complaint events (EventBridge) feed an automatic suppression list (SES account suppression plus our own per-site record).\n- Alarms on per-site bounce and complaint rates that pause that site's sending before AWS thresholds (about 5% bounce, 0.1% complaint) can pause the shared account.\n- Public signup endpoint: unauthenticated, rate-limited, bot challenge (e.g. Turnstile), double opt-in confirmation email. Choose its public path deliberately: /api/* on a /newsroom site already routes to the CMS app through the edge.\n- Subscriber records: encrypted, separate from the content schema, lists and topic preferences, consent proof, status history; admin-only listing and export; erasure.\n- One-click unsubscribe (RFC 8058) and signed per-subscriber preference links, served by a small dynamic endpoint (the public site is static).\n- Feature flag PAPYRUS_ENABLE_NEWSLETTERS; docs for enabling a site.\n\nDone when: on distinctive-mark.com a reader subscribes, confirms by email, changes topics through a signed link, unsubscribes in one click from a real message, and an admin sees the subscriber count in the newsroom; a simulated bounce and complaint (SES mailbox simulator) are suppressed and alarmed.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-31455fd1-82ca-4dbf-a1be-fd91aec680e0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T22:12:56.427467Z",
+  "updated_at": "2026-10-20T22:12:56.427501Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

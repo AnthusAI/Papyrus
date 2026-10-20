@@ -32,7 +32,7 @@ Feature: Current editorial context for newsroom agents
     When the research worker is prepared with caller-supplied policy text
     Then the worker receives the current resolved policy before dispatch
 
-  Scenario: Publication configuration points at another publication
+  Scenario: The caller expects another publication than the backend serves
     Given editorial records with current publication and section policies
     And the hosted canonical corpus belongs to another publication
     When the agent resolves editorial context for assignment "a1"

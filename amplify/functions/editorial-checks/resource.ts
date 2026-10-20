@@ -5,7 +5,7 @@ import type { Construct } from "constructs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { pythonLambdaCode } from "../../../functions/shared/python-bundle";
+import { pythonLambdaCode } from "../shared/python-bundle";
 
 const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -13,7 +13,7 @@ const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
 export const EDITORIAL_CHECKS_TIMEOUT_SECONDS = 28;
 
 /** Limatus with the Jev classifier lane; papyrus_content.editorial_checks does the work. */
-export const editorialChecksRequirements = ["limatus[jev]>=0.31,<0.32"];
+export const editorialChecksRequirements = ["limatus[jev]>=0.32,<0.33"];
 
 function installRequirements(outputDir: string): void {
   execFileSync(
@@ -37,7 +37,7 @@ export const editorialChecks = defineFunction(
       memorySize: 1024,
       code: pythonLambdaCode(
         {
-          functionDir: "../plugins/editorial-checks/function",
+          functionDir: "editorial-checks",
           modules: ["papyrus_content"],
           requirements: editorialChecksRequirements,
           noDeps: true,
@@ -49,9 +49,9 @@ export const editorialChecks = defineFunction(
           [
             "set -euo pipefail",
             "mkdir -p /asset-output/papyrus_content",
-            "cp amplify/plugins/editorial-checks/function/handler.py /asset-output/handler.py",
+            "cp amplify/functions/editorial-checks/handler.py /asset-output/handler.py",
             "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
-            "python3 -m pip install -r amplify/plugins/editorial-checks/function/requirements.txt -t /asset-output --no-cache-dir",
+            "python3 -m pip install -r amplify/functions/editorial-checks/requirements.txt -t /asset-output --no-cache-dir",
           ].join(" && "),
         ],
       ),
