@@ -1,4 +1,4 @@
-"""Targeted CloudFront invalidations: exact paths, batched, retried on throttling, counted for the monthly alarm."""
+"""CloudFront invalidations: exact paths for small runs, one wildcard for large ones, retried on throttling, counted for the monthly alarm."""
 
 from __future__ import annotations
 
@@ -9,7 +9,10 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 from urllib.parse import quote
 
-MAXIMUM_PATHS_PER_BATCH = 500
+WILDCARD_INVALIDATION_PATH = "/*"
+# CloudFront bills every path in an invalidation ($0.005 after 1,000 a month) but a wildcard counts as one,
+# so a run that would purge more than this many paths purges everything with a single "/*".
+WILDCARD_THRESHOLD = 10
 THROTTLED_ERROR_CODES = frozenset(
     {"Throttling", "ThrottlingException", "TooManyInvalidationsInProgress", "ServiceUnavailable", "RequestLimitExceeded"}
 )
@@ -21,7 +24,7 @@ METRIC_DIMENSION = "DistributionId"
 
 
 class WholeSiteInvalidationRefused(ValueError):
-    """The edge is purged by exact path; a wildcard would clear every page and costs a path per match."""
+    """Callers name exact paths; the wildcard is only ever chosen here, when a run is too large to list."""
 
 
 def encoded_path(path: str) -> str:
@@ -68,19 +71,22 @@ def invalidate_distribution(
     *,
     sleep: Callable[[float], None] = time.sleep,
 ) -> list[str]:
-    """Invalidate exactly these paths on one distribution, in batches; returns the paths invalidated."""
+    """Invalidate these paths on one distribution with one call; returns the paths invalidated.
+
+    More than ``WILDCARD_THRESHOLD`` distinct paths become a single ``/*``, which bills as one path.
+    """
     unique = list(dict.fromkeys(encoded_path(path) for path in paths))
     refuse_wildcards(unique)
     if not unique:
         return []
+    if len(unique) > WILDCARD_THRESHOLD:
+        unique = [WILDCARD_INVALIDATION_PATH]
     if cloudfront_client is None:
         import boto3
 
         cloudfront_client = boto3.client("cloudfront")
-    for start in range(0, len(unique), MAXIMUM_PATHS_PER_BATCH):
-        batch = unique[start : start + MAXIMUM_PATHS_PER_BATCH]
-        _create_invalidation_with_retries(cloudfront_client, distribution_id, batch, sleep)
-        emit_invalidated_paths_metric(distribution_id, len(batch))
+    _create_invalidation_with_retries(cloudfront_client, distribution_id, unique, sleep)
+    emit_invalidated_paths_metric(distribution_id, len(unique))
     return unique
 
 
