@@ -200,7 +200,6 @@ export type ProcedureRunRecord = {
   newsroomFeedKey?: string | null;
 };
 
-const DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
 const NEWSROOM_SECTION_TYPES = new Set<NewsroomSectionType>(["canonical", "floating", "rotating"]);
 type NewsroomSectionSeedRow = Omit<NewsroomSectionRecord, "sortOrder" | "enabled" | "enabledStatus" | "createdAt" | "updatedAt"> & {
   enabled: boolean;
@@ -690,10 +689,10 @@ export type CategorySteeringDashboard = {
   loadError?: string | null;
 };
 
-const DEFAULT_ANALYSIS_PROFILES_PATH = path.join(process.cwd(), "corpora", "papyrus-analysis-profiles.yml");
-const DEFAULT_STEERING_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-steering.yml");
 
-export async function loadAnalysisProfileSummaries(filepath = DEFAULT_ANALYSIS_PROFILES_PATH): Promise<AnalysisProfileSummary[]> {
+/** Analysis profiles the site keeps in a file; a site that configures none (data-driven sites) has none. No default file is looked up. */
+export async function loadAnalysisProfileSummaries(filepath?: string): Promise<AnalysisProfileSummary[]> {
+  if (!filepath) return [];
   try {
     const parsed = YAML.parse(fs.readFileSync(filepath, "utf8")) as {
       schemaVersion?: number;
@@ -722,7 +721,9 @@ export async function loadAnalysisProfileSummaries(filepath = DEFAULT_ANALYSIS_P
   }
 }
 
-export async function loadConfiguredCorpusSummaries(filepath = DEFAULT_STEERING_CONFIG_PATH): Promise<CategorySteeringCorpus[]> {
+/** Corpora a site lists in a steering file; no configured file means none. No default file is looked up. */
+export async function loadConfiguredCorpusSummaries(filepath?: string): Promise<CategorySteeringCorpus[]> {
+  if (!filepath) return [];
   try {
     const parsed = YAML.parse(fs.readFileSync(filepath, "utf8")) as {
       corpora?: Array<Record<string, unknown>>;
@@ -818,7 +819,8 @@ function sortCategorys(categorys: CategorySteeringCategory[]): CategorySteeringC
   });
 }
 
-function defaultNewsroomSections(importedAt: string, sectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH): NewsroomSectionRecord[] {
+function defaultNewsroomSections(importedAt: string, sectionsConfigPath?: string): NewsroomSectionRecord[] {
+  if (!sectionsConfigPath) return [];
   return loadNewsroomSectionSeedRows(sectionsConfigPath).map((row, index) => ({
     ...row,
     enabledStatus: "enabled",
@@ -828,7 +830,7 @@ function defaultNewsroomSections(importedAt: string, sectionsConfigPath = DEFAUL
   }));
 }
 
-function loadNewsroomSectionSeedRows(sectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH) {
+function loadNewsroomSectionSeedRows(sectionsConfigPath: string) {
   const cached = newsroomSectionSeedRowsCache.get(sectionsConfigPath);
   if (cached) return cached;
   const parsed = YAML.parse(fs.readFileSync(sectionsConfigPath, "utf8")) as {
@@ -883,7 +885,7 @@ function normalizeNewsroomSectionSeedRow(
 
 export function createDemoCategorySteeringDashboard(
   brandId: SiteBrandId = resolveSiteBrandId(),
-  newsroomSectionsConfigPath = DEFAULT_NEWSROOM_SECTIONS_CONFIG_PATH,
+  newsroomSectionsConfigPath?: string,
 ): CategorySteeringDashboard {
   const importedAt = "2026-05-16T12:00:00.000Z";
   const profile = getNewsroomDemoProfile(brandId);
