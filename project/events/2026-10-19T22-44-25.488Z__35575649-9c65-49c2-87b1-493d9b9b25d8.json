@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "35575649-9c65-49c2-87b1-493d9b9b25d8",
+  "issue_id": "PPY-f6981769-b05d-48ff-9548-c1d9317cb0d5",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-19T22:44:25.488Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "993319bb-2fd8-422c-a842-07ae15a284db",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "ChatGPT",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}
