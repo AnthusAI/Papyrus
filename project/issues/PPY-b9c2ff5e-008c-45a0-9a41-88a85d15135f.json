@@ -34,10 +34,22 @@
         "model": "GPT-6",
         "name": "dataparade-preparation"
       }
+    },
+    {
+      "id": "9d3344ed-7266-440e-b2b8-9ffad0d60b16",
+      "author": "home",
+      "text": "Paused for usage-limit handoff. Draft PR388 source checkpoint17d8b6ba11d456b7bb5aede163d2a4a10b2582de has terminal passing Python/TS/package-smoke CI.76 unit tests and6 isolated Behave scenarios passed. Full Claude handoff, exact commands, blockers, approval boundaries and preservation instructions are on existing activation task PPY-90711b3b-4684-4782-bb7e-9d788794a373 (assignee claude-continuation). No uncommitted source patch or uncertain external write. Keep inactive and do not close until landed.",
+      "created_at": "2026-10-20T15:23:09.003752Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
     }
   ],
   "created_at": "2026-10-20T14:27:21.356941Z",
-  "updated_at": "2026-10-20T14:58:22.164553Z",
+  "updated_at": "2026-10-20T15:23:09.003768Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
