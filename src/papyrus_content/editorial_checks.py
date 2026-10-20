@@ -118,6 +118,19 @@ def _json(value: Any, default: Any) -> Any:
     return json.loads(value) if isinstance(value, str) else value
 
 
+def _awsjson_document(value: Any) -> Any:
+    """The JSON document an AWSJSON field delivers.
+
+    The resolver returns the stringified document, so AppSync hands it over as a JSON string whose content is the
+    document: decode until it is no longer a string (at most twice, never looping on a plain string).
+    """
+    for _ in range(2):
+        if not isinstance(value, str):
+            break
+        value = json.loads(value)
+    return value
+
+
 def policy_from_record(record: dict[str, Any]) -> dict[str, Any]:
     """A stored EditorialPolicy as a Limatus policy (its key becomes the policy id)."""
     policy = {
@@ -379,7 +392,7 @@ class GraphQLEditorialStore:
         result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
           getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId)
         }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
-        pack = checked_context(_json(result, None), publication=publication, section=section)
+        pack = checked_context(_awsjson_document(result), publication=publication, section=section)
         if (pack['publication'].get('tenantId') or None) != (tenant_id_from_environment() or None):
             raise ValueError('Editorial context tenant mismatch')
         return pack
