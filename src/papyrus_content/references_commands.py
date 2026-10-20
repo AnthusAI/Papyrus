@@ -3,16 +3,11 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
-import socket
 import subprocess
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 from papyrus_newsroom import reference_actions as newsroom_reference_actions
 
@@ -78,17 +73,6 @@ from .reference_labels import (
 from .reference_policy import normalize_reference_rejection_reason_code
 from .source_readiness import build_extraction_index
 from .steering import load_steering_config, require_corpus_config, require_steering_config
-
-DEFAULT_GROBID_URL = "http://127.0.0.1:8070"
-GROBID_CONTAINER_NAME_ENV = "BIBLICUS_GROBID_CONTAINER_NAME"
-GROBID_DOCKER_IMAGE_ENV = "BIBLICUS_GROBID_DOCKER_IMAGE"
-DEFAULT_GROBID_CONTAINER_NAME = "biblicus-grobid"
-DEFAULT_GROBID_DOCKER_IMAGE = "lfoppiano/grobid:0.8.0"
-DOCKER_CANDIDATE_PATHS = (
-    "/usr/local/bin/docker",
-    "/opt/homebrew/bin/docker",
-    "/Applications/Docker.app/Contents/Resources/bin/docker",
-)
 
 
 def _section_option(options: dict[str, Any]) -> str:
@@ -983,9 +967,11 @@ def references_fetch_url_text(flags: list[str]) -> None:
     bucket = normalize_string(options.get("bucket"))
     model = normalize_string(options.get("model")) or DEFAULT_REFERENCE_FILTER_MODEL
     pdf_only = parse_boolean_option(options.get("pdf-only"), False, "--pdf-only")
-    grobid_url = _resolve_grobid_url(options)
+    from biblicus.grobid_runtime import ensure_grobid_running, resolve_grobid_base_url
+
+    grobid_url = normalize_string(options.get("grobid-url")) or resolve_grobid_base_url()
     try:
-        _ensure_cli_grobid_runtime(grobid_url)
+        grobid_url = ensure_grobid_running(grobid_url)
     except RuntimeError as error:
         raise RuntimeError(
             "GROBID runtime preflight failed for references process-fetch-url-text. "
@@ -1770,14 +1756,6 @@ def references_export_scope_training(flags: list[str]) -> None:
     )
 
 
-def _resolve_grobid_url(options: dict[str, Any]) -> str:
-    return (
-        normalize_string(options.get("grobid-url"))
-        or str(os.environ.get("BIBLICUS_GROBID_URL") or "").strip()
-        or DEFAULT_GROBID_URL
-    )
-
-
 def _require_reference_process_runtime(command_name: str) -> None:
     runtime_role = str(os.environ.get("PAPYRUS_RUNTIME_ROLE") or "").strip().lower()
     if runtime_role and runtime_role not in {"cli", "worker"}:
@@ -1790,180 +1768,6 @@ def _require_reference_process_runtime(command_name: str) -> None:
             f"{command_name} requires utility worker runtime with reachable GROBID service/container. "
             "API/Lambda runtime is not supported for process commands."
         )
-
-
-def _ensure_cli_grobid_runtime(grobid_url: str) -> None:
-    parsed = urlparse(grobid_url)
-    host = (parsed.hostname or "").strip().lower()
-    port = int(parsed.port or (443 if parsed.scheme == "https" else 80))
-    if _grobid_is_alive(grobid_url):
-        return
-    if host not in {"127.0.0.1", "localhost"}:
-        raise RuntimeError(
-            f"GROBID is not reachable at {grobid_url}. Auto-start is only supported for localhost endpoints. "
-            "For remote endpoints, start the service and retry."
-        )
-    _start_or_reuse_local_grobid_container(port=port)
-    _await_grobid_ready(grobid_url)
-
-
-def _grobid_is_alive(grobid_url: str) -> bool:
-    probe_url = f"{grobid_url.rstrip('/')}/api/isalive"
-    request = Request(probe_url, method="GET")
-    try:
-        with urlopen(request, timeout=2.0) as response:
-            status = int(getattr(response, "status", response.getcode()))
-            if status < 200 or status >= 300:
-                return False
-            payload = response.read().decode("utf-8", errors="replace").strip().lower()
-            return "true" in payload or payload == ""
-    except Exception:
-        return False
-
-
-def _port_is_open(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(1.0)
-        return sock.connect_ex((host, port)) == 0
-
-
-def _start_or_reuse_local_grobid_container(*, port: int) -> None:
-    docker_command = _resolve_docker_command()
-    if not docker_command:
-        raise RuntimeError(
-            "Docker binary was not found. Cannot auto-start local GROBID container. "
-            "Install Docker Desktop/CLI or set BIBLICUS_GROBID_URL to a reachable service."
-        )
-    _ensure_docker_daemon_ready(docker_command)
-
-    container_name = str(os.environ.get(GROBID_CONTAINER_NAME_ENV) or DEFAULT_GROBID_CONTAINER_NAME).strip()
-    image = str(os.environ.get(GROBID_DOCKER_IMAGE_ENV) or DEFAULT_GROBID_DOCKER_IMAGE).strip()
-    running = _docker_lines(
-        docker_command,
-        [
-            "ps",
-            "--filter",
-            f"name=^/{container_name}$",
-            "--filter",
-            "status=running",
-            "--format",
-            "{{.ID}}",
-        ]
-    )
-    if running:
-        return
-
-    existing = _docker_lines(
-        docker_command,
-        [
-            "ps",
-            "-a",
-            "--filter",
-            f"name=^/{container_name}$",
-            "--format",
-            "{{.ID}}",
-        ]
-    )
-    if existing:
-        completed = subprocess.run(
-            [docker_command, "start", container_name],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if completed.returncode != 0:
-            stderr = (completed.stderr or completed.stdout or "").strip()
-            raise RuntimeError(f"Failed to start existing GROBID container {container_name}: {stderr}")
-        return
-
-    completed = subprocess.run(
-        [
-            docker_command,
-            "run",
-            "-d",
-            "--name",
-            container_name,
-            "-p",
-            f"{port}:8070",
-            image,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        stderr = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(
-            f"Failed to launch GROBID container {container_name} using {image}: {stderr}"
-        )
-
-
-def _await_grobid_ready(grobid_url: str) -> None:
-    deadline = time.time() + 120.0
-    parsed = urlparse(grobid_url)
-    host = (parsed.hostname or "127.0.0.1").strip()
-    port = int(parsed.port or (443 if parsed.scheme == "https" else 80))
-    while time.time() < deadline:
-        if _port_is_open(host, port) and _grobid_is_alive(grobid_url):
-            return
-        time.sleep(1.5)
-    raise RuntimeError(
-        f"GROBID did not become ready at {grobid_url} after container start. "
-        "Check Docker container logs and retry."
-    )
-
-
-def _resolve_docker_command() -> str | None:
-    command = shutil.which("docker")
-    if command:
-        return command
-    for candidate in DOCKER_CANDIDATE_PATHS:
-        if Path(candidate).is_file():
-            return candidate
-    return None
-
-
-def _docker_daemon_ready(docker_command: str) -> bool:
-    completed = subprocess.run(
-        [docker_command, "info"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return completed.returncode == 0
-
-
-def _ensure_docker_daemon_ready(docker_command: str) -> None:
-    if _docker_daemon_ready(docker_command):
-        return
-    if sys.platform == "darwin" and Path("/Applications/Docker.app").exists():
-        subprocess.run(
-            ["open", "-a", "Docker"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        deadline = time.time() + 90.0
-        while time.time() < deadline:
-            if _docker_daemon_ready(docker_command):
-                return
-            time.sleep(1.5)
-    raise RuntimeError(
-        "Docker daemon is not ready for GROBID auto-start (attempted local startup). "
-        "Start Docker Desktop and retry, or set BIBLICUS_GROBID_URL to a reachable service."
-    )
-
-
-def _docker_lines(docker_command: str, command: list[str]) -> list[str]:
-    completed = subprocess.run(
-        [docker_command, *command],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return []
-    return [line.strip() for line in (completed.stdout or "").splitlines() if line.strip()]
 
 
 def extract_last_json_object(text: str) -> dict[str, Any] | None:
