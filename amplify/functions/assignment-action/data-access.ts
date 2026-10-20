@@ -71,20 +71,17 @@ export function scopeAssignmentDataAccess(lambda: IFunction, graphqlApiArn: stri
       const roles = stack.resolve(node.roles) as unknown[] | undefined;
       if (!roles?.some((role) => JSON.stringify(role) === JSON.stringify(stack.resolve(roleName)))) return;
       const document = stack.resolve(node.policyDocument) as { Statement: Array<Record<string, unknown>> };
-      node.policyDocument = {
-        ...document,
-        Statement: document.Statement.map((statement) => {
-          const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action];
-          if (actions.includes("*") || actions.includes("appsync:*")) {
-            throw new Error("Unexpected wildcard assignment action; review permissions before synthesis.");
-          }
-          if (!actions.includes("appsync:GraphQL")) return statement;
-          if (statement.Effect !== "Allow" || actions.length !== 1 || statement.NotResource) {
-            throw new Error("Unexpected assignment GraphQL policy; review field scoping before synthesis.");
-          }
-          return { ...statement, Resource: resources };
-        }),
-      };
+      document.Statement.forEach((statement, index) => {
+        const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action];
+        if (actions.includes("*") || actions.includes("appsync:*")) {
+          throw new Error("Unexpected wildcard assignment action; review permissions before synthesis.");
+        }
+        if (!actions.includes("appsync:GraphQL")) return;
+        if (statement.Effect !== "Allow" || actions.length !== 1 || statement.NotResource) {
+          throw new Error("Unexpected assignment GraphQL policy; review field scoping before synthesis.");
+        }
+        node.addPropertyOverride(`PolicyDocument.Statement.${index}.Resource`, resources);
+      });
     },
   });
 }

@@ -5,9 +5,10 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { a, defineBackend, defineFunction } from "@aws-amplify/backend";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
-import { Stack } from "aws-cdk-lib";
+import { NestedStack, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { Role, ServicePrincipal, PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { Bucket } from "aws-cdk-lib/aws-s3";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { schema, schemaWithPlugins } from "../amplify/data/schema";
 import { assignmentAction } from "../amplify/functions/assignment-action/resource";
@@ -50,12 +51,26 @@ async function verifyGeneratedConfiguration() {
         authorizationModes: { defaultAuthorizationMode: "apiKey" } }, ""),
     });
     const lambda = backend.worker.resources.lambda;
+    const stack = Stack.of(lambda);
+    const storage = new NestedStack(stack.nestedStackParent ?? stack, "AssignmentSharedStorage");
+    new Bucket(storage, "Media").grantReadWrite(lambda);
     const apiArn = "arn:aws:appsync:us-east-1:123456789012:apis/synthetic";
     scopeAssignmentDataAccess(lambda, apiArn);
-    const stack = Stack.of(lambda);
     const otherRole = new Role(stack, "UnrelatedWorkerRole", { assumedBy: new ServicePrincipal("lambda.amazonaws.com") });
     otherRole.addToPolicy(new PolicyStatement({ actions: ["appsync:GraphQL"], resources: [`${apiArn}/types/Query/*`] }));
     const template = Template.fromStack(stack).toJSON();
+    const assertLocalReferences = (value: unknown): void => {
+      if (Array.isArray(value)) return value.forEach(assertLocalReferences);
+      if (!value || typeof value !== "object") return;
+      const object = value as Record<string, unknown>;
+      const attribute = object["Fn::GetAtt"];
+      if (attribute) {
+        const target = Array.isArray(attribute) ? attribute[0] : String(attribute).split(".")[0];
+        assert.ok(template.Resources[String(target)], `cross-stack reference must remain valid: ${target}`);
+      }
+      Object.values(object).forEach(assertLocalReferences);
+    };
+    assertLocalReferences(template.Resources);
     const role = stack.resolve(lambda.role!.roleName);
     const resources = Object.values(template.Resources) as Array<{
       Type: string; Properties: Record<string, any>;
