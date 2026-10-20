@@ -1,0 +1,10 @@
+@import "@fontsource-variable/literata/wght.css";
+@import "@fontsource-variable/public-sans/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+/* Fontsource names variable families "<Family> Variable"; the Kanbus theme names the plain family. */
+[data-kanbus-theme="night-desk"][data-kanbus-theme] {
+  --kb-theme-title-font: "Literata Variable", Literata, "Iowan Old Style", Georgia, serif;
+  --kb-theme-ui-font: "Public Sans Variable", "Public Sans", system-ui, sans-serif;
+  --kb-theme-mono-font: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, monospace;
+}

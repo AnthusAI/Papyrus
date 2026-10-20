@@ -1,0 +1,39 @@
+/* The newsroom is one Kanbus theme scope ([data-kanbus-theme] on the organizer root and on
+   the portaled menus). The theme's --kb-theme-* tokens are the only source of colour and type:
+   the organizer's --org-* variables and the shared shadcn tokens are mapped from them here.
+   Publications adjust the look by overriding --kb-theme-* in their theme.css. */
+
+/* The wordmark stays Playfair Display (next/font exposes it as --font-serif on body; the Kanbus
+   scope remaps --font-serif to the title face, so keep a separate handle). */
+body { --font-wordmark: var(--font-serif); }
+
+[data-kanbus-theme]:is(.newsroom-organizer, .organizer-menu, .organizer-account-popup) {
+  --org-paper: var(--kb-theme-paper);
+  --org-ink: var(--kb-theme-ink);
+  --org-line: var(--kb-theme-rule);
+  --org-muted: var(--kb-theme-muted);
+  --org-accent: var(--kb-theme-accent);
+  --org-on-accent: var(--kb-theme-on-accent);
+  --org-sidebar: var(--kb-theme-sidebar);
+  --org-panel: var(--kb-theme-panel);
+  --org-title-font: var(--kb-theme-title-font);
+  --org-ui-font: var(--kb-theme-ui-font);
+  --org-mono-font: var(--kb-theme-mono-font);
+
+  --foreground: var(--kb-theme-ink);
+  --foreground-strong: var(--kb-theme-ink);
+  --foreground-muted: var(--kb-theme-muted);
+  --card-foreground: var(--kb-theme-ink);
+  --popover: var(--kb-theme-panel);
+  --popover-foreground: var(--kb-theme-ink);
+  --primary: var(--kb-theme-accent);
+  --primary-foreground: var(--kb-theme-on-accent);
+  --secondary: color-mix(in oklab, var(--kb-theme-paper) 94%, var(--kb-theme-ink));
+  --secondary-foreground: var(--kb-theme-ink);
+  --muted: color-mix(in oklab, var(--kb-theme-paper) 94%, var(--kb-theme-ink));
+  --muted-foreground: var(--kb-theme-muted);
+  --accent: color-mix(in oklab, var(--kb-theme-paper) 92%, var(--kb-theme-ink));
+  --accent-foreground: var(--kb-theme-ink);
+  --input: var(--kb-theme-rule);
+  --ring: var(--kb-theme-accent);
+}

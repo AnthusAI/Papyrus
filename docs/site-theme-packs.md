@@ -4,6 +4,18 @@ Papyrus newsroom (`/newsroom`) is a **platform** surface. It is not a
 Pilobolus app. Every publication reuses the same Shadcn ops chrome and
 customizes appearance through a **theme pack** on `SiteBrand`.
 
+> **Newsroom look: Kanbus editorial themes.** The newsroom (sidebar, toolbar,
+> boards, detail panel, menus) is styled only by the brand's
+> `kanbusTheme` (`refined-newsprint`, `newspaper-gothic`, `night-desk` or
+> `broadsheet-green`; Anth.us newspaper-gothic, Pilobol.us refined-newsprint,
+> p.apyr.us broadsheet-green, Threat Intelligence night-desk). Editors cannot
+> change it; light/dark follows their mode setting. `components/newsroom-theme.css`
+> maps the organizer's `--org-*` and the shared Shadcn tokens from the theme's
+> `--kb-theme-*` tokens. A publication retunes the look by overriding
+> `--kb-theme-*` in its `theme.css` (no overrides of Kanbus internals). The theme
+> packs below still colour the public reader surfaces only; the newsroom ignores them.
+> Fonts are bundled per theme (`components/newsroom-theme-fonts/`); the wordmark stays Playfair Display.
+
 Kanbus: PPY-43704a / PPY-5a5570. Acceptance client: Pilobol.us.
 
 ## Independent axes (do not collapse them)
