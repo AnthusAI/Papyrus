@@ -16,11 +16,16 @@ from decision_flywheel.publication_lab import (
 from papyrus_content.curation_host import EmbeddedPublicationTransport
 from papyrus_content.publication_bff import PublicationBFF, PublicationSelection
 from papyrus_content.monitoring_routing import PublicationRoute, RoutingFailure, route_discovery
+from papyrus_content.site_cyclotron import site_classifier_specs
 
 PUBLICATIONS = ('papyrus', 'threat-intelligence', 'anthus', 'pilobolus')
 ITEM = {'id': 'synthetic-hn-source-revision-1', 'values': {
     'title': 'Synthetic shared source', 'source_uri': 'https://example.invalid/source',
     'text': 'Explicitly synthetic contract input; never live evaluation evidence.'}}
+SECTIONS = [{'id': name, 'title': name.title(), 'enabled': enabled, 'sortOrder': order}
+            for order, (name, enabled) in enumerate((('research', True), ('commentary', True), ('retired', False)))]
+SECTION_SPECS = tuple(site_classifier_specs(SECTIONS))
+SECTION_OUTPUTS = tuple(spec.id for spec in SECTION_SPECS)
 
 
 class OfflineModel:
@@ -28,9 +33,13 @@ class OfflineModel:
     def __init__(self): self.calls, self.excluded = [], set()
     async def classify_many(self, configs, target, training, **kwargs):
         self.calls.append((tuple(configs), target.id))
-        return BatchedAnswers({cid: {'decision': DecisionResult('exclude' if cid in self.excluded else 'include',
-                               {'include': .2 if cid in self.excluded else .8, 'exclude': .8 if cid in self.excluded else .2})}
-                               for cid in configs}, 'offline-contract', {}, 1)
+        answers = {}
+        for cid, config in configs.items():
+            labels = tuple(config.task.labels)
+            label = 'exclude' if cid in self.excluded else labels[0]
+            answers[cid] = {'decision': DecisionResult(label, {
+                value: .8 if value == label else .2 / (len(labels) - 1) for value in labels})}
+        return BatchedAnswers(answers, 'offline-contract', {}, 1)
 
 
 def setup(tmp_path):
@@ -46,17 +55,15 @@ def setup(tmp_path):
     engines, models, clients, routes = [], {}, {}, []
     for pub in PUBLICATIONS:
         models[pub] = OfflineModel()
-        local = Cyclotron.open(tmp_path / pub, CyclotronDefinition('synthetic-sections-' + pub, tuple(
-            ClassifierSpec(section, ('include', 'exclude'), 'Synthetic section fit?', positive_label='include')
-            for section in ('research', 'commentary'))), models[pub])
+        local = Cyclotron.open(tmp_path / pub, CyclotronDefinition('synthetic-sections-' + pub, SECTION_SPECS), models[pub])
         engines.append(local)
         local_lab = PublicationLab(local, account_id=actor.account_id, bindings=(
-            PublicationBinding(pub, ('research', 'commentary'), 'sections-v1'),))
+            PublicationBinding(pub, SECTION_OUTPUTS, 'sections-v1'),))
         selection = PublicationSelection(actor.account_id, actor.actor_id, pub, 'sections-v1')
         clients[pub] = EmbeddedPublicationTransport(PublicationBFF(
             resolve_selection=lambda _, scope=selection: scope,
             resolve_access=lambda _, p, cap, bound=local_lab: PublicationAccess(bound, actor)), None)
-        routes.append(PublicationRoute(pub, 'remote-v1', pub, 'include', 'sections-v1', ('research', 'commentary')))
+        routes.append(PublicationRoute(pub, 'remote-v1', pub, 'include', 'sections-v1', SECTION_OUTPUTS))
     return shared, shared_model, actor, lab, engines, models, clients, routes
 
 
@@ -78,7 +85,9 @@ def test_shared_remote_request_and_integrated_multi_section_outputs(tmp_path):
             assert set(result['publications']) == set(PUBLICATIONS)
             for pub, row in result['publications'].items():
                 assert set(row['relevance']['decision']['classifiers']) == {pub}
-                assert set(row['sections']['decision']['classifiers']) == {'research', 'commentary'}
+                assert set(row['sections']['decision']['classifiers']) == set(SECTION_OUTPUTS)
+                assert len(SECTION_OUTPUTS) == 3  # Two enabled section fits plus the existing selector.
+                assert not any('retired' in output for output in SECTION_OUTPUTS)
                 assert len(models[pub].calls) == 1
             assert not shared.labels() and all(not engine.labels() for engine in engines)
     try: asyncio.run(run())
