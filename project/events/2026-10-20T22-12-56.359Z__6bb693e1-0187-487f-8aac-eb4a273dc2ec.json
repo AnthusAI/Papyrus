@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6bb693e1-0187-487f-8aac-eb4a273dc2ec",
+  "issue_id": "PPY-31455fd1-82ca-4dbf-a1be-fd91aec680e0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T22:12:56.359Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Outbound newsletters: subscriptions, scheduled issues and sending through SES",
+    "description": "Papyrus publications send their own newsletters: readers subscribe on the public site, editors compose issues in the newsroom, admins approve each issue for a scheduled time, and the site backend sends it through Amazon SES with no person or laptop involved at send time. First client: Distinctive Mark (distinctive-mark.com, newsletter \"The Docket\", weekly plus precedential alerts by topic); its public site already has the signup forms and subscribe page, posting to newsletter.signupEndpoint (null until this ships).\n\nDistinct from epic 68d06c (Email and newsletter monitoring intake), which READS other publications' newsletters. This initiative SENDS ours.\n\nDecisions (Ryan, 2026-10-20):\n- Storage follows the card-catalog rule: DynamoDB indexes (issue records, schedules, send ledger, event aggregates) in the existing Papyrus data schema; S3 holds the shelves (rendered issue HTML and text, web archive copies, raw SES events).\n- Subscriber records are personal data, not content: encrypted, kept apart from the content schema, never readable through the guest or editor content API, admin-only export.\n- Only admins approve a send. Nobody presses a live Send: approval schedules the issue for a time (EventBridge Scheduler, stored in UTC, shown in the publication time zone). At fire time the send run re-checks that the issue is still scheduled and unchanged since approval (content hash); an edited issue returns to draft and nothing is sent.\n- A recurring cadence (The Docket, every Friday) assembles a draft and notifies admins; it never sends without an admin approval for that issue. No approval, no issue.\n- Paid newsletters are out of scope (YAGNI).\n\nConstraints to design for:\n- SES sending quota, reputation and sandbox are per account and region, and every site lives in papyrus-production: one site's bounces or complaints can pause sending for all sites. Per-site configuration sets, sending subdomains and alarms that pause one site before AWS pauses the account.\n- Gmail/Yahoo bulk-sender rules: SPF, DKIM, aligned DMARC, one-click unsubscribe (RFC 8058 List-Unsubscribe-Post) honoured within two days, spam rate under 0.3%.\n- CAN-SPAM postal address and unsubscribe in every message; consent proof per subscriber (time, form, wording shown, confirmation) for GDPR/CASL; double opt-in; erasure on request.\n- Sponsored blocks may be attorney advertising (Distinctive Mark's sponsor is a lawyer) and must carry the same labelling as on the site.\n- A per-site feature flag (PAPYRUS_ENABLE_NEWSLETTERS); the email template and sponsor slots are a per-site plugin seam like the SiteProjector.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
