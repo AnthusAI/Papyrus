@@ -202,3 +202,38 @@ def test_operational_projection_keeps_existing_intake_reason():
     reference,_=service()._reference('https://example.invalid/paper')
     item=reference_item(reference)
     assert item.values['ingestion_rationale']==reference['curationStatusReason']
+
+
+def failing_pipeline(monkeypatch,**result):
+    from papyrus_content import reference_url_text
+    base={'failures':[],'plans':[],'referenceRecords':[],'graphRecords':[],'filterFallbacks':[]}
+    monkeypatch.setattr(reference_url_text,'build_reference_url_text_attachment_plans',lambda **kwargs:{**base,**result})
+
+
+def test_extraction_failure_names_its_reason_code_and_message(monkeypatch):
+    from papyrus_content.priming_curation import ExtractionIncomplete
+    failing_pipeline(monkeypatch,failures=[{'reason':{'code':'grobid_unreachable','message':'GROBID did not answer.'}}])
+    with pytest.raises(ExtractionIncomplete) as raised:
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+    assert 'grobid_unreachable' in str(raised.value) and 'GROBID did not answer.' in str(raised.value)
+    assert raised.value.code=='grobid_unreachable' and raised.value.transient is True
+
+
+def test_bad_source_failure_is_not_transient(monkeypatch):
+    from papyrus_content.priming_curation import ExtractionIncomplete
+    failing_pipeline(monkeypatch,failures=[{'reason':{'code':'empty_text','message':'No text.'}}])
+    with pytest.raises(ExtractionIncomplete) as raised:
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+    assert raised.value.code=='empty_text' and raised.value.transient is False
+
+
+def test_filter_fallback_names_its_own_cause(monkeypatch):
+    failing_pipeline(monkeypatch,filterFallbacks=[{'reason':{'code':'article_filter_failed','message':'Filter broke.'}}])
+    with pytest.raises(ValueError,match='article_filter_fallback.*article_filter_failed.*Filter broke'):
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+
+
+def test_empty_plan_set_names_its_own_cause(monkeypatch):
+    failing_pipeline(monkeypatch)
+    with pytest.raises(ValueError,match='no_extraction_plans'):
+        service().prepare({'url':'https://example.invalid/paper'},None,'')

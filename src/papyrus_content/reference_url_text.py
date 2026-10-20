@@ -33,6 +33,15 @@ except ModuleNotFoundError:  # pragma: no cover - boto3 exists in normal runtime
     boto3 = None
 
 ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS = 240
+# Longer than Biblicus's 120 s GROBID readiness wait, so a cold start can finish before the child is killed.
+URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS = 300
+URL_TEXT_SUBPROCESS_TIMEOUT_ENVIRONMENT_VARIABLE = "PAPYRUS_URL_TEXT_TIMEOUT_SECONDS"
+
+# Failure codes that mean the extraction service was unavailable, not that the source is bad.
+# A request that hits one is worth trying again on the next run.
+TRANSIENT_FAILURE_CODES = frozenset(
+    {"grobid_unreachable", "grobid_request_failed", "grobid_timeout", "biblicus_timeout"}
+)
 
 
 def build_reference_url_text_attachment_plans(
@@ -2025,10 +2034,19 @@ def _run_biblicus_url_text(payload: dict[str, Any], *, grobid_url: str | None = 
 
     try:
         runner = BiblicusRunner.from_environment(grobid_url=grobid_url)
-        response = runner.extract_url_text(UrlTextRequest(**payload))
+        response = runner.extract_url_text(UrlTextRequest(**payload), timeout_seconds=_url_text_timeout_seconds())
     except BiblicusRunnerError as error:
         raise ReferenceUrlTextExtractionError(reason=error.failure_reason()) from error
     return response.model_dump(mode="json", exclude_unset=True)
+
+
+def _url_text_timeout_seconds() -> float:
+    raw = os.environ.get(URL_TEXT_SUBPROCESS_TIMEOUT_ENVIRONMENT_VARIABLE, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS)
+    return value if value > 0 else float(URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS)
 
 
 def _run_biblicus_article_text(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2148,6 +2166,20 @@ def _is_grobid_failure_reason(reason: dict[str, Any] | None) -> bool:
     if isinstance(details, dict):
         fetch_error = details.get("fetch_error")
         if isinstance(fetch_error, dict) and str(fetch_error.get("code") or "").lower().startswith("grobid_"):
+            return True
+    return False
+
+
+def is_transient_failure_reason(reason: dict[str, Any] | None) -> bool:
+    """True when the reason names an unavailable extraction service rather than a bad source."""
+    if not isinstance(reason, dict):
+        return False
+    if str(reason.get("code") or "").lower() in TRANSIENT_FAILURE_CODES:
+        return True
+    details = reason.get("details")
+    if isinstance(details, dict):
+        fetch_error = details.get("fetch_error")
+        if isinstance(fetch_error, dict) and str(fetch_error.get("code") or "").lower() in TRANSIENT_FAILURE_CODES:
             return True
     return False
 

@@ -38,19 +38,19 @@ export function ReferenceCyclotronStatus({
     setMessage("Sending…");
     try {
       await onRequestRate(choice);
-      setMessage("The next sweep applies it and the status will show who set it.");
+      setMessage("Saved. The new rate takes effect shortly and the status will show who set it.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     }
   }
 
   return (
-    <section aria-label="Relevance cyclotron" className="space-y-2" data-reference-cyclotron-status>
+    <section aria-label="Suggestion status" className="space-y-2" data-reference-cyclotron-status>
       <CyclotronStatusView status={status} />
       {stale ? (
         <p className="text-xs text-foreground" data-reference-cyclotron-status-stale>
           <span aria-hidden="true">⚠ </span>
-          Snapshot from {Math.round(ageHours)} hours ago; the next sweep refreshes it.
+          Status last updated {Math.round(ageHours)} hours ago; it refreshes automatically.
         </p>
       ) : null}
       <button
@@ -59,7 +59,7 @@ export function ReferenceCyclotronStatus({
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
-        {open ? "Hide what the cyclotron is doing" : "What the cyclotron is doing"}
+        {open ? "Hide suggestion details" : "Suggestion details"}
       </button>
       {open ? (
         <div className="space-y-3">

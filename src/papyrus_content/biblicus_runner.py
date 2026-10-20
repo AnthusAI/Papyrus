@@ -190,6 +190,19 @@ class BiblicusCommandTimeoutError(BiblicusRunnerError):
         self.timeout_seconds = timeout_seconds
         super().__init__(f"Biblicus command {' '.join(self.command)} timed out after {timeout_seconds:g} seconds.")
 
+    def failure_reason(self) -> dict[str, Any]:
+        """
+        Describe the timeout as a ``biblicus_timeout`` reason; a hung child is an infrastructure failure, not a bad source.
+
+        :return: Reason object with the elapsed timeout under ``details``.
+        :rtype: dict[str, Any]
+        """
+        return {
+            "code": "biblicus_timeout",
+            "message": str(self),
+            "details": {"timeout_seconds": self.timeout_seconds},
+        }
+
 
 class BiblicusOutputError(BiblicusRunnerError):
     """
@@ -479,16 +492,19 @@ class BiblicusRunner:
         except ValidationError as error:
             raise BiblicusOutputError(command=output.command, stdout=output.stdout, detail=str(error)) from error
 
-    def extract_url_text(self, request: "UrlTextRequest") -> "UrlTextResponse":
+    def extract_url_text(self, request: "UrlTextRequest", *, timeout_seconds: float | None = None) -> "UrlTextResponse":
         """
         Run ``extract url-text``.
 
         :param request: Validated request.
         :type request: biblicus.api.UrlTextRequest
+        :param timeout_seconds: Seconds before the command is killed and abandoned.
+        :type timeout_seconds: float or None
         :return: The extraction response.
         :rtype: biblicus.api.UrlTextResponse
         :raises BiblicusCommandError: If extraction fails. Failures print the response to standard output;
             input failures print to standard error and are not parsed (see ``BiblicusCommandError``).
+        :raises BiblicusCommandTimeoutError: If the command exceeds the timeout.
         """
         from biblicus.api import UrlTextResponse
 
@@ -496,6 +512,7 @@ class BiblicusRunner:
             ["extract", "url-text", "--input-json", "-", "--format", "json"],
             UrlTextResponse,
             stdin_text=request.model_dump_json(),
+            timeout_seconds=timeout_seconds,
             error_stream="stdout",
         )
 

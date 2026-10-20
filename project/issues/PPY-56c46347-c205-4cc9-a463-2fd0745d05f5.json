@@ -3,17 +3,25 @@
   "title": "Sweep permanently fails priming requests on GROBID outage",
   "description": "Found by the Cyclotron session (read-only; refs at origin/main a35694b).\n\nWhen GROBID is unreachable (reason codes `grobid_unreachable` or `grobid_request_failed`) the sweep marks the priming request permanently failed and never retries (see the failed-status handling in `src/papyrus_content/priming_http.py` around lines 98-100 and the curation call in `priming_curation.py:46`). That is an infrastructure outage, not a per-URL failure.\n\n```gherkin\nFeature: GROBID outage handling\n  Scenario: GROBID is down during a sweep\n    Given GROBID is unreachable\n    When the sweep applies a priming request\n    Then the request stays retryable (not permanently failed)\n    And it is retried once GROBID is live again\n```\nAcceptance: either infrastructure reason codes map to a retryable state, or a GROBID liveness preflight runs before any request is applied; per-URL failures stay terminal; spec covers both.\nDepends on the reason-code ticket for the error detail.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "18d747d8-5d27-4d88-9f82-eb4abbb3663d",
+      "author": "home",
+      "text": "Fixed in AnthusAI/Papyrus PR #372 (squash-merged to develop).",
+      "created_at": "2026-10-19T23:53:18.602233Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-19T21:56:36.419143Z",
-  "updated_at": "2026-10-19T21:56:36.419181Z",
-  "closed_at": null,
+  "updated_at": "2026-10-19T23:53:18.632607Z",
+  "closed_at": "2026-10-19T23:53:18.632573Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5"

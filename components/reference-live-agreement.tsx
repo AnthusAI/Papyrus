@@ -12,10 +12,10 @@ import { formatSuggestionTime } from "./reference-cyclotron-suggestion";
 
 function MeasurementFigures({ measurement }: { measurement: AgreementStripMeasurement }) {
   const figures: Array<[string, string]> = [
-    ["Agreement", formatPercentage(measurement.agreement)],
-    ["Precision", formatPercentage(measurement.precision)],
-    ["Recall", formatPercentage(measurement.recall)],
-    ["Comparisons", String(measurement.comparisons)],
+    ["Matches editors", formatPercentage(measurement.agreement)],
+    ["Suggested includes editors kept", formatPercentage(measurement.precision)],
+    ["Editor includes suggested", formatPercentage(measurement.recall)],
+    ["Decisions compared", String(measurement.comparisons)],
   ];
   return (
     <dl className="flex flex-wrap gap-x-6 gap-y-1">
@@ -30,19 +30,19 @@ function MeasurementFigures({ measurement }: { measurement: AgreementStripMeasur
 }
 
 /**
- * Live agreement at the top of References: how often the cyclotron's
+ * Live agreement at the top of References: how often the
  * suggestions matched what editors then decided. Hidden without a payload.
  */
 export function ReferenceLiveAgreement({ agreement }: { agreement: ShadowAgreement | null }) {
   const state = agreementStripState(agreement);
   if (state.kind === "hidden") return null;
   return (
-    <section aria-label="Live agreement" className="shrink-0 space-y-2 border-y border-foreground py-3" data-reference-live-agreement={state.kind}>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Live agreement</h3>
+    <section aria-label="Suggestion accuracy" className="shrink-0 space-y-2 border-y border-foreground py-3" data-reference-live-agreement={state.kind}>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Suggestion accuracy</h3>
       {state.loop ? (
         <p className="text-sm text-foreground" data-reference-live-agreement-loop>
           <span className="font-semibold">{loopStateWords(state.loop)}</span>
-          {" · "}Last sweep {formatSuggestionTime(state.loop.lastSweepAt)}
+          {" · "}Last checked {formatSuggestionTime(state.loop.lastSweepAt)}
           {" · "}{dailyCapWords(state.loop)}
         </p>
       ) : null}
@@ -51,11 +51,11 @@ export function ReferenceLiveAgreement({ agreement }: { agreement: ShadowAgreeme
       ) : null}
       {state.kind === "not_enough" ? (
         <p className="text-sm text-foreground" data-reference-live-agreement-not-enough>
-          Not enough comparisons yet: {state.measurement.comparisons} of {state.needed} editor decisions have followed a suggestion. Figures appear at {state.needed}.
+          Not enough decisions yet: {state.measurement.comparisons} of {state.needed} editor decisions have followed a suggestion. Figures appear at {state.needed}.
         </p>
       ) : <MeasurementFigures measurement={state.measurement} />}
       <p className="text-xs text-foreground">
-        Suggestions compared with the decisions editors made afterwards. Computed {formatSuggestionTime(agreement?.computedAt ?? null)}.
+        Suggestions compared with the decisions editors made afterwards. Updated {formatSuggestionTime(agreement?.computedAt ?? null)}.
       </p>
     </section>
   );

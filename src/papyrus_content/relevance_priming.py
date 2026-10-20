@@ -7,10 +7,20 @@ page, adds it to the running cyclotron with ``add_priming_examples`` and records
 an outcome (``applied`` with the new version, or ``failed`` with a reason) in a
 ``priming_outcome`` attachment on the same payload. No new store and no new
 model: a request with an outcome is finished and is never extracted again.
+
+A source that cannot be read because an extraction service is down (GROBID
+unreachable or out of memory, a hung Biblicus child) is not the editor's
+mistake and not final: the request stays without an outcome and the next sweep
+tries again. Each such try is counted in a ``priming_attempts`` attachment on the
+same payload (not shown to editors); after ``MAX_TRANSIENT_ATTEMPTS`` tries the
+request fails with a plain reason.
 """
 from __future__ import annotations
 
 import hashlib
+import os
+import urllib.error
+import urllib.request
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlparse, urlunparse
 
@@ -20,7 +30,13 @@ from .model_attachments import attachment_record, build_json_model_payload_attac
 PRIMING_REQUEST_KIND = "cyclotron-priming-request"
 PRIMING_REQUEST_ROLE = "raw_payload"
 PRIMING_OUTCOME_ROLE = "priming_outcome"
+PRIMING_ATTEMPTS_ROLE = "priming_attempts"
 PRIMING_ITEM_PREFIX = "priming:"
+MAX_TRANSIENT_ATTEMPTS = 5
+GROBID_LIVENESS_TIMEOUT_SECONDS = 5
+TRANSIENT_RETRY_MESSAGE = "The source couldn't be read right now; we'll try again."
+TRANSIENT_GIVE_UP_MESSAGE = "The source couldn't be read after several tries. Check that the link works, or add it again later."
+UNREADABLE_MESSAGE = "The page at {url} could not be read."
 
 ExtractUrl = Callable[[str], Mapping[str, Any]]
 
@@ -75,6 +91,32 @@ def priming_outcome_record(payload_id: str, outcome: Mapping[str, Any], *, now: 
         "content": dict(outcome),
         "now": now,
     }))
+
+
+def priming_attempts_record(payload_id: str, attempts: Mapping[str, Any], *, now: str) -> dict[str, Any]:
+    """The ModelAttachment record that counts a request's transient failures; it does not finish the request."""
+    return attachment_record(build_json_model_payload_attachment({
+        "ownerKind": "knowledgeRawPayload",
+        "ownerId": payload_id,
+        "ownerLineageId": payload_id,
+        "role": PRIMING_ATTEMPTS_ROLE,
+        "sortKey": "attempts",
+        "filename": "priming-attempts.json",
+        "content": dict(attempts),
+        "now": now,
+    }))
+
+
+def grobid_is_alive(grobid_url: str | None = None) -> bool:
+    """Cheap GROBID liveness check; True when no service URL is configured (Biblicus then starts its own)."""
+    url = (grobid_url or os.environ.get("BIBLICUS_GROBID_URL") or "").strip()
+    if not url:
+        return True
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/api/isalive", timeout=GROBID_LIVENESS_TIMEOUT_SECONDS) as response:
+            return 200 <= response.status < 300
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
 
 
 def default_url_extractor(steering_config: Mapping[str, Any], corpus: Mapping[str, Any]) -> ExtractUrl:
