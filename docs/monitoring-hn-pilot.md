@@ -61,13 +61,42 @@ therefore unsuitable for this baseline experiment without a separate safe path.
 
 Initial live verification on 2026-10-20 registered HN 50154540 and 50136126 into
 current academic Papyrus (`ds6yswxui41yi`, canonical `ai-ml-research`), and HN
-50159341 into TI's canonical `threat-intelligence` corpus. Anth.us
+50159341 into TI's canonical `threat-intelligence` corpus. All three pending
+References and their private provenance bodies were read back successfully. Anth.us
 has no canonical corpus yet. Current Papyrus main steering names `p-apyr-us`,
 which differs from that live canonical corpus; TI main has no configured
 relevance Cyclotron. The current Papyrus bucket contains an existing
 `papyrus-relevance/state.tar.gz` snapshot (2026-10-20); TI has no objects under
-`cyclotrons/`. Reuse the Papyrus incumbent after validating its binding; this
-pilot creates no classifier. Resolve current classifier ownership/bindings and
-obtain the requested human labels before real baseline predictions.
+`cyclotrons/`. This is inventory, not the selected first-stage backend.
+
+## Required two-layer classification contract
+
+Ryan's clarified rollout uses both supported modes from the start:
+
+1. One shared **remote** Cyclotron evaluates the same discovered source once
+   across relevance outputs for academic Papyrus, Threat Intelligence and Anth.us.
+   This shares Jev work; three independent model calls are not equivalent.
+2. Each publication's **integrated** Cyclotron evaluates its section outputs
+   together in that publication's Papyrus backend.
+
+Preserve the immutable discovered-item revision and shared decision identity,
+then bind each result and human label to the correct account, publication,
+output, binding revision and prediction fingerprint. Section feedback belongs
+to its publication's integrated backend. Both layers need real end-to-end
+verification before this learning slice is accepted. Do not silently substitute
+an embedded first stage, independent models, or labels/seeds on another backend.
+
+The intake implementation creates no classifier and is independent of this
+dispatch choice. The existing Papyrus snapshot must not be seeded or changed
+as a substitute for the remote first stage. Current Cyclotron core exposes
+multi-output `PublicationLab` bindings and account-scoped hosted commands, but
+the current Cyclotron-web README identifies `cyclotron.anth.us` as a static
+marketing site. Its marketing hostname is not verified as the central lab/API.
+The deployed API, existing account/role grants, shared three-output binding and
+per-publication integrated section bindings remain unverified. No new persistent
+access or infrastructure is authorized by this discovery.
+
+Resolve those bindings and obtain the requested human labels before real
+baseline predictions.
 No model, human feedback, training, merge or deployment is
 claimed by this pilot.
