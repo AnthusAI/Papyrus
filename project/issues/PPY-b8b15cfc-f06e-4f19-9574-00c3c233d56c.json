@@ -9,8 +9,7 @@
   "creator": null,
   "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
   "labels": [
-    "design-only",
-    "planning"
+    "implementation"
   ],
   "dependencies": [
     {
@@ -20,7 +19,7 @@
   ],
   "comments": [],
   "created_at": "2026-10-20T03:02:37.311233Z",
-  "updated_at": "2026-10-20T03:49:46.523337Z",
+  "updated_at": "2026-10-20T03:51:06.953221Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

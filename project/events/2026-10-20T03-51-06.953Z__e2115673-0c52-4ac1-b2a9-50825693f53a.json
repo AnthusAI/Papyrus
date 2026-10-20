@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "e2115673-0c52-4ac1-b2a9-50825693f53a",
+  "issue_id": "PPY-b8b15cfc-f06e-4f19-9574-00c3c233d56c",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T03:51:06.953Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "labels": {
+        "from": [
+          "design-only",
+          "planning"
+        ],
+        "to": [
+          "implementation"
+        ]
+      }
+    }
+  }
+}
