@@ -23,6 +23,7 @@ jobs:
       - run: echo '{}' > amplify_outputs.json
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run test:assignment-data-access
       # Reader routes enumerate published editions from AppSync at build time. Staging drafts
       # mode skips that enumeration, so the build needs no deployed backend and no secrets.
       - run: npm run build

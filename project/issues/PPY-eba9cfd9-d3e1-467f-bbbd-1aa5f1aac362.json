@@ -87,10 +87,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "cc6c977c-0b08-4688-b119-71047772c2f1",
+      "author": "home",
+      "text": "PPY-5aca7f source/config repair is prepared with actual SDK synthesis/client regression coverage. Production access review must include the assignment role delta: selected API Query/* and Mutation/* (no subscriptions), one generated schema object GetObject, and five exact nonsecret resource-reference GetParameters. This is additional to the editorial-checks role two private query reads; exact target ARNs recorded privately. No grants, deployment, provider calls or policy writes occurred. Remain blocked on reviewed release/access scope and live zero-provider context acceptance.",
+      "created_at": "2026-10-20T12:42:07.120104Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T11:37:29.555867Z",
-  "updated_at": "2026-10-20T12:32:03.923630Z",
+  "updated_at": "2026-10-20T12:42:07.120130Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
