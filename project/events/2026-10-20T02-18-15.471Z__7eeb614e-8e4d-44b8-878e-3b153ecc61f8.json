@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "7eeb614e-8e4d-44b8-878e-3b153ecc61f8",
+  "issue_id": "PPY-2dfac225-679c-44dc-9eb1-c607029fb501",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:18:15.471Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Preserve multiple Cyclotron matches for monitored material",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a editor, I want all relevant publication and Section matches retained, so that one discovery can inform several editorial outputs.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Preserve multiple Cyclotron matches for monitored material\n  Scenario: Material matches multiple outputs\n    Given a canonical candidate is discovered by one Monitor\n    When authorized publication and Section classifiers evaluate it\n    Then all applicable matches and their decision provenance may be retained\n    And a sponsoring desk or section-selector suggestion does not erase other Section-fit outputs\n    And editorial ownership, conflicting coverage and placement remain explicit later decisions\n  Scenario: Preserve review boundaries\n    Given a Monitor or Cyclotron proposes a candidate match\n    When its output is recorded\n    Then the prediction alone does not make the Reference accepted evidence or a human training label\n```\n\nRelates to PPY-b0396f and current shared-site Cyclotron PPY-0a285b. Do not duplicate/reconfigure engines per Monitor. Cross-publication consumers require explicit publication scope and permitted sharing design. This future vision does not silently change the existing single chosen-Section training contract.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

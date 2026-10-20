@@ -1,0 +1,48 @@
+{
+  "id": "PPY-33854a5d-da97-4597-9ad2-948a7dd23136",
+  "title": "Public RSS/Atom subscription feeds for publications and sections",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader, I want to subscribe to a publication or section using ordinary feed readers, so that I can follow published articles without visiting the site repeatedly.\n\nDefinition of Done for later implementation: standards-valid RSS and Atom publication/section feeds, stable item identity and canonical links, revision/withdrawal behavior, discoverability and published-only isolation covered by observable specifications. Depends on the shared published-content foundation. Examine existing Markus/static S3 publishing during implementation; avoid a parallel publisher. M8 PPY-f293ea mentions an optional feed: this epic owns the detailed subscription-feed behavior rather than duplicating M8's delivered latest/search JSON.\n\nDeferred/YAGNI: Markdown+YAML exports, exact Contentful compatibility, extra export formats and authenticated draft previews. No feed endpoint, deployment or rollout is selected by this plan.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3f55c3e1-65f6-4fc7-833e-6cecc6a85270",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "8ef81655-d7bf-4272-99ca-1de9153df111",
+      "author": "home",
+      "text": "Planning delivery: branch develop, direct Kanbus-only commit/push per AGENTS.md; GitHub reports develop unprotected, so no PR is required. Verified all 22 new records by kbs show: types, permitted parent links, descriptions, Gherkin, open/unassigned state, provenance and dependency targets. Both delivery epics depend on the common published-content foundation. Full-board kbs validate remains at the same 15 pre-existing abbreviated dependency-target errors; no new validation errors. No code/tests/dependencies/infrastructure/deployment changes; behavior implementation and executable acceptance remain unstarted.",
+      "created_at": "2026-10-20T02:20:17.360735Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T02:16:55.576020Z",
+  "updated_at": "2026-10-20T02:20:17.360791Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-0f8d2ad9-41db-4db8-8180-f3882d8488fd",
+  "title": "Re-evaluate changed sources and existing vulnerabilities",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a editor, I want updates to known source items and vulnerabilities to trigger fresh evaluation, so that significant developments are not missed after initial discovery.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Re-evaluate changed sources and existing vulnerabilities\n  Scenario: An existing vulnerability changes\n    Given a general vulnerability or CVE Monitor already knows a vulnerability\n    When its source reports a meaningful advisory, exploitation, remediation or status update\n    Then the existing canonical vulnerability/reference lineage retains the revision provenance\n    And the changed evidence is eligible for a new relevance and editorial-worthiness evaluation\n    And unchanged polls do not manufacture new developments\n  Scenario: Worthiness differs from severity\n    Given two vulnerability developments have different severity and editorial relevance\n    When the publication evaluates them\n    Then editorial worthiness is decided using current publication and section context\n    And severity is retained as source evidence rather than used as an automatic publication decision\n```\n\nThreat Intelligence is one consumer of general monitoring/update behavior. No CVE-only pipeline, severity-only newsworthiness threshold or automatic publishing requirement.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:18:21.149663Z",
+  "updated_at": "2026-10-20T02:18:21.149689Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-e50a7434-5e3a-4ad4-8d7d-9156f90a6fdd",
+  "title": "Collect X saved-search results after access and cost validation",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a editor, I want an X saved-search Monitor when permitted access is available, so that relevant posts can enter the same discovery pipeline.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Collect X saved-search results after access and cost validation\n  Scenario: Configure a saved search\n    Given X API access, usage terms and costs have been validated and separately authorized\n    When an X Monitor collects its configured saved-search results within allowed limits\n    Then results retain post identity, source link, query/Monitor provenance and observation time\n    And repeat observations follow the common deduplication and update rules\n  Scenario: Access or budget is unresolved\n    Given required X access or spending authority is missing\n    When collection is requested\n    Then the Monitor reports the unresolved prerequisite\n    And it does not purchase access or promise a price\n```\n\nSaved searches may be implemented through a validated query/API mapping; do not assume a specific X endpoint exists. Ryan’s roughly $20 discussion is interest only, not purchase authorization or a confirmed price.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:18:04.097332Z",
+  "updated_at": "2026-10-20T02:18:04.097361Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

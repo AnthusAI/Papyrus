@@ -1,0 +1,36 @@
+{
+  "id": "PPY-3f55c3e1-65f6-4fc7-833e-6cecc6a85270",
+  "title": "Share a published-content projection across public delivery channels",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication operator, I want feeds and application delivery to reflect the same published content, so that visibility and updates are consistent across channels.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Share a published-content projection across public delivery channels\n  Scenario: Publish, revise and withdraw an article\n    Given a publication with a published article and a private newer draft\n    When a reader requests its subscription feed or application representation\n    Then both expose the same current published version and canonical identity\n    And neither exposes the newer draft or private editorial data\n    When a published revision or withdrawal is made\n    Then both reflect that change within a documented freshness bound\n    And an older delayed update cannot restore withdrawn or superseded public content\n  Scenario: Keep publication boundaries\n    Given two separately configured publications\n    When public content is projected for one publication\n    Then only that publication's eligible published content and public assets are included\n```\n\nFoundation dependency for both delivery epics. Later implementation must inspect and reuse the existing Published* lifecycle, ContentRepository, Markus/S3 projection and incremental reconciliation/invalidation behavior; do not build another publishing engine. Review current docs/public-surface.md, docs/site-hosting.md, projection/public_data.py and M8 PPY-f293ea. Existing latest/search JSON is not yet a versioned article-body delivery contract. Define explicit public field and asset allowlists; do not blindly expose metadata/frontMatterYaml or editorial internals. Define common eligibility, channel opt-outs, canonical IDs/URLs, published revision timestamps, withdrawal and cache/reconciliation behavior. Transport and hosting choices remain design work.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f293ea5b-a142-4cb9-94f6-22480660f224",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T02:16:49.881729Z",
+  "updated_at": "2026-10-20T02:18:43.683764Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-253449db-8807-4813-a1d5-851e32e37696",
+  "title": "Validate candidate sources, costs, licensing and legal metadata",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication planner, I want documented access and rights evidence for candidate sources, so that source expansion is based on usable data and permitted collection.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Validate candidate sources, costs, licensing and legal metadata\n  Scenario: Assess a candidate source\n    Given a candidate such as Hacker News, Reddit, newsletters, arXiv, GitHub releases or advisories, or official government notices\n    When its monitoring feasibility is assessed\n    Then access methods, authentication, limits, current costs, licensing and reuse constraints are recorded with evidence and unresolved questions\n    And an unvalidated price or public URL is not treated as permission to purchase or reuse\n  Scenario: Assess legal or government material\n    Given a candidate provides decisions, notices, permits, zoning or procurement material\n    When its collection and editorial use are assessed\n    Then applicable access and copyright constraints are preserved\n    And precedential, nonprecedential or unknown legal status remains attributed to the source\n    And a structured government adapter is proposed only when useful metadata warrants it\n```\n\nCandidate list, not commitments: Hacker News RSS https://news.ycombinator.com/rss and official API documentation https://github.com/HackerNews/API; Reddit (commercial agreement unresolved); newsletters; arXiv; GitHub releases/advisories; official government notices. Examples: TTAB attorney publications and municipal permits/zoning/procurement. Government copyright/access is not universally unrestricted. Validate current terms and costs later; no asserted price. General feeds/crawlers first; custom scraper plugins deferred.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:18:26.838785Z",
+  "updated_at": "2026-10-20T02:18:26.838807Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

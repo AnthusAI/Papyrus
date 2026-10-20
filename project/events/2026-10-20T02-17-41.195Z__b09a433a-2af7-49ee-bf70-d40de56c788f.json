@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "b09a433a-2af7-49ee-bf70-d40de56c788f",
+  "issue_id": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:17:41.195Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publication-agnostic Monitoring with individual Monitors",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs an editor, I want configurable Monitors that discover and revisit source material across publication niches, so that I can assess newsworthy developments without a domain-specific intake implementation.\n\nVision: Papyrus Monitoring is general; individual Monitors are configurations, with many per publication. RSS/Atom, bounded URL-prefix crawling and X saved searches are initial behavior tracks, subject to access validation. “Discoveries” is tentative vocabulary for discovery/provenance records. Threat Intelligence is a major consumer, not a special implementation. Optional sponsoring newsdesk/section records discovery provenance without exclusively owning a canonical Reference. Canonical deduplication retains multiple discoveries; one item can match multiple publication/Section Cyclotron outputs. Ownership, conflicts and final editorial placement are later decisions, not single-owner intake constraints.\n\nCurrent hierarchy inspected: publication selection uses canonicalTopicSet.corpusKey in steering config; hosted publication mission/policies, NewsroomSection mission/policies/guidance/kill criteria, then narrower assignment/story context apply through docs/editorial-context.md. Existing siteCyclotron uses one shared site engine with Section-fit binary classifiers plus a section selector derived from curated NewsroomSection records (PPY-0a285b), with provider/review settings from relevanceCyclotron. Preserve that configuration and proof/human-label boundary; this plan does not rewrite the engine topology or treat predictions as accepted evidence/training labels. Multi-publication routing needs explicit scope/authorization design; current resolver does not infer multi-canonical ownership.\n\nDefinition of Done for later implementation: configurable many-monitor intake, safe bounded collection, canonical identity with repeatable provenance, multiple candidate routing matches, source-change re-evaluation and access/cost/licensing evidence. No implementation started. Custom scraper plugins deferred. General crawlers first; structured government adapters only when metadata warrants. Other candidate sources and niche examples are validation hypotheses, not delivery commitments. X discussion around $20 indicates interest only, not a budget promise or purchase authorization.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

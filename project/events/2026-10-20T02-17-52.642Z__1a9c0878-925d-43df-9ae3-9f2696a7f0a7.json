@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "1a9c0878-925d-43df-9ae3-9f2696a7f0a7",
+  "issue_id": "PPY-731c23e0-4b70-4cab-82e9-7a63de60cb0d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:17:52.642Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Discover source items through RSS and Atom Monitors",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a editor, I want feed Monitors that retain source identity and revisions, so that I can evaluate new and changed source material.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Discover source items through RSS and Atom Monitors\n  Scenario: Repeat feed intake\n    Given an RSS or Atom Monitor with previously observed source entries\n    When a bounded collection run sees existing, new and updated entries\n    Then unchanged entries do not create duplicate canonical references\n    And new entries and meaningful updates are recorded for evaluation\n    And source URL, source entry identity, Monitor identity and observation time remain attributable\n    And failures or incomplete runs are visible without claiming unseen content was processed\n```\n\nIncoming source subscriptions are distinct from Papyrus outgoing publication feeds. Access rights and source-specific refresh limits require validation.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

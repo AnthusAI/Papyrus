@@ -1,0 +1,28 @@
+{
+  "id": "PPY-84439ef5-a204-48dc-8cfc-807056f8b862",
+  "title": "Resolve current guidance and provenance for classifiers and desk editors",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want both nomination and LLM triage to use appropriate current guidance through the shared resolver, so that news judgment does not depend on copied stale policy.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Resolve current guidance and provenance for classifiers and desk editors\n  Scenario: Resolve applicable current guidance\n    Given a publication and section with current mission, policies and editorial guidelines\n    When classifiers nominate sections and an LLM desk editor performs triage\n    Then each receives appropriate publication and section guidance through the shared resolver\n    And each decision records context source identities, revisions and the context hash where available\n    And narrower story or assignment instructions respect policy precedence\n  Scenario: Required guidance is unavailable\n    Given required policy is missing, contradictory in scope or unauthorized\n    When triage is requested\n    Then the unresolved condition is explicit\n    And copied snapshots are not silently substituted as current policy\n```\n\nReuse PPY-e081de and docs/editorial-context.md, not a new policy store or static prompt copy. Later implementation must verify actual classifier seed/rubric refresh and LLM context configuration capability and reconcile it with resolver semantics; existing source does not prove deployed support. Preserve required policy under context budgets and distinguish hosted current context from explicitly local Git seeds.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:19:22.514163Z",
+  "updated_at": "2026-10-20T02:19:22.514192Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
