@@ -9,7 +9,12 @@
   "creator": null,
   "parent": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
   "labels": [],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-5aca7fa9-3384-4df7-9a1b-262489952c48",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [
     {
       "id": "18142460-67fa-45b9-b8e2-80c12c9988e9",
@@ -70,10 +75,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "132fdb1c-57dc-49f4-b0c1-1bfc1e8e6ce4",
+      "author": "home",
+      "text": "Fresh read-only correction: existing papyrus-production SSO works and confirms intended TI app d12wnrx15qbcc2/account712236451410, successful main job43 for merged plugin commit c1adba312f6547e7d15622e3d342327101e5d49e, deployed editorial-checks Lambda/role and API. No target discovery by Ryan is needed. The two proposed private query reads are absent from the deployed role. Canonical corpus, current private doctrine identifiers and six sections verified via IAM operator metadata query; no policy bodies published. However getEditorialContext fails at publication and both selected section scopes with malformed generated data environment configuration in assignment handler. Runtime blocker PPY-5aca7fa9-3384-4df7-9a1b-262489952c48 must be fixed/reviewed before rollout; two plugin reads alone are insufficient. Exact physical targets and proposed grant delta saved in private resolved approval bundle. Existing migration/context records checked open or in_progress, unassigned, soft claims eligible; PR367 does not fix this handler initialization. Codex owns read-only investigation; no migration/domain operation claimed. Zero policy/permission writes, providers or feedback application. Keep acceptance open.",
+      "created_at": "2026-10-20T12:32:03.923606Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T11:37:29.555867Z",
-  "updated_at": "2026-10-20T12:25:16.738038Z",
+  "updated_at": "2026-10-20T12:32:03.923630Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

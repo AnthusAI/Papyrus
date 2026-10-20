@@ -1,0 +1,25 @@
+{
+  "id": "PPY-5aca7fa9-3384-4df7-9a1b-262489952c48",
+  "title": "Restore editorial context handler data-client configuration",
+  "description": "Fresh read-only verification on the intended TI app in papyrus-production found getEditorialContext fails at publication scope and both selected sections. Deployed assignment handler throws Lambda:Unhandled: The data environment variables are malformed. Expected string values for: _MODEL_INTROSPECTION_SCHEMA_BUCKET_NAME, _MODEL_INTROSPECTION_SCHEMA_KEY, _GRAPHQL_ENDPOINT. Canonical publication, current private doctrine metadata and section identifiers can be read through the same API; no policy bodies are recorded here. This is independent of the two proposed private query reads on the editorial-checks role. Source assignment handler calls getAmplifyDataClientConfig, while root schema resource authorization currently omits assignmentAction; root cause and least-privilege configuration correction need a reviewed source fix and synthetic/deployed acceptance. Do not add broad allow.resource access as an unreviewed shortcut. Active PR367 data/backend patches were checked and do not fix this handler configuration. Migration records and soft claims checked eligible/unassigned; no migration operation is claimed. Codex owns investigation only; implementation/deployment remains unstarted for this bug.\n\nFeature: Resolve private editorial context on the deployed consumer\nScenario: Read current context without a model call\nGiven the configured consumer publication and permitted authenticated actor\nWhen current publication and selected-section editorial context is requested\nThen the existing handler initializes its supported data client and returns validated scoped context and source revisions\nAnd credentials, other-tenant records and private policy text are absent from public errors\nAnd zero provider requests or policy mutations occur.\n\nKeep rollout blocked until the source fix, exact permission/configuration diff and zero-provider runtime readback pass. Preserve intended app guard; never deploy to legacy to bypass it.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T12:30:50.089804Z",
+  "updated_at": "2026-10-20T12:30:50.089839Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
