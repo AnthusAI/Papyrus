@@ -1,10 +1,8 @@
 import type { PapyrusPlugin, PluginRequest } from "./types";
-import { editorialChecksPlugin } from "./editorial-checks/papyrus.plugin";
 import { signupPlugin } from "./signup/papyrus.plugin";
 
 /** Plugins are packaged with Papyrus and pinned by its version: there is no registry to fetch from. */
 export const KNOWN_PLUGINS: Record<string, PapyrusPlugin<any, any>> = {
-  "editorial-checks": editorialChecksPlugin,
   signup: signupPlugin,
 };
 

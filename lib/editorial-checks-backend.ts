@@ -1,7 +1,7 @@
 import type { EditorialCheckResult, EditorialFeedbackInput, EditorialFinding, RewriteResult, Span } from "./editorial-checks";
 import type { EditorialSettings } from "./editorial-checks-settings";
 
-/** What the article editor needs from editorial checks: the plugin's GraphQL API, or the demo. */
+/** What the article editor needs from editorial checks: the site's GraphQL API, or the demo. */
 export type EditorialChecksBackend = {
   loadSettings: () => Promise<{ settings: EditorialSettings; exists: boolean }>;
   dismissedFindingIds: (itemId: string) => Promise<Set<string>>;

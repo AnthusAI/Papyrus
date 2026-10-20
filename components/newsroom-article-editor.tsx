@@ -48,11 +48,9 @@ import {
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
 import { cn } from "../lib/utils";
-import amplifyOutputs from "papyrus-amplify-outputs";
-import { applyReplacement, editorialChecksEnabled, inlineFindings, visibleFindings } from "../lib/editorial-checks";
+import { applyReplacement, inlineFindings, visibleFindings } from "../lib/editorial-checks";
 import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
 import { demoEditorialBackend } from "../lib/editorial-checks-demo";
-import type { PluginOutputs } from "../lib/plugin-settings";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
@@ -219,7 +217,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const frontMatterYaml = editor?.frontMatterYaml ?? null;
   const bodyMarkus = editor?.bodyMarkus ?? null;
   const editorialBackend = useMemo(
-    () => (demo ? demoEditorialBackend : !previewMode && editorialChecksEnabled(amplifyOutputs as PluginOutputs) ? graphqlEditorialBackend : null),
+    () => (demo ? demoEditorialBackend : !previewMode ? graphqlEditorialBackend : null),
     [demo, previewMode],
   );
   const editorial = useEditorialChecks({

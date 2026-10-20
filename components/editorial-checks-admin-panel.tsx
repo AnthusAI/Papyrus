@@ -329,6 +329,7 @@ export function EditorialChecksAdminPanel() {
           });
         }}
       >
+        <label><input checked={settings.enabled} data-editorial-enabled onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })} type="checkbox" /> Run editorial checks for this publication (turning this off stops checks and rewrites; policies are kept)</label>
         <label><input checked={settings.lanes.rules} onChange={(event) => setSettings({ ...settings, lanes: { ...settings.lanes, rules: event.target.checked } })} type="checkbox" /> Rule checks</label>
         <label><input checked={settings.lanes.classifier} onChange={(event) => setSettings({ ...settings, lanes: { ...settings.lanes, classifier: event.target.checked } })} type="checkbox" /> Judgment checks (decision model)</label>
         <label><input checked={settings.checkWhileTyping} onChange={(event) => setSettings({ ...settings, checkWhileTyping: event.target.checked })} type="checkbox" /> Check while editors type (after a short pause)</label>

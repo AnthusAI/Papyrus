@@ -27,6 +27,8 @@ import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient } from "./auth/prospectus-google-client";
 import { defineSiteData } from "./data/resource";
+import { editorialChecks } from "./functions/editorial-checks/resource";
+import { wireEditorialChecks } from "./functions/editorial-checks/wire";
 import { resolvePlugins } from "./plugins/registry";
 import { wirePlugins } from "./plugins/wire";
 import { assignmentAction } from "./functions/assignment-action/resource";
@@ -110,6 +112,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     auth: defineSiteAuth(authConfig),
     categoryAction,
     contentActions,
+    editorialChecks,
     data: defineSiteData(pluginDefinitions),
     knowledgeQuery,
     manageUserRole,
@@ -732,6 +735,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         : null,
     },
   });
+  wireEditorialChecks(backend);
   wirePlugins(backend, plugins, contentActionsLambda);
 
   return backend;

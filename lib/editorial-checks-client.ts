@@ -184,7 +184,7 @@ export async function recalibrate(): Promise<{ updated: number; detectors: { pol
   return parsed(data.recalibrateEditorialPolicies);
 }
 
-/** The plugin's GraphQL API, signed in as the editor. */
+/** The site's GraphQL API, signed in as the editor. */
 export const graphqlEditorialBackend: EditorialChecksBackend = {
   loadSettings,
   dismissedFindingIds,

@@ -1,5 +1,7 @@
 /** Runtime settings for editorial checks, stored in EditorialCheckSettings (id "settings"). */
 export type EditorialSettings = {
+  /** Core to every site and on by default; a publication turns its checks off here. */
+  enabled: boolean;
   lanes: { rules: boolean; classifier: boolean };
   classifierModel: string;
   rewriteModel: string;
@@ -12,6 +14,7 @@ export type EditorialSettings = {
 };
 
 export const DEFAULT_EDITORIAL_SETTINGS: EditorialSettings = {
+  enabled: true,
   lanes: { rules: true, classifier: true },
   classifierModel: "jev-latest",
   rewriteModel: "gpt-6-luna",

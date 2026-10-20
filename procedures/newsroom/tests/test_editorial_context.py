@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from papyrus_content.editorial_context import resolve_editorial_context, load_local_context
+from papyrus_content.editorial_context import resolve_editorial_context
 
 
 class Records:
@@ -36,7 +36,7 @@ class Records:
 
 class EditorialContextTests(unittest.TestCase):
     def resolve(self, **kwargs):
-        return resolve_editorial_context(Records(), publication={'key':'example','name':'Example'}, endpoint='https://example.invalid/graphql', **kwargs)
+        return resolve_editorial_context(Records(), endpoint='https://example.invalid/graphql', **kwargs)
 
     def test_current_revisions_and_one_shared_text(self):
         pack = self.resolve(assignment_id='a1')
@@ -56,13 +56,13 @@ class EditorialContextTests(unittest.TestCase):
     def test_missing_required_policy_is_error(self):
         client = Records(); client.records['Item']['editorial-doctrine-policy'] = []
         with self.assertRaisesRegex(ValueError, 'policy'):
-            resolve_editorial_context(client, publication={'key':'example'}, endpoint='https://example.invalid')
+            resolve_editorial_context(client, endpoint='https://example.invalid')
 
     def test_denied_read_does_not_become_empty_policy(self):
         class Denied(Records):
             def list_by_index(self, *args): raise PermissionError('denied')
         with self.assertRaisesRegex(PermissionError, 'denied'):
-            resolve_editorial_context(Denied(), publication={'key':'example'}, endpoint='https://example.invalid')
+            resolve_editorial_context(Denied(), endpoint='https://example.invalid')
 
     def test_required_policy_is_not_truncated_for_budget(self):
         with self.assertRaisesRegex(ValueError, 'budget'):
@@ -71,14 +71,14 @@ class EditorialContextTests(unittest.TestCase):
     def test_publication_identity_changes_hash(self):
         first = self.resolve()
         client = Records(); client.corpora[0].update(id='knowledge-corpus-other', name='Other')
-        other = resolve_editorial_context(client, publication={'key':'other'}, endpoint='https://other.invalid')
+        other = resolve_editorial_context(client, publication_key='other', endpoint='https://other.invalid')
         self.assertNotEqual(first['contextHash'], other['contextHash'])
 
     def test_publication_binding_rejects_wrong_or_ambiguous_backend(self):
         for corpora in ([], [dict(id='knowledge-corpus-other')], [dict(id='knowledge-corpus-example')] * 2):
             client = Records(); client.corpora = corpora
             with self.assertRaisesRegex(ValueError, 'publication'):
-                resolve_editorial_context(client, publication={'key':'example'}, endpoint='https://example.invalid')
+                resolve_editorial_context(client, endpoint='https://example.invalid')
 
     def test_tenant_binding_is_explicit_for_policy_story_and_section(self):
         for kind in ('policy', 'story', 'section'):
@@ -87,12 +87,12 @@ class EditorialContextTests(unittest.TestCase):
                       'story':client.stories[-1], 'section':client.records['NewsroomSection']['science']}[kind]
             record['tenantId'] = 'other'
             with self.assertRaisesRegex(ValueError, 'tenant'):
-                resolve_editorial_context(client, publication={'key':'example'}, endpoint='https://example.invalid', assignment_id='a1')
+                resolve_editorial_context(client, endpoint='https://example.invalid', assignment_id='a1')
 
     def test_configured_tenant_cannot_consume_unscoped_records(self):
         client = Records(); client.tenant_id = 'example'
         with self.assertRaisesRegex(ValueError, 'tenant'):
-            resolve_editorial_context(client, publication={'key':'example'}, endpoint='https://example.invalid')
+            resolve_editorial_context(client, endpoint='https://example.invalid')
 
     def test_missing_section_is_not_an_empty_intentional_section(self):
         with self.assertRaisesRegex(ValueError, 'section'):
@@ -101,23 +101,38 @@ class EditorialContextTests(unittest.TestCase):
     def test_ambiguous_current_versions_fail(self):
         client = Records(); client.records['Item']['editorial-doctrine-policy'].append(dict(client.records['Item']['editorial-doctrine-policy'][-1], id='other-current'))
         with self.assertRaisesRegex(ValueError, 'current'):
-            resolve_editorial_context(client, publication={'key':'example'}, endpoint='https://example.invalid')
+            resolve_editorial_context(client, endpoint='https://example.invalid')
 
-    def test_local_cli_and_provenance(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); (root/'corpora').mkdir()
-            (root/'corpora/papyrus-steering.yml').write_text('schemaVersion: 1\npublication:\n  name: Example\ncanonicalTopicSet:\n  corpusKey: example\n')
-            (root/'corpora/papyrus-publication-doctrine.yml').write_text('schemaVersion: 1\ndoctrine:\n- kind: mission\n  body: [Local mission]\n- kind: policy\n  body: [Local policy]\n')
-            pack = load_local_context(root, publication_key='example')
-            self.assertEqual(pack['sourceMode'], 'local')
-            self.assertIn('not current hosted', ' '.join(pack['warnings']))
-            self.assertTrue(pack['sources'][0]['sha256'])
-            env = dict(os.environ, PAPYRUS_ROOT=str(root), PYTHONDONTWRITEBYTECODE='1')
-            env['PYTHONPATH'] = str(Path(__file__).resolve().parents[3] / 'src')
-            result = subprocess.run([sys.executable, '-m', 'papyrus.cli', 'editorial', 'context', '--backend', 'local', '--publication', 'example', '--format', 'json'], env=env, cwd=root, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads(result.stdout)['contextHash'], pack['contextHash'])
+    def test_publication_comes_from_the_hosted_canonical_corpus(self):
+        pack = resolve_editorial_context(Records(), endpoint='https://example.invalid/graphql')
+        self.assertEqual(pack['publication']['key'], 'example')
+        self.assertEqual(pack['publication']['name'], 'Example')
+        self.assertEqual(pack['publication']['corpusId'], 'knowledge-corpus-example')
 
+    def test_requested_publication_is_only_an_assertion_about_the_backend(self):
+        resolve_editorial_context(Records(), publication_key='example', endpoint='https://example.invalid')
+        with self.assertRaisesRegex(ValueError, 'publication'):
+            resolve_editorial_context(Records(), publication_key='another', endpoint='https://example.invalid')
+
+    def test_section_overlays_come_from_backend_records_without_any_steering_file(self):
+        from unittest.mock import patch
+        import papyrus_content.editorial_context as module
+        client = Records()
+        client.records['NewsroomSection']['distinctive'] = dict(id='distinctive', editorialMission='Backend mission overlay', editorialPolicy='Backend policy overlay')
+        with tempfile.TemporaryDirectory() as empty_root, patch.dict(os.environ, {'PAPYRUS_ROOT': empty_root}), \
+                patch('papyrus_content.graphql_authoring.create_authoring_client', return_value=(client, None)), \
+                patch.object(module, 'graphql_endpoint', return_value='https://example.invalid'), patch.object(module, 'load_dotenv'):
+            self.assertEqual(os.listdir(empty_root), [])
+            pack = module.configured_context(section_id='distinctive')
+        self.assertIn('Backend mission overlay', pack['text'])
+        self.assertIn('Backend policy overlay', pack['text'])
+        self.assertEqual(pack['publication']['key'], 'example')
+        self.assertEqual(pack['sourceMode'], 'cloud')
+
+    def test_no_runtime_reader_of_steering_or_seed_files_remains(self):
+        source = (Path(__file__).resolve().parents[3] / 'src/papyrus_content/editorial_context.py').read_text()
+        for forbidden in ('papyrus-steering', 'publication-doctrine.yml', 'newsroom-sections.yml', 'yaml'):
+            self.assertNotIn(forbidden, source)
 
 
 class EditorialWorkerTests(unittest.TestCase):
@@ -125,7 +140,7 @@ class EditorialWorkerTests(unittest.TestCase):
         from unittest.mock import patch
         from papyrus_content.editorial_context import prepare_editorial_worker_input
         payload = {'assignment_item_id':'a1', 'editorial_context_text':'untrusted'}
-        with patch('papyrus_content.editorial_context.publication_identity', return_value={'key':'example'}), patch('papyrus_content.editorial_context.graphql_endpoint', return_value='https://example.invalid'):
+        with patch('papyrus_content.editorial_context.graphql_endpoint', return_value='https://example.invalid'):
             result = prepare_editorial_worker_input(Records(), 'assignments.run-research', payload)
         self.assertIn('Distinguish evidence', result['editorial_context_text'])
         self.assertEqual(payload['editorial_context_text'], 'untrusted')
@@ -139,7 +154,7 @@ class EditorialWorkerTests(unittest.TestCase):
         from unittest.mock import patch
         from papyrus_content.cloud_procedures import start_cloud_procedure_run
         client = Records(); client.records['Item']['editorial-doctrine-policy'] = []
-        with patch('papyrus_content.editorial_context.publication_identity', return_value={'key':'example'}), patch('papyrus_content.editorial_context.graphql_endpoint', return_value='https://example.invalid'), patch('papyrus_content.cloud_procedures.get_cloud_procedure_definition_by_key') as lookup:
+        with patch('papyrus_content.editorial_context.graphql_endpoint', return_value='https://example.invalid'), patch('papyrus_content.cloud_procedures.get_cloud_procedure_definition_by_key') as lookup:
             with self.assertRaisesRegex(ValueError, 'policy'):
                 start_cloud_procedure_run(client=client, alias='assignments.run-research', actor_label='Agent', title='test', summary='test', input_payload={'assignment_item_id':'a1'})
             lookup.assert_not_called()
@@ -173,7 +188,7 @@ class AssignmentAttachmentTests(unittest.TestCase):
         original = client.list_by_index
         client.list_by_index = lambda index, key: fixture['attachments'] if index == 'modelAttachmentsByOwnerRoleAndSortKey' else original(index, key)
         with patch('papyrus_content.model_attachments.download_attachment_buffer', return_value=b'Investigate primary evidence'):
-            pack = resolve_editorial_context(client, publication={'key':'example','name':'Ignored config name'}, endpoint='https://example.invalid/graphql', assignment_id='a1')
+            pack = resolve_editorial_context(client, endpoint='https://example.invalid/graphql', assignment_id='a1')
         pack.pop('resolvedAt')
         self.assertEqual(pack, fixture['pack'])
 
@@ -186,7 +201,7 @@ class AssignmentAttachmentTests(unittest.TestCase):
                 return super().list_by_index(index, key)
         with patch('papyrus_content.model_attachments.download_attachment_buffer', return_value=None):
             with self.assertRaisesRegex(ValueError, 'storage path'):
-                resolve_editorial_context(Attached(), publication={'key':'example'}, endpoint='https://example.invalid', assignment_id='a1')
+                resolve_editorial_context(Attached(), endpoint='https://example.invalid', assignment_id='a1')
         client = Attached()
         original = client.list_by_index
         def wrong_owner(index, key):
@@ -195,7 +210,7 @@ class AssignmentAttachmentTests(unittest.TestCase):
             return rows
         client.list_by_index = wrong_owner
         with self.assertRaisesRegex(ValueError, 'owner'):
-            resolve_editorial_context(client, publication={'key':'example'}, endpoint='https://example.invalid', assignment_id='a1')
+            resolve_editorial_context(client, endpoint='https://example.invalid', assignment_id='a1')
 
     def test_private_assignment_instructions_are_resolved_and_provenanced(self):
         from unittest.mock import patch
@@ -205,7 +220,7 @@ class AssignmentAttachmentTests(unittest.TestCase):
                     return [dict(id='instructions-v1', ownerKind='assignment', ownerId='a1', role='assignment_instructions', status='ready')]
                 return super().list_by_index(index,key)
         with patch('papyrus_content.model_attachments.download_attachment_buffer', return_value=b'Investigate the competing explanations'):
-            pack = resolve_editorial_context(Attached(), publication={'key':'example'},endpoint='https://example.invalid', assignment_id='a1')
+            pack = resolve_editorial_context(Attached(), endpoint='https://example.invalid', assignment_id='a1')
         self.assertIn('Investigate the competing explanations',pack['text'])
         self.assertIn('instructions-v1',[source['id'] for source in pack['sources']])
 
@@ -217,4 +232,4 @@ class AssignmentAttachmentTests(unittest.TestCase):
                 return super().list_by_index(index,key)
         with patch('papyrus_content.model_attachments.download_attachment_buffer',side_effect=PermissionError('private attachment denied')):
             with self.assertRaisesRegex(PermissionError,'denied'):
-                resolve_editorial_context(Attached(),publication={'key':'example'},endpoint='https://example.invalid',assignment_id='a1')
+                resolve_editorial_context(Attached(),endpoint='https://example.invalid',assignment_id='a1')

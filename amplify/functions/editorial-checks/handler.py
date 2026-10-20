@@ -1,4 +1,4 @@
-"""The editorial-checks plugin's function: routes its GraphQL fields to papyrus_content.editorial_checks."""
+"""The editorial-checks function: routes its GraphQL fields to papyrus_content.editorial_checks."""
 
 from __future__ import annotations
 

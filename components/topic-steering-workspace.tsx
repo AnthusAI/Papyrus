@@ -4318,17 +4318,15 @@ function AdministrationDeskView({
                 <strong>Agent delegations</strong>
                 <span>Let an agent curate References for you</span>
               </Link>
-              {editorialChecksPluginEnabled() ? (
-                <Link
-                  href={administrationPanelHref("editorial-checks", isDemo)}
-                  data-news-desk-admin-nav="editorial-checks"
-                  data-active={administrationPanel === "editorial-checks" || undefined}
-                  onClick={() => onPanelChange("editorial-checks")}
-                >
-                  <strong>Editorial checks</strong>
-                  <span>Policies the article editor checks drafts against</span>
-                </Link>
-              ) : null}
+              <Link
+                href={administrationPanelHref("editorial-checks", isDemo)}
+                data-news-desk-admin-nav="editorial-checks"
+                data-active={administrationPanel === "editorial-checks" || undefined}
+                onClick={() => onPanelChange("editorial-checks")}
+              >
+                <strong>Editorial checks</strong>
+                <span>Policies the article editor checks drafts against</span>
+              </Link>
               {signupPluginEnabled() ? (
                 <Link
                   href={administrationPanelHref("signups", isDemo)}
@@ -12807,14 +12805,9 @@ function signupPluginEnabled(): boolean {
   return pluginSettings(amplifyOutputs as PluginOutputs, "signup") !== null;
 }
 
-function editorialChecksPluginEnabled(): boolean {
-  return pluginSettings(amplifyOutputs as PluginOutputs, "editorial-checks") !== null;
-}
-
 function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations" || value === "editorial-checks") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
-  if (value === "editorial-checks" && editorialChecksPluginEnabled()) return value;
   return "users";
 }
 
