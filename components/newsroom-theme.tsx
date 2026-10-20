@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { kanbusThemeAttributes, type KanbusThemeId } from "@kanbus/ui";
+import type { KanbusThemeId } from "@kanbus/ui";
 import "@kanbus/ui/styles/kanban.css";
 import "@kanbus/ui/styles/themes/index.css";
 import "./newsroom-theme.css";
@@ -15,7 +15,8 @@ import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
  */
 export function useNewsroomThemeAttributes() {
   const mode = useResolvedPapyrusTheme();
-  return kanbusThemeAttributes(getKanbusTheme(SITE_BRAND), mode);
+  // Same attributes as `kanbusThemeAttributes(theme, mode)` from @kanbus/ui; spelled out so server-side tests need no ESM-only import.
+  return { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": mode };
 }
 
 const THEME_FONTS: Record<KanbusThemeId, ReturnType<typeof dynamic>> = {
