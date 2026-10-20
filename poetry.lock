@@ -8760,4 +8760,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "25894eff413ac3bb651f5a8344041eb73884d48fe3a0aa8f80b06e9431af840a"
+content-hash = "e6a406684993c1b287f05da09b376d70b5a1bc7c6ce06019ad11eaa06a46a32f"
