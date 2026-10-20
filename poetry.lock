@@ -2940,14 +2940,14 @@ sphinx = "*"
 
 [[package]]
 name = "limatus"
-version = "0.31.0"
+version = "0.32.0"
 description = "A diagnose-and-steer quality loop for AI-generated content."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "limatus-0.31.0-py3-none-any.whl", hash = "sha256:efc43ed85a10d6ab3dbad69aa524e1149ee0c5705f5066fa3443cc81fb374905"},
-    {file = "limatus-0.31.0.tar.gz", hash = "sha256:6c4b64926b3cb7005c656ffd16a169946c3ea5367fb933f454af9503bc49d609"},
+    {file = "limatus-0.32.0-py3-none-any.whl", hash = "sha256:f18932e9b82dc184ef9debf9f423b58644c8d18aa004d44d0daef3aa18db3dec"},
+    {file = "limatus-0.32.0.tar.gz", hash = "sha256:38aeaa799dc9c17a14824fe89a0a86840a46fc53540c9375f581b6793c65756f"},
 ]
 
 [package.dependencies]
@@ -8756,4 +8756,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "68bab0d61f0bca375b71bc4cb5fa851622b35268d01e2ec36b931232686afdf4"
+content-hash = "3e1a81e95af74e48494f06ddc65f6fad3a65ccaf7330dcdce47711bc86a49300"

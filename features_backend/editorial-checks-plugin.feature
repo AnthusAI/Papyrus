@@ -56,6 +56,15 @@ Feature: Editorial checks plugin
     Then 24 policies were created with scope "publication"
     And importing "ai-writing-tells" again creates 0 policies
 
+  Scenario Outline: Import a writing-standard starter pack
+    When an admin imports the starter pack "<pack>"
+    Then <count> policies were created with scope "publication"
+
+    Examples:
+      | pack           | count |
+      | asd-ste100     | 9     |
+      | plain-language | 14    |
+
   Scenario: Try a policy on sample text without saving it
     When an admin tries a policy with phrase "leverage" on "We leverage caching."
     Then the try result has 1 finding with excerpt "leverage"
