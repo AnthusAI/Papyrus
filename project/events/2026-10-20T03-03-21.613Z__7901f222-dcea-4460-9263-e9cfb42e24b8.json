@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "7901f222-dcea-4460-9263-e9cfb42e24b8",
+  "issue_id": "PPY-dc6e8639-1a34-4c62-8cf8-9f98a813f9d4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:03:21.613Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Read external mailbox messages without modifying the mailbox",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication user, I want a read-only external IMAP or POP3 Monitor connection, so that newsletters and submissions can be evaluated without changing my mailbox.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Read external mailbox messages without modifying the mailbox\n  Scenario: Read permitted messages\n    Given an external mailbox connection is separately authorized and configured for a publication or user\n    When the email Monitor reads new or updated messages using the selected protocol\n    Then only permitted messages are extracted into scoped common intake\n    And the connection does not delete, move, send, alter flags or otherwise mutate mailbox state\n    And message identity, source mailbox scope, checkpoints and observation provenance permit deduplicated retries\n  Scenario: Access or protocol guarantees are unavailable\n    Given access is revoked or a protocol/library cannot meet the agreed read-only contract\n    When collection is attempted\n    Then the connection reports the limitation or failure visibly\n    And it does not silently broaden access or perform destructive protocol actions\n```\n\nIMAP and POP3 are design options, not claimed equivalent implementations. Specify non-mutating retrieval, credential storage, consent, mailbox/folder scope, retention and retry semantics before connection. No connection or credentials requested now.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

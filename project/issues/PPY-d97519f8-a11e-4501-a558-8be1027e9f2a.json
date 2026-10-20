@@ -1,0 +1,31 @@
+{
+  "id": "PPY-d97519f8-a11e-4501-a558-8be1027e9f2a",
+  "title": "Document newsletter inbox, processing and user-initiated subscription actions",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication user and operator, I want a guide to newsletter reading and intake status, so that I can manage subscriptions without confusing Monitor controls with sender actions.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Document newsletter inbox, processing and manual subscription management\n  Scenario: Follow newsletter inbox guidance\n    Given the provided-address feature and reader are documented with truthful implementation status\n    When a user or operator follows the guide\n    Then it explains original-message access, sender/date and derived-reference provenance\n    And it explains processing state, failures, retry and privacy scope\n    And it distinguishes deliberate confirmation or unsubscribe from automatic link scanning\n    And it states that pausing monitoring is not unsubscribing\n    And full compose or reply behavior is not implied\n```\n\nVerify later against the actual inbox UI and scanner behavior. Document mailbox/address ownership, read permissions, retention, action-link privacy, attachments/remote content and error recovery. This is email milestone documentation; it must not wait on the Markus initiative or outbound feed documentation.\n\nUser-initiated unsubscribe acceptance is owned by PPY-bfcc3231-eceb-4b90-8d9b-de9990726b2e. A usable reader offers an explicitly clicked automated RFC 8058 HTTPS one-click flow where the message/header authentication and target requirements are met; it shows request/result/error status without claiming sender delivery has stopped. Without supported authenticated one-click, offer an appropriate external unsubscribe page for deliberate user action. Mailto-only limited outbound remains a design question, not a full mail client. Ingestion/link scanning never confirms or unsubscribes automatically; pause is not unsubscribe. This refines the earlier “manual management” wording: consent is manual, while a supported request may be automated after the user's click. Source: https://www.rfc-editor.org/rfc/rfc8058 .",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T03:04:06.224154Z",
+  "updated_at": "2026-10-20T03:06:50.874264Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
