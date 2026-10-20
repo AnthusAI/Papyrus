@@ -816,8 +816,35 @@ else raises `ValueError`.
 `ga_owner_opt_out=True` additionally emits a tiny script before the snippet:
 visit any page with `?notrack=1` once per browser to stop counting that browser
 (localStorage flag `<sitename>-no-analytics`, which sets Google's
-`ga-disable-<ID>`); `?notrack=0` turns counting back on. There is no other
-consent handling.
+`ga-disable-<ID>`); `?notrack=0` turns counting back on.
+
+### Consent Mode v2 and the consent banner (opt-in)
+
+`SiteChrome.consent_mode` (requires `ga_measurement_id`; `None` by default, which
+leaves pages byte-identical) emits Google Consent Mode v2 defaults before
+`gtag('config')`, a first-party banner just before `</body>`, and its stylesheet
+in `<head>`. In a projection settings file, give `chrome.consent_mode` a mapping
+of `ConsentModeSettings` fields; `{}` takes every default.
+
+```json
+{"chrome": {"ga_measurement_id": "G-ABC123DEF4", "consent_mode": {"privacy_policy_url": "/privacy.html"}}}
+```
+
+- Visitors in `denied_by_default_regions` (shipped: EEA, GB, CH) start with all four
+  signals denied; everywhere else starts with `analytics_storage` granted and the
+  three `ad_*` signals denied. Region detection is gtag's, never client-side.
+- Accept all grants and Reject all denies all four signals via
+  `gtag('consent','update')`. The choice is stored in localStorage under
+  `<sitename>-consent` with `policy_version` and `retention_days` (default 183);
+  raising `policy_version` re-prompts everyone.
+- To let visitors change their choice, place
+  `<a href="#" data-papyrus-consent-reopen hidden>Cookie settings</a>` in
+  `footer_html` (the script unhides it, so it never shows without JS), or call
+  `window.papyrusOpenConsentChoices()`.
+- Banner wording (`banner_heading`, `banner_message`, `accept_label`,
+  `reject_label`, `banner_region_label`, `privacy_policy_url`,
+  `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped
+  wording is a draft that the site owner must approve.
 
 ## `SITE_ENV` and `PAPYRUS_CONTENT_SOURCE` (staging for Pretext sites)
 
