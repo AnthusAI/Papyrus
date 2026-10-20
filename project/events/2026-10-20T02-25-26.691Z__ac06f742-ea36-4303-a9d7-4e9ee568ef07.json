@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "ac06f742-ea36-4303-a9d7-4e9ee568ef07",
+  "issue_id": "PPY-d21b8efc-494b-4ae3-aa30-d86c4837ca71",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:25:26.691Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reuse one exported help UI dependency with per-app themes",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a product integrator, I want a shared exported Papyrus wiki/help UI dependency, so that each product embeds consistent help without maintaining a bespoke implementation.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Reuse one exported help UI dependency with per-app themes\n  Scenario: Embed Help in two products\n    Given two applications use the shared exported help UI dependency\n    When each configures its own theme, navigation entry and authorized documentation binding\n    Then both receive common wiki/help behavior from that dependency\n    And each retains its product typography, colors and appropriate application chrome\n    And content scope and access checks do not change with theme selection\n  Scenario: Upgrade shared behavior\n    Given a reviewed shared help UI version is adopted by a consumer\n    When that consumer upgrades\n    Then its documented integration contract and theme hooks allow behavior to be verified without copying a separate help implementation\n```\n\nPackage export/API, supported host environments, CSS isolation, accessibility, framework constraints and release/version policy remain boundary decisions. Reuse existing Papyrus/Markus and Chatticus mechanisms where suitable. A shared dependency is required direction; a new repo or specific package name is not approved.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

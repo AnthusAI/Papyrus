@@ -1,0 +1,69 @@
+{
+  "id": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+  "title": "Documentation overhaul and reusable Papyrus wiki/help",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a Papyrus user, editor and application integrator, I want trustworthy workflow documentation and a reusable structured Markus wiki/help experience, so that products can explain their behavior without each building a bespoke documentation system.\n\nPlanning only. Preserve existing M10 PPY-2156fa static-publishing/README deliverables and wiki-lifecycle epic PPY-964472; this broader overhaul coordinates current and planned workflows rather than repeating their implementation. Workflow-owned documentation behavior stories belong under Monitoring, Editorial triage, RSS and headless milestones; cross-cutting review tasks here verify those links, current truth and discoverability.\n\nProduct direction: Papyrus authors/edits structured Markus docs; conventional Help entry opens the appropriate wiki/help. Consumers use a shared exported UI dependency with per-app theming. An optional configurable RAG chat sidebar retrieves only within the correct publication/knowledge base and existing access permissions, and answers cite sources. No repository creation, implementation, migration, deployment, indexing, model calls or purchase is authorized. A new repository was only a tentative idea; package/repository boundaries remain open.\n\nGrounded inspection: private AnthusAI/Chattic.us-web main at 0f92209b02e9c292d5f59440996d1a7136810778 already has publication/build.py calling Papyrus build_markus_site and SiteChrome, publication/catalog.py for idea/product wiki pages and blog related links, styles/markus-chatticus.css, generated wiki metadata, heading anchors, canonical/OG handling and marketing_wiki.feature. Its product docs come from Chatticus docs/LICENSE rather than copies of internal Kanbus wiki material. The older local checkout at 3796bb13 contains now-obsolete WikiPageView/WikiIndex wrappers, so do not use that as the current migration baseline. No RAG sidebar was established by this scoped source inventory; do not claim one exists or must be replaced. PPY-7417c5 and PPY-917578 already track Chatticus migration and record landed slices; build source is not evidence of live deployment.\n\nDefinition of Done for future delivery: mapped and reviewed workflow guides, shared authoring/presentation contracts, conventional Help, themed dependency reuse, scoped source-citing optional chat, migration/reuse assessment, and representative cross-product dogfooding. Actual config, backend authorization and retrieval capabilities must be verified during later implementation; a separate architecture investigation owns deep backend analysis.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-2156fa55-2b1b-4f49-a780-f874694e3e9d",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-964472fa-30a3-4a00-b333-fb32ceef40b8",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-7417c56b-992f-435d-8610-9f3ccce71f82",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "ed0c22fc-7896-4a9a-96ed-62dec84fa8bf",
+      "author": "home",
+      "text": "Incorporated independent read-only architecture evidence at a1019e76: existing knowledgeQuery/vector retrieval and bounded graph/context packs are reuse candidates, not proof of safe public Help. Targeted validation task PPY-b14a72e4-0c44-4bb0-9b7f-92dae719f042 now blocks optional RAG Help and its cross-cutting review. Verify publication/tenant and access boundaries, published-only behavior, citations/freshness and actual per-publication index/graph population; approximate node/edge metadata is an audit lead, not a verified failure. No duplicated backend investigation or implementation.",
+      "created_at": "2026-10-20T02:27:36.776329Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-planning"
+      }
+    },
+    {
+      "id": "f8fe3c98-ac77-43f8-99bf-fc583fa1c435",
+      "author": "home",
+      "text": "Planning delivery: develop, Kanbus-only direct commit/push per repository policy; no PR required on the unprotected branch. Added 16 documentation/Help planning records (38 in the combined planning set). Verified all records through kbs show for exact descriptions, type/parent rules, Gherkin stories, open/unassigned state, agent provenance and dependency targets; full-board validation unchanged at 15 pre-existing abbreviated dependency errors. Workflow documentation stays under Monitoring (PPY-b6bc65, PPY-76a3bc), RSS (PPY-c4ea07) and headless (PPY-92de97); review tasks here are PPY-2ce2bc, PPY-7baa82, PPY-d943b5. RAG story PPY-14b972 and Help review PPY-d943b5 are blocked by PPY-b14a72 retrieval-boundary verification. Private Chattic.us-web source inspected read-only at 0f92209; existing migration work preserved. Independent backend findings are recorded as evidence requiring verification. All implementation unstarted; no repository creation, live changes, installs, deployment or model calls.",
+      "created_at": "2026-10-20T02:28:25.812229Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-planning"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T02:24:47.449711Z",
+  "updated_at": "2026-10-20T02:28:25.812252Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

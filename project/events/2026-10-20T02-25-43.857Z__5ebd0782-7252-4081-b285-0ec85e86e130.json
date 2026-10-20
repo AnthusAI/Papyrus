@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "5ebd0782-7252-4081-b285-0ec85e86e130",
+  "issue_id": "PPY-31e9f811-2f61-4346-a7a8-b4da048dce74",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:25:43.857Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Resolve shared documentation ownership and integration boundaries",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nProduce reviewable design decisions, not implementation: Papyrus author/edit source of truth versus repository docs tied to code; structured wiki fields/navigation/assets/version identity; public Help versus authenticated help; consumer framework/theming/export contract; package ownership and release compatibility; corpus/index binding and existing authorization; citations/freshness, retention, model/provider/cost configuration; optional-chat failure behavior. New repository is tentative and must not be created. Delegate deep Papyrus backend capability/architecture findings to the separate read-only investigation; consume its evidence instead of duplicating it. Verify actual capability before committing a schema, endpoint, hosting or migration approach.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

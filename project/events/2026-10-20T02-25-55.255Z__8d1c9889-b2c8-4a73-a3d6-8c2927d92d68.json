@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "8d1c9889-b2c8-4a73-a3d6-8c2927d92d68",
+  "issue_id": "PPY-2ce2bc72-694c-4af5-b474-1e98ee81c924",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:25:55.255Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review documentation coverage for Monitoring and Editorial triage",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nCross-cutting acceptance review: verify the workflow-owned documentation stories under Monitoring are linked and fulfilled when implemented. Walk configuration/intake/status, provenance/deduplication, multiple matches, current policy resolution, nomination versus news judgment, story overlap, attributed outcomes and reporting allocation. Verify access/licensing/cost uncertainties, human-label boundaries and undecided budget controls are documented. Check guides distinguish current, planned and deferred behavior and link usable Help entry points. Record review evidence and gaps; no implementation or documentation publication in this task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}
