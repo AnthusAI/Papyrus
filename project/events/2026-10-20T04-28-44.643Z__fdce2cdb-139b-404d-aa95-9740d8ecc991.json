@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "fdce2cdb-139b-404d-aa95-9740d8ecc991",
+  "issue_id": "PPY-8726a14e-d1a6-4005-adca-2e60c59adbc7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T04:28:44.643Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Audit cleanup (low priority): Papyrus",
+    "description": "Low-priority cleanups for the Papyrus repo.\n\n- [ ] README.md has a duplicate `## Commands` heading (lines 91 and 93). Merge or remove one.\n- [ ] Dead relative links: publications/threat_intelligence/docs/video-pipeline.md, bootstrap.md, skills/produce-video, the pilobolus father-justin.md reference, skills/newsroom-research-workflow/SKILL.md:29, and docs/archive/priming...:108. Fix the targets or remove the links.\n- [ ] docs/python-cli-and-testing.md:25 says \"Plexus\" (\"Newsroom agents use the single-tool Tactus pattern from Plexus.\"). Plexus was renamed Primus; update the wording.\n- [ ] docs/migrations/p-apyr-us.md is a stale cutover handoff. Move to docs/archive or delete.\n- [ ] Note: Papyrus develop and main show diverged history (main has 9 merge commits not on develop, no content difference found at audit time). Confirm the next develop -> main promotion is a clean fast-forward.\n\n**How to verify**\n`grep -c '^## Commands' README.md` returns 1; a markdown link checker over the repo reports none of the targets above; `grep -n Plexus docs/python-cli-and-testing.md` returns nothing.\n\nSource: Anthus repo audit, 2026-10-20.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "audit-filing"
+    }
+  }
+}
