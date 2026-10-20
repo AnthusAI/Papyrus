@@ -16,35 +16,40 @@
       "author": "unknown",
       "text": "Inventory and plan written: /anthus-sites-to-papyrus/chattic-us-web-inventory-and-plan.md. 31 plain-Markdown content files (about 16,700 words), no MDX or in-content components; deploy already goes through CodePipeline. Slice 1 (cloud): convert content to Markus with a link and field checker. Slice 2 (Mac): publication layout and marketing sections. Intake forms stay a separate service.",
       "created_at": "2026-10-18T23:37:32.336165Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "cd7e2e0b-b552-48c7-9432-8d8b8941019a",
       "author": "unknown",
       "text": "Link check on the 27 content files: front matter is complete and relatedPosts resolve against content/blog. Five internal wiki links have no matching page in content/wiki: cost-vs-sla, computer-manifold, product (two posts), design-challenges, messaging. Slice 1 needs a decision per link: write the page, point elsewhere, or drop the link.",
       "created_at": "2026-10-18T23:38:06.832206Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
     },
     {
       "id": "e0760e1d-4471-4f27-bc77-f6a2c32b4548",
       "author": "unknown",
       "text": "Chattic.us-web PR 34 merged: scripts/check_content_links.py checks front matter (title, description) and internal links for the 24 published content files, wired into ci.yml and ci-local.sh. Five wiki links (product, messaging, design-challenges, cost-vs-sla, computer-manifold) have no page; they are listed in content/known-unresolved-links.txt until someone writes the pages or relinks. GitHub Actions CI is red on that repo for every run since 2026-10-13 (unusable on the private repo, deploy is CodePipeline), so the check ran locally. Chattic PRs 30 to 33 had already moved the wiki, blog, index, legal and feature pages onto Papyrus.",
       "created_at": "2026-10-19T00:19:07.970785Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8b5fc92e-6795-48c3-98da-e83bce059847",
+      "author": "home",
+      "text": "Planning-only current-source check: private Chattic.us-web main 0f92209 already uses Papyrus/Markus in publication/build.py with custom catalog/chrome/theme. Existing landed migration slices are preserved. New reusable help/documentation design is coordinated in PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc; it assesses extraction/reuse and Papyrus authoring boundaries rather than repeating the completed wiki migration. No migration, new repository, deployment or code changes authorized.",
+      "created_at": "2026-10-20T02:26:50.497507Z",
       "comment_type": "default",
-      "data": {},
-      "agent": null
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-planning"
+      }
     }
   ],
   "created_at": "2026-10-17T22:25:53.576750Z",
-  "updated_at": "2026-10-19T00:19:07.970955Z",
+  "updated_at": "2026-10-20T02:26:50.497536Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }

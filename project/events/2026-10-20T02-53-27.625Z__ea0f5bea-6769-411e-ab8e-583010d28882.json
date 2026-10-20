@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "ea0f5bea-6769-411e-ab8e-583010d28882",
+  "issue_id": "PPY-d16f6481-3a24-4438-94cb-ac6ed8ef34e7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:53:27.625Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Plan Anth.us-web migration from custom homepage assembly to authored pages",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nFuture implementation-design task supporting behavior stories PPY-c08790af-4c51-4c9d-a7ae-7a3346504bb2 and PPY-b6ede164-fad8-45da-a242-51362c5f8285. Reuse the existing all-sites Papyrus dogfooding epic rather than starting a parallel migration program. Current verified source baseline is AnthusAI/Anth.us-web main 5ce142cab725cbf27e30ee15cb4904dc282da0d7; homepage content is custom Python HTML assembly in web/anthus_pages.py, with build_via_papyrus.py shell wrapping and projector.py fragment-digest incremental invalidation. Do not confuse the older default develop/local homepage with main.\n\nPrepare an inventory and parity plan for authored homepage copy, ordinary path pages, embedded article/post and other collection listings, current selection semantics, links/assets/heading anchors, canonical/OG/social/SEO metadata and visual brand. Specify what moves into editable Markus composition versus reusable construct behavior versus theme-owned outer chrome. Preserve `/`, current product and documentation routes, redirects, content and design; `/features` and `/wiki` are ordinary subtrees of one system, not separate engines. Resolve mapping from current tag-based lists to supported item/issue-type and featured selection without silently changing membership, sort or limits.\n\nDesign compatibility with shared Help/docs PPY-9ad680, construct-derived reverse index and post-save PPY-defff0. Replace custom content assembly only after the shared design can express it and parity is verified; define handling of unsupported custom queries explicitly. Package/extension ownership, syntax, storage/path fields, orchestration, atomicity, migration/cutover and rollback specifics remain design choices. No new repository, new type without concrete need, code conversion, publication, production cutover or deployment in this planning task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e315d339-42e4-4831-96b0-e4de1cf958ae",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

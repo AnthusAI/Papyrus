@@ -1,7 +1,7 @@
 {
   "id": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
-  "title": "Static projection publishing: the Markus site as a projection of the content",
-  "description": "# Static projection publishing: the Markus site as a projection of the content\n\n## Vision (Ryan)\nThe default publication option for Markus sites is static files in a versioned S3 bucket behind our own CloudFront. The published site is a projection of the content through Markus, not \"a build we trigger\". The common update is a single-item edit, rendered incrementally and immediately by a Lambda in the GraphQL API path (the existing content-actions custom mutation), writing only the pages that depend on that item. No CodeBuild, no Amplify reader app, no prominent republish button; a full re-projection is an ops maintenance command, like rebuilding a database index. The same GraphQL API's public surface can serve dynamic features on the static pages. Later, an extension/plugin protocol, extracted from a first real plugin.\n\nDesign: /Users/home/Projects/markus-publication-architecture-v2.md (v1, superseded direction: markus-publication-architecture.md).\n\n## Measured facts behind it (2026-10-12, see v2 section 1)\n- Markus in-process: 2 ms median per page; whole Anth.us site in-process from warm caches is byte-identical (2,352 files) to today's build.\n- Cold Anth.us build 283 s locally, 236 s of it image encoding; warm 54 s, 28 s of it one markus subprocess per page.\n- content-actions is already a Python 3.12 arm64 zip Lambda (18.5 MB) bundling Markus 0.5.1, Pillow, citeproc; Init 260-345 ms; today's publish takes 1.9-2.8 s (AppSync round trips).\n\n## Decisions already made / constraints\n- No CodeBuild, no build job, no Amplify reader app for Markus sites.\n- Default publication option for Markus sites = S3 projection (`publication.kind = \"s3-projection\"`).\n- Pre-production sites (Pilobol.us) move fast; Anth.us (production) gets downtime care, parity gates and Ryan's yes per production step.\n- Per-site Google projects (unchanged).\n- Ryan retires old resources himself (reader apps, buckets, stacks).\n- No email addresses in repos (placeholders in specs; allowlists in AWS config).\n- Kanbus only through kbs; never edit project/ files by hand.\n\n## Milestones (epics, in dependency order)\nM0 spike, M1 projection core + template option, M2 renditions at upload, M3 incremental dependents + reconcile, M4 cache strategy, M5 Pilobol.us migration, M6 Anth.us migration, M7 retire reader apps + template cleanup, M8 public surface, M9 first plugin -> extension protocol, M10 docs + README diagram.\n\nRelated (not children): PPY-1f1489 (four-site alignment), PPY-7d8cd0 (Phase 6 moves).",
+  "title": "Markus for everything",
+  "description": "# Markus for everything\n\nLatest organizing decision approved by Ryan: this EXISTING initiative is the umbrella for one editable Markus page/content system across homepage `/`, product pages such as `/features` and documentation/wiki subtrees such as `/wiki`; reusable includes and their generated dependency index; post-save incremental public projection; both RSS and Atom; minimal versioned headless delivery; and relevant shared Help/documentation. “Wiki” is navigation/presentation over ordinary content, not a second storage or publishing engine. “Include” is the working name; exact syntax, extension ownership and path/selection schemas remain design decisions. No new initiative or duplicate site/wiki system is created.\n\nExisting static projection publishing, its milestones, implementation evidence and migration history are retained below as supporting scope. Reuse the current content lifecycle and projection/invalidation machinery; new architecture does not authorize a custom-Python content-assembly shortcut. Anth.us-web's current custom Python homepage assembly is a documented migration starting point, not the target. Theme-owned outer chrome and current routes/content/SEO/brand parity are required. RSS/Atom is now a slice of this shared architecture, not a standalone low-hanging-fruit alternative. Incremental vertical slices are welcome when they develop the agreed reusable authored-page/include primitives and shared selection/metadata; no implementation has been authorized for these new plans.\n\nHierarchy: foundation epic PPY-3f55c3 owns unified-page, authored composition/include, post-save and include-documentation behaviors; delivery epics PPY-33854a and PPY-29da48 retain their foundation/post-save dependencies; Help/docs epic PPY-9ad680 is now a child here; existing all-sites epic PPY-e315d3 retains Anth.us migration design and prior product migration records. Monitoring PPY-2d77c8 stays separate and is only related to this initiative, with no invented blocking dependency. Core foundation/page/include/post-save and both delivery epics are high-priority planning; Help/docs remains supporting medium-priority work. Prioritization is not coding, migration, publication or deployment authorization.\n\n## Preserved static-projection scope and history\n\n# Static projection publishing: the Markus site as a projection of the content\n\n## Vision (Ryan)\nThe default publication option for Markus sites is static files in a versioned S3 bucket behind our own CloudFront. The published site is a projection of the content through Markus, not \"a build we trigger\". The common update is a single-item edit, rendered incrementally and immediately by a Lambda in the GraphQL API path (the existing content-actions custom mutation), writing only the pages that depend on that item. No CodeBuild, no Amplify reader app, no prominent republish button; a full re-projection is an ops maintenance command, like rebuilding a database index. The same GraphQL API's public surface can serve dynamic features on the static pages. Later, an extension/plugin protocol, extracted from a first real plugin.\n\nDesign: /Users/home/Projects/markus-publication-architecture-v2.md (v1, superseded direction: markus-publication-architecture.md).\n\n## Measured facts behind it (2026-10-12, see v2 section 1)\n- Markus in-process: 2 ms median per page; whole Anth.us site in-process from warm caches is byte-identical (2,352 files) to today's build.\n- Cold Anth.us build 283 s locally, 236 s of it image encoding; warm 54 s, 28 s of it one markus subprocess per page.\n- content-actions is already a Python 3.12 arm64 zip Lambda (18.5 MB) bundling Markus 0.5.1, Pillow, citeproc; Init 260-345 ms; today's publish takes 1.9-2.8 s (AppSync round trips).\n\n## Decisions already made / constraints\n- No CodeBuild, no build job, no Amplify reader app for Markus sites.\n- Default publication option for Markus sites = S3 projection (`publication.kind = \"s3-projection\"`).\n- Pre-production sites (Pilobol.us) move fast; Anth.us (production) gets downtime care, parity gates and Ryan's yes per production step.\n- Per-site Google projects (unchanged).\n- Ryan retires old resources himself (reader apps, buckets, stacks).\n- No email addresses in repos (placeholders in specs; allowlists in AWS config).\n- Kanbus only through kbs; never edit project/ files by hand.\n\n## Milestones (epics, in dependency order)\nM0 spike, M1 projection core + template option, M2 renditions at upload, M3 incremental dependents + reconcile, M4 cache strategy, M5 Pilobol.us migration, M6 Anth.us migration, M7 retire reader apps + template cleanup, M8 public surface, M9 first plugin -> extension protocol, M10 docs + README diagram.\n\nRelated (not children): PPY-1f1489 (four-site alignment), PPY-7d8cd0 (Phase 6 moves).",
   "type": "initiative",
   "status": "open",
   "priority": 1,
@@ -21,9 +21,34 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f09ab73b-1cb3-45d7-a56a-2404dab43e7a",
+      "author": "home",
+      "text": "Renamed/expanded the existing static-projection initiative to Markus for everything per Ryan’s latest explicit organizing decision; retained its ID, prior description, milestones and history. Shared foundation/page/include/post-save, RSS/Atom and headless are high-priority architecture planning, and Help/docs epic PPY-9ad680 is now a child. Monitoring PPY-2d77c8 remains a separate related feature with no new blocking dependency. Existing all-sites migration epic and historical static projection work are preserved. RSS/Atom is an architectural vertical slice rather than a standalone shortcut. Include syntax and ownership remain design questions. Planning only; no implementation or migration authorized.",
+      "created_at": "2026-10-20T02:58:06.929886Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-planning"
+      }
+    },
+    {
+      "id": "d3eba8a1-29a4-4b67-985f-c9cab6994714",
+      "author": "home",
+      "text": "Final planning delivery on develop: Markus for everything retains this existing initiative ID and prior static-projection history. New child foundation stories: PPY-c08790 (one path-based page/content system), PPY-b6ede1 (authored homepage/includes and actual dependency-driven regeneration), PPY-01b5e0 (author/operator include documentation). Anth.us migration design PPY-d16f64 stays under existing all-sites epic PPY-e315d3. Help/docs epic PPY-9ad680 is now a child here; Monitoring PPY-2d77c8 remains separate and related without a blocking dependency. Core architecture and both delivery epics are high priority; incremental vertical slices must follow the agreed design, with no custom-Python shortcut. All 43 new planning records and this amended initiative were verified through Kanbus readback for exact content, legal hierarchy, priorities, open/unassigned state, Gherkin, provenance and dependency targets. Full-board validation retains exactly the same 15 pre-existing dependency errors. Kanbus-only commit/push; no PR required per repository policy. No implementation, new repository, migration, deployment, purchase or model calls authorized or performed.",
+      "created_at": "2026-10-20T02:59:19.364854Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-planning"
+      }
+    }
+  ],
   "created_at": "2026-10-12T18:26:18.486583Z",
-  "updated_at": "2026-10-12T18:26:28.548844Z",
+  "updated_at": "2026-10-20T02:59:19.364878Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
@@ -32,5 +57,8 @@
   },
   "right_now_summary": "The S3 projection is built, but integration, docs, testing, and site migrations still remain.",
   "right_now_updated_at": "2026-10-13T23:09:29.549091Z",
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }

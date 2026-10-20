@@ -1,0 +1,28 @@
+{
+  "id": "PPY-7d9bbd02-d685-4b30-9a85-76cb07afc48c",
+  "title": "Configure many Monitors with optional sponsoring sections",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want several independently configured Monitors, so that source discovery follows publication needs without a single owning desk.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Configure many Monitors with optional sponsoring sections\n  Scenario: Configure independent monitors\n    Given one publication has multiple curated sections\n    When I configure several Monitors with source type, source/query scope and collection bounds\n    Then each has a stable identity and independently visible configuration and run status\n    And a Monitor may optionally record a sponsoring section or newsdesk\n    And sponsorship is retained as provenance rather than exclusive Reference ownership\n  Scenario: Configure another publication\n    Given a publication with a different subject and doctrine\n    When I configure its Monitors\n    Then no Threat Intelligence-specific fields or assumptions are required\n```\n\nDefine configuration placement and publication authorization against current steering/section hierarchy during implementation design. No duplication of section curation or embedded provider secrets.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:17:46.925669Z",
+  "updated_at": "2026-10-20T02:17:46.925705Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

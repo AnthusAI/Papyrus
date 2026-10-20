@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "babb9bf9-44ce-4925-8997-d1e144a565d7",
+  "issue_id": "PPY-7baa82d7-470b-4b5b-ba21-a6cee075add2",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T02:35:46.480Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nCross-cutting acceptance review: verify workflow-owned RSS and headless documentation against the versioned implemented contracts and common published-content visibility foundation. Check discoverability, stable IDs/canonical URLs, updates/withdrawals/freshness, Markus body fields, lists/filter/pagination/assets, errors, public field allowlists and no-draft examples. Verify sample links/requests and permission boundaries using appropriate later tests. Preserve explicit deferred/YAGNI scope and avoid claiming M8 latest/search JSON already provides the new full contracts. Record evidence and remaining gaps.",
+        "to": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nCross-cutting acceptance review: verify workflow-owned RSS and headless documentation against the versioned implemented contracts and common published-content visibility foundation. Check discoverability, stable IDs/canonical URLs, updates/withdrawals/freshness, Markus body fields, lists/filter/pagination/assets, errors, public field allowlists and no-draft examples. Verify sample links/requests and permission boundaries using appropriate later tests. Preserve explicit deferred/YAGNI scope and avoid claiming M8 latest/search JSON already provides the new full contracts. Record evidence and remaining gaps.\n\nCross-cutting post-save review additionally traces PPY-defff04e-17b5-4e28-9bb5-df412601a102 from public-save/publish/unpublish to article, affected listings/indexes, sitemap, both RSS/Atom and enabled headless outputs. Verify shared selection/metadata, no private draft leakage, documented freshness and visible/retryable ancillary failures. Check documentation against actual implemented behavior; no new-service or atomicity assumption."
+      }
+    }
+  }
+}

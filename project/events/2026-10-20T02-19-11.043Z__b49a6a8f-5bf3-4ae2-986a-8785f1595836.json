@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "b49a6a8f-5bf3-4ae2-986a-8785f1595836",
+  "issue_id": "PPY-9c60a813-aadb-4af6-904a-6affb49426f3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:19:11.043Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editorial triage nominates one or many relevant sections",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a assignment planner, I want cheap fast Jev/Cyclotron decision classifiers to nominate relevant sections, so that more expensive editorial judgment is focused on plausible candidates.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Editorial triage nominates one or many relevant sections\n  Scenario: Nominate eligible sections\n    Given a candidate Reference and current publication and section guidance\n    When the configured fast decision classifiers evaluate section fit\n    Then one or several relevant sections may be nominated with attributed prediction evidence\n    And nomination means eligibility rather than exclusive editorial ownership\n    And no nomination alone creates a human Cyclotron training label\n```\n\nUse the existing shared-site Section classifier milestone PPY-0a285b. Jev/Cyclotron is the intended cheap/fast nomination path; actual model/configuration capability must be verified during later implementation. A section-selector suggestion cannot discard other eligible Section-fit nominations. No new engine or price/performance promise.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

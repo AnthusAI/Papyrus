@@ -1,0 +1,31 @@
+{
+  "id": "PPY-31e9f811-2f61-4346-a7a8-b4da048dce74",
+  "title": "Resolve shared documentation ownership and integration boundaries",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nProduce reviewable design decisions, not implementation: Papyrus author/edit source of truth versus repository docs tied to code; structured wiki fields/navigation/assets/version identity; public Help versus authenticated help; consumer framework/theming/export contract; package ownership and release compatibility; corpus/index binding and existing authorization; citations/freshness, retention, model/provider/cost configuration; optional-chat failure behavior. New repository is tentative and must not be created. Delegate deep Papyrus backend capability/architecture findings to the separate read-only investigation; consume its evidence instead of duplicating it. Verify actual capability before committing a schema, endpoint, hosting or migration approach.\n\nApproved unified page/wiki architecture, planning only: use one page/content system with paths. The homepage is an ordinary editable Markus page at `/`; product pages under `/features` and documentation under `/wiki` are ordinary content subtrees in that same system. Wiki denotes navigation and presentation, not a separate storage model, authoring backend, publication lifecycle or publishing engine. Reuse the existing content lifecycle, publishing projection and reader-access rules; avoid parallel site-versus-wiki systems and new content types unless a concrete need is demonstrated. A page's authored Markus composition owns its editable content and supported embedded listings; reusable themes retain outer chrome, branding and presentation. Existing routes, content, canonical/SEO metadata, heading/link behavior and brand design must be preserved through migration. Exact path schema, composition/listing syntax and Markus-versus-Papyrus extension ownership remain unresolved design work; do not invent current directives or claim they already exist.\n\nShared behavior records: PPY-c08790af-4c51-4c9d-a7ae-7a3346504bb2 (one path-based page/content system), PPY-b6ede164-fad8-45da-a242-51362c5f8285 (authored homepage composition with reusable listings). Migration design task: PPY-d16f6481-3a24-4438-94cb-ac6ed8ef34e7. Help/wiki and ordinary site pages share this foundation and its construct-derived index/post-save refresh; neither wiki navigation nor product theming creates an independent content engine.\n\nFinal agreed authoring direction, planning only: “include” is the working construct name, not approved concrete syntax. It supports inclusion of a single page or a selected list. “Collection” means a selection of content, not a new storage object. On page/content save or compile, the supported pipeline scans/parses include constructs, updates the generated site-wide dependency index, and actually uses that index to regenerate affected pages; merely recording dependencies is incomplete. Reuse each include's rendering selection as the sole source of invalidation selection, with separate enforced publication/access/published gates. Nested/transitive includes, cycles, deduplication, edits/deletion and retries require observable behavior, not arbitrary-code inference.\n\nRSS/Atom feed eligibility is distinct from page existence, include membership and navigation. An ordinary static wiki/help or product page does not automatically become a feed entry. Define shared feed selection/metadata and editorial eligibility without building a separate page or wiki engine. Exact include syntax, extension ownership and selection schema remain design questions; current Anth.us custom Python homepage code is evidence of a migration gap, not proof the proposed include construct is shipped.\n\nDetailed include BDD: PPY-b6ede164-fad8-45da-a242-51362c5f8285. Author/operator documentation behavior: PPY-01b5e07f-773e-407f-9057-941f4e4c5a0c. Review must trace these scenarios through actual public output changes and failure recovery when implemented; documentation presence or an index write alone is insufficient.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:25:43.857345Z",
+  "updated_at": "2026-10-20T02:56:01.212850Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

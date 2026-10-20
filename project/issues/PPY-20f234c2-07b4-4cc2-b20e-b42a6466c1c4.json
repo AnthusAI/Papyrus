@@ -1,0 +1,28 @@
+{
+  "id": "PPY-20f234c2-07b4-4cc2-b20e-b42a6466c1c4",
+  "title": "Prioritize section triage and reporting effort within editorial budgets",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a section editor, I want section-level prioritization and budget awareness for slower expensive work, so that reporting effort is allocated according to editorial value.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Prioritize section triage and reporting effort within editorial budgets\n  Scenario: Prioritize expensive work\n    Given multiple nominated candidates and a section's editorial priorities and budget policy\n    When the section or desk editor plans triage and reporting\n    Then higher-capability triage and reporting work are prioritized with an attributed allocation rationale\n    And held or deferred candidates remain visible with their reasons\n    And classifier eligibility alone does not commit reporting effort or confer ownership\n  Scenario: Budget controls are undecided\n    Given dollar amounts, hard-cap enforcement and concurrency policy have not been agreed\n    When the planning design is reviewed\n    Then those decisions remain explicit open questions\n    And no spending authority or hard enforcement guarantee is inferred\n```\n\nBudget amounts, currency accounting, hard caps, scheduling and concurrency are undecided implementation-design questions. No purchase, model run or reporting dispatch is authorized by this planning record.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:19:28.228224Z",
+  "updated_at": "2026-10-20T02:19:28.228254Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

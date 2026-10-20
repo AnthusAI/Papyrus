@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "0ed62dd3-2e81-4269-98b2-a94fb01aad5b",
+  "issue_id": "PPY-b6bc6517-c621-498f-aa4a-e01de8140f2e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:24:52.807Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Explain how editors configure and operate Monitors",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want a current Monitoring workflow guide, so that I can configure, evaluate and troubleshoot source discovery.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain how editors configure and operate Monitors\n  Scenario: Follow the Monitoring guide\n    Given documented Monitor capabilities and validation prerequisites\n    When I follow the guide for feeds, bounded crawling or X saved searches\n    Then it explains configuration scope, sponsors, run status, deduplication, discovery provenance and source updates\n    And access, cost, licensing and unresolved prerequisites are explicit\n    And examples distinguish supported behavior from planned candidates and deferred scraper plugins\n```\n\nFuture documentation acceptance, not a claim that Monitors exist. Include multiple publication/section matches, nonexclusive sponsorship, CVE updates versus severity, source validation and links to Editorial triage. Cross-cutting review is coordinated by the Documentation overhaul epic.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "a71d4341-a39b-4001-93f4-8b0aa870a103",
+  "issue_id": "PPY-29da48cd-8041-4ff0-a154-22afa9b2bc3b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:17:18.346Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Headless published-content delivery for application consumers",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs an application developer, I want a minimal versioned JSON delivery contract for published Papyrus content, so that applications can consume articles without depending on a page renderer or internal CMS schema.\n\nDefinition of Done for later implementation: documented v1 contract, individual article retrieval, list/filter/pagination and public asset references, common visibility/update handling and isolation specifications. Structured fields plus a Markus body string are required; renderer-specific HTML or body IR is not a required interchange contract. Depends on the shared foundation; examine existing Published* and Markus/S3 projection before choosing static JSON versus request-time transport. Reuse M8 PPY-f293ea where appropriate; its latest/search JSON lacks the full article contract. No new publishing engine.\n\nDeferred/YAGNI: Markdown+YAML export, exact Contentful API compatibility, extra export formats and authenticated draft previews. This is delivery for public application consumers, not an editorial API or a new authoring backend.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}
