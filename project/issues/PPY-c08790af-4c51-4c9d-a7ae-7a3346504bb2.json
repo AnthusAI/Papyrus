@@ -1,0 +1,31 @@
+{
+  "id": "PPY-c08790af-4c51-4c9d-a7ae-7a3346504bb2",
+  "title": "Use one path-based content system for homepage, product pages and wiki",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a content editor, I want the homepage, product pages and documentation to be ordinary editable pages in one system, so that I can maintain content through Papyrus without separate site and wiki publishing engines.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Use one path-based content system for homepage, product pages and wiki\n  Scenario: Edit ordinary pages at different paths\n    Given a publication uses the shared page and content system\n    When an authorized editor opens the homepage at /, a product page under /features, or documentation under /wiki\n    Then each is an ordinary editable page with structured fields and a Markus body under the same content lifecycle\n    And path placement does not require a separate storage or publishing engine\n    And existing visibility and access rules apply consistently\n  Scenario: Present a wiki as a subtree\n    Given ordinary documentation pages are organized under /wiki\n    When a reader opens the configured Help entry\n    Then wiki navigation and presentation organize those pages in their existing publication and access scope\n    And the wiki does not duplicate the page content into a second system\n  Scenario: Preserve public identity through migration\n    Given pages have existing public routes, canonical links, SEO metadata and brand presentation\n    When their content moves to the shared authored-page composition\n    Then routes, content, canonical and social metadata, heading links and brand design are preserved\n    And private revisions remain excluded from public outputs\n```\n\nApproved unified page/wiki architecture, planning only: use one page/content system with paths. The homepage is an ordinary editable Markus page at `/`; product pages under `/features` and documentation under `/wiki` are ordinary content subtrees in that same system. Wiki denotes navigation and presentation, not a separate storage model, authoring backend, publication lifecycle or publishing engine. Reuse the existing content lifecycle, publishing projection and reader-access rules; avoid parallel site-versus-wiki systems and new content types unless a concrete need is demonstrated. A page's authored Markus composition owns its editable content and supported embedded listings; reusable themes retain outer chrome, branding and presentation. Existing routes, content, canonical/SEO metadata, heading/link behavior and brand design must be preserved through migration. Exact path schema, composition/listing syntax and Markus-versus-Papyrus extension ownership remain unresolved design work; do not invent current directives or claim they already exist.\n\nCoordinate the existing shared Help/docs epic PPY-9ad680 and one-content lifecycle initiative PPY-ad3da5. No new repository or content-type taxonomy is authorized. Resolve repository-owned documentation coupling and existing lifecycle/supersession requirements rather than duplicating them.\n\nOrganizing initiative: Markus for everything (PPY-23a743). This is one architecture with shared authored pages, includes/derived regeneration, published projection and delivery contracts. RSS/Atom and headless remain dependent on the shared foundation and post-save behavior. Incremental vertical slices are allowed as future planning, but a bespoke custom-Python composition shortcut contradicts the target design. Monitoring remains separate and linked, not a prerequisite. This architecture is now lower priority than the real Monitoring learning-loop slice; no implementation is authorized for it.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3f55c3e1-65f6-4fc7-833e-6cecc6a85270",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:53:16.237546Z",
+  "updated_at": "2026-10-20T03:11:33.608823Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

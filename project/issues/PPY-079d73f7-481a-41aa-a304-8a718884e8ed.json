@@ -16,17 +16,21 @@
       "author": "unknown",
       "text": "Status 2026-10-19 16:40Z: Mac frontend task, not done. Covers no edition URL paths, archive or masthead when editions are off; TI home as its posts feed (TI PRs 56 and 57 merged, the live TI home now lists all 18 articles per Amplify job 38); read.p.apyr.us as the Papyrus stream reader with /information and its redirects removed. Live read.p.apyr.us still redirects to /information (404) until the 1.19.1 bump and deploy-edge land. Blocked on the Mac session.",
       "created_at": "2026-10-19T16:48:03.016108Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
+    },
+    {
+      "id": "0c7858e3-a6a3-44fe-a57c-e44f2306a599",
+      "author": "home",
+      "text": "Drift note 2026-10-20: related work merged to develop on 2026-10-19: #345 (328db984, editions become an optional publication setting, off by default) and #346 (c710de33, PAPYRUS_EDITIONS_ENABLED decides editions when the brand sets nothing, tied to this issue). The description's own 2026-10-19 16:40Z status says the Mac frontend work is not done (live read.p.apyr.us still redirects to /information until the 1.19.1 bump and deploy-edge land), so this stays open and is not closed on the strength of #346.",
+      "created_at": "2026-10-20T18:46:24.530062Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T12:00:51.938793Z",
-  "updated_at": "2026-10-19T16:48:03.016264Z",
+  "updated_at": "2026-10-20T18:46:24.530081Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }

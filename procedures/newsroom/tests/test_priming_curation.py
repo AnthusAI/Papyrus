@@ -202,3 +202,103 @@ def test_operational_projection_keeps_existing_intake_reason():
     reference,_=service()._reference('https://example.invalid/paper')
     item=reference_item(reference)
     assert item.values['ingestion_rationale']==reference['curationStatusReason']
+
+
+def failing_pipeline(monkeypatch,**result):
+    from papyrus_content import reference_url_text
+    base={'failures':[],'plans':[],'referenceRecords':[],'graphRecords':[],'filterFallbacks':[]}
+    monkeypatch.setattr(reference_url_text,'build_reference_url_text_attachment_plans',lambda **kwargs:{**base,**result})
+
+
+def test_extraction_failure_names_its_reason_code_and_message(monkeypatch):
+    from papyrus_content.priming_curation import ExtractionIncomplete
+    failing_pipeline(monkeypatch,failures=[{'reason':{'code':'grobid_unreachable','message':'GROBID did not answer.'}}])
+    with pytest.raises(ExtractionIncomplete) as raised:
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+    assert 'grobid_unreachable' in str(raised.value) and 'GROBID did not answer.' in str(raised.value)
+    assert raised.value.code=='grobid_unreachable' and raised.value.transient is True
+
+
+def test_bad_source_failure_is_not_transient(monkeypatch):
+    from papyrus_content.priming_curation import ExtractionIncomplete
+    failing_pipeline(monkeypatch,failures=[{'reason':{'code':'empty_text','message':'No text.'}}])
+    with pytest.raises(ExtractionIncomplete) as raised:
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+    assert raised.value.code=='empty_text' and raised.value.transient is False
+
+
+def test_filter_fallback_names_its_own_cause(monkeypatch):
+    failing_pipeline(monkeypatch,filterFallbacks=[{'reason':{'code':'article_filter_failed','message':'Filter broke.'}}])
+    with pytest.raises(ValueError,match='article_filter_fallback.*article_filter_failed.*Filter broke'):
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+
+
+def test_empty_plan_set_names_its_own_cause(monkeypatch):
+    failing_pipeline(monkeypatch)
+    with pytest.raises(ValueError,match='no_extraction_plans'):
+        service().prepare({'url':'https://example.invalid/paper'},None,'')
+
+
+# Recorded fixtures: GROBID boilerplate titles and the landing pages that correct them.
+ARXIV_ABS_ATTENTION='<html><head><title>[1706.03762] Attention Is All You Need</title><meta name="citation_title" content="Attention Is All You Need"></head></html>'
+ARXIV_ABS_GPT4='<html><head><title>[2303.08774] GPT-4 Technical Report - arXiv</title><meta property="og:title" content="[2303.08774] GPT-4 Technical Report"></head></html>'
+ARXIV_API_GPT4='<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>GPT-4 Technical\n  Report</title></entry></feed>'
+
+
+def grobid_title_pipeline(monkeypatch,title,landing):
+    from papyrus_content import priming_curation
+    pipeline_fixture(monkeypatch)
+    from papyrus_content import reference_url_text
+    original=reference_url_text.build_reference_url_text_attachment_plans
+    def plan(**kwargs):
+        result=original(**kwargs)
+        result['plans'][0]['record']['expected']['metadata']['title']=title
+        return result
+    monkeypatch.setattr(reference_url_text,'build_reference_url_text_attachment_plans',plan)
+    fetched=[]
+    def fetch(url):
+        fetched.append(url)
+        if url not in landing:raise OSError('no recorded fixture')
+        return landing[url]
+    monkeypatch.setattr(priming_curation,'_fetch_landing_text',fetch)
+    return fetched
+
+
+def test_grobid_licence_boilerplate_loses_to_arxiv_citation_title(monkeypatch):
+    fetched=grobid_title_pipeline(monkeypatch,'Provided proper attribution is provided, Google hereby grants permission… Attention Is All You Need',{'https://arxiv.org/abs/1706.03762':ARXIV_ABS_ATTENTION})
+    result=service().prepare({'url':'https://arxiv.org/abs/1706.03762','path':'research'},None,'')
+    assert result['candidate']['values']['title']=='Attention Is All You Need'
+    assert fetched==['https://arxiv.org/abs/1706.03762']
+
+
+def test_grobid_author_list_loses_to_cleaned_arxiv_og_title_for_pdf_url(monkeypatch):
+    fetched=grobid_title_pipeline(monkeypatch,'Core contributors 11 Gabriel Goh Long context co-lead…',{'https://arxiv.org/abs/2303.08774':ARXIV_ABS_GPT4})
+    result=service().prepare({'url':'https://arxiv.org/pdf/2303.08774','path':'research'},None,'')
+    assert result['candidate']['values']['title']=='GPT-4 Technical Report'
+    assert fetched==['https://arxiv.org/abs/2303.08774']
+
+
+def test_arxiv_export_api_title_is_used_when_abs_page_has_no_title(monkeypatch):
+    grobid_title_pipeline(monkeypatch,'Core contributors 11 Gabriel Goh Long context co-lead…',{'https://arxiv.org/abs/2303.08774':'<html></html>','http://export.arxiv.org/api/query?id_list=2303.08774':ARXIV_API_GPT4})
+    result=service().prepare({'url':'https://arxiv.org/pdf/2303.08774.pdf','path':'research'},None,'')
+    assert result['candidate']['values']['title']=='GPT-4 Technical Report'
+
+
+def test_good_grobid_title_is_kept_when_no_landing_metadata_exists(monkeypatch):
+    grobid_title_pipeline(monkeypatch,'A Perfectly Good Paper Title',{})
+    result=service().prepare({'url':'https://example.invalid/paper','path':'research'},None,'')
+    assert result['candidate']['values']['title']=='A Perfectly Good Paper Title'
+
+
+def test_bad_grobid_title_without_landing_metadata_asks_for_correction(monkeypatch):
+    grobid_title_pipeline(monkeypatch,'Core contributors 11 Gabriel Goh Long context co-lead…',{})
+    result=service().prepare({'url':'https://example.invalid/paper','path':'research'},None,'')
+    assert result['status']=='clarification'
+
+
+def test_title_sanity_guard():
+    from papyrus_content.priming_curation import plausible_title
+    assert plausible_title('Attention Is All You Need')
+    assert not plausible_title('x'*201)
+    assert not plausible_title('Anna Lee, Bo Chen, Cy Diaz, Di Eng, Ed Fox')
+    assert not plausible_title('Permission is granted to reproduce')

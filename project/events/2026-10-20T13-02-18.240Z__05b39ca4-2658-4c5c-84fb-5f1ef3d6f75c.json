@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "05b39ca4-2658-4c5c-84fb-5f1ef3d6f75c",
+  "issue_id": "issue:PPY-5aca7fa9-3384-4df7-9a1b-262489952c48",
+  "event_type": "coordination.claim",
+  "occurred_at": "2026-10-20T13:02:18.240Z",
+  "actor_id": "codex-papyrus-monitoring",
+  "payload": {
+    "owner": "codex-papyrus-monitoring",
+    "claim_id": "codex-assignment-data-config-20261020",
+    "lease_expires_at": "2026-10-20T13:07:18.240Z",
+    "contention_window_s": 5,
+    "ttl_s": 300,
+    "revision": 2,
+    "operation_sequence": 1
+  }
+}

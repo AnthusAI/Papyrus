@@ -1351,15 +1351,16 @@ class ReferenceCommandsTests(unittest.TestCase):
 
     @mock.patch("papyrus_content.reference_url_text._run_biblicus_article_text")
     def test_filter_article_text_includes_bounded_retry_trace_in_failure_reason(self, mock_run_article_text):
-        mock_run_article_text.return_value = {
-            "status": "failed",
-            "text": "",
-            "span_count": 0,
+        from papyrus_content.biblicus_runner import command_failure_error
+
+        failure_details = {
             "prompt_version": "article-text-v1",
+            "model": "gpt-5.4-nano",
+            "task": None,
             "warnings": [],
+            "map_reduce": {},
             "retry_failure_count": 3,
             "retry_rounds_used": 8,
-            "agentic_loop": {"version": "article-text-react-v1", "rounds_used": 4, "actions": [{"action": "redo_extraction"}]},
             "retry_trace": [
                 {
                     "attempt": 1,
@@ -1378,8 +1379,11 @@ class ReferenceCommandsTests(unittest.TestCase):
                     "next_action": "Use longer old_str",
                 },
             ],
-            "error": {"code": "empty_spans", "message": "No spans"},
         }
+        envelope = {"status": "failed", "error": {"code": "empty_spans", "message": "No spans", "details": failure_details}}
+        mock_run_article_text.side_effect = command_failure_error(
+            command=["biblicus", "extract", "article-text"], exit_code=1, stdout=json.dumps(envelope), stderr=""
+        )
         result = _filter_article_text(
             extracted_text="Noisy text",
             source_uri="https://example.com/article",
@@ -1392,7 +1396,8 @@ class ReferenceCommandsTests(unittest.TestCase):
         self.assertEqual(result["retryFailureCount"], 3)
         self.assertEqual(result["retryRoundsUsed"], 8)
         self.assertEqual(result["retryLastCode"], "old_str_not_unique")
-        self.assertEqual(result["agenticLoop"]["rounds_used"], 4)
+        self.assertEqual(result["promptVersion"], "article-text-v1")
+        self.assertEqual(result["error"]["code"], "empty_spans")
         self.assertEqual(result["error"]["details"]["retry_trace"][0]["failure_code"], "old_str_not_found")
 
     @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
@@ -1599,14 +1604,25 @@ class ReferenceCommandsTests(unittest.TestCase):
     @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})
     @mock.patch("papyrus_content.biblicus_runner.subprocess.run")
     def test_extract_url_text_uses_biblicus_structured_failure(self, mock_run, _mock_python):
+        details = {
+            "source_kind": "web",
+            "strategy": "direct",
+            "content_type": "text/html",
+            "prompt_version": "url-text-v1",
+            "attempts": [],
+            "http_status": 403,
+        }
         mock_run.return_value = mock.Mock(
-            returncode=2,
-            stdout=json.dumps({"status": "failed", "error": {"code": "blocked", "message": "blocked by source"}}),
-            stderr="blocked by source",
+            returncode=1,
+            stdout=json.dumps({"status": "failed", "error": {"code": "blocked", "message": "blocked by source", "details": details}}),
+            stderr="",
         )
         with self.assertRaises(ReferenceUrlTextExtractionError) as context:
             _extract_url_text("https://example.com/article")
-        self.assertEqual(context.exception.reason["code"], "blocked")
+        self.assertEqual(
+            context.exception.reason,
+            {"code": "blocked", "message": "blocked by source", "details": details},
+        )
 
     @mock.patch("papyrus_content.biblicus_runner.resolve_biblicus_executable", return_value=pathlib.Path("/venv/bin/biblicus"))
     @mock.patch.dict("os.environ", {"BIBLICUS_WORKDIR": "/tmp"})

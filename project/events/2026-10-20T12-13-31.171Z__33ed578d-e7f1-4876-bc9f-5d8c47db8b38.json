@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "33ed578d-e7f1-4876-bc9f-5d8c47db8b38",
+  "issue_id": "PPY-33854a5d-da97-4597-9ad2-948a7dd23136",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-20T12:13:31.171Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "fbb9e6bd-9207-4c41-bcb6-c4ce59325269",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-monitoring"
+    }
+  }
+}

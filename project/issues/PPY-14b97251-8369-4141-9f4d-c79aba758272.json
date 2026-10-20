@@ -1,0 +1,36 @@
+{
+  "id": "PPY-14b97251-8369-4141-9f4d-c79aba758272",
+  "title": "Ask optional help chat for scoped answers with source citations",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a help reader, I want an optional configurable RAG sidebar grounded in permitted documentation, so that I can ask questions and inspect the supporting sources.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Ask optional help chat for scoped answers with source citations\n  Scenario: Answer within the configured scope\n    Given chat is enabled for the current application and publication or knowledge base\n    And the reader is authorized for a particular set of documents\n    When the reader asks a help question\n    Then retrieval is limited to that configured scope and the reader's existing access permissions\n    And the answer cites accessible source pages or passages used to support its claims\n    And unrelated publications, private drafts and unauthorized documents do not appear in answers, citations or snippets\n  Scenario: Evidence or access is unavailable\n    Given permitted documentation does not support an answer or access cannot be verified\n    When the reader asks a question\n    Then the sidebar states the evidence or access limitation without inventing an answer or widening scope\n    And ordinary Help browsing remains available\n  Scenario: A source changes\n    Given a source is revised, withdrawn or its access permission changes\n    When a later answer is produced\n    Then retrieval and citation behavior follow the documented freshness and permission rules\n```\n\nChat is optional and configurable. Design corpus/index scope, retrieval binding, source revision citations, permission enforcement, failure behavior, model/provider selection, privacy/retention and cost controls later. Use existing authorization rather than inventing access rights. This record authorizes no provider use, indexing or runtime work.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-b14a72e4-0c44-4bb0-9b7f-92dae719f042",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T02:25:32.413488Z",
+  "updated_at": "2026-10-20T03:11:29.367063Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

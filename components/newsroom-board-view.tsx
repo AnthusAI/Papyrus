@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
-import "@kanbus/ui/styles/kanban.css";
-import "@kanbus/ui/styles/newsprint.css";
-import "./newsroom-newsprint-board.css";
+import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
+import "./newsroom-theme";
 import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
@@ -18,6 +16,7 @@ import {
   deskBoardConfig,
   deskContainsAssignment,
   deskContainsContentItem,
+  formatNativeIssueId,
   projectAssignmentBoard,
   projectContentItemBoard,
   type NativeBoardIssue,
@@ -35,7 +34,6 @@ import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
-import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
 /** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
@@ -61,7 +59,6 @@ export type NewsroomBoardSubject = "contentItem" | "assignment" | "desk";
 export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardSubject; deskId?: string }) {
   const session = useOptionalNewsDeskClient();
   const allowed = canReadNewsroomBoard(session?.shell.phase);
-  const theme = useResolvedPapyrusTheme();
   const [lowMotion, setLowMotion] = useState(false);
   const [assignmentBoardIssues, setAssignmentBoardIssues] = useState<NativeBoardIssue[]>([]);
   const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
@@ -172,7 +169,8 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         </Link>
       )}
     </>}>
-    <div className="organizer-native-board papyrus-newsprint-board" data-kanbus-theme="newsprint" data-color-mode={theme}>
+    <IssueIdFormatProvider formatIssueId={formatNativeIssueId}>
+    <div className="organizer-native-board">
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
       <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
@@ -196,5 +194,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         </IssueDetailPanel>}
       </div>
     </div>
+    </IssueIdFormatProvider>
   </NewsroomOpsShell>;
 }

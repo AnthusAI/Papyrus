@@ -3,7 +3,7 @@
   "title": "References inbox + detail curation (accept/reject/archive)",
   "description": "Was PPY-3aa283. Shadcn mobile-app newsroom: references list/filters by curation status, detail, accept/reject/archive via GraphQL reviewReferenceCuration. Demo + live. Pilobolus tenant. Composer 2.5.\n\n## Current next-step plan — 2026-10-17\n\nPapyrus PR213 https://github.com/AnthusAI/Papyrus/pull/213 is OPEN/DRAFT at a7c4d1d7ec701d00b1f97eca4365756869248b31; smoke SUCCESS, ts and python FAILURE. The local8930 preview and optional explanation repair5eb5ca6 are source evidence only. Required checks must be repaired/reviewed before integration; no production acceptance is inferred.\n\nImplementation-owner next step: repair current exact-head ts/python checks, review existing URL-to-paper/web curation and optional explanation behavior, then integrate through normal source workflow. Acceptance is the hosted publish/reject/save/reload/classifier-consumption scenarios in PPY-a8471b, in both shared UI modes; no divergent ingestion or labeling UI. A rejected item cannot count as accepted positive priming. Existing draft/source is unfinished until integration, dependency release/pins and hosted scope checks pass.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": "Papyrus",
   "creator": null,
@@ -40,11 +40,18 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "cd327d21-854e-41d9-8b68-f643a3c493b3",
+      "author": "home",
+      "text": "Done: guarded References curation controls merged in Papyrus #213 (2026-10-17); later References work shipped in #325 and #371. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:32.136698Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-07T20:49:09.753930Z",
-  "updated_at": "2026-10-17T06:22:39.794265Z",
-  "closed_at": null,
+  "updated_at": "2026-10-20T14:05:32.173585Z",
+  "closed_at": "2026-10-20T14:05:32.173557Z",
   "right_now_summary": "The team is building a references inbox with detail views and accept, reject, and archive actions.",
   "right_now_updated_at": "2026-10-12T16:43:08.820805Z",
   "custom": {

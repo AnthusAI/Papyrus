@@ -38,10 +38,21 @@
       "text": "M8 deployed and verified live (next.50 / papyrus-newsroom 1.0.0.dev50). Builds: Pilobol.us CMS d1eiwl0gedkmnj main job 13 (20044ed, auto) SUCCEED 8m36s; Anth.us CMS d7s858igkyct5 main job 7 (RELEASE) SUCCEED 8m22s. Both content-actions Lambdas updated 12:01 UTC and contain dev50, projection/public_data.py and public_assets/papyrus-search.js.\nFull projection run via the deployed Lambdas (projectionTask all; Pilobol 11s, Anth.us 44s, ok). Anth.us 404.html rewritten, so bin/fix_404_headers.py rerun: text/html, no Cache-Control.\nFiles (200): anth.us search-index.json 37579 B/113 entries, latest.json 8096 B/20, papyrus-search@1.js 7740 B (node --check OK), s-maxage=31536000. pilobol.us search-index.json 3806 B/10 entries (latest.json identical bytes), js 7740 B, s-maxage=300 swr=60. Queries: anth 'decision model' 13, 'kanbus' 1, 'jev' 10; pilobol 'grok' 1. No headless browser; component not loaded in a browser.\nNo regression: Anth.us 93-path compare (anth.us and www) identical to the M6 results; 33 odd probes 0 differ; Pilobol.us 65-path crawl 0 differences vs legacy-live manifest. robots/sitemaps 200.\nPublish tests (ZZ publish test (delete me), dated 2001): Pilobol page 0.2s, index entry 1.4s after the save Lambda returned; unpublish page gone 0.2s, entry 0.9s. Anth.us page 0.2s, entry 2.7s; unpublish 0.2s / 2.0s; home unaffected, index back to same ETag. Counts equal after cleanup (Pilobol 21/18/117/0, Anth.us 131/128/3180/520 for Item/PublishedItem/bucket/KVS).\nFindings: (1) deleting an Item leaves its _papyrus/items/<id>.json state object in the site bucket and reconcile does not flag it; I removed the two test ones (versioned bucket, delete markers). (2) Pilobol needs its own front-matter shape (text date); Anth-style front matter gives 'year 0 is out of range' in test input only.\nStatus left for Ryan.",
       "created_at": "2026-10-13T12:31:33.163027Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4d9af795-4a1f-48ab-ad82-4b588e88f4d2",
+      "author": "home",
+      "text": "Design-only planning clarification: the detailed subscription-feed behavior is now owned by PPY-33854a5d-da97-4597-9ad2-948a7dd23136; the minimal versioned headless article JSON contract by PPY-29da48cd-8041-4ff0-a154-22afa9b2bc3b; both depend on shared published-content foundation PPY-3f55c3e1-65f6-4fc7-833e-6cecc6a85270. Existing M8 latest/search JSON work and status are preserved; these plans do not claim those new delivery contracts are implemented. No runtime changes started.",
+      "created_at": "2026-10-20T02:19:00.157977Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6"
+      }
     }
   ],
   "created_at": "2026-10-12T18:28:02.562649Z",
-  "updated_at": "2026-10-13T12:31:33.163062Z",
+  "updated_at": "2026-10-20T02:19:00.158002Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

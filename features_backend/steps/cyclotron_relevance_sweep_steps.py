@@ -25,6 +25,8 @@ CORPUS_ID = "knowledge-corpus-example"
 DOCTRINE = [{"kind": "mission", "body": ["Publish practical AI security analysis."]},
             {"kind": "policy", "body": ["Prefer primary evidence over vendor marketing."]}]
 INDEX_MODELS = {
+    "knowledgeCorporaByRoleAndName": "KnowledgeCorpus",
+    "itemBySlug": "Item",
     "referencesByCurationStatusKey": "Reference",
     "semanticRelationsBySubjectState": "SemanticRelation",
     "semanticRelationsByObjectState": "SemanticRelation",
@@ -40,6 +42,13 @@ class SweepClient(FakeAuthoringClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bodies: dict[str, bytes] = {}
+        self.endpoint = 'https://example.invalid/graphql'
+        self._table('KnowledgeCorpus')[CORPUS_ID] = {'id': CORPUS_ID, 'name': 'Example', 'role': 'canonical'}
+        for kind in ('mission', 'policy'):
+            identifier = 'synthetic-doctrine-' + kind
+            self._table('Item')[identifier] = {'id': identifier, 'lineageId': identifier,
+                'slug': 'editorial-doctrine-' + kind, 'type': 'doctrine', 'status': 'private',
+                'versionState': 'current', 'versionNumber': 1, 'body': ['Synthetic publication ' + kind]}
 
     def list_by_index(self, index_name, key_value, **_kwargs):
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]
@@ -117,6 +126,9 @@ def extract_url_for(context):
         context.extractions.append(url)
         if url in context.unreadable_urls:
             raise ValueError("The page is behind a paywall.")
+        if url in context.service_down_urls:
+            from papyrus_content.priming_curation import ExtractionIncomplete
+            raise ExtractionIncomplete("grobid_unreachable", "GROBID did not answer.", transient=True)
         slug = url.rsplit("/", 1)[-1]
         return {"text": f"{slug}\nSource: example.org", "title": slug, "source_uri": url, "domain": "example.org"}
     return extract
@@ -138,7 +150,8 @@ def run(context, *, apply=True, fresh_worker=False):
         try:
             context.result = run_decide_relevance(context.client, context.steering, DOCTRINE, apply=apply,
                                                   worker="worker-a", model=context.model, snapshots=context.bucket,
-                                                  extract_url=extract_url_for(context))
+                                                  extract_url=extract_url_for(context),
+                                                  grobid_alive=context.grobid_alive)
         except CyclotronClaimed as error:
             context.error = error
 
@@ -149,6 +162,8 @@ def step_publication(context):
     context.model = Model()
     context.extractions = []
     context.unreadable_urls = set()
+    context.service_down_urls = set()
+    context.grobid_alive = None
     context.priming_requests = 0
     context.bucket = LocalBucket(Path(context.tmp) / "bucket")
     configure(context, Path(context.tmp) / "worker-1")
@@ -166,6 +181,12 @@ def step_references(context):
 @given("the decide-relevance sweep has run with apply")
 def step_run(context):
     run(context)
+
+
+@when("the decide-relevance sweep runs with apply {count:d} times")
+def step_run_repeatedly(context, count):
+    for _ in range(count):
+        run(context)
 
 
 @when("the decide-relevance sweep runs with apply on a fresh worker")
@@ -377,6 +398,36 @@ def priming_outcomes(context, url):
 @given('the page text of "{url}" cannot be extracted')
 def step_unreadable(context, url):
     context.unreadable_urls.add(url)
+
+
+@given('the extraction service is down for "{url}"')
+def step_service_down(context, url):
+    context.service_down_urls.add(url)
+
+
+@when('the extraction service is back for "{url}"')
+def step_service_back(context, url):
+    context.service_down_urls.discard(url)
+
+
+@given("GROBID does not answer its liveness check")
+def step_grobid_dead(context):
+    context.grobid_alive = lambda: False
+
+
+@then('the priming request for "{url}" has no outcome yet')
+def step_no_outcome(context, url):
+    assert priming_outcomes(context, url) == [], priming_outcomes(context, url)
+
+
+@then('the page text of "{url}" was not extracted')
+def step_not_extracted(context, url):
+    assert url not in context.extractions, context.extractions
+
+
+@then('the sweep warned "{words}"')
+def step_warned(context, words):
+    assert any(words in warning for warning in context.result.warnings), context.result.warnings
 
 
 @given('an editor "{editor}" asked to prime the cyclotron with "{url}" as "{label}" saying "{note}"')

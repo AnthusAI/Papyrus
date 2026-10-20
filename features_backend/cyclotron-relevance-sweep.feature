@@ -93,6 +93,33 @@ Feature: The candidate pipeline asks the relevance cyclotron about pending refer
     Then the priming request for "https://example.org/paywalled" failed saying "could not be read"
     And each pending reference has a current relevance decision
 
+  Scenario: A page that cannot be read because GROBID is down stays pending and is retried
+    Given the extraction service is down for "https://example.org/long-paper"
+    And an editor "managing-editor" asked to prime the cyclotron with "https://example.org/long-paper" as "include" saying "A good source."
+    When the decide-relevance sweep runs with apply
+    Then the priming request for "https://example.org/long-paper" has no outcome yet
+    And the cyclotron status snapshot reports 0 primed examples
+    And each pending reference has a current relevance decision
+    When the extraction service is back for "https://example.org/long-paper"
+    And the decide-relevance sweep runs with apply
+    Then the priming request for "https://example.org/long-paper" is applied as version 2
+
+  Scenario: A page that keeps failing because of the extraction service is given up on after five tries
+    Given the extraction service is down for "https://example.org/long-paper"
+    And an editor "managing-editor" asked to prime the cyclotron with "https://example.org/long-paper" as "include" saying "A good source."
+    When the decide-relevance sweep runs with apply 4 times
+    Then the priming request for "https://example.org/long-paper" has no outcome yet
+    When the decide-relevance sweep runs with apply
+    Then the priming request for "https://example.org/long-paper" failed saying "after several tries"
+
+  Scenario: Priming requests are not extracted while GROBID is down
+    Given GROBID does not answer its liveness check
+    And an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "include" saying "A good source."
+    When the decide-relevance sweep runs with apply
+    Then the page text of "https://example.org/vendor-launch" was not extracted
+    And the priming request for "https://example.org/vendor-launch" has no outcome yet
+    And the sweep warned "GROBID is not responding"
+
   Scenario: A second request for the same URL with a different label is refused
     Given an editor "managing-editor" asked to prime the cyclotron with "https://example.org/vendor-launch" as "exclude" saying "Marketing, not research."
     And the decide-relevance sweep has run with apply

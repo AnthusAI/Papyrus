@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6db08beb-8a86-4880-905b-cfed6d9b59b8",
+  "issue_id": "PPY-1ad3c8a2-fc12-4988-80b5-c289c451ead7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T14:02:28.636Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus-infra silently defaults CDK account to legacy 335163751677; resolve via STS",
+    "description": "bin/papyrus-infra.mjs falls back to legacy account 335163751677 when --account and CDK_DEFAULT_ACCOUNT are unset (Amplify builds), so deploy fails assuming the legacy CDK deploy role (Pilobolus builds 37/38). Fix: resolve account via aws sts get-caller-identity, region from AWS_REGION/AWS_DEFAULT_REGION/CDK_DEFAULT_REGION default us-east-1, clear error otherwise.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d467f75-69de-4db7-9841-82213d8cc22f",
+    "labels": []
+  }
+}

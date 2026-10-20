@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "7de17ac9-6891-472f-bcda-dbdde11d16c2",
+  "issue_id": "PPY-5aca7fa9-3384-4df7-9a1b-262489952c48",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T12:41:37.784Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "assignee": {
+        "from": "home",
+        "to": "codex-papyrus-monitoring"
+      }
+    }
+  }
+}

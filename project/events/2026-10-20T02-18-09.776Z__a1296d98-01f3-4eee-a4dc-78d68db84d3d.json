@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "a1296d98-01f3-4eee-a4dc-78d68db84d3d",
+  "issue_id": "PPY-9df108ff-31e0-4a4c-97b1-c66831695c34",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:18:09.776Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Retain multiple discoveries for one canonical Reference",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a editor, I want deduplicated references with all discovery provenance, so that I can trace corroboration and monitor overlap.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Retain multiple discoveries for one canonical Reference\n  Scenario: Discover the same source through several monitors\n    Given two Monitors or sponsoring sections encounter the same canonical source item\n    When intake resolves its identity\n    Then one canonical Reference identity is retained within the authorized identity scope\n    And distinct discoveries retain each Monitor, source URL, sponsor, observation time and revision evidence\n    And one discovery does not overwrite another's provenance or curation\n  Scenario: Identity is ambiguous\n    Given two source URLs might describe the same item but equivalence is uncertain\n    When intake compares them\n    Then uncertainty is retained for review rather than silently merging unrelated material\n```\n\n“Discoveries” is tentative naming, not a committed model/table. Canonical identity scope across publication backends and permitted metadata sharing must be designed; no authorization bypass or global cross-tenant deduplication is implied.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

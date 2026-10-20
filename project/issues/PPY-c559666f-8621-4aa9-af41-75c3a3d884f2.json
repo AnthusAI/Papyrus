@@ -1,0 +1,89 @@
+{
+  "id": "PPY-c559666f-8621-4aa9-af41-75c3a3d884f2",
+  "title": "Collect public HN discoveries into a private review queue without classifier access",
+  "description": "As an editor, I want public HN discoveries staged privately for review without requiring classifier integration or app credentials.\n\nCurrent: first scheduled collection completed at 2026-10-20T12:46:32Z (8:46:32 AM Eastern), with 3 new and 27 unchanged sources; private queue has 33 sources. Queue canonical dedup, independent discovery revisions, source timestamps/fingerprints, retry-safe checkpoints, failure retention, private JSON/Markdown and actual presentation receipts are implemented. No app auth or provider calls. Parent enabled hourly automation (America/New_York). First scheduled collection and accepted five-item delivery at 12:51:44Z are verified; five actual presentation receipts were recorded idempotently, for 15 total shown receipts. No labels were inferred or applied. Remain in progress pending review/merge and continuing recurrence; this is private staging only.\n\nDelivery: draft https://github.com/AnthusAI/Papyrus/pull/382 . Collector code head 4a151214 passed all CI; combined guideline/tracker head bbacf15c passed Python, TypeScript and package-smoke CI. Collection is private staging, not full publication routing, Reference acceptance, publishing or learning.\n\nFeature: Public collection preserves a private review queue.\nScenario: Resume collection without duplicates\nGiven a bounded public HN feed and private checkpoint\nWhen a due collector repeats or observes a source revision\nThen canonical sources are deduplicated and separate discovery provenance is retained\nAnd already-presented sources remain recorded without inferred labels.\nScenario: Observe recurrence honestly\nGiven an enabled hourly scheduler\nWhen its first scheduled collection runs\nThen save an actual run/queue receipt before declaring recurring delivery verified.\n\nHuman decisions, rationale and editorial policy remain private outside Git. Received feedback is separate from applied feedback.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c9606895-14b7-4196-9869-507dc49d65b5",
+      "author": "home",
+      "text": "Implemented explicit collect-local path independent of IAM/app auth and classifier composition. 22 focused tests and isolated committed HN/private-queue BDD specs pass (6 scenarios, 23 steps). Queue deduplicates canonical URLs, retains discovery revisions, writes private JSON/Markdown, respects cadence, retains items on visible fetch failure, and supports supplied presentation receipts without labels. The 18 received decisions remain unapplied; no model/provider/training calls. Live collection command was rejected before execution by automatic approval review: it interpreted original design-only scope as still controlling despite the later parent instruction authorizing resumed HN implementation. No alternate execution or retry attempted. Finishing offline delivery and exact narrow existing-scheduler activation instructions; no deployment or scheduler activation claimed.",
+      "created_at": "2026-10-20T11:06:04.836545Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "6cb5e8c5-4433-4f07-8e7c-4626f81b8969",
+      "author": "home",
+      "text": "Collector implementation committed and locally verified with synthetic fixtures. Initial run/push were blocked by approval review; later exact human approval permitted the bounded public-source run and draft-branch push. No deployment, app credentials, classifier execution or learning application. All received feedback stays private outside Git.",
+      "created_at": "2026-10-20T11:08:05.641405Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "584e18a0-8337-4695-9f8f-dd316052283f",
+      "author": "home",
+      "text": "Exact human approval resolved initial collector run/push denial. Draft PR382 head 4a151214 pushed; Python/TypeScript/smoke CI all passed. Public RSS run completed at 11:35:17 UTC with 30 private sources and no app credentials, predictions or learning. Parent enabled hourly collection automation; first scheduled execution not yet observed. Parent owns candidate delivery and presentation receipts; no overlapping manual collection. Received human feedback remains private and unapplied.",
+      "created_at": "2026-10-20T11:55:21.474602Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "20ac97ab-1826-47d9-b4fb-739e47fb71bb",
+      "author": "home",
+      "text": "Current verified checkpoint 2026-10-20: Codex papyrus-monitoring coordinates this work; preserve concurrent Claude/consumer changes. Draft PR https://github.com/AnthusAI/Papyrus/pull/382 head bbacf15ce703dc620dbcf583c13f1431226c3c5d passed all three CI checks (Python, TypeScript, package smoke). Focused local verification: 63 tests; 3 BDD features/24 scenarios/98 steps. Source review remains open; nothing merged or deployed. Private review holds 50 received human decisions, zero applied feedback/learning. Credential-free manual HN collection queued 30; parent reports hourly automation enabled, first automatic receipt still unverified. Full routing/classification is not running. Exact remaining gates: select deployed consumer/release and scoped read permissions; verify authenticated publication/tenant/section data and current context at provider boundary; obtain scoped policy-write/live-provider budget authorization where needed; bind predictions and human authority before feedback application; observe scheduled-run receipt. Keep policy, labels and rationales private.",
+      "created_at": "2026-10-20T12:13:33.955728Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "61b4197b-a231-4af2-9fa9-f04ca17688ca",
+      "author": "home",
+      "text": "Scheduled-run receipt verified: 2026-10-20T12:46:32Z, 3 new/27 unchanged, 33 private queued sources. Parent confirmed accepted five-item delivery at 12:51:44Z; actual presentation ledger updated idempotently (15 total shown receipts), private exports refreshed without fetching. No human labels inferred/applied and no model/provider/training/app credentials used. Collector lock excluded overlap. Private source review/rationale stay outside Git; parent owns hourly schedule; no duplicate schedule created.",
+      "created_at": "2026-10-20T13:02:39.106515Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T11:02:36.927481Z",
+  "updated_at": "2026-10-20T13:02:39.106545Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

@@ -32,13 +32,13 @@ def test_existing_papyrus_curation_can_be_vetted_with_explicit_publication_feedb
     import socket
     def no_network(*args,**kwargs): raise AssertionError('offline contract attempted a network connection')
     monkeypatch.setattr(socket,'create_connection',no_network)
-    spec=importlib.util.spec_from_file_location('publication_fixtures',Path(__file__).resolve().parents[2]/'scripts/priming-preview/fixtures.py')
+    spec=importlib.util.spec_from_file_location('publication_fixtures',Path(__file__).resolve().parents[2]/'scripts/curation-review/fixtures.py')
     fixtures=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixtures)
-    prepared=fixtures.SyntheticCuration().prepare({'url':f'https://example.invalid/{path}','path':path},None,'')
+    prepared=fixtures.OfflineCuration().prepare({'url':f"https://example.invalid/{'paper' if path=='research' else 'web'}",'path':path},None,'')
     assert prepared['status']=='complete'
     candidate=prepared['candidate']
     assert candidate['values']['title'].startswith('Synthetic')
-    assert ('scholarly abstract' if path=='research' else 'web summary') in candidate['values']['abstract']
+    assert 'Synthetic source text' in candidate['values']['abstract']
     definition=CyclotronDefinition('papyrus-mode-contract',(
         ClassifierSpec('intel',('accept','reject'),'Accept for Threat Intelligence?'),
         ClassifierSpec('pilobolus',('accept','reject'),'Accept for Pilobolus?')))

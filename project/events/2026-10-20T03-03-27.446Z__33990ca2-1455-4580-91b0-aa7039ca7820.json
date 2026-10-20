@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "33990ca2-1455-4580-91b0-aa7039ca7820",
+  "issue_id": "PPY-be20cbe7-ab0e-4ea9-8a7f-2729a2ad2cb5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:03:27.446Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Receive newsletters or submissions at a publication/user-scoped address",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication editor, I want a Papyrus-provided inbound address when the SES option is selected, so that newsletter and editorial messages arrive in the correct private intake scope.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Receive newsletters or submissions at a publication/user-scoped address\n  Scenario: Route a provided-address message\n    Given a Papyrus-provided address is separately provisioned and authorized for a publication or user\n    When a newsletter or editorial submission arrives\n    Then the resolved address binding determines its permitted intake scope\n    And the message retains sender and receipt provenance without treating sender text as trusted identity\n    And no other publication or user's mailbox data becomes visible\n    And retries do not create duplicate discoveries\n  Scenario: Unknown, ambiguous or disabled address\n    Given an address has no current authorized scope or has been disabled\n    When a message is received\n    Then the intake outcome is visible and follows the documented rejection or hold policy\n    And the message is not routed by guessing a publication\n```\n\nSES-provided inbound addresses are new feature design, not existing production capability. Decide verification/authentication policy, abuse/size/attachment controls, retention/privacy/access, domain/address ownership and operations later. Do not provision addresses or change MX/SES resources in this task.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

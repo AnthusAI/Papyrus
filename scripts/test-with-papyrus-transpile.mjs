@@ -16,6 +16,7 @@ assert.equal(packageShipsTypeScriptSourceEntries({ exports: { "./x": "./src/x.ts
 assert.equal(packageShipsTypeScriptSourceEntries({ exports: { ".": { types: "./index.d.ts", default: "./index.js" } } }), false);
 assert.equal(packageShipsTypeScriptSourceEntries({ exports: { ".": { "@zod/source": "./src/index.ts", import: "./index.js" } } }), false, "custom source conditions are opt-in and ignored");
 assert.equal(packageShipsTypeScriptSourceEntries({ main: "./index.ts" }), true);
+assert.equal(packageShipsTypeScriptSourceEntries({ main: "index.css", types: "index.d.css.ts", exports: { ".": { types: "./index.d.css.ts", default: "./index.css" } } }), false, "arbitrary-extension declarations (index.d.css.ts) are not source");
 
 assert.equal(withPapyrus({}).expireTime, READER_EXPIRE_TIME_SECONDS, "shared caches may serve a page stale for 60 s, not a year");
 assert.equal(withPapyrus({ expireTime: 300 }).expireTime, 300, "a publication's own expireTime wins");

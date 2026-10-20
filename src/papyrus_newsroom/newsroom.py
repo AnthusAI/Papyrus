@@ -24,7 +24,7 @@ from typing import Any
 from .semantic import PapyrusSemanticClient
 from .reference_policy import is_evidence_eligible_reference
 from . import reference_actions
-from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
+from papyrus_content.biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner, resolve_biblicus_workdir
 from papyrus_content.env import PAPYRUS_ROOT
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.steering import default_corpus_key
@@ -5039,8 +5039,8 @@ def _build_biblicus_block_context_pack(
     request = ContextPackBuildBlocksRequest.model_validate(request_payload)
     try:
         pack = BiblicusRunner.from_environment().build_context_pack_from_blocks(request).model_dump(mode="json")
-    except BiblicusCommandError as error:
-        raise RuntimeError(error.stderr or f"Biblicus block context build failed for profile {profile_key}") from error
+    except (BiblicusCommandError, BiblicusOutputError) as error:
+        raise RuntimeError(f"Biblicus block context build failed for profile {profile_key}: {error.failure_message()}") from error
     for block in blocks:
         if block.get("required") and block["text"] not in (pack.get("text") or ""):
             raise ValueError("Context budget did not preserve required editorial context; increase the token budget.")

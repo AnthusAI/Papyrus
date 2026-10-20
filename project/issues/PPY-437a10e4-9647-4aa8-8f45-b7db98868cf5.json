@@ -1,0 +1,55 @@
+{
+  "id": "PPY-437a10e4-9647-4aa8-8f45-b7db98868cf5",
+  "title": "Verify conversational human feedback and existing seed/priming receipts",
+  "description": "As an editor, I want my explicit publication-specific decisions and reasons preserved and applied through the correct authenticated feedback path, so alignment uses actual human judgments rather than inferred labels.\n\nCurrent: 50 explicit human decisions, explanations, source/presentation selection provenance and message provenance are saved privately with hashes. Zero feedback/learning application. Deliberately selected candidate batches are not random evaluation samples; no accuracy claim may be inferred from their hit rate. No individual labels, reasons or policy prose belong in public tracker text.\n\nPending gate: verified production target decision/output/binding revision, current human authority/delegation and intended applied-feedback transport are not established. Preserve baseline-before-seeding and evaluation separation. Do not fabricate predictions, authority, examples or an applied receipt. Do not implicitly activate classifiers or training.\n\nFeature: Faithful authority-bound human feedback\nScenario: Preserve a confirmed decision\nGiven an actual human publication-specific decision with its reason and message provenance\nWhen feedback is received\nThen preserve it privately and distinguish received status from applied status.\nScenario: Refuse a missing target\nGiven no verified current prediction/output binding or human application authority\nWhen feedback application is requested\nThen retain the received decision without applying learning or inventing an application receipt.\nScenario: Verify application after the gate is resolved\nGiven a verified scoped target and valid current human authority\nWhen the intended authorized feedback operation completes\nThen read back its actual applied receipt and preserve the source decision and ordering.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [
+    "monitoring"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "285b0c0d-d32d-482d-9d89-fe38fe21efb2",
+      "author": "home",
+      "text": "Historical checkpoint superseded by the current status snapshot. Source intake, scoped routing and private human-feedback preservation were investigated. Individual source judgments, rationale and message provenance are retained privately outside Git; no application, training or publishing receipt is implied. See the latest implementation/verification status and draft PR382.",
+      "created_at": "2026-10-20T04:10:16.341587Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "bf90541a-cd64-4b79-a28e-14e81ca5944d",
+      "author": "home",
+      "text": "Current verified checkpoint 2026-10-20: Codex papyrus-monitoring coordinates this work; preserve concurrent Claude/consumer changes. Draft PR https://github.com/AnthusAI/Papyrus/pull/382 head bbacf15ce703dc620dbcf583c13f1431226c3c5d passed all three CI checks (Python, TypeScript, package smoke). Focused local verification: 63 tests; 3 BDD features/24 scenarios/98 steps. Source review remains open; nothing merged or deployed. Private review holds 50 received human decisions, zero applied feedback/learning. Credential-free manual HN collection queued 30; parent reports hourly automation enabled, first automatic receipt still unverified. Full routing/classification is not running. Exact remaining gates: select deployed consumer/release and scoped read permissions; verify authenticated publication/tenant/section data and current context at provider boundary; obtain scoped policy-write/live-provider budget authorization where needed; bind predictions and human authority before feedback application; observe scheduled-run receipt. Keep policy, labels and rationales private.",
+      "created_at": "2026-10-20T12:13:34.877439Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T03:13:09.622426Z",
+  "updated_at": "2026-10-20T12:13:34.877484Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

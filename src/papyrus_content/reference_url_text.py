@@ -10,7 +10,7 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from .biblicus_runner import BiblicusCommandError, BiblicusRunner, BiblicusRunnerError
+from .biblicus_runner import BiblicusFailureEnvelopeError, BiblicusRunner, BiblicusRunnerError
 from .env import load_amplify_outputs, storage_bucket_from_amplify_outputs
 from .corpus_storage_paths import corpus_storage_path_prefix
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
@@ -33,6 +33,15 @@ except ModuleNotFoundError:  # pragma: no cover - boto3 exists in normal runtime
     boto3 = None
 
 ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS = 240
+# Longer than Biblicus's 120 s GROBID readiness wait, so a cold start can finish before the child is killed.
+URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS = 300
+URL_TEXT_SUBPROCESS_TIMEOUT_ENVIRONMENT_VARIABLE = "PAPYRUS_URL_TEXT_TIMEOUT_SECONDS"
+
+# Failure codes that mean the extraction service was unavailable, not that the source is bad.
+# A request that hits one is worth trying again on the next run.
+TRANSIENT_FAILURE_CODES = frozenset(
+    {"grobid_unreachable", "grobid_request_failed", "grobid_timeout", "biblicus_timeout"}
+)
 
 
 def build_reference_url_text_attachment_plans(
@@ -1883,16 +1892,6 @@ def _extract_url_text(source_uri: str, *, reference_title: str = "", grobid_url:
         "reference_title": reference_title or "",
     }
     result = _run_biblicus_url_text(payload, grobid_url=grobid_url)
-    status = str(result.get("status") or "").strip().lower()
-    if status != "ok":
-        reason = result.get("error") if isinstance(result.get("error"), dict) else None
-        if not reason:
-            reason = {
-                "code": "biblicus_url_text_failed",
-                "message": "Biblicus URL text extraction failed.",
-                "details": {"result": result},
-            }
-        raise ReferenceUrlTextExtractionError(reason=reason)
     text = str(result.get("text") or "").strip()
     if not text:
         raise ReferenceUrlTextExtractionError(
@@ -1951,6 +1950,8 @@ def _filter_article_text(
     }
     try:
         result = _run_biblicus_article_text(payload)
+    except BiblicusFailureEnvelopeError as error:
+        result = _article_text_failure_result(error, model=model)
     except Exception as error:
         return {
             "status": "failed",
@@ -2020,28 +2021,49 @@ def _filter_article_text(
     }
 
 
+def _article_text_failure_result(error: BiblicusFailureEnvelopeError, *, model: str) -> dict[str, Any]:
+    details = error.details
+    return {
+        "status": "failed",
+        "text": "",
+        "span_count": 0,
+        "prompt_version": details.get("prompt_version"),
+        "model": details.get("model") or model,
+        "warnings": details.get("warnings"),
+        "retry_trace": details.get("retry_trace"),
+        "retry_failure_count": details.get("retry_failure_count"),
+        "retry_rounds_used": details.get("retry_rounds_used"),
+        "error": error.failure_reason(),
+    }
+
+
 def _run_biblicus_url_text(payload: dict[str, Any], *, grobid_url: str | None = None) -> dict[str, Any]:
     from biblicus.api import UrlTextRequest
 
     try:
         runner = BiblicusRunner.from_environment(grobid_url=grobid_url)
-        response = runner.extract_url_text(UrlTextRequest(**payload))
+        response = runner.extract_url_text(UrlTextRequest(**payload), timeout_seconds=_url_text_timeout_seconds())
     except BiblicusRunnerError as error:
         raise ReferenceUrlTextExtractionError(reason=error.failure_reason()) from error
     return response.model_dump(mode="json", exclude_unset=True)
 
 
+def _url_text_timeout_seconds() -> float:
+    raw = os.environ.get(URL_TEXT_SUBPROCESS_TIMEOUT_ENVIRONMENT_VARIABLE, "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS)
+    return value if value > 0 else float(URL_TEXT_SUBPROCESS_TIMEOUT_SECONDS)
+
+
 def _run_biblicus_article_text(payload: dict[str, Any]) -> dict[str, Any]:
     from biblicus.web_transform import ArticleInput
 
-    runner = BiblicusRunner.from_environment()
-    try:
-        result = runner.extract_article_text(
-            ArticleInput.model_validate(payload, strict=False),
-            timeout_seconds=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
-        )
-    except BiblicusCommandError as error:
-        raise RuntimeError(error.failure_message()) from error
+    result = BiblicusRunner.from_environment().extract_article_text(
+        ArticleInput.model_validate(payload, strict=False),
+        timeout_seconds=ARTICLE_TEXT_SUBPROCESS_TIMEOUT_SECONDS,
+    )
     return result.model_dump(mode="json")
 
 
@@ -2148,6 +2170,20 @@ def _is_grobid_failure_reason(reason: dict[str, Any] | None) -> bool:
     if isinstance(details, dict):
         fetch_error = details.get("fetch_error")
         if isinstance(fetch_error, dict) and str(fetch_error.get("code") or "").lower().startswith("grobid_"):
+            return True
+    return False
+
+
+def is_transient_failure_reason(reason: dict[str, Any] | None) -> bool:
+    """True when the reason names an unavailable extraction service rather than a bad source."""
+    if not isinstance(reason, dict):
+        return False
+    if str(reason.get("code") or "").lower() in TRANSIENT_FAILURE_CODES:
+        return True
+    details = reason.get("details")
+    if isinstance(details, dict):
+        fetch_error = details.get("fetch_error")
+        if isinstance(fetch_error, dict) and str(fetch_error.get("code") or "").lower() in TRANSIENT_FAILURE_CODES:
             return True
     return False
 

@@ -25,6 +25,7 @@ from ..markus_renderer.pages import (
     title_from_slug,
     version_token,
 )
+from ..markus_renderer.consent import consent_mode_from_mapping
 from ..markus_renderer.shell import DEFAULT_CHROME, SiteChrome
 from ..markus_renderer.vendor_css import vendor_markus_css_text
 from ..renditions import (
@@ -112,6 +113,8 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
     unknown_chrome = set(chrome_raw) - CHROME_FIELD_NAMES
     if unknown_chrome:
         raise ValueError(f"Unknown chrome settings: {', '.join(sorted(unknown_chrome))}")
+    if isinstance(chrome_raw.get("consent_mode"), dict):
+        chrome_raw["consent_mode"] = consent_mode_from_mapping(chrome_raw["consent_mode"])
     for list_field in ("scripts", "stylesheets"):
         if list_field in chrome_raw:
             chrome_raw[list_field] = tuple(chrome_raw[list_field])

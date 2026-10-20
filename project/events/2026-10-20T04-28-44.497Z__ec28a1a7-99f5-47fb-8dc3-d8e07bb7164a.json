@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "ec28a1a7-99f5-47fb-8dc3-d8e07bb7164a",
+  "issue_id": "PPY-b5ed6d54-6c4b-444e-8a92-677a7f70c719",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T04:28:44.497Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Docs contain session scaffolding (ChatGPT test prompt, TI end-to-end check)",
+    "description": "**Problem**\nTwo public docs in the Papyrus repo are session scaffolding rather than documentation: a prompt to paste into ChatGPT with a gate on an assistant (\"Do not post until Claude confirms ...\"), and a one-off end-to-end check for a specific Threat Intelligence deploy.\n\n**Evidence**\n- docs/cyclotron-chatgpt-test-prompt.md:3: \"Do not post until Claude confirms the Threat Intelligence deploy and the end-to-end check.\"\n- docs/cyclotron-ti-end-to-end-check.md: a one-time checklist tied to that deploy.\n\n**Fix**\nDelete both files, or move any durable content into a normal runbook with neutral wording. Move the one-off check to a Kanbus issue.\n\n**How to verify**\n`ls docs/cyclotron-chatgpt-test-prompt.md docs/cyclotron-ti-end-to-end-check.md` reports both missing, and `grep -rn 'Claude confirms' docs` returns nothing.\n\nSource: Anthus repo audit, 2026-10-20.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "audit-filing"
+    }
+  }
+}

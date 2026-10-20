@@ -2115,6 +2115,7 @@ const baseDefinitions = {
 };
 
 export const schema = a.schema(baseDefinitions).authorization((allow) => [
+  allow.resource(assignmentAction).to(["query", "mutate"]),
   allow.resource(categoryAction),
   allow.resource(contentActions),
   allow.resource(manageUserRole),
@@ -2126,6 +2127,7 @@ export const schema = a.schema(baseDefinitions).authorization((allow) => [
 /** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */
 export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
   return a.schema({ ...baseDefinitions, ...pluginDefinitions } as typeof baseDefinitions).authorization((allow) => [
+    allow.resource(assignmentAction).to(["query", "mutate"]),
     allow.resource(categoryAction),
     allow.resource(contentActions),
     allow.resource(manageUserRole),

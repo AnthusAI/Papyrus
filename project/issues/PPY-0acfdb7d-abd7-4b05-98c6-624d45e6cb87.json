@@ -3,7 +3,7 @@
   "title": "Resolve current editorial context through one publication-scoped CLI and library",
   "description": "Feature: Current editorial context. Scenario: Fetch a scoped policy. Given a configured publication and current mission and policy records, when an agent resolves publication plus optional section/story/assignment context, then one rendered text and source revisions identify that scope. Scenario: Explicit offline configuration. Given local Git configuration, when local context is requested, then source provenance says local and never claims to be current hosted policy. Scenario: Missing or unauthorized policy. Given missing required doctrine, ambiguous revisions or an unauthorized read, when context is fetched, then execution fails explicitly without seed fallback. Scenario: Required policy budget. Given a budget smaller than required policy, when context is requested, then it fails instead of truncating required policy.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,26 +17,30 @@
       "text": "Resolver/CLI implemented in draft PR311. Publication, section, story, assignment and local Git paths carry provenance/hash; strict missing/ambiguous/denied paths and budget refusal tested. Required assignment attachment read failures propagate. Await review; no hosted write or seed fallback.",
       "created_at": "2026-10-18T19:16:26.379588Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6",
-        "name": "ChatGPT",
-        "settings": {}
+        "name": "ChatGPT"
       }
+    },
+    {
+      "id": "563563fe-1337-413b-b2d6-9064b3118806",
+      "author": "home",
+      "text": "Done: landed in Papyrus #311 (53ca3133, merged 2026-10-19), publication-scoped editorial context resolver and CLI. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:32.626443Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-18T19:00:31.364608Z",
-  "updated_at": "2026-10-18T19:16:26.379710Z",
-  "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {},
+  "updated_at": "2026-10-20T14:05:32.665994Z",
+  "closed_at": "2026-10-20T14:05:32.665961Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
-    "name": "ChatGPT",
-    "settings": {}
+    "name": "ChatGPT"
   },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
   "agent_assignment": null
 }

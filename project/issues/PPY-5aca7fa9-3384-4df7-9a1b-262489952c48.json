@@ -1,0 +1,101 @@
+{
+  "id": "PPY-5aca7fa9-3384-4df7-9a1b-262489952c48",
+  "title": "Restore editorial context handler data-client configuration",
+  "description": "Fresh read-only verification on the intended TI app in papyrus-production found getEditorialContext fails at publication scope and both selected sections. Deployed assignment handler throws Lambda:Unhandled: The data environment variables are malformed. Expected string values for: _MODEL_INTROSPECTION_SCHEMA_BUCKET_NAME, _MODEL_INTROSPECTION_SCHEMA_KEY, _GRAPHQL_ENDPOINT. Canonical publication, current private doctrine metadata and section identifiers can be read through the same API; no policy bodies are recorded here. This is independent of the two proposed private query reads on the editorial-checks role. Source assignment handler calls getAmplifyDataClientConfig, while root schema resource authorization currently omits assignmentAction; root cause and least-privilege configuration correction need a reviewed source fix and synthetic/deployed acceptance. Do not add broad allow.resource access as an unreviewed shortcut. Active PR367 data/backend patches were checked and do not fix this handler configuration. Migration records and soft claims checked eligible/unassigned; no migration operation is claimed. Codex owns the source correction on draft PR382. SDK registration, offline configuration coverage and field-scoped synthesis are implemented. Review/CI, exact consumer synthesis, access approval, release and zero-provider deployed acceptance remain pending. No deployment or live access change has occurred.\n\nFeature: Resolve private editorial context on the deployed consumer\nScenario: Read current context without a model call\nGiven the configured consumer publication and permitted authenticated actor\nWhen current publication and selected-section editorial context is requested\nThen the existing handler initializes its supported data client and returns validated scoped context and source revisions\nAnd credentials, other-tenant records and private policy text are absent from public errors\nAnd zero provider requests or policy mutations occur.\n\nKeep rollout blocked until the source fix, exact permission/configuration diff and zero-provider runtime readback pass. Preserve intended app guard; never deploy to legacy to bypass it.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "codex-papyrus-monitoring",
+  "creator": null,
+  "parent": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "722bb614-26bd-4bae-89e0-fc12520f982f",
+      "author": "home",
+      "text": "Codex papyrus-monitoring owns the source fix and synthetic regression coverage for verified replacement TI backend app d12wnrx15qbcc2/account712236451410. Preserve concurrent Claude work and migration guard. Replacement job43 succeeded; old-app failure is irrelevant to replacement production health. Preparing exact generated-config/access diff; no deployment, IAM changes, provider calls or policy record writes authorized in this step.",
+      "created_at": "2026-10-20T12:33:24.276622Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "639309ed-edfa-4d5e-92f8-c16c4b3d5a0a",
+      "author": "home",
+      "text": "Source correction ready: assignmentAction is registered with query/mutate (no listen) in both deployed base/plugin schemas and mirrored resource schema. The missing registration regression failed before the fix; actual SDK schema transforms, offline CDK synthesis, exact role-bound generated data references/access and real data-client initialization with fake storage now pass. Schema parity, identity-pool model-access checks, changed TS lint and 20 focused Python tests pass. Full local typecheck reports 24 missing sparse-checkout/module-related diagnostics, none in changed files; exact-head CI remains required. CI now runs the new synthetic access test. No source handler fallback or guessed env values. Codex owns issue and active soft claim. Replacement backend d12wnrx15qbcc2/account712 is verified; successful job43 is current deployment evidence. Old-app failure is irrelevant to replacement production health. Existing deployed context error remains until approved release; keep in_progress.",
+      "created_at": "2026-10-20T12:42:06.588130Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "ff12413f-438e-4191-bd88-f19138aee3df",
+      "author": "home",
+      "text": "Delivery receipt: source repair pushed and remote-verified at a62f611b684781d76c8575368b297f66b105a1d4 on feature/PPY-3212f1-hn-monitor, draft/open https://github.com/AnthusAI/Papyrus/pull/382 . Regression, SDK synth/client check, schema parity, public-model boundary checks, changed TS lint and 20 focused Python tests pass; exact-head CI pending. Proposed generated assignment role grants are API query/mutate, one schema object and five exact reference parameter reads; review this separately from editorial role two-query delta. No source blocker currently known in this correction. Keep in_progress pending review, access-scope approval, package/consumer release and actual replacement-backend zero-provider readback. No merge, deploy, production grant/policy write or live provider occurred. Old-app build failure is irrelevant to replacement production health.",
+      "created_at": "2026-10-20T12:43:08.113341Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "7783dfc6-7726-4af4-9511-303a51fa0114",
+      "author": "home",
+      "text": "Independent least-privilege review requires a correction before release: generated Query/* and Mutation/* must not remain effective assignment-role grants. Codex is narrowing synthesized role-bound GraphQL resources to the fixed handler and ingestion.reference.register helper operations, retaining generated schema/SSM configuration and existing hosted entry guards. Exclude unrelated administration, publication/deletion and policy mutations. Earlier broad-access approval proposal is superseded; no production access was applied.",
+      "created_at": "2026-10-20T12:51:56.131739Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "917702e5-fc9d-4e51-ac88-e9e728ba634a",
+      "author": "home",
+      "text": "Least-privilege correction prepared: final synthetic assignment-role policy has exactly 53 named GraphQL fields for the fixed lifecycle/context handler and reference-registration/provenance helper. No effective Query/*, Mutation/* or subscription grant remains; unrelated role unchanged. Real helper local planning/persistence with mocked transport exercises registration/provenance. SDK schema object/five reference parameters and hosted guards retained. SDK synthesis/client regression, changed-file ESLint and new Python helper test pass. Broader Python attempt has 20 passes and 2 local dependency failures (limatus.packs/biblicus); sparse typecheck retains 24 baseline missing-module/related diagnostics, no new field-scope diagnostics. Private bundle supersedes broad proposal. Keep in_progress pending independent review, exact-head CI, consumer synthesis, access approval and release/readback. No live grants, merge, deployment, provider call or policy writes.",
+      "created_at": "2026-10-20T13:02:38.624913Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "3948571b-f81c-4f54-a3b9-11d44a16fc9d",
+      "author": "home",
+      "text": "Field-scoped source correction pushed and independently remote-verified at 4b61f853223d6740e84d60a6ff82b2ca35e952bf, draft/open https://github.com/AnthusAI/Papyrus/pull/382 . Fresh Python/TypeScript/package-smoke CI in progress. Private exact-target bundle now proposes only 53 named assignment GraphQL fields plus preserved generated schema/five reference reads and separate two editorial queries; broad grant proposal superseded. Local SDK regression, helper test and ESLint pass; previously recorded dependency/sparse-checkout verification limits remain. No merge, deployment, live grants/provider/policy changes. Independent review and exact consumer synthesis/access approval remain release gates.",
+      "created_at": "2026-10-20T13:04:42.485211Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T12:30:50.089804Z",
+  "updated_at": "2026-10-20T13:04:42.485245Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

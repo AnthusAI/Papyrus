@@ -1,0 +1,31 @@
+{
+  "id": "PPY-5a111e43-710e-4791-a8e0-7f0d69b792b5",
+  "title": "Bound a general crawler to approved URL prefixes",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a monitor operator, I want a generic crawler constrained to approved source prefixes and run limits, so that I can discover changes without unbounded crawling.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Bound a general crawler to approved URL prefixes\n  Scenario: Crawl within configured bounds\n    Given a Monitor has an approved URL prefix and page, depth, rate and time limits\n    When its general crawler runs\n    Then it follows only allowed targets within those bounds\n    And links and redirects outside the approved scope are not fetched\n    And skipped, failed and truncated collection is reported\n    And discovered URLs retain source and observation provenance\n  Scenario: Validate access before collection\n    Given a target has access restrictions or unresolved collection rights\n    When the Monitor is prepared for use\n    Then its access rules and applicable collection conditions are recorded for validation\n    And collection is not represented as authorized merely because a URL is public\n```\n\nGeneral crawlers precede bespoke scraper plugins. Custom scraping plugins are deferred. Later design should address robots/site terms, safe redirect handling and protected/internal destinations within the collection boundary.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:17:58.399288Z",
+  "updated_at": "2026-10-20T03:11:20.555531Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

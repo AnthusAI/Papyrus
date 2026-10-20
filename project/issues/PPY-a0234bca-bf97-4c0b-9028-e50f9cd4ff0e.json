@@ -3,7 +3,7 @@
   "title": "Bind reinvented /newsroom to live pilobol-us GraphQL (not demo fixtures)",
   "description": "Demo fixtures = offline chrome only. Live path:\n\n1. Real amplify_outputs.json (sandbox first, then prod) — not demo stub\n2. PAPYRUS_GRAPHQL_JWT + endpoint matching outputs\n3. Fix corpora/pilobol-us-steering.yml s3Prefix to real bucket from amplify_outputs (not s3://pilobol-us-demo/...)\n4. Materialize/sync corpus: copy or link Pilobol.us corpora/pilobol-us into Papyrus worker tree OR sync-from Pilobol accession\n5. papyrus ops corpora sync-to-cloud --corpus-key pilobol-us\n6. references prepare-catalog + create-from-catalog (pending) from catalog.json\n7. Run /newsroom without ?demo=1 with PAPYRUS_SITE_BRAND=pilobol-us — References shows real keepers\n\nNeeds from Ryan/Pilobol: AWS profile or real sandbox/prod amplify_outputs + JWT mint path (PAPYRUS_JWT_SECRET / auth refresh-jwt).",
   "type": "task",
-  "status": "blocked",
+  "status": "closed",
   "priority": 1,
   "assignee": "Papyrus",
   "creator": null,
@@ -45,11 +45,18 @@
       "text": "Ryan 2026-09-08: AWS/M1 mint off for foreseeable future. Live GraphQL bind parked; UI on PR #64 stands alone without demo accept.",
       "created_at": "2026-09-08T11:07:02.990926Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5624af23-0084-411b-83ed-642fff577ce7",
+      "author": "home",
+      "text": "Superseded by the production deployments, verified 2026-10-20. All four Papyrus newsrooms are live on Papyrus 3.1.0 with Cognito Google sign-in and real AppSync backends: newsroom.anth.us, newsroom.pilobol.us, p.apyr.us/newsroom, threat-intelligence.anth.us/newsroom. The sandbox amplify_outputs + JWT mint (parked 2026-09-08, M1-only) is moot: the newsroom binds to each site's live backend. No distinct remaining need; a local-dev sandbox binding, if ever wanted, should be a new ticket.",
+      "created_at": "2026-10-20T14:03:52.598372Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-07T21:05:45.517935Z",
-  "updated_at": "2026-09-08T11:07:02.990926Z",
-  "closed_at": null,
+  "updated_at": "2026-10-20T14:03:52.656885Z",
+  "closed_at": "2026-10-20T14:03:52.656849Z",
   "right_now_summary": "Live /newsroom binding awaits AWS credentials to mint sandbox outputs and a JWT.",
   "right_now_updated_at": "2026-10-12T16:43:07.261599Z",
   "custom": {}

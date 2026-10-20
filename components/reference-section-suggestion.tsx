@@ -98,7 +98,7 @@ export function SectionPicker({
           </label>
         );
       })}
-      <p className="text-xs text-foreground">The Section you choose is a training label for the cyclotron.</p>
+      <p className="text-xs text-foreground">The Section you choose is saved with your decision.</p>
     </fieldset>
   );
 }

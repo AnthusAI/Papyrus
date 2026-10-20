@@ -1,17 +1,24 @@
 Feature: Production newsroom organizer shell
   The approved newsroom appearance preserves the existing authenticated CMS.
 
-  Scenario: The shared Board keeps Papyrus newsprint styling
+  Scenario: Each publication hard-codes one Kanbus editorial theme
+    Given every registered brand declares a Kanbus theme
+    Then Anth.us uses newspaper-gothic, Pilobol.us uses refined-newsprint, p.apyr.us uses broadsheet-green and Threat Intelligence uses night-desk
+    And a brand without a theme falls back to newspaper-gothic
+    And editors cannot change the theme, only light or dark follows their setting
+
+  Scenario: The whole newsroom is inside the theme scope
     Given the native CMS Board uses the released shared Kanbus components
-    When I view it at narrow and wide widths in light and dark mode
-    Then headlines use the newsroom serif font and columns use newspaper rules
-    And cards have square corners without retro shadows or clipped headers
+    When I view the newsroom at narrow and wide widths in light and dark mode
+    Then the sidebar, toolbar, board, detail panel and portaled menus carry the brand's theme scope
+    And the organizer colours and fonts come from the theme's --kb-theme tokens
+    And only the wordmark is set in Playfair Display
+    And cards are flat ruled rows with square corners and a quiet monospace id line
     And column collapse, record selection and keyboard detail closing still work
-    And the host publication palette outside the Board is unchanged
 
   Scenario: The complete CMS survives a navigation change
     Given an editor has an authorized session and existing newsroom records
-    When the publication enables the organizer newsroom layout
+    When an editor opens the newsroom
     Then taxonomy, concepts, knowledge search, reference curation and policies remain reachable
     And sections, procedures, messages, assignments and article editing retain their original commands
     And administrator identity merging retains its original authorization
@@ -19,11 +26,11 @@ Feature: Production newsroom organizer shell
     And unsupported semantic graph merging is not reported as completed
 
   Scenario: Taxonomy retains its own editor
-    Given the organizer newsroom layout is enabled
+    Given an editor has an authorized session
     When an editor opens Taxonomy or a saved taxonomy category link
     Then the original taxonomy editor opens with its save and doctrine handlers
     And Topic proposals remains a separate destination
-    And other publications retain their existing route aliases
+    And the retired Users and Doctrine aliases open Administration
 
   Scenario: Board projects native records without changing their workflow
     Given an editor is authorized to read CMS records
@@ -35,10 +42,10 @@ Feature: Production newsroom organizer shell
     And a signed-out or forbidden session loads no board records
 
   Scenario: Complete navigation is consistent on desktop and mobile
-    Given a publication has enabled the organizer newsroom layout
-    When an editor opens a newsroom destination
+    Given an editor opens a newsroom destination
+    When the navigation is shown
     Then desktop navigation and the mobile menu show the same grouped destinations and descriptions
-    And Overview, Board and Articles are the leading destinations
+    And Articles and Assignments lead the Editorial work group
     And bottom tabs show icons and labels without descriptions
 
   Scenario: Collapsing desktop navigation returns space to the workspace
@@ -64,10 +71,10 @@ Feature: Production newsroom organizer shell
     When I inspect the newsroom controls
     Then no synthetic prediction or local service is presented as a live integration
 
-  Scenario: Existing publication chrome remains unchanged until opted in
-    Given a publication has not enabled the organizer newsroom layout
+  Scenario: Every publication uses the organizer shell
+    Given any publication, with no layout option to set
     When I open the newsroom
-    Then its existing CMS shell and commands remain unchanged
+    Then the organizer shell is shown with all of its destinations and commands
 
   Scenario: Settings works on a CMS hosted at the root
     Given the publication hosts its newsroom at the root path

@@ -1,0 +1,73 @@
+{
+  "id": "PPY-92de976d-7d0c-40ce-9a3b-2d7de0b6eb7d",
+  "title": "Explain the versioned headless delivery contract for applications",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a application developer, I want a minimal versioned delivery guide, so that I can integrate without relying on internal CMS models.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain the versioned headless delivery contract for applications\n  Scenario: Follow a delivery integration guide\n    Given a verified delivery contract\n    When I follow its article and listing examples\n    Then I can identify versioned fields, the Markus body string, public assets, filters and pagination\n    And identity, missing or withdrawn content, update consistency and caching behavior are documented\n    And examples disclose neither drafts nor credentials or private editorial fields\n    And deferred formats, Contentful compatibility and authenticated previews are not presented as requirements\n```\n\nKeep examples and contract field names synchronized with implemented capability; this planning record does not select routes or a backend. Explain shared published-content foundation and relation to existing M8 JSON.\n\nAlso document automatic public-change refresh when headless outputs are enabled, including publish, saved published edits and unpublish, common published selection with feeds and sitemap, private-draft isolation, observable completion/failure and retry/reconciliation. Link PPY-defff04e-17b5-4e28-9bb5-df412601a102. Orchestration/atomicity and exact APIs remain design decisions until verified.\n\nApproved dependency-guide correction: explain automatic extraction from supported declarative listing/embedded-content constructs at save/compile time and the generated reverse index. Rendering selection is the only source of type/featured parameters; no duplicated manual per-page rules. Cover union across components, old-or-new published-state matching for additions/removals/type/featured changes, and replacement/removal of stale page registrations. Publication visibility is enforced separately. Record unsupported custom-query fallback, exact extension ownership and schema syntax as open design questions. Anth.us main currently generates custom Python listing fragments and hashes them for incremental invalidation; do not present the proposed generic construct or reverse index as already implemented. See foundation PPY-3f55c3 and story PPY-defff0 for pinned source evidence.\n\n## Visiting-agent rationale and per-page alternates — planned extension\n\nExtend this existing guide/README story alongside the headless epic's new\nper-page acceptance story. The feature belongs to Papyrus/Markus.\n\nExplain why publishing a public Markus/Markdown reading representation extends\nthe useful content/context/structure of agent authoring to agents visiting the\nsite, while keeping all private authoring context private. Explain the intended\nreduction in tokens, token cost and attention spent sorting through navigation,\nDOM wrappers, styling and scripts. Accuracy improvement is a hypothesis to test,\nnot a guaranteed property of Markdown or a claim of measured savings.\n\nInclude a concrete synthetic HTML/Markus comparison preserving claims,\nqualifications, links, note/column relationships and accessible media text.\nRecord token counts only after running a named tokenizer on exact payloads.\nCompare raw HTML and realistic client-extracted input, report discovery\noverhead and explicit cost assumptions, and evaluate meaning fidelity and task\noutcomes separately. Do not fabricate numerical results.\n\nDocument HTML alternate and HTTP Link discovery, actual text/markdown charset,\noptional Accept/Vary negotiation and cache checks, public-only allowlisting,\npublic revision/update/withdrawal behavior, include resolution and the existing\nshared foundation. No invented Markus/include syntax, raw CMS export,\nprivate-policy propagation or hidden instructions for visiting agents.\nExplain that llms.txt is a nonstandard proposal; neither it nor standard links\nguarantee every agent will follow them.\n\nAll public published pages need alternates irrespective of RSS/Atom selection.\nThe ordinary JSON application contract remains; full Markdown+YAML/archive\nexport and authenticated draft previews stay deferred. Local docs are a\nreviewable design artifact, not proof that the feature ships. Keep this story\nopen until the implementation and guide are verified together.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-29da48cd-8041-4ff0-a154-22afa9b2bc3b",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "709c202d-422a-4599-9fab-471eb923bd4d",
+      "author": "home",
+      "text": "Coordination 2026-10-20: Codex papyrus-monitoring owns this scoped tracker integration, coordinating the separate public-page research agent. Current claims checked eligible; no implementation ownership is claimed and concurrent Claude work is preserved. Source/standards investigation complete; runtime, routes, benchmarks and executable acceptance unimplemented. Existing planning stays open/P3. Shared foundation and post-save dependencies remain blockers. Only tracker changes are being delivered; local README/design patches remain outside this push.",
+      "created_at": "2026-10-20T12:12:41.874199Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "48673b98-e11e-4fcd-b6f0-e0466425ce27",
+      "author": "home",
+      "text": "Scoped planning integrated as PPY-f172d76f-acab-46b6-b747-7bb4558a9253. It remains open/P3/unassigned with explicit shared-foundation and post-save blockers. Codex tracker integration is complete locally; implementation owner remains unassigned. No routes, executable acceptance, measurements or runtime deployment have been delivered for this feature.",
+      "created_at": "2026-10-20T12:13:30.698033Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "cfb7b5a8-4acf-4701-9bf2-db4766451fe6",
+      "author": "home",
+      "text": "Documentation/source research complete for review. Handoff: /Users/home/Documents/Codex/2026-10-20/task-2/HANDOFF.md ; local patch: /Users/home/Documents/Codex/2026-10-20/task-2/papyrus-public-page-alternates.patch . Patch applicability and paired-fixture fidelity verified on inspected Markus 0.6.0 only; Papyrus-supported >=0.7,<1.0 integration, runtime/routes/executable acceptance and token/cost/accuracy benchmarks remain unimplemented. Source documentation patch was not applied or pushed. Codex integrated tracker status only, coordinating research owner; open/P3/unassigned and existing foundation/post-save blockers retained.",
+      "created_at": "2026-10-20T12:25:16.250233Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T02:25:09.502628Z",
+  "updated_at": "2026-10-20T12:25:16.250260Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

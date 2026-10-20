@@ -17,12 +17,10 @@
       "text": "Implementation review: draft PR https://github.com/AnthusAI/Papyrus/pull/311 on feature/PPY-e081de-editorial-context; commits a75b54e4 and f98be004. 41 focused Python tests, six Behave scenarios/19 steps, Node assignment API checks, all three Tactus DSL validations, both skill validators, and changed-file ESLint pass. Full newsroom run 160 pass/9 fail in out-of-slice corpus/tokenizer checks; current CI already excludes that environment-dependent suite. Full typecheck lacks existing UI/generated modules, with no errors in changed TS files. Generated-text GraphQL operation and approved ProcedureVersion synchronization remain explicit follow-up; direct copywriter callers must provide resolved context. No merge, deploy, infrastructure, credentials or Cyclotron label changes. Keep epic/stories in_progress pending review and remaining acceptance.",
       "created_at": "2026-10-18T19:16:25.040022Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6",
-        "name": "ChatGPT",
-        "settings": {}
+        "name": "ChatGPT"
       }
     },
     {
@@ -31,26 +29,35 @@
       "text": "Review boundaries: source-only CLI, workers, static skills and private GraphQL contract are implemented in draft PR311. No hosted content writes, publication, Cyclotron work, infrastructure deployment, IAM changes, installs, merge or release. Current corpus ownership model supports one canonical corpus per backend; multiple canonical corpora fail explicitly. Assignments without tenant fields require a scoped linked story/section under tenant configuration. Local broad suite/typecheck failures were reproduced at the exact fork; release and live acceptance remain outstanding.",
       "created_at": "2026-10-18T19:30:46.007620Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6",
-        "name": "ChatGPT",
-        "settings": {}
+        "name": "ChatGPT"
+      }
+    },
+    {
+      "id": "75fdb642-5885-4014-960b-1a407215df4c",
+      "author": "home",
+      "text": "Still in progress: PR #311 landed 2026-10-19 (children PPY-0acfdb and PPY-df5545 closed); PPY-43e949 and PPY-5aca7f are active and merged work in #382. Next: close those, then close this epic. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:42.106827Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
       }
     }
   ],
   "created_at": "2026-10-18T18:59:27.140198Z",
-  "updated_at": "2026-10-18T19:30:46.007758Z",
+  "updated_at": "2026-10-20T14:05:42.106852Z",
   "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {},
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
-    "name": "ChatGPT",
-    "settings": {}
+    "name": "ChatGPT"
   },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
   "agent_assignment": null
 }

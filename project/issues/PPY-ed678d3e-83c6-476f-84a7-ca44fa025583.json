@@ -1,0 +1,42 @@
+{
+  "id": "PPY-ed678d3e-83c6-476f-84a7-ca44fa025583",
+  "title": "Limatus editorial checks in Papyrus",
+  "description": "# Limatus editorial checks in Papyrus\n\n\nDurable vision page: Limatus wiki `project/wiki/editorial-compliance-engine.md`.\n\n## Intent\n\nAs a **Papyrus editor**, I want the article editor to show every editorial-policy problem marked on the draft — found by Limatus using our own policies — and to ask for rewrite suggestions on any finding, so I can bring a draft into compliance without leaving the CMS.\n\nEngine side: Limatus initiative **LIM-a5828a** \"Configurable editorial compliance engine\". Papyrus codes against Limatus's published schemas (`policy-pack-v1`, `check-request/result-v1`, `suggest-request/result-v1`) from LIM epic \"Policy-pack contracts and Markus-aware segmenter\" (LIM-6a84be).\n\n## Shape\n\n- **Deployment level:** a `limatus` plugin in `amplify/plugins/registry.ts` (per-site enablement, public settings in `amplify_outputs.json`).\n- **Runtime data (DynamoDB / AppSync):** `EditorialPolicy` (versioned like `Item`; publication- or section-scoped like doctrine overrides) and a singleton `EditorialCheckSettings` (lanes, when to run, which severities warn at publish, Jev/Luna model ids, cost budget). Both validated against Limatus JSON Schemas.\n- **Execution:** new Python Lambda `editorial-check` bundling limatus; async job because AppSync resolvers time out at 30 s: `startEditorialCheck` mutation → Lambda → results stored → editor subscribes/polls. `suggestRewrites` for one finding. Secrets `TYPESAFE_API_KEY`, `OPENAI_API_KEY` via Amplify `secret()`.\n- **Admin UI:** Administration → Editorial checks: policy list and detector editor, a \"try it\" box showing Jev probability on pasted text, settings, and a one-time import of `publications/*/style-profile.yml`.\n- **Copy-editing component:** body editor with span decorations (CodeMirror 6) + findings panel: dismiss with reason, request suggestions, accept a suggestion. Offsets are UTF-16 code units into `bodyMarkus`.\n- **Feedback:** dismiss/accept decisions stored as labels and passed to Limatus for calibration.\n\n## Decisions (shared with LIM-a5828a) (2026-10-19)\n\n1. **Luna may assist policy authoring:** it drafts atomic Jev questions from an editor's prose guideline; the editor approves before the detector is saved. Luna still never runs in the scan path.\n2. **No publish gate:** findings are advisory; `block` severity shows a warning at publish time but does not stop publishing. (Severity scale becomes `info|warn|error` to avoid implying a gate.)\n3. **CodeMirror 6** replaces the body `<Textarea>` in the Papyrus article editor.\n4. **No backward compatibility required:** redesign the CLI/SDK for the most elegant system; the `scan → decide → options → apply` loop, the OpenAI judge lane, and the `papyrus editorial` wrapper may be replaced.\n5. **Selection rewrites:** editors can ask for rewrite options on any selected sentence or paragraph, not only on findings.",
+  "type": "initiative",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "editorial"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "38e92c66-08c9-42a8-9c44-b161d3e4ddb7",
+      "author": "home",
+      "text": "Implemented on branch feature/PPY-4f539b-editorial-checks: editorial-checks plugin (models, Lambda, IAM), admin panel, CodeMirror copy-editing component, preview markup with rewrite popover, demo-mode checks. Feedback capture (PPY-0233f1) is part of it: dismiss/accept/fixed decisions are recorded and recalibration is an admin action.",
+      "created_at": "2026-10-20T02:57:58.759869Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6f61b56e-4eff-453f-a75a-a25b85841d60",
+      "author": "home",
+      "text": "Landed on develop via #378 (44649e33). Not deployed: enable with plugins: [\"editorial-checks\"] after setting TYPESAFE_API_KEY and OPENAI_API_KEY secrets; then papyrus editorial import --profile publications/anthus/style-profile.yml.",
+      "created_at": "2026-10-20T03:46:35.055391Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-19T22:39:18.862271Z",
+  "updated_at": "2026-10-20T03:46:35.159094Z",
+  "closed_at": "2026-10-20T03:46:35.158430Z",
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

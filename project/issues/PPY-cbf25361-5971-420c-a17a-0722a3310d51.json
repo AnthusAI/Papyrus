@@ -1,0 +1,31 @@
+{
+  "id": "PPY-cbf25361-5971-420c-a17a-0722a3310d51",
+  "title": "Keep feed item identities stable across published updates",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a subscriber, I want published revisions to retain article identity, so that my reader updates an existing item without creating duplicates.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Keep feed item identities stable across published updates\n  Scenario: Revise a published article\n    Given an article already appears in RSS and Atom with a stable item identity\n    When its headline, body or canonical slug is changed and published\n    Then its RSS GUID and Atom entry ID remain stable\n    And its current canonical link and meaningful published update time are returned\n    And repeated generation does not create duplicate entries\n  Scenario: Withdraw a public article\n    Given an article has appeared in public feeds\n    When it is unpublished\n    Then future served feeds exclude it within the documented freshness bound\n    And private replacement drafts never substitute for it\n```\n\nReaders may retain previously fetched content; withdrawal cannot promise deletion from third-party caches. Preserve original publication time separately from update time.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-33854a5d-da97-4597-9ad2-948a7dd23136",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:17:06.951266Z",
+  "updated_at": "2026-10-20T03:11:16.280838Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

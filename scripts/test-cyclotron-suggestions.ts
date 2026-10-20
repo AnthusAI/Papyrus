@@ -66,12 +66,12 @@ async function main() {
   {
     assert.deepEqual(stopped.loop, loop);
     assert.match(stopped.stopReasonSentence ?? "", /switched off/);
-    assert.equal(loopStateWords(stopped.loop!), "Loop off");
-    assert.equal(dailyCapWords(stopped.loop!), "No daily decision cap");
+    assert.equal(loopStateWords(stopped.loop!), "Suggestions off");
+    assert.equal(dailyCapWords(stopped.loop!), "No daily limit");
   }
-  assert.equal(dailyCapWords({ ...loop, maxDecisionsPerDay: 50 }), "Daily cap 50 decisions");
+  assert.equal(dailyCapWords({ ...loop, maxDecisionsPerDay: 50 }), "Daily limit 50 decisions");
   assert.equal(parseShadowAgreement(payload())?.loop, null);
-  assert.match(stopReasonSentence("daily decision cap"), /daily decision cap/);
+  assert.match(stopReasonSentence("daily decision cap"), /daily limit/);
   assert.match(stopReasonSentence("odd"), /stopped early: odd/);
 
   // Only a latest curation Message made by a person counts as a training label.
@@ -115,10 +115,10 @@ async function main() {
     provenance: { labelSet: ["include", "exclude"], doctrineFingerprint: "3f9c2a71d80b46e5", teachingFingerprint: "b71e04c9aa5d2f13", teachingLabels: 1, primingExamples: 6 },
   })]).get("reference-a")!;
   assert.deepEqual(provenanceSummary(withProvenance), {
-    teachingLabelsSentence: "Taught by 1 label that editors set themselves",
-    primingExamplesSentence: "6 priming examples supplied as starting examples",
+    teachingLabelsSentence: "Based on 1 decision that editors made themselves",
+    primingExamplesSentence: "6 example references supplied as starting examples",
     doctrineShortHash: "3f9c2a71",
-    modelVersion: "version 4",
+    modelVersion: "revision 4",
     decidedAt: "2026-10-17T08:30:00.000Z",
   });
   assert.equal(provenanceSummary(includeDecision), null);
@@ -140,27 +140,27 @@ async function main() {
   assert.ok(!settledBlock.includes("Agree"), "a settled reference offers no Agree button");
 
   const provenanceMarkup = renderToStaticMarkup(createElement(ReferenceSuggestionProvenance, { decision: withProvenance }));
-  for (const text of ["How this suggestion was made", "6 priming examples", "3f9c2a71", "version 4", "2026-10-17 08:30 UTC"]) {
+  for (const text of ["How this suggestion was made", "6 example references", "3f9c2a71", "revision 4", "2026-10-17 08:30 UTC"]) {
     assert.ok(provenanceMarkup.includes(text), `provenance shows: ${text}`);
   }
-  assert.ok(renderToStaticMarkup(createElement(CountsAsTrainingLabelNote, { referenceLineageId: "x" })).includes("Counts as a training label"));
+  assert.ok(renderToStaticMarkup(createElement(CountsAsTrainingLabelNote, { referenceLineageId: "x" })).includes("Recorded as an editor"));
 
   const delegatedMarkup = renderToStaticMarkup(createElement(DelegatedCurationNote, { delegated: delegations.get("delegated-ref")!, referenceLineageId: "delegated-ref" }));
-  for (const text of ["Decided by newsroom-reporter on behalf of Maya Okafor", "Reject it.", "Delegation 9b1f6c24", "Counts as a training label"]) {
+  for (const text of ["Decided by newsroom-reporter on behalf of Maya Okafor", "Reject it.", "Delegation 9b1f6c24", "Recorded as Maya Okafor"]) {
     assert.ok(delegatedMarkup.includes(text), `delegated note shows: ${text}`);
   }
 
   assert.equal(renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: null })), "");
   const fewMarkup = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload({ comparisons: 4 })) }));
-  assert.ok(fewMarkup.includes("Not enough comparisons yet") && !fewMarkup.includes("87%"));
+  assert.ok(fewMarkup.includes("Not enough decisions yet") && !fewMarkup.includes("87%"));
   const strip = renderToStaticMarkup(createElement(ReferenceLiveAgreement, {
     agreement: parseShadowAgreement(payload({ loop: { enabled: true, stoppedBecause: "daily decision cap", lastSweepAt: "2026-10-18T10:00:00Z", maxDecisionsPerDay: 50 } })),
   }));
-  for (const text of ["87%", "90%", "82%", "23", "Computed 2026-10-18 09:00 UTC", "Loop on", "Last sweep 2026-10-18 10:00 UTC", "Daily cap 50 decisions", "stopped at the daily decision cap"]) {
+  for (const text of ["87%", "90%", "82%", "23", "Updated 2026-10-18 09:00 UTC", "Suggestions on", "Last checked 2026-10-18 10:00 UTC", "Daily limit 50 decisions", "reached the daily limit"]) {
     assert.ok(strip.includes(text), `strip shows: ${text}`);
   }
   const off = renderToStaticMarkup(createElement(ReferenceLiveAgreement, { agreement: parseShadowAgreement(payload({ loop })) }));
-  assert.ok(off.includes("Loop off") && off.includes("switched off"));
+  assert.ok(off.includes("Suggestions off") && off.includes("switched off"));
 
   console.log("cyclotron suggestion helpers ok");
 }

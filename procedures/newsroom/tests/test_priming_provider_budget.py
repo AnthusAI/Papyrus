@@ -142,6 +142,7 @@ def test_worker_scope_removes_real_credentials_and_is_not_shared_across_threads(
 def test_existing_worker_commands_share_the_scoped_proxy_through_the_runner(tmp_path,monkeypatch):
     from biblicus_runner_support import completed,fake_biblicus_subprocess
     from papyrus_content import reference_url_text as extraction
+    from papyrus_content.biblicus_runner import BiblicusOperationFailedError
     from papyrus_newsroom import reference_curation_signals as metadata
     b,_=budget(tmp_path);grant(b)
     def worker(command,**kwargs):
@@ -149,11 +150,11 @@ def test_existing_worker_commands_share_the_scoped_proxy_through_the_runner(tmp_
         assert env['OPENAI_API_KEY']==b.capability('job')
         assert env['OPENAI_BASE_URL'].endswith('/provider/v1')
         if 'article-text' in command:
-            return completed(returncode=1,stdout=json.dumps({'error':{'code':'missing_dspy','message':'Optional worker dependency missing'}}))
+            return completed(returncode=1,stdout=json.dumps({'status':'failed','error':{'code':'operation_failed','message':'Optional worker dependency missing','details':{}}}))
         return completed(stdout=json.dumps({'status':'ok','task':'summary','value':'Offline contract value'}))
     calls=fake_biblicus_subprocess(monkeypatch,tmp_path/'workdir',worker)
     with b.execution({'id':'job','inputs':{'url':SOURCE}}):
-        with pytest.raises(RuntimeError):extraction._run_biblicus_article_text({'extracted_text':'Offline source','model':MODEL})
+        with pytest.raises(BiblicusOperationFailedError):extraction._run_biblicus_article_text({'extracted_text':'Offline source','model':MODEL})
         metadata._run_biblicus_summarize_map_reduce(output_kind='summary',reference={},context={'extractedText':'Offline source'},model=MODEL)
     assert len(calls)==2 and all(call['command'][0].endswith('/biblicus') for call in calls)
 

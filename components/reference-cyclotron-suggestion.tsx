@@ -101,12 +101,12 @@ export function ReferenceSuggestionProvenance({ decision }: { decision: Relevanc
         <ul className="mt-2 space-y-1">
           <li>{summary.teachingLabelsSentence}.</li>
           <li>{summary.primingExamplesSentence}.</li>
-          <li>Doctrine fingerprint {summary.doctrineShortHash ?? "not recorded"}.</li>
-          <li>Model {summary.modelVersion ?? "version not recorded"}.</li>
+          <li>Guidelines code {summary.doctrineShortHash ?? "not recorded"}.</li>
+          <li>Suggestion {summary.modelVersion ?? "revision not recorded"}.</li>
           <li>Decided {formatSuggestionTime(summary.decidedAt)}.</li>
         </ul>
       ) : (
-        <p className="mt-2">This suggestion was made before the cyclotron recorded how. Only its model version and confidence are known.</p>
+        <p className="mt-2">This suggestion was made before the details were recorded. Only its revision and confidence are known.</p>
       )}
     </details>
   );
@@ -116,7 +116,7 @@ export function ReferenceSuggestionProvenance({ decision }: { decision: Relevanc
 export function CountsAsTrainingLabelNote({ referenceLineageId }: { referenceLineageId: string }) {
   return (
     <p className="border-l-2 border-foreground pl-2 text-xs font-semibold text-foreground" data-reference-training-label={referenceLineageId}>
-      Counts as a training label: an editor made this decision, so the cyclotron learns from it.
+      Recorded as an editor&rsquo;s own decision.
     </p>
   );
 }
@@ -135,8 +135,8 @@ export function DelegatedCurationNote({ delegated, referenceLineageId }: { deleg
       <p className="text-xs">Delegation {delegated.delegationShortId || "id not recorded"}.</p>
       <p className="text-xs font-semibold" data-reference-training-label={referenceLineageId}>
         {delegated.countsAsTrainingLabel
-          ? `Counts as a training label: the record is stamped as ${delegated.person ?? "the person"}'s own decision, so the cyclotron learns from it.`
-          : "Does not count as a training label."}
+          ? `Recorded as ${delegated.person ?? "the person"}'s own decision.`
+          : "Not recorded as a person's own decision."}
       </p>
     </section>
   );

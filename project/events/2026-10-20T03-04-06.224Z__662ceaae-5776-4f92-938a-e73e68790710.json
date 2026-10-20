@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "662ceaae-5776-4f92-938a-e73e68790710",
+  "issue_id": "PPY-d97519f8-a11e-4501-a558-8be1027e9f2a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:04:06.224Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document newsletter inbox, processing and manual subscription management",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a publication user and operator, I want a guide to newsletter reading and intake status, so that I can manage subscriptions without confusing Monitor controls with sender actions.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Document newsletter inbox, processing and manual subscription management\n  Scenario: Follow newsletter inbox guidance\n    Given the provided-address feature and reader are documented with truthful implementation status\n    When a user or operator follows the guide\n    Then it explains original-message access, sender/date and derived-reference provenance\n    And it explains processing state, failures, retry and privacy scope\n    And it distinguishes deliberate confirmation or unsubscribe from automatic link scanning\n    And it states that pausing monitoring is not unsubscribing\n    And full compose or reply behavior is not implied\n```\n\nVerify later against the actual inbox UI and scanner behavior. Document mailbox/address ownership, read permissions, retention, action-link privacy, attachments/remote content and error recovery. This is email milestone documentation; it must not wait on the Markus initiative or outbound feed documentation.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

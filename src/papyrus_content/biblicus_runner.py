@@ -19,11 +19,12 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
+    from biblicus.command_failure import CommandFailure
     from biblicus.api import (
         ContextPackBuildBlocksRequest,
         ContextPackBuildBlocksResponse,
@@ -38,6 +39,8 @@ if TYPE_CHECKING:
 BIBLICUS_WORKDIR_ENVIRONMENT_VARIABLE = "BIBLICUS_WORKDIR"
 BIBLICUS_GROBID_URL_ENVIRONMENT_VARIABLE = "BIBLICUS_GROBID_URL"
 BIBLICUS_CONSOLE_SCRIPT_NAME = "biblicus"
+INVALID_REQUEST_EXIT_STATUS = 2
+OPERATION_FAILED_EXIT_STATUS = 1
 PRIMING_WORKER_ENVIRONMENT_ALLOWLIST = frozenset(
     {
         "PATH",
@@ -99,6 +102,11 @@ class BiblicusCommandError(BiblicusRunnerError):
     """
     Raised when a Biblicus command exits with a nonzero status.
 
+    A typed command fails with a ``CommandFailure`` envelope on standard output, and the runner raises
+    :class:`BiblicusInvalidRequestError` or :class:`BiblicusOperationFailedError` for it. This class
+    itself is raised for commands that print no envelope, such as the commands written for people,
+    whose failure text is on standard error.
+
     :ivar command: The full command line that was run.
     :vartype command: tuple[str, ...]
     :ivar exit_code: The process exit status.
@@ -107,72 +115,103 @@ class BiblicusCommandError(BiblicusRunnerError):
     :vartype stdout: str
     :ivar stderr: Captured standard error, stripped.
     :vartype stderr: str
-    :ivar error_stream: The one stream the command prints its structured failure to, or None when
-        the command prints none.
-    :vartype error_stream: str or None
     """
 
-    def __init__(
-        self,
-        *,
-        command: Sequence[str],
-        exit_code: int,
-        stdout: str,
-        stderr: str,
-        error_stream: Literal["stdout", "stderr"] | None = None,
-    ) -> None:
+    def __init__(self, *, command: Sequence[str], exit_code: int, stdout: str, stderr: str) -> None:
         self.command = tuple(command)
         self.exit_code = exit_code
         self.stdout = stdout
         self.stderr = stderr
-        self.error_stream = error_stream
         detail = stderr or stdout or "no output"
         super().__init__(f"Biblicus command {' '.join(self.command)} exited {exit_code}: {detail}")
 
-    def structured_error(self) -> dict[str, Any] | None:
-        """
-        Return the structured ``error`` object Biblicus printed, if any.
-
-        Each typed command declares the one stream its failure JSON is written to; only that
-        stream is parsed, as a whole, with ``json.loads``. A command that declares no stream, or a
-        stream that is not a JSON object holding an ``error`` object, yields None.
-
-        :return: The ``error`` object, or None.
-        :rtype: dict[str, Any] or None
-        """
-        if self.error_stream is None:
-            return None
-        try:
-            payload = json.loads(self.stdout if self.error_stream == "stdout" else self.stderr)
-        except json.JSONDecodeError:
-            return None
-        if isinstance(payload, dict) and isinstance(payload.get("error"), dict):
-            return payload["error"]
-        return None
-
     def failure_reason(self) -> dict[str, Any]:
         """
-        Describe the failure, preferring the structured error Biblicus printed.
+        Describe the failure from the captured output.
 
-        :return: The structured error, or a ``biblicus_cli_failed`` reason built from the captured output.
+        :return: A ``biblicus_cli_failed`` reason built from the captured output.
         :rtype: dict[str, Any]
         """
-        error = self.structured_error()
-        if error is not None:
-            return dict(error)
         return {"code": "biblicus_cli_failed", "message": self.failure_message()}
 
     def failure_message(self) -> str:
         """
         Return the most useful single-line explanation of the failure.
 
-        :return: The structured error message or code when present, otherwise the captured output.
+        :return: The captured standard error or standard output, or the exit status when both are empty.
         :rtype: str
         """
-        error = self.structured_error()
-        if error is not None:
-            return str(error.get("message") or error.get("code") or "Biblicus command failed.")
         return self.stderr or self.stdout or f"Biblicus command exited {self.exit_code}."
+
+
+class BiblicusFailureEnvelopeError(BiblicusCommandError):
+    """
+    Raised when a typed Biblicus command printed a ``CommandFailure`` envelope on standard output.
+
+    :ivar failure: The parsed envelope.
+    :vartype failure: biblicus.command_failure.CommandFailure
+    """
+
+    def __init__(self, *, command: Sequence[str], exit_code: int, stdout: str, stderr: str, failure: "CommandFailure") -> None:
+        super().__init__(command=command, exit_code=exit_code, stdout=stdout, stderr=stderr)
+        self.failure = failure
+        self.args = (f"Biblicus command {' '.join(self.command)} exited {exit_code}: {failure.error.code}: {failure.error.message}",)
+
+    @property
+    def code(self) -> str:
+        """
+        Return the stable machine-readable failure code.
+
+        :return: The envelope ``error.code``.
+        :rtype: str
+        """
+        return self.failure.error.code
+
+    @property
+    def message(self) -> str:
+        """
+        Return the human-readable failure message.
+
+        :return: The envelope ``error.message``.
+        :rtype: str
+        """
+        return self.failure.error.message
+
+    @property
+    def details(self) -> dict[str, Any]:
+        """
+        Return the structured diagnostics, empty when the command named none.
+
+        :return: The envelope ``error.details``.
+        :rtype: dict[str, Any]
+        """
+        return dict(self.failure.error.details)
+
+    def failure_reason(self) -> dict[str, Any]:
+        """
+        Describe the failure with the envelope's code, message and details.
+
+        :return: Reason object with ``code``, ``message`` and ``details``.
+        :rtype: dict[str, Any]
+        """
+        return {"code": self.code, "message": self.message, "details": self.details}
+
+    def failure_message(self) -> str:
+        """
+        Return the envelope message.
+
+        :return: The envelope ``error.message``.
+        :rtype: str
+        """
+        return self.message
+
+
+class BiblicusInvalidRequestError(BiblicusFailureEnvelopeError):
+    """Raised when a typed Biblicus command rejected the request (exit status 2)."""
+
+
+class BiblicusOperationFailedError(BiblicusFailureEnvelopeError):
+    """Raised when a typed Biblicus command accepted the request but the operation failed (exit status 1)."""
 
 
 class BiblicusCommandTimeoutError(BiblicusRunnerError):
@@ -190,30 +229,66 @@ class BiblicusCommandTimeoutError(BiblicusRunnerError):
         self.timeout_seconds = timeout_seconds
         super().__init__(f"Biblicus command {' '.join(self.command)} timed out after {timeout_seconds:g} seconds.")
 
+    def failure_reason(self) -> dict[str, Any]:
+        """
+        Describe the timeout as a ``biblicus_timeout`` reason; a hung child is an infrastructure failure, not a bad source.
+
+        :return: Reason object with the elapsed timeout under ``details``.
+        :rtype: dict[str, Any]
+        """
+        return {
+            "code": "biblicus_timeout",
+            "message": str(self),
+            "details": {"timeout_seconds": self.timeout_seconds},
+        }
+
 
 class BiblicusOutputError(BiblicusRunnerError):
     """
-    Raised when a Biblicus command succeeded but its output is not the expected JSON.
+    Raised when a Biblicus command produced output that is not the expected JSON.
+
+    This covers a successful command whose standard output is not valid, a typed command that failed
+    without printing a failure envelope on standard output (for example an argument syntax error that
+    ``argparse`` reported on standard error), and a failure envelope with an unexpected exit status.
 
     :ivar command: The full command line that was run.
     :vartype command: tuple[str, ...]
     :ivar stdout: Captured standard output, stripped.
     :vartype stdout: str
+    :ivar stderr: Captured standard error, stripped.
+    :vartype stderr: str
+    :ivar exit_code: The process exit status.
+    :vartype exit_code: int
     """
 
-    def __init__(self, *, command: Sequence[str], stdout: str, detail: str) -> None:
+    def __init__(self, *, command: Sequence[str], stdout: str, detail: str, stderr: str = "", exit_code: int = 0) -> None:
         self.command = tuple(command)
         self.stdout = stdout
+        self.stderr = stderr
+        self.exit_code = exit_code
         super().__init__(f"Biblicus command {' '.join(self.command)} returned invalid output: {detail}")
 
     def failure_reason(self) -> dict[str, Any]:
         """
         Describe the failure as an ``invalid_biblicus_output`` reason that carries the raw output.
 
-        :return: Reason object with the captured standard output under ``details``.
+        :return: Reason object with the captured standard output and standard error under ``details``.
         :rtype: dict[str, Any]
         """
-        return {"code": "invalid_biblicus_output", "message": str(self), "details": {"stdout": self.stdout}}
+        return {
+            "code": "invalid_biblicus_output",
+            "message": str(self),
+            "details": {"stdout": self.stdout, "stderr": self.stderr, "exit_code": self.exit_code},
+        }
+
+    def failure_message(self) -> str:
+        """
+        Return the single-line explanation of the invalid output.
+
+        :return: The error message.
+        :rtype: str
+        """
+        return str(self)
 
 
 @dataclass(frozen=True)
@@ -312,6 +387,39 @@ def build_biblicus_environment(
     return environment
 
 
+def command_failure_error(*, command: Sequence[str], exit_code: int, stdout: str, stderr: str) -> BiblicusCommandError:
+    """
+    Build the error for a command that exited with a nonzero status.
+
+    Standard output is parsed as a ``CommandFailure`` envelope. A valid envelope with exit status 2 yields
+    :class:`BiblicusInvalidRequestError` and with exit status 1 yields :class:`BiblicusOperationFailedError`.
+    Output that is not an envelope yields a plain :class:`BiblicusCommandError` that keeps both streams.
+
+    :param command: The full command line that was run.
+    :type command: Sequence[str]
+    :param exit_code: The process exit status.
+    :type exit_code: int
+    :param stdout: Captured standard output, stripped.
+    :type stdout: str
+    :param stderr: Captured standard error, stripped.
+    :type stderr: str
+    :return: The error to raise.
+    :rtype: BiblicusCommandError
+    """
+    from biblicus.command_failure import CommandFailure
+
+    try:
+        failure = CommandFailure.model_validate_json(stdout)
+    except ValidationError:
+        return BiblicusCommandError(command=command, exit_code=exit_code, stdout=stdout, stderr=stderr)
+    arguments = {"command": command, "exit_code": exit_code, "stdout": stdout, "stderr": stderr, "failure": failure}
+    if exit_code == INVALID_REQUEST_EXIT_STATUS:
+        return BiblicusInvalidRequestError(**arguments)
+    if exit_code == OPERATION_FAILED_EXIT_STATUS:
+        return BiblicusOperationFailedError(**arguments)
+    return BiblicusCommandError(command=command, exit_code=exit_code, stdout=stdout, stderr=stderr)
+
+
 class BiblicusRunner:
     """
     Runs ``biblicus`` commands in a subprocess and returns parsed, typed results.
@@ -374,7 +482,6 @@ class BiblicusRunner:
         *,
         stdin_text: str | None = None,
         timeout_seconds: float | None = None,
-        error_stream: Literal["stdout", "stderr"] | None = None,
     ) -> BiblicusCommandOutput:
         """
         Run a Biblicus command and require exit status zero.
@@ -385,11 +492,11 @@ class BiblicusRunner:
         :type stdin_text: str or None
         :param timeout_seconds: Seconds before the command is abandoned.
         :type timeout_seconds: float or None
-        :param error_stream: The one stream the command prints its structured failure to.
-        :type error_stream: str or None
         :return: Captured output.
         :rtype: BiblicusCommandOutput
-        :raises BiblicusCommandError: If the command exits with a nonzero status.
+        :raises BiblicusInvalidRequestError: If a typed command rejected the request (exit status 2).
+        :raises BiblicusOperationFailedError: If a typed command's operation failed (exit status 1).
+        :raises BiblicusCommandError: If the command exits with a nonzero status without printing a failure envelope.
         :raises BiblicusCommandTimeoutError: If the command exceeds the timeout.
         """
         command = self.command(arguments)
@@ -409,25 +516,18 @@ class BiblicusRunner:
         stdout = (completed.stdout or "").strip()
         stderr = (completed.stderr or "").strip()
         if completed.returncode != 0:
-            raise BiblicusCommandError(
-                command=command,
-                exit_code=completed.returncode,
-                stdout=stdout,
-                stderr=stderr,
-                error_stream=error_stream,
-            )
+            raise command_failure_error(command=command, exit_code=completed.returncode, stdout=stdout, stderr=stderr)
         return BiblicusCommandOutput(command=tuple(command), stdout=stdout, stderr=stderr)
 
-    def run_json(
+    def run_typed_command(
         self,
         arguments: Sequence[str],
         *,
         stdin_text: str | None = None,
         timeout_seconds: float | None = None,
-        error_stream: Literal["stdout", "stderr"] | None = None,
-    ) -> Any:
+    ) -> BiblicusCommandOutput:
         """
-        Run a Biblicus command and parse its standard output as JSON.
+        Run a typed Biblicus command, which always reports failure as a ``CommandFailure`` envelope.
 
         :param arguments: Arguments after the ``biblicus`` executable.
         :type arguments: Sequence[str]
@@ -435,13 +535,50 @@ class BiblicusRunner:
         :type stdin_text: str or None
         :param timeout_seconds: Seconds before the command is abandoned.
         :type timeout_seconds: float or None
-        :param error_stream: The one stream the command prints its structured failure to.
-        :type error_stream: str or None
+        :return: Captured output.
+        :rtype: BiblicusCommandOutput
+        :raises BiblicusInvalidRequestError: If the command rejected the request (exit status 2).
+        :raises BiblicusOperationFailedError: If the operation failed (exit status 1).
+        :raises BiblicusOutputError: If the command failed without a failure envelope on standard output,
+            for example an argument syntax error, which carries the captured standard error.
+        :raises BiblicusCommandTimeoutError: If the command exceeds the timeout.
+        """
+        try:
+            return self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds)
+        except BiblicusFailureEnvelopeError:
+            raise
+        except BiblicusCommandError as error:
+            raise BiblicusOutputError(
+                command=error.command,
+                stdout=error.stdout,
+                stderr=error.stderr,
+                exit_code=error.exit_code,
+                detail=f"exit status {error.exit_code} without a failure envelope on standard output: {error.failure_message()}",
+            ) from error
+
+    def run_json(
+        self,
+        arguments: Sequence[str],
+        *,
+        stdin_text: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> Any:
+        """
+        Run a typed Biblicus command and parse its standard output as JSON.
+
+        :param arguments: Arguments after the ``biblicus`` executable.
+        :type arguments: Sequence[str]
+        :param stdin_text: Text written to standard input.
+        :type stdin_text: str or None
+        :param timeout_seconds: Seconds before the command is abandoned.
+        :type timeout_seconds: float or None
         :return: The decoded JSON value.
         :rtype: Any
-        :raises BiblicusOutputError: If standard output is not valid JSON.
+        :raises BiblicusInvalidRequestError: If the command rejected the request.
+        :raises BiblicusOperationFailedError: If the operation failed.
+        :raises BiblicusOutputError: If standard output is not valid JSON or a failure printed no envelope.
         """
-        output = self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds, error_stream=error_stream)
+        output = self.run_typed_command(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds)
         try:
             return json.loads(output.stdout)
         except json.JSONDecodeError as error:
@@ -454,10 +591,9 @@ class BiblicusRunner:
         *,
         stdin_text: str | None = None,
         timeout_seconds: float | None = None,
-        error_stream: Literal["stdout", "stderr"] | None = None,
     ) -> ResponseModelType:
         """
-        Run a Biblicus command and validate its standard output against a response model.
+        Run a typed Biblicus command and validate its standard output against a response model.
 
         :param arguments: Arguments after the ``biblicus`` executable.
         :type arguments: Sequence[str]
@@ -467,28 +603,30 @@ class BiblicusRunner:
         :type stdin_text: str or None
         :param timeout_seconds: Seconds before the command is abandoned.
         :type timeout_seconds: float or None
-        :param error_stream: The one stream the command prints its structured failure to.
-        :type error_stream: str or None
         :return: The validated response.
         :rtype: pydantic.BaseModel
-        :raises BiblicusOutputError: If the output is not JSON or does not satisfy the model.
+        :raises BiblicusInvalidRequestError: If the command rejected the request.
+        :raises BiblicusOperationFailedError: If the operation failed.
+        :raises BiblicusOutputError: If the output does not satisfy the model or a failure printed no envelope.
         """
-        output = self.run(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds, error_stream=error_stream)
+        output = self.run_typed_command(arguments, stdin_text=stdin_text, timeout_seconds=timeout_seconds)
         try:
             return response_model.model_validate_json(output.stdout)
         except ValidationError as error:
             raise BiblicusOutputError(command=output.command, stdout=output.stdout, detail=str(error)) from error
 
-    def extract_url_text(self, request: "UrlTextRequest") -> "UrlTextResponse":
+    def extract_url_text(self, request: "UrlTextRequest", *, timeout_seconds: float | None = None) -> "UrlTextResponse":
         """
         Run ``extract url-text``.
 
         :param request: Validated request.
         :type request: biblicus.api.UrlTextRequest
+        :param timeout_seconds: Seconds before the command is killed and abandoned.
+        :type timeout_seconds: float or None
         :return: The extraction response.
         :rtype: biblicus.api.UrlTextResponse
-        :raises BiblicusCommandError: If extraction fails. Failures print the response to standard output;
-            input failures print to standard error and are not parsed (see ``BiblicusCommandError``).
+        :raises BiblicusFailureEnvelopeError: If extraction fails; ``details`` carries the typed URL text diagnostics.
+        :raises BiblicusCommandTimeoutError: If the command exceeds the timeout.
         """
         from biblicus.api import UrlTextResponse
 
@@ -496,7 +634,7 @@ class BiblicusRunner:
             ["extract", "url-text", "--input-json", "-", "--format", "json"],
             UrlTextResponse,
             stdin_text=request.model_dump_json(),
-            error_stream="stdout",
+            timeout_seconds=timeout_seconds,
         )
 
     def extract_web_metadata(self, request: "WebMetadataRequest") -> "WebMetadataResponse":
@@ -507,7 +645,7 @@ class BiblicusRunner:
         :type request: biblicus.api.WebMetadataRequest
         :return: The metadata response.
         :rtype: biblicus.api.WebMetadataResponse
-        :raises BiblicusCommandError: If extraction fails.
+        :raises BiblicusFailureEnvelopeError: If extraction fails.
         """
         from biblicus.api import WebMetadataResponse
 
@@ -515,7 +653,6 @@ class BiblicusRunner:
             ["extract", "web-metadata", "--input-json", "-"],
             WebMetadataResponse,
             stdin_text=request.model_dump_json(),
-            error_stream="stderr",
         )
 
     def extract_article_text(self, request: "ArticleInput", *, timeout_seconds: float | None = None) -> "TransformResult":
@@ -528,7 +665,7 @@ class BiblicusRunner:
         :type timeout_seconds: float or None
         :return: The transform result.
         :rtype: biblicus.web_transform.TransformResult
-        :raises BiblicusCommandError: If the transform reports failure.
+        :raises BiblicusFailureEnvelopeError: If the transform fails; ``details`` carries the typed transform diagnostics.
         :raises BiblicusCommandTimeoutError: If the command exceeds the timeout.
         """
         from biblicus.web_transform import TransformResult
@@ -538,7 +675,6 @@ class BiblicusRunner:
             TransformResult,
             stdin_text=request.model_dump_json(),
             timeout_seconds=timeout_seconds,
-            error_stream="stdout",
         )
 
     def summarize_map_reduce(self, request: "SummarizeMapReduceRequest") -> "TransformResult":
@@ -549,7 +685,7 @@ class BiblicusRunner:
         :type request: biblicus.api.SummarizeMapReduceRequest
         :return: The transform result.
         :rtype: biblicus.web_transform.TransformResult
-        :raises BiblicusCommandError: If the transform reports failure.
+        :raises BiblicusFailureEnvelopeError: If the transform fails; ``details`` carries the typed transform diagnostics.
         """
         from biblicus.web_transform import TransformResult
 
@@ -569,7 +705,6 @@ class BiblicusRunner:
             ],
             TransformResult,
             stdin_text=source_payload,
-            error_stream="stdout",
         )
 
     def build_context_pack_from_blocks(self, request: "ContextPackBuildBlocksRequest") -> "ContextPackBuildBlocksResponse":

@@ -400,6 +400,11 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
     if not apply:
         return result
 
+    from .editorial_model_context import classification_model
+    model = classification_model(model if model is not None else decision_model_from_environment(plan),
+                                 client, steering_config, sections)
+    model.verify_context()
+
     from decision_flywheel import Cyclotron
 
     assignment_id = ensure_site_sweep_assignment(client, plan.definition.id, corpus_id, now())
@@ -411,7 +416,6 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
                 archive = Path(scratch) / SNAPSHOT_NAME
                 if snapshots.download(snapshot_uri, archive):
                     Cyclotron.restore(archive, local, lease=_HeldLease())
-        model = model if model is not None else decision_model_from_environment(plan)
         optimizer = optimizer if optimizer is not None else optimizer_from_environment(plan)
         stored_specs = stored_active_specs(local)
         opening_definition = definition_with_classifiers(plan.definition, stored_specs) if stored_specs else plan.definition
@@ -438,7 +442,7 @@ def run_decide_site_sections(client, steering_config: Mapping[str, Any], doctrin
                     result.warnings.append(
                         f"{plan.definition.id} reached its cap of {plan.max_decisions_per_day} decisions today.")
                     break
-                decision = asyncio.run(cyclotron.decide(reference_item(reference)))
+                decision = asyncio.run(cyclotron.decide(model.prepare(reference_item(reference))))
                 current_relations = _site_decision_relations(client, reference["lineageId"])
                 existing = current_site_decisions(current_relations, reference["lineageId"])
                 if set(existing) == set(decision.results) and all(

@@ -30,6 +30,7 @@ import { defineSiteData } from "./data/resource";
 import { resolvePlugins } from "./plugins/registry";
 import { wirePlugins } from "./plugins/wire";
 import { assignmentAction } from "./functions/assignment-action/resource";
+import { scopeAssignmentDataAccess } from "./functions/assignment-action/data-access";
 import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
 import { contentActions, setSiteFilesForContentActionsBundle } from "./functions/content-actions/resource";
@@ -387,6 +388,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   }
   grantCorporaRead(backend.knowledgeQuery.resources.lambda as LambdaFunction);
   grantNewsroomReadWrite(backend.assignmentAction.resources.lambda as LambdaFunction);
+  scopeAssignmentDataAccess(
+    backend.assignmentAction.resources.lambda as LambdaFunction,
+    backend.data.resources.graphqlApi.arn,
+  );
   grantNewsroomReadWrite(backend.categoryAction.resources.lambda as LambdaFunction);
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;

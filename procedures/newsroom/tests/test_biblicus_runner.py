@@ -12,6 +12,8 @@ from papyrus_content.biblicus_runner import (
     BiblicusCommandError,
     BiblicusCommandTimeoutError,
     BiblicusExecutableError,
+    BiblicusInvalidRequestError,
+    BiblicusOperationFailedError,
     BiblicusOutputError,
     BiblicusRunner,
     BiblicusRunnerError,
@@ -29,11 +31,18 @@ mode = os.environ.get("FAKE_BIBLICUS_MODE", "echo")
 stdin_text = sys.stdin.read() if not sys.stdin.isatty() else ""
 if mode == "echo":
     print(json.dumps({{"arguments": arguments, "cwd": os.getcwd(), "stdin": stdin_text, "grobid": os.environ.get("BIBLICUS_GROBID_URL")}}))
-elif mode == "fail":
-    sys.stderr.write(json.dumps({{"status": "failed", "error": {{"code": "invalid_input_json", "message": "bad input"}}}}))
+elif mode == "invalid-request":
+    print(json.dumps({{"status": "failed", "error": {{"code": "invalid_input_json", "message": "bad input", "details": {{}}}}}}))
     sys.exit(2)
-elif mode == "fail-on-stdout":
+elif mode == "operation-failed":
+    details = {{"source_kind": "web", "strategy": "direct", "content_type": None, "prompt_version": "v1", "attempts": [], "http_status": 404}}
+    print(json.dumps({{"status": "failed", "error": {{"code": "provider_failed", "message": "provider said no", "details": details}}}}))
+    sys.exit(1)
+elif mode == "envelope-unexpected-exit":
     print(json.dumps({{"status": "failed", "error": {{"code": "provider_failed", "message": "provider said no"}}}}))
+    sys.exit(3)
+elif mode == "usage-error":
+    sys.stderr.write("usage: biblicus extract url-text [-h]\\nbiblicus: error: unrecognized arguments: --bogus")
     sys.exit(2)
 elif mode == "fail-plain":
     sys.stderr.write("Traceback: boom")
@@ -94,26 +103,84 @@ def test_nonzero_exit_raises_command_error_with_command_exit_code_and_stderr(fak
     assert error.command == (str(fake_biblicus), "reindex")
     assert error.exit_code == 1
     assert error.stderr == "Traceback: boom"
-    assert error.structured_error() is None
     assert error.failure_message() == "Traceback: boom"
     assert error.failure_reason() == {"code": "biblicus_cli_failed", "message": "Traceback: boom"}
     assert "exited 1" in str(error)
 
 
-def test_structured_error_is_read_only_from_the_declared_stream(fake_biblicus: Path, workdir: Path) -> None:
-    with pytest.raises(BiblicusCommandError) as from_stderr:
-        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["extract", "web-metadata"], error_stream="stderr")
-    assert from_stderr.value.structured_error() == {"code": "invalid_input_json", "message": "bad input"}
-    assert from_stderr.value.failure_reason() == {"code": "invalid_input_json", "message": "bad input"}
-    with pytest.raises(BiblicusCommandError) as from_stdout:
-        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail-on-stdout").run(["summarize", "map-reduce"], error_stream="stdout")
-    assert from_stdout.value.failure_message() == "provider said no"
-    with pytest.raises(BiblicusCommandError) as wrong_stream:
-        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["extract", "url-text"], error_stream="stdout")
-    assert wrong_stream.value.structured_error() is None
-    with pytest.raises(BiblicusCommandError) as undeclared:
-        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail").run(["reindex"])
-    assert undeclared.value.structured_error() is None
+def test_typed_failure_envelope_with_exit_two_is_an_invalid_request_error(fake_biblicus: Path, workdir: Path) -> None:
+    runner = make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="invalid-request")
+    with pytest.raises(BiblicusInvalidRequestError) as caught:
+        runner.run(["extract", "web-metadata"])
+    error = caught.value
+    assert isinstance(error, BiblicusCommandError)
+    assert (error.exit_code, error.code, error.message, error.details) == (2, "invalid_input_json", "bad input", {})
+    assert error.failure.status == "failed"
+    assert error.failure_message() == "bad input"
+    assert error.failure_reason() == {"code": "invalid_input_json", "message": "bad input", "details": {}}
+    assert "invalid_input_json: bad input" in str(error)
+
+
+def test_typed_failure_envelope_with_exit_one_is_an_operation_failed_error_that_keeps_details(fake_biblicus: Path, workdir: Path) -> None:
+    runner = make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="operation-failed")
+    with pytest.raises(BiblicusOperationFailedError) as caught:
+        runner.run(["summarize", "map-reduce"])
+    error = caught.value
+    assert (error.exit_code, error.code, error.message) == (1, "provider_failed", "provider said no")
+    assert error.details["http_status"] == 404
+    assert error.details["strategy"] == "direct"
+    assert error.failure_reason() == {"code": "provider_failed", "message": "provider said no", "details": error.details}
+
+
+def test_envelope_with_an_unexpected_exit_status_is_a_plain_command_error(fake_biblicus: Path, workdir: Path) -> None:
+    with pytest.raises(BiblicusCommandError) as caught:
+        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="envelope-unexpected-exit").run(["reindex"])
+    assert type(caught.value) is BiblicusCommandError
+    assert caught.value.exit_code == 3
+
+
+def test_typed_commands_raise_the_envelope_errors_through_run_typed_and_run_json(fake_biblicus: Path, workdir: Path) -> None:
+    from biblicus.web_transform import TransformResult
+
+    runner = make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="invalid-request")
+    with pytest.raises(BiblicusInvalidRequestError):
+        runner.run_json(["query"])
+    with pytest.raises(BiblicusInvalidRequestError):
+        runner.run_typed(["extract", "article-text"], TransformResult)
+
+
+def test_typed_command_failing_without_an_envelope_raises_output_error_with_stderr(fake_biblicus: Path, workdir: Path) -> None:
+    from biblicus.web_transform import TransformResult
+
+    runner = make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="usage-error")
+    with pytest.raises(BiblicusOutputError) as caught:
+        runner.run_typed(["extract", "url-text", "--bogus"], TransformResult)
+    error = caught.value
+    assert error.exit_code == 2
+    assert error.stdout == ""
+    assert "unrecognized arguments: --bogus" in error.stderr
+    assert "unrecognized arguments: --bogus" in str(error)
+    assert error.failure_reason()["details"] == {"stdout": "", "stderr": error.stderr, "exit_code": 2}
+    with pytest.raises(BiblicusOutputError):
+        runner.run_json(["query"])
+
+
+def test_untyped_command_failing_without_an_envelope_keeps_both_streams_on_a_plain_command_error(fake_biblicus: Path, workdir: Path) -> None:
+    with pytest.raises(BiblicusCommandError) as caught:
+        make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="usage-error").run(["extract", "build"])
+    assert type(caught.value) is BiblicusCommandError
+    assert caught.value.exit_code == 2
+    assert "unrecognized arguments" in caught.value.failure_message()
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    ['{"status": "failed"}', "prefix {not json", '["list"]', '{"error": "text"}', '{"status": "failed", "error": {"code": "c"}}',
+     '{"status": "ok", "error": {"code": "c", "message": "m"}}', '{"status": "failed", "error": {"code": "c", "message": "m"}} trailing'],
+)
+def test_stdout_that_is_not_exactly_one_failure_envelope_is_not_parsed(stdout: str) -> None:
+    error = biblicus_runner.command_failure_error(command=["biblicus"], exit_code=1, stdout=stdout, stderr="")
+    assert type(error) is BiblicusCommandError
 
 
 def test_failure_message_without_any_output_names_the_exit_code(fake_biblicus: Path, workdir: Path) -> None:
@@ -121,19 +188,6 @@ def test_failure_message_without_any_output_names_the_exit_code(fake_biblicus: P
         make_runner(fake_biblicus, workdir, FAKE_BIBLICUS_MODE="fail-silent").run(["reindex"])
     assert caught.value.failure_message() == "Biblicus command exited 3."
     assert "no output" in str(caught.value)
-
-
-def test_structured_error_requires_the_whole_stream_to_be_one_json_object_with_an_error(fake_biblicus: Path, workdir: Path) -> None:
-    def parse(stdout: str) -> object:
-        return BiblicusCommandError(command=["biblicus"], exit_code=1, stdout=stdout, stderr="", error_stream="stdout").structured_error()
-
-    assert parse('{"status": "failed"}') is None
-    assert parse("prefix {not json") is None
-    assert parse('["list"]') is None
-    assert parse('{"error": "text"}') is None
-    assert parse('{"a": 1} trailing') is None
-    assert parse('log line {"error": {"code": "c"}}') is None
-    assert parse('{"error": {"code": "c"}}') == {"code": "c"}
 
 
 def test_invalid_json_raises_output_error_with_the_raw_output(fake_biblicus: Path, workdir: Path) -> None:
@@ -144,7 +198,7 @@ def test_invalid_json_raises_output_error_with_the_raw_output(fake_biblicus: Pat
     assert caught.value.command == (str(fake_biblicus), "query")
     reason = caught.value.failure_reason()
     assert reason["code"] == "invalid_biblicus_output"
-    assert reason["details"] == {"stdout": "not json at all"}
+    assert reason["details"] == {"stdout": "not json at all", "stderr": "", "exit_code": 0}
 
 
 def test_run_typed_rejects_output_that_does_not_satisfy_the_model(fake_biblicus: Path, workdir: Path) -> None:
@@ -162,7 +216,7 @@ def test_timeout_raises_a_typed_timeout_error(fake_biblicus: Path, workdir: Path
     assert caught.value.timeout_seconds == 0.2
     assert caught.value.command == (str(fake_biblicus), "reindex")
     assert isinstance(caught.value, BiblicusRunnerError)
-    assert caught.value.failure_reason()["code"] == "biblicus_runner_failed"
+    assert caught.value.failure_reason()["code"] == "biblicus_timeout"
 
 
 def test_missing_workdir_configuration_is_a_clear_error() -> None:

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "4ba028ba-61ca-49f6-9db5-337d4077894f",
+  "issue_id": "PPY-33854a5d-da97-4597-9ad2-948a7dd23136",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T02:16:55.576Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public RSS/Atom subscription feeds for publications and sections",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader, I want to subscribe to a publication or section using ordinary feed readers, so that I can follow published articles without visiting the site repeatedly.\n\nDefinition of Done for later implementation: standards-valid RSS and Atom publication/section feeds, stable item identity and canonical links, revision/withdrawal behavior, discoverability and published-only isolation covered by observable specifications. Depends on the shared published-content foundation. Examine existing Markus/static S3 publishing during implementation; avoid a parallel publisher. M8 PPY-f293ea mentions an optional feed: this epic owns the detailed subscription-feed behavior rather than duplicating M8's delivered latest/search JSON.\n\nDeferred/YAGNI: Markdown+YAML exports, exact Contentful compatibility, extra export formats and authenticated draft previews. No feed endpoint, deployment or rollout is selected by this plan.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "PPY-cfd2da06-0f4f-43c4-9ce8-e178d788adaf",
+  "title": "Dogfood shared Help across representative Anthus products",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a product owner, I want representative products to use the same help contract, so that reuse and product-specific needs are tested before broad rollout.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Dogfood shared Help across representative Anthus products\n  Scenario: Evaluate representative consumers\n    Given Papyrus and Chatticus are candidate first consumers and other Anthus products are candidates for later adoption\n    When the shared help design is reviewed through their documentation workflows\n    Then it identifies common authoring, browsing, theme and optional chat needs without bespoke copies\n    And public versus authenticated content and cross-product scope isolation are explicitly checked\n    And existing documentation and migration milestones are linked instead of duplicated\n    And rollout, production changes and additional product commitments require later implementation authorization\n```\n\nCandidate dogfooding only: Papyrus and Chatticus first; use existing all-sites PPY-e315d3 and product-specific milestones when assessing Markus, Kanbus, Tactus, Biblicus or Cyclotron. Do not promise migration of every product or conflate public marketing/wiki content with private help. Document gaps and decisions, not unverified success.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-20T02:25:49.540762Z",
+  "updated_at": "2026-10-20T03:11:30.758637Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

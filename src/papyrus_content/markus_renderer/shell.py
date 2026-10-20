@@ -18,12 +18,23 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .consent import (
+    CONSENT_BANNER_STYLE,
+    ConsentModeSettings,
+    render_consent_banner,
+    render_consent_defaults_script,
+)
+
 
 _GA_ID_RE = re.compile(r"G-[A-Z0-9]{4,20}")
 
 
 def render_ga4_snippet(
-    measurement_id: str, *, owner_opt_out: bool = False, site_name: str = ""
+    measurement_id: str,
+    *,
+    owner_opt_out: bool = False,
+    site_name: str = "",
+    consent_mode: ConsentModeSettings | None = None,
 ) -> str:
     """Google's standard gtag.js GA4 snippet (async loader + config call).
 
@@ -33,6 +44,11 @@ def render_ga4_snippet(
     for that browser; ``?notrack=0`` clears it. The key is
     ``<site-name-alnum-lowercase>-no-analytics`` (``anthus-no-analytics`` for
     "Anthus"/"Anth.us").
+
+    With ``consent_mode`` the Consent Mode v2 defaults, ``ads_data_redaction``,
+    ``url_passthrough`` and any stored visitor choice are emitted after
+    ``gtag`` is defined, in their own inline script before the async loader, which
+    is followed by ``gtag('js')`` and ``gtag('config')``.
     """
     if not isinstance(measurement_id, str) or not _GA_ID_RE.fullmatch(measurement_id):
         raise ValueError(
@@ -52,14 +68,32 @@ def render_ga4_snippet(
             f"if(localStorage.getItem(k)==='1')window[{json.dumps('ga-disable-' + measurement_id)}]=true"
             "}catch(e){}})();</script>\n"
         )
-    return opt_out + (
-        f'<script async src="https://www.googletagmanager.com/gtag/js?id={safe}"></script>\n'
+    loader = f'<script async src="https://www.googletagmanager.com/gtag/js?id={safe}"></script>\n'
+    configuration = (
         "<script>\n"
-        "window.dataLayer = window.dataLayer || [];\n"
-        "function gtag(){dataLayer.push(arguments);}\n"
         "gtag('js', new Date());\n"
         f"gtag('config', {json.dumps(measurement_id)});\n"
         "</script>"
+    )
+    if consent_mode is None:
+        return opt_out + (
+            loader
+            + "<script>\n"
+            "window.dataLayer = window.dataLayer || [];\n"
+            "function gtag(){dataLayer.push(arguments);}\n"
+            "gtag('js', new Date());\n"
+            f"gtag('config', {json.dumps(measurement_id)});\n"
+            "</script>"
+        )
+    return (
+        opt_out
+        + "<script>\n"
+        "window.dataLayer = window.dataLayer || [];\n"
+        "function gtag(){dataLayer.push(arguments);}\n"
+        + render_consent_defaults_script(consent_mode, site_name=site_name)
+        + "</script>\n"
+        + loader
+        + configuration
     )
 
 
@@ -105,6 +139,12 @@ class SiteChrome:
     ``ga_owner_opt_out``
         Only with ``ga_measurement_id``. Adds the owner opt-out script (see
         :func:`render_ga4_snippet`), matching live anth.us.
+    ``consent_mode``
+        Optional :class:`ConsentModeSettings` (projection settings may supply a
+        mapping of its fields). Only with ``ga_measurement_id``. Adds
+        Google Consent Mode v2 defaults before ``gtag('config')``, a banner
+        stylesheet in ``<head>`` and the consent banner just before ``</body>``.
+        ``None`` (the default) leaves the page byte-identical.
     ``title_template`` / ``same_title_template``
         ``str.format`` templates over ``{title}`` and ``{site}`` (both already
         HTML-escaped). ``same_title_template`` is used when the page title
@@ -134,6 +174,7 @@ class SiteChrome:
     head_html: str = ""
     ga_measurement_id: str | None = None
     ga_owner_opt_out: bool = False
+    consent_mode: ConsentModeSettings | None = None
     title_template: str = "{title} · {site}"
     same_title_template: str = "{site}"
     asset_root: str | None = None
@@ -198,6 +239,8 @@ def render_page(
     css_version: str | None = None,
 ) -> str:
     chrome = chrome or DEFAULT_CHROME
+    if chrome.consent_mode is not None and chrome.ga_measurement_id is None:
+        raise ValueError("consent_mode requires ga_measurement_id")
     # `site_name` stays an explicit override so existing callers keep working.
     resolved_site_name = site_name if site_name is not None else chrome.site_name
 
@@ -320,19 +363,28 @@ def render_page(
                 chrome.ga_measurement_id,
                 owner_opt_out=chrome.ga_owner_opt_out,
                 site_name=resolved_site_name,
+                consent_mode=chrome.consent_mode,
             )
         )
+        if chrome.consent_mode is not None:
+            head_lines.append(CONSENT_BANNER_STYLE)
     head_lines.extend(
         f'<link rel="stylesheet" href="{prefix}{sheet}{suffix}">'
         for sheet in chrome.stylesheets
     )
     head_lines.append("</head>")
     head = "\n".join(head_lines)
+    consent_banner = (
+        f"{render_consent_banner(chrome.consent_mode)}\n"
+        if chrome.consent_mode is not None
+        else ""
+    )
 
     return (
         f"{head}\n"
         f'<body class="{html.escape(chrome.body_class, quote=True)}">\n'
         f"{body_inner}\n"
+        f"{consent_banner}"
         "</body>\n"
         "</html>\n"
     )

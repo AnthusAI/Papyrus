@@ -19,6 +19,7 @@ export const pilobolUsBrand: SiteBrand = {
   sectionLinkStrategy: "route",
   themePack: "pilobol-us",
   themeTokens: PILOBOL_US_THEME_PACK_TOKENS,
+  kanbusTheme: "refined-newsprint",
   renderer: { kind: "markus" },
   hosting: { kind: "amplify-ssr" },
   readerDeployment: {

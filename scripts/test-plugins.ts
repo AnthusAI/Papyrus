@@ -6,6 +6,14 @@ import { signupSchemaDefinitions } from "../amplify/plugins/signup/schema";
 import { resolveSignupConfig, signupManifest } from "../amplify/plugins/signup/papyrus.plugin";
 import { addSignupRateLimit, SIGNUP_MUTATION_FIELD } from "../amplify/plugins/signup/waf";
 import { wirePlugins, PLUGINS_OUTPUT_KEY } from "../amplify/plugins/wire";
+import { editorialChecksSchemaDefinitions } from "../amplify/plugins/editorial-checks/schema";
+import {
+  EDITORIAL_CHECKS_FUNCTION_FIELDS,
+  editorialChecksManifest,
+  editorialChecksSecretParameters,
+  resolveEditorialChecksConfig,
+} from "../amplify/plugins/editorial-checks/papyrus.plugin";
+import { EDITORIAL_CHECKS_TIMEOUT_SECONDS } from "../amplify/plugins/editorial-checks/function/resource";
 import { pluginSettings, signupForms } from "../lib/plugin-settings";
 import { csvCell, neutralizeFormula, signupEntriesToCsv } from "../lib/signup-csv";
 
@@ -94,5 +102,29 @@ assert.equal(
   "form,value,submittedAt\r\nnews,reader@example.test,2026-10-13T12:00:00.000Z\r\nnews,'=cmd@example.test,2026-10-13T12:01:00.000Z\r\n",
 );
 assert.equal(signupEntriesToCsv([]), "form,value,submittedAt\r\n");
+
+// editorial-checks: no options, nothing for guests, the manifest matches the schema.
+assert.deepEqual(resolvePlugins(["editorial-checks"])[0].config, {});
+assert.throws(() => resolveEditorialChecksConfig({ name: "editorial-checks", model: "x" }), /Unknown editorial-checks plugin settings: model/);
+assert.deepEqual(resolvePlugins(["editorial-checks", "signup"]).map(({ plugin }) => plugin.manifest.name), ["editorial-checks", "signup"]);
+const editorialDefinitions = editorialChecksSchemaDefinitions() as Record<string, unknown>;
+assert.deepEqual(
+  Object.keys(editorialDefinitions).sort(),
+  [...editorialChecksManifest.models, ...editorialChecksManifest.mutations].sort(),
+);
+assert.deepEqual(editorialChecksManifest.guest.mutations, []);
+assert.equal(KNOWN_PLUGINS["editorial-checks"].manifest, editorialChecksManifest);
+assert.ok(EDITORIAL_CHECKS_TIMEOUT_SECONDS < 30, "the function must finish inside AppSync's 30 second resolver limit");
+assert.deepEqual(
+  EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()).sort(),
+  ["createEditorialPolicy", "getEditorialCheckSettings", "getEditorialContext", "listEditorialFeedbacks", "listEditorialPolicies", "listKnowledgeCorporaByRoleAndName", "updateEditorialPolicy"],
+);
+
+// The function reads its provider keys from SSM itself; it may read exactly those two names.
+const secretArns = editorialChecksSecretParameters("us-east-1", "123456789012", "dabc123");
+assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/amplify/dabc123/*/TYPESAFE_API_KEY"));
+assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/amplify/shared/dabc123/OPENAI_API_KEY"));
+assert.ok(secretArns.every((arn) => arn.endsWith("/TYPESAFE_API_KEY") || arn.endsWith("/OPENAI_API_KEY")));
+assert.equal(editorialChecksSecretParameters("us-east-1", "123456789012", "").length, 4, "a sandbox gets only the sandbox paths");
 
 console.log("plugins ok");

@@ -75,7 +75,7 @@ from .editions_commands import (
     editions_plan,
     editions_purge,
 )
-from .editorial_commands import editorial_diagnose, editorial_options
+from .editorial_commands import editorial_check, editorial_import, editorial_pack, editorial_suggest
 from .categories_commands import (
     categories_draft_add_topic,
     categories_draft_archive_topic,
@@ -395,8 +395,10 @@ PORTED_COMMANDS = frozenset(
         "videos:render",
         "videos:seed",
         "videos:attach",
-        "editorial:diagnose",
-        "editorial:options",
+        "editorial:check",
+        "editorial:suggest",
+        "editorial:pack",
+        "editorial:import",
         "renderers:markus-build",
     }
 )
@@ -821,10 +823,14 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from papyrus_content.videoml.commands import videos_attach
 
         videos_attach(flags)
-    elif route == "editorial:diagnose":
-        editorial_diagnose(flags)
-    elif route == "editorial:options":
-        editorial_options(flags)
+    elif route == "editorial:check":
+        editorial_check(flags)
+    elif route == "editorial:suggest":
+        editorial_suggest(flags)
+    elif route == "editorial:pack":
+        editorial_pack(flags)
+    elif route == "editorial:import":
+        editorial_import(flags)
     elif route == "renderers:markus-build":
         markus_build(flags)
     else:

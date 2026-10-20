@@ -1,0 +1,40 @@
+{
+  "id": "PPY-d943b5f7-9c38-4e21-a423-27122d40775b",
+  "title": "Review reusable Help authoring, embedding, citations and dogfooding",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nCross-cutting acceptance review: verify Help is conventionally discoverable; structured Markus docs are authored/edited through the agreed Papyrus lifecycle; consumers use one exported dependency with product themes; chat remains optional; retrieval/citations respect the correct publication/knowledge base and existing reader permissions. Review navigation, stable links, draft exclusion, source revision/freshness, inaccessible citations and unsupported-answer behavior. Reconcile Chatticus reuse matrix and existing migration evidence, representative consumer walkthroughs, ownership/package decisions and evidence from the independent backend investigation. Record actual verification versus unimplemented acceptance; never mark all documentation current merely because files exist.\n\nFinal agreed authoring direction, planning only: “include” is the working construct name, not approved concrete syntax. It supports inclusion of a single page or a selected list. “Collection” means a selection of content, not a new storage object. On page/content save or compile, the supported pipeline scans/parses include constructs, updates the generated site-wide dependency index, and actually uses that index to regenerate affected pages; merely recording dependencies is incomplete. Reuse each include's rendering selection as the sole source of invalidation selection, with separate enforced publication/access/published gates. Nested/transitive includes, cycles, deduplication, edits/deletion and retries require observable behavior, not arbitrary-code inference.\n\nRSS/Atom feed eligibility is distinct from page existence, include membership and navigation. An ordinary static wiki/help or product page does not automatically become a feed entry. Define shared feed selection/metadata and editorial eligibility without building a separate page or wiki engine. Exact include syntax, extension ownership and selection schema remain design questions; current Anth.us custom Python homepage code is evidence of a migration gap, not proof the proposed include construct is shipped.\n\nDetailed include BDD: PPY-b6ede164-fad8-45da-a242-51362c5f8285. Author/operator documentation behavior: PPY-01b5e07f-773e-407f-9057-941f4e4c5a0c. Review must trace these scenarios through actual public output changes and failure recovery when implemented; documentation presence or an index write alone is insufficient.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ad6806f-85ff-43b7-b4c7-862a515759bc",
+  "labels": [
+    "design-only",
+    "planning"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-b14a72e4-0c44-4bb0-9b7f-92dae719f042",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b6ede164-fad8-45da-a242-51362c5f8285",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-20T02:26:06.653588Z",
+  "updated_at": "2026-10-20T03:11:32.183878Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-planning"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

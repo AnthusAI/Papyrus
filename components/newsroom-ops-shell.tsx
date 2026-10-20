@@ -1,41 +1,25 @@
 "use client";
 
-import {
-  BookOpenIcon,
-  ClipboardListIcon,
-  FileTextIcon,
-  LayoutGridIcon,
-  MenuIcon,
-  SearchIcon,
-  TagsIcon,
-} from "lucide-react";
-import Link from "next/link";
-import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { SearchIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  getNewsroomNavHref,
-  NEWSROOM_MOBILE_PRIMARY_NAV,
-  NEWSROOM_OPS_NAV,
-  type NewsroomNavTabId,
-} from "../lib/newsroom-nav";
-import {
-  NEWSROOM_SIDEBAR_NAV_ACTIVE,
-  NEWSROOM_SIDEBAR_NAV_INACTIVE,
-} from "../lib/newsroom-list-selection";
 import { cn } from "../lib/utils";
+
+import { useEffect, useId, useState, type ReactNode } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { BookOpen, ClipboardList, Menu, Search, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
+import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
+import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
-import { NewsroomOrganizerShell } from "./newsroom-organizer-shell";
+import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
+import { ReaderAuthControl } from "./reader-auth-control";
+import { ProspectusAccountChooser, useProspectusAccountSummary } from "./prospectus-account-chooser";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "./ui/sheet";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu";
+import "./newsroom-organizer.css";
+import { NewsroomThemeFonts, useNewsroomThemeAttributes } from "./newsroom-theme";
 
 export type NewsroomNavCount = {
   count: number | null;
@@ -44,7 +28,7 @@ export type NewsroomNavCount = {
 };
 
 export type NewsroomOpsShellProps = {
-  activeTab: NewsroomNavTabId | string;
+  activeTab: string;
   appTitle: string;
   backHref?: string;
   backLabel: string;
@@ -56,215 +40,143 @@ export type NewsroomOpsShellProps = {
   tabCounts?: Partial<Record<string, NewsroomNavCount>>;
 };
 
-const MOBILE_TAB_ICONS: Record<string, typeof LayoutGridIcon> = {
-  overview: LayoutGridIcon,
-  articles: FileTextIcon,
-  assignments: ClipboardListIcon,
-  references: BookOpenIcon,
-  topics: TagsIcon,
-};
-
-function formatCountLabel(count: number | null, missing?: boolean): string {
-  if (missing) return "?";
-  if (count == null) return "…";
-  if (count >= 1000) return `${Math.round(count / 100) / 10}k`;
-  return String(count);
+/** The standard place to search the knowledge base; the Search page is the results page. */
+function OrganizerSearch({ demo }: { demo: boolean }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [text, setText] = useState(searchParams.get("q") ?? "");
+  return <form className="organizer-search" role="search" onSubmit={event => {
+    event.preventDefault();
+    const query = text.trim();
+    if (query) router.push(getNewsroomNavHref(`/newsroom/search?q=${encodeURIComponent(query)}`, demo));
+  }}>
+    <Search size={14} aria-hidden="true" />
+    <input aria-label="Search the knowledge base" data-newsroom-search type="search" onChange={event => setText(event.target.value)} placeholder="Search" value={text} />
+  </form>;
 }
 
-function NavCountBadge({
-  countState,
-}: {
-  countState?: NewsroomNavCount;
-}) {
-  if (!countState || countState.visible === false) return null;
-  return (
-    <Badge
-      className="newsroom-nav-count min-w-7 px-1.5"
-      data-newsroom-nav-count
-      variant={countState.missing ? "outline" : "secondary"}
-    >
-      {formatCountLabel(countState.count, countState.missing)}
-    </Badge>
-  );
+const ICONS = { articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
+
+/** Navigation is a presentation layer; existing route and server authorization still own access. */
+function Navigation({ activePath, demo, admin, surface, onNavigate }: { activePath: string; demo: boolean; admin: boolean; surface: string; onNavigate?: () => void }) {
+  const id = useId();
+  const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
+  const active = all.filter(item => [item.path, ...(item.alsoActiveOnPaths ?? [])].some(candidate => activePath === candidate || (candidate !== "/newsroom" && activePath.startsWith(candidate + "/")))).sort((a, b) => b.path.length - a.path.length)[0]?.key;
+  return <nav className="organizer-destinations" aria-label={surface === "sidebar" ? "Newsroom" : "All workspaces"}>
+    {ORGANIZER_NAV_GROUPS.map((group, index) => <section key={group.title} aria-labelledby={`${id}-${index}`}>
+      <h3 id={`${id}-${index}`}>{group.title}</h3>
+      {group.items.filter(item => item.access !== "admin" || admin).map(item => <Link key={item.key}
+        href={getNewsroomNavHref(item.path, demo)} onClick={onNavigate} aria-label={item.label}
+        aria-current={active === item.key ? "page" : undefined} aria-describedby={`${id}-${item.key}`}
+        data-news-desk-tab={item.key}>
+        <strong>{item.label}</strong><small id={`${id}-${item.key}`}>{item.description}</small>
+      </Link>)}
+    </section>)}
+  </nav>;
 }
 
-function SidebarNavLink({
-  active,
-  countState,
-  demo,
-  item,
-  onNavigate,
-}: {
-  active: boolean;
-  countState?: NewsroomNavCount;
-  demo?: boolean;
-  item: (typeof NEWSROOM_OPS_NAV)[number];
-  onNavigate?: () => void;
-}) {
-  return (
-    <Link
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        buttonVariants({ variant: "ghost", size: "default" }),
-        "h-auto min-h-11 w-full justify-start gap-3 px-3 py-2.5 text-left font-normal",
-        active ? NEWSROOM_SIDEBAR_NAV_ACTIVE : NEWSROOM_SIDEBAR_NAV_INACTIVE,
-      )}
-      data-news-desk-tab={item.id}
-      href={getNewsroomNavHref(item.href, demo)}
-      onClick={onNavigate}
-    >
-      <NavCountBadge countState={countState} />
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">{item.label}</span>
-        <span className={cn("block text-xs", active ? "text-foreground/70" : "text-muted-foreground")}>{item.detail}</span>
-      </span>
-    </Link>
-  );
+function Account({ placement }: { placement: "sidebar" | "header" }) {
+  const session = useOptionalNewsDeskClient();
+  const auth = session?.shell.auth ?? { status: "loading" as const, label: "Checking sign-in" };
+  const [open, setOpen] = useState(false);
+  const accountSummary = useProspectusAccountSummary();
+  useEffect(() => {
+    const media = matchMedia("(max-width: 900px)");
+    const close = () => setOpen(false);
+    media.addEventListener("change", close);
+    return () => media.removeEventListener("change", close);
+  }, []);
+  const themeAttributes = useNewsroomThemeAttributes();
+  return <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenuTrigger id={`organizer-account-trigger-${placement}`} className={`organizer-account organizer-account-${placement}`} aria-label="Account menu" title="Account menu">
+      <UserRound size={18} aria-hidden="true" /><span><strong>{auth.label}</strong><small>{accountSummary ?? (auth.status === "signedIn" ? "Account & preferences" : auth.status === "signedOut" ? "Not signed in" : "Checking session")}</small></span>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent className="organizer-account-popup" {...themeAttributes} side={placement === "sidebar" ? "top" : "bottom"} align="end">
+      <DropdownMenuGroup>
+        <DropdownMenuLabel>{auth.label}</DropdownMenuLabel><DropdownMenuSeparator />
+        <ProspectusAccountChooser />
+        <DropdownMenuItem render={<Link href={getNewsroomNavHref(ORGANIZER_SETTINGS_DESTINATION.path)} />}><Settings aria-hidden="true" />{ORGANIZER_SETTINGS_DESTINATION.label}</DropdownMenuItem>
+        <ReaderAuthControl authState={auth} renderAction={({ disabled, onClick, signedIn }) => <DropdownMenuItem disabled={disabled} closeOnClick={false} onClick={onClick}>
+          {signedIn ? <LogOut aria-hidden="true" /> : <LogIn aria-hidden="true" />}{signedIn ? "Sign out" : "Sign in"}
+        </DropdownMenuItem>} />
+      </DropdownMenuGroup>
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }
 
-export function NewsroomOpsShell({
-  activeTab,
-  appTitle,
-  backHref = "/",
-  backLabel,
-  children,
-  demo = false,
-  headerActions,
-  pageTitle,
-  showNavigation = true,
-  tabCounts = {},
-}: NewsroomOpsShellProps) {
+export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabel, children, demo = false, headerActions, pageTitle, showNavigation = true }: NewsroomOpsShellProps) {
+  const pathname = usePathname();
+  const themeAttributes = useNewsroomThemeAttributes();
+  const session = useOptionalNewsDeskClient();
+  const admin = demo || session?.shell.dashboard?.canManageUsers === true;
   const [menuOpen, setMenuOpen] = useState(false);
-  const resolvedActiveTab = activeTab === "desks" ? "topics" : activeTab;
-  const mobilePrimary = useMemo(() => NEWSROOM_MOBILE_PRIMARY_NAV, []);
-
-  if (SITE_BRAND.newsroomLayout === "organizer") return <NewsroomOrganizerShell activeTab={activeTab} appTitle={appTitle}
-    backHref={backHref} backLabel={backLabel} demo={demo} headerActions={headerActions} pageTitle={pageTitle}
-    showNavigation={showNavigation} tabCounts={tabCounts}>{children}</NewsroomOrganizerShell>;
-
-  return (
-    <div
-      className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-background text-foreground"
-      data-news-desk
-      data-newsroom-chrome="app"
-      data-newsroom-ops-shell="true"
-    >
-      <header
-        className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card/50 px-3 sm:px-4"
-        data-newsroom-ops-topbar
-      >
-        <Link
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "shrink-0 px-2")}
-          href={backHref}
-        >
-          {backLabel}
-        </Link>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {appTitle}
-          </p>
-          <h1 className="truncate text-base font-semibold tracking-tight text-foreground" data-newsroom-ops-title>
-            {pageTitle}
-          </h1>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">{headerActions}</div>
-      </header>
-
-      <div className="flex min-h-0 flex-1">
-        {showNavigation ? (
-          <aside
-            aria-label="Newsroom sections"
-            className="hidden w-64 shrink-0 flex-col border-r border-border bg-muted/20 md:flex"
-            data-newsroom-ops-sidebar
-          >
-            <ScrollArea className="min-h-0 flex-1 p-3">
-              <nav className="flex flex-col gap-1">
-                {NEWSROOM_OPS_NAV.map((item) => (
-                  <SidebarNavLink
-                    active={resolvedActiveTab === item.id}
-                    countState={tabCounts[item.id]}
-                    demo={demo}
-                    item={item}
-                    key={item.id}
-                  />
-                ))}
-              </nav>
-            </ScrollArea>
-          </aside>
-        ) : null}
-
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">{children}</div>
-          </ScrollArea>
-        </main>
+  const [collapsed, setCollapsed] = useState(false);
+  const [loadedPreference, setLoadedPreference] = useState(false);
+  const preferenceKey = `papyrus.cms.sidebar.v1.${SITE_BRAND.id}`;
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(preferenceKey) === "true"); } catch { /* Optional browser preference. */ }
+    setLoadedPreference(true);
+  }, [preferenceKey]);
+  useEffect(() => { if (loadedPreference) try { localStorage.setItem(preferenceKey, String(collapsed)); } catch { /* Controls still work without storage. */ } }, [collapsed, loadedPreference, preferenceKey]);
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  useEffect(() => {
+    const media = matchMedia("(max-width: 900px)");
+    let previousFocus: Element | null = null;
+    let frame = 0;
+    const remember = () => { if (document.activeElement !== document.body) previousFocus = document.activeElement; };
+    const change = () => {
+      const active = document.activeElement === document.body ? previousFocus : document.activeElement;
+      if (!(active instanceof HTMLElement)) return;
+      if (!media.matches) setMenuOpen(false);
+      const selector = active.closest(".organizer-account, .organizer-account-popup") ? ".organizer-account"
+        : media.matches && active.closest(".organizer-sidebar, .organizer-toggle") ? ".organizer-more"
+        : !media.matches && active.closest(".organizer-bottom-nav, .organizer-menu") ? ".organizer-toggle" : null;
+      if (!selector) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (document.activeElement === active || document.activeElement === document.body || !(document.activeElement as HTMLElement)?.getClientRects().length)
+          Array.from(document.querySelectorAll<HTMLElement>(selector)).find(element => element.getClientRects().length)?.focus();
+      });
+    };
+    document.addEventListener("focusin", remember);
+    media.addEventListener("change", change);
+    return () => { document.removeEventListener("focusin", remember); media.removeEventListener("change", change); cancelAnimationFrame(frame); };
+  }, []);
+  const activePath = browserPathToInternalNewsroomPath(pathname ?? "/newsroom");
+  const sidebarToggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  const sidebarToggle = <button type="button" className="organizer-toggle" title={sidebarToggleLabel}
+    aria-label={sidebarToggleLabel} aria-expanded={!collapsed} aria-controls="organizer-sidebar" onClick={() => setCollapsed(value => !value)}>
+    {collapsed ? <PanelLeftOpen size={16} aria-hidden="true" /> : <PanelLeftClose size={16} aria-hidden="true" />}
+  </button>;
+  return <div className="newsroom-organizer" {...themeAttributes} data-news-desk data-newsroom-ops-shell="true" data-newsroom-chrome="organizer" data-sidebar-collapsed={collapsed || !showNavigation ? "true" : "false"}>
+    <NewsroomThemeFonts />
+    {showNavigation && <aside className="organizer-sidebar" hidden={collapsed} id="organizer-sidebar">
+      <div className="organizer-sidebar-head">
+        <Link className="organizer-brand" href={getNewsroomNavHref("/newsroom", demo)}>{SITE_BRAND.components?.NewsroomLogo ? <SITE_BRAND.components.NewsroomLogo className="organizer-brand-logo" /> : appTitle}<small>The newsroom</small></Link>
+        {sidebarToggle}
       </div>
-
-      {showNavigation ? (
-        <nav
-          aria-label="Primary newsroom navigation"
-          className="shrink-0 border-t border-border bg-card/95 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1 md:hidden"
-          data-newsroom-ops-bottom-nav
-        >
-          <ul className="grid grid-cols-6 gap-1 px-1">
-            {mobilePrimary.map((item) => {
-              const Icon = MOBILE_TAB_ICONS[item.id] ?? LayoutGridIcon;
-              const active = resolvedActiveTab === item.id;
-              return (
-                <li key={item.id}>
-                  <Link
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[0.68rem] font-medium",
-                      active
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground",
-                    )}
-                    data-news-desk-tab={item.id}
-                    href={getNewsroomNavHref(item.href, demo)}
-                  >
-                    <Icon className="size-4" aria-hidden="true" />
-                    <span>{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-            <li>
-              <Sheet onOpenChange={setMenuOpen} open={menuOpen}>
-                <SheetTrigger
-                  className={cn(
-                    "flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[0.68rem] font-medium text-muted-foreground",
-                  )}
-                >
-                  <MenuIcon className="size-4" aria-hidden="true" />
-                  <span>More</span>
-                </SheetTrigger>
-                <SheetContent className="gap-0 p-0" side="bottom">
-                  <SheetHeader className="border-b border-border px-4 py-4">
-                    <SheetTitle>All sections</SheetTitle>
-                  </SheetHeader>
-                  <ScrollArea className="max-h-[60dvh] p-3">
-                    <div className="flex flex-col gap-1">
-                      {NEWSROOM_OPS_NAV.map((item) => (
-                        <SidebarNavLink
-                          active={resolvedActiveTab === item.id}
-                          countState={tabCounts[item.id]}
-                          demo={demo}
-                          item={item}
-                          key={item.id}
-                          onNavigate={() => setMenuOpen(false)}
-                        />
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </SheetContent>
-              </Sheet>
-            </li>
-          </ul>
-        </nav>
-      ) : null}
+      <Navigation activePath={activePath} demo={demo} admin={admin} surface="sidebar" />
+      <Account placement="sidebar" />
+    </aside>}
+    <div className="organizer-workspace">
+      <header className="organizer-topbar" data-newsroom-ops-topbar>
+        {showNavigation && collapsed && sidebarToggle}
+        <Link className="organizer-masthead" href={backHref} title={backLabel}>{appTitle}</Link>
+        <h1 data-newsroom-ops-title>{pageTitle}</h1><OrganizerSearch demo={demo} /><div className="organizer-header-actions">{headerActions}</div><Account placement="header" />
+      </header>
+      <main className="organizer-main">{demo && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>
     </div>
-  );
+    {showNavigation && <nav className="organizer-bottom-nav" aria-label="Primary newsroom navigation"><ul>
+      {ORGANIZER_PRIMARY_NAV.map(item => { const Icon = ICONS[item.key as keyof typeof ICONS]; return <li key={item.key}><Link
+        href={getNewsroomNavHref(item.path, demo)} title={item.description} aria-label={item.label} aria-current={activeTab === item.key ? "page" : undefined}>
+        <Icon size={18} aria-hidden="true" /><span>{item.label}</span></Link></li>; })}
+      <li><Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger className="organizer-more" aria-label="More"><Menu size={18} aria-hidden="true" /><span>More</span></SheetTrigger>
+        <SheetContent side="bottom" className="organizer-menu" {...themeAttributes}><SheetHeader><SheetTitle>Newsroom</SheetTitle><SheetDescription>Workspaces and administration</SheetDescription></SheetHeader>
+          <Navigation activePath={activePath} demo={demo} admin={admin} surface="menu" onNavigate={() => setMenuOpen(false)} />
+        </SheetContent>
+      </Sheet></li>
+    </ul></nav>}
+  </div>;
 }
 
 export function NewsroomOpsSearchButton({

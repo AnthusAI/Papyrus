@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "9954d6f9-d76d-4c35-8eeb-850afb86ecea",
+  "issue_id": "PPY-33aeaffa-2883-4b5f-99df-937f5110c378",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T03:04:11.936Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review provided-address inbox usability and safe subscription handling",
+    "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAcceptance review depends on inbox behavior PPY-7a2a53d7-0e93-4ee9-b8c3-732125a86537 and author/operator documentation PPY-d97519f8-a11e-4501-a558-8be1027e9f2a. Walk an authorized user's original-message reader including sender/date, derived-reference provenance and processing/pending/error visibility. Verify cross-publication/user isolation, readable original rendering and privacy/retention decisions. Demonstrate scanners do not activate confirmation, unsubscribe, preferences, login or other account actions; only a deliberate authorized human action may manage a subscription. Verify pause status never claims unsubscribe and hidden ingestion alone cannot pass. Check scope excludes a full compose/reply client. Record actual implementation evidence versus planned behavior; no message action, mailbox connection, subscription or infrastructure change in this planning task.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [
+      "design-only",
+      "planning"
+    ],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6",
+      "name": "papyrus-planning"
+    }
+  }
+}

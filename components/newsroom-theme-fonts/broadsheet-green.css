@@ -1,0 +1,10 @@
+@import "@fontsource-variable/newsreader/wght.css";
+@import "@fontsource-variable/hanken-grotesk/wght.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+
+/* Fontsource names variable families "<Family> Variable"; the Kanbus theme names the plain family. */
+[data-kanbus-theme="broadsheet-green"][data-kanbus-theme] {
+  --kb-theme-title-font: "Newsreader Variable", Newsreader, "Iowan Old Style", Georgia, serif;
+  --kb-theme-ui-font: "Hanken Grotesk Variable", "Hanken Grotesk", system-ui, sans-serif;
+}

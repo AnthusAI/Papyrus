@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "0a86ca40-2480-4ee8-9030-5b6087e7cee3",
+  "issue_id": "PPY-adf32259-65f4-446f-83dd-c9cad8a01847",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T10:33:12.420Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editorial checks function reads Amplify secret placeholders instead of keys",
+    "description": "The editorial-checks Lambda is Python: Amplify passes secret() values as a '<value will be resolved during runtime>' placeholder plus AMPLIFY_SSM_ENV_CONFIG, and only Node functions resolve them automatically. papyrus_content.editorial_checks passed the placeholder to Limatus (Jev and OpenAI auth would fail) and the function role had no ssm:GetParameter grant. Fix: resolve the provider keys from SSM at cold start (unset when unavailable so the lanes report 'unavailable'), and grant read on the app's Amplify secret paths.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-ed678d3e-83c6-476f-84a7-ca44fa025583",
+    "labels": [
+      "editorial"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "Claude"
+    }
+  }
+}

@@ -314,8 +314,14 @@ authorization.
   installed by the Poetry newsroom extra (`BiblicusRunner` runs its console script;
   `BIBLICUS_WORKDIR` names the directory holding the corpora). See [newsroom-worker-bootstrap.md](newsroom-worker-bootstrap.md)
   for cloud corpus workers.
-- GROBID for PDFs: run `lfoppiano/grobid:0.8.0` bound to `127.0.0.1:8070`; the
-  automatic Docker launch publishes on all interfaces and is disabled here.
+- GROBID for PDFs: Biblicus 1.15.0 starts GROBID itself when `BIBLICUS_GROBID_URL` is unset or points at
+  localhost. `BIBLICUS_GROBID_AUTO_START` defaults to on; set it to `0` to start nothing. The auto-started
+  container is named `biblicus-grobid` (`BIBLICUS_GROBID_CONTAINER_NAME`), runs
+  `grobid/grobid:0.9.1-crf` (`BIBLICUS_GROBID_DOCKER_IMAGE`), binds `127.0.0.1:8070` only, restarts
+  `unless-stopped`, and is limited to `BIBLICUS_GROBID_MEMORY_LIMIT` (default `5g`). An existing container
+  with that name is reused as-is, whatever its image or settings, so remove or rename a stale one to pick
+  up new defaults. CrossRef consolidation is off unless `BIBLICUS_GROBID_CONSOLIDATE_HEADER` or
+  `BIBLICUS_GROBID_CONSOLIDATE_CITATIONS` is set to a truthy value (`1`, `true`, `yes`, `on`).
 - Human-input page (temporary loopback process, never a persistent service):
 
   ```sh
