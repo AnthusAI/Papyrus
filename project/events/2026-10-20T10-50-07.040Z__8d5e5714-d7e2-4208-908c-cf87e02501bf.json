@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8d5e5714-d7e2-4208-908c-cf87e02501bf",
+  "issue_id": "PPY-e6f51773-771e-416d-876d-ff01489c98cd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T10:50:07.040Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Parse the Biblicus 1.15 failure envelope in BiblicusRunner",
+    "description": "Biblicus 1.15.0 prints one CommandFailure JSON object on stdout for every typed command failure (exit 2 request rejected, exit 1 operation failure). Parse it in BiblicusRunner, drop the per-method error_stream declarations, update url-text/transform callers and tests, raise the biblicus lower bound to >=1.15.0,<2, and correct the GROBID doc. Follows PPY-c32c35 and Biblicus blbs-fbf385 / blbs-83623f.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "claude"
+    }
+  }
+}
