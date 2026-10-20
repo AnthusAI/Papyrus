@@ -34,10 +34,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "ff12413f-438e-4191-bd88-f19138aee3df",
+      "author": "home",
+      "text": "Delivery receipt: source repair pushed and remote-verified at a62f611b684781d76c8575368b297f66b105a1d4 on feature/PPY-3212f1-hn-monitor, draft/open https://github.com/AnthusAI/Papyrus/pull/382 . Regression, SDK synth/client check, schema parity, public-model boundary checks, changed TS lint and 20 focused Python tests pass; exact-head CI pending. Proposed generated assignment role grants are API query/mutate, one schema object and five exact reference parameter reads; review this separately from editorial role two-query delta. No source blocker currently known in this correction. Keep in_progress pending review, access-scope approval, package/consumer release and actual replacement-backend zero-provider readback. No merge, deploy, production grant/policy write or live provider occurred. Old-app build failure is irrelevant to replacement production health.",
+      "created_at": "2026-10-20T12:43:08.113341Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T12:30:50.089804Z",
-  "updated_at": "2026-10-20T12:42:06.588151Z",
+  "updated_at": "2026-10-20T12:43:08.113362Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
