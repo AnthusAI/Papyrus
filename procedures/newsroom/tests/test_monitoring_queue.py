@@ -67,9 +67,9 @@ def test_already_presented_sources_remain_unlabelled_without_representing(tmp_pa
     queue = tmp_path / 'private'
     collect_queue(queue, fetch=lambda: FEED, now=1000, shown_records=shown)
     saved = json.loads((queue / 'review.json').read_text())
-    assert len(saved['items']) == 1 and saved['shownUnlabelled'] == shown
+    assert len(saved['items']) == 1 and saved['presentedSources'] == shown
     text = (queue / 'review.md').read_text()
-    assert 'Already presented; awaiting replies: HN 123' in text
+    assert 'Already presented; replies tracked separately: HN 123' in text
     assert '## HN' not in text
 
 

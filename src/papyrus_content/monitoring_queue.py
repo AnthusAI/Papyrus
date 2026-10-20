@@ -45,7 +45,7 @@ def _export(directory, db, shown_records):
     last = db.execute("SELECT value FROM metadata WHERE key='last_collection'").fetchone()
     data = {'schemaVersion': 1, 'kind': 'private-monitor-review', 'sourceUrl': HN_FEED,
             'lastCollection': json.loads(last[0]) if last else None,
-            'shownUnlabelled': shown_records,
+            'presentedSources': shown_records,
             'items': sorted(groups.values(), key=lambda row: (row['lastObservedAt'], row['itemId']), reverse=True)}
     lines = ['# HN discoveries to review', '',
              'Private collection only: no predictions, no applied labels, no publication routing.',
@@ -55,7 +55,7 @@ def _export(directory, db, shown_records):
     shown_ids = {row['sourceId'] for row in shown_records}
     shown_urls = {row['canonicalUrl'] for row in shown_records}
     if shown_records:
-        lines.extend(['Already presented; awaiting replies: ' + ', '.join('HN ' + row['sourceId'] for row in shown_records), ''])
+        lines.extend(['Already presented; replies tracked separately: ' + ', '.join('HN ' + row['sourceId'] for row in shown_records), ''])
     for item in data['items']:
         if item['canonicalUrl'] in shown_urls or any(d['sourceId'] in shown_ids for d in item['discoveries']):
             continue
