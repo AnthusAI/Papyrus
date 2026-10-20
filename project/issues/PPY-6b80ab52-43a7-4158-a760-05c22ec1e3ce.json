@@ -1,7 +1,7 @@
 {
   "id": "PPY-6b80ab52-43a7-4158-a760-05c22ec1e3ce",
   "title": "Refine publication doctrine from explicit Monitoring review rationales",
-  "description": "Implement and verify private database-driven editorial context for publication and section scopes. Preserve current publication guidance, selected-desk additions and rule overrides, authorization boundaries, source revisions and effective-context hashes. Connect current context to classification and copy-edit prompt constructors; reject denied, missing, ambiguous, mismatched or stale required context before provider transmission. Tests and public records use synthetic policy text only. Real publication prose and human rationale stay private outside Git or in authenticated database records. Production writes, grants, deployments and live model calls remain separately gated.",
+  "description": "Critical reusable Papyrus feature: private database-driven publication and section guidelines must govern research/writing, classification and copy editing. Publication policy prose and human editorial rationale remain private in local drafts or authenticated database records; public code/tests/issues use synthetic content only.\n\nCurrent: generic source fixes are pushed in draft https://github.com/AnthusAI/Papyrus/pull/382 . Code 0be5761e, permission test 27c667d2 and scoped-update regression 05cdf1dc; delivery/tracker head bbacf15c. 63 focused Python tests and 24 BDD scenarios/98 steps pass locally. Latest CI is running; prior collector head 4a151214 is green. Existing owner provider-secret preparation is preserved. No production policy, grant, deployment or live provider call changed.\n\nExisting authenticated editorial context/pack commands are reused, not duplicated. Effective context carries scoped source revisions and hashes. Classification preflights current records, preserves the learned rubric separately and invalidates stable decisions after policy updates; stale prepared context is refused before transmission. Copy-editing combines doctrine with its separate same-key desk control overrides/additions and propagates it to actual Limatus judgment/rewrite constructors.\n\nAcceptance remains open: verify selected consumer release inclusion, deployed permissions/API/procedure versions, correct authenticated publication/tenant/section scope, guest/reader denial, no other-desk leakage, current-value readback, inherited/additional/overridden rules, update invalidation and sanitized final provider-boundary traces. Use current private records, not seed files or repository assumptions. The proposed two private query reads for the existing editorial-checks function are getEditorialContext and listKnowledgeCorporaByRoleAndName; application requires a scoped reviewed consumer rollout. Production policy writes and live provider tests need exact target/scope and bounded budget approval. No public endpoint, credential creation or auth weakening.\n\nRelated: Monitoring pilot PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25; propagation story PPY-eba9cfd9-d3e1-467f-bbbd-1aa5f1aac362. Do not close on local tests alone.",
   "type": "task",
   "status": "in_progress",
   "priority": 0,
@@ -34,10 +34,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "c0328fa5-08d9-49e3-bcab-6c583347d09c",
+      "author": "home",
+      "text": "Current verified checkpoint 2026-10-20: Codex papyrus-monitoring coordinates this work; preserve concurrent Claude/consumer changes. Draft PR https://github.com/AnthusAI/Papyrus/pull/382 head bbacf15ce703dc620dbcf583c13f1431226c3c5d passed all three CI checks (Python, TypeScript, package smoke). Focused local verification: 63 tests; 3 BDD features/24 scenarios/98 steps. Source review remains open; nothing merged or deployed. Private review holds 50 received human decisions, zero applied feedback/learning. Credential-free manual HN collection queued 30; parent reports hourly automation enabled, first automatic receipt still unverified. Full routing/classification is not running. Exact remaining gates: select deployed consumer/release and scoped read permissions; verify authenticated publication/tenant/section data and current context at provider boundary; obtain scoped policy-write/live-provider budget authorization where needed; bind predictions and human authority before feedback application; observe scheduled-run receipt. Keep policy, labels and rationales private.",
+      "created_at": "2026-10-20T12:13:35.814795Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T11:19:21.882916Z",
-  "updated_at": "2026-10-20T11:53:27.174149Z",
+  "updated_at": "2026-10-20T12:13:35.814831Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
@@ -46,5 +58,8 @@
   },
   "right_now_summary": null,
   "right_now_updated_at": null,
-  "custom": {}
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
 }
