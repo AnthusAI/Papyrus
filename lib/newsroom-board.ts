@@ -21,6 +21,31 @@ export interface NativeBoardIssue extends KanbanIssue {
   href: string;
   /** A few lines to show under the headline: the blurb, else the subtitle. */
   excerpt?: string;
+  /** The quiet path shown where a board would print the ID, e.g. `articles/my-slug` or `assignments/write-it`. */
+  displayId: string;
+}
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+/** Section and slug for a content item, falling back to the publication's board path segment. */
+export function contentItemDisplayId(version: { section?: string | null; slug?: string | null; lineageId: string }): string {
+  const section = slugify(version.section ?? "") || contentItemBoardPathSegment();
+  return `${section}/${slugify(version.slug ?? "") || version.lineageId.slice(0, 8)}`;
+}
+
+/** Assignments have no slug: use the title as one, else a short id. */
+export function assignmentDisplayId(assignment: { id: string; title?: string | null }): string {
+  const titleSlug = slugify(assignment.title ?? "").slice(0, 48).replace(/-+$/g, "");
+  return `assignments/${titleSlug || assignment.id.slice(0, 8)}`;
+}
+
+/** `formatIssueId` for the Kanbus UI: the host-provided path, never the raw `kind:id` prefix. */
+export function formatNativeIssueId(issue: KanbanIssue): string {
+  const displayId = (issue as Partial<NativeBoardIssue>).displayId;
+  if (displayId) return displayId;
+  return issue.id.replace(/^[A-Za-z]+:/, "").slice(0, 12);
 }
 
 export function contentItemBoardPathSegment(): string {
@@ -60,7 +85,7 @@ export function projectContentItemBoard(records: {
       title: version.headline || version.title || version.slug, nativeStatus: stage, status: `${contentItemType}/${stage}`,
       priority: 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
-      excerpt: contentItemExcerpt(version),
+      excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version),
     };
   });
 }
@@ -73,7 +98,7 @@ export function projectAssignmentBoard(assignments: readonly AssignmentRecord[])
     priority: row.priority ?? 2, assignee: row.assigneeId || undefined,
     description: row.summary || row.brief || undefined,
     created_at: row.createdAt, updated_at: row.updatedAt,
-    href: `/newsroom/assignments/${encodeURIComponent(row.id)}`,
+    href: `/newsroom/assignments/${encodeURIComponent(row.id)}`, displayId: assignmentDisplayId(row),
   }));
 }
 
