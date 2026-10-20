@@ -46,10 +46,34 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "8686180b-9a7e-4eab-9a79-d941109cbed2",
+      "author": "home",
+      "text": "Coordination: Codex owns a newly reviewed offline --pack regression fix before release. Disabled policy guidance is currently promoted into unconditional local doctrine; add synthetic boundary regression before fixing. Release remains gated. A private zero-provider approval bundle and 50-decision application preflight are saved; no live outputs or feedback applied. Current intended TI build guard differs from legacy app; preserve guard and obtain verified intended target before rollout.",
+      "created_at": "2026-10-20T12:24:01.186453Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    },
+    {
+      "id": "acbf2718-d6e6-4250-b59c-7eb9d6656f0e",
+      "author": "home",
+      "text": "Review regression fixed locally: offline --pack now keeps explicit file guidance separate from individual controls, so disabled control guidance cannot leak into global doctrine or active check/rewrite prompts. Two synthetic actual-Limatus prompt variants failed before the fix and pass afterward; editorial-boundary plus routing suite 20/20 passes. Release remains blocked pending CI/review and verified intended consumer target/private query-read grant scope. No production permission/policy writes or provider calls occurred.",
+      "created_at": "2026-10-20T12:25:16.737971Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T11:37:29.555867Z",
-  "updated_at": "2026-10-20T12:13:36.766521Z",
+  "updated_at": "2026-10-20T12:25:16.738038Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

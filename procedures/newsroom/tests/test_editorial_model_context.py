@@ -204,3 +204,41 @@ def test_database_section_update_refreshes_its_classifier_and_selector_without_o
     scoped = requests[0]['state']['classifiers']
     assert 'UPDATED_SCIENCE_ONLY' in scoped[science]['rubric'] and 'BUSINESS_ONLY' not in scoped[science]['rubric']
     assert 'BUSINESS_ONLY' in scoped[business]['rubric'] and 'UPDATED_SCIENCE_ONLY' not in scoped[business]['rubric']
+
+
+@pytest.mark.parametrize('guidance', [None, 'EXPLICIT_FILE_DOCTRINE'])
+def test_offline_pack_keeps_disabled_controls_out_of_check_and_rewrite_prompts(tmp_path, guidance):
+    from papyrus_content.editorial_commands import PackFileStore
+    from papyrus_content.editorial_checks import Services, check_editorial, suggest_rewrite, policy_from_record
+    from limatus.classifier_lane import DecisionAnswers
+    disabled = policy('disabled', 'publication', 'DISABLED_CONTROL_GUIDANCE')
+    disabled['enabled'] = False
+    payload = {'schemaVersion': 1, 'packId': 'synthetic', 'version': '1', 'policies': [
+        policy_from_record(policy('active', 'publication', 'ACTIVE_CONTROL_GUIDANCE')),
+        policy_from_record(disabled)]}
+    if guidance:
+        payload['guidance'] = guidance
+    path = tmp_path / 'policies.json'
+    path.write_text(json.dumps(payload))
+    store = PackFileStore(path)
+    calls, prompts = [], []
+    class Decision:
+        async def ask(self, state, questions, model):
+            calls.append(json.dumps(questions))
+            return DecisionAnswers({key: {'noul': 0.9} for key in questions}, 1)
+    class Generator:
+        def generate(self, **kwargs):
+            prompts.append(kwargs['user_prompt'])
+            return {'options': [{'replacement': 'Synthetic replacement.', 'rationale': 'Clearer.',
+                                 'factVerificationRequired': False, 'unresolvedQuestions': []}]}
+    services = Services(store, decision_model=Decision(), generator=Generator())
+    check_editorial({'body': 'Synthetic sentence.'}, services)
+    suggest_rewrite({'body': 'Synthetic sentence.', 'selection': {'start': 0, 'end': 19}}, services)
+    assert calls and prompts
+    assert 'DISABLED_CONTROL_GUIDANCE' not in store.get_editorial_context(None)['text']
+    assert 'ACTIVE_CONTROL_GUIDANCE' not in store.get_editorial_context(None)['text']
+    for text in calls + prompts:
+        assert 'DISABLED_CONTROL_GUIDANCE' not in text
+        if guidance:
+            assert guidance in text
+    assert 'ACTIVE_CONTROL_GUIDANCE' in prompts[-1]

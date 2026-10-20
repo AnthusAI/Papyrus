@@ -101,10 +101,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "9cea4091-f166-4c45-afbf-962ba0608b08",
+      "author": "home",
+      "text": "Bounded release/verification bundle saved privately; source ownership checked against active PR386 and PR367 with no direct file overlap, preserving Claude work. Read-only evidence finds legacy consumer job failed at explicit app-ID guard; guard preserved, intended target requires fresh verification before any deployment. Proposed access is only two private editorial-context query reads on the selected consumer function role. Initial verification ceiling is zero provider requests/$0 and zero publication writes. Hash-verified private application preflight contains 50 explicit decisions plus 10 undecided entries kept separate; eight rows have historical intake candidates, zero actual prediction receipts, zero dispatchable/application/training operations. Resolve current account/publication/output bindings, authority and historical ordering before applying any feedback.",
+      "created_at": "2026-10-20T12:25:17.201872Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T12:15:20.264438Z",
+  "updated_at": "2026-10-20T12:25:17.201901Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

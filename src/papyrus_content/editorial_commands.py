@@ -55,10 +55,9 @@ class PackFileStore:
 
     def get_editorial_context(self, section: str | None) -> dict[str, Any]:
         from .editorial_context import build_context
-        entries = [{'scope': 'publication', 'kind': 'policy', 'text': row['guidance'],
-                    'source': {'id': row['id'], 'versionNumber': row['version']}} for row in self._records]
-        if self._guidance:
-            entries.append({'scope': 'publication', 'kind': 'guidance', 'text': self._guidance, 'source': {}})
+        entries = [{'scope': 'publication', 'kind': 'guidance',
+                    'text': self._guidance or 'Explicit local policy pack; apply its enabled controls only.',
+                    'source': {}}]
         return build_context({'key': 'explicit-policy-file'}, {'sectionId': section}, entries, mode='local',
                              warnings=['Explicit file policy; not current hosted doctrine.'])
 
