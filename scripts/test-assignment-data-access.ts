@@ -7,9 +7,11 @@ import { a, defineBackend, defineFunction } from "@aws-amplify/backend";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 import { Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
+import { Role, ServicePrincipal, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { schema, schemaWithPlugins } from "../amplify/data/schema";
 import { assignmentAction } from "../amplify/functions/assignment-action/resource";
+import { ASSIGNMENT_DATA_FIELDS, scopeAssignmentDataAccess } from "../amplify/functions/assignment-action/data-access";
 import { editorialChecksSchemaDefinitions } from "../amplify/plugins/editorial-checks/schema";
 
 for (const [name, definition] of [
@@ -48,7 +50,11 @@ async function verifyGeneratedConfiguration() {
         authorizationModes: { defaultAuthorizationMode: "apiKey" } }, ""),
     });
     const lambda = backend.worker.resources.lambda;
+    const apiArn = "arn:aws:appsync:us-east-1:123456789012:apis/synthetic";
+    scopeAssignmentDataAccess(lambda, apiArn);
     const stack = Stack.of(lambda);
+    const otherRole = new Role(stack, "UnrelatedWorkerRole", { assumedBy: new ServicePrincipal("lambda.amazonaws.com") });
+    otherRole.addToPolicy(new PolicyStatement({ actions: ["appsync:GraphQL"], resources: [`${apiArn}/types/Query/*`] }));
     const template = Template.fromStack(stack).toJSON();
     const role = stack.resolve(lambda.role!.roleName);
     const resources = Object.values(template.Resources) as Array<{
@@ -68,8 +74,30 @@ async function verifyGeneratedConfiguration() {
     const graphql = statements.filter((statement) => statement.Action === "appsync:GraphQL");
     assert.equal(graphql.length, 1);
     const graphqlResources = JSON.stringify(graphql[0].Resource);
-    assert.ok(graphqlResources.includes("/types/Query/*") && graphqlResources.includes("/types/Mutation/*"));
+    assert.ok(!graphqlResources.includes("/types/Query/*") && !graphqlResources.includes("/types/Mutation/*"),
+      "assignment permissions must name fields rather than whole API operation types");
     assert.ok(!graphqlResources.includes("Subscription"));
+    assert.deepEqual(graphql[0].Resource, ASSIGNMENT_DATA_FIELDS.map((field) => `${apiArn}/types/${field}`));
+    const allowed = new Set(graphql[0].Resource);
+    for (const field of ["Query/fields/getAssignment", "Mutation/fields/updateAssignment",
+      "Mutation/fields/createAssignmentEvent", "Query/fields/listKnowledgeCorporaByRoleAndName",
+      "Query/fields/itemBySlug", "Query/fields/getNewsroomSection", "Mutation/fields/createReference",
+      "Mutation/fields/updateReference", "Mutation/fields/createKnowledgeImportRun",
+      "Mutation/fields/createModelAttachmentUpload", "Mutation/fields/completeModelAttachmentUpload",
+      "Mutation/fields/updateNewsroomSummary"]) {
+      assert.ok(allowed.has(`${apiArn}/types/${field}`), `required operation: ${field}`);
+    }
+    for (const field of ["Mutation/fields/manageUserRole", "Mutation/fields/createUserRoleAssignment",
+      "Mutation/fields/publishItem", "Mutation/fields/unpublishItem", "Mutation/fields/deleteItem",
+      "Mutation/fields/updateItem", "Mutation/fields/deleteReference", "Mutation/fields/deleteAssignment",
+      "Mutation/fields/createEditorialPolicy", "Mutation/fields/updateEditorialPolicy",
+      "Query/fields/listUserProfiles", "Subscription/fields/onCreateAssignment"]) {
+      assert.ok(!allowed.has(`${apiArn}/types/${field}`), `unrelated operation must have no grant: ${field}`);
+    }
+    assert.ok(![...allowed].some((resource) => String(resource).includes("*")));
+    const otherPolicies = resources.filter((resource) => resource.Type === "AWS::IAM::Policy"
+      && (resource.Properties.Roles ?? []).some((candidate: unknown) => JSON.stringify(candidate) === JSON.stringify(stack.resolve(otherRole.roleName))));
+    assert.ok(JSON.stringify(otherPolicies).includes("/types/Query/*"), "another function's policy must remain unchanged");
     const schemaReads = statements.filter((statement) => statement.Action === "s3:GetObject");
     assert.equal(schemaReads.length, 1);
     assert.ok(JSON.stringify(schemaReads[0].Resource).includes("/modelIntrospectionSchema.json"));

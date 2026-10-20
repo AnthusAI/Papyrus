@@ -1,7 +1,7 @@
 {
   "id": "PPY-c559666f-8621-4aa9-af41-75c3a3d884f2",
   "title": "Collect public HN discoveries into a private review queue without classifier access",
-  "description": "As an editor, I want public HN discoveries staged privately for review without requiring classifier integration or app credentials.\n\nCurrent: manual collection succeeded at 2026-10-20T11:35:17Z with 30 private sources. Queue canonical dedup, independent discovery revisions, source timestamps/fingerprints, retry-safe checkpoints, failure retention, private JSON/Markdown and actual presentation receipts are implemented. No app auth or provider calls. Parent enabled hourly automation (America/New_York), but first scheduled execution/receipt is unverified. Remain in progress until recurrence is observed; do not substitute manual-run evidence.\n\nDelivery: draft https://github.com/AnthusAI/Papyrus/pull/382 . Collector code head 4a151214 passed all CI; combined guideline/tracker head bbacf15c passed Python, TypeScript and package-smoke CI. Collection is private staging, not full publication routing, Reference acceptance, publishing or learning.\n\nFeature: Public collection preserves a private review queue.\nScenario: Resume collection without duplicates\nGiven a bounded public HN feed and private checkpoint\nWhen a due collector repeats or observes a source revision\nThen canonical sources are deduplicated and separate discovery provenance is retained\nAnd already-presented sources remain recorded without inferred labels.\nScenario: Observe recurrence honestly\nGiven an enabled hourly scheduler\nWhen its first scheduled collection runs\nThen save an actual run/queue receipt before declaring recurring delivery verified.\n\nHuman decisions, rationale and editorial policy remain private outside Git. Received feedback is separate from applied feedback.",
+  "description": "As an editor, I want public HN discoveries staged privately for review without requiring classifier integration or app credentials.\n\nCurrent: first scheduled collection completed at 2026-10-20T12:46:32Z (8:46:32 AM Eastern), with 3 new and 27 unchanged sources; private queue has 33 sources. Queue canonical dedup, independent discovery revisions, source timestamps/fingerprints, retry-safe checkpoints, failure retention, private JSON/Markdown and actual presentation receipts are implemented. No app auth or provider calls. Parent enabled hourly automation (America/New_York). First scheduled collection and accepted five-item delivery at 12:51:44Z are verified; five actual presentation receipts were recorded idempotently, for 15 total shown receipts. No labels were inferred or applied. Remain in progress pending review/merge and continuing recurrence; this is private staging only.\n\nDelivery: draft https://github.com/AnthusAI/Papyrus/pull/382 . Collector code head 4a151214 passed all CI; combined guideline/tracker head bbacf15c passed Python, TypeScript and package-smoke CI. Collection is private staging, not full publication routing, Reference acceptance, publishing or learning.\n\nFeature: Public collection preserves a private review queue.\nScenario: Resume collection without duplicates\nGiven a bounded public HN feed and private checkpoint\nWhen a due collector repeats or observes a source revision\nThen canonical sources are deduplicated and separate discovery provenance is retained\nAnd already-presented sources remain recorded without inferred labels.\nScenario: Observe recurrence honestly\nGiven an enabled hourly scheduler\nWhen its first scheduled collection runs\nThen save an actual run/queue receipt before declaring recurring delivery verified.\n\nHuman decisions, rationale and editorial policy remain private outside Git. Received feedback is separate from applied feedback.",
   "type": "story",
   "status": "in_progress",
   "priority": 0,
@@ -58,10 +58,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "61b4197b-a231-4af2-9fa9-f04ca17688ca",
+      "author": "home",
+      "text": "Scheduled-run receipt verified: 2026-10-20T12:46:32Z, 3 new/27 unchanged, 33 private queued sources. Parent confirmed accepted five-item delivery at 12:51:44Z; actual presentation ledger updated idempotently (15 total shown receipts), private exports refreshed without fetching. No human labels inferred/applied and no model/provider/training/app credentials used. Collector lock excluded overlap. Private source review/rationale stay outside Git; parent owns hourly schedule; no duplicate schedule created.",
+      "created_at": "2026-10-20T13:02:39.106515Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T11:02:36.927481Z",
-  "updated_at": "2026-10-20T12:13:33.955759Z",
+  "updated_at": "2026-10-20T13:02:39.106545Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
