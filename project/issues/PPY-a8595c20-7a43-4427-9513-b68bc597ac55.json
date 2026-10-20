@@ -3,7 +3,7 @@
   "title": "develop is red: the Cyclotron decision-flywheel git dependency breaks the python CI job and the wheel build, so Release cannot publish",
   "description": "Papyrus PRs 167-170 merged 2026-10-09 17:09Z. PR 167 added a cyclotron extra in pyproject.toml with a git URL dependency on decision-flywheel. Since then the python CI job fails with ModuleNotFoundError decision_flywheel, and the smoke job fails because the wheel carries a direct git requirement. Release cannot publish; npm next stuck at 1.0.0-next.32. Fix: move the dependency to an optional Poetry group, skip Cyclotron scenarios when the module is missing.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -19,11 +19,18 @@
       "text": "Fixed by PR 176 (merge f1b55a1): decision-flywheel moved to optional Poetry group `cyclotron`; run Cyclotron scenarios with `poetry install --with cyclotron`. Release 1.0.0-next.33 published.",
       "created_at": "2026-10-09T19:07:54.623557Z",
       "comment_type": "default"
+    },
+    {
+      "id": "790801b2-a102-48d7-ba76-18a70bddcc69",
+      "author": "home",
+      "text": "Done. Fixed by PR #176 (merge f1b55a13, 2026-10-09): decision-flywheel moved to the optional Poetry group 'cyclotron', Cyclotron scenarios skip when the module is missing, and Release publishes again. Release v1.0.0-next.33 is tagged and published. Verified 2026-10-20 that f1b55a13 is on origin/main.",
+      "created_at": "2026-10-20T18:46:24.895731Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-09T18:39:33.080124Z",
-  "updated_at": "2026-10-09T19:07:54.623915Z",
-  "closed_at": null,
+  "updated_at": "2026-10-20T18:46:24.994838Z",
+  "closed_at": "2026-10-20T18:46:24.994748Z",
   "right_now_summary": "PR 176 fixed the dependency issue, and release 1.0.0-next.33 is published.",
   "right_now_updated_at": "2026-10-09T19:07:56.811146Z",
   "custom": {}

@@ -125,10 +125,17 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "6a9cd8be-513c-4ab2-b143-4497229683a6",
+      "author": "home",
+      "text": "Status 2026-10-20: draft PR #382 merged to develop at 2026-10-20 13:14Z (merge df3c99d9), carrying the HN review-queue collector (4a151214, 084c9024), the assignment-handler repairs (a62f611b register handler for generated data configuration, 4b61f853 scope assignment data access), the disabled-file-policy fix (5862a650) and the board receipts through 576203ea. It is on develop only, not yet promoted to main. The six remaining gates in the description are unchanged: first hourly-automation receipt, shared remote Cyclotron composition, grant and binding verification, context rollout, policy diffs under the correct publication, and applied feedback with receipts.",
+      "created_at": "2026-10-20T18:46:24.609792Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T12:32:03.440040Z",
+  "updated_at": "2026-10-20T18:46:24.609829Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
