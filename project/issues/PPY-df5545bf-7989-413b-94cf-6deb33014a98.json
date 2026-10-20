@@ -3,7 +3,7 @@
   "title": "Fetch editorial context from static reporting and copywriting skills",
   "description": "Feature: DRY newsroom skills. Scenario: Current policy. Given a publication and story task, when the static reporting or copywriting skill is followed, then it fetches the standardized context and records provenance without duplicating policy text. Scenario: Limatus editing. Given a draft, when copy editing starts, then the existing Limatus packaged skill and publication style profile govern editing, original text is preserved, explicit human option selection remains required and each substantive article change creates a new version.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,26 +17,30 @@
       "text": "Reporting and new copywriting skills fetch generated current guidance rather than embedding policy. Copy editing delegates to limatus skill with existing human selection requirement. Both skills validate. Included in draft PR311; keep in_progress until landed.",
       "created_at": "2026-10-18T19:16:28.745123Z",
       "comment_type": "default",
-      "data": {},
       "agent": {
         "platform": "codex",
         "model": "gpt-6",
-        "name": "ChatGPT",
-        "settings": {}
+        "name": "ChatGPT"
       }
+    },
+    {
+      "id": "456e0889-0a9d-46fa-ab78-79406fd53b0b",
+      "author": "home",
+      "text": "Done: static reporting and copywriting skills landed with Papyrus #311 (merged 2026-10-19). (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:33.120951Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-18T19:07:28.586098Z",
-  "updated_at": "2026-10-18T19:16:28.745256Z",
-  "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {},
+  "updated_at": "2026-10-20T14:05:33.160200Z",
+  "closed_at": "2026-10-20T14:05:33.160165Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
-    "name": "ChatGPT",
-    "settings": {}
+    "name": "ChatGPT"
   },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {},
   "agent_assignment": null
 }

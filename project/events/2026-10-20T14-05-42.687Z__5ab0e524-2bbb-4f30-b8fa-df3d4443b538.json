@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "5ab0e524-2bbb-4f30-b8fa-df3d4443b538",
+  "issue_id": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-20T14:05:42.687Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "5d966e33-e7b9-4e2a-a456-16d5cc686fb3",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "board-reconcile"
+    }
+  }
+}

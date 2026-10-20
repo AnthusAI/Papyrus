@@ -3,7 +3,7 @@
   "title": "Markus pipeline breaks against published anthus-markus 0.5.0: document IR is unreleased",
   "description": "",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "PROGRESS: Markus branch is now PUSHED and a PR is open.\n\nPR: https://github.com/AnthusAI/Markus/pull/1  (feature/document-ir -> develop)\n\nMerged origin/main into the branch first, resolving the version conflict to 0.5.0 in BOTH pyproject.toml and src/markusmd/__init__.py - deliberately, so the release tooling bumps from the current baseline instead of regressing the version (that exact regression happened once already and was caught in review).\n\nBranch is green after the merge: behave 168 scenarios / 885 steps 0 failed, ruff clean, render.py untouched, markus convert byte-identical vs main across all 4 .md files. 12 ahead of origin/main, 0 behind.\n\nShips four things Papyrus needs: the typed document IR (schema_version 1), the front-matter date/datetime ISO-8601 fix, the YAML sexagesimal fix, and the two-up mobile collapse fix.\n\nSTOPPED SHORT OF THE RELEASE ON PURPOSE. Markus uses python-semantic-release, and .github/workflows/semantic-release.yml fires on a successful CI run for a push to main. So merging develop -> main auto-publishes. That is a public, irreversible action and it is Ryan's call, not mine.\n\nREMAINING TO CLOSE THIS ISSUE:\n1. Merge PR 1 into develop, then develop -> main to trigger the release (expected 0.6.0 - additive feature).\n2. Update Pilobol.us amplify.yml, which currently pins 'pip install git+https://github.com/AnthusAI/Markus@v0.5.0' - that tag has none of these fixes.\n3. Pin Papyrus's Python dependency to the new minimum so a stale Markus fails at install time with a clear resolution error rather than at runtime with a schema_version throw.",
       "created_at": "2026-09-06T17:39:57.802454Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c8be17f4-b6a9-4dd3-b47b-17c3368443ac",
+      "author": "home",
+      "text": "Resolved, verified 2026-10-20. Markus PR #1 (document IR) merged 2026-09-06; AnthusAI/Markus has no open PRs; anthus-markus is released through 0.13.0 on PyPI. Papyrus develop requires anthus-markus >=0.7.0,<1.0.0 (pyproject markus extra) with poetry.lock at 0.7.0, so a clean install can no longer resolve 0.5.0. Verified in clean venvs: 'markus ast' emits schema_version 1 with typed block nodes on both 0.7.0 and 0.13.0, matching MARKUS_IR_SCHEMA_VERSION = 1 in lib/markus-ir.ts. No Papyrus change needed.",
+      "created_at": "2026-10-20T14:03:45.266662Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-09-06T17:20:33.445127Z",
-  "updated_at": "2026-09-06T17:39:57.802454Z",
-  "closed_at": null,
+  "updated_at": "2026-10-20T14:03:45.619231Z",
+  "closed_at": "2026-10-20T14:03:45.619164Z",
   "right_now_summary": "A PR carries the fixes, but release and downstream dependency updates still await approval.",
   "right_now_updated_at": "2026-10-12T16:43:21.159017Z",
   "custom": {}

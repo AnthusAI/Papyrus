@@ -3,7 +3,7 @@
   "title": "Persist restored CMS workflows through an injectable backend",
   "description": "Verify the actual restored CMS component paths. Add typed injectable persistence boundaries with an isolated local fixture backend, optimistic concurrency and failure handling. Keep live Amplify/auth and production data disconnected. Inventory every module integration and report exact remaining cloud requirements.",
   "type": "task",
-  "status": "in_progress",
+  "status": "backlog",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -298,10 +298,22 @@
         "model": "GPT-6.1-Sol",
         "name": "UnifiedNewsroom"
       }
+    },
+    {
+      "id": "f87af9c3-eded-4f3d-979b-67a29aca0968",
+      "author": "home",
+      "text": "stale: no activity since 2026-10-15 (local prototype only, no PR); reopen when picked up. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:39.854657Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
     }
   ],
   "created_at": "2026-10-15T02:35:53.309208Z",
-  "updated_at": "2026-10-15T15:53:53.703815Z",
+  "updated_at": "2026-10-20T18:43:07.395086Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

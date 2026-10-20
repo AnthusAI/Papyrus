@@ -16,17 +16,26 @@
       "author": "unknown",
       "text": "Plan (production has 9 include + 14 exclude labeled reviews = 23; a held-out set of 40 is impossible, and 815 archived references carry no editor label so they cannot be used). Design: stratified 5-fold cross-validation over all 23. Folds assigned by the frozen sha256(proofId, lineageId) rank within each label, so no one chooses items by looking at results. For each fold, the held-out items are scored with a fresh store primed by the first N reviews (review order) of the other folds' items, for N in 0,5,10,all-remaining. Every labeled review is held out exactly once, so each point is agreement over n=23 decisions (N=0 is identical across folds, so it costs 23 calls; about 92 calls total). Report keeps the v1 schema plus heldOut.design. Always-exclude scores 61%, so precision and recall are shown beside agreement. Longer term, a bigger proof needs more editor reviews, which is an editor task, not a code one.",
       "created_at": "2026-10-18T15:18:46.658847Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "93bb41d5-e00a-43ce-b03a-074ed9e3e3ca",
+      "author": "home",
+      "text": "Still in progress: proof v2 plan recorded 2026-10-18 (stratified 5-fold over the 23 labeled reviews). Next: implement the frozen fold assignment and run the proof. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:43.593881Z",
       "comment_type": "default",
-      "data": {},
-      "agent": null
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
     }
   ],
   "created_at": "2026-10-18T14:02:52.448415Z",
-  "updated_at": "2026-10-18T15:18:46.659091Z",
+  "updated_at": "2026-10-20T14:05:43.593901Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }

@@ -3,7 +3,7 @@
   "title": "Browse Papyrus record types without collapsing them into stories",
   "description": "Feature: Type-aware Papyrus record browsing\nScenario: See all actual base record models\nGiven the current Papyrus schema\nWhen I browse records by domain, type, or text\nThen every persistent base model is discoverable with meaningful labels and actual schema fields\nAnd synthetic examples disclose that no live backend mapping is connected\nScenario: Reference curation lifecycle\nGiven a synthetic reference with an actual curation status\nWhen I change its curation status and reload\nThen the local preview store preserves the status and reason\nScenario: Non-workflow records\nGiven an attachment, relationship, identity, or publication copy\nWhen I open its list and detail\nThen no story stage controls or invented workflow is presented\nAnd the original story board and priming remain functional",
   "type": "story",
-  "status": "in_progress",
+  "status": "backlog",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -34,10 +34,22 @@
         "model": "gpt-6.1-sol",
         "name": "papyrus-unified-review"
       }
+    },
+    {
+      "id": "a002a593-a716-40a3-9fb8-21d235d79367",
+      "author": "home",
+      "text": "stale: no activity since 2026-10-15 (local prototype only, no PR); reopen when picked up. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:38.071170Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
     }
   ],
   "created_at": "2026-10-15T01:38:36.856672Z",
-  "updated_at": "2026-10-15T01:57:03.023097Z",
+  "updated_at": "2026-10-20T18:43:04.675605Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
