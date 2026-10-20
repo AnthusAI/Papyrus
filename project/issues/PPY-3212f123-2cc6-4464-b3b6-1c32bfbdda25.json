@@ -132,10 +132,17 @@
       "text": "Status 2026-10-20: draft PR #382 merged to develop at 2026-10-20 13:14Z (merge df3c99d9), carrying the HN review-queue collector (4a151214, 084c9024), the assignment-handler repairs (a62f611b register handler for generated data configuration, 4b61f853 scope assignment data access), the disabled-file-policy fix (5862a650) and the board receipts through 576203ea. It is on develop only, not yet promoted to main. The six remaining gates in the description are unchanged: first hourly-automation receipt, shared remote Cyclotron composition, grant and binding verification, context rollout, policy diffs under the correct publication, and applied feedback with receipts.",
       "created_at": "2026-10-20T18:46:24.609792Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c6dc1093-8644-4dc1-972e-fca8a977e4b7",
+      "author": "home",
+      "text": "Scope decision (Ryan, 2026-10-20): the SHARED remote Cyclotron for publication relevance covers Anthus (Anth.us) and Data Parade (nerdy-stuff screening) together. Distinctive Mark (new Papyrus publication Distinctive, repo Distinctive-web, organization account 'Distinctive Mark') does NOT participate in the shared Cyclotron: it uses its own Cyclotron(s) for everything (relevance and section fit). Any shared-output design here must exclude it.",
+      "created_at": "2026-10-20T20:35:29.311742Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T18:46:24.609829Z",
+  "updated_at": "2026-10-20T20:35:29.311777Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
