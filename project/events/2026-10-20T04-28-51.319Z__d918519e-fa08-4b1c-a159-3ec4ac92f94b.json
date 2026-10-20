@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "d918519e-fa08-4b1c-a159-3ec4ac92f94b",
+  "issue_id": "PPY-4f12fbc8-afcf-493d-8142-1cb472aeaecf",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-20T04:28:51.319Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Low-priority cleanups for the live p.apyr.us and read.p.apyr.us sites (no dedicated board; filed on Papyrus).\n\n- [ ] https://read.p.apyr.us/icon.png, /icon-light.png and /favicon.ico return 404. Publish the icons or remove the references.\n- [ ] The read.p.apyr.us home page title is the marketing title; give the reader its own title.\n- [ ] read.p.apyr.us article deks show raw backticks (for example /articles/howto-curate-references). Render inline code or strip the markers.\n- [ ] https://p.apyr.us/robots.txt and /sitemap.xml return 403; https://read.p.apyr.us/sitemap.xml returns 404. Serve both.\n\n**How to verify**\n`for p in icon.png icon-light.png favicon.ico sitemap.xml robots.txt; do curl -s -o /dev/null -w \"$p %{http_code}\n\" https://read.p.apyr.us/$p; done` shows 200 for each, and `curl -s -o /dev/null -w '%{http_code}' https://p.apyr.us/robots.txt` returns 200.\n\nSource: Anthus repo audit, 2026-10-20.",
+        "to": "Low-priority cleanups for the live p.apyr.us and read.p.apyr.us sites (no dedicated board; filed on Papyrus).\n\n- [ ] https://read.p.apyr.us/icon.png, /icon-light.png and /favicon.ico return 404. Publish the icons or remove the references.\n- [ ] The read.p.apyr.us home page title is the marketing title; give the reader its own title.\n- [ ] read.p.apyr.us article deks show raw backticks (for example /articles/howto-curate-references). Render inline code or strip the markers.\n- [ ] https://p.apyr.us/robots.txt and /sitemap.xml return 403; https://read.p.apyr.us/sitemap.xml returns 404. Serve both.\n\n**How to verify**\n`for p in icon.png icon-light.png favicon.ico sitemap.xml robots.txt; do curl -s -o /dev/null -w \"%{http_code} \" https://read.p.apyr.us/$p; done` shows 200 for each, and `curl -s -o /dev/null -w '%{http_code}' https://p.apyr.us/robots.txt` returns 200.\n\nSource: Anthus repo audit, 2026-10-20."
+      }
+    }
+  }
+}

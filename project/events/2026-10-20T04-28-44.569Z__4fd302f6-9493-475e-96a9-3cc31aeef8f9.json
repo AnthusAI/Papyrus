@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "4fd302f6-9493-475e-96a9-3cc31aeef8f9",
+  "issue_id": "PPY-54b66ec7-96ae-4a07-93da-fdf5d1a9322e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-20T04:28:44.569Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "docs/aws-sandbox-personal.md is a personal sandbox note with owner profile and paths",
+    "description": "**Problem**\ndocs/aws-sandbox-personal.md in the public Papyrus repo is a personal sandbox note: it names the owner's AWS profile and stack, ticket IDs and local ~/Projects paths. It is not useful to anyone else and exposes internal setup details.\n\n**Evidence**\n- docs/aws-sandbox-personal.md:17: \"Do **not** use `AWS_PROFILE=Ryan` or Ryan's existing sandbox stack\"\n- docs/aws-sandbox-personal.md:189: mentions `AWS_PROFILE=Ryan` and personal sandboxes being misclassified\n- Also contains ticket IDs and ~/Projects paths throughout.\n\n**Fix**\nRewrite as a generic \"run your own sandbox\" guide using `AWS_PROFILE=<sandbox-profile>` (as already used at line 204) and no personal names or paths, or remove it and keep the notes on the board.\n\n**How to verify**\n`grep -n -E 'AWS_PROFILE=Ryan|~/Projects|/Users/' docs/aws-sandbox-personal.md` returns nothing.\n\nSource: Anthus repo audit, 2026-10-20.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "audit-filing"
+    }
+  }
+}

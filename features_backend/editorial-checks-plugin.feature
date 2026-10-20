@@ -82,3 +82,10 @@ Feature: Editorial checks plugin
     Given a policy-pack file whose policy "no-hype" flags "game-changing"
     When an operator runs papyrus editorial check on a draft saying "This is game-changing."
     Then the printed check result has a "no-hype" finding on "game-changing"
+
+  Scenario: The function resolves its provider keys from Amplify secrets
+    Given the function environment has Amplify secret placeholders for "TYPESAFE_API_KEY" and "OPENAI_API_KEY"
+    And SSM holds a value for "TYPESAFE_API_KEY" only
+    When the function prepares its provider keys
+    Then "TYPESAFE_API_KEY" is the value stored in SSM
+    And "OPENAI_API_KEY" is not set, so rewrite suggestions report that they are not configured

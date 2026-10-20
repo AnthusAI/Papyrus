@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { IssueCollection, IssueDetailPanel, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
+import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "./newsroom-theme";
 import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
@@ -16,6 +16,7 @@ import {
   deskBoardConfig,
   deskContainsAssignment,
   deskContainsContentItem,
+  formatNativeIssueId,
   projectAssignmentBoard,
   projectContentItemBoard,
   type NativeBoardIssue,
@@ -168,6 +169,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         </Link>
       )}
     </>}>
+    <IssueIdFormatProvider formatIssueId={formatNativeIssueId}>
     <div className="organizer-native-board">
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
@@ -192,5 +194,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         </IssueDetailPanel>}
       </div>
     </div>
+    </IssueIdFormatProvider>
   </NewsroomOpsShell>;
 }

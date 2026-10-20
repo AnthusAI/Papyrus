@@ -5,6 +5,7 @@ import {
   deskContainsAssignment,
   deskContainsContentItem,
   contentItemBoardPathSegment, assignmentBoardConfig, canReadNewsroomBoard, contentItemBoardConfig, contentItemBoardType, contentItemColumnOrder, projectAssignmentBoard, projectContentItemBoard } from "../lib/newsroom-board";
+import { formatNativeIssueId } from "../lib/newsroom-board";
 import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS, contentItemStageKeys } from "../lib/content-item-lifecycle";
 import { getContentItemName } from "../lib/site-brand";
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
@@ -36,6 +37,13 @@ assert.equal(assignmentIssues.length, 2, "every assignment is a card, including 
 assert(assignmentIssues.every(issue => issue.kind === "assignment"), "the assignment board shows only assignments");
 assert.equal(assignmentIssues.find(issue => issue.nativeId === "same")?.nativeStatus, "waiting-for-review");
 assert.equal(new Set([...storyIssues, ...assignmentIssues].map(issue => issue.id)).size, 4, "IDs from separate native models must not collide");
+
+// Cards and detail panels print a quiet path, never the raw "contentItem:<lineage>" prefix.
+assert.equal(formatNativeIssueId(story!), `${contentItemBoardPathSegment()}/draft-2`, "a content item shows section/slug");
+const writeIt = assignmentIssues.find(issue => issue.nativeId === "copywriting-1");
+assert.equal(formatNativeIssueId(writeIt!), "assignments/write-it", "an assignment shows assignments/<title-slug>");
+assert(projectContentItemBoard({ contentItemVersions: [{ ...contentItemVersions[1], section: "News" }] }).every(issue => formatNativeIssueId(issue) === "news/draft-2"), "a section prefixes the slug");
+for (const issue of [...storyIssues, ...assignmentIssues]) assert(!/^(contentItem|assignment):/.test(formatNativeIssueId(issue)), "no raw kind prefix");
 
 const storyConfig = contentItemBoardConfig(storyIssues);
 assert.deepEqual(
