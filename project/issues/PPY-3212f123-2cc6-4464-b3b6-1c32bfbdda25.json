@@ -139,10 +139,17 @@
       "text": "Scope decision (Ryan, 2026-10-20): the SHARED remote Cyclotron for publication relevance covers Anthus (Anth.us) and Data Parade (nerdy-stuff screening) together. Distinctive Mark (new Papyrus publication Distinctive, repo Distinctive-web, organization account 'Distinctive Mark') does NOT participate in the shared Cyclotron: it uses its own Cyclotron(s) for everything (relevance and section fit). Any shared-output design here must exclude it.",
       "created_at": "2026-10-20T20:35:29.311742Z",
       "comment_type": "default"
+    },
+    {
+      "id": "94182cb9-5bac-426f-a306-6e7b2f14391f",
+      "author": "home",
+      "text": "2026-10-20 Data Parade relevance output, read-only findings. (1) Shared Cyclotron definitions are DATA in the account catalog (Cyclotron docs/hosted-publications.md; save_cyclotron_definition via authenticated console), not code; Papyrus relevanceCyclotron in corpora/*-steering.yml is the per-publication local sweep, not the shared engine. (2) Production check (cyclotron-production 682849160744): bootstrap route POST /publication-runs/bootstrap is deployed (API returns 400 validation), BFF/worker modified 2026-10-20T20:03Z, CYCLOTRON_ALLOW_LIVE=false, no CYCLOTRON_PUBLICATION_TARGETS. The books bucket has no catalog for the Anthus AI Solutions (40abda23) or Data Parade (10dcf52a) accounts, so the shared Cyclotron, its four classifiers and any frozen run do NOT exist in production yet. (3) Cyclotron PR58 already supports a Data Parade style output via target pendingOutputs (status pending_criteria, decide/prime refused, no prediction), so no engine code change is needed. (4) Not applied: writing the definition needs an authenticated Anthus AI Solutions console session (none available to the agent; Chrome extension unresponsive) and the four outputs question/criteria text, which lives in private publication policy and was not invented. Plan once available: under Anthus AI Solutions, save definition with 4 active classifiers plus a Data Parade output marked pending criteria; share read of the Data Parade output to the Data Parade account via the sharing owner; bootstrap the run; set targets with pendingOutputs for Data Parade. Distinctive Mark is excluded (PPY-3106ee), own Cyclotrons. PENDING from Ryan: Data Parade screening criteria and labels, the four current output questions to carry over, and a bounded live-test budget. Live stays disabled, no provider calls made.",
+      "created_at": "2026-10-20T22:10:28.139436Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T20:35:29.311777Z",
+  "updated_at": "2026-10-20T22:10:28.139471Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
