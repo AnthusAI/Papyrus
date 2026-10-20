@@ -70,10 +70,22 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "3948571b-f81c-4f54-a3b9-11d44a16fc9d",
+      "author": "home",
+      "text": "Field-scoped source correction pushed and independently remote-verified at 4b61f853223d6740e84d60a6ff82b2ca35e952bf, draft/open https://github.com/AnthusAI/Papyrus/pull/382 . Fresh Python/TypeScript/package-smoke CI in progress. Private exact-target bundle now proposes only 53 named assignment GraphQL fields plus preserved generated schema/five reference reads and separate two editorial queries; broad grant proposal superseded. Local SDK regression, helper test and ESLint pass; previously recorded dependency/sparse-checkout verification limits remain. No merge, deployment, live grants/provider/policy changes. Independent review and exact consumer synthesis/access approval remain release gates.",
+      "created_at": "2026-10-20T13:04:42.485211Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
     }
   ],
   "created_at": "2026-10-20T12:30:50.089804Z",
-  "updated_at": "2026-10-20T13:02:38.624947Z",
+  "updated_at": "2026-10-20T13:04:42.485245Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
