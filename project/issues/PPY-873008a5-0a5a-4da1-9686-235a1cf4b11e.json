@@ -1,7 +1,7 @@
 {
   "id": "PPY-873008a5-0a5a-4da1-9686-235a1cf4b11e",
   "title": "TI-08: new-site parity on default URL vs fresh baseline (routes, text, screenshots, video, robots)",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-08. ACCEPT: 24 routes status equal; visible-text/normalized-DOM hashes equal on /, edition, 18 articles; 404 probes equal; robots 200 Allow and sitemap 404 as fresh baseline; screenshot median diff at 0.0006 order, equal heights; video readyState 4, /api/media 307 then 206.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-08. ACCEPT: 24 routes status equal; visible-text/normalized-DOM hashes equal on /, edition, 18 articles; 404 probes equal; robots 200 Allow and sitemap 404 as fresh baseline; screenshot median diff at 0.0006 order, equal heights; video readyState 4, /api/media 307 then 206.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

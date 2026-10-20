@@ -1,7 +1,7 @@
 {
   "id": "PPY-a0d5e404-2cfc-488d-935e-d04eead67606",
   "title": "AN-13: Anth.us soak and acceptance",
-  "description": "Plan: /Users/home/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-13. ACCEPT: Ryan-set window (plan Q2) with daily health of both hosts, weekly baseline re-run equal, zone diff clean, no legacy writes; Ryan signs off.",
+  "description": "Plan: ~/Projects/anthus-move-plan.md. Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy, d1ffh6ny5rvtl, d23d9f23lg9obr or the other anth.us apps except where the step names them. Site repo is AnthusAI/Anth.us-Papyrus. Section 4 AN-13. ACCEPT: Ryan-set window (plan Q2) with daily health of both hosts, weekly baseline re-run equal, zone diff clean, no legacy writes; Ryan signs off.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

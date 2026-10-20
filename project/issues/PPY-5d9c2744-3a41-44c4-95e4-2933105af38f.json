@@ -1,7 +1,7 @@
 {
   "id": "PPY-5d9c2744-3a41-44c4-95e4-2933105af38f",
   "title": "TI-09: TI staging branch on new account and guard checks",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-09. ACCEPT: node scripts/check-staging-guards.mjs <staging default URL> staging passes; anonymous GET redirects to /newsroom no loop; X-Robots-Tag noindex,nofollow and robots Disallow; STAGING banner; editor sees draft that 404s on production; non-editor 403; production branch has no staging-only variables.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-09. ACCEPT: node scripts/check-staging-guards.mjs <staging default URL> staging passes; anonymous GET redirects to /newsroom no loop; X-Robots-Tag noindex,nofollow and robots Disallow; STAGING banner; editor sees draft that 404s on production; non-editor 403; production branch has no staging-only variables.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

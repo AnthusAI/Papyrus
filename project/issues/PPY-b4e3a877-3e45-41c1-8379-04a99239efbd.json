@@ -1,7 +1,7 @@
 {
   "id": "PPY-b4e3a877-3e45-41c1-8379-04a99239efbd",
   "title": "TI-13: archive OLD research data, then Ryan retires legacy TI (human runbook)",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-13. IRREVERSIBLE steps marked. ACCEPT: archive of d3on1y5vlrxmam backend (39 tables, 1000 objects / 253,913,440 bytes) verified by counts and bytes before any deletion; runbook written with account assertions and restore batches; after each step both TI hosts and Anth.us proof hashes verified; Ryan runs it.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-13. IRREVERSIBLE steps marked. ACCEPT: archive of d3on1y5vlrxmam backend (39 tables, 1000 objects / 253,913,440 bytes) verified by counts and bytes before any deletion; runbook written with account assertions and restore batches; after each step both TI hosts and Anth.us proof hashes verified; Ryan runs it.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

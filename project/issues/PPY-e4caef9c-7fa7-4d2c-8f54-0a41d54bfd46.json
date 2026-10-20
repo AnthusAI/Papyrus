@@ -1,7 +1,7 @@
 {
   "id": "PPY-e4caef9c-7fa7-4d2c-8f54-0a41d54bfd46",
   "title": "TI-06: first backend build on new TI app, Cognito/Google sign-in, groups",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-06. ACCEPT: backend deploy zero failed resources (no 429); describe-user-pool-client callbacks include <default>/ and <default>/newsroom + localhost, IdP Google; Cognito domain papyrus-threat-intelligence-cms; Ryan signs in, admin group set; two editors added; non-editor denied; legacy newsroom sign-in still works.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 6 TI-06. ACCEPT: backend deploy zero failed resources (no 429); describe-user-pool-client callbacks include <default>/ and <default>/newsroom + localhost, IdP Google; Cognito domain papyrus-threat-intelligence-cms; Ryan signs in, admin group set; two editors added; non-editor denied; legacy newsroom sign-in still works.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,

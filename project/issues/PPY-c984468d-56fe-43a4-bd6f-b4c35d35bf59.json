@@ -1,7 +1,7 @@
 {
   "id": "PPY-c984468d-56fe-43a4-bd6f-b4c35d35bf59",
   "title": "Throttle AppSync resolver creation with wave-ordered data model stacks (429 mitigation)",
-  "description": "Implements plan section 5 option B in /Users/home/Projects/threat-intelligence-move-plan.md: order the Amplify data model nested stacks into waves (NestedStack.addDependency) so AppSync CreateResolver is not called with full parallelism in new accounts. Config backend.resolverWaveSize, default 12; dependencies only, no resource change. Branch fix/PPY-429wave-appsync-resolver-waves.",
+  "description": "Implements plan section 5 option B in ~/Projects/threat-intelligence-move-plan.md: order the Amplify data model nested stacks into waves (NestedStack.addDependency) so AppSync CreateResolver is not called with full parallelism in new accounts. Config backend.resolverWaveSize, default 12; dependencies only, no resource change. Branch fix/PPY-429wave-appsync-resolver-waves.",
   "type": "sub-task",
   "status": "closed",
   "priority": 1,

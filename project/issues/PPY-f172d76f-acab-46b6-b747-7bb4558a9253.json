@@ -70,7 +70,7 @@
     {
       "id": "34ced7c5-3f60-4899-bfcf-c007dd964307",
       "author": "home",
-      "text": "Documentation/source research complete for review. Handoff: /Users/home/Documents/Codex/2026-10-20/task-2/HANDOFF.md ; local patch: /Users/home/Documents/Codex/2026-10-20/task-2/papyrus-public-page-alternates.patch . Patch applicability and paired-fixture fidelity verified on inspected Markus 0.6.0 only; Papyrus-supported >=0.7,<1.0 integration, runtime/routes/executable acceptance and token/cost/accuracy benchmarks remain unimplemented. Source documentation patch was not applied or pushed. Codex integrated tracker status only, coordinating research owner; open/P3/unassigned and existing foundation/post-save blockers retained.",
+      "text": "Documentation/source research complete for review. Handoff: ~/Documents/Codex/2026-10-20/task-2/HANDOFF.md ; local patch: ~/Documents/Codex/2026-10-20/task-2/papyrus-public-page-alternates.patch . Patch applicability and paired-fixture fidelity verified on inspected Markus 0.6.0 only; Papyrus-supported >=0.7,<1.0 integration, runtime/routes/executable acceptance and token/cost/accuracy benchmarks remain unimplemented. Source documentation patch was not applied or pushed. Codex integrated tracker status only, coordinating research owner; open/P3/unassigned and existing foundation/post-save blockers retained.",
       "created_at": "2026-10-20T12:25:15.790748Z",
       "comment_type": "default",
       "agent": {

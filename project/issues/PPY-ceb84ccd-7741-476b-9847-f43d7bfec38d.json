@@ -1,7 +1,7 @@
 {
   "id": "PPY-ceb84ccd-7741-476b-9847-f43d7bfec38d",
   "title": "TI-02: TI config PR - env-driven papyrus.config.ts (prefix, apply flag, redirects), legacy auto-build off during merge",
-  "description": "Plan: /Users/home/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 3 G2, 6 TI-02. ACCEPT: PR changes only papyrus.config.ts; with legacy env values the resolved prefix/flag/redirects equal today's; tsc and papyrus-app sync pass; no legacy job started by the merge (list-jobs); legacy auto-build restore command recorded.",
+  "description": "Plan: ~/Projects/threat-intelligence-move-plan.md (section noted). Rules: assert account before every AWS call (legacy=335163751677 read-only unless named, papyrus-production=712236451410); every write needs Ryan's yes; never print secrets/emails; do not touch Anth.us d2hbn1ig6nqyhy or other anth.us apps; Pilobol.us apps untouched. Supersedes the off-by-one bodies of P6-08..P6-13. Section 3 G2, 6 TI-02. ACCEPT: PR changes only papyrus.config.ts; with legacy env values the resolved prefix/flag/redirects equal today's; tsc and papyrus-app sync pass; no legacy job started by the merge (list-jobs); legacy auto-build restore command recorded.",
   "type": "sub-task",
   "status": "open",
   "priority": 1,
