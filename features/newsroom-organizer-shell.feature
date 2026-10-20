@@ -1,13 +1,20 @@
 Feature: Production newsroom organizer shell
   The approved newsroom appearance preserves the existing authenticated CMS.
 
-  Scenario: The shared Board keeps Papyrus newsprint styling
+  Scenario: Each publication hard-codes one Kanbus editorial theme
+    Given every registered brand declares a Kanbus theme
+    Then Anth.us uses newspaper-gothic, Pilobol.us uses refined-newsprint, p.apyr.us uses broadsheet-green and Threat Intelligence uses night-desk
+    And a brand without a theme falls back to newspaper-gothic
+    And editors cannot change the theme, only light or dark follows their setting
+
+  Scenario: The whole newsroom is inside the theme scope
     Given the native CMS Board uses the released shared Kanbus components
-    When I view it at narrow and wide widths in light and dark mode
-    Then headlines use the newsroom serif font and columns use newspaper rules
-    And cards have square corners without retro shadows or clipped headers
+    When I view the newsroom at narrow and wide widths in light and dark mode
+    Then the sidebar, toolbar, board, detail panel and portaled menus carry the brand's theme scope
+    And the organizer colours and fonts come from the theme's --kb-theme tokens
+    And only the wordmark is set in Playfair Display
+    And cards are flat ruled rows with square corners and a quiet monospace id line
     And column collapse, record selection and keyboard detail closing still work
-    And the host publication palette outside the Board is unchanged
 
   Scenario: The complete CMS survives a navigation change
     Given an editor has an authorized session and existing newsroom records

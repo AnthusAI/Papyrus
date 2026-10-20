@@ -1,7 +1,0 @@
-.papyrus-newsprint-board {
-  --kb-newsprint-paper: var(--org-paper);
-  --kb-newsprint-ink: var(--org-ink);
-  --kb-newsprint-line: var(--org-line);
-  --kb-newsprint-display-font: Newsroom Display, Georgia, serif;
-  --kb-newsprint-body-font: Newsroom UI, system-ui, sans-serif;
-}
