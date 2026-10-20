@@ -49,6 +49,7 @@ const ALLOWED_ROLES = new Set([
   "graph_export",
   "raw_payload",
   "priming_outcome",
+  "priming_attempts",
 ]);
 const ALLOWED_MEDIA_TYPES = new Set([
   "application/json",
