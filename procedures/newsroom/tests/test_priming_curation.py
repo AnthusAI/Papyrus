@@ -266,21 +266,21 @@ def grobid_title_pipeline(monkeypatch,title,landing):
 
 def test_grobid_licence_boilerplate_loses_to_arxiv_citation_title(monkeypatch):
     fetched=grobid_title_pipeline(monkeypatch,'Provided proper attribution is provided, Google hereby grants permission… Attention Is All You Need',{'https://arxiv.org/abs/1706.03762':ARXIV_ABS_ATTENTION})
-    result=service().prepare({'url':'https://arxiv.org/abs/1706.03762'},None,'')
+    result=service().prepare({'url':'https://arxiv.org/abs/1706.03762','path':'research'},None,'')
     assert result['candidate']['values']['title']=='Attention Is All You Need'
     assert fetched==['https://arxiv.org/abs/1706.03762']
 
 
 def test_grobid_author_list_loses_to_cleaned_arxiv_og_title_for_pdf_url(monkeypatch):
     fetched=grobid_title_pipeline(monkeypatch,'Core contributors 11 Gabriel Goh Long context co-lead…',{'https://arxiv.org/abs/2303.08774':ARXIV_ABS_GPT4})
-    result=service().prepare({'url':'https://arxiv.org/pdf/2303.08774'},None,'')
+    result=service().prepare({'url':'https://arxiv.org/pdf/2303.08774','path':'research'},None,'')
     assert result['candidate']['values']['title']=='GPT-4 Technical Report'
     assert fetched==['https://arxiv.org/abs/2303.08774']
 
 
 def test_arxiv_export_api_title_is_used_when_abs_page_has_no_title(monkeypatch):
     grobid_title_pipeline(monkeypatch,'Core contributors 11 Gabriel Goh Long context co-lead…',{'https://arxiv.org/abs/2303.08774':'<html></html>','http://export.arxiv.org/api/query?id_list=2303.08774':ARXIV_API_GPT4})
-    result=service().prepare({'url':'https://arxiv.org/pdf/2303.08774.pdf'},None,'')
+    result=service().prepare({'url':'https://arxiv.org/pdf/2303.08774.pdf','path':'research'},None,'')
     assert result['candidate']['values']['title']=='GPT-4 Technical Report'
 
 
