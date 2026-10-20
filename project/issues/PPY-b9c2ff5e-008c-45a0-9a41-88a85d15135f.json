@@ -22,10 +22,22 @@
         "model": "GPT-6",
         "name": "dataparade-preparation"
       }
+    },
+    {
+      "id": "1ef7fd64-5f65-4d6c-b6db-bcd6892b237b",
+      "author": "home",
+      "text": "Draft PR https://github.com/AnthusAI/Papyrus/pull/388 publishes reviewed source commit d32e5d73. Companion owner-grant contract: https://github.com/AnthusAI/Cyclotron/pull/60. Activation remains pending under PPY-90711b3b-4684-4782-bb7e-9d788794a373; all unverified site identities and editorial choices remain unset. No hosted site, grants or infrastructure have been created.",
+      "created_at": "2026-10-20T14:58:22.164531Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
     }
   ],
   "created_at": "2026-10-20T14:27:21.356941Z",
-  "updated_at": "2026-10-20T14:54:46.229403Z",
+  "updated_at": "2026-10-20T14:58:22.164553Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
