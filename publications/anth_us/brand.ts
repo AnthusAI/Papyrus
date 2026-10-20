@@ -7,7 +7,7 @@ import { AnthUsLogo } from "./logo";
  *
  * This is the **site**: masthead, theme pack, corpus wiring, deployment
  * metadata. It is a sibling of `publications/anthus/`, which is the
- * **editorial identity** (`style-profile.yml`, `editorial-rewrite-skill.yml`,
+ * **editorial identity** (`style-profile.yml`,
  * `reference-samples/`) and is not touched by this file.
  *
  * Every string below is read off the live Gatsby site at `AnthusAI/Anth.us-legacy-Gatsby`:
