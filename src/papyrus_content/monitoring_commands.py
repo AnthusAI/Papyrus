@@ -76,7 +76,18 @@ def command(argv: list[str]) -> int:
     run.add_argument("--force", action="store_true", help="One recovery run even before due")
     view = sub.add_parser("status", help="Read this local checkpoint without source or backend calls")
     view.add_argument("--config", required=True)
+    local = sub.add_parser("collect-local", help="Collect public HN RSS into private review files; no app authentication or classification")
+    local.add_argument("--directory", required=True, help="Private local queue directory outside publication content")
+    local.add_argument("--interval-seconds", type=int, default=900)
+    local.add_argument("--limit", type=int, default=30)
+    local.add_argument("--shown-records", help="Private JSON array of source/message presentation receipts; no labels")
     args = parser.parse_args(argv)
+    if args.command == "collect-local":
+        from .monitoring_queue import collect_queue
+        shown = json.loads(Path(args.shown_records).read_text()) if args.shown_records else ()
+        result = collect_queue(args.directory, interval_seconds=args.interval_seconds, limit=args.limit, shown_records=shown)
+        print(json.dumps(result, sort_keys=True))
+        return 1 if result["status"] == "failed" else 0
     monitor = load_monitor(args.config)
     if args.command == "status":
         print(json.dumps(status(monitor), sort_keys=True))

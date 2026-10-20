@@ -1,0 +1,38 @@
+{
+  "id": "PPY-c559666f-8621-4aa9-af41-75c3a3d884f2",
+  "title": "Collect public HN discoveries into a private review queue without classifier access",
+  "description": "As an editor, I want recurring public HN collection and a private source-linked review batch so I can rate discoveries while classifier integration remains disabled. This is explicitly local collection/review staging, not publication routing, Reference intake, or applied learning. Existing 18 received labels must remain byte-for-byte unchanged. Feature: Private collection without app authentication. Scenario: Collect and resume review. Given a private HN queue and a bounded source feed When scheduled collection repeats and a source is revised Then canonical sources are deduplicated and every discovery revision retains provenance And a private review batch is available with no cloud, model, training or label calls. Scenario: Respect source cadence and recover failures. Given a prior successful batch When collection is requested early or the source fails Then early collection does not fetch and failure remains visible without deleting the prior queue. Human feedback remains received only; no invented ratings or automatic publication assignment.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c9606895-14b7-4196-9869-507dc49d65b5",
+      "author": "home",
+      "text": "Implemented explicit collect-local path independent of IAM/app auth and classifier composition. 22 focused tests and isolated committed HN/private-queue BDD specs pass (6 scenarios, 23 steps). Queue deduplicates canonical URLs, retains discovery revisions, writes private JSON/Markdown, respects cadence, retains items on visible fetch failure, and supports supplied presentation receipts without labels. The 18 received decisions remain unapplied; no model/provider/training calls. Live collection command was rejected before execution by automatic approval review: it interpreted original design-only scope as still controlling despite the later parent instruction authorizing resumed HN implementation. No alternate execution or retry attempted. Finishing offline delivery and exact narrow existing-scheduler activation instructions; no deployment or scheduler activation claimed.",
+      "created_at": "2026-10-20T11:06:04.836545Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T11:02:36.927481Z",
+  "updated_at": "2026-10-20T11:06:47.298830Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6",
+    "name": "papyrus-monitoring"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

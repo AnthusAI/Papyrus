@@ -155,6 +155,53 @@ inaccessible in this sandbox. No publishing approval follows from those labels.
 No real model prediction, applied feedback, training, merge or deployment is
 claimed by this pilot.
 
+## Collection and conversational review without app credentials
+
+The explicit `collect-local` mode supplies a private review batch independently
+of Reference intake and classifier availability. It reuses the bounded public
+HN RSS parser, groups canonical URLs, and preserves each HN identity and source
+revision in SQLite. It writes `review.json` and `review.md` with private file
+permissions. Source failures remain visible while prior discoveries stay
+available. This is local review staging, not hosted intake or publication
+routing. It imports no authoring client, uses no app credentials, and makes no
+prediction, label, seed or training calls.
+
+An exact invocation for the current small checkout is:
+
+```sh
+cd /Users/home/Documents/Codex/2026-10-19/task-4/papyrus-planning
+PYTHONPATH=src /Users/home/miniconda3/bin/python -m papyrus_content.monitoring_commands collect-local \
+  --directory /Users/home/Documents/Codex/2026-10-19/task-4/hn-private-review \
+  --interval-seconds 900 --limit 30 \
+  --shown-records /Users/home/Documents/Codex/2026-10-19/task-4/hn-private-review-shown.json
+```
+
+The optional shown-records file is a private JSON array. Each presentation
+receipt has exactly `sourceId`, `canonicalUrl`, `sourceMessageId`, and `shownAt`
+strings. It records delivery, not a rating. Those sources remain in JSON
+provenance but are omitted from the Markdown candidate list while awaiting
+replies. Keep the file current from actual sent-message receipts. Previously
+received ratings remain in their existing private provenance files; this
+collector does not import, overwrite or apply them.
+
+Minimal recurring activation is an existing **local Codex thread heartbeat**
+that invokes the command, reads the resulting private batch and presents a
+small number of unseen source-linked candidates in the thread. Record actual
+presentation receipts after delivery. Keep user decisions separate from
+collection and preserve their message/publication/reason provenance without
+applying learning. Hourly scheduling is sufficient for a morning queue; the
+900-second checkpoint also permits a separately approved 15-minute worker.
+The local host must be awake and the checkout available. No AWS deployment,
+IAM grant, persistent app credential, provider key or classifier activation is
+required for this local collector. A heartbeat is not installed by this PR.
+
+The first live `collect-local` validation was **rejected before execution** by
+automatic approval review, which cited the original design-only scope despite
+the subsequent parent instruction to resume HN implementation. No live queue
+or recurring collection is claimed from this change. Approval of this exact
+bounded public-feed/private-queue action must be resolved before activation;
+do not substitute an indirect run or use personal browser credentials.
+
 Further labels arrived in `Sentinel_ab732a5df51c819184ab1201748e8a79` at
 04:06:52Z and `Sentinel_ccc7c8f1c01081919875ae491dd950ad` at 04:08:04Z.
 There are 18 explicit yes/no decisions received across the batches, zero
