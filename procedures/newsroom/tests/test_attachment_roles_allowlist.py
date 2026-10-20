@@ -17,7 +17,6 @@ LITERAL_FILES = [
     "papyrus_content/model_attachments.py",
     "papyrus_content/newsroom_commands.py",
     "papyrus_content/analysis_commands.py",
-    "papyrus_newsroom/reference_curation_signals.py",
 ]
 # Roles written directly to storage by rehydration, never through the upload Lambda.
 NOT_UPLOADED = {"record"}
