@@ -1,7 +1,7 @@
 {
   "id": "PPY-33854a5d-da97-4597-9ad2-948a7dd23136",
   "title": "Public RSS/Atom subscription feeds for publications and sections",
-  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader, I want to subscribe to a publication or section using ordinary feed readers, so that I can follow published articles without visiting the site repeatedly.\n\nDefinition of Done for later implementation: standards-valid RSS and Atom publication/section feeds, stable item identity and canonical links, revision/withdrawal behavior, discoverability and published-only isolation covered by observable specifications. Depends on the shared published-content foundation. Examine existing Markus/static S3 publishing during implementation; avoid a parallel publisher. M8 PPY-f293ea mentions an optional feed: this epic owns the detailed subscription-feed behavior rather than duplicating M8's delivered latest/search JSON.\n\nDeferred/YAGNI: Markdown+YAML exports, exact Contentful compatibility, extra export formats and authenticated draft previews. No feed endpoint, deployment or rollout is selected by this plan.",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader, I want to subscribe to a publication or section using ordinary feed readers, so that I can follow published articles without visiting the site repeatedly.\n\nDefinition of Done for later implementation: standards-valid RSS and Atom publication/section feeds, stable item identity and canonical links, revision/withdrawal behavior, discoverability and published-only isolation covered by observable specifications. Depends on the shared published-content foundation. Examine existing Markus/static S3 publishing during implementation; avoid a parallel publisher. M8 PPY-f293ea mentions an optional feed: this epic owns the detailed subscription-feed behavior rather than duplicating M8's delivered latest/search JSON.\n\nDeferred/YAGNI: Markdown+YAML exports, exact Contentful compatibility, extra export formats and authenticated draft previews. No feed endpoint, deployment or rollout is selected by this plan.\n\nApproved post-save platform behavior: publish, saved published edits and unpublish automatically refresh both RSS and Atom alongside article/listings/indexes and sitemap. Both feed formats use the shared foundation selection and metadata rules. Ancillary failures must be visible/retryable; private draft saves never change public feed content. Detailed observable acceptance is in PPY-defff04e-17b5-4e28-9bb5-df412601a102. Implementation remains unstarted.",
   "type": "epic",
   "status": "open",
   "priority": 2,
@@ -15,6 +15,10 @@
   "dependencies": [
     {
       "target": "PPY-3f55c3e1-65f6-4fc7-833e-6cecc6a85270",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-defff04e-17b5-4e28-9bb5-df412601a102",
       "type": "blocked-by"
     }
   ],
@@ -32,7 +36,7 @@
     }
   ],
   "created_at": "2026-10-20T02:16:55.576020Z",
-  "updated_at": "2026-10-20T02:20:17.360791Z",
+  "updated_at": "2026-10-20T02:35:52.266792Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

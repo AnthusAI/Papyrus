@@ -1,7 +1,7 @@
 {
   "id": "PPY-c4ea07f4-7625-4149-8a34-a0bdbe057cc7",
   "title": "Explain public publication and section subscriptions",
-  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader and publication operator, I want feed documentation with usable examples, so that I can discover subscriptions and understand published updates.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain public publication and section subscriptions\n  Scenario: Use documented subscriptions\n    Given RSS and Atom delivery behavior has been implemented and verified\n    When I follow its documentation\n    Then I can discover publication and section subscription links and understand their scope\n    And stable item identities, canonical links, published updates and withdrawals are explained\n    And published-only visibility and freshness limits are explicit\n    And planned endpoints are never represented as currently available\n```\n\nDocumentation acceptance belongs to RSS epic; coordinate review with the Documentation overhaul. Avoid promising deletion from third-party caches or draft preview support.",
+  "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader and publication operator, I want feed documentation with usable examples, so that I can discover subscriptions and understand published updates.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain public publication and section subscriptions\n  Scenario: Use documented subscriptions\n    Given RSS and Atom delivery behavior has been implemented and verified\n    When I follow its documentation\n    Then I can discover publication and section subscription links and understand their scope\n    And stable item identities, canonical links, published updates and withdrawals are explained\n    And published-only visibility and freshness limits are explicit\n    And planned endpoints are never represented as currently available\n```\n\nDocumentation acceptance belongs to RSS epic; coordinate review with the Documentation overhaul. Avoid promising deletion from third-party caches or draft preview support.\n\nAlso document the approved automatic platform refresh after publish, saved published edits and unpublish: article, affected listings/indexes, sitemap and both RSS and Atom share current published selection/metadata. Explain private-draft isolation, freshness, known failed/pending ancillary outputs and supported retry/reconciliation. Link PPY-defff04e-17b5-4e28-9bb5-df412601a102; do not claim this new coverage is implemented or turn the guide into a single-site sitemap audit.",
   "type": "story",
   "status": "open",
   "priority": 2,
@@ -20,7 +20,7 @@
   ],
   "comments": [],
   "created_at": "2026-10-20T02:25:03.798666Z",
-  "updated_at": "2026-10-20T02:26:39.539156Z",
+  "updated_at": "2026-10-20T02:35:35.515133Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
