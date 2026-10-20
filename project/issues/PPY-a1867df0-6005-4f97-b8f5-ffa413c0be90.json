@@ -3,20 +3,32 @@
   "title": "Fix publication_modes_test: it loads scripts/priming-preview/fixtures.py which was never committed",
   "description": "src/papyrus_content/publication_modes_test.py:35 loads scripts/priming-preview/fixtures.py, which does not exist in any commit. test_existing_papyrus_curation_can_be_vetted_with_explicit_publication_feedback_in_both_modes (4 params) fails with FileNotFoundError once pytest collects *_test.py files (found by PPY-c4e950). CI deselects it until the fixtures are committed or the test is rewritten.",
   "type": "bug",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-36270a54-46e3-4f93-a52a-cdaff973c051",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6422fa5a-539b-40f4-82a9-96a90565d31b",
+      "author": "home",
+      "text": "PR382 restores both-mode coverage using the committed scripts/curation-review/fixtures.py and OfflineCuration preparation, updates assertions to its current synthetic source contract, and removes the obsolete CI deselection. Four research/web by embedded/remote parameters pass in the 51-test focused integration run using existing local Cyclotron sources. This is offline contract evidence; no real provider or deployment claimed.",
+      "created_at": "2026-10-20T04:06:21.865827Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "papyrus-monitoring"
+      }
+    }
+  ],
   "created_at": "2026-10-17T18:05:41.276362Z",
-  "updated_at": "2026-10-17T18:05:41.276837Z",
+  "updated_at": "2026-10-20T04:06:21.865840Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }
