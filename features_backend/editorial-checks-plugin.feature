@@ -72,3 +72,13 @@ Feature: Editorial checks plugin
     When an admin recalibrates the policies
     Then policy "no-hype" detector "hype-judge" has an "isotonic" calibration
     And policy "no-hype" is now version 2
+
+  Scenario: Import a style profile as publication policies
+    When an operator imports the style profile "features_backend/fixtures/editorial-checks/style-profile.yml"
+    Then the site has the policies "avoid-lexicon, banned-phrases, house-checks, tone" with scope "publication"
+    And importing the same profile again creates 0 policies
+
+  Scenario: Check a draft from the command line against a policy-pack file
+    Given a policy-pack file whose policy "no-hype" flags "game-changing"
+    When an operator runs papyrus editorial check on a draft saying "This is game-changing."
+    Then the printed check result has a "no-hype" finding on "game-changing"

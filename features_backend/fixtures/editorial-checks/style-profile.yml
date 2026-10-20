@@ -1,0 +1,14 @@
+schemaVersion: 1
+publicationKey: fixture-publication
+voice:
+  name: Fixture voice
+audience: Readers of the fixture.
+tone:
+  - Plain and specific.
+lexicon:
+  prefer: [use]
+  avoid: [game-changing]
+rules:
+  bannedPhrases: [at the end of the day]
+checks:
+  uniformCadence: false

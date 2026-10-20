@@ -1,8 +1,0 @@
-[
-  {
-    "schemaVersion": 1,
-    "finding_id": "finding-0810866db70f8d69",
-    "decision": "rewrite",
-    "note": "replace empty lead-in"
-  }
-]

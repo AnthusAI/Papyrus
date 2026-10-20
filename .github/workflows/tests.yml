@@ -79,7 +79,5 @@ jobs:
             --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
             --ignore=procedures/newsroom/tests/test_papyrus_content.py \
             --deselect src/papyrus_content/publication_modes_test.py::test_existing_papyrus_curation_can_be_vetted_with_explicit_publication_feedback_in_both_modes
-      # Excluded features, PPY-c22e1c (stale steps/assertions):
-      #   editorial-style-profile (step imports removed _FORBIDDEN_KEY_PATTERN)
-      #   research-reporting-context
-      - run: poetry run behave features_backend --tags=~@live-agent --exclude 'editorial-style-profile|research-reporting-context'
+      # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
+      - run: poetry run behave features_backend --tags=~@live-agent --exclude 'research-reporting-context'

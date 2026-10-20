@@ -1,1 +1,0 @@
-Several sentences are enough to populate the density summary. Each one adds a concrete noun or verb. The summary should report word count, sentence count, lexical density, and gzip ratio without raising fluff findings.

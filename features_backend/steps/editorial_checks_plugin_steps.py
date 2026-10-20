@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import random
-import sys
-from pathlib import Path
 
 from behave import given, then, when
 
 from limatus.contracts import validate_payload
-
-HANDLER_PATH = Path(__file__).resolve().parents[2] / "amplify" / "plugins" / "editorial-checks" / "function" / "handler.py"
-_specification = importlib.util.spec_from_file_location("editorial_checks_handler", HANDLER_PATH)
-editorial = importlib.util.module_from_spec(_specification)
-sys.modules["editorial_checks_handler"] = editorial
-_specification.loader.exec_module(editorial)
+from papyrus_content import editorial_checks as editorial
 
 
 class FakeEditorialStore:
@@ -37,11 +29,11 @@ class FakeEditorialStore:
 
     def create_policy(self, record):
         self.writes += 1
-        self.policies[record["id"]] = json.loads(json.dumps(editorial._policy_input(record)))
+        self.policies[record["id"]] = json.loads(json.dumps(editorial.policy_input(record)))
 
     def update_policy(self, record):
         self.writes += 1
-        self.policies[record["id"]] = json.loads(json.dumps(editorial._policy_input(record)))
+        self.policies[record["id"]] = json.loads(json.dumps(editorial.policy_input(record)))
 
 
 class FakeGenerator:
@@ -187,7 +179,7 @@ def step_import_again(context, name, count):
 
 @when('an admin tries a policy with phrase "{phrase}" on "{text}"')
 def step_try(context, phrase, text):
-    policy = editorial.policy_from_record(json.loads(json.dumps(editorial._policy_input(_phrase_policy("draft", "publication", "warn", True, phrase)))))
+    policy = editorial.policy_from_record(json.loads(json.dumps(editorial.policy_input(_phrase_policy("draft", "publication", "warn", True, phrase)))))
     context.try_result = editorial.handle("tryEditorialPolicy", {"policy": json.dumps(policy), "text": text}, _services(context))
 
 
@@ -247,3 +239,71 @@ def step_calibrated(context, key, detector_id, method):
 @then('policy "{key}" is now version {version:d}')
 def step_version(context, key, version):
     assert context.store.policies[editorial.policy_record_id(key, "publication")]["version"] == version
+
+
+# --- papyrus editorial (CLI) ------------------------------------------------------
+
+
+@when('an operator imports the style profile "{profile}"')
+def step_import_profile(context, profile):
+    from pathlib import Path
+
+    from papyrus_content.editorial_commands import import_style_profile
+
+    context.profile_path = Path(profile).resolve()
+    context.store.policies.clear()
+    context.import_counts = import_style_profile(context.store, context.profile_path, replace=False)
+
+
+@then('the site has the policies "{keys}" with scope "{scope}"')
+def step_imported_policies(context, keys, scope):
+    stored = {(r["policyKey"], r["scope"]) for r in context.store.policies.values()}
+    for key in (k.strip() for k in keys.split(",")):
+        assert (key, scope) in stored, stored
+    assert all(r["source"] == "style-profile:fixture-publication" for r in context.store.policies.values())
+
+
+@then("importing the same profile again creates {count:d} policies")
+def step_import_again_profile(context, count):
+    from papyrus_content.editorial_commands import import_style_profile
+
+    counts = import_style_profile(context.store, context.profile_path, replace=False)
+    assert counts["created"] == count and counts["skipped"] == context.import_counts["created"], counts
+
+
+@given('a policy-pack file whose policy "{key}" flags "{phrase}"')
+def step_pack_file(context, key, phrase):
+    import tempfile
+
+    pack = {
+        "schemaVersion": 1,
+        "packId": "file",
+        "version": "1",
+        "policies": [editorial.policy_from_record(_phrase_policy(key, "publication", "warn", True, phrase))],
+    }
+    handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+    json.dump(pack, handle)
+    handle.close()
+    context.pack_path = handle.name
+
+
+@when('an operator runs papyrus editorial check on a draft saying "{text}"')
+def step_cli_check(context, text):
+    import contextlib
+    import io
+    import tempfile
+
+    from papyrus_content.editorial_commands import editorial_check
+
+    draft = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False)
+    draft.write(text)
+    draft.close()
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        editorial_check(["--draft", draft.name, "--pack", context.pack_path])
+    context.cli_result = json.loads(output.getvalue())
+
+
+@then('the printed check result has a "{key}" finding on "{excerpt}"')
+def step_cli_finding(context, key, excerpt):
+    assert [(f["policyId"], f["excerpt"]) for f in context.cli_result["findings"]] == [(key, excerpt)], context.cli_result["findings"]
