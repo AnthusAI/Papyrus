@@ -46,7 +46,7 @@ const result: EditorialCheckResult = {
   lanes: { rules: { status: "ran", detectors: 1 }, classifier: { status: "partial", reason: "3 segment(s) skipped: 20s deadline reached" } },
 };
 
-// Limatus spans are UTF-16, the same unit as JavaScript strings: the emoji counts as two.
+// Humanus spans are UTF-16, the same unit as JavaScript strings: the emoji counts as two.
 assert.equal(body.slice(0, 19), "Huge wins 🚀 ahead.");
 
 // Core and on by default: a publication with no stored settings runs checks, and its stored setting can turn them off.

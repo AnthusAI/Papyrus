@@ -5,7 +5,7 @@ import random
 
 from behave import given, then, when
 
-from limatus.contracts import validate_payload
+from humanus.contracts import validate_payload
 from papyrus_content import editorial_checks as editorial
 
 
@@ -103,7 +103,7 @@ def step_refused(context):
     assert isinstance(context.check_error, editorial.EditorialChecksDisabled), context.check_error
 
 
-@then("Limatus was not asked to check")
+@then("Humanus was not asked to check")
 def step_not_asked(context):
     assert context.services.last_check_request is None
 
@@ -127,7 +127,7 @@ def step_check(context, body, section):
         context.check_error = error
 
 
-@then('the check result is a valid Limatus "{schema}" document')
+@then('the check result is a valid Humanus "{schema}" document')
 def step_valid(context, schema):
     validate_payload(schema, context.check_result)
 
@@ -143,7 +143,7 @@ def step_excerpt(context, key, excerpt):
     assert [f["excerpt"] for f in context.check_result["findings"] if f["policyId"] == key] == [excerpt]
 
 
-@then("Limatus was asked to run the classifier with a {seconds:d} second deadline")
+@then("Humanus was asked to run the classifier with a {seconds:d} second deadline")
 def step_deadline(context, seconds):
     options = context.services.last_check_request["options"]
     assert options["lanes"]["classifier"] is True
@@ -155,7 +155,7 @@ def step_lane_status(context):
     assert context.check_result["lanes"]["classifier"]["status"] in {"ran", "unavailable", "partial"}
 
 
-@then("Limatus received {count:d} past decisions as examples")
+@then("Humanus received {count:d} past decisions as examples")
 def step_examples(context, count):
     assert len(context.services.last_check_request["options"]["classifier"]["examples"]) == count
 

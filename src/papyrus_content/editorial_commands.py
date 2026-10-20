@@ -1,4 +1,4 @@
-"""`papyrus editorial`: the site's editorial policies, checked by Limatus from the command line.
+"""`papyrus editorial`: the site's editorial policies, checked by Humanus from the command line.
 
     papyrus editorial pack [--section KEY] [--output FILE]
     papyrus editorial import --profile publications/<pub>/style-profile.yml [--replace]
@@ -6,7 +6,7 @@
     papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--pack FILE]
 
 Policies and settings come from the site (EditorialPolicy / EditorialCheckSettings,
-read with the authoring role) unless `--pack` names a Limatus policy-pack file.
+read with the authoring role) unless `--pack` names a Humanus policy-pack file.
 The newsroom's article editor runs the same checks; this is for agents and scripts.
 """
 
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import limatus
+import humanus
 
 from .editorial_checks import (
     PUBLICATION_SCOPE,
@@ -37,7 +37,7 @@ class PackFileStore:
     """Serves one policy-pack file's policies, with no settings or decisions."""
 
     def __init__(self, path: Path) -> None:
-        pack = limatus.load_policy_pack(path)
+        pack = humanus.load_policy_pack(path)
         text = path.read_text(encoding="utf-8")
         if path.suffix.lower() == ".json":
             payload = json.loads(text)
@@ -105,7 +105,7 @@ def editorial_pack(flags: list[str]) -> None:
 def import_style_profile(store, profile: Path, *, replace: bool) -> dict[str, int]:
     """Add a style profile's controls to the store as publication policies."""
     existing = {policy_record_id(r["policyKey"], r["scope"]): r for r in store.list_policies()}
-    pack = limatus.policy_pack_from_style_profile(profile)
+    pack = humanus.policy_pack_from_style_profile(profile)
     counts = {"created": 0, "replaced": 0, "skipped": 0}
     for policy in pack["policies"]:
         record = record_from_policy(policy, scope=PUBLICATION_SCOPE, source=f"style-profile:{pack['packId']}")
@@ -137,7 +137,7 @@ def editorial_check(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial check", description="Check a draft against the site's editorial policies.")
     parser.add_argument("--draft", required=True, help="Markus/Markdown body to check (read-only).")
     parser.add_argument("--section", default=None, help="Desk key, for desk policies.")
-    parser.add_argument("--pack", default=None, help="Use this Limatus policy-pack file instead of the site's policies.")
+    parser.add_argument("--pack", default=None, help="Use this Humanus policy-pack file instead of the site's policies.")
     parser.add_argument("--output", default=None)
     args = parser.parse_args(flags)
     services = Services(store=_store(args.pack))
@@ -175,5 +175,5 @@ def editorial_suggest(flags: list[str]) -> None:
         arguments["selection"] = json.dumps({"start": to_utf16(start), "end": to_utf16(start + len(args.select))})
     try:
         _emit(suggest_rewrite(arguments, services), args.output)
-    except limatus.SuggestUnavailableError as error:
+    except humanus.SuggestUnavailableError as error:
         raise ValueError(str(error)) from error

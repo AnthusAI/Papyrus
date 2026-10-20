@@ -1,10 +1,10 @@
-"""Editorial checks: Papyrus's editorial policies, checked by Limatus.
+"""Editorial checks: Papyrus's editorial policies, checked by Humanus.
 
 Papyrus owns the policies (``EditorialPolicy``), the settings
 (``EditorialCheckSettings``) and the editors' decisions (``EditorialFeedback``).
-For each request a Limatus policy pack is composed from the stored policies --
+For each request a Humanus policy pack is composed from the stored policies --
 publication policies plus the article's desk policies, where a desk policy
-replaces a publication policy with the same key -- and Limatus is called.
+replaces a publication policy with the same key -- and Humanus is called.
 
 The site's editorial-checks function (core to every Papyrus backend) routes its GraphQL fields through
 ``handle``; the ``papyrus editorial`` CLI uses the same operations.
@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
-import limatus
-from limatus.packs import builtin_pack
+import humanus
+from humanus.packs import builtin_pack
 
 PUBLICATION_SCOPE = "publication"
 SETTINGS_ID = "settings"
@@ -58,7 +58,7 @@ class Services:
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)
     last_check_request: dict[str, Any] | None = field(default=None, init=False)
 
-    def limatus_kwargs(self, name: str) -> dict[str, Any]:
+    def humanus_kwargs(self, name: str) -> dict[str, Any]:
         value = getattr(self, name)
         return {} if value is _DEFAULT else {name: value}
 
@@ -73,7 +73,7 @@ def load_provider_keys(
     *,
     read_parameter: Callable[[str], str] | None = None,
 ) -> None:
-    """Put the real provider keys into the environment Limatus reads.
+    """Put the real provider keys into the environment Humanus reads.
 
     Amplify hands a Python function each secret() as a placeholder plus an
     AMPLIFY_SSM_ENV_CONFIG map of SSM paths; only Node functions resolve them
@@ -119,7 +119,7 @@ def _json(value: Any, default: Any) -> Any:
 
 
 def policy_from_record(record: dict[str, Any]) -> dict[str, Any]:
-    """A stored EditorialPolicy as a Limatus policy (its key becomes the policy id)."""
+    """A stored EditorialPolicy as a Humanus policy (its key becomes the policy id)."""
     policy = {
         "id": record["policyKey"],
         "version": int(record.get("version") or 1),
@@ -227,7 +227,7 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
         "options": {"lanes": settings["lanes"], "classifier": classifier},
     }
     services.last_check_request = request
-    return limatus.check(request, **services.limatus_kwargs("decision_model"))
+    return humanus.check(request, **services.humanus_kwargs("decision_model"))
 
 
 def suggest_rewrite(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -246,7 +246,7 @@ def suggest_rewrite(arguments: dict[str, Any], services: Services) -> dict[str, 
         request["finding"] = finding
     else:
         request["selection"] = selection
-    return limatus.suggest(request, **services.limatus_kwargs("generator"))
+    return humanus.suggest(request, **services.humanus_kwargs("generator"))
 
 
 def draft_questions(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -256,7 +256,7 @@ def draft_questions(arguments: dict[str, Any], services: Services) -> dict[str, 
     if examples:
         policy["examples"] = examples
     request = {"schemaVersion": 1, "policy": policy, "options": {"model": settings["rewriteModel"]}}
-    return limatus.draft_questions(request, **services.limatus_kwargs("generator"))
+    return humanus.draft_questions(request, **services.humanus_kwargs("generator"))
 
 
 def try_policy(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -268,7 +268,7 @@ def try_policy(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
         "pack": {"schemaVersion": 1, "packId": "papyrus-try", "version": "draft", "policies": [policy]},
         "options": {"classifier": {"model": settings["classifierModel"], "deadlineSeconds": settings["deadlineSeconds"]}},
     }
-    return limatus.check(request, **services.limatus_kwargs("decision_model"))
+    return humanus.check(request, **services.humanus_kwargs("decision_model"))
 
 
 def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -293,7 +293,7 @@ def recalibrate(arguments: dict[str, Any], services: Services) -> dict[str, Any]
     ]
     if not labels:
         return {"updated": 0, "detectors": []}
-    calibration = limatus.calibrate({"schemaVersion": 1, "labels": labels})
+    calibration = humanus.calibrate({"schemaVersion": 1, "labels": labels})
     by_key = {(d["policyId"], d["detectorId"]): d for d in calibration["detectors"] if "calibration" in d}
     updated = 0
     for record in services.store.list_policies():
@@ -326,7 +326,7 @@ def handle(field_name: str, arguments: dict[str, Any], services: Services) -> di
         raise ValueError(f"Unknown editorial-checks operation {field_name}")
     try:
         return operation(arguments, services)
-    except limatus.ContractValidationError as error:
+    except humanus.ContractValidationError as error:
         raise ValueError(str(error)) from error
 
 

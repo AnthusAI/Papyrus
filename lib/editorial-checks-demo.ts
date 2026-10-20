@@ -1,6 +1,6 @@
 /**
  * Demo-mode editorial checks: no backend, a few stock phrases, canned rewrites.
- * The shapes match Limatus results so the editor, the preview marks and the
+ * The shapes match Humanus results so the editor, the preview marks and the
  * rewrite flow behave as they do against the real backend.
  */
 import type { EditorialCheckResult, EditorialFinding, EditorialSegment, RewriteResult, Span } from "./editorial-checks";

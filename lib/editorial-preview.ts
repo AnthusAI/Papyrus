@@ -1,12 +1,12 @@
 /**
- * Places Limatus findings on the rendered Markus preview.
+ * Places Humanus findings on the rendered Markus preview.
  *
- * Limatus reports spans in the markup; the preview renders an IR tree with no
+ * Humanus reports spans in the markup; the preview renders an IR tree with no
  * character offsets. Both sides agree on the words a reader sees, so findings
- * are placed by text: each Limatus paragraph is matched, in document order, to
+ * are placed by text: each Humanus paragraph is matched, in document order, to
  * the rendered prose block with the same words, and each finding's plain
  * excerpt is located inside that block. Whitespace is ignored while matching,
- * because rendering and Limatus collapse it differently (citations, breaks).
+ * because rendering and Humanus collapse it differently (citations, breaks).
  *
  * "Rendered text" is defined by `inlineLeaves`, which the preview renderer also
  * uses, so offsets computed here are offsets the renderer can split on.
@@ -131,7 +131,7 @@ function blockKey(text: string): string {
   return compact(text).value.replace(/[*_`~]/g, "");
 }
 
-/** Match every Limatus paragraph to a rendered block and place its findings and sentences there. */
+/** Match every Humanus paragraph to a rendered block and place its findings and sentences there. */
 export function planPreview(
   document: MarkusDocument,
   result: EditorialCheckResult,
