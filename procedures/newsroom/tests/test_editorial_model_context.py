@@ -171,3 +171,36 @@ def test_graphql_edit_context_is_reloaded_and_bound_to_backend_publication(monke
     current[0] = context('a', 'UPDATED_RULE')
     second = store.get_editorial_context('a')
     assert first['contextHash'] != second['contextHash'] and len(seen) == 4
+
+
+def test_database_section_update_refreshes_its_classifier_and_selector_without_other_desk_leakage():
+    from procedures.newsroom.tests.test_editorial_context import Records
+    from papyrus_content.editorial_model_context import classification_model, CONTEXT_HASHES
+    from papyrus_content.site_cyclotron import section_fit_classifier_id, section_selector_classifier_id
+    from decision_flywheel import Item
+    from decision_flywheel.classifier_config import ClassifierConfig
+    from decision_flywheel.models import DecisionTask
+    from decision_flywheel.batched_classification import batch_request
+    database = Records()
+    database.endpoint = 'https://example.invalid/graphql'
+    database.records['NewsroomSection']['business'] = {'id': 'business', 'editorialPolicy': 'BUSINESS_ONLY'}
+    requests = []
+    class Capture:
+        async def classify_many(self, configs, target, training, **kwargs):
+            requests.append(batch_request(configs, target, training)[0])
+    model = classification_model(Capture(), database, {'canonicalTopicSet': {'corpusKey': 'example'}},
+                                 [{'id': 'science'}, {'id': 'business'}])
+    source = Item('same-source', {'text': 'Synthetic source'})
+    first = model.prepare(source)
+    database.records['NewsroomSection']['science']['editorialPolicy'] = 'UPDATED_SCIENCE_ONLY'
+    second = model.prepare(source)
+    science, business = section_fit_classifier_id('science'), section_fit_classifier_id('business')
+    selector = section_selector_classifier_id(['science', 'business'])
+    assert first.values[CONTEXT_HASHES][science] != second.values[CONTEXT_HASHES][science]
+    assert first.values[CONTEXT_HASHES][selector] != second.values[CONTEXT_HASHES][selector]
+    assert first.values[CONTEXT_HASHES][business] == second.values[CONTEXT_HASHES][business]
+    config = ClassifierConfig(DecisionTask('decision', ('yes', 'no'), 'Relevant?'))
+    asyncio.run(model.classify_many({science: config, business: config}, second, {science: (), business: ()}))
+    scoped = requests[0]['state']['classifiers']
+    assert 'UPDATED_SCIENCE_ONLY' in scoped[science]['rubric'] and 'BUSINESS_ONLY' not in scoped[science]['rubric']
+    assert 'BUSINESS_ONLY' in scoped[business]['rubric'] and 'UPDATED_SCIENCE_ONLY' not in scoped[business]['rubric']
