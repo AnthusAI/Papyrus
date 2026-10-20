@@ -3,7 +3,7 @@
   "title": "Prime the production relevance cyclotron from a pasted URL",
   "description": "As a production editor, I want to paste a URL and a label into the References view, so that the next relevance sweep primes the running cyclotron with it (Cyclotron add_priming_examples) without a new store. Request channel mirrors the review-rate request: KnowledgeRawPayload kind cyclotron-priming-request.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,18 @@
         "model": "claude-sonnet-5-5",
         "name": "claude-sonnet"
       }
+    },
+    {
+      "id": "4477ce9f-5a90-48d1-a1d9-cd4544279c65",
+      "author": "home",
+      "text": "Done: merged in Papyrus #223 (045551a1), hosted URL priming. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:29.599417Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-17T14:44:56.228186Z",
-  "updated_at": "2026-10-17T16:40:47.179970Z",
-  "closed_at": null,
+  "updated_at": "2026-10-20T14:05:29.641499Z",
+  "closed_at": "2026-10-20T14:05:29.641469Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5",

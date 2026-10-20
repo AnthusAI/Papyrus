@@ -52,10 +52,22 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "7cb0aa4c-5edb-43dc-bf24-1c7f58160cb0",
+      "author": "home",
+      "text": "Still in progress: child PPY-58f107 (Prospectus accounts for the publication BFF) is active; children PPY-2ab626 and PPY-a8471b moved to backlog as stale, PPY-3626cd closed (#213). Next: finish PPY-58f107, then re-scope or close this epic. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:41.647637Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
     }
   ],
   "created_at": "2026-10-15T00:49:28.909448Z",
-  "updated_at": "2026-10-17T06:22:39.709724Z",
+  "updated_at": "2026-10-20T14:05:41.647671Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

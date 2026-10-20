@@ -1,0 +1,33 @@
+{
+  "id": "PPY-0ac4a9da-73c5-4415-a762-ad9640637be2",
+  "title": "Opt-in Google Consent Mode v2 and consent banner in the Markus shell",
+  "description": "Add SiteChrome.consent_mode: region-scoped Consent Mode v2 defaults before the gtag loader, first-party accessible Accept/Reject banner, localStorage persistence with policy version. Opt-in; default output byte-identical. PR #366.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7e390049-3edd-48f8-bff0-21af707512c0",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/366 (branch feature/consent-mode-v2-banner, base develop). Not merged.",
+      "created_at": "2026-10-19T18:49:36.161312Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-19T18:49:28.068342Z",
+  "updated_at": "2026-10-19T18:49:36.161339Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

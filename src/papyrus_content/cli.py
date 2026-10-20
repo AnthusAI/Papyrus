@@ -969,6 +969,11 @@ def references_register_catalog(flags: list[str]) -> None:
     if not options.get("corpus-key"):
         raise ValueError("references create-from-catalog requires --corpus-key <key>.")
     client, _ = create_authoring_client()
+    from .cli_user_auth import user_auth_requested
+    if user_auth_requested():
+        from .reference_intake_cli import register_pending_catalog
+        register_pending_catalog(client, options, apply=apply)
+        return
     result = plan_reference_catalog_registration(client, {**options, "__apply": apply})
     print_reference_registration_summary(result["plan"], result["changes"], apply=apply)
     if not apply:

@@ -10,13 +10,25 @@
   "parent": "PPY-ad3da5e6-16ab-4fa0-be1a-461ad6654713",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e62fdbf2-f5e1-437f-a22b-794812ad09b0",
+      "author": "home",
+      "text": "Still in progress: lifecycle stages and one-card-per-content-item shipped (#243, eab497e3). Remaining: split behaviour and per-site backfill runs (PPY-cfa5ce, backlog). (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:43.137166Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
+    }
+  ],
   "created_at": "2026-10-17T12:40:18.928127Z",
-  "updated_at": "2026-10-17T12:40:20.376065Z",
+  "updated_at": "2026-10-20T14:05:43.137183Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }

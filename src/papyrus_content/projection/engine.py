@@ -118,6 +118,9 @@ def _redirects_for(context: ProjectionContext, site: SiteIndex, state: ItemState
     return {**context.projector.redirects(site), **_moved_redirects(state, live_keys)}
 
 
+REDIRECT_LOOKUP_LIMIT = 10
+
+
 def _apply_redirect_difference(
     context: ProjectionContext, report: ProjectionReport, old: dict[str, str], new: dict[str, str]
 ) -> None:
@@ -147,9 +150,12 @@ def _release_redirects_for_new_pages(context: ProjectionContext, report: Project
     store = context.redirect_store
     if store is None:
         return
-    shadowing = [
-        source for key in sorted(new_keys) for source in request_paths_for_key(key) if store.get(source) is not None
-    ]
+    candidates = [source for key in sorted(new_keys) for source in request_paths_for_key(key)]
+    if len(candidates) > REDIRECT_LOOKUP_LIMIT:
+        present = store.list_all()  # a few list calls cost less than a billed read per path
+        shadowing = [source for source in candidates if source in present]
+    else:
+        shadowing = [source for source in candidates if store.get(source) is not None]
     if shadowing:
         store.delete_all(shadowing)
         report.redirects_deleted += len(shadowing)
@@ -376,8 +382,11 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     _write_item_pages(context, report, rendered, _versions_by_page(context, site))
     _write_listing_pages(context, report, listings, inputs)
     if context.redirect_store is not None and redirects:
-        context.redirect_store.put_all(redirects)
-        report.redirects_written = len(redirects)
+        current = context.redirect_store.list_all()
+        changed = {source: target for source, target in redirects.items() if current.get(source) != target}
+        if changed:
+            context.redirect_store.put_all(changed)
+        report.redirects_written = len(changed)
     if context.keep_state:
         for state in states:
             write_item_state(context.writer, state)

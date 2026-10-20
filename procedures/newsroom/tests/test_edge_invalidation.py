@@ -7,7 +7,6 @@ import unittest
 
 from papyrus_content.edge_invalidation import (
     MAXIMUM_ATTEMPTS,
-    MAXIMUM_PATHS_PER_BATCH,
     WholeSiteInvalidationRefused,
     invalidate_distribution,
 )
@@ -38,14 +37,19 @@ def run(paths, client, sleeps=None):
 
 
 class EdgeInvalidationTests(unittest.TestCase):
-    def test_paths_are_batched_deduplicated_and_counted(self) -> None:
+    def test_paths_are_deduplicated_and_counted(self) -> None:
         client = RecordingCloudFront()
-        paths = [f"/p/{number}.html" for number in range(MAXIMUM_PATHS_PER_BATCH + 10)] + ["/p/0.html"]
-        result, output = run(paths, client)
-        self.assertEqual(len(result), MAXIMUM_PATHS_PER_BATCH + 10)
-        self.assertEqual([call["InvalidationBatch"]["Paths"]["Quantity"] for call in client.calls], [MAXIMUM_PATHS_PER_BATCH, 10])
-        counted = [json.loads(line)["InvalidatedPaths"] for line in output.splitlines()]
-        self.assertEqual(counted, [MAXIMUM_PATHS_PER_BATCH, 10])
+        result, output = run(["/p/1.html", "/p/2.html", "/p/1.html"], client)
+        self.assertEqual(result, ["/p/1.html", "/p/2.html"])
+        self.assertEqual([call["InvalidationBatch"]["Paths"]["Quantity"] for call in client.calls], [2])
+        self.assertEqual([json.loads(line)["InvalidatedPaths"] for line in output.splitlines()], [2])
+
+    def test_many_paths_are_one_counted_wildcard(self) -> None:
+        client = RecordingCloudFront()
+        result, output = run([f"/p/{number}.html" for number in range(600)], client)
+        self.assertEqual(result, ["/*"])
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual([json.loads(line)["InvalidatedPaths"] for line in output.splitlines()], [1])
 
     def test_non_ascii_paths_are_percent_encoded(self) -> None:
         client = RecordingCloudFront()

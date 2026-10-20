@@ -3,7 +3,7 @@
   "title": "Backfill existing items and in-flight work onto content item lineages",
   "description": "Feature: One-time content item backfill\n  Scenario: Existing records join one content item each\n    Given Items without a stage and reporting or copywriting Assignments without itemLineageId\n    When an operator runs papyrus assignments backfill-content-items\n    Then published Items get stage published and other Items get stage copywriting\n    And a drafted reporting candidate adopts its draft's lineage\n    And an undrafted reporting candidate gets a new content item at report or editor_select\n    And copywriting work follows its draft or its reporting candidate\n    And ambiguous cases are reported as warnings instead of guessed",
   "type": "task",
-  "status": "in_progress",
+  "status": "backlog",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -16,17 +16,31 @@
       "author": "unknown",
       "text": "Backfill command merged to develop and main (PR #217, PR #222). Still to do: dry run and real run on each site after its schema deploy.",
       "created_at": "2026-10-17T14:35:37.864647Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "aa9ea370-8d65-4bd2-8b6a-f022666f3726",
+      "author": "home",
+      "text": "Backfill command merged in Papyrus #217 and #222. Remaining per-site dry run and real run after schema deploy are not evidenced. stale: no activity since 2026-10-17; reopen when picked up. (2026-10-20 board triage)",
+      "created_at": "2026-10-20T14:05:37.187746Z",
       "comment_type": "default",
-      "data": {},
-      "agent": null
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "board-reconcile"
+      }
     }
   ],
   "created_at": "2026-10-17T13:31:14.425531Z",
-  "updated_at": "2026-10-17T14:35:37.864784Z",
+  "updated_at": "2026-10-20T14:06:36.338452Z",
   "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "board-reconcile"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }
