@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
@@ -58,6 +59,52 @@ class Services:
     def limatus_kwargs(self, name: str) -> dict[str, Any]:
         value = getattr(self, name)
         return {} if value is _DEFAULT else {name: value}
+
+
+# --- provider keys ------------------------------------------------------------------
+
+PROVIDER_KEYS = ("TYPESAFE_API_KEY", "OPENAI_API_KEY")
+
+
+def load_provider_keys(
+    env: Any = None,
+    *,
+    read_parameter: Callable[[str], str] | None = None,
+) -> None:
+    """Put the real provider keys into the environment Limatus reads.
+
+    Amplify hands a Python function each secret() as a placeholder plus an
+    AMPLIFY_SSM_ENV_CONFIG map of SSM paths; only Node functions resolve them
+    automatically. A key that cannot be resolved is removed, so its lane
+    reports "not configured" instead of sending the placeholder to a provider.
+    """
+    from .amplify_ssm_secrets import _is_amplify_secret_placeholder, _read_ssm_secret
+
+    env = os.environ if env is None else env
+    read = read_parameter or _read_ssm_secret
+    try:
+        config = json.loads(env.get("AMPLIFY_SSM_ENV_CONFIG") or "{}")
+    except json.JSONDecodeError:
+        config = {}
+    for name in PROVIDER_KEYS:
+        current = (env.get(name) or "").strip()
+        if current and not _is_amplify_secret_placeholder(current):
+            continue
+        entry = config.get(name) if isinstance(config, dict) else None
+        resolved = None
+        for path in ((entry or {}).get("path"), (entry or {}).get("sharedPath")):
+            if not path:
+                continue
+            try:
+                resolved = (read(path) or "").strip() or None
+            except Exception:
+                resolved = None
+            if resolved:
+                break
+        if resolved:
+            env[name] = resolved
+        else:
+            env.pop(name, None)
 
 
 # --- records ----------------------------------------------------------------------
