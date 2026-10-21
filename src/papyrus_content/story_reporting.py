@@ -104,6 +104,11 @@ def save_story_version(
     )
     envelope = _derive_or_raise(fields.front_matter_yaml, fields.body_markus)
     columns = columns_from_front_matter(_load_front_matter(fields.front_matter_yaml))
+    for key in ("title", "headline"):
+        if not columns.get(key):
+            carried = next((row.get(key) for row in versions if row.get(key)), None)
+            if carried:
+                columns[key] = carried
     metadata = json.loads(latest.get("metadata") or "{}") if isinstance(latest.get("metadata"), str) else dict(latest.get("metadata") or {})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     record = {
