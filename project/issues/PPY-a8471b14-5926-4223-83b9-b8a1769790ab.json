@@ -3,7 +3,7 @@
   "title": "Review editorial work and reference priming in one newsroom",
   "description": "Feature: Unified Papyrus review\nScenario: Advance editorial work\nGiven an explicitly synthetic newsroom backed by Kanbus\nWhen I open the board, select a story, and advance its stage\nThen the actual Kanbus service persists the change across reload\nScenario: Curate representative examples\nGiven the References view shares the same newsroom navigation\nWhen I preview, revise, label, and accept a synthetic reference\nThen the actual Cyclotron priming service stores the example and human labels\nScenario: Safe LAN review\nGiven the preview is reachable on the private LAN\nWhen a cross-origin write or real source URL is submitted\nThen it is refused and no production system is contacted\n\n## Current next-step plan — 2026-10-17\n\nPriority 1: complete the hosted Cyclotron priming workflow inside Papyrus. Reuse existing Biblicus/Papyrus paper and web curation rather than introducing a second ingestion path. A user pastes a permitted URL, reviews the extracted material, chooses publish or reject, optionally explains the choice, saves, reloads, and can prove that the selected classifier consumes the accepted example. A visible saved card alone is not classifier-consumption evidence.\n\nFeature: Hosted reference priming\n  Scenario: Save a published example and consume it after reload\n    Given an authorized publication and a supported paper or web URL\n    When the editor curates it, chooses publish, optionally explains, saves and reloads\n    Then canonical source content and the human label remain in the selected account/publication\n    And the next classifier decision exposes the accepted example ID and priming count/context provenance\n  Scenario: Reject or retry without creating a false positive\n    Given a candidate and an optional blank explanation\n    When the editor rejects it or a save fails and is explicitly retried\n    Then the recorded choice survives reload without duplicate examples\n    And rejected or uncommitted candidates do not silently become positive accepted examples\n  Scenario: Deny cross-scope and revoked access\n    Given a missing/revoked grant or an account/publication change during a request\n    When a save or classifier operation is attempted\n    Then authorization is rechecked and stale/cross-scope data is not read or written\n\nRun equivalent observable scenarios in embedded deployment-local and remote central multi-publication modes using the same shared UI. Cloud content is canonical text/files in S3; DynamoDB is a rebuildable scoped catalog. Local SQLite remains supported; no always-on SQLite cloud service. Preserve existing canonical IDs, revision/conflict and replay semantics. Dependency order: shared release/tag and consumer lock/pins; Papyrus PR213 required checks/review; real account/publication BFF and approved storage/runtime scope; then hosted save/reload/classifier evidence. No paid calls during documentation; any later live-model acceptance uses its separately approved budget.\n\nThis hosted acceptance extends the historical synthetic/LAN review in the original description. Preserve those preview results without treating them as production. Papyrus PR213 https://github.com/AnthusAI/Papyrus/pull/213 is OPEN/DRAFT at a7c4d1d7ec701d00b1f97eca4365756869248b31; smoke SUCCESS, ts and python FAILURE. The local8930 preview and optional explanation repair5eb5ca6 are source evidence only. Required checks must be repaired/reviewed before integration; no production acceptance is inferred.\n\nAuthority: Ryan requested this plan as the permanent Kanbus record. This action updates documentation only. The desired product outcomes are requested priorities, not claims of implementation or hosted acceptance. Existing implementation owners retain their approvals; recommendations needing further scope, release, permission or migration direction stay explicitly gated. No feature code, deployment, paid call, permission change or unrelated merge is performed here.",
   "type": "story",
-  "status": "backlog",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -69,11 +69,18 @@
         "model": "claude-sonnet-5-5",
         "name": "board-reconcile"
       }
+    },
+    {
+      "id": "011d17a8-7f7b-46a0-be1c-4a566ba423b3",
+      "author": "home",
+      "text": "Superseded (2026-10-20, Ryan's decision): Cyclotron priming moved to the Cyclotron implementation session, and this branch is mostly that priming review UI plus a LAN preview harness. The branch feature/PPY-a8471b-unified-newsroom-review (local only, worktree ~/Documents/Codex/2026-10-14/task-2/papyrus-unified) was handed to that session as reference. Not rebasing it; develop has moved ~486 commits since.",
+      "created_at": "2026-10-21T02:41:59.855272Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-15T00:50:25.185137Z",
-  "updated_at": "2026-10-20T18:43:08.822641Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T02:42:03.987666Z",
+  "closed_at": "2026-10-21T02:42:03.987594Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6.1-sol",
