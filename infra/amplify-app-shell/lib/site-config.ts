@@ -53,6 +53,7 @@ export type AmplifyAppShellSiteConfig = {
   frontend: "pretext" | "markus-static";
   hostedZoneId?: string;
   stackName?: string;
+  aws?: SiteAwsConfig;
   cms?: CmsConfig;
   reader?: {
     appName?: string;
@@ -89,6 +90,17 @@ export type AmplifyAppShellSiteConfig = {
     ownerId?: number;
     repoId?: number;
   };
+};
+
+/**
+ * Where the site's AWS resources live, for operator tooling (`papyrus site google-secrets`). Not read by the
+ * stack: the deploy account comes from the CDK environment. `accountId` is what the CLI asserts with STS
+ * before it writes anything.
+ */
+export type SiteAwsConfig = {
+  profile?: string;
+  accountId?: string;
+  region?: string;
 };
 
 export type CmsSiteConfig = AmplifyAppShellSiteConfig & { cms: CmsConfig };
@@ -426,11 +438,22 @@ function validateOauthRedirectUrls(config: CmsSiteConfig): void {
   }
 }
 
+function parseAws(value: unknown): SiteAwsConfig | undefined {
+  if (value === undefined) return undefined;
+  const record = requireObject(value, "aws");
+  rejectUnknownKeys(record, ["profile", "accountId", "region"], "aws");
+  return {
+    profile: optionalString(record.profile, "aws.profile", /^[A-Za-z0-9_.-]+$/, "AWS CLI profile name"),
+    accountId: optionalString(record.accountId, "aws.accountId", /^\d{12}$/, "12-digit account id"),
+    region: optionalString(record.region, "aws.region", /^[a-z]{2}(-[a-z]+)+-\d$/, "AWS region such as us-east-1"),
+  };
+}
+
 export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "autoDeploy", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "autoDeploy", "github"],
     "site",
   );
 
@@ -446,6 +469,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   }
   const hostedZoneId = optionalString(record.hostedZoneId, "hostedZoneId", HOSTED_ZONE_ID_PATTERN, "Route 53 zone id");
   const stackName = optionalString(record.stackName, "stackName", STACK_NAME_PATTERN, "CloudFormation stack name");
+  const aws = parseAws(record.aws);
   const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
@@ -537,6 +561,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     frontend,
     hostedZoneId,
     stackName,
+    aws,
     cms,
     reader,
     papyrusVersion,

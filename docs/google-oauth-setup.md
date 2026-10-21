@@ -224,40 +224,25 @@ The two secrets are `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. They must be
 Amplify backend secrets, because the backend reads them with `secret(...)` at
 build time. Without them the backend build fails.
 
-Console path (per app, one time): AWS Amplify, the app, **Hosting**, **Secrets**,
-**Manage secrets**, add both names for branch `main` (or all branches), save,
-then run a new build. The values come from the Google OAuth client; they never
-go into git, `site.json` or branch environment variables.
-
-Under the hood they are SSM SecureStrings:
-
-```text
-/amplify/<appId>/<branch>/GOOGLE_CLIENT_ID
-/amplify/<appId>/<branch>/GOOGLE_CLIENT_SECRET
-```
-
-Shell alternative for an app whose backend stack already exists (Pilobolus' old
-CMS, `appId=d11eu9hbs2mipk`, `hash=3c5f57c311`; the path uses the stack hash):
+Standard way, from the site repository (per app, one time, and again whenever the client changes):
 
 ```bash
-APP_ID=d11eu9hbs2mipk
-HASH=3c5f57c311
-PREFIX=/amplify/$APP_ID/main-branch-$HASH
-
-aws ssm put-parameter \
-  --name "$PREFIX/GOOGLE_CLIENT_ID" \
-  --value "<paste-client-id-from-google>" \
-  --type SecureString \
-  --region us-east-1 \
-  --overwrite
-
-aws ssm put-parameter \
-  --name "$PREFIX/GOOGLE_CLIENT_SECRET" \
-  --value "<paste-client-secret-from-google>" \
-  --type SecureString \
-  --region us-east-1 \
-  --overwrite
+papyrus site google-secrets set      # client id (visible prompt), secret (hidden prompt)
+papyrus site google-secrets check    # after the redeploy: parameters, fingerprints, deployed client id
 ```
+
+`set` reads `infra/site.json`, asserts the AWS account with STS before it writes anything (the expected account is `--account` or `aws.accountId` in `site.json`), finds the CMS app from the stack's `CmsAppId` output (or by app name), computes the SSM path below, writes both SecureStrings and confirms by fingerprint only. It prints the Authorized JavaScript origin and redirect URI to register in Google and the redeploy step. Flags: `--site`, `--profile`, `--account`, `--region`, `--app-id`, `--branch`, `--client-id`, `--secret-stdin`. It does not enable or disable Google OAuth (`PAPYRUS_DISABLE_GOOGLE_OAUTH` is separate).
+
+Console alternative: AWS Amplify, the app, **Hosting**, **Secrets**, **Manage secrets**, add both names for branch `main`, save, then run a new build. The values come from the Google OAuth client; they never go into git, `site.json` or branch environment variables.
+
+Under the hood they are SSM SecureStrings, where `<hash>` is the first 10 hex digits of `sha512(appId + branch)`:
+
+```text
+/amplify/<appId>/<branch>-branch-<hash>/GOOGLE_CLIENT_ID
+/amplify/<appId>/<branch>-branch-<hash>/GOOGLE_CLIENT_SECRET
+```
+
+Do not hand-write `aws ssm put-parameter` with the secret on the command line: it lands in shell history. If you must, use `--cli-input-json` from a file you delete.
 
 Never commit these values to git.
 

@@ -130,3 +130,16 @@ page heights, section splits, or image variant scores.
 `papyrus stories create --title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment]` mints a content item at the chosen stage (default `idea`) without opening an Assignment; `--with-assignment` also opens the `reporting.candidate` Assignment on it (the same path as `papyrus reporting create`). `reporting create`, `research create` and the `run` commands resolve the corpus from the backend's canonical publication corpus when `--corpus-key` is omitted (`papyrus publication init` creates it on a fresh backend).
 
 Every command group prints its own subcommands for `papyrus <group>` and `papyrus <group> --help`.
+
+## Site commands
+
+`papyrus site <command>` runs from a site repository (the one with `infra/site.json`), not from the Papyrus checkout.
+
+`papyrus site google-secrets set|check [--site PATH] [--profile NAME] [--account ID] [--region R] [--app-id ID] [--branch NAME]` manages the CMS app's Google OAuth client id and secret, the Amplify secrets that `amplify/auth/resource.ts` reads with `secret("GOOGLE_CLIENT_ID")` and `secret("GOOGLE_CLIENT_SECRET")`.
+
+- `set` asserts the AWS account with STS (refusing on a mismatch, before any write), prompts for the client id (visible) and the secret (hidden), or takes `--client-id ID` plus `--secret-stdin` for automation. There is no `--secret` argument. It writes SSM SecureStrings at `/amplify/<appId>/<branch>-branch-<hash>/GOOGLE_CLIENT_ID` and `.../GOOGLE_CLIENT_SECRET`, confirms by fingerprint, and prints the Google Cloud Console origin and `/oauth2/idpresponse` redirect URI and the redeploy step.
+- `check` reports whether both parameters exist (last modified, fingerprint), whether the deployed Cognito Google provider uses the same client id (fingerprint compare), the state of `PAPYRUS_DISABLE_GOOGLE_OAUTH` on the branch, and the URIs to register. It exits 1 when anything is missing or different. No value is ever printed.
+- Account, profile and region come from the flags, then the optional `aws` block of `infra/site.json` (`profile`, `accountId`, `region`), then `AWS_PROFILE` / `AWS_REGION`. An expected account is mandatory.
+- It never enables or disables Google OAuth.
+
+Walkthrough: [site-hosting.md](site-hosting.md#google-sign-in). Executable spec: `procedures/newsroom/tests/test_site_google_secrets.py`.

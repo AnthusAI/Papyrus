@@ -321,6 +321,13 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             print_group_help(group)
             return 0
         return _map_knowledge(command, flags)
+    if group == "site":
+        if command is None:
+            print_group_help(group)
+            return 0
+        from papyrus.operator.site_google_secrets import site_command
+
+        return site_command(command, flags)
     if group == "help":
         _usage()
         return 0

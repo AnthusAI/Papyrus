@@ -22,6 +22,7 @@ Operator groups:
   videos        Video pipeline commands
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
+  site          Site repository operations (site google-secrets set|check)
   batch         Batch registration and enrichment
   login         Google newsroom sign-in using a configured native OAuth client
   logout        Remove the local user session and attempt provider revocation
