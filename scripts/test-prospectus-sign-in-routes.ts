@@ -62,7 +62,7 @@ function prospectusRuntime(responses: Record<string, unknown>) {
 }
 
 function routeOptions(runtime: ProspectusSignInRuntime | null, extra: Partial<ProspectusSignInRouteOptions> = {}): ProspectusSignInRouteOptions {
-  return { resolveRuntime: async () => runtime, nowInSeconds: () => nowInSeconds, siteProduct: "papyrus-p-apyr-us", ...extra };
+  return { resolveRuntime: async () => runtime, nowInSeconds: () => nowInSeconds, siteProduct: "papyrus-p-apyr-us", environment: { PAPYRUS_SITE_ORIGIN: siteOrigin }, ...extra };
 }
 
 function cognitoTokenEndpoint(tokenBody: Record<string, unknown>) {
@@ -491,11 +491,86 @@ function googleOnlyClientTests() {
   assert.throws(() => addProspectusGoogleOnlyClient(new Stack(app, "Empty"), userPool, ["not a url"]), /at least one site origin/);
 }
 
+// Amplify SSR WEB_COMPUTE: the request URL is the compute adapter's internal origin, never the public host.
+const computeAdapterOrigin = "https://localhost:3000";
+
+function computeRequest(path: string, method = "GET", headers: Record<string, string> = {}, body?: unknown): NextRequest {
+  return new NextRequest(new URL(path, computeAdapterOrigin), { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+}
+
+async function publicSiteOriginTests() {
+  const environment = { PAPYRUS_SITE_ORIGIN: siteOrigin, SITE_ENV: "production" };
+  const { runtime } = prospectusRuntime({ "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 } });
+  let resolvedFor: string | null = null;
+  const resolveRuntime = async (origin: string) => { resolvedFor = origin; return runtime; };
+
+  const start = await handleProspectusSignInStart(computeRequest("/api/auth/prospectus/sign-in"), { ...routeOptions(runtime), resolveRuntime, environment });
+  assert.equal(start.status, 303);
+  assert.equal(resolvedFor, siteOrigin, "behind the compute adapter the runtime resolves for the public origin");
+  assert.equal(new URL(start.headers.get("location")!).searchParams.get("redirect_uri"), "https://p.apyr.us/api/auth/prospectus/callback", "the redirect_uri is public, not localhost");
+
+  const signOut = await handleProspectusSignOut(computeRequest("/api/auth/prospectus/sign-out", "POST"), { ...routeOptions(null), environment });
+  assert.equal(signOut.headers.get("location"), "https://p.apyr.us/", "signed-out redirect is public when sign-in is unavailable");
+  const signedOut = await handleProspectusSignOut(computeRequest("/api/auth/prospectus/sign-out", "POST"), { ...routeOptions(runtime), environment });
+  assert.equal(new URL(signedOut.headers.get("location")!).searchParams.get("logout_uri"), "https://p.apyr.us/", "logout_uri is public");
+
+  const body = { accountId: "account-1" };
+  const withOrigin = (origin: string) => computeRequest("/api/auth/prospectus/selection", "POST", { "content-type": "application/json", origin }, body);
+  assert.equal((await handleProspectusAccountSelection(withOrigin(siteOrigin), { ...routeOptions(runtime), environment })).status, 401, "the public Origin passes the same-origin check (then needs a session)");
+  for (const rejected of [computeAdapterOrigin, "https://evil.example", "http://p.apyr.us"]) {
+    assert.equal((await handleProspectusAccountSelection(withOrigin(rejected), { ...routeOptions(runtime), environment })).status, 403, `selection rejects Origin ${rejected}`);
+    const creation = computeRequest("/api/auth/prospectus/accounts", "POST", { "content-type": "application/json", origin: rejected }, { name: "x" });
+    assert.equal((await handleProspectusPublishingAccountCreation(creation, { ...routeOptions(runtime), environment })).status, 403, `creation rejects Origin ${rejected}`);
+  }
+  const creation = computeRequest("/api/auth/prospectus/accounts", "POST", { "content-type": "application/json", origin: siteOrigin }, { name: "x" });
+  assert.equal((await handleProspectusPublishingAccountCreation(creation, { ...routeOptions(runtime), environment })).status, 401, "creation accepts the public Origin");
+}
+
+async function siteOriginFailsClosedTests() {
+  const { runtime } = prospectusRuntime({ "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 } });
+  for (const environment of [{ SITE_ENV: "production" }, { SITE_ENV: "staging" }, { PAPYRUS_SITE_ORIGIN: "http://p.apyr.us" }, { PAPYRUS_SITE_ORIGIN: "https://p.apyr.us/path" }, { PAPYRUS_SITE_ORIGIN: "https://p.apyr.us/" }, { PAPYRUS_SITE_ORIGIN: "p.apyr.us" }]) {
+    const options = { ...routeOptions(runtime), environment };
+    const label = JSON.stringify(environment);
+    const start = await handleProspectusSignInStart(computeRequest("/api/auth/prospectus/sign-in"), options);
+    assert.equal(start.status, 503, `${label}: sign-in fails closed`);
+    assert.equal(start.headers.get("location"), null, `${label}: never redirects to localhost`);
+    assert.equal((await start.json()).error, "site_origin_not_configured");
+    assert.equal((await handleProspectusSignOut(computeRequest("/api/auth/prospectus/sign-out", "POST"), options)).status, 503, `${label}: sign-out fails closed`);
+    assert.equal((await handleProspectusSessionRead(computeRequest("/api/auth/prospectus/session"), options)).status, 503, `${label}: session read fails closed`);
+    const selection = computeRequest("/api/auth/prospectus/selection", "POST", { "content-type": "application/json", origin: computeAdapterOrigin }, {});
+    assert.equal((await handleProspectusAccountSelection(selection, options)).status, 503, `${label}: localhost Origin is not accepted`);
+  }
+  // Host and forwarding headers are never trusted.
+  const spoofed = computeRequest("/api/auth/prospectus/sign-in", "GET", { host: "evil.example", "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" });
+  assert.equal((await handleProspectusSignInStart(spoofed, { ...routeOptions(runtime), environment: { SITE_ENV: "production" } })).status, 503);
+  const configured = await handleProspectusSignInStart(spoofed, { ...routeOptions(runtime), environment: { PAPYRUS_SITE_ORIGIN: siteOrigin } });
+  assert.equal(new URL(configured.headers.get("location")!).searchParams.get("redirect_uri"), "https://p.apyr.us/api/auth/prospectus/callback", "forwarded headers do not change the origin");
+}
+
+async function loopbackDevelopmentFallbackTests() {
+  const { runtime } = prospectusRuntime({ "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 } });
+  let resolvedFor: string | null = null;
+  const resolveRuntime = async (origin: string) => { resolvedFor = origin; return runtime; };
+  for (const [origin, environment] of [["http://localhost:3001", {}], ["http://127.0.0.1:3001", { SITE_ENV: "development" }], ["http://[::1]:3001", {}]] as const) {
+    const start = await handleProspectusSignInStart(new NextRequest(new URL("/api/auth/prospectus/sign-in", origin)), { ...routeOptions(runtime), resolveRuntime, environment });
+    assert.equal(start.status, 303, `${origin}: local development still starts sign-in`);
+    const requestOrigin = new NextRequest(new URL("/", origin)).nextUrl.origin; // Next normalizes 127.0.0.1 to localhost
+    assert.equal(resolvedFor, requestOrigin, "the loopback request origin is used");
+    const selection = new NextRequest(new URL("/api/auth/prospectus/selection", origin), { method: "POST", headers: { "content-type": "application/json", origin: requestOrigin }, body: "{}" });
+    assert.equal((await handleProspectusAccountSelection(selection, { ...routeOptions(runtime), environment })).status, 401, `${origin}: same-origin check passes locally`);
+  }
+  const lookalike = new NextRequest(new URL("/api/auth/prospectus/sign-in", "https://localhost.evil.example"));
+  assert.equal((await handleProspectusSignInStart(lookalike, { ...routeOptions(runtime), environment: {} })).status, 503, "a non-loopback host never falls back");
+}
+
 async function main() {
   sealedCookieTests();
   returnPathTests();
   await configurationTests();
   await signInRouteTests();
+  await publicSiteOriginTests();
+  await siteOriginFailsClosedTests();
+  await loopbackDevelopmentFallbackTests();
   publicationAccessTests();
   googleOnlyClientTests();
   console.log("prospectus sign-in routes: ok");

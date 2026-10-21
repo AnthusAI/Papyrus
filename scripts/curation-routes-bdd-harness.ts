@@ -25,6 +25,7 @@ const options = {
   upstreamUrl: `http://127.0.0.1:${port}`,
   publicationId: PUBLICATION_ID,
   siteProduct: "papyrus-synthetic",
+  environment: { PAPYRUS_SITE_ORIGIN: origin },
   resolveRuntime: async () => ({
     accounts: new ProspectusSiteAccounts(async (request) => {
       if (request.path === "/v1/account-directory") return { person, accounts: [{ id: account, name: "A", role, products: [{ product: "papyrus-synthetic", status: "active" }] }] };

@@ -143,7 +143,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_SITE_ORIGIN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -376,7 +376,7 @@ function parseCms(value: unknown): CmsConfig {
   }
   for (const key of TEMPLATE_MANAGED_ENVIRONMENT_KEYS) {
     if (key in cms.environment) {
-      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn");
+      fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn and the public site origin comes from the site host");
     }
   }
 

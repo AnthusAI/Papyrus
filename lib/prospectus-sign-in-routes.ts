@@ -25,6 +25,7 @@ import {
   publishingAccountsForSite,
   type PublicationCapability,
 } from "./prospectus-publication-access";
+import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfiguredResponse } from "./site-origin";
 
 /**
  * The site's sign-in routes for Prospectus accounts: start (challenge, then the
@@ -38,6 +39,8 @@ export interface ProspectusSignInRouteOptions {
   siteProduct?: string | null;
   completionOverrides?: Pick<CompleteProspectusGoogleSignInInput, "verifyCognitoTokens" | "fetcher">;
   nowInSeconds?: () => number;
+  /** Trusted configuration the public site origin is read from; defaults to process.env. */
+  environment?: Record<string, string | undefined>;
 }
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" };
@@ -50,8 +53,22 @@ function currentTimeInSeconds(options: ProspectusSignInRouteOptions): number {
   return options.nowInSeconds?.() ?? Math.floor(Date.now() / 1000);
 }
 
+function siteOriginFor(request: NextRequest, options: ProspectusSignInRouteOptions): string {
+  return publicSiteOrigin(request, options.environment);
+}
+
 async function signInRuntimeFor(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<ProspectusSignInRuntime | null> {
-  return (options.resolveRuntime ?? resolveProspectusSignInRuntime)(request.nextUrl.origin);
+  return (options.resolveRuntime ?? resolveProspectusSignInRuntime)(siteOriginFor(request, options));
+}
+
+/** Runs a route and answers a missing site origin with 503 site_origin_not_configured, never a localhost redirect. */
+async function failingClosedWithoutSiteOrigin(route: () => Promise<NextResponse>): Promise<NextResponse> {
+  try {
+    return await route();
+  } catch (error) {
+    if (error instanceof SiteOriginNotConfiguredError) return siteOriginNotConfiguredResponse(error);
+    throw error;
+  }
 }
 
 function signInUnavailableResponse(): NextResponse {
@@ -82,7 +99,11 @@ export function signedInProspectusSession(
   );
 }
 
-export async function handleProspectusSignInStart(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+export function handleProspectusSignInStart(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  return failingClosedWithoutSiteOrigin(() => handleProspectusSignInStartRoute(request, options));
+}
+
+async function handleProspectusSignInStartRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
   const { authorizationUrl, pendingSignIn } = await beginProspectusGoogleSignIn(runtime.accounts, runtime.cognitoClient);
@@ -99,7 +120,11 @@ export async function handleProspectusSignInStart(request: NextRequest, options:
   return response;
 }
 
-export async function handleProspectusSignInCallback(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+export function handleProspectusSignInCallback(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  return failingClosedWithoutSiteOrigin(() => handleProspectusSignInCallbackRoute(request, options));
+}
+
+async function handleProspectusSignInCallbackRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
   const nowInSeconds = currentTimeInSeconds(options);
@@ -142,7 +167,7 @@ async function completeCallback(
       accessToken: signedIn.accessToken,
       accessTokenExpiresAt: signedIn.accessTokenExpiresAt,
     };
-    const response = NextResponse.redirect(new URL(pendingSignIn.returnPath, request.nextUrl.origin), { status: 303, headers: NO_STORE_HEADERS });
+    const response = NextResponse.redirect(new URL(pendingSignIn.returnPath, siteOriginFor(request, options)), { status: 303, headers: NO_STORE_HEADERS });
     response.cookies.set(
       PROSPECTUS_SESSION_COOKIE,
       sealProspectusCookie(runtime.sealingSecret, PROSPECTUS_SESSION_COOKIE, session, session.accessTokenExpiresAt),
@@ -156,7 +181,11 @@ async function completeCallback(
   }
 }
 
-export async function handleProspectusSessionRead(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+export function handleProspectusSessionRead(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  return failingClosedWithoutSiteOrigin(() => handleProspectusSessionReadRoute(request, options));
+}
+
+async function handleProspectusSessionReadRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
   const session = signedInProspectusSession(request, runtime.sealingSecret, currentTimeInSeconds(options));
@@ -196,9 +225,13 @@ export async function handleProspectusSessionRead(request: NextRequest, options:
   }
 }
 
-export async function handleProspectusSignOut(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+export function handleProspectusSignOut(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  return failingClosedWithoutSiteOrigin(() => handleProspectusSignOutRoute(request, options));
+}
+
+async function handleProspectusSignOutRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
-  const signedOutDestination = new URL("/", request.nextUrl.origin);
+  const signedOutDestination = new URL("/", siteOriginFor(request, options));
   const destination = runtime
     ? new URL(
       `/logout?${new URLSearchParams({ client_id: runtime.cognitoClient.clientId, logout_uri: signedOutDestination.toString() })}`,
@@ -250,10 +283,14 @@ export async function currentProspectusPublishingSelection(
   }
 }
 
-export async function handleProspectusAccountSelection(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+export function handleProspectusAccountSelection(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  return failingClosedWithoutSiteOrigin(() => handleProspectusAccountSelectionRoute(request, options));
+}
+
+async function handleProspectusAccountSelectionRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (request.headers.get("origin") !== siteOriginFor(request, options)) {
     return signInFailedResponse(403, "cross_origin_selection", "Choose an account from this site.");
   }
   const nowInSeconds = currentTimeInSeconds(options);
@@ -287,10 +324,14 @@ const MAXIMUM_PUBLISHING_ACCOUNT_NAME_LENGTH = 150;
 const DEFAULT_PUBLISHING_ACCOUNT_NAME = "Publishing account";
 const IDEMPOTENCY_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function handleProspectusPublishingAccountCreation(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+export function handleProspectusPublishingAccountCreation(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
+  return failingClosedWithoutSiteOrigin(() => handleProspectusPublishingAccountCreationRoute(request, options));
+}
+
+async function handleProspectusPublishingAccountCreationRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (request.headers.get("origin") !== siteOriginFor(request, options)) {
     return signInFailedResponse(403, "cross_origin_creation", "Create an account from this site.");
   }
   const nowInSeconds = currentTimeInSeconds(options);

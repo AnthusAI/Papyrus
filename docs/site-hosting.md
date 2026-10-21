@@ -572,6 +572,15 @@ aws ssm put-parameter --region us-east-1 --name "/papyrus/<siteId>/revalidate-se
   --type SecureString --overwrite --value "$(openssl rand -hex 32)"
 ```
 
+`PAPYRUS_SITE_ORIGIN` (an https origin with no path, such as `https://p.apyr.us`) is the
+site's public origin for the Prospectus sign-in `redirect_uri`, redirects, and Origin checks
+(`lib/site-origin.ts`). It is needed because `request.nextUrl.origin` is the compute adapter's
+internal `https://localhost:3000` on Amplify. The app shell sets it from the site's host; a
+hand-written `amplify.yml` must export it (`-e '^PAPYRUS_SITE_ORIGIN='`, as the root
+`amplify.yml` and `docs/hosting/amplify-ssr.yml.example` do). It never comes from request
+headers. Unset, the routes answer `503 site_origin_not_configured`, except under `next dev`
+(SITE_ENV development, NODE_ENV not production) on a loopback host, which uses the request origin.
+
 Moving a site off the old Secrets Manager sealing secret (`ProspectusSessionSealingSecret`,
 variable `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN`) is a one-time sign-out: there is no
 dual-read. Deploy the stack with the old secret set to `RemovalPolicy.RETAIN` first, then

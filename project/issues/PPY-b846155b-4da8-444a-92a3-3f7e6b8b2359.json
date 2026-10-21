@@ -1,0 +1,24 @@
+{
+  "id": "PPY-b846155b-4da8-444a-92a3-3f7e6b8b2359",
+  "title": "Amplify SSR uses localhost:3000 as the site origin: Prospectus sign-in and same-origin checks break",
+  "description": "request.nextUrl.origin is https://localhost:3000 on Amplify WEB_COMPUTE. Sign-in redirect_uri, redirects, runtime site origin and Origin checks (lib/curation-routes.ts, lib/prospectus-sign-in-routes.ts) all use it. Fix: PAPYRUS_SITE_ORIGIN from trusted config via one helper (never from request headers); loopback dev fallback only when SITE_ENV is development; fail closed (503 site_origin_not_configured) otherwise; IaC sets it from the site host.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T19:02:30.791052Z",
+  "updated_at": "2026-10-21T19:02:30.791133Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

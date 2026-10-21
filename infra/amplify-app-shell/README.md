@@ -68,6 +68,14 @@ Google-only Cognito client for that registration comes from the Amplify backend
 (`custom.prospectusSignIn.clientId` in `amplify_outputs.json`); the sign-in routes
 are under `/api/auth/prospectus/`.
 
+The template also sets `PAPYRUS_SITE_ORIGIN` on every CMS branch (rejected in
+`cms.environment`) from the site's host: `https://<cms host>` in production, the staging
+host on staging, or the Amplify default domain when no custom domain is set. On Amplify
+SSR (`WEB_COMPUTE`) `request.nextUrl.origin` is the adapter's `https://localhost:3000`, so
+the sign-in redirect URI, post-sign-in and sign-out redirects and same-origin checks read
+the public origin from this variable (`lib/site-origin.ts`) and never from Host or
+`X-Forwarded-*`. The build spec's `PAPYRUS_` capture carries it into `.env.production`.
+
 Host under a shared root domain: when the root domain (for example `anth.us`) is
 also associated with another Amplify app, set `cms.domainName` to the ROOT domain,
 `cms.domainPrefix` to the host's label and `cms.stagingDomainPrefix` to an explicit
