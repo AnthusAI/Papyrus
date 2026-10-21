@@ -278,7 +278,7 @@ without an entry stays empty. The site build produces the file (for example by r
 ## Header and footer options
 
 **Brand.** `nav.brandHtml` is trusted markup (a logo and a word) placed inside the wordmark link instead of the site
-name; the link keeps `aria-label="<site name>, home"`. Without it the wordmark is the escaped site name as before.
+name (the wordmark is then a `div`, so the markup may hold paragraphs); the link keeps `aria-label="<site name>, home"`. Without it the wordmark is the escaped site name as before.
 
 **Links.** `nav.links[].external: true` adds `rel="noopener"` (the target is not changed). A link with `children:
 [{label, href, external}]` and no `href` renders a group:

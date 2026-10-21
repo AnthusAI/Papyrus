@@ -70,9 +70,11 @@ def masthead(
     brand = (
         f'<a href="/" aria-label="{esc(site_name)}, home">{brand_html}</a>' if brand_html else f'<a href="/">{esc(site_name)}</a>'
     )
+    # A brand the site supplies may hold block elements (a lockup of paragraphs), which a <p> cannot contain.
+    wordmark = "div" if brand_html else "p"
     return (
         '  <header class="markus-site-masthead">\n'
-        f'    <p class="markus-site-wordmark">{brand}</p>{tag}\n'
+        f'    <{wordmark} class="markus-site-wordmark">{brand}</{wordmark}>{tag}\n'
         f"    {nav(links, current_path, disclosure=disclosure)}\n"
         "  </header>"
     )

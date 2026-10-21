@@ -357,7 +357,7 @@ def project_home(raw: dict) -> str:
 
 def test_brand_html_goes_inside_the_wordmark_link_which_keeps_its_label():
     page = project_home(nav_settings(brandHtml='<svg role="img"></svg><span>Example</span>'))
-    assert '<p class="markus-site-wordmark"><a href="/" aria-label="Example Site, home"><svg role="img"></svg><span>Example</span></a></p>' in page
+    assert '<div class="markus-site-wordmark"><a href="/" aria-label="Example Site, home"><svg role="img"></svg><span>Example</span></a></div>' in page
 
 
 def test_without_brand_html_the_wordmark_is_the_plain_name():
