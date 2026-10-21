@@ -841,7 +841,7 @@ def test_a_form_with_an_endpoint_has_labelled_fields_a_honeypot_and_the_submit_s
     try:
         page = site.text("contact/index.html")
         dom = Dom(page)
-        assert dom.find("form", **{"data-papyrus-form": "contact", "data-endpoint": "https://forms.example.org/intake"})
+        assert dom.find("form", **{"data-papyrus-form": "contact", "data-endpoint": "https://forms.example.org/intake?form=contact"})
         for field in ("topic", "name", "email", "message"):
             assert f'<label for="form-contact-{field}">' in page
         assert dom.find("input", name="email", type="email", required=None, autocomplete="email")

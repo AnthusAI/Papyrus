@@ -1,0 +1,25 @@
+{
+  "id": "PPY-9fc6dae2-8d14-4a98-8fdb-ff9206421d63",
+  "title": "CLI parity: publish projects s3-projection sites; stories set-slug",
+  "description": "papyrus ops content publish/unpublish/import-markus now schedule the newsroom's projection task on s3-projection sites (--no-trigger prints a skip line); new papyrus stories set-slug renames a draft slug. PR #441.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T08:01:39.569230Z",
+  "updated_at": "2026-10-21T08:01:41.390189Z",
+  "closed_at": "2026-10-21T08:01:41.390155Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "cli-publish"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

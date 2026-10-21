@@ -183,6 +183,7 @@ def save_item(
     actor: str,
     now: str | None = None,
     expected_content_hash: str | None = None,
+    allow_published_slug_change: bool = False,
 ) -> dict:
     now = now or utc_now_iso()
     item_id = fields.id or new_item_id()
@@ -199,7 +200,7 @@ def save_item(
                 existing.get("status") == "published"
                 or client.get_record("PublishedItem", published_item_id_for(lineage_id)) is not None
             )
-            if was_published:
+            if was_published and not allow_published_slug_change:
                 raise PublishError("slug-locked", "The slug cannot change once the item has been published.")
         base = _without_server_fields(existing)
         status = existing.get("status") or "draft"

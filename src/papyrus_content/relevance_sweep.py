@@ -46,7 +46,8 @@ from .relevance_decisions import (RELEVANCE_RELATION, curation_was_made_by_a_hum
 from .relevance_shadow import (USAGE_PAYLOAD_KIND, comparison_of_suggestion_with_human_decision,
                                decisions_remaining_today, live_agreement, reproducibility_provenance,
                                shadow_agreement_record, usage_record, utc_day)
-from .steering import require_corpus_config
+from .relevance_sample import distribution, draw_sample, load_manifest, write_manifest
+from .steering import relevance_corpus_key, require_corpus_config
 
 SWEEP_ASSIGNMENT_TYPE = "cyclotron.relevance"
 SNAPSHOT_NAME = "state.tar.gz"
@@ -74,12 +75,14 @@ class SweepResult:
     warnings: list[str] = field(default_factory=list)
     classifier_set: dict[str, Any] | None = None
     auto_rejected: list[dict[str, Any]] = field(default_factory=list)
+    sample: dict[str, Any] | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {"applied": self.applied, "pendingReferences": self.pending, "decided": self.decided,
                 "primed": self.primed, "primingFailed": self.priming_failed, "primingRetrying": self.priming_retrying, "reviewsSent": self.reviews, "primedFromHumanReviews": self.primed_from_human_reviews, "retiredLabels": self.retired_labels, "autoRejected": self.auto_rejected, "stoppedBecause": self.stopped_because,
                 "liveAgreement": self.live_agreement, "status": self.status, "warnings": self.warnings,
-                **({"classifierSet": self.classifier_set} if self.classifier_set is not None else {})}
+                **({"classifierSet": self.classifier_set} if self.classifier_set is not None else {}),
+                **({"sample": self.sample} if self.sample is not None else {})}
 
 
 class S3SnapshotStore:
@@ -199,7 +202,10 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                          max_count: int | None = None, model=None, optimizer=None, snapshots=None,
                          now: Callable[[], str] | None = None, priming_snapshot=None,
                          extract_url: ExtractUrl | None = None,
-                         grobid_alive: Callable[[], bool] | None = None) -> SweepResult:
+                         grobid_alive: Callable[[], bool] | None = None,
+                         sample_size: int | None = None, sample_seed: str | None = None,
+                         sample_manifest: Mapping[str, Any] | None = None,
+                         include_housekeeping: bool = False) -> SweepResult:
     """Run one sweep; an explicit accepted priming snapshot seeds a new store only.
 
     Editors' priming requests are applied to the running store whatever the
@@ -210,22 +216,36 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
 
     Omitting priming_snapshot preserves normal operation. Models/optimizers and
     snapshot transport still default to the configured providers.
+
+    The references decided are the pending ones of ``relevanceCyclotron.corpusKey``
+    (else the canonical corpus). By default they are every pending reference,
+    oldest first. ``sample_size`` with ``sample_seed`` decides a deterministic
+    spread sample instead (relevance_sample.py); ``sample_manifest`` decides
+    exactly the references of an earlier draw that are still pending. A sample
+    never re-decides a reference that already has a current relevance decision,
+    so repeated batches under ``max_count`` walk through it without paying twice.
     """
     now = now or (lambda: datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
     plan = build_relevance_cyclotron(steering_config, doctrine)
     priming_examples = priming_snapshot.for_definition(plan.definition) if priming_snapshot is not None else None
-    corpus = require_corpus_config(dict(steering_config), steering_config["canonicalTopicSet"]["corpusKey"],
-                                   "canonicalTopicSet.corpusKey")
+    canonical_corpus = require_corpus_config(dict(steering_config), steering_config["canonicalTopicSet"]["corpusKey"],
+                                             "canonicalTopicSet.corpusKey")
+    corpus = require_corpus_config(dict(steering_config), relevance_corpus_key(steering_config),
+                                   "relevanceCyclotron.corpusKey")
     corpus_id = knowledge_corpus_id(corpus)
     pending = _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#pending"))
     pending.sort(key=lambda reference: str(reference.get("importedAt") or reference.get("createdAt") or ""))
+    sample = None
+    if sample_size is not None or sample_manifest is not None:
+        pending, sample = _sampled(client, pending, corpus_id, sample_size, sample_seed, sample_manifest,
+                                   include_housekeeping)
     if max_count is not None:
         pending = pending[:max_count]
     if priming_examples is not None:
         example_ids = {row.item.id for rows in priming_examples.values() for row in rows}
         if any(reference_item(reference).id in example_ids for reference in pending):
             raise ValueError("priming and operational reference identities must be disjoint")
-    result = SweepResult(applied=apply)
+    result = SweepResult(applied=apply, sample=sample)
     if not plan.enabled:
         result.stopped_because = "disabled"
         result.warnings.append(f"{plan.definition.id} is switched off in the steering config; nothing was decided.")
@@ -268,13 +288,16 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
         try:
             _apply_review_rate_request(client, cyclotron, plan, result.warnings)
             records = _apply_priming_requests(
-                client, cyclotron, plan, extract_url or default_url_extractor(steering_config, corpus), now, result,
+                client, cyclotron, plan, extract_url or default_url_extractor(steering_config, canonical_corpus), now, result,
                 grobid_alive=grobid_alive if grobid_alive is not None else (grobid_is_alive if extract_url is None else None))
             result.primed_from_human_reviews = _prime_from_human_reviews(
                 client, cyclotron, plan, corpus_id, result.warnings)
             result.reviews = _send_reviews(client, cyclotron, plan, corpus_id, result.warnings)
             result.retired_labels = _retire_withdrawn_labels(client, cyclotron, plan, corpus_id, result.warnings)
             provenance = reproducibility_provenance(plan, cyclotron)
+            if sample is not None:
+                provenance = {**provenance, "sample": {key: sample[key] for key in (
+                    "policy", "seed", "poolFingerprint", "selectionFingerprint") if key in sample}}
             auto_reject_gate = _auto_reject_gate(client, plan, corpus_id, now())
             for reference in pending:
                 if decisions_allowed is not None and result.decided >= decisions_allowed:
@@ -314,6 +337,32 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     finally:
         lease.release()
     return result
+
+
+def _sampled(client, pending: list[dict[str, Any]], corpus_id: str, size: int | None, seed: str | None,
+             manifest: Mapping[str, Any] | None, include_housekeeping: bool):
+    """The pending references a sample selects, in sample order, without those already decided.
+
+    Returns the references and the sample record: the manifest plus what this
+    run found (how many are still pending, already decided, or decided by an
+    editor since the draw, which can no longer be a decision made before theirs).
+    """
+    if (size is None) == (manifest is None):
+        raise ValueError("Give either a sample size with a seed, or a sample manifest, not both.")
+    if manifest is None:
+        if not seed:
+            raise ValueError("A sample needs a seed so the draw can be reproduced.")
+        manifest = draw_sample(pending, size=size, seed=seed, corpus_id=corpus_id, include_housekeeping=include_housekeeping)
+    by_lineage = {reference["lineageId"]: reference for reference in pending}
+    still_pending = [by_lineage[lineage] for lineage in manifest["lineageIds"] if lineage in by_lineage]
+    undecided = [reference for reference in still_pending
+                 if current_relevance_decision(_decision_relations(client, reference["lineageId"]),
+                                               reference["lineageId"]) is None]
+    record = {**manifest, "stillPending": len(still_pending), "alreadyDecided": len(still_pending) - len(undecided),
+              "leftPending": len(manifest["lineageIds"]) - len(still_pending),
+              "toDecide": [reference["lineageId"] for reference in undecided],
+              "distribution": distribution(undecided, corpus_id)}
+    return undecided, record
 
 
 def _auto_reject_gate(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: str) -> dict[str, Any]:
@@ -695,9 +744,16 @@ def _apply(client, records) -> None:
 def references_decide_relevance(flags: list[str]) -> None:
     """papyrus references decide-relevance [--config <steering.yml>] [--doctrine <doctrine.yml>]
     [--max-count N] [--worker <name>] [--apply] [--json]
+    [--sample N --seed S [--sample-include-housekeeping] | --sample-list <manifest.json>]
+    [--sample-manifest <path>]
 
     Dry run by default: lists the pending references a sweep would decide and
-    makes no model call. ``--apply`` runs the sweep.
+    makes no model call and no write. ``--apply`` runs the sweep.
+
+    ``--sample N --seed S`` decides a deterministic spread sample instead of the
+    oldest pending references; ``--sample-manifest`` writes the draw to a local
+    file, and ``--sample-list`` decides from such a file so every batch stays on
+    the same references. Pending references with a current decision are skipped.
     """
     import os
     import socket
@@ -714,14 +770,39 @@ def references_decide_relevance(flags: list[str]) -> None:
     doctrine = load_publication_doctrine_seed(options.get("doctrine"))["doctrine"]
     max_count = int(options["max-count"]) if options.get("max-count") not in (None, True) else None
     worker = options.get("worker") if isinstance(options.get("worker"), str) else f"{socket.gethostname()}:{os.getpid()}"
+    for flag in ("sample", "seed", "sample-list", "sample-manifest"):
+        if options.get(flag) is True:
+            raise ValueError(f"--{flag} needs a value.")
+    sample_size = int(options["sample"]) if options.get("sample") else None
+    if options.get("sample-list") and sample_size is not None:
+        raise ValueError("Use either --sample N --seed S or --sample-list <manifest>, not both.")
+    if sample_size is not None and not options.get("seed"):
+        raise ValueError("--sample needs --seed so the draw is reproducible.")
+    corpus_id = knowledge_corpus_id(require_corpus_config(
+        dict(steering_config), relevance_corpus_key(steering_config), "relevanceCyclotron.corpusKey"))
+    manifest = load_manifest(options["sample-list"], corpus_id) if options.get("sample-list") else None
     client, _ = create_authoring_client()
     result = run_decide_relevance(client, steering_config, doctrine, apply=bool(options.get("apply")),
-                                  worker=worker, max_count=max_count)
+                                  worker=worker, max_count=max_count, sample_size=sample_size,
+                                  sample_seed=options.get("seed"), sample_manifest=manifest,
+                                  include_housekeeping=bool(options.get("sample-include-housekeeping")))
+    if options.get("sample-manifest") and result.sample is not None:
+        run_only = ("stillPending", "alreadyDecided", "leftPending", "toDecide", "distribution")
+        write_manifest({key: value for key, value in result.sample.items() if key not in run_only},
+                       options["sample-manifest"])
     if options.get("json"):
         print(json.dumps(result.to_json(), indent=2, sort_keys=True))
         return
     action = "apply" if result.applied else "dry-run"
     print(f"references\tdecide-relevance\t{action}\tpending\t{len(result.pending)}")
+    if result.sample is not None:
+        sample = result.sample
+        print(f"references\tdecide-relevance\tsample\t{sample['policy']}\tseed\t{sample['seed']}\tdrawn\t{sample['size']}"
+              f"\tpool\t{sample['poolSize']}\talready-decided\t{sample['alreadyDecided']}\tno-longer-pending\t{sample['leftPending']}")
+        for origin, counts in sample["strata"].items():
+            print(f"references\tdecide-relevance\tsample-origin\t{origin}\tpool\t{counts['pool']}\tsampled\t{counts['sampled']}")
+        for month, count in sample["distribution"]["byImportedMonth"].items():
+            print(f"references\tdecide-relevance\tsample-imported-month\t{month}\t{count}")
     if result.applied:
         print(f"references\tdecide-relevance\tdecided\t{result.decided}")
         print(f"references\tdecide-relevance\treviews-sent\t{result.reviews}")

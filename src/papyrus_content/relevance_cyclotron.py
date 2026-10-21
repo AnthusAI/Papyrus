@@ -29,6 +29,7 @@ REVIEW_PROGRAM_FIELDS = {
     "minWindowLabels": "min_window_labels",
 }
 SECRET_WORDS = ("key", "token", "secret", "password", "credential")
+NOT_SECRET_FIELDS = frozenset({"corpusKey"})
 FIELD = "relevanceCyclotron"
 DEFAULT_AUTO_REJECT = {"enabled": False, "minimumRejectProbability": 0.95, "maxRejectsPerSweep": 10}
 
@@ -42,7 +43,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     _refuse_secrets(raw, FIELD)
     known = {"cyclotronId", "classifierId", "question", "labels", "positiveLabel", "decisionModel",
              "optimizer", "store", "maxRequestsPerSweep", "reviewProgram", "reviewControl", "enabled",
-             "maxDecisionsPerDay", "approvedProofPath", "autoReject"}
+             "maxDecisionsPerDay", "approvedProofPath", "autoReject", "corpusKey"}
     unknown = sorted(set(raw) - known)
     if unknown:
         raise ValueError(f"{FIELD} has unknown fields: {', '.join(unknown)}.")
@@ -98,6 +99,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
     if approved_proof_path is not None and (not isinstance(approved_proof_path, str) or not approved_proof_path.strip()):
         raise ValueError(f"{FIELD}.approvedProofPath must be a file path.")
     auto_reject = _normalize_auto_reject(raw.get("autoReject"))
+    corpus_key = None if raw.get("corpusKey") is None else _string(raw["corpusKey"], f"{FIELD}.corpusKey")
     program = raw.get("reviewProgram") or {}
     if not isinstance(program, dict) or set(program) - set(REVIEW_PROGRAM_FIELDS):
         raise ValueError(f"{FIELD}.reviewProgram fields are {', '.join(REVIEW_PROGRAM_FIELDS)}.")
@@ -118,6 +120,7 @@ def normalize_relevance_cyclotron_config(raw: Any) -> dict[str, Any] | None:
         "maxDecisionsPerDay": max_decisions_per_day,
         "approvedProofPath": approved_proof_path,
         "autoReject": auto_reject,
+        "corpusKey": corpus_key,
     }
 
 
@@ -224,7 +227,7 @@ def optimizer_from_environment(plan: RelevanceCyclotronPlan):
 def _refuse_secrets(value: Any, path: str) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
-            if any(word in str(key).lower() for word in SECRET_WORDS):
+            if str(key) not in NOT_SECRET_FIELDS and any(word in str(key).lower() for word in SECRET_WORDS):
                 raise ValueError(f"{path}.{key} looks like a credential; provider keys come from the environment, "
                                  "never from the steering config.")
             _refuse_secrets(child, f"{path}.{key}")

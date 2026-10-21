@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f3ba6b5e-aca6-4978-b41d-779bf3d76b30",
+  "issue_id": "PPY-9fc6dae2-8d14-4a98-8fdb-ff9206421d63",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T08:01:39.569Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CLI parity: publish projects s3-projection sites; stories set-slug",
+    "description": "papyrus ops content publish/unpublish/import-markus now schedule the newsroom's projection task on s3-projection sites (--no-trigger prints a skip line); new papyrus stories set-slug renames a draft slug. PR #441.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

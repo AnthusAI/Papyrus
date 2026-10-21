@@ -269,3 +269,41 @@ def twin(text: str, values: Mapping[str, str], source: str) -> str:
             out.append("")
     flush_buttons()
     return head + re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"
+
+
+ISLAND_MOUNT = re.compile(r'<(?P<tag>div|span)(?P<attributes>(?=[^>]*\bclass="papyrus-island")[^>]*\bdata-island="(?P<name>[^"]+)"[^>]*)></(?P=tag)>')
+ISLAND_PROPS = re.compile(r"\bdata-props='([^']*)'")
+
+
+def parse_prerendered(data: bytes) -> dict[str, list[tuple[dict, str]]]:
+    """``islands.prerender`` is a JSON list of ``{"name", "props", "html"}``; the result maps a name to its ``(props, html)`` pairs."""
+    entries = json.loads(data.decode("utf-8"))
+    if not isinstance(entries, list):
+        raise ValueError("islands.prerender must be a JSON list of {name, props, html}")
+    by_name: dict[str, list[tuple[dict, str]]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str) or not isinstance(entry.get("html"), str):
+            raise ValueError("islands.prerender entries need a name and html")
+        by_name.setdefault(entry["name"], []).append((dict(entry.get("props") or {}), entry["html"]))
+    return by_name
+
+
+def fill_islands(body: str, prerendered: Mapping[str, list[tuple[dict, str]]]) -> str:
+    """Put the server-rendered HTML inside every empty mount point that has an entry for its name and props.
+
+    A mount point with no entry stays empty (the site script mounts it in the browser). The HTML is the site's own build
+    output and is inserted as written; the site script hydrates it."""
+
+    def fill(match: re.Match) -> str:
+        props_text = ISLAND_PROPS.search(match.group("attributes"))
+        try:
+            props = json.loads(html.unescape(props_text.group(1))) if props_text else {}
+        except ValueError:
+            return match.group(0)
+        for candidate, rendered in prerendered.get(match.group("name"), ()):
+            if candidate == props:
+                tag = match.group("tag")
+                return f"<{tag}{match.group('attributes')}>{rendered}</{tag}>"
+        return match.group(0)
+
+    return ISLAND_MOUNT.sub(fill, body)

@@ -14,6 +14,7 @@ from .markus_import import (
     plan_import,
     run_import,
 )
+from .projection_trigger import ALL_TASK, SKIP_LINE, projection_enabled, skipped_projection, trigger_projection
 from .rebuild_trigger import reader_target_from_environment, trigger_rebuild
 from .tenancy import tenant_id_from_options
 from .options import normalize_string, parse_comma_list, parse_options, resolve_mutation_apply
@@ -67,6 +68,8 @@ def content_import_markus(flags: list[str]) -> None:
     if apply and report.ok and payload["published"] and app_id and not options.get("no-trigger"):
         branch = normalize_string(options.get("rebuild-branch")) or reader_target_from_environment()[1]
         payload["rebuild"] = trigger_rebuild(reader_app_id=app_id, reader_branch=branch)
+    if apply and report.ok and payload["published"] and projection_enabled():
+        payload["projection"] = skipped_projection() if options.get("no-trigger") else trigger_projection(ALL_TASK)
     if options.get("json"):
         print(json.dumps(payload, indent=2))
     else:
@@ -80,6 +83,10 @@ def content_import_markus(flags: list[str]) -> None:
         print(f"  board-only items (created on the board, not in the source; left untouched): {payload['notInSource']}")
         if "rebuild" in payload:
             print(f"  rebuild: {json.dumps(payload['rebuild'])}")
+        if payload.get("projection", {}).get("skipped"):
+            print(f"  {SKIP_LINE}")
+        elif "projection" in payload:
+            print(f"  projection: {json.dumps(payload['projection'])}")
         for message in payload["errors"]:
             print(f"  error: {message}")
     if not report.ok:

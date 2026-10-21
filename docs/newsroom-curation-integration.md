@@ -132,8 +132,29 @@ around the References view. It reads the Prospectus session, and only for a
 signed-in person with a selected account asks for `context`. Everything else
 leaves the provider empty, so the released CMS is unchanged.
 
+### Site environment variables
+
+| Variable | Meaning |
+| --- | --- |
+| `PAPYRUS_CURATION_UPSTREAM_URL` | Base URL of the curation upstream (the central Cyclotron lab API). It must be an **origin with no path**: `https://host`, with no trailing path, query or credentials. The routes call `/api/newsroom/curation/<route>` on it, so a path you add is discarded rather than honored. It must be `https`; `http` is accepted only for loopback (local review). |
+| `PAPYRUS_CURATION_PUBLICATION_ID` | The publication id the pins must match and that the upstream sees. Optional: defaults to the site brand id. |
+
+**Unset means off (fail closed).** With `PAPYRUS_CURATION_UPSTREAM_URL` unset,
+blank, not `https` (non-loopback), or carrying credentials, every curation route
+answers 503 `curation_not_configured`. The References bootstrap treats any
+non-OK `context` response as no provider, so "Import a file" stays hidden and
+only "Paste a URL" renders. There is no fallback upstream.
+
+Expected value for the shared lab: `PAPYRUS_CURATION_UPSTREAM_URL=https://o01d28uizl.execute-api.us-east-1.amazonaws.com`.
+This is the value to set when the site is activated; it is **not** set anywhere
+yet. These are Amplify branch variables on the SSR app (set per branch, outside
+this repository). `amplify.yml` copies `^PAPYRUS_CURATION_` into `.env.production`
+at build time (checked by `npm run test:amplify-env-export`) so both reach the
+server at runtime. Sites whose generated build spec (the app shell) or own
+`amplify.yml` already exports every `^PAPYRUS_` variable need no change.
+
 Nothing is activated by this code. Phase B needs separate approval: the upstream
 (lab priming routes, S3 priming storage authority, extraction worker and provider
 budget), `PAPYRUS_CURATION_UPSTREAM_URL` and `PAPYRUS_CURATION_PUBLICATION_ID` on
-the site (plus an `amplify.yml` export line), `cms.prospectusAccountsApiStageArn`
-(PPY-0c5242), and the site's Prospectus registration.
+the site, `cms.prospectusAccountsApiStageArn` (PPY-0c5242), and the site's
+Prospectus registration.

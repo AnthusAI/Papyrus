@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8d2ef311-b8ae-48f5-8e96-015b913f31fd",
+  "issue_id": "PPY-ac87ffd2-15ff-4d09-9966-d059cf2504dd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T06:56:03.963Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us: run on StandardMarkusProjector with hooks (core gaps and the switch)",
+    "description": "Prerequisite of phases c and f. AnthusProjector is still a hand-written SiteProjector (616 lines + anthus_pages, anthus_dom, anthus_urls, solution_marks). To subclass or use StandardMarkusProjector with hooks.py, core lacks, found by reading web/ against docs/building-a-papyrus-static-site.md: (1) a FragmentTransform for item pages (class_map, drop_unmapped_classes, strip_header, block passthrough: the arcade vocabulary replaces markus-* classes, anthus_dom.CLASS_MAP); (2) ImagePipeline wrap and layout_sizes callbacks (anthus_dom.anthus_image_wrap, anthus_layout_sizes; not expressible in projection.json images); (3) a page-level finishing hook over the rendered HTML (build_via_papyrus._rewrite_internal_links canonicalises every href and srcset, maps folded pages and external solution sites; _inject_social_meta and the twitter widget script); (4) a source hook before conversion (anthus_mdx.normalize_body: for the 130 current CMS items it changes only trailing whitespace, but it also expands {{pictogram name}} tokens, unused today); (5) redirects computed from content (urls.legacy_rules: ~650 exact rules from slugs, tags, folded and external pages) as a hook or generated data; (6) the head: icons, manifest, color-scheme and theme-color pair, GA with owner opt-out are expressible, the inline js-class script and twitter widget need head_extra. Intentional additions the standard shell makes and the parity allow-list must carry: skip link and main id on every page, components stylesheet. The Anth.us stylesheet has no rule for markus-* or papyrus-* classes (dom.assert_no_markus_classes), so the skip link needs a theme rule.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e8db7cd6-190c-4f97-8d3d-9677c2eee85c",
+    "labels": []
+  }
+}
