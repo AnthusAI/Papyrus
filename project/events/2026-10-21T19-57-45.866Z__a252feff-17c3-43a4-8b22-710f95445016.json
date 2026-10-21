@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "a252feff-17c3-43a4-8b22-710f95445016",
+  "issue_id": "PPY-d491d4be-c44e-4405-b3d3-54a1652a4a65",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-21T19:57:45.866Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "99e804a0-06ad-4af5-8b88-a5c7f33be5a6",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "Sonnet monitoring agent"
+    }
+  }
+}

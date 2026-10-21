@@ -58,10 +58,22 @@
         "model": "claude-sonnet-5-5",
         "name": "Sonnet monitoring agent"
       }
+    },
+    {
+      "id": "99e804a0-06ad-4af5-8b88-a5c7f33be5a6",
+      "author": "home",
+      "text": "Correction: after the watch the pending References are 4 in total, not 4 at TI: threat-intelligence 3, anth-us 1, p-apyr-us 0. All 4 verified curationStatus pending, set by papyrus-monitoring-worker.",
+      "created_at": "2026-10-21T19:57:45.865984Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Sonnet monitoring agent"
+      }
     }
   ],
   "created_at": "2026-10-21T17:47:09.374027Z",
-  "updated_at": "2026-10-21T19:57:35.516004Z",
+  "updated_at": "2026-10-21T19:57:45.866027Z",
   "closed_at": "2026-10-21T19:57:35.515960Z",
   "agent": {
     "platform": "claude-code",
