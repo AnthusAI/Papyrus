@@ -356,7 +356,7 @@ def test_the_family_footer_lists_the_registry_in_the_packages_order_and_only_liv
     page = family_page(family={})
     names = re.findall(r'<div class="papyrus-family-footer-item"><a href="[^"]+">([^<]+)</a>', page)
     assert names == [
-        "Cyclotron", "Chatticus", "Papyrus", "Auritus", "Tactus", "Biblicus", "Markus", "Kanbus", "Hard Decisions", "Biased Decisions",
+        "Cyclotron", "Chatticus", "Papyrus", "Auritus", "Tactus", "Kanbus", "Biblicus", "Markus", "Hard Decisions", "Biased Decisions",
     ]
     for hidden in ("Primus", "Korporus", "Babulus", "Caducus", "Virtuus"):
         assert hidden not in page
