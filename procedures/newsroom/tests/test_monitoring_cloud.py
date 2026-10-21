@@ -236,6 +236,9 @@ Loader.add_multi_constructor("!", lambda loader, suffix, node: {
         else loader.construct_sequence(node) if isinstance(node, yaml.SequenceNode) else loader.construct_mapping(node)})
 
 
+PARAMETERS = yaml.load(TEMPLATE.read_text(), Loader=Loader)["Parameters"]
+
+
 @pytest.fixture(scope="module")
 def template():
     return yaml.load(TEMPLATE.read_text(), Loader=Loader)["Resources"]
@@ -249,7 +252,8 @@ def test_template_inventory(template):
 
 def test_template_function_and_schedule(template):
     function = template["CollectorFunction"]["Properties"]
-    assert function["ReservedConcurrentExecutions"] == 1 and function["Runtime"] == "python3.13"
+    assert function["ReservedConcurrentExecutions"]["Fn::If"][:2] == ["ReserveConcurrency", {"Ref": "ReservedConcurrency"}]
+    assert PARAMETERS["ReservedConcurrency"]["Default"] == 1 and function["Runtime"] == "python3.13"
     assert function["MemorySize"] == 256 and function["Timeout"] == 120
     schedule = template["CollectSchedule"]["Properties"]
     assert schedule["ScheduleExpression"] == "rate(15 minutes)" and schedule["FlexibleTimeWindow"] == {"Mode": "OFF"}

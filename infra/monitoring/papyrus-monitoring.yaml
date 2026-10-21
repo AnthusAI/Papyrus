@@ -11,10 +11,20 @@ Parameters:
   CodeKey:
     Type: String
     Description: S3 key of the collector zip (content-hash named by build.sh).
+  ReservedConcurrency:
+    Type: Number
+    Default: 1
+    Description: >-
+      Reserved concurrency for the collector (1 keeps runs serial). 0 or less leaves it
+      unreserved, for accounts whose Lambda concurrency quota is too low to reserve any.
+      The table lease lock serializes runs either way.
   ScheduleState:
     Type: String
     Default: ENABLED
     AllowedValues: [ENABLED, DISABLED]
+
+Conditions:
+  ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
 
 Resources:
   MonitoringTable:
@@ -94,7 +104,7 @@ Resources:
       Handler: papyrus_content.monitoring_cloud.handler
       MemorySize: 256
       Timeout: 120
-      ReservedConcurrentExecutions: 1
+      ReservedConcurrentExecutions: !If [ReserveConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
       Role: !GetAtt CollectorRole.Arn
       Code:
         S3Bucket: !Ref CodeBucket

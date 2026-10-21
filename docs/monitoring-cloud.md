@@ -21,7 +21,7 @@ table with `routing: collected`, waiting for that router.
 | Resource | Notes |
 | --- | --- |
 | DynamoDB table (auto-named) | On-demand, encrypted, point-in-time recovery, `Retain` on delete and replace |
-| Lambda `papyrus-monitoring-collector` | Python 3.13, arm64, 256 MB, 120 s, reserved concurrency 1, logs kept 30 days |
+| Lambda `papyrus-monitoring-collector` | Python 3.13, arm64, 256 MB, 120 s, reserved concurrency 1 when the account quota allows (parameter `ReservedConcurrency`; 0 leaves it unreserved), logs kept 30 days |
 | Schedule `papyrus-monitoring-hn-collect` | EventBridge Scheduler `rate(15 minutes)`, no flexible window, 3 retries, SQS dead-letter queue |
 | Alarm `papyrus-monitoring-collector-errors` | Lambda `Errors` >= 1 in 15 minutes (no notification action yet) |
 | Roles | Collector: this table and its own log group only. Schedule: invoke this function, send to its DLQ |
@@ -75,3 +75,10 @@ Table, function and schedule names are the stack outputs.
 - Roll back code: build an earlier commit, upload, and update the stack with that `CodeKey`.
 - Remove: delete the stack. The table is retained with its data; delete it separately.
 - Deploy with a change set and read it first (`create-change-set`, `describe-change-set`, then execute).
+
+## Concurrency note
+
+Serial runs are guaranteed by the table lease, not only by reserved concurrency.
+The papyrus-production account's Lambda concurrency quota is 10, and Lambda requires
+10 to stay unreserved, so no function there can reserve any. The first deploy ran with
+`ReservedConcurrency=0`. After a quota increase, update the stack with the default (1).
