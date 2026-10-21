@@ -55,6 +55,23 @@ from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
 from .urls import NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
+def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
+    """Add every file under the named directories of the static directory to ``files`` at its relative path."""
+    added: list[str] = []
+    if static_directory is None:
+        return added
+    for name in names:
+        root = static_directory / name
+        if not root.is_dir():
+            raise ValueError(f"static.copy names {name!r}, which is not a directory of the static directory")
+        for path in sorted(root.rglob("*")):
+            key = path.relative_to(root).as_posix()
+            if path.is_file() and key not in files:
+                files[key] = path.read_bytes()
+                added.append(key)
+    return added
+
+
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
@@ -70,6 +87,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         **kwargs,
     ) -> None:
         files = dict(static_files)
+        self._passthrough = frozenset(copy_directories(kwargs.pop("static_directory", None), standard.static_copy, files))
         if standard.components_css:
             files[COMPONENTS_CSS_PATH] = (ASSET_DIRECTORY / "markus-components.css").read_bytes()
         if standard.nav_disclosure:
@@ -98,6 +116,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             settings,
             read_static_files(static_directory, settings.theme),
             standard,
+            static_directory=static_directory,
             hooks=load_hooks(static_directory, standard.hooks_path),
             environment=resolve_environment(standard, environ),
             renditions=renditions,
@@ -502,6 +521,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ ownership, static files, redirects
 
     def owns_page_key(self, key: str) -> bool:
+        if key in self._passthrough:
+            return False
         if key == HOME_PAGE_PATH or key in SITEMAP_KEYS or key in (self.standard.feeds.rss_path, self.standard.feeds.atom_path):
             return True
         if owns_public_data_key(key):

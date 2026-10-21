@@ -43,6 +43,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
 | `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex}]`; the body comes from the `page_body` hook |
+| `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `hooks` | path of the hooks module, relative to `web/` |

@@ -19,7 +19,7 @@ from .redirects import RedirectRule, rule_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
-    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase",
+    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -200,6 +200,7 @@ class StandardSettings:
     hooks_path: str | None = None
     pages: tuple[CustomPage, ...] = ()
     item_depends_on: tuple[str, ...] = ()
+    static_copy: tuple[str, ...] = ()   # directories of the static directory published verbatim at the site root
     components_css: bool = True
     item_byline: bool = False
     breadcrumbs: bool = True
@@ -292,6 +293,13 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 sort=str(entry.get("sort", "date")),
             )
         )
+
+    static = dict(raw.get("static") or {})
+    _only(static, {"copy"}, "static")
+    static_copy = tuple(str(name) for name in static.get("copy", ()))
+    for name in static_copy:
+        if not name or name.startswith("/") or ".." in name.split("/") or name in ("css", "assets"):
+            raise ValueError(f"static.copy entries must be relative directories other than css and assets, not {name!r}")
 
     redirects = dict(raw.get("redirects") or {})
     _only(redirects, {"exact", "patterns"}, "redirects")
@@ -438,6 +446,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         hooks_path=_text(raw, "hooks") or None,
         pages=tuple(custom),
         item_depends_on=tuple(components.get("itemPagesDependOn", ())),
+        static_copy=static_copy,
         components_css=bool(site.get("componentsCss", True)),
         item_byline=bool(components.get("itemByline", False)),
         breadcrumbs=bool(components.get("breadcrumbs", True)),
