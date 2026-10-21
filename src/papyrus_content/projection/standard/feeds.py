@@ -47,6 +47,11 @@ def _link(environment: SiteEnvironment, path: str) -> str:
     return (environment.origin or "") + path
 
 
+def _root(settings: StandardSettings) -> str:
+    """The base path with a trailing slash (``posts/``), or "" for a site at the root."""
+    return f"{settings.base_path}/" if settings.base_path else ""
+
+
 def _latest(selection: list[StandardEntry]) -> str:
     return max((entry.updated or entry.date for entry in selection), default="")
 
@@ -76,7 +81,7 @@ def rss_bytes(selection: list[StandardEntry], settings: StandardSettings, enviro
         channel.append(f"<lastBuildDate>{rfc822(_latest(selection))}</lastBuildDate>")
     if environment.origin:
         channel.append(
-            f'<atom:link href={quoteattr(_link(environment, "/" + settings.feeds.rss_path))} rel="self" type="application/rss+xml"/>'
+            f'<atom:link href={quoteattr(_link(environment, "/" + _root(settings) + settings.feeds.rss_path))} rel="self" type="application/rss+xml"/>'
         )
     return (
         f'{XML_DECLARATION}\n<rss version="2.0" xmlns:atom="{ATOM_NS}"><channel>'
@@ -98,7 +103,7 @@ def atom_bytes(selection: list[StandardEntry], settings: StandardSettings, envir
         f'<link rel="alternate" type="text/html" href={quoteattr(home)}/>',
     ]
     if environment.origin:
-        header.append(f'<link rel="self" type="application/atom+xml" href={quoteattr(_link(environment, "/" + settings.feeds.atom_path))}/>')
+        header.append(f'<link rel="self" type="application/atom+xml" href={quoteattr(_link(environment, "/" + _root(settings) + settings.feeds.atom_path))}/>')
     header.append(f"<author><name>{escape(author_name)}</name></author>")
     if identity.description or identity.tagline:
         header.append(f"<subtitle>{escape(identity.description or identity.tagline)}</subtitle>")
@@ -129,7 +134,7 @@ def atom_bytes(selection: list[StandardEntry], settings: StandardSettings, envir
 def feed_files(selection, settings: StandardSettings, environment: SiteEnvironment) -> dict[str, bytes]:
     files = {}
     if "rss" in settings.feeds.formats:
-        files[settings.feeds.rss_path] = rss_bytes(selection, settings, environment)
+        files[_root(settings) + settings.feeds.rss_path] = rss_bytes(selection, settings, environment)
     if "atom" in settings.feeds.formats:
-        files[settings.feeds.atom_path] = atom_bytes(selection, settings, environment)
+        files[_root(settings) + settings.feeds.atom_path] = atom_bytes(selection, settings, environment)
     return files

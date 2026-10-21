@@ -17,20 +17,38 @@ def slugify_tag(tag: str) -> str:
 
 
 class UrlPolicy:
+    """Keys and paths of the pages Papyrus generates. With ``urls.basePath`` every one of them lives under it.
+
+    Bases (sections, tags, archives, custom pages) are site-relative; :meth:`key` and :meth:`path` add the base path.
+    URLs derived from keys (:meth:`url_for_key`) carry it already. Paths an author writes are not passed through here.
+    """
+
     def __init__(self, settings: StandardSettings) -> None:
         self.settings = settings
+        self.root = f"{settings.base_path}/" if settings.base_path else ""
+
+    def key(self, site_key: str) -> str:
+        """The object key of a site-relative key: ``index.html`` -> ``posts/index.html``."""
+        return self.root + site_key
+
+    def path(self, site_path: str) -> str:
+        """The request path of a site-relative path: ``/`` -> ``/posts/``, ``/tags/`` -> ``/posts/tags/``."""
+        return "/" + self.root + site_path.lstrip("/")
+
+    def relative_key(self, key: str) -> str | None:
+        """The site-relative key of an object key under the base path; ``None`` for a key outside it."""
+        return key[len(self.root):] if key.startswith(self.root) else None
 
     def item_key(self, section: SectionConfig | None, slug: str) -> str:
         base = f"{section.base}/" if section is not None and section.base else ""
         if self.settings.url_style == "directory":
-            return f"{base}{slug}/index.html"
-        return f"{base}{slug}.html"
+            return self.key(f"{base}{slug}/index.html")
+        return self.key(f"{base}{slug}.html")
 
-    @staticmethod
-    def listing_key(base: str, page: int = 1) -> str:
+    def listing_key(self, base: str, page: int = 1) -> str:
         """``base/index.html`` for page 1, ``base/page/N/index.html`` after it; ``base`` may be empty (the root)."""
         prefix = f"{base}/" if base else ""
-        return f"{prefix}index.html" if page == 1 else f"{prefix}page/{page}/index.html"
+        return self.key(f"{prefix}index.html" if page == 1 else f"{prefix}page/{page}/index.html")
 
     def tag_base(self, tag_slug: str | None = None) -> str:
         base = self.settings.listings.tag_base

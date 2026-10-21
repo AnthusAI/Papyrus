@@ -235,7 +235,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if PurePosixPath(summary.output_path).name.startswith(("_", ".")):
             return ()
         if self._is_home_source(summary):
-            return self._with_markdown((HOME_PAGE_PATH,), noindex=False)
+            return self._with_markdown((self.policy.key(HOME_PAGE_PATH),), noindex=False)
         entry = self._entry(summary)
         return self._with_markdown((entry.key,), noindex=entry.noindex) if entry is not None and entry.key else ()
 
@@ -262,7 +262,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             title = entry_title(summary) if summary.front_matter.get("title") else (summary.page_title or summary.title or self.standard.identity.name)
             head = PageHead(
                 title=title,
-                path="/",
+                path=self.policy.path("/"),
                 description=clipped(first_text(summary.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or self.standard.identity.description,
                 image=first_image_of(fragment),
             )
@@ -316,9 +316,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _breadcrumbs(self, entry: StandardEntry) -> tuple[tuple[str, str], ...]:
         if not self.standard.breadcrumbs:
             return ()
-        crumbs = [(self.standard.home_link_label, "/")]
+        crumbs = [(self.standard.home_link_label, self.policy.path("/"))]
         if entry.section is not None and entry.section.listing and entry.section.listing_page:
-            crumbs.append((entry.section.label, f"/{entry.section.base}/"))
+            crumbs.append((entry.section.label, self.policy.path(f"/{entry.section.base}/")))
         crumbs.append((entry.title, entry.url))
         return tuple(crumbs) if len(crumbs) > 1 else ()
 
@@ -384,13 +384,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if not self._authored_home(site) and not any(custom.path == "" for custom in self.standard.pages):
             home_entries = tuple(listed[: self.standard.listings.home_count])
             add(
-                HOME_PAGE_PATH,
+                self.policy.key(HOME_PAGE_PATH),
                 "home",
                 [self._fingerprints(home_entries), self._section_links()],
                 lambda: self._page(
                     "home",
-                    PageHead(title=self.standard.identity.name, path="/", description=self.standard.identity.description, social_title=self.standard.seo.home_social_title),
-                    site, entries=tuple(listed), listing=ListingView("", self.standard.home_link_label, home_entries, tuple(listed), 1, 1),
+                    PageHead(title=self.standard.identity.name, path=self.policy.path("/"), description=self.standard.identity.description, social_title=self.standard.seo.home_social_title),
+                    site, entries=tuple(listed), listing=ListingView("", self.standard.home_link_label, home_entries, tuple(listed), 1, 1, root=self.policy.root),
                 ),
             )
 
@@ -435,7 +435,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                         "archive",
                         PageHead(
                             title=f"{view.label}: {self._archive_label(view.group, section_config.archive.by)}",
-                            path=f"/{view.base}/",
+                            path=self.policy.path(f"/{view.base}/"),
                             description=section_config.archive.description or section_config.description or self.standard.identity.description,
                         ),
                         site, entries=tuple(listed), listing=view,
@@ -469,7 +469,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 [[site.fingerprint() for site in sites]],
                 lambda: self._page(
                     "showcase",
-                    PageHead(title=wall.title, path=f"/{wall.path}/", description=wall.description or self.standard.identity.description),
+                    PageHead(title=wall.title, path=self.policy.path(f"/{wall.path}/"), description=wall.description or self.standard.identity.description),
                     site, entries=tuple(listed), showcase=tuple(sites),
                 ),
             )
@@ -482,7 +482,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if authored is not None:
                 text, found = authored
                 digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found)]
-            path = f"/{custom.path}/" if custom.path else "/"
+            path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
             add(
                 self.policy.listing_key(custom.path),
                 f"custom:{custom.id}",
@@ -510,7 +510,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         )
 
         # sitemap, feeds
-        sitemap = sitemap_files(self.standard.sitemap_style, self.environment, self._sitemap_urls(site, entries, listed, plan), lastmod=self.standard.sitemap_lastmod)
+        sitemap = sitemap_files(self.standard.sitemap_style, self.environment, self._sitemap_urls(site, entries, listed, plan), lastmod=self.standard.sitemap_lastmod, root=self.policy.root)
         selection = feed_selection(entries, self.standard)
         for key, body in {**sitemap, **feed_files(selection, self.standard, self.environment)}.items():
             plan[key] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
@@ -542,9 +542,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
         found = []
         for route in self.standard.sitemap_extra:
             key = static_twin_key(route)
-            if key is None or key not in self._passthrough or key not in self._static_files:
+            relative = self.policy.relative_key(key) if key is not None else None
+            if relative is None or relative not in self._passthrough or relative not in self._static_files:
                 continue
-            text = self._static_files[key].decode("utf-8")
+            text = self._static_files[relative].decode("utf-8")
             heading = re.search(r"^# (.+)$", text, re.M)
             found.append((heading.group(1).strip() if heading else route, "/" + key, text))
         return found
@@ -563,14 +564,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if agents.llms_txt:
             optional = []
             if "rss" in self.standard.feeds.formats:
-                optional.append(("RSS feed", "/" + self.standard.feeds.rss_path))
+                optional.append(("RSS feed", self.policy.path(self.standard.feeds.rss_path)))
             if "atom" in self.standard.feeds.formats:
-                optional.append(("Atom feed", "/" + self.standard.feeds.atom_path))
-            optional.append(("Sitemap", "/sitemap-index.xml" if self.standard.sitemap_style == "index" else "/sitemap.xml"))
+                optional.append(("Atom feed", self.policy.path(self.standard.feeds.atom_path)))
+            optional.append(("Sitemap", self.policy.path("sitemap-index.xml" if self.standard.sitemap_style == "index" else "sitemap.xml")))
             if full_enabled:
-                optional.append(("Full content of this site in one file", "/" + LLMS_FULL_KEY))
+                optional.append(("Full content of this site in one file", self.policy.path(LLMS_FULL_KEY)))
             body = llms_txt(self.standard.identity, self._llms_groups(listed, entries), optional, origin).encode("utf-8")
-            plan[LLMS_KEY] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
+            plan[self.policy.key(LLMS_KEY)] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
         if full_enabled:
             identity = self.standard.identity
             versions = [[entry.item_id, entry.summary.version_number] for entry in full_entries]
@@ -583,7 +584,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 )
                 return llms_full_txt(identity, itertools.chain(documents, (text for _title, _path, text in static_documents)), agents.llms_full_max_bytes).encode("utf-8")
 
-            plan[LLMS_FULL_KEY] = (digest, render)
+            plan[self.policy.key(LLMS_FULL_KEY)] = (digest, render)
 
     def _markdown_for(self, page: StandardPage) -> str:
         identity = self.standard.identity
@@ -652,6 +653,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             yield ListingView(
                 base, label, tuple(shown), tuple(members), number, pages, featured, section, tag, groups,
                 collection=collection.id if collection is not None else None, drafts=tuple(drafts) if number == 1 else (),
+                root=self.policy.root,
             )
 
     @staticmethod
@@ -668,7 +670,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             groups = tuple(group_entries(found, by)) if by else ()
             yield ListingView(
                 f"{section.base}/{archive.base}/{key}", section.label, found, tuple(members), 1, 1, (), section.name, None,
-                groups, key, tuple(keys),
+                groups, key, tuple(keys), root=self.policy.root,
             )
 
     def _tag_entries(self, listed: list[StandardEntry]) -> list[StandardEntry]:
@@ -718,18 +720,18 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return build
 
     def _tag_index_page(self, tags, site, listed) -> StandardPage:
-        head = PageHead(title="Tags", path=f"/{self.policy.tag_base()}/", description=self.standard.identity.description)
+        head = PageHead(title="Tags", path=self.policy.path(f"/{self.policy.tag_base()}/"), description=self.standard.identity.description)
         return self._page("tags", head, site, entries=tuple(listed), tags=tags)
 
     def _sitemap_urls(self, site, entries, listed, plan) -> list[SitemapUrl]:
         newest = max((entry.updated for entry in entries), default="")
-        urls = [SitemapUrl("/", newest)]
+        urls = [SitemapUrl(self.policy.path("/"), newest)]
         for entry in entries:
             if entry.in_sitemap:
                 urls.append(SitemapUrl(entry.url, entry.updated))
         groups = list(self._listing_groups(listed))
         for base, _label, _section, members in groups:
-            urls.append(SitemapUrl(f"/{base}/", max((entry.updated for entry in members), default="")))
+            urls.append(SitemapUrl(self.policy.path(f"/{base}/"), max((entry.updated for entry in members), default="")))
         for collection in self.standard.collections:
             if not collection.sitemap:
                 continue
@@ -744,17 +746,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if section_config.archive is not None and section_config.listing and section_config.sitemap:
                 members = [entry for entry in listed if entry.section and entry.section.name == section_config.name]
                 for view in self._archive_views(section_config, members):
-                    urls.append(SitemapUrl(f"/{view.base}/", max(entry.updated for entry in view.entries)))
+                    urls.append(SitemapUrl(self.policy.path(f"/{view.base}/"), max(entry.updated for entry in view.entries)))
         if self.standard.sitemap_tags and self.standard.listings.tags:
             tags = self._tag_map(self._tag_entries(listed))
             if tags:
-                urls.append(SitemapUrl(f"/{self.policy.tag_base()}/", ""))
-                urls.extend(SitemapUrl(f"/{self.policy.tag_base(slugify_tag(tag))}/", max(entry.updated for entry in found)) for tag, found in tags.items() if slugify_tag(tag))
+                urls.append(SitemapUrl(self.policy.path(f"/{self.policy.tag_base()}/"), ""))
+                urls.extend(SitemapUrl(self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/"), max(entry.updated for entry in found)) for tag, found in tags.items() if slugify_tag(tag))
         if self.standard.showcase is not None:
-            urls.append(SitemapUrl(f"/{self.standard.showcase.path}/", ""))
+            urls.append(SitemapUrl(self.policy.path(f"/{self.standard.showcase.path}/"), ""))
         for custom in self.standard.pages:
             if custom.sitemap and not custom.noindex:
-                urls.append(SitemapUrl(f"/{custom.path}/" if custom.path else "/", ""))
+                urls.append(SitemapUrl(self.policy.path(f"/{custom.path}/" if custom.path else "/"), ""))
         urls.extend(SitemapUrl(path, "") for path in self.standard.sitemap_extra)
         unique = {}
         for url in urls:
@@ -783,20 +785,26 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _public_data_inputs(self, site):
         settings = self._settings.public_data
-        return {} if settings is None else public_data_inputs(self._public_data_entries(site), settings)
+        if settings is None:
+            return {}
+        return {self.policy.key(key): digest for key, digest in public_data_inputs(self._public_data_entries(site), settings).items()}
 
     def _public_data_pages(self, site, keys):
         settings = self._settings.public_data
         if settings is None:
             return {}
-        files = public_data_files(self._public_data_entries(site), settings)
+        files = {self.policy.key(key): body for key, body in public_data_files(self._public_data_entries(site), settings).items()}
         return files if keys is None else {key: body for key, body in files.items() if key in keys}
 
     # ------------------------------------------------------------------ ownership, static files, redirects
 
     def owns_page_key(self, key: str) -> bool:
-        if key in self._passthrough:
+        if key == NOT_FOUND_KEY:
+            return True
+        relative = self.policy.relative_key(key)
+        if relative is None or relative in self._passthrough:
             return False
+        key = relative
         if key == HOME_PAGE_PATH or key in SITEMAP_KEYS or key in (self.standard.feeds.rss_path, self.standard.feeds.atom_path):
             return True
         if key in (LLMS_KEY, LLMS_FULL_KEY) or (key.endswith(".md") and not key.startswith(("css/", "assets/", "_"))):
@@ -807,7 +815,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def static_files(self) -> dict[str, bytes]:
         files = {**self._static_files, **public_static_files(self._settings.public_data), **plugin_static_files(self._settings.plugins)}
-        files["robots.txt"] = robots_text(self.standard.sitemap_style, self.environment, self.standard.robots_extra).encode("utf-8")
+        files = {self.policy.key(key): body for key, body in files.items()}
+        files["robots.txt"] = robots_text(self.standard.sitemap_style, self.environment, self.standard.robots_extra, root=self.policy.root).encode("utf-8")
         return files
 
     def canonical_path(self, key: str) -> str:
@@ -880,7 +889,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             stylesheets=tuple(sheets),
             scripts=scripts,
             head_html=base.head_html + head_html,
-            asset_root="/",
+            asset_root="/" + self.policy.root,
             render_masthead=None,
             render_body=lambda context, parts: self._body(page, parts),
         )
@@ -906,8 +915,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if islands is not None and 'data-island="' in body:
             suffix = f"?v={components.esc(self.version)}"
             body += (
-                f'\n<script src="/{ISLANDS_RUNTIME_PATH}{suffix}"></script>'
-                f'\n<script type="module" src="/{components.esc(islands.script)}{suffix}"></script>'
+                f'\n<script src="{components.esc(self.policy.path(ISLANDS_RUNTIME_PATH))}{suffix}"></script>'
+                f'\n<script type="module" src="{components.esc(self.policy.path(islands.script))}{suffix}"></script>'
             )
         return body
 
@@ -922,7 +931,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if self.hooks.masthead is not None
             else components.masthead(
                 identity.name, self.standard.nav, page.path, tagline=identity.tagline,
-                disclosure=self.standard.nav_disclosure, brand_html=self.standard.nav_brand_html,
+                disclosure=self.standard.nav_disclosure, brand_html=self.standard.nav_brand_html, home=self.policy.path("/"),
             )
         )
         family = self.standard.footer_family
@@ -1058,7 +1067,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if entry is not None and self.standard.item_byline:
                 extras.append(components.byline(entry, self.standard.identity.date_format))
             if entry is not None and entry.tags and self.standard.listings.tags:
-                extras.append(components.tag_list(entry.tags, lambda tag: f"/{self.policy.tag_base(slugify_tag(tag))}/"))
+                extras.append(components.tag_list(entry.tags, lambda tag: self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/")))
             actions = self._page_actions(page)
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after + ("\n" + "\n".join(extras) if extras else "")
@@ -1067,12 +1076,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if page.kind == "home":
             view = page.listing
             links = "".join(
-                f'<li><a href="/{components.esc(base)}/">{components.esc(label)}</a></li>' for label, base in self._section_links()
+                f'<li><a href="{components.esc(self.policy.path(f"/{base}/"))}">{components.esc(label)}</a></li>' for label, base in self._section_links()
             )
             more = (
                 f'<ul class="markus-section-links">{links}</ul>'
                 if links
-                else (f'<p><a href="/{components.esc(self.standard.listings.flat_path)}/">All articles</a></p>' if page.entries and not self.standard.sectioned else "")
+                else (f'<p><a href="{components.esc(self.policy.path(f"/{self.standard.listings.flat_path}/"))}">All articles</a></p>' if page.entries and not self.standard.sectioned else "")
             )
             intro = f"<p>{components.esc(identity.description)}</p>" if identity.description else ""
             cards = "\n".join(self._card(entry, page) for entry in view.entries) if view else ""
@@ -1096,7 +1105,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return f'<div class="markus-document"><h1>{components.esc(heading)}</h1>{featured_html}<div class="markus-card-grid">{grid}</div>{pager}</div>'
         if page.kind == "tags":
             items = "".join(
-                f'<li><a href="/{components.esc(self.policy.tag_base(slugify_tag(tag)))}/">{components.esc(tag)}</a> ({len(found)})</li>'
+                f'<li><a href="{components.esc(self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/"))}">{components.esc(tag)}</a> ({len(found)})</li>'
                 for tag, found in page.tags.items()
             )
             return f'<div class="markus-document"><h1>Tags</h1><ul class="markus-tag-cloud">{items}</ul></div>'
@@ -1110,7 +1119,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return (
                 '<div class="markus-document"><h1>Page not found</h1>'
                 "<p>That page is not here. It may have moved, or the address may be mistyped.</p>"
-                '<p><a href="/">Back to the home page</a></p></div>'
+                '<p><a href="' + components.esc(self.policy.path("/")) + '">Back to the home page</a></p></div>'
             )
         form = next((spec for spec in self.standard.forms if page.kind == "custom" and spec.id == self._custom_form(page)), None)
         return (

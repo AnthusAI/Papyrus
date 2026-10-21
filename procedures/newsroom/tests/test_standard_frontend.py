@@ -179,7 +179,7 @@ def test_item_keys_follow_the_url_style():
     assert html.item_key(section, "x") == "notes/x.html" and html.item_key(None, "x") == "x.html"
     assert directory.item_key(directory.settings.section("notes"), "x") == "n/x/index.html"
     assert directory.item_key(None, "x") == "x/index.html"
-    assert UrlPolicy.listing_key("", 3) == "page/3/index.html" and UrlPolicy.listing_key("n") == "n/index.html"
+    assert html.listing_key("", 3) == "page/3/index.html" and html.listing_key("n") == "n/index.html"
 
 
 def test_a_flat_site_has_no_section_bases_and_no_section_pages(flat):

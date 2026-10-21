@@ -83,14 +83,15 @@ class HeadBuilder:
         if icons.theme_color_dark:
             lines.append(f'<meta name="theme-color" content="{_q(icons.theme_color_dark)}" media="(prefers-color-scheme: dark)">')
         feeds = settings.feeds
+        root = "/" + (f"{settings.base_path}/" if settings.base_path else "")
         if "rss" in feeds.formats:
-            lines.append(f'<link rel="alternate" type="application/rss+xml" title="{_q(feeds.title)}" href="/{_q(feeds.rss_path)}">')
+            lines.append(f'<link rel="alternate" type="application/rss+xml" title="{_q(feeds.title)}" href="{_q(root + feeds.rss_path)}">')
         if "atom" in feeds.formats:
-            lines.append(f'<link rel="alternate" type="application/atom+xml" title="{_q(feeds.title)}" href="/{_q(feeds.atom_path)}">')
+            lines.append(f'<link rel="alternate" type="application/atom+xml" title="{_q(feeds.title)}" href="{_q(root + feeds.atom_path)}">')
         if page.markdown_path:
             lines.append(f'<link rel="alternate" type="text/markdown" href="{_q(page.markdown_path)}">')
         sitemap_path = "sitemap-index.xml" if settings.sitemap_style == "index" else "sitemap.xml"
-        lines.append(f'<link rel="sitemap" type="application/xml" href="/{sitemap_path}">')
+        lines.append(f'<link rel="sitemap" type="application/xml" href="{_q(root + sitemap_path)}">')
         if page.noindex or self.environment.guarded:
             lines.append(f'<meta name="robots" content="{NOINDEX_CONTENT}">')
 

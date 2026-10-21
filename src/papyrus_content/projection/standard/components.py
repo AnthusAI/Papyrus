@@ -75,11 +75,11 @@ def nav(links: tuple[NavLink, ...], current_path: str, *, label: str = "Site", d
 
 
 def masthead(
-    site_name: str, links: tuple[NavLink, ...], current_path: str, *, tagline: str = "", disclosure: bool = False, brand_html: str = ""
+    site_name: str, links: tuple[NavLink, ...], current_path: str, *, tagline: str = "", disclosure: bool = False, brand_html: str = "", home: str = "/"
 ) -> str:
     tag = f'\n    <p class="markus-site-tagline">{esc(tagline)}</p>' if tagline else ""
     brand = (
-        f'<a href="/" aria-label="{esc(site_name)}, home">{brand_html}</a>' if brand_html else f'<a href="/">{esc(site_name)}</a>'
+        f'<a href="{esc(home)}" aria-label="{esc(site_name)}, home">{brand_html}</a>' if brand_html else f'<a href="{esc(home)}">{esc(site_name)}</a>'
     )
     # A brand the site supplies may hold block elements (a lockup of paragraphs), which a <p> cannot contain.
     wordmark = "div" if brand_html else "p"
