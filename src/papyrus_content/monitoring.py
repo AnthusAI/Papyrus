@@ -109,8 +109,8 @@ def parse_hn_feed(body: bytes) -> list[SourceItem]:
     return items
 
 
-def fetch_hn_feed() -> bytes:
-    request = Request(HN_FEED, headers={"User-Agent": "Papyrus-Monitor/0.1", "Accept": "application/rss+xml, application/xml"})
+def fetch_hn_feed(url: str = HN_FEED) -> bytes:
+    request = Request(url, headers={"User-Agent": "Papyrus-Monitor/0.1", "Accept": "application/rss+xml, application/xml"})
     with urlopen(request, timeout=25) as response:
         body = response.read(MAX_FEED_BYTES + 1)
     if len(body) > MAX_FEED_BYTES:
