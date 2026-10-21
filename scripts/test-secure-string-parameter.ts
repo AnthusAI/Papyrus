@@ -4,9 +4,15 @@
  */
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { App, Stack } from "aws-cdk-lib";
-import { Template } from "aws-cdk-lib/assertions";
+import { createRequire } from "node:module";
+import path from "node:path";
 import { SecureStringParameter } from "../infra/amplify-app-shell/lib/secure-string-parameter";
+// Load aws-cdk-lib the way the construct does (infra/amplify-app-shell/node_modules when installed, else the root),
+// so the test and the construct never see two copies of constructs.
+const libDirectory = path.resolve(__dirname, "../infra/amplify-app-shell/lib");
+const requireFromLib = createRequire(path.join(libDirectory, "x.js"));
+const { App, Stack } = requireFromLib("aws-cdk-lib");
+const { Template } = requireFromLib("aws-cdk-lib/assertions");
 import { SECURE_STRING_PARAMETER_HANDLER_SOURCE } from "../infra/amplify-app-shell/lib/secure-string-parameter-handler";
 
 type PutInput = { Name: string; Description: string; Type: string; Tier: string; Overwrite: boolean; Value: string };
