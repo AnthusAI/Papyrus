@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7ce63ce3-3c35-416a-9415-9dd7de469dd1",
+  "issue_id": "PPY-4277dd9e-800e-491e-9be8-f4f08a0de792",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T02:56:44.895Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Page actions: Copy Markdown, View as Markdown, Open in AI assistants",
+    "description": "Standard front-end component (on by default for article/guide pages, configurable per site): primary 'Copy Markdown' (purpose-built page Markdown with title and canonical URL), dropdown 'View as Markdown' and optional 'Open in ChatGPT/Claude/Perplexity' (prompt with the canonical URL only; explicit user action). Accessible menu button, theme tokens, no-JS fallback link. Pairs with agent-readable pages PPY-f172d7.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}
