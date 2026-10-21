@@ -9,6 +9,7 @@ from papyrus_content.graphql_authoring import INDEX_DEFINITIONS
 
 INDEX_MODELS = {
     "itemBySlug": "Item",
+    "itemsByLineageAndVersion": "Item",
     "mediaAssetsByItemAndSortKey": "MediaAsset",
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
