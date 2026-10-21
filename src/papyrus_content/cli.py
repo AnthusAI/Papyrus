@@ -310,6 +310,7 @@ PORTED_COMMANDS = frozenset(
         "stories:show",
         "stories:create",
         "stories:move",
+        "stories:set-slug",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -633,6 +634,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_note(flags)
     elif route == "stories:show":
         stories_show(flags)
+    elif route == "stories:set-slug":
+        from .story_commands import stories_set_slug
+
+        stories_set_slug(flags)
     elif route == "stories:move":
         from .story_commands import stories_move
 
@@ -1597,7 +1602,7 @@ def print_usage() -> None:
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
-    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json],")
+    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; PAPYRUS_CONTENT_ACTIONS_FUNCTION schedules it on the Lambda, else it runs locally),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")
