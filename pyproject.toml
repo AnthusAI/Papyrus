@@ -54,7 +54,7 @@ packages = [
 optional = true
 
 [tool.poetry.group.cyclotron.dependencies]
-decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "29bd94476946501d23b493029339543f9726c010", extras = ["jev", "optimizer", "web"] }
+decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "002e6f2b933aa528980338230bb4a4003afc2938", extras = ["jev", "optimizer", "web"] }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

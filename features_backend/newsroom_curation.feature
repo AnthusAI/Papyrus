@@ -23,3 +23,29 @@ Feature: Account-scoped reference curation in Papyrus
     When the editor opens References
     Then the existing reference workflows remain available
     And no curation backend is activated automatically
+
+  @requires-cyclotron
+  Scenario Outline: Leaving an import preview saves nothing
+    Given a References workspace that prepares web pages offline using <mode> execution
+    When the editor previews a reference from a web address
+    And the editor <leaves>
+    Then no reference has been added
+    And a draft that was left cannot be saved afterwards
+    Examples:
+      | mode     | leaves                                      |
+      | embedded | cancels the import                          |
+      | remote   | cancels the import                          |
+      | embedded | rejects the preview and asks for a revision |
+      | remote   | rejects the preview and asks for a revision |
+
+  @requires-cyclotron
+  Scenario Outline: A web page preview shows everything used to make suggestions
+    Given a References workspace that prepares web pages offline using <mode> execution
+    When the editor previews a reference from a web address
+    Then the preview lists the exact details used to make suggestions
+    And the preview keeps where the page came from and how it was prepared
+    And no reference has been added
+    Examples:
+      | mode     |
+      | embedded |
+      | remote   |

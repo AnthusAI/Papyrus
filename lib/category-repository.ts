@@ -1700,7 +1700,7 @@ export function createDemoCategorySteeringDashboard(
           question: "Should this candidate source become a reference for this publication?",
           reviewControl: "thumbs",
           reviewReason: "program",
-          reviewDetail: "Every decision is reviewed while the cyclotron is onboarding.",
+          reviewDetail: "Every suggestion is reviewed while suggestions are getting started.",
           version: 1,
         }),
       },
