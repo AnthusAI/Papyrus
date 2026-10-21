@@ -445,6 +445,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": ASSIGNMENT_EVENT_FIELDS,
         "partitionType": "ID",
     },
+    "referencesByLineageAndVersion": {
+        "field": "listReferencesByLineageAndVersion",
+        "partitionKey": "lineageId",
+        "partitionType": "ID",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByCurationStatusKey": {
         "field": "listReferencesByCurationStatusKeyAndUpdatedAt",
         "partitionKey": "curationStatusKey",
