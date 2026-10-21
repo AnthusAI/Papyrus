@@ -151,6 +151,7 @@ from .catalog import (
     assert_reference_catalog_plan_safety,
     build_prepared_reference_catalog,
     build_reference_catalog_registration_records,
+    catalog_item_with_external_item_id,
     catalog_items,
 )
 from .corpora import (
@@ -966,8 +967,6 @@ def references_register_catalog(flags: list[str]) -> None:
     apply = resolve_mutation_apply(options, "references create-from-catalog")
     if not options.get("catalog"):
         raise ValueError("references create-from-catalog requires --catalog <catalog.json>.")
-    if not options.get("corpus-key"):
-        raise ValueError("references create-from-catalog requires --corpus-key <key>.")
     client, _ = create_authoring_client()
     from .cli_user_auth import user_auth_requested
     if user_auth_requested():
@@ -1221,14 +1220,16 @@ def references_accession_now(flags: list[str]) -> None:
 
 
 def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict[str, Any]:
-    steering_config = load_steering_config(options.get("config")) or require_steering_config()
-    corpus_config = require_corpus_config(steering_config, options["corpus-key"], "--corpus-key")
+    from .publication import resolve_catalog_corpus
+
+    corpus_config, steering_config = resolve_catalog_corpus(client, options)
     catalog_path = options.get("catalog")
     catalog = maybe_enrich_reference_catalog_title_subtitle(
         load_json_file(catalog_path) if catalog_path else options["catalog"],
         options,
         persist=bool(options.get("__apply") and catalog_path),
     )
+    catalog = {**catalog, "items": catalog_items_with_external_ids(catalog)}
     if options.get("skip-existing", True) is not False and str(options.get("skip-existing", "true")).lower() != "false":
         existing = client.list_records("Reference")
         corpus_id = knowledge_corpus_id(corpus_config)
@@ -1249,7 +1250,8 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
     plan_options = {
         "corpusConfig": corpus_config,
         "corpusId": knowledge_corpus_id(corpus_config),
-        "classifierId": options.get("classifier") or resolve_classifier_for_corpus(steering_config, corpus_config, None),
+        "classifierId": options.get("classifier")
+        or (resolve_classifier_for_corpus(steering_config, corpus_config, None) if steering_config else None),
         "status": normalize_reference_curation_status(options.get("status"), "pending"),
         "reasonCode": normalize_reference_rejection_reason_code(
             options.get("reason-code") or options.get("reasonCode"),
@@ -1269,6 +1271,20 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
     assert_reference_catalog_plan_safety(plan)
     changes = build_record_changes(client, plan["records"])
     return {"plan": plan, "changes": changes, "corpusConfig": corpus_config, "options": options}
+
+
+def catalog_items_with_external_ids(catalog: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every item with an `item_id`, computed from its source URI as `references make-catalog` does."""
+    items = []
+    for position, item in enumerate(catalog_items(catalog), start=1):
+        item = catalog_item_with_external_item_id(item)
+        if not (item.get("item_id") or item.get("externalItemId") or item.get("id")):
+            raise ValueError(
+                f"Catalog item {position} has no item_id and no source_uri (or url) to compute one from; "
+                "add either, or build the catalog with `papyrus references make-catalog`."
+            )
+        items.append(item)
+    return items
 
 
 def print_reference_registration_summary(plan: dict[str, Any], changes: list[dict[str, Any]], *, apply: bool) -> None:

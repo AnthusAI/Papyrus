@@ -399,6 +399,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
+  if ((activeBrand?.corpusKey ?? "").trim() !== "") {
+    // A deploy creates the publication's canonical corpus from the brand when the backend has none.
+    contentActionsLambda.addEnvironment("PAPYRUS_PUBLICATION_CORPUS_KEY", (activeBrand?.corpusKey ?? "").trim());
+    contentActionsLambda.addEnvironment("PAPYRUS_PUBLICATION_NAME", (activeBrand?.publicationName ?? activeBrand?.corpusKey ?? "").trim());
+  }
   // AppSync validates the token; pending intake additionally binds its actor
   // and publication to this deployment's pool and existing API endpoint.
   contentActionsLambda.addEnvironment(

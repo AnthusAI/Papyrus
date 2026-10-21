@@ -350,6 +350,13 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             raise ValueError("papyrus videos requires <command>.")
         _delegate_content("videos", command, flags)
         return 0
+    if group == "publication":
+        if command != "init":
+            raise ValueError("papyrus publication requires <command>: init --key <key> --name <name>.")
+        from papyrus_content.publication import publication_init_command
+
+        publication_init_command(flags)
+        return 0
     if group == "editorial" and command == "context":
         from papyrus_content.editorial_context import editorial_context_command
 

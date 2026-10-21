@@ -21,6 +21,7 @@ Operator groups:
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
   editorial     Editorial context and quality loop commands
+  publication   Create the backend's canonical publication (publication init)
   batch         Batch registration and enrichment
   login         Google newsroom sign-in using a configured native OAuth client
   logout        Remove the local user session and attempt provider revocation
