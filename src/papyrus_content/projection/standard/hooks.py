@@ -14,7 +14,8 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
 ``main(page) -> str | None``        the inside of ``<main>`` (after the breadcrumbs), for any page kind; the standard skip link,
                                     masthead and footer stay. ``None`` keeps the default.
 ``page_body(page) -> str | None``   the whole body of a page (everything between ``<body>`` and the scripts);
-                                    ``None`` keeps the default. ``page.kind`` says which page it is.
+                                    ``None`` keeps the default. ``page.kind`` says which page it is; item pages carry
+                                    ``page.page_actions``, the page-actions markup (empty when off), for a body that places it itself.
 
 ``derive(summary) -> dict``         fields computed from an item's summary (a tier, a week); they appear as ``entry.derived``,
                                     are part of every fingerprint, and are how a site's row or card component is chosen

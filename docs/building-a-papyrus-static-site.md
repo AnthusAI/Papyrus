@@ -485,7 +485,8 @@ with it.") that names the page URL; the page body is never put in a URL. Everyth
 only reporting is a `page_action` event through the site's existing `gtag`, so consent mode applies.
 
 Only entries of a listed type get actions by default. `pageActions.types` names further entry types (`["page"]`, `["guide"]`)
-that get them too, for guides and standing pages; listings, archives and the home page never do.
+that get them too, for guides and standing pages; listings, archives and the home page never do. A site whose `page_body` or `main` hook composes
+the whole page places the group itself: `page.page_actions` holds the markup core would have used (empty when the page gets none) on item pages.
 
 Without JavaScript the markup is a list of links (View as Markdown, Open in ...) and the copy button stays hidden
 (`visibility: hidden`, so it also stays out of the accessibility tree and keeps its space: no layout shift). With
