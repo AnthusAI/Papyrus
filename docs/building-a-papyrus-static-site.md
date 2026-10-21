@@ -457,7 +457,7 @@ for a `noindex` entry or the 404 page.
 
 `/llms.txt` follows llmstxt.org: an H1 with the site name, a blockquote from the site description, H2 sections of
 links to the twins (one per section, or "Articles" for a flat site, then "Pages"), and an "Optional" section with the
-feeds, the sitemap and `llms-full.txt`. `/llms-full.txt` is the whole published content in one file, produced only
+feeds, the sitemap and `llms-full.txt`. `/llms-full.txt` is the whole published content in one file (listed and unlisted pages alike), produced only
 when the site has at most `llmsFullMaxItems` pages and truncated at `llmsFullMaxBytes`. A guarded (non-production)
 environment publishes no `llms` files. Everything is regenerated on publish: a twin with its page, `llms.txt` when a
 title, summary or date changes, `llms-full.txt` whenever any item is republished (it is keyed on item versions, so a
