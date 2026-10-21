@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as cdk from "aws-cdk-lib";
 import { AmplifyAppShellStack } from "../lib/amplify-app-shell";
-import { parseSiteConfig, resolveStackName } from "../lib/site-config";
+import { parseSiteConfig, resolveDeployEnvironment, resolveStackName } from "../lib/site-config";
 
 const app = new cdk.App();
 
@@ -13,9 +13,8 @@ if (!sitePath) {
 }
 const config = parseSiteConfig(JSON.parse(fs.readFileSync(path.resolve(sitePath), "utf8")));
 
-const env = process.env.CDK_DEFAULT_ENV
-  ? { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION }
-  : { account: "335163751677", region: "us-east-1" };
+// The account and region come from the site's own infra/site.json (`aws` block); there is no default.
+const env = resolveDeployEnvironment(config);
 
 new AmplifyAppShellStack(app, `AmplifyAppShell-${config.siteId}`, config, {
   env,

@@ -37,6 +37,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm ci
         working-directory: infra/amplify-app-shell
+      # The app-shell CDK app must type-check cleanly with no TS_NODE_TRANSPILE_ONLY escape hatch.
+      - run: npm run build
+        working-directory: infra/amplify-app-shell
       - run: npm test
 
   python:

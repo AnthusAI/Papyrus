@@ -3,6 +3,10 @@
   "repository": "https://github.com/AnthusAI/Example-Pretext-Site",
   "brand": "pretext-example",
   "frontend": "pretext",
+  "aws": {
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
   "hostedZoneId": "Z0000000EXAMPLE",
   "papyrusVersion": "1.0.0-next.1",
   "cms": {

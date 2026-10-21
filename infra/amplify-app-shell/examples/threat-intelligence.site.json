@@ -3,6 +3,10 @@
   "repository": "https://github.com/AnthusAI/Threat-Intelligence",
   "brand": "threat-intelligence",
   "frontend": "pretext",
+  "aws": {
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
   "hostedZoneId": "Z02552332GG6AM25SFP73",
   "papyrusVersion": "1.0.0-next.1",
   "cms": {

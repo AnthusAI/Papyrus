@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveProspectusAccountsEndpoint, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveDeployEnvironment, resolveProspectusAccountsEndpoint, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -36,7 +36,11 @@ assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = true
 
 const awsConfig = parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.aws = { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" })));
 assert.deepEqual(awsConfig.aws, { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" });
-assert.equal(staticConfig.aws, undefined);
+assert.equal(staticConfig.aws?.accountId, "712236451410", "examples record their deploy account");
+assert.deepEqual(resolveDeployEnvironment(awsConfig), { account: "123456789012", region: "us-east-1" });
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: undefined }), /does not say where it deploys.*aws\.accountId and aws\.region/);
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { accountId: "123456789012" } }), /aws\.region/);
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { region: "us-east-1" } }), /aws\.accountId/);
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { accountId: "1234" })), "aws.accountId");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { region: "mars" })), "aws.region");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { secret: "x" })), "aws.secret");
