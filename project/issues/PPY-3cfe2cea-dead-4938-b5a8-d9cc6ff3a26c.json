@@ -10,9 +10,17 @@
   "parent": "PPY-b7cebe53-5d4f-4ad4-b67c-d7afb6eb6fa6",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f2f78655-ec23-40f1-b381-5e4a0ef1bb1e",
+      "author": "home",
+      "text": "First real runs, 2026-10-21, locally with tactus run on In re Wemby Corporation (Serial No. 97752244, precedential, June 24 2026). Skill: Distinctive-web .claude/skills/ttab-ruling-analysis/SKILL.md. Procedure: Distinctive-web procedures/ttab_ruling_analysis.tac (an analyst agent and a separate fact-checker agent, both given the skill with skills_mode full).\n\nRun 7 completed cleanly: 12 tool calls, $0.04 on gpt-5.4, about 90 s. The fact checker made three substantive corrections (it softened holds to says or shows where the draft overstated novelty over Foster) and saved v8 for an editor. Nothing was published.\n\nGaps found and fixed along the way:\n- Tactus: plugin toolsets could not load tools from an installed module (AnthusAI/Tactus#115, which also fixes the runtime path used by .tac files).\n- Tactus: an Agent's declared output fields never reached the model, and _validate_output misread the serialized schema, so wrong keys passed (AnthusAI/Tactus#116).\n- Papyrus: tools shipped in the package (AnthusAI/Papyrus#456): editorial context, create story, save version, read a version, list versions, find or register a source URL as a Reference, link a reference (now by record id or lineage id), and fetch a PDF as page-numbered text.\n\nStill open:\n- editorial checks as a tool (PPY-aa63ae, depends on PR #425);\n- skill paths resolve from the working directory, not the .tac file;\n- the agent cannot see the site's guide slugs;\n- runs are local only (PPY-29efea, PPY-a2b94e);\n- the tools are model-agnostic, but only gpt-5.4 has been tried.",
+      "created_at": "2026-10-21T12:46:07.515350Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:12:49.882274Z",
-  "updated_at": "2026-10-21T12:12:49.882307Z",
+  "updated_at": "2026-10-21T12:46:07.515367Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
