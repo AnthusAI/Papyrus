@@ -462,9 +462,16 @@ predictable; without it Amplify generates the domain (see
    `https://<prefix>.auth.us-east-1.amazoncognito.com` and the redirect URI
    `https://<prefix>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`. The same
    client can serve several sites.
-2. In the Amplify console, **Hosting**, **Secrets**, set `GOOGLE_CLIENT_ID` and
-   `GOOGLE_CLIENT_SECRET` for branch `main`.
-3. Redeploy the CMS `main` branch. Details: [`google-oauth-setup.md`](google-oauth-setup.md).
+2. From the site repository, store the client id and secret as the CMS app's Amplify secrets:
+
+   ```bash
+   papyrus site google-secrets set      # prompts: client id (visible), secret (hidden)
+   ```
+
+   It reads `infra/site.json`, asserts the AWS account with STS before writing, and prints the exact origin and redirect URI for step 1. For automation: `--client-id <id> --secret-stdin` and pipe the secret in (there is no `--secret` argument, so it cannot reach shell history). Which account, profile and region to use comes from the optional `aws` block of `infra/site.json` (`{"profile": "...", "accountId": "...", "region": "us-east-1"}`) or `--profile`, `--account`, `--region`.
+3. Redeploy the CMS `main` branch so the Cognito Google provider picks up the values, then run `papyrus site google-secrets check`: it reports whether both parameters exist (name, last modified, fingerprint) and whether the deployed Cognito provider uses the same client id. Details: [`google-oauth-setup.md`](google-oauth-setup.md).
+
+The command never enables or disables Google OAuth. If the CMS branch sets `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`, the backend ignores the secrets and builds no Google provider; `check` reports the variable's state.
 
 - [ ] Google secrets set on the CMS app (date: ____)
 
@@ -475,7 +482,7 @@ Give each site its own Google Cloud project and OAuth client rather than sharing
 1. Create the project and the OAuth client ([`google-oauth-setup.md`](google-oauth-setup.md) Part A).
 2. Choose the **consent screen user type** by who will sign in: **Internal** only when every editor's Google account belongs to the Google Cloud project's own organization. When the editor's Google account is **not** in that organization (a personal Gmail, or another company's Workspace), the consent screen must be **External**; with Internal, Google refuses the sign-in with an `org_internal` error. An External app in Testing needs each editor listed as a test user until the app is published.
 3. Pick a distinct `cms.cognitoDomainPrefix` per site; the Cognito hosted-UI domain, `https://<prefix>.auth.us-east-1.amazoncognito.com`, is region-global and the prefix is what you register in Google.
-4. Put the client id and secret in the Amplify backend secrets of that site's CMS app only (never in `site.json`, Git, or a branch variable).
+4. Put the client id and secret in the Amplify backend secrets of that site's CMS app only (`papyrus site google-secrets set`; never in `site.json`, Git, or a branch variable).
 
 ### Roles are Cognito groups
 
@@ -516,7 +523,7 @@ After a publish refreshes the reader, `content-actions` invalidates the paths th
 
 | Secret | Where it lives | Set by |
 | --- | --- | --- |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets | human, console |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets (SSM) | human, `papyrus site google-secrets set` |
 | Revalidate secret | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | the app-shell stack, generated |
 | Prospectus session sealing secret | SSM SecureString `/papyrus/<siteId>/prospectus-session-sealing` | the app-shell stack, generated |
 

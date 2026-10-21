@@ -109,6 +109,10 @@ Optional `stackName` (default `amplify-app-shell-<siteId>`) names the CloudForma
 stack, so a new stack for the same `siteId` can coexist with an older one until the
 older stack is deleted. Existing sites that omit it synthesize identically.
 
+Optional `aws` (`profile`, `accountId`, `region`) tells operator tooling where the site
+lives; `papyrus site google-secrets` asserts `accountId` with STS before it writes. The
+stack ignores it, so it never changes a synthesized template.
+
 The generated reader build runs `papyrus ops content export-published --auth guest`
 (Cognito identity pool guest, no credentials, no SSM token; boto3 comes with the
 `markus` extra), so the reader role has no SSM access. Put

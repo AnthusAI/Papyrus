@@ -34,6 +34,13 @@ assert.equal(staticConfig.reader?.domainName, "pilobol.us");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = true)), "includeWww");
 
 
+const awsConfig = parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.aws = { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" })));
+assert.deepEqual(awsConfig.aws, { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" });
+assert.equal(staticConfig.aws, undefined);
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { accountId: "1234" })), "aws.accountId");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { region: "mars" })), "aws.region");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { secret: "x" })), "aws.secret");
+
 const anthUsFixture = () => JSON.parse(fs.readFileSync(path.resolve(here, "fixtures/anth-us.site.json"), "utf8"));
 const mutatedAnthUs = (change: (config: any) => void): unknown => {
   const config = anthUsFixture();
