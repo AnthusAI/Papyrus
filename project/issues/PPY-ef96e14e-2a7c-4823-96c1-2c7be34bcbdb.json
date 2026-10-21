@@ -3,7 +3,7 @@
   "title": "Migrate Chatticus marketing site (chattic.us): standard header/footer and Markus prose",
   "description": "",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -29,11 +29,28 @@
         "model": "claude-sonnet-5-5",
         "name": "chat-migration"
       }
+    },
+    {
+      "id": "fc4b1561-2eee-4902-987a-69cef53f2ab9",
+      "author": "home",
+      "text": "Live and verified. PR https://github.com/AnthusAI/Chattic.us-web/pull/37 merged to main (bed1cea) after sh scripts/ci-local.sh passed with papyrus-newsroom 5.4.0 (core page blocks: PR 424, released as 5.4.0). Deploy: scripts/deploy-local.sh with profile chatticus-production, account 340169921348, cdk diff verdict ok (only the DeployWebsite source zip key changed; distribution E19HVP4WEUJ7SV and the intake stack untouched), live copy smoke clean. The chatticus-marketing pipeline could not do it: its Verify project still has the pre-humanus buildspec and has been failing since #36 (follow-up PPY-5e3d24). Live verification: 163 page URLs (82 canonical, plus the slashless forms) return 200 text/html; all 274 built files fetched from https://chattic.us are byte-identical to the build; /api/waitlist/survey 200, /chat 403 as before; screenshots of 13 key pages at 1440 and 390 match the old look (page height within 2.5% except the worked-example pages, which now render the intended design: live was missing the Tailwind classes lib/use-case-page.tsx used). Parity (82 URLs vs the live crawl): text identical 57, within 3% 12 (chatticus docs moved since the last deploy; identical to today's old build), explained differences 13 (client-rendered forms and demo, FAQ answers now in the HTML, wiki group headings kept via card hook); head metadata unexplained diffs 0. Code: 3270 added, 6666 removed (TypeScript/TSX +410 -4289, Python +790 -1298, CSS +893 -799, Markdown +770 -125). Follow-ups: PPY-5e3d24 (redeploy pipeline stack), PPY-9cd419 (core gaps). Decision recorded: the intake forms, survey, confirm and invite pages stay islands because core forms cannot express the intake payloads.",
+      "created_at": "2026-10-21T05:25:20.032207Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "chat-migration"
+      }
     }
   ],
   "created_at": "2026-10-21T00:48:26.166067Z",
-  "updated_at": "2026-10-21T04:23:26.733379Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T05:25:20.497982Z",
+  "closed_at": "2026-10-21T05:25:20.497952Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "chat-migration"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
