@@ -145,6 +145,13 @@ export type PapyrusSiteBackendConfig = {
    * DependsOn ordering; no resource changes. Default 12; 0 turns it off.
    */
   resolverWaveSize?: number;
+  /**
+   * Optional model groups to leave out of the data API (see `OPTIONAL_MODEL_GROUPS`; today `editions`).
+   * CloudFormation allows 2,500 resources per stack operation, nested stacks included, and a fresh create of the full
+   * model set exceeds it. Deploy a new site once with a group excluded, then remove the exclusion and deploy again:
+   * the second deploy is an ordinary update that adds the models.
+   */
+  excludeModelGroups?: string[];
   /** Static reader app (Markus-static sites) that a publish rebuilds through IAM `amplify:StartJob`. */
   reader?: { amplifyAppId: string; branchName?: string };
   /** Lets the newsroom start the `staging` branch build of this CMS app. */

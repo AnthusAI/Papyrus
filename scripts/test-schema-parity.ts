@@ -26,7 +26,7 @@ function extractFieldNames(source: string, modelName: string): Set<string> {
   const endIndex = rest.indexOf(".secondaryIndexes");
   const block = endIndex === -1 ? rest : rest.slice(0, endIndex);
   const names = new Set<string>();
-  for (const match of block.matchAll(/^\s{6}(\w+): a\./gm)) {
+  for (const match of block.matchAll(/^\s{6}(?:\.\.\.\(\w+ \? \{ )?(\w+): a\./gm)) {
     names.add(match[1]);
   }
   return names;

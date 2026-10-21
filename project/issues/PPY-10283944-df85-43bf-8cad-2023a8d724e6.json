@@ -1,0 +1,35 @@
+{
+  "id": "PPY-10283944-df85-43bf-8cad-2023a8d724e6",
+  "title": "Fresh site deploy exceeds the CloudFormation per-operation resource cap",
+  "description": "A new site's first backend deploy fails with 'Limit on the number of resources in a single stack operation exceeded'. CloudFormation creates at most 2,500 resources per stack operation, nested stacks included; the data stack is about 2,560 (130 top-level + 2,432 across 45 nested stacks). Existing sites reached that size through incremental updates. Found deploying Shipped (shipped.anth.us), where the first four builds rolled back. resolverWaveSize does not help (all waves are in one root operation). Workaround, PR #463: backend.excludeModelGroups (editions) for a staged first deploy, then remove it and deploy again. Real fix to decide: trim or split the schema (e.g. a second data stack or a model-group opt-in default), so a fresh create fits. Every new site hits this.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "60d1f7f2-e7f4-43fa-88d8-fcbf3bbc219b",
+      "author": "home",
+      "text": "Breakdown of the existing data stack (about 2,560 resources): 1,611 AppSync FunctionConfigurations, 453 resolvers, 212 IAM roles and policies, 106 data sources, 42 tables, 19 Lambdas. Largest nested stack: FunctionDirectiveStack, 379 resources. Most of the count is Amplify-generated pipeline functions: per model, CRUD plus three subscriptions plus index and relationship queries, about 3.5 functions each.\n\nLong-term fix: trim generated operations in the schema. Disable subscriptions on models that no UI subscribes to; drop delete and list where nothing uses them; remove unused secondary indexes.\n\nShort-term workaround (PR #463): two-pass deploy with backend.excludeModelGroups (editions), then remove it and deploy again. Shipped uses it now.",
+      "created_at": "2026-10-21T13:38:51.216573Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "a8522447-0fc7-4a0a-b450-a8ecd9ed0afd",
+      "author": "home",
+      "text": "Correction to the long-term fix: subscriptions are already minimal. 36 models use modelWithoutSubscriptions; only Reference, Message and MessageThread are realtimeModel (console chat and the topic-steering workspace). Do not propose trimming subscriptions. Constraint (Ryan's policy): avoid AppSync realtime unless it is really needed.\n\nTrimming proposal, revised: remove unused delete and list operations per model, remove unused secondary indexes, remove unused relationship resolvers (hasMany/belongsTo fields nothing queries), and look at the 379-resource FunctionDirectiveStack specifically.",
+      "created_at": "2026-10-21T13:45:18.304726Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T13:38:44.861390Z",
+  "updated_at": "2026-10-21T13:45:18.304751Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
