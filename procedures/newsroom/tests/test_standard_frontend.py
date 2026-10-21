@@ -279,6 +279,17 @@ def test_json_ld_adds_date_modified_and_publisher():
     assert data["author"] == [{"@type": "Person", "name": "Ann"}] and data["publisher"]["name"] == "Example Press"
 
 
+def test_json_ld_headline_can_differ_from_the_title_that_carries_the_site_name():
+    head = builder(minimal()).build(
+        PageHead(title="Slow water | Example", headline="Slow water", path="/t.html", og_type="article", json_ld_type="Article", published="2026-01-01")
+    )
+    data = json.loads(re.search(r'application/ld\+json">(.*?)</script>', head).group(1))
+    assert data["headline"] == "Slow water"
+    assert '<meta property="og:title" content="Slow water | Example">' in head
+    plain = builder(minimal()).build(PageHead(title="Slow water", path="/t.html", og_type="article", json_ld_type="Article"))
+    assert json.loads(re.search(r'application/ld\+json">(.*?)</script>', plain).group(1))["headline"] == "Slow water"
+
+
 def test_head_has_discovery_links_icons_fonts_and_robots_for_noindex():
     raw = minimal(
         fonts={"stylesheet": "https://fonts.example.net/c"},
