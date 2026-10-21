@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "4f9a688b-2f3c-43eb-a847-0b7c814106f7",
+  "issue_id": "PPY-7954f870-b6e4-4bfa-81a2-9a2c5332a775",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-21T17:11:20.716Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "489b74a7-752c-4f2e-847d-de8dac6e0516",
+    "comment_author": "home"
+  }
+}

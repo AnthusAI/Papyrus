@@ -3,17 +3,25 @@
   "title": "Cyclotron-web: restore isBasedOn in article JSON-LD",
   "description": "Live articles carried isBasedOn (the Anth.us original) in JSON-LD; core Article JSON-LD omits it. Add via a core seo option or head hook.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 4,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "abfae86c-155b-4449-bdd6-3897dc74094c",
+      "author": "home",
+      "text": "Merged in Papyrus PR #464 (b1f1467), released in 5.10.0+, deployed fleet-wide on 5.12.0. 7954f8: redirects use the projector's public path. 9cd419: placeholder escape, empty leading column fix, site.dateFormat/ledeField, groupBy field:<name>, seo.articleTypes. 2c3c69: seo.isBasedOnField, live on cyclotron.anth.us articles (JSON-LD isBasedOn). Docs in docs/building-a-papyrus-static-site.md.",
+      "created_at": "2026-10-21T17:11:21.744943Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T10:57:18.317809Z",
-  "updated_at": "2026-10-21T10:57:18.317837Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T17:11:21.790947Z",
+  "closed_at": "2026-10-21T17:11:21.790925Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

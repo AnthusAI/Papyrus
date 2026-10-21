@@ -3,17 +3,25 @@
   "title": "Core: edge-served redirects for urls.style clean (alias and slug-rename redirects target /x.html)",
   "description": "engine.py renames and CMS alias redirects use request_paths_for_key, which gives /x.html for a clean-style page. Use UrlPolicy.url_for_key.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "489b74a7-752c-4f2e-847d-de8dac6e0516",
+      "author": "home",
+      "text": "Merged in Papyrus PR #464 (b1f1467), released in 5.10.0+, deployed fleet-wide on 5.12.0. 7954f8: redirects use the projector's public path. 9cd419: placeholder escape, empty leading column fix, site.dateFormat/ledeField, groupBy field:<name>, seo.articleTypes. 2c3c69: seo.isBasedOnField, live on cyclotron.anth.us articles (JSON-LD isBasedOn). Docs in docs/building-a-papyrus-static-site.md.",
+      "created_at": "2026-10-21T17:11:20.716436Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T10:57:08.805654Z",
-  "updated_at": "2026-10-21T10:57:08.805687Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T17:11:20.762827Z",
+  "closed_at": "2026-10-21T17:11:20.762799Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
