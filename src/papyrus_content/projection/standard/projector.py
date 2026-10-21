@@ -39,11 +39,11 @@ from ..projector import (
     read_static_files,
     settings_from_mapping,
 )
-from ..public_data import entry_for, hidden_from_public_data, owns_public_data_key, public_data_files, public_data_inputs, public_static_files
+from ..public_data import clipped, entry_for, hidden_from_public_data, owns_public_data_key, public_data_files, public_data_inputs, public_static_files
 from ..writers import request_paths_for_key
 from . import components
 from .config import STANDARD_KEYS, StandardSettings, standard_settings_from_mapping
-from .entries import StandardEntry, build_entries, entry_for_summary, entry_title, newest_first
+from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
@@ -142,7 +142,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             head = PageHead(
                 title=title,
                 path="/",
-                description=lede_of(fragment) or self.standard.identity.description,
+                description=clipped(first_text(summary.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or self.standard.identity.description,
                 image=first_image_of(fragment),
             )
             page = self._page("home", head, site, entries=entries, fragment=fragment)
