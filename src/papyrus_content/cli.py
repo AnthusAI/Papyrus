@@ -319,6 +319,7 @@ PORTED_COMMANDS = frozenset(
         "stories:show",
         "stories:create",
         "stories:move",
+        "stories:repair-versions",
         "stories:set-slug",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
@@ -654,6 +655,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_set_slug
 
         stories_set_slug(flags)
+    elif route == "stories:repair-versions":
+        from .story_commands import stories_repair_versions
+
+        stories_repair_versions(flags)
     elif route == "stories:move":
         from .story_commands import stories_move
 

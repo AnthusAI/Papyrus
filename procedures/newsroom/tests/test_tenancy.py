@@ -77,6 +77,8 @@ class InMemoryGraphQLBackend:
                 row for row in self.tables.get("PublishedMediaAsset", {}).values()
                 if row.get("publishedItemId") == variables["publishedItemId"]
             ]
+        elif field == "listItemsByLineageAndVersion":
+            rows = [row for row in self.tables.get("Item", {}).values() if row.get("lineageId") == variables["lineageId"]]
         elif field == "listPublishedItems":
             rows = list(self.tables.get("PublishedItem", {}).values())
         else:

@@ -1,8 +1,9 @@
 """Save, publish and unpublish Items and their Published* projection (PPY-b3a10e).
 
 One module used by the CLI now and by the editor Lambda later. An ``Item`` is
-edited in place; each publish increments ``versionNumber`` and writes the same
-number to the single ``PublishedItem`` row of the lineage.
+edited in place; each publish increments the published counter kept on the single
+``PublishedItem`` row of the lineage. Publishing never touches an ``Item`` record's own
+``versionNumber`` (its place in the lineage's draft history).
 """
 
 from __future__ import annotations
@@ -370,7 +371,6 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
             "status": "published",
             "stage": "published",
             **_status_keys(item.get("type") or "", item.get("section"), "published"),
-            "versionNumber": version_number,
             "publishedAt": published["publishedAt"],
             "versionState": "current",
             "versionCreatedAt": now,
@@ -379,6 +379,10 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
             "bodyIr": to_aws_json(envelope),
         },
     )
+    # The published record is the one current record of its lineage.
+    for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
+        if sibling["id"] != item_id and sibling.get("versionState") == "current":
+            client.update_record("Item", {"id": sibling["id"], "versionState": "superseded"})
     return PublishResult(True, item_id, published_id, version_number, deleted)
 
 
@@ -390,7 +394,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
     published = client.get_record("PublishedItem", published_id)
     media_rows = client.list_by_index("publishedMediaAssetsByItemAndSortKey", published_id)
     if published is None and not media_rows and item.get("status") != "published":
-        return PublishResult(False, item_id, published_id, item.get("versionNumber"))
+        return PublishResult(False, item_id, published_id, (published or {}).get("versionNumber"))
 
     deleted = []
     for row in media_rows:
@@ -410,7 +414,7 @@ def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) 
             "changeReason": "unpublish",
         },
     )
-    return PublishResult(True, item_id, published_id, item.get("versionNumber"), deleted)
+    return PublishResult(True, item_id, published_id, (published or {}).get("versionNumber"), deleted)
 
 
 class DryRunClient:
