@@ -413,7 +413,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if settings is None:
             return []
         return [
-            entry_for(entry.summary, entry.key, settings)
+            entry_for(entry.summary, entry.key, settings, date=entry.date)
             for entry in self._entries(site)
             if entry.listed and entry.key and not entry.noindex and not hidden_from_public_data(entry.summary)
         ]

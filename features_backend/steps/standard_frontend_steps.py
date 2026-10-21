@@ -144,3 +144,15 @@ def edge_sends(context, source: str, target: str) -> None:
 @then('the standard edge rules leave "{path}" alone')
 def edge_leaves(context, path: str) -> None:
     assert first_match(edge_rules(context), path) is None
+
+
+@then('the standard entry date of "{written}" is "{expected}"')
+def entry_date(context, written: str, expected: str) -> None:
+    from papyrus_content.projection.standard.entries import calendar_date
+
+    assert calendar_date(written) == expected, (written, calendar_date(written), expected)
+
+
+@then('the standard entry date of "{written}" is blank')
+def entry_date_blank(context, written: str) -> None:
+    entry_date(context, written, "")

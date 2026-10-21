@@ -81,7 +81,10 @@ def hidden_from_public_data(summary: ItemSummary) -> bool:
     return str(summary.front_matter.get("feed", "")).strip().lower() in HIDDEN_FROM_FEED_VALUES
 
 
-def entry_for(summary: ItemSummary, page_key: str, settings: PublicDataSettings, *, summary_text: str | None = None) -> PublicEntry:
+def entry_for(
+    summary: ItemSummary, page_key: str, settings: PublicDataSettings, *, summary_text: str | None = None, date: str | None = None
+) -> PublicEntry:
+    """``date`` is the entry's calendar date when the caller has already normalised it (front matter may write it out in words)."""
     front_matter = summary.front_matter
     if summary_text is None:
         summary_text = next((str(front_matter[name]) for name in SUMMARY_FIELD_NAMES if front_matter.get(name)), "")
@@ -90,7 +93,7 @@ def entry_for(summary: ItemSummary, page_key: str, settings: PublicDataSettings,
         url=request_paths_for_key(page_key)[0],
         summary=clipped(summary_text, settings.summary_characters),
         tags=tags_of(front_matter.get("tags")),
-        date=str(front_matter.get("date") or summary.published_at or "")[:10],
+        date=date if date is not None else str(front_matter.get("date") or summary.published_at or "")[:10],
     )
 
 
