@@ -3,17 +3,25 @@
   "title": "Decide and plan: Babulus site",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1053d6f9-5a3b-4ba6-b7ee-699c03dedee3",
+      "author": "home",
+      "text": "Decision: Babulus has no marketing/content site today; babulus.anth.us is the Studio product app (Next 14) and babul.us redirects to it. Product apps are not content sites and stay as they are. The planned babul.us marketing site (Babulus session epics babulus-372c35 / babulus-09376e) must be built on the standard Papyrus front end (projection.json + theme + hooks) when it is started; nothing to migrate now.",
+      "created_at": "2026-10-21T11:01:30.780531Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:38.498307Z",
-  "updated_at": "2026-10-21T00:48:38.498372Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T11:01:30.814918Z",
+  "closed_at": "2026-10-21T11:01:30.814874Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
