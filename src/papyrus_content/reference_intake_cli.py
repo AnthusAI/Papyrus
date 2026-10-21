@@ -6,7 +6,8 @@ from pathlib import Path
 
 from .ids import knowledge_corpus_id
 from .reference_intake import canonical_source_url
-from .steering import require_corpus_config, require_steering_config
+from .steering import load_steering_config, require_steering_config
+from .publication import resolve_catalog_corpus
 
 MUTATION = "mutation IntakePendingReferences($input: AWSJSON!) { intakePendingReferences(input: $input) }"
 
@@ -16,7 +17,9 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
         raise ValueError("User-session catalog intake supports --status pending only; use editorial review for decisions.")
     if options.get("actor") or options.get("reason-code"):
         raise ValueError("Pending intake derives its actor from the signed-in publication session.")
-    corpus = require_corpus_config(require_steering_config(options.get("config")), options["corpus-key"])
+    corpus, _ = resolve_catalog_corpus(
+        client, options, lambda path: require_steering_config(path) if path else load_steering_config(None)
+    )
     catalog = json.loads(Path(options["catalog"]).read_text(encoding="utf-8"))
     if not isinstance(catalog, dict) or not isinstance(catalog.get("items"), list):
         raise ValueError("The catalog must contain an items array.")

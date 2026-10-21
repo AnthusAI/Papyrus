@@ -124,3 +124,9 @@ page heights, section splits, or image variant scores.
 - Scenarios should assert both rendered geometry and solver choices when a rule
   matters. For example, a blank-column repair should check that no continuation
   column is dead and that the intended image or furniture template won.
+
+## Creating stories and discovering commands
+
+`papyrus stories create --title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment]` mints a content item at the chosen stage (default `idea`) without opening an Assignment; `--with-assignment` also opens the `reporting.candidate` Assignment on it (the same path as `papyrus reporting create`). `reporting create`, `research create` and the `run` commands resolve the corpus from the backend's canonical publication corpus when `--corpus-key` is omitted (`papyrus publication init` creates it on a fresh backend).
+
+Every command group prints its own subcommands for `papyrus <group>` and `papyrus <group> --help`.

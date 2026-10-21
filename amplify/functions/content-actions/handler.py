@@ -23,6 +23,7 @@ from papyrus_content.rebuild_trigger import (
     trigger_staging_build,
 )
 from papyrus_content.story_reporting import save_story_version
+from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.reference_intake import IntakeError, intake_references
 from papyrus_content.publishing import (
     ItemFields,
@@ -151,6 +152,7 @@ def schedule_unpurged_invalidation(keys: list[str]) -> None:
 
 def run_deploy_render_task(client) -> dict:
     """Render every published page after a backend deploy, then report drift (a dry run: nothing is deleted)."""
+    ensure_publication_from_environment(client)
     context = projection_context(client)
     report = deploy_render(context)
     print(drift_metric_line(report))
