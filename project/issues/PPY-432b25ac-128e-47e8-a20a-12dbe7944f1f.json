@@ -3,7 +3,7 @@
   "title": "Per-site secrets in SSM SecureString, not Secrets Manager (session sealing)",
   "description": "Standing rule (Ryan, 2026-10-21): use SSM Parameter Store standard SecureString (free, aws/ssm key) for secrets and config. Use Secrets Manager ($0.40/secret/month) only where a service requires it, e.g. a value CloudFormation must resolve. Concern: per-site overhead as the number of Papyrus sites grows.\n\nFinding: infra/amplify-app-shell/lib/amplify-app-shell.ts:113 creates secretsmanager.Secret ProspectusSessionSealingSecret for each site with prospectusAccountsApiStageArn. The site runtime reads it via PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN and secretsmanager:GetSecretValue. Live: ProspectusSessionSealingSec-XzFltkcYwNWl (amplify-app-shell-p-apyr-us-cms) and ProspectusSessionSealingSec-AvezDYBrVD6h (amplify-app-shell-pilobol-us-cms) in papyrus-production 712236451410.\n\nAudit of the rest: no other per-site Secrets Manager secrets. Amplify secret() values (Google client id and secret, Slack signing secret, editorial-check provider keys) are already SSM SecureStrings. The pretext revalidate secret is an SSM parameter the template references but does not create, so it is manually configured and should come under the same construct.\n\nPlan:\n1. A shared construct, SecureStringParameter, in infra: a create-only CDK custom resource (Lambda) generates a random value and calls PutParameter Type=SecureString. It never logs or returns the value, it is retained on delete, and it does not regenerate on update.\n2. The app shell creates /papyrus/<siteId>/prospectus-session-sealing with it. It passes PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER, and IAM allows only ssm:GetParameter on that exact ARN (decryption with the AWS-managed aws/ssm key needs no extra KMS grant).\n3. The runtime reads with WithDecryption and caches the value per container.\n4. Migration (Ryan picks): (a) dual-read, i.e. unseal with the new value and fall back to the old Secrets Manager value for one session lifetime, then remove it; or (b) accept a one-time sign-out on p.apyr.us and pilobol.us. Option (b) is simpler and these are pre-production sites.\n5. Bring the revalidate parameter under the same construct.\n6. Delete the old secrets only after cutover, and only with Ryan's approval (Ryan deletes old resources).\n\nAcceptance: a fresh site creates no Secrets Manager secret; sign-in works on p.apyr.us and pilobol.us after cutover; IAM is scoped to the single parameter ARN; tests cover the construct (no value in template or outputs) and the runtime reader.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -32,11 +32,25 @@
         "model": "claude-opus-5-5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "e2a4aec8-1a55-4fe0-a05a-da65fb2125b0",
+      "author": "home",
+      "text": "Shipped. PRs: Papyrus #477 (develop), #479 (main), release v5.15.0; p.apyr.us #64, Pilobol.us #116 (pins 5.15.0). New SecureStringParameter construct (create-only custom resource, value never in template/output/log, retained on delete); sealing parameter /papyrus/<siteId>/prospectus-session-sealing, runtime reads with decryption; revalidate parameter now under the same construct. Stacks amplify-app-shell-p-apyr-us-cms and -pilobol-us-cms updated in 712236451410, CMS builds p.apyr.us job 62 and Pilobol job 57 succeeded. Verified: sign-in start issues the sealed pending cookie (parameter read OK), no AccessDenied in logs, no stack or env references the old secrets. Old retained secrets to delete after Ryan approves: ProspectusSessionSealingSec-XzFltkcYwNWl (p-apyr-us), ProspectusSessionSealingSec-AvezDYBrVD6h (pilobol-us). Full sign-in on p.apyr.us still hits the separate redirect_uri localhost bug (Cyclotron fix).",
+      "created_at": "2026-10-21T20:02:51.997709Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "1badf5aa-2e51-4237-8f6d-85ace551db10",
+      "author": "home",
+      "text": "Shipped. PRs: Papyrus #477 (develop), #479 (main), release v5.15.0; p.apyr.us #64, Pilobol.us #116 (pins 5.15.0). New SecureStringParameter construct (create-only custom resource, value never in template/output/log, retained on delete); sealing parameter /papyrus/<siteId>/prospectus-session-sealing read with decryption at runtime; revalidate parameter under the same construct. Stacks amplify-app-shell-p-apyr-us-cms and -pilobol-us-cms updated in 712236451410; CMS builds succeeded. Verified: sign-in start issues the sealed pending cookie, no AccessDenied in logs, no stack or env references the old secrets. Old retained secrets to delete after Ryan approves: ProspectusSessionSealingSec-XzFltkcYwNWl (p-apyr-us), ProspectusSessionSealingSec-AvezDYBrVD6h (pilobol-us). Full sign-in on p.apyr.us still hits the separate redirect_uri localhost bug (Cyclotron fix).",
+      "created_at": "2026-10-21T20:02:56.797924Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T15:48:37.830369Z",
-  "updated_at": "2026-10-21T15:52:04.136767Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T20:02:58.478742Z",
+  "closed_at": "2026-10-21T20:02:58.478706Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",
