@@ -1,0 +1,20 @@
+{
+  "id": "PPY-053d10e5-3ebc-45b3-b6a9-e4e950a203c2",
+  "title": "M1 Run a procedure end to end from the CLI and the cloud, and inspect its runs",
+  "description": "Run a site's Tactus procedure locally and in the cloud (procedure-action Lambda), pass inputs, see each step's output, cost and errors, and re-run it. Find and fix whatever stops a real procedure from completing.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-8e13f6a0-1f34-44cb-8379-8f75c8202978",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:14.431992Z",
+  "updated_at": "2026-10-21T12:12:14.432018Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

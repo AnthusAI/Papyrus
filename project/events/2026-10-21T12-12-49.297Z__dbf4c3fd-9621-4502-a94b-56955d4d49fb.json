@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dbf4c3fd-9621-4502-a94b-56955d4d49fb",
+  "issue_id": "PPY-94e98178-0dab-4d79-b539-1ebc29a0203d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:12:49.297Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Site-defined procedures: register a site's .tac files through defineSite and seed them on deploy",
+    "description": "A site can only add a procedure by hand in Administration or via GraphQL; defineSite and site-backend have no procedure option and seeding is hardcoded to Papyrus's own procedures/newsroom. Let a site ship procedures (and their skills) in its repository, declared in papyrus.config.ts, and have deploy create or update the ProcedureDefinition/ProcedureVersion records.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-053d10e5-3ebc-45b3-b6a9-e4e950a203c2",
+    "labels": []
+  }
+}

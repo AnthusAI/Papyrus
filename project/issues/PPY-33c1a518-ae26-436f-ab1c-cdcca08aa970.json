@@ -1,0 +1,20 @@
+{
+  "id": "PPY-33c1a518-ae26-436f-ab1c-cdcca08aa970",
+  "title": "Procedure runs need a Papyrus checkout: the installed packages ship no procedures/, corpora/ or tactus",
+  "description": "start_cloud_procedure_run resolves PAPYRUS_ROOT/procedures and corpora/..., prepends ../Tactus and src to PYTHONPATH, and shells out to tactus run. A site repository that installs papyrus-newsroom from PyPI and @anthusai/papyrus from npm (Distinctive-web on 5.7.0) has none of these: no .tac files, no corpora JSON, and no tactus package in the Python environment. Procedure runs should work from an installed site: tactus as a dependency of papyrus-newsroom (or an extra), run files materialized from the stored ProcedureVersion, no sibling checkouts.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-053d10e5-3ebc-45b3-b6a9-e4e950a203c2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:49.153951Z",
+  "updated_at": "2026-10-21T12:12:49.153980Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

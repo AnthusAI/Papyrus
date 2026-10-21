@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6f55cc96-c9a3-4dda-bb22-58eb6a875cae",
+  "title": "M2 Skills for procedure agents",
+  "description": "A procedure's agents can be given skills: the same SKILL.md documents Claude Code uses (Papyrus's reporting and copywriting skills, Humanus editorial checks, a site's own skills such as Distinctive's TTAB ruling analysis), loaded by reference, with the tools those skills call (papyrus CLI commands, document fetch) available to the agent.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-8e13f6a0-1f34-44cb-8379-8f75c8202978",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:14.494953Z",
+  "updated_at": "2026-10-21T12:12:14.494982Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

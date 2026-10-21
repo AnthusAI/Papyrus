@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8e6734e0-9b91-42ef-9f1f-ff9e6335fc44",
+  "title": "Procedure tools for story work: save a story version, link a reference, read a story's editorial context",
+  "description": "execute_tactus exposes reads, Assignment/Reference/MessageThread resources and reference notes, but not the story operations an analysis procedure needs: create a story, save a version with front matter and body (what papyrus stories save-version does), link a reference as consulted or cited, and move stage. Add them to the papyrus host module with the same rules the CLI applies.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6f55cc96-c9a3-4dda-bb22-58eb6a875cae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:49.451629Z",
+  "updated_at": "2026-10-21T12:12:49.451663Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

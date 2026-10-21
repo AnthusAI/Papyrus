@@ -1,0 +1,20 @@
+{
+  "id": "PPY-be07d6c6-c762-432f-9cb4-9dacb1b98876",
+  "title": "Run a procedure's Specification blocks as tests in CI and from the CLI",
+  "description": "Procedures can carry a Gherkin Specification with mocked tool calls (editor.tac does). Add papyrus procedures test <key|file> and a CI job for procedures shipped with Papyrus and with a site, plus recorded-run replay so a real run can become a regression fixture.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ae4227d7-4990-422a-b1c9-8653b457b034",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:49.675923Z",
+  "updated_at": "2026-10-21T12:12:49.675958Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

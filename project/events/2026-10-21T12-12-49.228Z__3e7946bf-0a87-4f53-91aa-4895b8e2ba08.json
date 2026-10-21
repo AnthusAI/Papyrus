@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3e7946bf-0a87-4f53-91aa-4895b8e2ba08",
+  "issue_id": "PPY-a2b94eeb-86fd-412a-b111-506ad0cb3ea4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:12:49.228Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Execute arbitrary Tactus procedures in the cloud, not only the three seeded kinds",
+    "description": "assignment-action executeImmediateProcedureRun dispatches on papyrus-procedure-kind and supports only newsroom.research.explorer, newsroom.reporting.context and ingestion.reference.register; anything else throws Unsupported seeded procedure kind, and the runbook notes Lambda does not execute arbitrary Tactus source. A procedure saved in the newsroom therefore cannot run in the cloud. Needs a runtime that runs any published ProcedureVersion (for example a container Lambda or ECS task with tactus installed), with run records, logs and cost, and the 30 s procedure-action timeout out of the path.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-053d10e5-3ebc-45b3-b6a9-e4e950a203c2",
+    "labels": []
+  }
+}
