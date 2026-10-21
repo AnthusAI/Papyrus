@@ -53,6 +53,7 @@ class SourceItem:
     source_item_url: str
     published_at: str | None
     media_type: str = "text/html"
+    aliases: tuple[str, ...] = ()       # other URLs of the same source document; intake treats them as one
 
     @property
     def fingerprint(self) -> str:
@@ -129,16 +130,18 @@ def fetch_hn_feed(url: str = HN_FEED) -> bytes:
     return body
 
 
-def ttab_search_body(now: float, lookback_days: int, limit: int) -> bytes:
+def ttab_search_body(now: float, lookback_days: int, limit: int, *, precedential_only: bool = False) -> bytes:
     """The Reading Room search for decisions issued in the last `lookback_days`, newest first.
 
     The date filter key is `decisionDate`, but sorting must use `issueDate`: sorting by
-    `decisionDate` silently returns nothing.
+    `decisionDate` silently returns nothing. `precedential_only` asks for decisions the Board
+    has designated precedential, which it can do months after a decision issues.
     """
     end = datetime.fromtimestamp(now, timezone.utc).date()
     start = datetime.fromtimestamp(now - lookback_days * 86400, timezone.utc).date()
     return json.dumps({"dateRangeData": {"decisionDate": {"from": start.isoformat(), "to": end.isoformat()}},
-                       "facetData": {}, "parameterData": {}, "recordTotalQuantity": limit, "searchText": "",
+                       "facetData": {}, "parameterData": {"precedentCitableIndicator": "Y"} if precedential_only else {},
+                       "recordTotalQuantity": limit, "searchText": "",
                        "sortDataBag": [{"issueDate": "desc"}], "recordStartNumber": 0}).encode()
 
 
@@ -183,8 +186,29 @@ def parse_ttab_decisions(body: bytes, *, final_decisions_only: bool = True) -> l
         title = " ".join(f"{party}: {decision}{precedential}".split())[:1000]
         items.append(SourceItem(source_id, title, f"{TTAB_DOCUMENT_ROOT}{document}",
                                 f"https://ttabvue.uspto.gov/ttabvue/v?pno={proceeding}&pty={kind}", published,
-                                "application/pdf"))
+                                "application/pdf", ttab_document_aliases(document)))
     return items
+
+
+def ttab_document_aliases(document: str) -> tuple[str, ...]:
+    """The same decision document at its other addresses: the Reading Room path with the double
+    slash the site itself links, and the TTABVUE PDF (`/legal-proceeding/<n>/decision/<TYPE>_<entry>.pdf`
+    is `ttabvue-<n>-<TYPE>-<entry>.pdf`)."""
+    aliases = [f"{TTAB_DOCUMENT_ROOT}/{document}"]
+    parts = document.strip("/").split("/")
+    if len(parts) == 4 and parts[0] == "legal-proceeding" and parts[2] == "decision" and "_" in parts[3]:
+        kind, entry = parts[3].removesuffix(".pdf").rsplit("_", 1)
+        aliases.append(f"https://ttabvue.uspto.gov/ttabvue/ttabvue-{parts[1]}-{kind}-{entry}.pdf")
+    return tuple(aliases)
+
+
+def merge_source_items(*groups: list[SourceItem]) -> list[SourceItem]:
+    """One item per source id across several result lists; a later list wins (its data is newer or more specific)."""
+    merged: dict[str, SourceItem] = {}
+    for group in groups:
+        for item in group:
+            merged[item.source_id] = item
+    return list(merged.values())
 
 
 #: Source types a monitor can read: the hosts its sourceUrl may name, its display name and how to read it.

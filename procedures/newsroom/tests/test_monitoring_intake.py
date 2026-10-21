@@ -85,3 +85,19 @@ def test_mismatched_discovery_identity_is_rejected_before_intake(tmp_path):
     with pytest.raises(ValueError, match="source item"):
         sink(item, {**p, "sourceId": "wrong"})
     assert client.writes == []
+
+
+def test_a_reference_stored_under_another_address_of_the_same_document_is_reused(tmp_path):
+    client, saved, sink, item, p = setup(tmp_path)
+    client.references.append({"id": "reference-earlier-v1", "lineageId": "reference-earlier", "versionNumber": 1,
+                              "corpusId": "knowledge-corpus-publication", "versionState": "current",
+                              "sourceUri": "https://ttabvue.uspto.gov/ttabvue/ttabvue-91287216-OPP-17.pdf",
+                              "curationStatus": "pending"})
+    decision = SourceItem("91287216-OPP_17", "Cielo e Terra: Opposition Sustained",
+                          "https://ttab-reading-room.uspto.gov/ttab-document/legal-proceeding/91287216/decision/OPP_17.pdf",
+                          "https://ttabvue.uspto.gov/ttabvue/v?pno=91287216&pty=OPP", None, "application/pdf",
+                          ("https://ttabvue.uspto.gov/ttabvue/ttabvue-91287216-OPP-17.pdf",))
+    receipt = sink(decision, {**p, "sourceId": decision.source_id, "sourceItemUrl": decision.source_item_url,
+                              "fingerprint": decision.fingerprint})
+    assert receipt["referenceId"] == "reference-earlier-v1"
+    assert client.writes == []

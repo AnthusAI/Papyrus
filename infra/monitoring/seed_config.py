@@ -3,7 +3,8 @@
 
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_config.py --table TABLE [--replace]
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_config.py --table TABLE --monitor-id ttab \
-      --source-type ttab-decisions --interval-seconds 86400 --limit 100 --lookback-days 30
+      --source-type ttab-decisions --interval-seconds 86400 --limit 100 --lookback-days 30 \
+      --precedential-lookback-days 180
 
 Defaults: the public HN RSS feed, every 900 s, 30 items. A ttab-decisions monitor defaults to the
 TTAB Reading Room decision search. Asserts the AWS account.
@@ -23,6 +24,8 @@ def main() -> int:
     parser.add_argument("--source-type", default="hn-rss", choices=("hn-rss", "ttab-decisions"))
     parser.add_argument("--source-url", default=None)
     parser.add_argument("--lookback-days", type=int, default=30, help="ttab-decisions only")
+    parser.add_argument("--precedential-lookback-days", type=int, default=0,
+                        help="ttab-decisions only: also re-check precedential decisions over this many days (0 = off)")
     parser.add_argument("--interval-seconds", type=int, default=900)
     parser.add_argument("--limit", type=int, default=30)
     parser.add_argument("--replace", action="store_true", help="overwrite an existing config item")
@@ -37,6 +40,8 @@ def main() -> int:
             "intervalSeconds": args.interval_seconds, "limit": args.limit, "enabled": True}
     if args.source_type == "ttab-decisions":
         item["lookbackDays"] = args.lookback_days
+        if args.precedential_lookback_days:
+            item["precedentialLookbackDays"] = args.precedential_lookback_days
     table = boto3.resource("dynamodb").Table(args.table)
     kwargs = {} if args.replace else {"ConditionExpression": "attribute_not_exists(pk)"}
     try:

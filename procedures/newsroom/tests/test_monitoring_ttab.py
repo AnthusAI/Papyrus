@@ -4,7 +4,7 @@ import json
 import pytest
 
 from papyrus_content import monitoring_intake, monitoring_router as mr
-from papyrus_content.monitoring import TTAB_DECISIONS_URL, parse_ttab_decisions, ttab_search_body
+from papyrus_content.monitoring import TTAB_DECISIONS_URL, parse_ttab_decisions, ttab_document_aliases, ttab_search_body
 from papyrus_content.monitoring_cloud import DynamoStore, _validate_config, run_collection
 from papyrus_content.monitoring_router import RouterStore, run_router, validate_router_config
 
@@ -83,9 +83,25 @@ def test_search_body_filters_on_decision_date_and_sorts_on_issue_date():
     assert body["recordTotalQuantity"] == 100
 
 
+def test_a_decision_lists_its_other_addresses_for_matching_earlier_references():
+    assert ttab_document_aliases("/legal-proceeding/91287216/decision/OPP_17.pdf") == (
+        "https://ttab-reading-room.uspto.gov/ttab-document//legal-proceeding/91287216/decision/OPP_17.pdf",
+        "https://ttabvue.uspto.gov/ttabvue/ttabvue-91287216-OPP-17.pdf")
+    assert parse_ttab_decisions(search_response(WEMBY))[0].aliases[1] == "https://ttabvue.uspto.gov/ttabvue/ttabvue-97752244-EXA-26.pdf"
+
+
+def test_the_precedential_recheck_asks_only_for_precedential_decisions_over_its_own_window():
+    body = json.loads(ttab_search_body(NOW, 180, 100, precedential_only=True))
+
+    assert body["parameterData"] == {"precedentCitableIndicator": "Y"}
+    assert body["dateRangeData"]["decisionDate"]["from"] == "2026-04-24"
+
+
 # --- collection --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("change, message", [
+    ({"precedentialLookbackDays": 20}, "precedentialLookbackDays"),
+    ({"precedentialLookbackDays": 400}, "precedentialLookbackDays"),
     ({"sourceUrl": "https://news.ycombinator.com/rss"}, "ttab-reading-room.uspto.gov"),
     ({"sourceType": "carrier-pigeon"}, "sourceType"),
     ({"lookbackDays": 400}, "lookbackDays")])
@@ -109,6 +125,26 @@ def test_collection_posts_the_search_and_records_pdf_discoveries():
     discovery = table.by_prefix("DISC#97752244-EXA_26#")[0]
     assert discovery["mediaType"] == "application/pdf" and discovery["routing"] == "collected"
     assert discovery["gsi1pk"] == "ROUTING#ttab#collected"
+
+
+def test_the_recheck_brings_in_older_precedential_decisions_and_orders_on_motions():
+    table, requests = FakeTable(), []
+    table.put_item({**TTAB_CONFIG, "precedentialLookbackDays": 180})
+    motion = decision("/legal-proceeding/92063134/decision/CAN_107.pdf", 92063134, "Philip Morris USA Inc. v. IP Services",
+                      "Motion to Dismiss Denied", category="Decision on Motion", precedential="Y", kind="CAN")
+    older = {**WEMBY, "precedentCitableIndicator": "Y"}
+
+    def fetch(url, body):
+        payload = json.loads(body)
+        requests.append(payload["parameterData"])
+        return search_response(older, motion, motion) if payload["parameterData"] else search_response(OVERLAND, RECONSIDERATION)
+
+    result = run_collection(DynamoStore(table), "ttab", fetch=fetch, now=NOW)
+
+    assert requests == [{}, {"precedentCitableIndicator": "Y"}]
+    assert result["new"] == 3
+    assert table.by_prefix("DISC#92063134-CAN_107#")[0]["title"].endswith("[precedential]")
+    assert table.by_prefix("DISC#97752244-EXA_26#")[0]["aliases"][1] == "https://ttabvue.uspto.gov/ttabvue/ttabvue-97752244-EXA-26.pdf"
 
 
 def test_a_later_redesignation_is_collected_as_a_new_revision():
