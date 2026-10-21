@@ -4,6 +4,10 @@ import { resolve } from "node:path";
 /** One pattern redirect as the edge function reads it: regex, target with $1..$9, status, excluded paths. */
 export type EdgeRedirectRule = { p: string; t: string; s: number; x: string[] };
 
+/** Mirrors DIRECTORY_HTML_PATTERN and DIRECTORY_SLASH_PATTERN in standard/config.py. */
+const DIRECTORY_HTML_PATTERN = "^/(?!(?:.*/)?index\\.html$)(.+)\\.html$";
+const DIRECTORY_SLASH_PATTERN = "^/((?:[^/]+/)*[^/.]+)$";
+
 const START_MARKER = "/*PAPYRUS_PATTERN_RULES*/";
 const END_MARKER = "/*END_PAPYRUS_PATTERN_RULES*/";
 
@@ -22,7 +26,9 @@ export function edgeRulesFromSettings(settings: ProjectionSettings): EdgeRedirec
     x: rule.except ?? [],
   }));
   if (settings.urls?.style === "directory") {
-    rules.push({ p: "^/(.+)\\.html$", t: "/$1/", s: 301, x: ["/404.html"] });
+    // /x.html to /x/ (a directory index file such as /x/index.html is served as it is), then /x to /x/.
+    rules.push({ p: DIRECTORY_HTML_PATTERN, t: "/$1/", s: 301, x: ["/404.html"] });
+    rules.push({ p: DIRECTORY_SLASH_PATTERN, t: "/$1/", s: 301, x: ["/404"] });
   }
   return rules;
 }
