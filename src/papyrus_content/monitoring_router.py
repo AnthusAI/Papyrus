@@ -51,7 +51,10 @@ DECISIONS = ("cyclotron", "direct")
 ROUTING_FINAL = ("routed", "refused", "uncertain", "error", "parked")
 NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
-NOT_READY_CODE = "criteria_pending"   # 409: the output has no runnable classifier yet (a per-binding state)
+NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if Cyclotron ever sends it
+# The machine API (Cyclotron hosted_machine_publications.py) answers decide on a pending output with
+# HTTP 409 and a FastAPI body {"detail": "publication criteria are pending"}: no typed code.
+NOT_READY_DETAIL = "publication criteria are pending"
 PARK_PREFIX = "PARK#"
 PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX, PARK_KEEP_ITEMS = 1800, 6 * 3600, 25
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
@@ -323,8 +326,8 @@ class CyclotronClient:
         code = refusal_code(status, payload)
         if code == "source_refused":
             return ItemRefused(code)
-        if status == 409 and code == NOT_READY_CODE:
-            return BindingNotReady(code)
+        if status == 409 and (code == NOT_READY_CODE or payload.get("detail") == NOT_READY_DETAIL):
+            return BindingNotReady(NOT_READY_CODE)
         if code in STOP_CODES or status in (401, 403, 404, 429, 503, 507, 409):
             return StopSweep(code, f"http {status}")
         if status in (400, 413, 422):

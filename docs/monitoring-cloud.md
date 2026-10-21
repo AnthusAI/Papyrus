@@ -139,7 +139,7 @@ accepted job keeps its `jobId` under `ROUTE#...`.`jobs` and is only polled.
 ### Outputs that are not ready (waiting for classifier)
 
 A binding whose Cyclotron output has no runnable classifier yet (`pending_criteria`) answers `decide`
-with HTTP 409 `criteria_pending`. That is a per-binding outcome, not a stop condition: the router
+with HTTP 409 and the body `{"detail": "publication criteria are pending"}` (the machine API sends no typed code; the typed `criteria_pending` is accepted too). That is a per-binding outcome, not a stop condition: the router
 skips that binding for the item (`route.notReady[pub]`, counter `skippedNotReady`), decides and
 delivers the other bindings, and the sweep continues. It makes no Cyclotron call for the waiting
 binding beyond one probe, so it uses no retries and no ceiling. If every binding is waiting, the item
