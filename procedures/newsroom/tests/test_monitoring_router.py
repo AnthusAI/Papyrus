@@ -642,6 +642,13 @@ def test_router_role_is_least_privilege():
     assert not any(f.startswith(("delete", "update")) and f != "updateReferenceAttachment" for f in fields)
     assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}"}
     assert all(len([r for r in resources if f"${{{p}}}" in r]) == len(fields) for p in ("AnthUsApiId", "PapyrusApiId", "ThreatIntelApiId"))
+    distinctive = template["Resources"]["RouterDistinctiveIntakePolicy"]["Properties"]
+    assert distinctive["Roles"] == [("Ref", "RouterRole")]
+    (statement,) = distinctive["PolicyDocument"]["Statement"]
+    assert statement["Action"] == "appsync:GraphQL"
+    distinctive_resources = [r[1] for r in statement["Resource"]]
+    assert {r.split("apis/")[1].split("/")[0] for r in distinctive_resources} == {"${DistinctiveApiId}"}
+    assert {r.rsplit("/", 1)[1] for r in distinctive_resources} == fields and "*" not in "".join(distinctive_resources)
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 

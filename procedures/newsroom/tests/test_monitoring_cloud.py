@@ -248,7 +248,14 @@ def test_template_inventory(template):
     assert {r["Type"] for r in template.values()} == {
         "AWS::DynamoDB::Table", "AWS::Logs::LogGroup", "AWS::IAM::Role", "AWS::Lambda::Function",
         "AWS::SQS::Queue", "AWS::Scheduler::Schedule", "AWS::CloudWatch::Alarm", "AWS::Lambda::EventInvokeConfig",
-        "AWS::SSM::Parameter"}
+        "AWS::SSM::Parameter", "AWS::IAM::ManagedPolicy"}
+
+
+def test_template_runs_the_ttab_monitor_daily_and_routes_it_hourly(template):
+    collect, route = template["TtabCollectSchedule"]["Properties"], template["TtabRouteSchedule"]["Properties"]
+    assert collect["Target"]["Input"] == '{"monitorId":"ttab"}' and route["Target"]["Input"] == '{"monitorId":"ttab"}'
+    assert collect["ScheduleExpression"] == "rate(6 hours)" and route["ScheduleExpression"] == "cron(41 * * * ? *)"
+    assert "DeadLetterConfig" in collect["Target"] and "DeadLetterConfig" in route["Target"]
 
 
 def test_template_function_and_schedule(template):

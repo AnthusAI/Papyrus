@@ -1,4 +1,4 @@
-"""Cloud HN router (PPY-3212f1 step 4): collected discoveries -> Cyclotron -> References queues.
+"""Cloud monitor router (PPY-3212f1 step 4): collected discoveries -> Cyclotron -> References queues.
 
 Reads discoveries the collector left at `routing: collected`, asks the shared Cyclotron
 for one decision per item (one `decide` per publication binding; the bindings share one
@@ -10,6 +10,10 @@ accept/reject decisions back to Cyclotron when `router.feedback` is enabled.
 Everything (mode, endpoints, publications, account, run, binding revision) is data in the
 `CONFIG#router` table item (docs/monitoring-cloud.md); nothing here hard-codes it.
 `dry-run` mode never calls Cyclotron and never writes to a publication.
+
+A monitor whose router config says `decisions: direct` makes no relevance call at all: every
+collected item goes to every configured publication, recorded as the monitor's own rule.
+That suits sources a section covers exhaustively (every TTAB decision for a rulings tracker).
 
 Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing modules.
 """
@@ -28,7 +32,7 @@ import urllib.request
 from urllib.parse import quote, urlsplit
 import uuid
 
-from .monitoring import Monitor, SourceItem, _iso
+from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 
 CONTRACT_VERSION = "cyclotron-publication/v1"
@@ -43,7 +47,7 @@ WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; 
 PARTITION_COLLECTED = "collected"
 PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
-FEEDBACK_PARTITION = "FEEDBACK#hn#pending"
+DECISIONS = ("cyclotron", "direct")
 ROUTING_FINAL = ("routed", "refused", "uncertain", "error")
 NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
@@ -98,6 +102,10 @@ def validate_ceilings(raw) -> dict | None:
     return out
 
 
+def feedback_partition(monitor_id: str) -> str:
+    return f"FEEDBACK#{monitor_id}#pending"
+
+
 def validate_router_config(raw: dict) -> dict:
     mode = raw.get("mode")
     if mode not in ("dry-run", "live"):
@@ -105,6 +113,16 @@ def validate_router_config(raw: dict) -> dict:
     maximum = int(raw.get("maxItemsPerRun", 5))
     if not 1 <= maximum <= 25:
         raise ValueError("router maxItemsPerRun must be between 1 and 25")
+    decisions = str(raw.get("decisions") or "cyclotron")
+    if decisions not in DECISIONS:
+        raise ValueError("router decisions must be cyclotron or direct")
+    publications = validate_router_publications(raw)
+    if decisions == "direct":
+        if raw.get("feedback") is True:
+            raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
+        return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
+                "decisions": decisions, "feedback": False, "ceilings": None, "publications": publications,
+                "cyclotron": None}
     cyclotron = raw.get("cyclotron") or {}
     endpoint = urlsplit(str(cyclotron.get("endpoint") or ""))
     match = EXECUTE_API_HOST.match(endpoint.netloc)
@@ -123,6 +141,14 @@ def validate_router_config(raw: dict) -> dict:
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
     ceilings = validate_ceilings(raw.get("ceilings"))
+    return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
+            "decisions": decisions, "feedback": raw.get("feedback") is True, "ceilings": ceilings,
+            "publications": publications,
+            "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
+                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}}
+
+
+def validate_router_publications(raw: dict) -> list[dict]:
     publications, seen = [], set()
     for entry in raw.get("publications") or []:
         publication_id = str(entry.get("publicationId") or "")
@@ -142,10 +168,7 @@ def validate_router_config(raw: dict) -> dict:
             "negativeLabel": str(entry.get("negativeLabel") or "exclude")})
     if not publications:
         raise ValueError("router needs at least one publication")
-    return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-            "feedback": raw.get("feedback") is True, "ceilings": ceilings, "publications": publications,
-            "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
-                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}}
+    return publications
 
 
 # --- request building -------------------------------------------------------------------------------
@@ -164,12 +187,16 @@ def request_id(account_id: str, run_id: str, publication_id: str, binding_revisi
     return sha256(text.encode()).hexdigest()
 
 
+def item_id_for(monitor_id: str, source_id: str) -> str:
+    return f"{monitor_id}-{source_id}"
+
+
 def build_item(discovery: dict) -> dict:
     source_id = str(discovery.get("sourceId") or "")
     title, url = str(discovery.get("title") or ""), str(discovery.get("canonicalUrl") or "")
     if not SOURCE_ID.match(source_id) or not title.strip() or len(title) > 1000 or not url or len(url) > 2048:
         raise ItemInvalid("discovery is not a valid Cyclotron item")
-    return {"id": f"hn-{source_id}", "values": {
+    return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": {
         "title": title, "url": url, "source": "hacker-news",
         "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""), "text": f"{title}\n{url}"}}
 
@@ -457,7 +484,7 @@ def route_key(disc: dict) -> str:
 
 def new_route(monitor_id: str, disc: dict) -> dict:
     return {"pk": pk(monitor_id), "sk": route_key(disc), "sourceId": disc["sourceId"], "revision": int(disc["revision"]),
-            "fingerprint": disc["fingerprint"], "itemId": f"hn-{disc['sourceId']}"}
+            "fingerprint": disc["fingerprint"], "itemId": item_id_for(monitor_id, disc["sourceId"])}
 
 
 def short(error: Exception) -> str:
@@ -484,23 +511,35 @@ def editorial_context_receipt(client, publication: dict) -> dict:
         return {"contextHash": None, "reason": short(error)[:200]}
 
 
+def source_name_for(source_url: str) -> str:
+    host = urlsplit(source_url).hostname
+    return next((source["name"] for source in SOURCE_TYPES.values() if source["host"] == host), "Monitor")
+
+
 def deliver_reference(client, publication: dict, disc: dict, decision: dict, config: dict) -> dict:
-    """The existing ReferenceIntake: pending Reference + provenance Message recording the machine decision."""
+    """The existing ReferenceIntake: pending Reference + provenance Message recording how it was chosen."""
     from .monitoring_intake import ReferenceIntake
-    monitor = Monitor("hn", publication["corpusKey"], publication["corpusId"], publication["appsyncEndpoint"],
-                      Path("/nonexistent"))
+    source_url = str(disc.get("sourceUrl") or "")
+    monitor = Monitor(str(disc.get("monitorId") or "hn"), publication["corpusKey"], publication["corpusId"],
+                      publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
+                      source_name=source_name_for(source_url))
     item = SourceItem(str(disc["sourceId"]), disc["title"], disc["canonicalUrl"], disc["sourceItemUrl"],
-                      disc.get("sourcePublishedAt"))
+                      disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html")
     if item.fingerprint != disc["fingerprint"]:
         raise ItemInvalid("stored fingerprint does not match the discovery")
+    if config.get("decisions") == "direct":
+        chosen = {"kind": "monitor rule", "system": "direct", "decisionId": decision["decisionId"],
+                  "output": decision["output"], "label": decision["label"],
+                  "rule": "every collected item goes to every configured publication"}
+    else:
+        chosen = {"kind": "machine decision", "system": "cyclotron", "decisionId": decision["decisionId"],
+                  "output": decision["output"], "label": decision["label"],
+                  "fingerprint": decision["fingerprint"], "version": decision["version"],
+                  "accountId": config["cyclotron"]["accountId"], "runId": config["cyclotron"]["runId"],
+                  "bindingRevision": config["cyclotron"]["bindingRevision"]}
     provenance = {**monitor.binding, "sourceId": item.source_id, "sourceItemUrl": item.source_item_url,
                   "fingerprint": item.fingerprint, "observedAt": disc["observedAt"], "revision": int(disc["revision"]),
-                  "machineDecision": {
-                      "kind": "machine decision", "system": "cyclotron", "decisionId": decision["decisionId"],
-                      "output": decision["output"], "label": decision["label"],
-                      "fingerprint": decision["fingerprint"], "version": decision["version"],
-                      "accountId": config["cyclotron"]["accountId"], "runId": config["cyclotron"]["runId"],
-                      "bindingRevision": config["cyclotron"]["bindingRevision"]}}
+                  "machineDecision": chosen}
     return ReferenceIntake(client, monitor, auth_mode="iam")(item, provenance)
 
 
@@ -561,6 +600,9 @@ class Router:
         route = self.get_route(disc)
         requests = {}
         for publication in self.config["publications"]:
+            if self.config["decisions"] == "direct":
+                requests[publication["publicationId"]] = {"direct": True, "wouldDeliver": True}
+                continue
             try:
                 built = build_decide_request(self.config, publication, disc)
             except (ItemInvalid, ValueError) as error:
@@ -581,7 +623,7 @@ class Router:
     def decide(self, disc: dict, route: dict) -> None:
         """One `decide` per binding. Jobs are recorded before and after sending; POST is never repeated."""
         jobs = route.setdefault("jobs", {})
-        item_id = f"hn-{disc['sourceId']}"
+        item_id = item_id_for(self.monitor_id, disc["sourceId"])
         for publication in self.config["publications"]:
             pub_id = publication["publicationId"]
             built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
@@ -642,6 +684,20 @@ class Router:
         self.save(route)
         self.counts["decided"] += 1
 
+    def decide_direct(self, disc: dict, route: dict) -> None:
+        """The monitor's own rule: deliver to every configured publication, no relevance call."""
+        decision_id = f"direct-{self.monitor_id}-{disc['sourceId']}-{int(disc['revision']):06d}"
+        route["decision"] = {
+            "decisionId": decision_id, "source": {"revision": int(disc["revision"])}, "decidedAt": _iso(self.now),
+            "system": "direct", "bindingRevision": "direct",
+            "publications": {p["publicationId"]: {"output": f"{self.monitor_id}-direct", "label": p["positiveLabel"]}
+                             for p in self.config["publications"]}}
+        route["publications"] = {p["publicationId"]: {"label": p["positiveLabel"], "delivered": False, "attempts": 0}
+                                 for p in self.config["publications"]}
+        route.pop("nextAttemptAt", None)
+        self.save(route)
+        self.counts["decided"] += 1
+
     def deliver_positive(self, disc: dict, route: dict) -> bool:
         """Deliver to every positive publication that is not yet delivered; failures stay per publication."""
         decision = route["decision"]
@@ -674,19 +730,22 @@ class Router:
         key = f"DELIV#{publication['publicationId']}#{result['referenceId']}"
         if self.store.get_any(self.monitor_id, key):
             return   # an earlier decision's feedback record stays authoritative
-        self.store.put_any(self.monitor_id, {
+        record = {
             "pk": pk(self.monitor_id), "sk": key, "publicationId": publication["publicationId"],
             "referenceId": result["referenceId"], "sourceId": disc["sourceId"], "revision": int(disc["revision"]),
             "itemId": route["itemId"], "decisionId": decision["decisionId"], "source": decision["source"],
             "output": decision["publications"][publication["publicationId"]]["output"],
-            "bindingRevision": decision["bindingRevision"], "deliveredAt": _iso(self.now),
-            "gsi1pk": FEEDBACK_PARTITION, "gsi1sk": f"{_iso(self.now)}#{publication['publicationId']}#{result['referenceId']}"})
+            "bindingRevision": decision["bindingRevision"], "deliveredAt": _iso(self.now)}
+        if self.config["decisions"] == "cyclotron":
+            record.update(gsi1pk=feedback_partition(self.monitor_id),
+                          gsi1sk=f"{_iso(self.now)}#{publication['publicationId']}#{result['referenceId']}")
+        self.store.put_any(self.monitor_id, record)
 
     def live(self, disc: dict):
         route = self.get_route(disc)
         try:
             if not route.get("decision"):
-                self.decide(disc, route)
+                (self.decide_direct if self.config["decisions"] == "direct" else self.decide)(disc, route)
             if not self.deliver_positive(disc, route):
                 set_routing(self.store, self.monitor_id, disc, "decided", PARTITION_DECIDED)
                 return
@@ -735,7 +794,7 @@ class Router:
         result = {"status": "complete", "sent": 0, "pending": 0, "skipped": 0, "failed": 0, "stoppedBy": None}
         if self.config["mode"] != "live" or not self.config["feedback"]:
             return {**result, "status": "off"}
-        for row in self.store.query_partition(FEEDBACK_PARTITION, 25):
+        for row in self.store.query_partition(feedback_partition(self.monitor_id), 25):
             if self.time_left() < MIN_REMAINING_SECONDS:
                 result.update(status="stopped", stoppedBy="time_budget")
                 break
@@ -824,7 +883,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
     if not store.acquire_router_lock(monitor_id, owner, now):
         return {"monitorId": monitor_id, "runId": run_id, "status": "locked"}
     try:
-        if cyclotron is None and config["mode"] == "live":
+        if cyclotron is None and config["mode"] == "live" and config["decisions"] == "cyclotron":
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left)
