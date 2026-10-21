@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "6c77e9c1-de4f-4719-8c65-cc2d4289d6a6",
+  "issue_id": "PPY-d3c520e8-b535-44e7-8191-a39e2da04f27",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T23:00:06.932Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Monitoring router: a not-ready output no longer halts the sweep; Data Parade back in live routing",
+    "description": "A bound publication whose Cyclotron output is pending_criteria (Data Parade) made decide answer HTTP 409 'publication criteria are pending', and the router stopped the whole sweep. Now a per-binding skip: BindingNotReady, PARK#<pub> with 30 min to 6 h backoff, newest 25 items parked and backfilled when ready, waitingForClassifier on the run receipt and Monitoring page. Follow-ups found in release: the real 409 is a FastAPI detail body, not a typed code (PR #495); resumed routes failed to save floats (PR #497). PRs #490, #495, #497; promotes #492, #494, #498. Deployed router-only by change set to papyrus-monitoring; data-parade re-added to CONFIG#router; two clean live cycles (22:37Z, 22:52Z) with Anth.us, p.apyr.us and Threat Intelligence deciding and Data Parade waiting for classifier, zero Lambda errors.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
