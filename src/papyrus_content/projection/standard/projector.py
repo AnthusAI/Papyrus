@@ -108,6 +108,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
         if any(form.endpoint for form in standard.forms):
             files[FORM_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-form.js").read_bytes()
+        prerendered_bytes = b""
         if standard.islands is not None:
             files[ISLANDS_RUNTIME_PATH] = (ASSET_DIRECTORY / "papyrus-islands.js").read_bytes()
             for path in (standard.islands.script, standard.islands.stylesheet):
@@ -116,11 +117,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     if source is None or not source.is_file():
                         raise ValueError(f"islands names {path!r}, which is not a file of the static directory")
                     files[path] = source.read_bytes()
+            if standard.islands.prerender:
+                # Build input, not site content: read it, keep it out of the published files.
+                path = standard.islands.prerender
+                source = static_directory / path if static_directory is not None else None
+                if path in files:
+                    prerendered_bytes = files.pop(path)
+                elif source is not None and source.is_file():
+                    prerendered_bytes = source.read_bytes()
+                else:
+                    raise ValueError(f"islands.prerender names {path!r}, which is not a file of the static directory")
         super().__init__(settings, files, **kwargs)
         self._static_directory = static_directory
         self._hook_sites: list[HookSite] = []
         self._pipeline_cache = None
         self._page_text_cache: dict[str, str] = {}
+        self._prerendered = blocks.parse_prerendered(prerendered_bytes) if prerendered_bytes else {}
         self.standard = standard
         self.hooks = hooks
         self.environment = environment or resolve_environment(standard)
@@ -128,7 +140,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self.head = HeadBuilder(standard, self.environment)
         self._plan_cache: tuple[object, dict] | None = None
         self._shared_fingerprint = digest_of(
-            [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version]
+            [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version, prerendered_bytes.decode("utf-8", "replace")]
         )
 
     @classmethod
@@ -772,13 +784,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
             paths = self.item_page_paths(summary)
             for alias in summary.aliases if paths else ():
                 source = alias if alias.startswith("/") else "/" + alias
-                mapping[source] = request_paths_for_key(paths[0])[0]
+                mapping[source] = self.policy.url_for_key(paths[0])
         if self.hooks.redirects is not None:
             mapping.update(self.hooks.redirects(self._hook_site(site)))
         for source, target in self.standard.exact_redirects:
             mapping[source] = target
         live = {path for key in self._plan(site) for path in request_paths_for_key(key)}
-        live |= {path for summary in site.items for key in self.item_page_paths(summary) for path in request_paths_for_key(key)}
+        live |= {path for summary in site.items for key in self.item_page_paths(summary) for path in (*request_paths_for_key(key), self.policy.url_for_key(key))}
         return {source: target for source, target in mapping.items() if source not in live and source != target}
 
     # ------------------------------------------------------------------ rendering
@@ -805,7 +817,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         extra = self.hooks.head_extra(page) if self.hooks.head_extra is not None else ""
         twin = None
         if self.standard.agents.markdown and not page.head.noindex:
-            key = page.path.lstrip("/") + "index.html" if page.path.endswith("/") else page.path.lstrip("/")
+            key = self.policy.key_for_path(page.path)
             twin = md_path(key) if md_key(key) else None
         described = self._described(page)
         head_html = self.head.build(dataclasses.replace(described, extra=extra, markdown_path=twin))
@@ -852,6 +864,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _body(self, page: StandardPage, parts: BodyParts) -> str:
         body = self._body_html(page, parts)
         islands = self.standard.islands
+        if islands is not None and self._prerendered:
+            body = blocks.fill_islands(body, self._prerendered)
         if islands is not None and 'data-island="' in body:
             suffix = f"?v={components.esc(self.version)}"
             body += (

@@ -31,13 +31,15 @@ SECTIONS_COMMANDS = {
 }
 PROCEDURES_COMMANDS = ("seed-required", "execute-tactus", "policy")
 OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages")
-CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis"}
+CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages"}
 
 # Usage lines for commands whose flags are worth showing in group help.
 COMMAND_USAGE = {
   ("stories", "create"): "--title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment] [--dry-run]",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]",
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
+  ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",
+  ("messages", "handle"): "--message-id ID [--note TEXT] [--author-label NAME] [--dry-run]",
   ("publication", "init"): "--key KEY --name NAME",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
   ("research", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
