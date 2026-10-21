@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d6460d8c-b3c7-49bb-a471-023fcd4e3c35",
+  "issue_id": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T11:39:25.403Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Collaborative steering: votes from editors and signed-in readers (optional)",
+    "description": "Optional Papyrus features for 'web 2' style collaborative steering; editors-only stays the default for every existing site. Pilot publication: Shipped (shipped.anth.us, repo AnthusAI/Shipped-web).\n\nMilestones: (1) steering policy as publication data (who may vote: editors, members, signed-in readers; on what: references, story ideas, articles); (2) reader accounts (Google sign-in via Prospectus accounts, per publication; guests still read); (3) Vote model (subject, voter, value up/down or rating per dimension, timestamp; one per person per subject; materialised tallies; audit); (4) aggregation and ranking (editor quorum/majority/weighted, disagreement queue; reader ranking blending Cyclotron relevance, votes and time decay; editor override/hide); (5) Cyclotron feedback (aggregated labels with per-person attribution; editor and reader signals separate; per-publication choice whether reader votes train; disagreement as a hard-item signal); (6) standard front-end components (vote button, submit-a-link form, new/rising queue page, leaderboards; static pages with an authenticated vote API and periodically refreshed count JSON); (7) moderation and abuse controls (rate limits, account age, report/hide/ban, Humanus on submissions, moderation queue in Administration); (8) monitoring feeds straight into the reader queue. Scoring dimensions for Shipped: real, useful, notable, novel. Document on the Papyrus marketing site when live.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

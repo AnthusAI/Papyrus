@@ -33,7 +33,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, listingPage, feed, sitemap, linkField, pageSize, listEmpty, sort, groupBy, archive } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
-| `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
+| `seo` | `defaultImage`, `defaultImageAlt` (its alt text, used when a page's share image is the default), `homeSocialTitle` (the generated home page's og/twitter title when it differs from the site name), `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
@@ -44,7 +44,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `icons` | `icon`, `iconType`, `appleTouch`, `manifest`, `themeColor`, `themeColorDark` |
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
-| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form, source, image}]`; the body comes from the `page_body` hook, or from a page file named by `source` (see "Authored page files"); `path: ""` is the home page |
+| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form, source, image, imageAlt, socialTitle}]`; the body comes from the `main` or `page_body` hook, or from a page file named by `source` (see "Authored page files"); `path: ""` is the home page  `imageAlt` is the share image's alt text and `socialTitle` the og/twitter title when it differs from `title` |
 | `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
@@ -213,6 +213,7 @@ error (prefix helpers with `_`):
 | `body_class(page)` | the page | classes added to `<body>` after `chrome.body_class` |
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
 | `derive(summary)` | the item summary | a dict of derived fields (a tier, a week, a shape); available as `entry.derived`, part of every fingerprint, and how a site picks which row or card component renders |
+| `main(page)` | the page | the inside of `<main>` (any page kind), or `None` for the default; the standard skip link, masthead and footer stay. For pages whose content a site's own build renders (a data-driven results page) |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
 | `item_filter(summary)` | the item summary | `False` leaves the item out of the site: no page, listing, tag, feed, sitemap entry or redirect |
 | `source(summary, text, site)` | the summary, the item's own text (front matter included), a `HookSite` | the Markus source that is converted (lift legacy markup, add a heading block); the Markdown twin keeps the item's own text |
@@ -410,9 +411,9 @@ from it. Only sites that are `live` and shown in the footer appear, in the packa
 `"showcase": { "section": "showcase", "path": "built-with", "title": "Built with Papyrus", "kinds": { "anthus": "Built by Anthus", "design-partner": "Design partners", "customer": "Customers" } }`
 turns every published item of the `showcase` section into one tile on a generated page at `/built-with/`. The data
 is content, managed in the CMS: front matter `name` (or the title), `logo` (image path or URL; the name is the text
-fallback), `logoAlt`, `url` (http or https only; anything else is skipped), `kind` (one of the configured kinds;
+fallback), `logoAlt` (only when the logo says more than the name: the name is shown under every logo and is the link's accessible name), `description` (optional, one short line under the name), `url` (http or https only; anything else is skipped), `kind` (one of the configured kinds;
 unknown kinds go under "More") and `order` (lower first, then name). The page is one heading and one `<ul>` per kind,
-a responsive CSS grid of links with lazy-loaded images and `rel="noopener"`; names are escaped. Showcase items have
+a responsive CSS grid of links (each tile one link: logo, name, description) with lazy-loaded images and `rel="noopener"`; names are escaped. Showcase items have
 no pages of their own and are not in listings, feeds or the sitemap. A `page_body` hook sees `page.kind == "showcase"`
 and `page.showcase` (the sorted `ShowcaseSite` records) and can use `showcase.logo_wall(...)` inside its own layout.
 
