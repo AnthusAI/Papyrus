@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "73d00c69-f527-488f-8a26-375f78c944b5",
+  "issue_id": "PPY-b4a2dfb6-f313-4990-9bf3-1ab7a58d6fdd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T06:56:06.005Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us: tag collections, listings and tag pages on core listings (phase c)",
+    "description": "Phase c of PPY-e329c3, not done. Core's pagination already equals Anth.us's (featured 4, then pages of 8: standard/projector.py _paginate equals anthus_pages.collection_slices). Missing is selection: Anth.us collections are tag-defined, not CMS sections. /articles/ = published items except tags solutions and posts (plus a hidden drafts block on page 1), /posts/ = tag posts, /reading/ and /research/ = single pages by tag, 40 tag pages and the /tags/ index, each with its own hero, card grid and pager markup. Needed in core: collections selected by tag (include and exclude), per collection base, pageSize, featuredCount and sort, and the page_body hook for kinds listing, tag and tags. Then the card, hero and pager markup moves into hooks.py and anthus_pages.collection_*, tag_pages and Collections go. Depends on the base-class task. Gate: every listing and tag URL DOM-identical.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e8db7cd6-190c-4f97-8d3d-9677c2eee85c",
+    "labels": []
+  }
+}
