@@ -485,11 +485,12 @@ The newsroom roles are the Cognito groups `admin`, `editor` and `curator`. Signi
 
 A Pretext publish refreshes the live pages immediately: `content-actions` calls
 the reader's `POST /api/revalidate` with a shared secret. The secret is an SSM
-SecureString that a human creates once and that is never in `site.json`, Git or
-an Amplify variable (those are wiped by stack updates or are visible in
-`get-app`). The template derives the parameter name `/papyrus/<siteId>/revalidate-secret`,
-sets its *name* (not the value) as branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`
-on `main`, and grants `ssm:GetParameter` on exactly that parameter to the app's
+SecureString that the stack generates (see [Generated secrets](#generated-secrets-ssm-securestring))
+and that is never in `site.json`, Git or an Amplify variable (those are wiped by
+stack updates or are visible in `get-app`). The template derives the parameter name
+`/papyrus/<siteId>/revalidate-secret`, creates it, sets its *name* (not the value) as
+branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER` on `main`, and grants
+`ssm:GetParameter` on exactly that parameter to the app's
 SSR compute role. The backend (`amplify/site-backend.ts`, when `revalidateBaseUrl`
 is set) passes the same name to `content-actions` and grants it the same read
 (`ssm:GetParameter` and `ssm:GetParameters`, because the Lambda reads through boto3
@@ -516,23 +517,44 @@ After a publish refreshes the reader, `content-actions` invalidates the paths th
 | Secret | Where it lives | Set by |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets | human, console |
-| `PAPYRUS_REVALIDATE_SECRET` value | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | human, once (below) |
+| Revalidate secret | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | the app-shell stack, generated |
+| Prospectus session sealing secret | SSM SecureString `/papyrus/<siteId>/prospectus-session-sealing` | the app-shell stack, generated |
 
-One-time step after the first stack deploy (never echo the value):
-
-```bash
-AWS_PROFILE=legacy aws ssm put-parameter --region us-east-1 \
-  --name "/papyrus/<siteId>/revalidate-secret" --type SecureString \
-  --value "$(openssl rand -hex 32)"
-```
-
-Rotate by re-running it with `--overwrite`. The new value is live within five
-minutes. Migration from the old mechanism: `PAPYRUS_REVALIDATE_SECRET` as a branch
-variable, `readerCache.revalidateSecret` in `.papyrus/config.yaml` and the
-`secret("PAPYRUS_REVALIDATE_SECRET")` backend secret are no longer read. Delete
-them, create the SSM parameter, and redeploy; do not reuse the old value.
 Sites not on the template must set `PAPYRUS_REVALIDATE_SECRET_PARAMETER` on the
 branch and grant their compute role and `content-actions` role the read themselves.
+
+### Generated secrets (SSM SecureString)
+
+Per-site secrets that the stack can generate live in SSM Parameter Store as standard
+SecureStrings (free, AWS-managed `aws/ssm` key), never in Secrets Manager ($0.40 per
+secret per month, which would grow with every site). Use Secrets Manager only where
+a service needs it, such as a value CloudFormation must resolve.
+
+CloudFormation cannot create a SecureString, so the `SecureStringParameter` construct
+(`infra/amplify-app-shell/lib/secure-string-parameter.ts`) uses a custom resource
+Lambda that puts one. The Lambda generates a random 64-character value, never returns
+or logs it (it is in no template, output or stack event), creates only (an update
+never regenerates it and never overwrites a parameter that already exists, so a
+hand-made `revalidate-secret` is adopted as it is), and delete retains it. One Lambda
+serves every parameter in a stack, and its role can `ssm:PutParameter` only on the
+parameters the stack declares. Readers get `ssm:GetParameter` on that one parameter
+ARN and read with decryption; the AWS-managed key needs no KMS grant.
+
+The Prospectus accounts sign-in (`cms.prospectusAccountsApiStageArn`) seals its
+cookies with `/papyrus/<siteId>/prospectus-session-sealing`, passed to the runtime as
+`PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER` (`lib/prospectus-session.ts` reads it
+with decryption and caches it per container for five minutes). Rotating or replacing
+it signs everyone out. Rotate either secret without echoing it:
+
+```bash
+aws ssm put-parameter --region us-east-1 --name "/papyrus/<siteId>/revalidate-secret" \
+  --type SecureString --overwrite --value "$(openssl rand -hex 32)"
+```
+
+Moving a site off the old Secrets Manager sealing secret (`ProspectusSessionSealingSecret`,
+variable `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN`) is a one-time sign-out: there is no
+dual-read. Deploy the stack with the old secret set to `RemovalPolicy.RETAIN` first, then
+the stack without it, then delete the retained secret by hand once sign-in works.
 
 ## Custom domains and Route 53
 
