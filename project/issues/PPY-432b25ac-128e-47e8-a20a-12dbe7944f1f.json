@@ -13,9 +13,17 @@
     "cost"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "264267fa-8e0f-4bce-9ff9-6315a52767ca",
+      "author": "home",
+      "text": "Also retire the legacy Secrets Manager secret amplify/github-app-token (account 335163751677). It is the old Amplify PAT, superseded by the Amplify GitHub App (docs/site-hosting.md:211 and checklist line 396). All eight papyrus-production apps now connect via the GitHub App, and no code reads it. Before deletion: check its LastAccessedDate (the anthus profile SSO had expired on 2026-10-21) and get Ryan's approval. Retire it; don't migrate it.",
+      "created_at": "2026-10-21T15:51:47.701892Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T15:48:37.830369Z",
-  "updated_at": "2026-10-21T15:48:37.830415Z",
+  "updated_at": "2026-10-21T15:51:47.701916Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
