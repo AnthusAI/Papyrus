@@ -20,6 +20,19 @@ def article_body(fragment: str) -> str:
     return MARKUS_ARTICLE_CLOSE_PATTERN.sub("", fragment, count=1).strip()
 
 
+LISTING_PLACEHOLDER = "<p>{{ section listing }}</p>"
+
+
+def with_listing(fragment: str, listing_html: str) -> str:
+    """Place a generated listing in a section introduction: at the ``{{ section listing }}`` line, else at the end."""
+    if LISTING_PLACEHOLDER in fragment:
+        return fragment.replace(LISTING_PLACEHOLDER, listing_html, 1)
+    closing = MARKUS_ARTICLE_CLOSE_PATTERN.search(fragment)
+    if closing is not None:
+        return fragment[: closing.start()] + listing_html + fragment[closing.start():]
+    return fragment + listing_html
+
+
 def plain_text(fragment_html: str) -> str:
     return " ".join(html.unescape(TAG_PATTERN.sub(" ", fragment_html)).split())
 

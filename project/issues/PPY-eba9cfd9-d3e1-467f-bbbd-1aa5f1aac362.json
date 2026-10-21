@@ -99,10 +99,17 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "3487554d-bdb1-4366-b5eb-f7fcad736aa3",
+      "author": "home",
+      "text": "Shipped (Papyrus 4.0.0 via #393, context fix #397, release 5.0.0 rolled to TI, Pilobol.us, p.apyr.us, Anth.us-web): the editorial-context resolver reads only backend data (publication = the single canonical KnowledgeCorpus; mission/policy = doctrine Items edited at /newsroom/administration/policies; section overlays = NewsroomSection edited at /newsroom/administration/sections). No steering YAML is read for editorial context; --backend local removed. The same records reach (a) copy-edit/editorial checks (pack version carries the context hash) and (b) the Cyclotron request context (classifier context hash equals the editorial context hash); verified read-only on TI for section cloud, and covered by tests with no model call. Seed YAML is a one-time idempotent import that never overwrites existing records. Editorial checks are core to every site, on by default, configured by stored EditorialCheckSettings (enabled flag). Remaining: real per-publication policies still to be filed; live model test pending a budget and CYCLOTRON_ALLOW_LIVE. TI also has legacy sections (newsroom, aws, ai, azure, and older text for mission/gaming) from the July import beside the 6 sections newly imported 2026-10-20; reconcile in Administration > Sections.",
+      "created_at": "2026-10-21T01:42:43.323891Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T11:37:29.555867Z",
-  "updated_at": "2026-10-20T12:42:07.120130Z",
+  "updated_at": "2026-10-21T01:42:43.323929Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

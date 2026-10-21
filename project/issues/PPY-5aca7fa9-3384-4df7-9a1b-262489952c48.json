@@ -3,7 +3,7 @@
   "title": "Restore editorial context handler data-client configuration",
   "description": "Fresh read-only verification on the intended TI app in papyrus-production found getEditorialContext fails at publication scope and both selected sections. Deployed assignment handler throws Lambda:Unhandled: The data environment variables are malformed. Expected string values for: _MODEL_INTROSPECTION_SCHEMA_BUCKET_NAME, _MODEL_INTROSPECTION_SCHEMA_KEY, _GRAPHQL_ENDPOINT. Canonical publication, current private doctrine metadata and section identifiers can be read through the same API; no policy bodies are recorded here. This is independent of the two proposed private query reads on the editorial-checks role. Source assignment handler calls getAmplifyDataClientConfig, while root schema resource authorization currently omits assignmentAction; root cause and least-privilege configuration correction need a reviewed source fix and synthetic/deployed acceptance. Do not add broad allow.resource access as an unreviewed shortcut. Active PR367 data/backend patches were checked and do not fix this handler configuration. Migration records and soft claims checked eligible/unassigned; no migration operation is claimed. Codex owns the source correction on draft PR382. SDK registration, offline configuration coverage and field-scoped synthesis are implemented. Review/CI, exact consumer synthesis, access approval, release and zero-provider deployed acceptance remain pending. No deployment or live access change has occurred.\n\nFeature: Resolve private editorial context on the deployed consumer\nScenario: Read current context without a model call\nGiven the configured consumer publication and permitted authenticated actor\nWhen current publication and selected-section editorial context is requested\nThen the existing handler initializes its supported data client and returns validated scoped context and source revisions\nAnd credentials, other-tenant records and private policy text are absent from public errors\nAnd zero provider requests or policy mutations occur.\n\nKeep rollout blocked until the source fix, exact permission/configuration diff and zero-provider runtime readback pass. Preserve intended app guard; never deploy to legacy to bypass it.",
   "type": "bug",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": "codex-papyrus-monitoring",
   "creator": null,
@@ -82,11 +82,18 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "83d2b2d4-3a68-47dd-b639-d0c76d5bc564",
+      "author": "home",
+      "text": "Evidence (read-only, papyrus-production 712236451410): after the 3.3.0 deploy (TI Amplify job 44 SUCCEED, then 4.0.0/5.0.0 jobs 47/48 SUCCEED) the TI assignment-action Lambda has the generated data env vars set (AMPLIFY_DATA_PAPYRUS_CMS_API_GRAPHQL_ENDPOINT, ..._MODEL_INTROSPECTION_SCHEMA_BUCKET_NAME/_KEY, AMPLIFY_DATA_DEFAULT_NAME, PAPYRUS_CMS_API_GRAPHQL_ENDPOINT). getEditorialContext now returns scoped context: papyrus editorial context --backend cloud for the publication and for section cloud returns sourceMode cloud with source revisions and context hashes; papyrus editorial pack --section cloud works and its version carries the same context hash. No model calls. Closing.",
+      "created_at": "2026-10-21T01:42:35.463343Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T12:30:50.089804Z",
-  "updated_at": "2026-10-20T13:04:42.485245Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T01:42:35.505554Z",
+  "closed_at": "2026-10-21T01:42:35.505506Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",

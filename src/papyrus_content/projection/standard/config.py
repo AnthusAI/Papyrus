@@ -87,6 +87,7 @@ class SectionConfig:
     list_empty: bool = False          # keep the listing page when the section has no entries
     group_by: str | None = None       # "week" (Monday start) or "month": the listing view carries grouped entries
     archive: ArchiveConfig | None = None
+    sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
 
 
 @dataclass(frozen=True)
@@ -288,7 +289,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive"}, f"urls.sections.{section_name}")
+        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort"}, f"urls.sections.{section_name}")
+        if entry.get("sort", "date") not in ("date", "order"):
+            raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
         group_by = entry.get("groupBy")
         if group_by not in (None, "week", "month"):
             raise ValueError(f"urls.sections.{section_name}.groupBy must be 'week' or 'month'")
@@ -318,6 +321,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 list_empty=bool(entry.get("listEmpty", False)),
                 group_by=group_by,
                 archive=archive,
+                sort=str(entry.get("sort", "date")),
             )
         )
 
