@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,8 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from papyrus_content.projection.engine import ProjectionContext, project
+from papyrus_content.projection.engine import ProjectionContext, project, project_all, reconcile
+from papyrus_content.projection.item_state import item_state_key
 from papyrus_content.projection.projector import DEFAULT_THEME, MarkusProjectorSettings, MarkusSiteProjector, read_static_files
 from papyrus_content.projection.source import PublishedContentSource
 from papyrus_content.publishing import ItemFields, publish_item, save_item
@@ -223,6 +225,52 @@ class SetSlugRedirects(unittest.TestCase):
         self.assertEqual(self.client.tables["PublishedItem"][f"published-{LINEAGE}"]["sourceItemId"], f"{LINEAGE}-v3")
         self.assertIn("Version 3.", self.client.tables["PublishedItem"][f"published-{LINEAGE}"]["bodyMarkus"])
         self.assertEqual(self.redirects.mapping.get("/articles/hello.html"), "/articles/better-name.html")
+
+
+class StaleSiblingState(SetSlugRedirects):
+    """A draft slug's page and state left behind under an older version id while a newer version is published (Distinctive's Wemby ruling)."""
+
+    OLD_PAGE = "articles/draft-x.html"
+
+    def stale_site(self) -> None:
+        make_story(self.client, versions=2)
+        self.client.update_record("Item", {"id": f"{LINEAGE}-v1", "slug": "draft-x"})
+        publish_item(self.client, f"{LINEAGE}-v1", actor="t", now=NOW)
+        project(self.context, f"{LINEAGE}-v1")
+        old_state = self.store.get(item_state_key(f"{LINEAGE}-v1"))
+        old_page = self.store.get(self.OLD_PAGE)
+        self.assertIsNotNone(old_page)
+        self.client.update_record("Item", {"id": f"{LINEAGE}-v2", "slug": "in-re"})
+        publish_item(self.client, f"{LINEAGE}-v2", actor="t", now=NOW)
+        project(self.context, f"{LINEAGE}-v2")
+        # What the older release left: the old version's page and state, and no redirect.
+        self.store.put(self.OLD_PAGE, old_page)
+        self.store.put(item_state_key(f"{LINEAGE}-v1"), old_state)
+        self.redirects.mapping.clear()
+        own = json.loads(self.store.get(item_state_key(f"{LINEAGE}-v2")))
+        own["formerPageKeys"] = []  # the older release never recorded the move
+        self.store.put(item_state_key(f"{LINEAGE}-v2"), json.dumps(own).encode("utf-8"))
+
+    def assert_fixed(self) -> None:
+        self.assertIsNone(self.store.get(self.OLD_PAGE))
+        self.assertIsNotNone(self.store.get("articles/in-re.html"))
+        self.assertEqual(self.redirects.mapping.get("/articles/draft-x.html"), "/articles/in-re.html")
+        self.assertIsNone(self.store.get(item_state_key(f"{LINEAGE}-v1")))
+
+    def test_project_removes_and_redirects_the_stale_page_even_when_the_item_has_its_own_state(self) -> None:
+        self.stale_site()
+        project(self.context, f"{LINEAGE}-v2")
+        self.assert_fixed()
+
+    def test_full_projection_removes_and_redirects_it(self) -> None:
+        self.stale_site()
+        project_all(self.context)
+        self.assert_fixed()
+
+    def test_reconcile_removes_and_redirects_it(self) -> None:
+        self.stale_site()
+        reconcile(self.context)
+        self.assert_fixed()
 
 
 if __name__ == "__main__":

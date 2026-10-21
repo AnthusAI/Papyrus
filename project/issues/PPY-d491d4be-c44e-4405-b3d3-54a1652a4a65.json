@@ -1,0 +1,38 @@
+{
+  "id": "PPY-d491d4be-c44e-4405-b3d3-54a1652a4a65",
+  "title": "Bring HN reference router live after provider key correction",
+  "description": "The shared Cyclotron provider secret now holds the TypeSafe key. A live smoke attempt on 2026-10-21 (one item, router flipped live for one invocation, then restored to dry-run) was refused by Cyclotron with run_busy: command job bf25e156 on the standing run is claimed and running with no result, left by the earlier wrong-key attempt; its queue message is in the dead-letter queue. The worker refuses to reclaim it by design (running command requires scoped reconciliation). Router is in dry-run, 115 items waiting. Needs an owner-approved reconciliation of that one job before the bounded live pass, the live flip and the two-cycle watch.",
+  "type": "sub-task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b470fbc0-3ec7-4a7a-96b1-fbeb0e0b8ddd",
+      "author": "home",
+      "text": "2026-10-21 17:43Z: router set live with maxItemsPerRun=1 and invoked once (task=route); Cyclotron answered 409 run_busy, sweep stopped, nothing consumed, no job marker written. Router restored to dry-run (maxItemsPerRun 5, feedback true). Cause: job bf25e156 on run 566df5dc is status running (owner 32234c16, fence 1, no result); the worker raised after claiming it during the wrong-key Jev call, so every redelivery fails closed and the message sits in cyclotron-console-commands-dlq. Worker container is cold (last invocation 03:26Z) so the new key will be read on the next call. Blocked on owner-approved reconciliation of that one job. Old key: also in Amplify OPENAI_API_KEY (2 apps) and Chatticus thin-turn (3 stages).",
+      "created_at": "2026-10-21T17:47:19.170122Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Sonnet monitoring agent"
+      }
+    }
+  ],
+  "created_at": "2026-10-21T17:47:09.374027Z",
+  "updated_at": "2026-10-21T17:47:19.170168Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5",
+    "name": "Sonnet monitoring agent"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

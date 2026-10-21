@@ -1117,3 +1117,11 @@ def test_the_script_follows_the_aria_menu_button_pattern(flat):
     for needle in ('"aria-haspopup", "menu"', '"aria-expanded"', '"aria-controls"', 'setAttribute("role", "menu")', '"menuitem"', "ArrowDown", "ArrowUp", "Escape", "Home", "End"):
         assert needle in script, needle
     assert "gtag" in script and "page_action" in script and "execCommand" in script and "ClipboardItem" in script
+
+
+def test_the_page_actions_script_loads_only_on_pages_that_render_actions(flat):
+    with_actions = [key for key, body in flat.tree.items() if key.endswith(".html") and b"data-papyrus-page-actions" in body]
+    assert with_actions
+    for key, body in flat.tree.items():
+        if key.endswith(".html"):
+            assert (b"papyrus-page-actions-v1.js" in body) == (key in with_actions), key
