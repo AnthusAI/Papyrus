@@ -1,8 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Papyrus monitoring (PPY-3212f1): a scheduled Lambda that collects the public
-  Hacker News feed into a DynamoDB table. Collect, dedupe, checkpoint and
-  receipts only; no publication, AppSync or provider access.
+  Hacker News feed into a DynamoDB table (collect, dedupe, checkpoint and receipts
+  only), and a separate scheduled router Lambda that asks the shared Cyclotron which
+  collected items each publication wants and delivers them to that publication's
+  References queue (dry-run or live, as data in the table).
 
 Parameters:
   CodeBucket:
@@ -18,6 +20,31 @@ Parameters:
       Reserved concurrency for the collector (1 keeps runs serial). 0 or less leaves it
       unreserved, for accounts whose Lambda concurrency quota is too low to reserve any.
       The table lease lock serializes runs either way.
+  RouterCodeKey:
+    Type: String
+    Description: S3 key of the router zip (content-hash named by build.py --router), in CodeBucket.
+  RouterReservedConcurrency:
+    Type: Number
+    Default: 1
+    Description: >-
+      Reserved concurrency for the router. 0 leaves it unreserved (accounts whose Lambda quota is too
+      low to reserve any). The table lease serializes runs either way.
+  CyclotronInvokerRoleArn:
+    Type: String
+    Default: arn:aws:iam::682849160744:role/cyclotron-machine-invoker
+    Description: The one role in the shared Cyclotron account that the router may assume to call its machine API.
+  AnthUsApiId:
+    Type: String
+    Default: 4qiunzl7drcedaz22rl4xu56ga
+    Description: AppSync API id of the Anth.us backend.
+  PapyrusApiId:
+    Type: String
+    Default: 36xh4ckhhvfyrlxxbltoy246ea
+    Description: AppSync API id of the Papyrus product-site backend.
+  ThreatIntelApiId:
+    Type: String
+    Default: gillpcb565fqrdrvqrijhqaily
+    Description: AppSync API id of the Threat Intelligence backend.
   ScheduleState:
     Type: String
     Default: ENABLED
@@ -25,6 +52,7 @@ Parameters:
 
 Conditions:
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
+  ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
 
 Resources:
   MonitoringTable:
@@ -177,6 +205,220 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
 
+  RouterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-monitoring-router
+      RetentionInDays: 30
+
+  RouterDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  RouterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: router
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt MonitoringTable.Arn
+                  - !Sub "${MonitoringTable.Arn}/index/routing"
+              - Sid: OwnLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${RouterLogGroup.Arn}:*"
+              - Sid: FailedInvocations
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RouterDeadLetterQueue.Arn
+              - Sid: CyclotronMachineInvoker
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Ref CyclotronInvokerRoleArn
+              - Sid: PublicationReferenceIntake
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getModelAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/itemBySlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listKnowledgeCorpuses"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listReferences"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/updateReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getModelAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/itemBySlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listKnowledgeCorpuses"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listReferences"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/updateReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getModelAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/itemBySlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listKnowledgeCorpuses"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listReferences"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createKnowledgeImportRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/updateReferenceAttachment"
+
+  RouterFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: RouterLogGroup
+    Properties:
+      FunctionName: papyrus-monitoring-router
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 512
+      Timeout: 600
+      ReservedConcurrentExecutions: !If [ReserveRouterConcurrency, !Ref RouterReservedConcurrency, !Ref AWS::NoValue]
+      Role: !GetAtt RouterRole.Arn
+      DeadLetterConfig:
+        TargetArn: !GetAtt RouterDeadLetterQueue.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_GRAPHQL_AUTH: iam
+
+  RouterInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref RouterFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 900
+
+  RouterScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: invoke-and-dead-letter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt RouterFunction.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RouterDeadLetterQueue.Arn
+
+  RouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-route
+      Description: Run the HN router at minutes 7, 22, 37, 52 (offset from the collector's rate schedule); it routes in the mode stored in the table.
+      ScheduleExpression: cron(7/15 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  RouterErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-router-errors
+      AlarmDescription: The HN router Lambda reported an error (crash or timeout). Read the latest ROUTERUN receipt and the log group.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref RouterFunction }
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  RouterDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-router-dead-letters
+      AlarmDescription: A router invocation failed after delivery and was dead-lettered. Inspect the router queue.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt RouterDeadLetterQueue.QueueName }
+      Statistic: Maximum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
 Outputs:
   TableName:
     Value: !Ref MonitoringTable
@@ -186,3 +428,11 @@ Outputs:
     Value: !Ref CollectSchedule
   DeadLetterQueueUrl:
     Value: !Ref ScheduleDeadLetterQueue
+  RouterFunctionName:
+    Value: !Ref RouterFunction
+  RouterRoleArn:
+    Value: !GetAtt RouterRole.Arn
+  RouterScheduleName:
+    Value: !Ref RouteSchedule
+  RouterDeadLetterQueueUrl:
+    Value: !Ref RouterDeadLetterQueue

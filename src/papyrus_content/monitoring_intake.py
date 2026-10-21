@@ -27,6 +27,15 @@ class ReferenceIntake:
         self.client, self.monitor = client, monitor
         self.persist = persist or (lambda rows: apply_record_changes(client, build_record_changes(client, rows)))
 
+    @staticmethod
+    def _machine_decision_note(provenance: dict) -> str:
+        """Editors see where a routed item came from: the machine decision recorded in the provenance."""
+        decision = provenance.get("machineDecision")
+        if not isinstance(decision, dict):
+            return ""
+        return (f" Machine decision: {decision.get('system')} labelled {decision.get('output')} "
+                f"{decision.get('label')} (decision {decision.get('decisionId')}, version {decision.get('version')}).")
+
     def __call__(self, item: SourceItem, provenance: dict) -> dict:
         for key, value in self.monitor.binding.items():
             if provenance.get(key) != value:
@@ -50,7 +59,8 @@ class ReferenceIntake:
             "source_uri": item.canonical_url, "title": item.title, "media_type": "text/html",
             "published_at": item.published_at, "retrieved_at": provenance["observedAt"],
             "curation_status": "pending", "ingestion_rationale":
-                f"Discovered through Hacker News Monitor {self.monitor.id} for {self.monitor.publication}; pending human review. {item.source_item_url}",
+                f"Discovered through Hacker News Monitor {self.monitor.id} for {self.monitor.publication}; pending human review. {item.source_item_url}"
+                + self._machine_decision_note(provenance),
         })
         context = {"corpusId": self.monitor.corpus_id,
                    "importRunId": "monitor-" + hash_short([self.monitor.binding, item.source_id, item.fingerprint]),
