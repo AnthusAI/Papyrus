@@ -3,6 +3,7 @@
   "repository": "https://github.com/AnthusAI/p.apyr.us",
   "brand": "p-apyr-us",
   "frontend": "pretext",
+  "aws": { "accountId": "712236451410", "region": "us-east-1" },
   "hostedZoneId": "Z10285921B1G7MVRV06W9",
   "papyrusVersion": "1.0.0-next.1",
   "cms": {

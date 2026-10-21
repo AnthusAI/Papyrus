@@ -3,6 +3,10 @@
   "repository": "https://github.com/AnthusAI/Pilobol.us",
   "brand": "pilobol-us",
   "frontend": "markus-static",
+  "aws": {
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
   "hostedZoneId": "Z09961547QX1VHIXOBD7",
   "papyrusVersion": "1.0.0",
   "cms": {

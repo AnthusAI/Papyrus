@@ -93,8 +93,8 @@ export type AmplifyAppShellSiteConfig = {
 };
 
 /**
- * Where the site's AWS resources live, for operator tooling (`papyrus site google-secrets`). Not read by the
- * stack: the deploy account comes from the CDK environment. `accountId` is what the CLI asserts with STS
+ * Where the site's AWS resources live. `bin/app-shell.ts` deploys the stack into exactly this account and
+ * region (see `resolveDeployEnvironment`), and `papyrus site google-secrets` asserts `accountId` with STS
  * before it writes anything.
  */
 export type SiteAwsConfig = {
@@ -577,4 +577,21 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (hasCmsApp(config)) validateOauthRedirectUrls(config);
 
   return config;
+}
+
+/**
+ * The CDK environment for a site's app-shell stack, taken only from the site's own `aws` block. There is
+ * deliberately no default account: a deploy that guesses an account can land in, or fail against, the wrong
+ * one.
+ */
+export function resolveDeployEnvironment(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "aws">): { account: string; region: string } {
+  const account = config.aws?.accountId;
+  const region = config.aws?.region;
+  const missing = [account ? "" : "aws.accountId", region ? "" : "aws.region"].filter(Boolean);
+  if (!account || !region) {
+    throw new Error(
+      `site "${config.siteId}" does not say where it deploys: add ${missing.join(" and ")} to its site.json, e.g. "aws": { "accountId": "<12-digit account>", "region": "us-east-1" }. No account is assumed.`,
+    );
+  }
+  return { account, region };
 }

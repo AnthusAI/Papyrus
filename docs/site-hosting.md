@@ -345,9 +345,26 @@ A site whose product has a dedicated AWS account is hosted in that account, not 
 `cyclotron-production`, Chattic.us in `chatticus-production`. Publication bucket, CloudFront, certificate,
 pipeline and CodeConnections connection all live there; only DNS validation and alias records may be written
 cross-account into the zone's own account. Sites that belong to the Papyrus platform itself (Shipped,
-Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`.
+Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`. Each site records its account in `infra/site.json` under `aws.accountId`; the app-shell stack deploys there and nowhere else.
 A new CodeConnections connection is created PENDING and needs a one-time console approval by a human
 (Developer Tools, Settings, Connections, Update pending connection) before its pipeline can run.
+
+## Deploying the app-shell stack from a checkout
+
+`infra/amplify-app-shell` is the CDK app behind `papyrus-infra`'s stack. Install once (`npm ci` there; the `aws-cdk` CLI is a pinned devDependency, so no global `cdk` is needed), then from `infra/amplify-app-shell`:
+
+```
+SITE=infra/site.json AWS_PROFILE=<profile> npm run diff
+SITE=infra/site.json AWS_PROFILE=<profile> npm run deploy
+```
+
+`SITE` is the path to the site's own `infra/site.json` (resolve it from the shell directory, or use an absolute path). The stack deploys to the account and region in that file's `aws` block:
+
+```json
+"aws": { "profile": "papyrus-production", "accountId": "712236451410", "region": "us-east-1" }
+```
+
+There is no default account and no `CDK_DEFAULT_ACCOUNT` or `CDK_DEFAULT_ENV` override: a `site.json` without `aws.accountId` and `aws.region` fails with `does not say where it deploys`. Point `AWS_PROFILE` at credentials for that account; CDK refuses to deploy if they belong to another one. `TS_NODE_TRANSPILE_ONLY` is not needed: `npm run build` type-checks the app and CI runs it.
 
 ## Deploy on merge to main
 
