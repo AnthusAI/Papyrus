@@ -137,6 +137,25 @@ def save_story_version(
     return record
 
 
+def create_story(client, *, title: str, section_key: str | None, stage: str = "idea", summary: str | None = None,
+                 actor: str, now: str | None = None) -> dict[str, Any]:
+    """Records a new story (the first Item of a new lineage) at the idea, assignment or reporting stage."""
+    from .content_item_lifecycle import build_new_content_item_version, content_item_lineage_id_for_first_work
+    from .records import apply_record_changes, build_record_changes
+
+    if stage not in ("idea", "assignment", "reporting"):
+        raise ValueError("stage must be idea, assignment or reporting.")
+    if section_key and not client.get_record("NewsroomSection", section_key):
+        raise ValueError(f"Unknown NewsroomSection {section_key}.")
+    now = now or utc_now_iso()
+    lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
+    item = build_new_content_item_version(
+        lineage_id=lineage_id, title=title, summary=summary or title, section_key=section_key, stage=stage, actor_label=actor, now=now
+    )
+    apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
+    return item
+
+
 def advance_stage(stage: str | None) -> str:
     """The stage after this one on the board, for stages before publication."""
     order = [name for name in CONTENT_ITEM_STAGES if name not in ("published", "held", "spiked")]

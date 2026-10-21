@@ -12,6 +12,7 @@ from .story_reporting import (
     STORY_MESSAGE_KINDS,
     advance_stage,
     append_story_message,
+    create_story,
     move_story_stage,
     latest_story_version,
     link_reference_to_story,
@@ -186,11 +187,6 @@ def stories_set_slug(flags: list[str]) -> None:
 
 def stories_create(flags: list[str]) -> None:
     """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--with-assignment]"""
-    from datetime import datetime, timezone
-
-    from .content_item_lifecycle import build_new_content_item_version, content_item_lineage_id_for_first_work
-    from .records import apply_record_changes, build_record_changes
-
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories create")
     title = _required_option(options, "title")
@@ -200,20 +196,14 @@ def stories_create(flags: list[str]) -> None:
     section_key = normalize_string(options.get("section"))
     summary = normalize_string(options.get("summary")) or title
     actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
-    now = datetime.now(timezone.utc).isoformat()
-    lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
-    item = build_new_content_item_version(
-        lineage_id=lineage_id, title=title, summary=summary, section_key=section_key, stage=stage, actor_label=actor, now=now
-    )
-    client, _ = create_authoring_client()
-    if section_key and not client.get_record("NewsroomSection", section_key):
-        raise ValueError(f"Unknown NewsroomSection for --section {section_key}.")
-    print(f"stories\tcreate\t{lineage_id}\tstage {stage}\t{'write' if apply else 'dry run'}")
+    print(f"stories\tcreate\t{title}\tstage {stage}\t{'write' if apply else 'dry run'}")
     if not apply:
         if options.get("with-assignment"):
             print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
         return
-    apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
+    client, _ = create_authoring_client()
+    item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
+    lineage_id = item["lineageId"]
     print(f"stories\tcreate\tcreated\t{item['id']}")
     if options.get("with-assignment"):
         from .assignments_workflow import create_reporting_assignment
