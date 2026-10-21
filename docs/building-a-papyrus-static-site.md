@@ -228,7 +228,8 @@ only `http(s):`, `mailto:`, site-absolute (`/x`) and `#fragment` hrefs are accep
 between directives is converted by Markus one segment at a time and joined, so the page has no `<article>` wrapper and no
 Markus header; the band markup is the page. A page that uses bands must start with a `::band` line (after the front
 matter). Unknown attributes, tones, sizes and variants are errors that name the file. Directives inside code fences are
-text.
+text. `::island` and `::button` also work inside a Markus `:::` container (a card, a column): there they are swapped in
+after the container is converted; `::band` and `::column` stay top-level only.
 
 **Values.** `{{name}}` is replaced, in text and in directive attributes, before conversion, from the top-level
 `values` object of `projection.json` (strings or numbers). A name that is not defined is a build error naming the file

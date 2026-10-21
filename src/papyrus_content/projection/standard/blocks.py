@@ -3,7 +3,8 @@
 ``::band{id tone size eyebrow columns}`` starts a full-width section, ``::column{panel}`` the next column of the band,
 ``::button{href label size variant}`` a call to action (consecutive lines share a row) and ``::island{name height ...}``
 a mount point for a site script. Each directive sits alone on its line. Text between directives is converted by Markus
-as usual, one segment at a time. ``{{name}}`` tokens are replaced from the ``values`` object of ``projection.json``
+as usual, one segment at a time. ``::island`` and ``::button`` also work inside a Markus ``:::`` container (a card, a
+column): there they are swapped in after the container is converted. ``{{name}}`` tokens are replaced from the ``values`` object of ``projection.json``
 before anything else. A file with no ``::band`` line is not touched (apart from tokens).
 """
 
@@ -20,6 +21,9 @@ DIRECTIVE = re.compile(r"^::(band|column|island|button)(?:\{(.*)\})?[ \t]*$")
 ATTRIBUTE = re.compile(r'([\w-]+)="([^"]*)"')
 TOKEN = re.compile(r"\{\{(\w+)\}\}")
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})(.*)$")
+CONTAINER_OPEN = re.compile(r"^:::[\w-]+")
+CONTAINER_CLOSE = re.compile(r"^:::[ \t]*$")
+INLINE_BLOCKS = ("island", "button")
 
 TONES = ("background", "card", "muted")
 SIZES = ("standard", "hero", "bare")
@@ -55,12 +59,14 @@ def substitute(text: str, values: Mapping[str, str], source: str) -> str:
 
 
 def _directives(text: str):
-    """``(line, name, attributes)`` for every line; ``name`` is ``None`` for text. Lines inside code fences are text.
+    """``(line, name, attributes, inside)`` for every line; ``name`` is ``None`` for text. Lines inside code fences are text.
 
     A fence closes at a line of the same character, at least as long as the opening one, with nothing after it, so a
-    longer fence can hold shorter ones.
+    longer fence can hold shorter ones. ``inside`` is true for a line within a Markus ``:::`` container, where only
+    islands and buttons are directives (``::band`` and ``::column`` there are text).
     """
     fence = None
+    depth = 0
     for line in text.split("\n"):
         marker = FENCE.match(line)
         if marker is not None:
@@ -69,15 +75,22 @@ def _directives(text: str):
                 fence = ticks
             elif ticks[0] == fence[0] and len(ticks) >= len(fence) and not rest.strip():
                 fence = None
+        if fence is None and marker is None:
+            if CONTAINER_CLOSE.match(line):
+                depth = max(depth - 1, 0)
+            elif CONTAINER_OPEN.match(line):
+                depth += 1
         match = DIRECTIVE.match(line) if fence is None else None
+        if match is not None and depth and match.group(1) not in INLINE_BLOCKS:
+            match = None
         if match is None:
-            yield line, None, {}
+            yield line, None, {}, depth > 0
         else:
-            yield line, match.group(1), dict(ATTRIBUTE.findall(match.group(2) or ""))
+            yield line, match.group(1), dict(ATTRIBUTE.findall(match.group(2) or "")), depth > 0
 
 
 def uses_bands(text: str) -> bool:
-    return any(name == "band" for _line, name, _attributes in _directives(text))
+    return any(name == "band" for _line, name, _attributes, _inside in _directives(text))
 
 
 def _choice(source: str, label: str, value: str, allowed: tuple[str, ...]) -> str:
@@ -132,6 +145,8 @@ def render(text: str, source: str, convert: Callable[[str], str]) -> str:
     bands: list[dict] = []
     lines: list[str] = []
     buttons: list[dict] = []
+    inline: dict[str, str] = {}      # placeholder token -> HTML, for blocks inside a Markus container
+    inline_buttons: list[dict] = []
 
     def parts() -> list[str]:
         if not bands:
@@ -143,16 +158,39 @@ def render(text: str, source: str, convert: Callable[[str], str]) -> str:
             parts().append(_buttons_html(buttons))
             buttons.clear()
 
+    def place(html_text: str) -> None:
+        token = f"PAPYRUSBLOCK{len(inline)}X"
+        inline[token] = html_text
+        lines.extend(("", token, ""))
+
+    def flush_inline_buttons() -> None:
+        if inline_buttons:
+            place(_buttons_html(inline_buttons))
+            inline_buttons.clear()
+
     def flush_text() -> None:
+        flush_inline_buttons()
         markdown = "\n".join(lines).strip()
         lines.clear()
         if markdown:
-            parts().append(convert(markdown))
+            converted = convert(markdown)
+            for token, replacement in inline.items():
+                converted = converted.replace(f"<p>{token}</p>", replacement).replace(token, replacement)
+            parts().append(converted)
 
-    for line, name, attributes in _directives(text):
+    for line, name, attributes, inside in _directives(text):
+        if inside and name == "island":
+            flush_inline_buttons()
+            place(_island_html(source, attributes))
+            continue
+        if inside and name == "button":
+            inline_buttons.append(_button(source, attributes))
+            continue
         if name is None:
             if line.strip() and buttons:
                 flush_buttons()
+            if line.strip():
+                flush_inline_buttons()
             lines.append(line)
             continue
         flush_text()
@@ -217,7 +255,7 @@ def twin(text: str, values: Mapping[str, str], source: str) -> str:
             out.extend(["", " · ".join(buttons), ""])
             buttons.clear()
 
-    for line, name, attributes in _directives(body):
+    for line, name, attributes, _inside in _directives(body):
         if name == "button":
             attributes = _button(source, attributes)
             buttons.append(f"[{attributes['label']}]({attributes['href']})")
