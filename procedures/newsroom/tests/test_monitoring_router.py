@@ -684,3 +684,17 @@ def test_seed_script_sets_and_clears_ceilings():
     for bad in ("300", "decisionsTotal=many", "=5"):
         with pytest.raises(ValueError):
             seed.coerce("ceilings", bad)
+
+
+# --- not-ready outputs (criteria_pending) --------------------------------------------------------------
+
+def test_not_ready_binding_must_not_halt_the_sweep(table):
+    """Reproduces the halt: one binding answers 409 criteria_pending; the others must still decide and deliver."""
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["threat-intelligence"] = (409, {"error": {"code": "criteria_pending"}})
+    delivery = Delivery()
+    result = go(table, store, cyclotron, deliver=delivery)
+    assert result["status"] == "complete" and result["stoppedBy"] is None
+    assert result["counts"]["routed"] == 3                      # every candidate item reached the ready bindings
+    assert {c[0] for c in delivery.calls} == {"anth-us", "p-apyr-us"}
+    assert result["counts"]["skippedNotReady"] == 3
