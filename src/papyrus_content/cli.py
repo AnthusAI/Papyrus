@@ -1587,7 +1587,7 @@ def print_usage() -> None:
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
     print("  content export-published --out DIR [--tenant ID] [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
-    print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
+    print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--from-dir CONTENT_DIR (with --all and --out: read Markdown files, no CMS)] [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
