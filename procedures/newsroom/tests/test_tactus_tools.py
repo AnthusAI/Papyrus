@@ -37,6 +37,7 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_find_or_register_source",
                 "papyrus_link_story_reference",
                 "papyrus_save_story_version",
+                "papyrus_story_version",
                 "papyrus_story_versions",
             ],
         )
@@ -51,6 +52,10 @@ class TactusToolsModuleTests(unittest.TestCase):
         self.assertEqual(json.loads(record["metadata"])["frontMatterYaml"], 'title: "Sandbox escape"')
         self.assertEqual(record["status"], "draft")
         self.assertEqual([version["versionNumber"] for version in versions][0], 2)
+        with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)):
+            full = tactus_tools.papyrus_story_version(saved["versionId"])
+        self.assertEqual(full["bodyMarkus"], "Second draft.")
+        self.assertEqual(full["frontMatterYaml"], 'title: "Sandbox escape"')
 
     def test_create_story_records_a_new_lineage_in_the_section(self):
         client = client_with_one_story()

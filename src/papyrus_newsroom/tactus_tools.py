@@ -131,6 +131,22 @@ def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_la
     return find_or_create_source_reference(client, client.list_records("Reference"), publication=publication, corpus_id=corpus, item=item, actor=f"agent:{author_label}")
 
 
+def papyrus_story_version(version: str) -> dict:
+    """Read one story version in full: its YAML front matter and Markus body, with its state and stage.
+    Use the version ids from papyrus_story_versions or papyrus_save_story_version."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    record = client.get_record("Item", version)
+    if record is None:
+        raise ValueError(f"Story version not found: {version}")
+    metadata = record.get("metadata")
+    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    fields = ("id", "lineageId", "versionNumber", "versionState", "status", "stage", "section", "slug")
+    return {**{field: record.get(field) for field in fields}, "frontMatterYaml": metadata.get("frontMatterYaml") or "", "bodyMarkus": record.get("bodyMarkus") or ""}
+
+
 def papyrus_story_versions(story: str) -> list[dict[str, Any]]:
     """List a story's versions, newest first, with their state, author and reason."""
 
