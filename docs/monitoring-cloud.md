@@ -136,6 +136,23 @@ and a job still running after `pollSeconds`) end the sweep cleanly: the run rece
 until the next schedule. A refused POST leaves no job marker, so it may be sent later; an
 accepted job keeps its `jobId` under `ROUTE#...`.`jobs` and is only polled.
 
+### Outputs that are not ready (waiting for classifier)
+
+A binding whose Cyclotron output has no runnable classifier yet (`pending_criteria`) answers `decide`
+with HTTP 409 `criteria_pending`. That is a per-binding outcome, not a stop condition: the router
+skips that binding for the item (`route.notReady[pub]`, counter `skippedNotReady`), decides and
+delivers the other bindings, and the sweep continues. It makes no Cyclotron call for the waiting
+binding beyond one probe, so it uses no retries and no ceiling. If every binding is waiting, the item
+is final `parked`. Any other 409 still stops the sweep.
+
+Parking: one `PARK#<publicationId>` item per waiting publication holds `reason`, `since`, `nextProbeAt`,
+`backoffSeconds` and the newest 25 skipped items. No call is made until `nextProbeAt`; then the next item
+probes once, and a still-pending answer doubles the backoff (30 minutes up to 6 hours). When a probe
+succeeds the park becomes `ready`, and each run first decides the parked items (up to `maxItemsPerRun`,
+within the same per-run budget) and delivers positives, then removes the park. Items older than the
+newest 25 are not backfilled. The run receipt carries `waitingForClassifier` (publication ids) and the
+Monitoring page shows it on the router run.
+
 ## Router items
 
 | `sk` | Meaning |

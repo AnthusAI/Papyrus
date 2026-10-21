@@ -161,3 +161,10 @@ def test_handler_serves_an_editor_from_the_site_endpoint():
 def test_handler_accepts_cognito_group_claims_as_a_list_only():
     out = mv.handle({**event(["editor"]), "identity": {"groups": None}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: fx.FakeViewStore())
     assert out["error"] == "forbidden"
+
+
+def test_router_run_reports_publications_waiting_for_classifier():
+    from papyrus_content.monitoring_view import _router_run
+    run = _router_run({"runId": "r", "status": "complete", "waitingForClassifier": ["data-parade"]})
+    assert run["waitingForClassifier"] == ["data-parade"]
+    assert _router_run({"runId": "r"})["waitingForClassifier"] == []

@@ -48,9 +48,12 @@ PARTITION_COLLECTED = "collected"
 PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
 DECISIONS = ("cyclotron", "direct")
-ROUTING_FINAL = ("routed", "refused", "uncertain", "error")
+ROUTING_FINAL = ("routed", "refused", "uncertain", "error", "parked")
 NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
+NOT_READY_CODE = "criteria_pending"   # 409: the output has no runnable classifier yet (a per-binding state)
+PARK_PREFIX = "PARK#"
+PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX, PARK_KEEP_ITEMS = 1800, 6 * 3600, 25
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -65,6 +68,14 @@ class StopSweep(Exception):
     def __init__(self, code: str, detail: str = ""):
         super().__init__(code)
         self.code, self.detail = code, detail
+
+
+class BindingNotReady(Exception):
+    """One binding's output has no classifier yet: skip that binding for the item, never the sweep."""
+
+
+class AllBindingsNotReady(Exception):
+    """Every binding for the item is waiting for a classifier: nothing to decide or deliver yet."""
 
 
 class ItemRefused(Exception):
@@ -312,6 +323,8 @@ class CyclotronClient:
         code = refusal_code(status, payload)
         if code == "source_refused":
             return ItemRefused(code)
+        if status == 409 and code == NOT_READY_CODE:
+            return BindingNotReady(code)
         if code in STOP_CODES or status in (401, 403, 404, 429, 503, 507, 409):
             return StopSweep(code, f"http {status}")
         if status in (400, 413, 422):
@@ -455,6 +468,9 @@ class RouterStore(DynamoStore):
             if getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
 
+    def delete_any(self, monitor_id, sk):
+        self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk})
+
     def query_partition(self, partition: str, limit: int) -> list[dict]:
         """Oldest first from the sparse `routing` GSI."""
         result = self.table.query(IndexName="routing", KeyConditionExpression="gsi1pk = :p",
@@ -556,7 +572,9 @@ class Router:
         self._contexts: dict = {}
         self.publications = {p["publicationId"]: p for p in config["publications"]}
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
-                       "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0}
+                       "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
+                       "parked": 0, "backfilled": 0}
+        self._parks: dict = {}
 
     def client(self, publication: dict):
         endpoint = publication["appsyncEndpoint"]
@@ -620,53 +638,126 @@ class Router:
 
     # live ---------------------------------------------------------------------------------------------
 
+    # not-ready bindings and parking ---------------------------------------------------------------
+
+    def park(self, pub_id: str) -> dict | None:
+        if pub_id not in self._parks:
+            self._parks[pub_id] = self.store.get_any(self.monitor_id, PARK_PREFIX + pub_id)
+        return self._parks[pub_id]
+
+    def save_park(self, pub_id: str, park: dict):
+        self._parks[pub_id] = park
+        self.store.put_any(self.monitor_id, park)
+
+    def gate_open(self, pub_id: str) -> bool:
+        """False while the binding is parked and its next probe is not due. A due probe is claimed here, so
+        only one item per run probes a waiting binding."""
+        park = self.park(pub_id)
+        if not park or park.get("ready") or int(park.get("nextProbeAt", 0)) <= self.now:
+            if park and not park.get("ready"):
+                backoff = min(int(park.get("backoffSeconds", PARK_BACKOFF_FIRST)) * 2, PARK_BACKOFF_MAX)
+                self.save_park(pub_id, {**park, "backoffSeconds": backoff, "nextProbeAt": int(self.now + backoff),
+                                        "probes": int(park.get("probes", 0)) + 1, "lastProbeAt": _iso(self.now)})
+            return True
+        return False
+
+    def note_not_ready(self, pub_id: str, disc: dict, route: dict, reason: str):
+        park = self.park(pub_id) or {"pk": pk(self.monitor_id), "sk": PARK_PREFIX + pub_id, "publicationId": pub_id,
+                                      "since": _iso(self.now), "backoffSeconds": PARK_BACKOFF_FIRST,
+                                      "nextProbeAt": int(self.now + PARK_BACKOFF_FIRST), "probes": 0}
+        entry = {"sourceId": disc["sourceId"], "revision": int(disc["revision"])}
+        items = [i for i in park.get("items", []) if i != entry] + [entry]
+        self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False, "items": items[-PARK_KEEP_ITEMS:]})
+        route.setdefault("notReady", {})[pub_id] = {"reason": reason[:200], "at": _iso(self.now)}
+        self.counts["skippedNotReady"] += 1
+
+    def note_ready(self, pub_id: str):
+        park = self.park(pub_id)
+        if not park or park.get("ready"):
+            return
+        if park.get("items"):
+            self.save_park(pub_id, {**park, "ready": True})   # parked items are decided by backfill()
+        else:
+            self.store.delete_any(self.monitor_id, PARK_PREFIX + pub_id)
+            self._parks[pub_id] = None
+
+    def waiting_for_classifier(self) -> list[str]:
+        return sorted(p["publicationId"] for p in self.config["publications"]
+                      if (self.park(p["publicationId"]) or {}).get("ready") is False)
+
+    def backfill(self) -> int:
+        """Decide parked items for bindings whose output became ready; bounded by the per-run item budget."""
+        done, budget = 0, self.config["maxItemsPerRun"]
+        for publication in self.config["publications"]:
+            pub_id = publication["publicationId"]
+            park = self.park(pub_id)
+            while park and park.get("ready") and park.get("items") and done < budget:
+                if self.time_left() < MIN_REMAINING_SECONDS:
+                    return done
+                entry, rest = park["items"][0], park["items"][1:]
+                park = {**park, "items": rest}
+                self.save_park(pub_id, park)
+                disc = self.store.get_any(self.monitor_id, f"DISC#{entry['sourceId']}#{int(entry['revision']):06d}")
+                route = self.store.get_any(self.monitor_id, f"ROUTE#{entry['sourceId']}#{int(entry['revision']):06d}")
+                if disc and route and route.get("decision"):
+                    done += 1
+                    self.backfill_one(publication, disc, route)
+            if park and park.get("ready") and not park.get("items"):
+                self.store.delete_any(self.monitor_id, PARK_PREFIX + pub_id)
+                self._parks[pub_id] = None
+        return done
+
+    def backfill_one(self, publication: dict, disc: dict, route: dict):
+        pub_id = publication["publicationId"]
+        item_id = item_id_for(self.monitor_id, disc["sourceId"])
+        try:
+            self.decide_binding(publication, disc, route, item_id)
+            checked = route["jobs"][pub_id]["checked"]
+            if checked["decisionId"] != route["decision"]["decisionId"]:
+                raise ItemInvalid("backfilled decision is not the item's shared decision")
+        except BindingNotReady as error:
+            self.note_not_ready(pub_id, disc, route, str(error))
+            self.save(route)
+            return
+        except StopSweep:
+            raise
+        except Exception as error:
+            route.setdefault("notReady", {})[pub_id] = {"reason": f"backfill failed: {short(error)}", "at": _iso(self.now)}
+            self.save(route)
+            return
+        route["decision"]["publications"][pub_id] = {k: checked[k] for k in
+                                                     ("output", "label", "fingerprint", "version", "confidence") if k in checked}
+        route.get("notReady", {}).pop(pub_id, None)
+        if checked["label"] == publication["positiveLabel"]:
+            route.setdefault("publications", {})[pub_id] = {"label": checked["label"], "delivered": False, "attempts": 0}
+        self.save(route)
+        self.counts["backfilled"] += 1
+        if route.get("publications", {}).get(pub_id) and not self.deliver_positive(disc, route):
+            set_routing(self.store, self.monitor_id, disc, "decided", PARTITION_DECIDED)
+
+    # live ---------------------------------------------------------------------------------------------
+
     def decide(self, disc: dict, route: dict) -> None:
-        """One `decide` per binding. Jobs are recorded before and after sending; POST is never repeated."""
+        """One `decide` per binding. Jobs are recorded before and after sending; POST is never repeated.
+        A binding whose output is not ready (criteria_pending) is skipped for this item and parked."""
         jobs = route.setdefault("jobs", {})
         item_id = item_id_for(self.monitor_id, disc["sourceId"])
         for publication in self.config["publications"]:
             pub_id = publication["publicationId"]
-            built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
-            job = jobs.get(pub_id)
-            if job and job.get("checked"):
-                continue   # already decided under an earlier request id; the shared decision is cached
-            if job and job.get("requestId") != built["body"]["requestId"]:
-                raise ItemInvalid("stored job belongs to a different request")
-            if job and job.get("jobId"):
-                if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
-                    raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
-            elif job:
-                raise ItemUncertain("an earlier POST had no recorded answer")
-            else:
-                jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now)}
-                self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
-                try:
-                    job_id, immediate = self.cyclotron.post(pub_id, built["body"])
-                except ItemUncertain:
-                    raise
-                except Exception:
-                    del jobs[pub_id]   # definitively refused: nothing was started, a later run may send it
-                    self.save(route)
-                    raise
-                if job_id:
-                    jobs[pub_id]["jobId"] = job_id
-                    self.save(route)
-                else:
-                    jobs[pub_id]["checked"] = checked_decision(immediate, publication, self.config, item_id)
-                    self.save(route)
+            if not jobs.get(pub_id, {}).get("checked"):
+                if not self.gate_open(pub_id):
+                    self.note_not_ready(pub_id, disc, route, (self.park(pub_id) or {}).get("reason", NOT_READY_CODE))
                     continue
-            try:
-                response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
-            except StopSweep as stop:
-                if stop.code in NON_CONSUMING_REFUSALS:
-                    # Nothing ran at the provider. Drop the refused job and use a new request id next time.
-                    del jobs[pub_id]
-                    route["attempt"] = int(route.get("attempt", 0)) + 1
-                    self.save(route)
-                raise
-            jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
-            self.save(route)
-        checked = {pid: jobs[pid]["checked"] for pid in (p["publicationId"] for p in self.config["publications"])}
+                try:
+                    self.decide_binding(publication, disc, route, item_id)
+                except BindingNotReady as error:
+                    self.note_not_ready(pub_id, disc, route, str(error))
+                    continue
+                self.note_ready(pub_id)
+        if not any(jobs.get(p["publicationId"], {}).get("checked") for p in self.config["publications"]):
+            raise AllBindingsNotReady()
+        checked = {pid: jobs[pid]["checked"] for pid in (p["publicationId"] for p in self.config["publications"])
+                   if jobs.get(pid, {}).get("checked")}
         if len({c["decisionId"] for c in checked.values()}) != 1:
             raise ItemInvalid("publications did not share one native decision")
         if len({json.dumps(c["source"], sort_keys=True) for c in checked.values()}) != 1:
@@ -683,6 +774,55 @@ class Router:
         route.pop("nextAttemptAt", None)
         self.save(route)
         self.counts["decided"] += 1
+
+
+    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str) -> None:
+        jobs = route.setdefault("jobs", {})
+        pub_id = publication["publicationId"]
+        built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
+        job = jobs.get(pub_id)
+        if job and job.get("checked"):
+            return   # already decided under an earlier request id; the shared decision is cached
+        if job and job.get("requestId") != built["body"]["requestId"]:
+            raise ItemInvalid("stored job belongs to a different request")
+        if job and job.get("jobId"):
+            if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
+                raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
+        elif job:
+            raise ItemUncertain("an earlier POST had no recorded answer")
+        else:
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now)}
+            self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
+            try:
+                job_id, immediate = self.cyclotron.post(pub_id, built["body"])
+            except ItemUncertain:
+                raise
+            except Exception:
+                del jobs[pub_id]   # definitively refused: nothing was started, a later run may send it
+                self.save(route)
+                raise
+            if job_id:
+                jobs[pub_id]["jobId"] = job_id
+                self.save(route)
+            else:
+                jobs[pub_id]["checked"] = checked_decision(immediate, publication, self.config, item_id)
+                self.save(route)
+                return
+        try:
+            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+        except BindingNotReady:
+            del jobs[pub_id]   # nothing ran at the provider; the park decides when to ask again
+            self.save(route)
+            raise
+        except StopSweep as stop:
+            if stop.code in NON_CONSUMING_REFUSALS:
+                # Nothing ran at the provider. Drop the refused job and use a new request id next time.
+                del jobs[pub_id]
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+            raise
+        jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
+        self.save(route)
 
     def decide_direct(self, disc: dict, route: dict) -> None:
         """The monitor's own rule: deliver to every configured publication, no relevance call."""
@@ -753,6 +893,8 @@ class Router:
             self.save(route)
             set_routing(self.store, self.monitor_id, disc, "routed", None)
             self.counts["routed"] += 1
+        except AllBindingsNotReady:
+            self.finish(disc, route, "parked", "every binding is waiting for a classifier")
         except ItemRefused as error:
             self.finish(disc, route, "refused", str(error))
         except ItemUncertain as error:
@@ -771,7 +913,14 @@ class Router:
     def sweep(self) -> dict:
         status, stopped = "complete", None
         errors: list = []
-        for disc in self.candidates():
+        candidates = self.candidates()
+        if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron":
+            try:
+                candidates = candidates[:max(0, self.config["maxItemsPerRun"] - self.backfill())]
+            except StopSweep as stop:
+                return {"status": "stopped", "stoppedBy": stop.code, "errors": [],
+                        "waitingForClassifier": self.waiting_for_classifier()}
+        for disc in candidates:
             if self.time_left() < MIN_REMAINING_SECONDS:
                 status, stopped = "stopped", "time_budget"
                 break
@@ -786,7 +935,8 @@ class Router:
                 self.counts["error"] += 1
         if errors and status == "complete":
             status = "partial"
-        return {"status": status, "stoppedBy": stopped, "errors": errors[:10]}
+        return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
+                "waitingForClassifier": self.waiting_for_classifier() if self.config["decisions"] == "cyclotron" else []}
 
     # feedback ---------------------------------------------------------------------------------------
 
@@ -891,12 +1041,13 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         feedback = {"status": "skipped"} if task == "route" else router.feedback()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
-                  "feedback": feedback, "errors": outcome.get("errors", [])}
+                  "feedback": feedback, "errors": outcome.get("errors", []),
+                  "waitingForClassifier": outcome.get("waitingForClassifier", [])}
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
             "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback,
-            "errors": result["errors"], "ttl": int(now + RECEIPT_TTL_SECONDS)})
+            "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
     finally:
         store.release_router_lock(monitor_id, owner)
@@ -911,4 +1062,4 @@ def handler(event, context):
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback")}
+    return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}

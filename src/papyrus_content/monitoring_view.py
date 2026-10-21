@@ -121,6 +121,7 @@ def _router_run(row: dict) -> dict:
     feedback = row.get("feedback") if isinstance(row.get("feedback"), dict) else {}
     return {"runId": row.get("runId"), "startedAt": row.get("startedAt"), "mode": row.get("mode"), "status": row.get("status"),
             "stoppedBy": row.get("stoppedBy"), "counts": row.get("counts") or {},
+            "waitingForClassifier": [str(p) for p in (row.get("waitingForClassifier") or [])],
             "errorCount": len(row.get("errors") or []),
             "feedback": {key: feedback.get(key) for key in ("status", "sent", "pending", "skipped", "failed")}}
 

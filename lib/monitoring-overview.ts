@@ -50,6 +50,7 @@ export type MonitoringRouterRun = {
   mode: string;
   status: string;
   stoppedBy: string | null;
+  waitingForClassifier?: string[];
   counts: Record<string, number>;
   errorCount: number;
 };
