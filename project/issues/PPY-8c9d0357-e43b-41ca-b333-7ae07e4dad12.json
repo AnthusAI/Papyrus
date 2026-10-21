@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8c9d0357-e43b-41ca-b333-7ae07e4dad12",
+  "title": "CLI: edit doctrine records and update sections (papyrus sections doctrine set / sections update)",
+  "description": "Agent parity: editors edit the publication mission/policy doctrine Items and NewsroomSection policy, guidance and kill criteria in Administration; agents have no CLI and fall back to raw GraphQL (Item.update, updateNewsroomSection). Add 'papyrus sections doctrine set --kind mission|policy --file <md>' and 'papyrus sections update --id <id> [--editorial-policy-file ...] [--assignment-guidance-file ...] [--kill-criteria-file ...]' using the same mutations the newsroom uses.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T10:44:25.570255Z",
+  "updated_at": "2026-10-21T10:44:25.570737Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -3,17 +3,25 @@
   "title": "Decide and plan: Kanbus/Auritus/Apricity legacy sites (Gatsby, Next export, Vite): retire after cut-over",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6fc57127-ed20-489c-91f3-b2d9fe3295be",
+      "author": "home",
+      "text": "Decision: retire. The replacements are live on the standard front end (kanb.us, aurit.us, apricity.anth.us marketing; Apricity app moved to play.apricity.anth.us). Old resources kept only for rollback: Kanbus Amplify app d2h5foxy5ng19a (dist d2xpv7jaltlgoe.cloudfront.net) and staging.kanb.us record; Auritus Amplify app d1xec2o22j5yq2 (dist d11nqalufqzgfu.cloudfront.net); Apricity old apex association/CNAME to d2jjrpf0iybapo.cloudfront.net and the apex Cognito callback URL. Ryan deletes them after a quiet week (agents never delete apps/stacks).",
+      "created_at": "2026-10-21T11:01:30.860551Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:40.729778Z",
-  "updated_at": "2026-10-21T00:48:40.729837Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T11:01:30.896593Z",
+  "closed_at": "2026-10-21T11:01:30.896551Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

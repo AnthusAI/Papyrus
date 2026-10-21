@@ -72,6 +72,38 @@ class StoryReportingTests(unittest.TestCase):
         self.assertEqual([version["versionNumber"] for version in story_versions(client, LINEAGE)], [2, 1])
         self.assertEqual(latest_story_version(client, LINEAGE)["bodyMarkus"], "Second draft.\n")
 
+    def test_a_new_version_keeps_title_and_headline_when_the_new_front_matter_omits_them(self):
+        client = client_with_one_story()
+        saved = save_story_version(client, LINEAGE, front_matter_yaml="tags: [a]", body_markus="Second draft.\n", actor="ChatGPT", change_reason="body only", now=NOW)
+        self.assertEqual(saved["title"], "Sandbox escape")
+        self.assertEqual(saved["headline"], "Sandbox escape")
+
+    def test_a_new_version_recovers_the_title_from_an_earlier_version_when_the_latest_lost_it(self):
+        client = client_with_one_story()
+        first = client.tables["Item"][LINEAGE]
+        first["versionState"] = "superseded"
+        lost = dict(first, id=f"{LINEAGE}-v2", versionNumber=2, versionState="current", title=None, headline=None)
+        client.tables["Item"][lost["id"]] = lost
+        saved = save_story_version(client, LINEAGE, front_matter_yaml="tags: [a]", body_markus="Third draft.\n", actor="ChatGPT", change_reason="body only", now=NOW)
+        self.assertEqual((saved["title"], saved["headline"]), ("Sandbox escape", "Sandbox escape"))
+
+    def test_a_new_version_takes_a_title_the_new_front_matter_sets(self):
+        client = client_with_one_story()
+        saved = save_story_version(client, LINEAGE, front_matter_yaml='title: "Renamed"', body_markus="Second draft.\n", actor="ChatGPT", change_reason="retitle", now=NOW)
+        self.assertEqual(saved["title"], "Renamed")
+
+    def test_a_new_version_gets_a_free_id_when_the_current_one_already_uses_the_next_suffix(self):
+        client = client_with_one_story()
+        renamed = dict(client.tables["Item"][LINEAGE], id=f"{LINEAGE}-v2", versionNumber=1, versionState="current", slug="sandbox-escape-renamed")
+        client.tables["Item"][LINEAGE]["versionState"] = "superseded"
+        client.tables["Item"][LINEAGE]["versionNumber"] = 0
+        client.tables["Item"][renamed["id"]] = renamed
+        saved = save_story_version(client, LINEAGE, front_matter_yaml='title: "Sandbox escape"', body_markus="Rewrite.\n", actor="ChatGPT", change_reason="rewrite", now=NOW)
+        self.assertEqual(saved["id"], f"{LINEAGE}-v3")
+        self.assertEqual(saved["versionNumber"], 2)
+        self.assertEqual(saved["previousVersionId"], f"{LINEAGE}-v2")
+        self.assertEqual(client.tables["Item"][f"{LINEAGE}-v2"]["versionState"], "superseded")
+
     def test_a_reference_is_consulted_first_and_later_marked_cited_without_a_second_link(self):
         client = client_with_one_story()
         link_reference_to_story(client, LINEAGE, "reference-pwn-ai-v1", role="consulted", actor="ChatGPT", note="primary source", now=NOW)

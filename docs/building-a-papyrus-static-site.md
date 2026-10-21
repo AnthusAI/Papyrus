@@ -30,19 +30,21 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | Key | Contents |
 |---|---|
 | `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
-| `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
+| `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, listingPage, feed, sitemap, linkField, pageSize, listEmpty, sort, groupBy, archive } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
 | `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
-| `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`) |
+| `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`), `tagSelect`, `tagPageSize`, `draft`, `pageSuffix`, `tagTitle` (see "Collections and tag pages") |
+| `collections` | listings selected by tag or section: `[{id, base, label, description, select, pageSize, featuredCount, sort, ties, drafts, sitemap, sitemapPages, listEmpty}]` (see "Collections and tag pages") |
+| `notFound` | the 404 page's head: `{title ("Page not found"), description, noindex (true)}` |
 | `fonts` | `stylesheet` (a font CSS URL; adds the `preconnect` links), `preconnect` |
 | `icons` | `icon`, `iconType`, `appleTouch`, `manifest`, `themeColor`, `themeColorDark` |
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
-| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form}]`; the body comes from the `page_body` hook |
+| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form, source, image}]`; the body comes from the `page_body` hook, or from a page file named by `source` (see "Authored page files"); `path: ""` is the home page |
 | `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
@@ -107,7 +109,8 @@ comes from `PAPYRUS_SITE_PUBLIC_URL`; `PAPYRUS_SITE_ENV=production` (or any othe
 not the production origin is **guarded**: every page gets `<meta name="robots" content="noindex, nofollow">`,
 `robots.txt` is `Disallow: /`, and canonical links use that environment's own origin. A site that declares no
 `productionUrl` and sets no `PAPYRUS_SITE_ENV` has nothing to guard and behaves as production. `environment.guard:
-false` switches it off.
+false` switches it off. A guarded build also never emits Google Analytics: `chrome.ga_measurement_id` and `chrome.consent_mode` (with its
+banner) are dropped from every page, so a staging site does not count visits.
 
 ## The head
 
@@ -123,7 +126,8 @@ falls back from the entry's cover to the first image in the body to `seo.default
 `sitemap.xml` (or the index form) lists the home page, every entry with a page that is not `noindex`, listing page
 1 of each section, tag pages, custom pages, with `<lastmod>` from the entry's `updated`. Drafts, the 404 page and
 link-only items are excluded. With no known origin the sitemap is an empty `urlset` rather than relative URLs.
-`404.html` is always generated, at that key, `noindex`.
+`404.html` is always generated, at that key, `noindex`. `notFound` sets its head: `title`, `description` (default: the site's) and
+`noindex: false` to let search engines see it.
 
 ## Feeds
 
@@ -140,10 +144,43 @@ page, with `featuredCount` extra on page 1. Tag pages (`/tags/`, `/tags/<tag>/`)
 case. The generated home page lists the latest `homeCount` entries and links onward. An authored item named `index`
 at the root replaces it.
 
+### Collections and tag pages
+
+A **collection** is a listing selected by tags and sections instead of by a CMS section. It has pages at `/<base>/` and
+`/<base>/page/N/` (`base` defaults to `id`; it must not be the base of a section that has a listing page, and each `id` is used
+once):
+
+```json
+"collections": [
+  { "id": "news", "label": "News", "description": "What we reported.",
+    "select": { "tags": ["news"], "notTags": ["solutions"] },
+    "pageSize": 8, "featuredCount": 4, "sort": "date", "ties": "slug-desc", "drafts": true }
+]
+```
+
+| Key | Meaning |
+|---|---|
+| `select` | `sections` (names; `@root` is the items with no section), `tags` (any of), `allTags` (all of), `notTags` (none of). Tags compare case-insensitively. Only listed entries (published, not drafts, of a listed type) are selected |
+| `pageSize`, `featuredCount` | default to the site's `listings` values; page 1 shows `featuredCount` + `pageSize` entries (the first `featuredCount` are `listing.featured`), later pages `pageSize` |
+| `sort`, `ties` | `date` (newest first, default), `order` (front matter `order`, then title) or `title`; entries with equal dates go `slug-desc` (default) or `slug-asc` |
+| `drafts` | page 1's `listing.drafts` carries the draft entries the selection would pick if they were published (for a hook that shows them); they are never in the listing, tag pages, feeds or the sitemap |
+| `sitemap`, `sitemapPages` | page 1 is in the sitemap (default); `sitemapPages` adds the later pages |
+| `listEmpty` | keep the page when the selection is empty (by default there is no page) |
+
+A section's `listingPage: false` keeps its entries listed (collections, tag pages, feeds, public data) but generates no listing page
+for it and no link to one, so a collection or an authored page can be its listing at the same path.
+
+Tag pages: `listings.tagSelect` (the same selection keys) narrows the entries the tag index and tag pages cover (the sections'
+listings are not narrowed); `tagPageSize` sets their page size without featured entries (`0`: every entry of a tag on one page);
+`tagTitle` (`"Tagged {tag}"`) is a tag page's title and heading and `pageSuffix` (`" — page {page}"`) is added to the title of page 2
+and later of any listing. `listings.draft: {field, values}` makes a front matter field mark an item as a draft (`values`, compared
+case-insensitively, default `["draft"]`): such an item is served and `noindex`, has `entry.draft`, and is left out of every listing.
+`draft: true` and `status: draft` always do.
+
 Dependencies are declared, so incremental projection is exact: an item page depends on itself and the shared
 settings (plus other sections' entries only if `components.itemPagesDependOn` says so); a listing page depends on the
 card fields of exactly the entries it shows, its page number and page count; feeds and the sitemap on their own
-bytes. Editing only a body writes only that article. A test applies random publish, edit and unpublish operations
+bytes; a collection page on the full fingerprints of the entries it shows (and, on page 1, of its drafts). Editing only a body writes only that article. A test applies random publish, edit and unpublish operations
 and asserts the incremental result equals `project --all`.
 
 ## Components
@@ -160,7 +197,7 @@ it and wins.
 component classes above, define tokens as custom properties on `:root` with a dark override under
 `prefers-color-scheme`, and keep brand files (logo, icon, share card) in `web/assets/`. The shell loads, in order,
 `css/markus-vendor.css`, `css/markus-components.css`, `css/site-theme.css`, all cache-busted with the one version
-token.
+token. `css/markus-vendor.css` is published only when `chrome.stylesheets` lists it (the default does).
 
 ## Hooks
 
@@ -177,6 +214,19 @@ error (prefix helpers with `_`):
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
 | `derive(summary)` | the item summary | a dict of derived fields (a tier, a week, a shape); available as `entry.derived`, part of every fingerprint, and how a site picks which row or card component renders |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
+| `item_filter(summary)` | the item summary | `False` leaves the item out of the site: no page, listing, tag, feed, sitemap entry or redirect |
+| `source(summary, text, site)` | the summary, the item's own text (front matter included), a `HookSite` | the Markus source that is converted (lift legacy markup, add a heading block); the Markdown twin keeps the item's own text |
+| `item_transform(summary)` | the item summary | a `FragmentTransform` applied to the converted fragment (class vocabulary, block passthrough), or `None` |
+| `image_pipeline(pipeline)` | the `ImagePipeline` built from `images` | the pipeline to render with (`dataclasses.replace(pipeline, wrap=...)` sets the callbacks that are not data); only called when the site has `images` |
+| `page_head(head, page)` | the `PageHead` (title, description, image, dates, JSON-LD) and the page | the head to build, usually `dataclasses.replace(head, ...)`; it reaches the description, Open Graph, Twitter and JSON-LD tags |
+| `page_finish(html, page)` | the finished page as text, the page | the text that is written; the last step, after `head_extra`, `body_class` and `page_body` |
+| `page_inputs(site)` | a `HookSite` | JSON-able data every page also renders from (a table of URLs it rewrites links with); every page is rendered again when it changes |
+| `redirects(site)` | a `HookSite` | exact redirects `{"/old/": "/new/"}` derived from the items, on top of the items' `aliases`; `redirects.exact` of `projection.json` wins over it, and a path that is a page is never redirected |
+| `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
+
+`card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.
+`HookSite` (also `page.site`) is the site-wide view the item-level hooks get: `items` (every published `ItemSummary`), `static_directory`, `rendition_records()` (the `meta.json` records of the site's image store; empty without `images`) and `memo(name, build)`, which calls `build()` once per name for one version of the site, so a table built from every item is built once per projection.
+`masthead`, `footer`, `card`, `head_extra`, `body_class`, `page_body`, `page_head`, `page_finish` and `block` are handed `page`, so they make every page depend on all entries (narrow it with `DEPENDS_ON`, below); `item_filter`, `source`, `item_transform`, `image_pipeline`, `page_inputs` and `redirects` do not.
 
 `page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,
 `entry`, `fragment`, `listing` (the slice, page numbers), `custom_id`, `entries`, `summaries`, `settings`,
@@ -247,6 +297,53 @@ have tokens replaced.
 
 The baseline `css/markus-components.css` styles bands, columns, panels and buttons through `--papyrus-band-*`,
 `--papyrus-button-*`, `--papyrus-rule` and `--papyrus-radius`; your theme restyles them and may key on `data-layout`.
+
+## Authored page files
+
+A `pages` entry with `source` is a page written as a Markus file in the static directory (`web/`) instead of composed by a hook:
+
+```json
+"pages": [
+  { "id": "home", "path": "", "title": "Welcome", "description": "...", "source": "pages/home.md", "image": "/assets/share.png" },
+  { "id": "work", "path": "work", "title": "Our work", "source": "pages/work.md" }
+]
+```
+
+`path: ""` is the home page (`/`; an authored `index` item and a `pages` entry for `""` are alternatives, not both). `title`, `description` and `image` are the page's head; the file's own front matter is not read. The file uses page blocks (it starts with a
+`::band`; `::band{size="bare"}` adds no wrapper) and two more directives, which only a page file may use (an item that holds
+them is a build error that names it):
+
+```markdown
+::band{size="bare"}
+# Welcome
+
+::include{kind="listing" collection="news" count="3" card="wide"}
+::include{kind="listing" tags="featured,solutions" notTags="draft" sort="title" count="3" skip="1" layout="bare"}
+::include{kind="showcase"}
+::include{kind="form" id="contact"}
+::include{kind="block" name="proof-strip" depends="articles" style="dark"}
+
+::raw
+<div class="anything"><script>if (a < b) {}</script> *this stays as written*</div>
+::endraw
+```
+
+| `::include` kind | Attributes | Output |
+|---|---|---|
+| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest first by default, `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
+| `showcase` | none | the logo wall of the `showcase` settings |
+| `form` | `id` | a `forms` entry |
+| `block` | `name` (required), `depends`, any other attributes | what the `block(name, attributes, page)` hook returns; `depends` lists the sections it reads (`@root`, or `*` for all) |
+
+`::raw` ... `::endraw` puts the lines between them in the page exactly as written (no Markus, no directives, no escaping);
+a `::raw` without `::endraw` is an error. Fences hold both as text. Unknown attributes, kinds, collections, forms, layouts and non-numeric
+`count` / `skip` are build errors naming the file; a `block` needs the hook, a `card` variant needs a `card` hook that takes `variant`.
+
+**Dependencies are the includes.** The selection an include renders from is what the page depends on: the page's input digest is the
+text of the file, each include's attributes and the full fingerprint of exactly the entries it shows (a `block`: of every entry in
+the sections it names in `depends`, and of none when it names none). Saving an item that no include of a page selects, or that lies
+beyond its `count`, writes nothing for that page; saving one that does rewrites that page and only that page. A page that uses
+`page_body` instead keeps the `dependsOn` list. Editing the page file or a hooks module re-renders it on the next `project --all`.
 
 ## Islands
 

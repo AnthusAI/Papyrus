@@ -140,6 +140,23 @@ class ImportTests(ImportTestCase):
         self.assertIn("A source change", self.client.get_record("Item", "item-articles-hello")["bodyMarkus"])
 
 
+    def test_a_superseded_record_is_never_written_and_the_current_version_is_named(self) -> None:
+        self.run_import(options={"publish": False})
+        old = self.client.get_record("Item", "item-articles-hello")
+        current = dict(old, id="item-articles-hello-v2", versionNumber=2, versionState="current", bodyMarkus="Rewritten in the CMS.\n")
+        self.client.upsert("Item", current)
+        self.client.update_record("Item", {"id": "item-articles-hello", "versionState": "superseded"})
+        path = self.content / "articles" / "hello.md"
+        path.write_text(path.read_text().replace("A first paragraph", "A source change"))
+        report = self.run_import(options={"publish": False})
+        self.assertEqual(report.updated, 0)
+        self.assertEqual(len(report.skipped_superseded), 1)
+        self.assertIn("item-articles-hello-v2", report.skipped_superseded[0])
+        self.assertIn("stories save-version", report.skipped_superseded[0])
+        self.assertEqual(self.client.get_record("Item", "item-articles-hello")["bodyMarkus"], old["bodyMarkus"])
+        self.assertEqual(self.client.get_record("Item", "item-articles-hello-v2")["bodyMarkus"], "Rewritten in the CMS.\n")
+
+
 class ValidationTests(ImportTestCase):
     def assert_aborts(self, expected: str, **changes) -> list[str]:
         report = self.run_import(**changes)
