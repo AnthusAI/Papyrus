@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9202ea88-f946-4f75-a6c2-f23de2bd02ec",
+  "issue_id": "PPY-65b1d2c8-a0a9-4598-b0c4-00dfa45f5cec",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:37:39.542Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Directory content source: nested directories become nested slugs",
+    "description": "DirectoryContentSource (project --from-dir) takes the first directory as the section and the file stem as the slug, so content/examples/getting-started/hello-world.md is /examples/hello-world/. Tactus-web needs /examples/<chapter>/<example>/. Make the slug the path under the section (segments slugified, joined by /); opt in per row via nestedSlug so CMS sites keep today's behaviour. Needed by PPY-ef5843.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": []
+  }
+}

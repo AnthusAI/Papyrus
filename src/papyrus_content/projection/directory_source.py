@@ -7,7 +7,8 @@ through this source and runs the same projection as a CMS-backed site would.
 Every ``.md`` file is one published item. The first directory is its section (``guides/start.md`` is the ``start``
 item of the ``guides`` section; a file at the top is a root page). Front matter keys ``type`` (``article`` or
 ``page``; default ``article``), ``aliases`` and ``title`` become item fields; the
-rest of the front matter stays front matter. There is no publish time, so ``updated`` falls back to the front
+rest of the front matter stays front matter. Directories below the section nest the slug:
+``guides/intro/first.md`` is the ``intro/first`` item of ``guides`` (``/guides/intro/first/``). There is no publish time, so ``updated`` falls back to the front
 matter ``updated`` / ``date`` only.
 """
 
@@ -65,6 +66,7 @@ class DirectoryContentSource:
                 "status": "published",
                 "section": section,
                 "slug": path.stem,
+                "nestedSlug": True,
                 "title": data.get("title"),
                 "versionNumber": 1,
                 "publishedAt": None,

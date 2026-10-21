@@ -419,6 +419,14 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
 
+  TableNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /papyrus/monitoring/table-name
+      Type: String
+      Value: !Ref MonitoringTable
+      Description: The monitoring table's name, so the newsroom Monitoring page (read-only) can find it without a deploy-time link between stacks.
+
 Outputs:
   TableName:
     Value: !Ref MonitoringTable

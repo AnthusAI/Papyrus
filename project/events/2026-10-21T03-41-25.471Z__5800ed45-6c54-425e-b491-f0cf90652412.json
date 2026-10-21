@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5800ed45-6c54-425e-b491-f0cf90652412",
+  "issue_id": "PPY-c9952ac8-65c6-4598-9f80-536ce6175a57",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:41:25.471Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Page blocks: islands and buttons inside Markus containers (cards, columns)",
+    "description": "::island and ::button are line-level directives handled before Markus, so a line inside a ':::card' or ':::column' container splits the container into two segments and breaks it. Tactus-web (PPY-ef5843) has 15 islands and 5 button rows inside cards and columns. Track Markus container depth; inside a container replace the directive with a one-line placeholder paragraph and swap the HTML in after conversion.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": []
+  }
+}

@@ -19,7 +19,7 @@ from .redirects import RedirectRule, rule_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
-    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents",
+    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
     "values", "islands",
 )
 URL_STYLES = ("html", "directory")
@@ -239,6 +239,24 @@ class AgentSettings:
     llms_max_links: int = 200
 
 
+AI_DESTINATIONS = {
+    "chatgpt": ("Open in ChatGPT", "https://chatgpt.com/?q="),
+    "claude": ("Open in Claude", "https://claude.ai/new?q="),
+    "perplexity": ("Open in Perplexity", "https://www.perplexity.ai/search?q="),
+}
+
+
+@dataclass(frozen=True)
+class PageActionSettings:
+    """Copy-as-Markdown and related actions on article pages (see ``page_actions.py``)."""
+
+    enabled: bool = True
+    placement: str = "header"                 # header (above the article) or aside (after it)
+    actions: tuple[str, ...] = ("copy", "view")
+    ai: tuple[str, ...] = ()                  # subset of AI_DESTINATIONS; none by default
+    prompt: str = "Read {url} and help me with it."
+
+
 @dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
@@ -277,6 +295,7 @@ class StandardSettings:
     showcase: ShowcaseSettings | None = None
     forms: tuple[FormSpec, ...] = ()
     agents: AgentSettings = field(default_factory=AgentSettings)
+    page_actions: PageActionSettings = field(default_factory=PageActionSettings)
 
     @property
     def sectioned(self) -> bool:
@@ -566,6 +585,24 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     )
     if (agents.llms_txt or agents.llms_full) and not agents.markdown:
         raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
+    actions_raw = dict(raw.get("pageActions") or {})
+    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt"}, "pageActions")
+    action_defaults = PageActionSettings()
+    page_actions = PageActionSettings(
+        enabled=bool(actions_raw.get("enabled", True)),
+        placement=str(actions_raw.get("placement", action_defaults.placement)),
+        actions=tuple(actions_raw.get("actions", action_defaults.actions)),
+        ai=tuple(actions_raw.get("ai", ())),
+        prompt=str(actions_raw.get("prompt", action_defaults.prompt)),
+    )
+    if page_actions.placement not in ("header", "aside"):
+        raise ValueError("pageActions.placement must be 'header' or 'aside'")
+    if not set(page_actions.actions) <= {"copy", "view"}:
+        raise ValueError("pageActions.actions must be a subset of ['copy', 'view']")
+    if not set(page_actions.ai) <= set(AI_DESTINATIONS):
+        raise ValueError(f"pageActions.ai must be a subset of {sorted(AI_DESTINATIONS)}")
+    if "{url}" not in page_actions.prompt or len(page_actions.prompt) > 200:
+        raise ValueError("pageActions.prompt must contain {url} and stay short: the page body is never sent")
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -610,4 +647,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         showcase=showcase,
         forms=tuple(forms),
         agents=agents,
+        page_actions=page_actions,
     )

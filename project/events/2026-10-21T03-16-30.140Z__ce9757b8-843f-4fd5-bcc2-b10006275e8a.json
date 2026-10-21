@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ce9757b8-843f-4fd5-bcc2-b10006275e8a",
+  "issue_id": "PPY-75e9840b-449a-486f-bdd7-4a5c9e9cabc7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:16:30.140Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document default Humanus copy editing on the marketing site",
+    "description": "Add default copy editing with Humanus (starter policies on day one, policies drafted from the publication's own prose, every draft checked, findings on the board, never blocking) to the Papyrus marketing site features list (see PPY-b9b038).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": []
+  }
+}

@@ -33,3 +33,29 @@ def test_from_dir_needs_out_and_all(tmp_path):
         content_project(["--from-dir", str(tmp_path)])
     with pytest.raises(ValueError, match="--out"):
         content_project(["--all", "--from-dir", str(tmp_path)])
+
+
+def test_nested_directories_become_nested_slugs(tmp_path):
+    content = tmp_path / "content"
+    (content / "guides" / "intro").mkdir(parents=True)
+    (content / "guides" / "intro.md").write_text("---\ntitle: Intro\ntype: page\n---\n# Intro\n", encoding="utf-8")
+    (content / "guides" / "intro" / "First Steps.md").write_text("---\ntitle: First\ntype: page\n---\n# First\n", encoding="utf-8")
+    static = tmp_path / "web"
+    static.mkdir()
+    (static / "projection.json").write_text(
+        '{"site": {"name": "T"}, "urls": {"style": "directory", "sections": {"guides": {"base": "guides", "listing": false, "feed": false}}}}',
+        encoding="utf-8",
+    )
+    out = tmp_path / "dist"
+    content_project(["--all", "--from-dir", str(content), "--static-dir", str(static), "--out", str(out)])
+    assert (out / "guides" / "intro" / "index.html").is_file()
+    assert (out / "guides" / "intro" / "first-steps" / "index.html").is_file()
+    assert "<h1" in (out / "guides" / "intro" / "first-steps" / "index.html").read_text(encoding="utf-8")
+
+
+def test_a_cms_path_keeps_its_file_stem_as_the_slug():
+    from papyrus_content.projection.source import split_output_path
+
+    assert split_output_path("guides/intro/first.md") == ("guides", "first")
+    assert split_output_path("guides/intro/First Steps.md", nested=True) == ("guides", "intro/first-steps")
+    assert split_output_path("about.md", nested=True) == (None, "about")

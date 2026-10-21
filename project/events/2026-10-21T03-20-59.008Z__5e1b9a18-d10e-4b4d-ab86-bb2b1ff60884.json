@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5e1b9a18-d10e-4b4d-ab86-bb2b1ff60884",
+  "issue_id": "PPY-b85c9ca8-b778-4142-9340-cfbfc68ce8c1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:20:59.008Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M2 Import with a plan: create-only, explicit replace",
+    "description": "papyrus publication import --bundle DIR --dry-run prints a plan per kind (create, update, unchanged, conflict); default create-only never overwrites newer backend edits; --replace KIND updates with version bumps and audit fields; refuses a bundle for a different publication key unless --as-publication. Replaces the per-kind one-off imports (sections import, import-doctrine, starter packs, catalog, import-markus) with one path, keeping those as thin wrappers.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+    "labels": []
+  }
+}

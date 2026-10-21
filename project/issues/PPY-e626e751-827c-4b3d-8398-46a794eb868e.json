@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e626e751-827c-4b3d-8398-46a794eb868e",
+  "title": "A new site starts with working editorial policies",
+  "description": "When a site backend is created (and, once, for existing sites that have none), the AI-writing-tells starter pack is imported as enabled policies, so checks find something on day one; plain-language and asd-ste100 stay one click (or one CLI command) away. Idempotent: never re-adds or overwrites a policy an admin edited or deleted. Administration shows where each came from (source starter:<pack>). CLI: papyrus editorial policies list / import-starter <pack>.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:16:29.680352Z",
+  "updated_at": "2026-10-21T03:16:29.680388Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -32,16 +32,24 @@ def _stored_projection(metadata: dict) -> dict:
     return projection_metadata(metadata.get("frontMatterYaml"))
 
 
-def split_output_path(output_path: str) -> tuple[str | None, str]:
+def split_output_path(output_path: str, *, nested: bool = False) -> tuple[str | None, str]:
+    """The section (first directory) and slug of an item path.
+
+    The slug is the file stem. With ``nested`` it is the whole path under the section, each segment slugified and
+    joined by ``/``, so ``examples/intro/first.md`` is the ``intro/first`` item of ``examples`` (page ``/examples/intro/first/``).
+    """
     path = PurePosixPath(output_path)
     section = path.parts[0] if len(path.parts) > 1 else None
+    if nested and section is not None:
+        segments = [*path.parts[1:-1], path.stem]
+        return section, "/".join(slugify(segment) for segment in segments)
     return section, slugify(path.stem)
 
 
 def summary_from_row(row: dict, *, item_id: str | None = None) -> ItemSummary:
     metadata = _metadata_of(row)
     output_path = item_output_path(row)
-    section, slug = split_output_path(output_path)
+    section, slug = split_output_path(output_path, nested=bool(row.get("nestedSlug")))
     stored = _stored_projection(metadata)
     return ItemSummary(
         item_id=item_id or row.get("sourceItemId") or row["id"],

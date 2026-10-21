@@ -1,0 +1,240 @@
+import Link from "next/link";
+import {
+  confidenceText,
+  describeDelivery,
+  describeRelevance,
+  everyText,
+  formatUtc,
+  referenceHref,
+  routingLabel,
+  usageText,
+  type MonitoringItem,
+  type MonitoringOverview,
+  type MonitoringRelevance,
+  type MonitoringResult,
+} from "../lib/monitoring-overview";
+
+export type MonitoringMode = "publication" | "all";
+
+const STATUS_WORDS: Record<string, string> = { complete: "Complete", partial: "Partial", stopped: "Stopped", failed: "Failed", error: "Error" };
+const status = (value: string) => STATUS_WORDS[value] ?? value;
+const STOP_WORDS: Record<string, string> = {
+  request_ceiling_reached: "stopped at the request ceiling",
+  standing_capacity_reached: "stopped: the standing run is full",
+  provider_key_unavailable: "stopped: the Cyclotron has no model key",
+  run_busy: "stopped: the Cyclotron run was busy",
+  time_budget: "stopped for time",
+};
+const MARKS: Record<string, string> = { delivered: "✓", failed: "✕", pending: "…", not_applicable: "–" };
+
+function feedHost(url: string | null): string {
+  try {
+    return url ? new URL(url).host : "unknown source";
+  } catch {
+    return "unknown source";
+  }
+}
+
+function Message({ title, children, kind }: { title: string; children?: React.ReactNode; kind: string }) {
+  return (
+    <div className="category-steering-empty" role={kind === "loading" ? "status" : "alert"} data-monitoring-state={kind}>
+      <strong>{title}</strong>
+      {children ? <p>{children}</p> : null}
+    </div>
+  );
+}
+
+function RelevanceLine({ entry, linkable, demo }: { entry: MonitoringRelevance; linkable: boolean; demo: boolean }) {
+  const lineage = entry.delivery.referenceLineageId ?? entry.delivery.referenceId ?? null;
+  const delivery = describeDelivery(entry);
+  return (
+    <li data-relevance={entry.relevant === null ? "unknown" : entry.relevant ? "yes" : "no"} data-delivery={entry.delivery.state ?? "none"}>
+      <strong>{entry.publicationId}</strong>
+      <span>{describeRelevance(entry)}{entry.relevant !== null ? `, ${confidenceText(entry.confidence)}` : ""}</span>
+      {delivery ? (
+        <span>
+          <span aria-hidden="true">{MARKS[entry.delivery.state ?? ""] ?? ""} </span>
+          {delivery}
+          {entry.delivery.state === "delivered" && lineage && linkable ? (
+            <> <Link href={referenceHref(lineage, demo)} data-monitoring-reference-link>Open in References</Link></>
+          ) : null}
+          {entry.delivery.state === "failed" && entry.delivery.error ? <> ({entry.delivery.error})</> : null}
+        </span>
+      ) : null}
+    </li>
+  );
+}
+
+function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string | null; demo: boolean }) {
+  return (
+    <li data-monitoring-item={item.sourceId} data-routing={item.routing}>
+      <div>
+        <strong>{item.url ? <a href={item.url} target="_blank" rel="noreferrer noopener">{item.title}</a> : item.title}</strong>
+        <span>
+          {formatUtc(item.observedAt)}
+          {item.discussionUrl ? <> &middot; <a href={item.discussionUrl} target="_blank" rel="noreferrer noopener">Hacker News thread</a></> : null}
+        </span>
+      </div>
+      <p className="news-desk-monitoring__routing">
+        {routingLabel(item.routing)}
+        {item.routingNote ? <>: {item.routingNote}</> : null}
+      </p>
+      {item.relevance.length ? (
+        <ul className="news-desk-monitoring__relevance">
+          {item.relevance.map((entry) => <RelevanceLine key={entry.publicationId} entry={entry} linkable={entry.publicationId === ownId} demo={demo} />)}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+function Ready({ data, demo }: { data: MonitoringOverview; demo: boolean }) {
+  const ceilings = data.usage?.ceilings ?? null;
+  const router = data.router;
+  return (
+    <>
+      {data.notice === "publication_not_routed" ? (
+        <p className="news-desk-delegation-note" data-monitoring-notice>This publication is not one of the router&apos;s outputs, so no relevance is shown for it here.</p>
+      ) : null}
+
+      <article className="news-desk-doctrine-card" data-monitoring-section="router">
+        <div className="news-desk-doctrine-card__header"><div><h3>Router</h3><span>Sends collected items to the shared Cyclotron and delivers relevant ones to References</span></div></div>
+        {router ? (
+          <p data-monitoring-router>
+            <strong>{router.mode === "live" ? "Live" : "Dry run"}</strong>
+            {router.mode === "live" ? " · decisions are made and delivered" : " · requests are checked but nothing is sent"}
+            {" · "}{router.feedback ? "Feedback on" : "Feedback off"}
+            {router.enabled ? "" : " · Paused"}
+          </p>
+        ) : <p>The router has not been configured.</p>}
+      </article>
+
+      <article className="news-desk-doctrine-card" data-monitoring-section="usage">
+        <div className="news-desk-doctrine-card__header"><div><h3>Usage</h3><span>Decisions the router recorded, against the shared Cyclotron&apos;s ceilings (UTC days)</span></div></div>
+        {data.usage ? (
+          <>
+            <dl className="news-desk-monitoring__usage">
+              <div><dt>Decisions today ({data.usage.day})</dt><dd>{usageText(data.usage.decisionsToday, ceilings?.decisionsPerDay)}</dd></div>
+              <div><dt>Decisions in total</dt><dd>{usageText(data.usage.decisionsTotal, ceilings?.decisionsTotal)}</dd></div>
+              {ceilings?.items !== undefined ? <div><dt>Items judged (ceiling)</dt><dd>{usageText(data.usage.decisionsTotal, ceilings.items)}</dd></div> : null}
+            </dl>
+            {ceilings === null ? <p className="news-desk-delegation-note">No ceilings are configured here, so only usage is shown.</p> : null}
+          </>
+        ) : <p>No usage recorded yet.</p>}
+      </article>
+
+      <article className="news-desk-doctrine-card" data-monitoring-section="feeds">
+        <div className="news-desk-doctrine-card__header"><div><h3>Feeds watched</h3><span>What the collector reads</span></div></div>
+        {data.feeds.length ? (
+          <ul className="news-desk-monitoring__list">
+            {data.feeds.map((feed) => (
+              <li key={feed.id} data-monitoring-feed={feed.id}>
+                <div>
+                  <strong>{feed.id}</strong>
+                  <span>{feedHost(feed.sourceUrl)}</span>
+                </div>
+                <span>{feed.enabled ? "Enabled" : "Disabled"} &middot; {everyText(feed.intervalSeconds)}{feed.limit ? ` · up to ${feed.limit} items` : ""}</span>
+                <span>Last run {formatUtc(feed.lastFinishedAt)}{feed.lastStatus ? ` (${status(feed.lastStatus)})` : ""} &middot; next {formatUtc(feed.nextDueAt)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <p>No feed is configured.</p>}
+      </article>
+
+      <article className="news-desk-doctrine-card" data-monitoring-section="runs">
+        <div className="news-desk-doctrine-card__header"><div><h3>Recent runs</h3><span>Collector receipts, newest first</span></div></div>
+        {data.runs.length ? (
+          <ul className="news-desk-monitoring__list">
+            {data.runs.map((run) => (
+              <li key={run.runId} data-monitoring-run={run.runId}>
+                <strong>{formatUtc(run.startedAt)}</strong>
+                <span>{status(run.status)}</span>
+                <span>{run.new} new &middot; {run.revised} revised &middot; {run.unchanged} unchanged &middot; {run.errorCount} {run.errorCount === 1 ? "error" : "errors"}{run.errors.length ? ` (${run.errors.join("; ")})` : ""}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <p>No collector runs recorded yet.</p>}
+        {data.routerRuns.length ? (
+          <ul className="news-desk-monitoring__list" data-monitoring-router-runs>
+            {data.routerRuns.map((run) => (
+              <li key={run.runId} data-monitoring-router-run={run.runId}>
+                <strong>{formatUtc(run.startedAt)}</strong>
+                <span>Router, {run.mode === "live" ? "live" : "dry run"}: {status(run.status)}{run.stoppedBy ? `, ${STOP_WORDS[run.stoppedBy] ?? run.stoppedBy}` : ""}</span>
+                <span>{run.counts.examined ?? 0} examined &middot; {run.counts.decided ?? 0} judged &middot; {run.counts.delivered ?? 0} delivered &middot; {run.counts.deliveryFailed ?? 0} {(run.counts.deliveryFailed ?? 0) === 1 ? "delivery failure" : "delivery failures"} &middot; {run.errorCount} {run.errorCount === 1 ? "error" : "errors"}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </article>
+
+      <article className="news-desk-doctrine-card" data-monitoring-section="queue">
+        <div className="news-desk-doctrine-card__header"><div><h3>Collected queue</h3><span>Newest first, with what the shared Cyclotron decided</span></div></div>
+        {data.items.length ? (
+          <ul className="news-desk-monitoring__queue">
+            {data.items.map((item) => <QueueItem key={`${item.sourceId}-${item.revision}`} item={item} ownId={data.scope.publicationId} demo={demo} />)}
+          </ul>
+        ) : <p>No items in the queue.</p>}
+        {data.hiddenNotRelevant > 0 ? (
+          <p className="news-desk-delegation-note" data-monitoring-hidden>
+            {data.hiddenNotRelevant} {data.hiddenNotRelevant === 1 ? "item" : "items"} judged not relevant to this publication {data.hiddenNotRelevant === 1 ? "is" : "are"} not listed.
+          </p>
+        ) : null}
+      </article>
+    </>
+  );
+}
+
+/** Presentation only: the panel fetches, this renders any result, so every state is testable from fixtures. */
+export function MonitoringOverviewView({
+  result,
+  canViewAll,
+  mode,
+  onModeChange,
+  demo = false,
+}: {
+  result: MonitoringResult | null;
+  canViewAll: boolean;
+  mode: MonitoringMode;
+  onModeChange: (mode: MonitoringMode) => void;
+  demo?: boolean;
+}) {
+  let body: React.ReactNode;
+  if (result === null) {
+    body = <Message kind="loading" title="Loading monitoring" />;
+  } else if ("error" in result) {
+    body = result.error === "forbidden"
+      ? <Message kind="forbidden" title="Monitoring is for editors and admins">Your account does not have access to this page. Ask an admin for the editor role.</Message>
+      : <Message kind="error" title="Monitoring could not be read">The request was not understood. Reload the page.</Message>;
+  } else if (result.state === "not_configured") {
+    body = <Message kind="not-configured" title="Monitoring is not set up for this publication">The monitoring pipeline is not connected to this site&apos;s account, so there is nothing to show.</Message>;
+  } else if (result.state === "unavailable") {
+    body = <Message kind="unavailable" title="Monitoring could not be read right now">The pipeline is not affected. Try again in a minute.</Message>;
+  } else if (result.state === "empty") {
+    body = <Message kind="empty" title="Nothing has been collected yet">No feed is configured and no run has been recorded. Items appear here after the collector&apos;s first run.</Message>;
+  } else {
+    body = <Ready data={result} demo={demo} />;
+  }
+  const scopeLine = result && "scope" in result
+    ? (result.scope.mode === "all" ? "Showing the whole shared pipeline, every publication." : `Showing what is relevant to ${result.scope.publicationId ?? "this publication"}.`)
+    : null;
+  return (
+    <div data-news-desk-admin-panel="monitoring">
+      <article className="news-desk-doctrine-card">
+        <div className="news-desk-doctrine-card__header">
+          <div>
+            <h3>Monitoring</h3>
+            <span>The automated research pipeline: collection, judging and delivery to References. Read only.</span>
+          </div>
+        </div>
+        {canViewAll ? (
+          <div className="news-desk-monitoring__scope" role="group" aria-label="Scope">
+            <button type="button" aria-pressed={mode === "publication"} data-monitoring-scope="publication" onClick={() => onModeChange("publication")}>This publication</button>
+            <button type="button" aria-pressed={mode === "all"} data-monitoring-scope="all" onClick={() => onModeChange("all")}>Whole shared pipeline</button>
+          </div>
+        ) : null}
+        {scopeLine ? <p className="news-desk-delegation-note" data-monitoring-scope-line>{scopeLine} {result && "asOf" in result ? `As of ${formatUtc(result.asOf)}.` : ""}</p> : null}
+      </article>
+      {body}
+    </div>
+  );
+}

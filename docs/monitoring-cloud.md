@@ -237,3 +237,44 @@ imports the extracted zip with a stdlib-only interpreter. The collector zip and 
 - Roll back code: build an earlier commit with `--router`, upload, update the stack with that
   `RouterCodeKey`. Delivered References stay (they are pending and editor-owned); nothing is deleted.
 - Deploy with a change set and read it first; a router-only change set should show only router resources.
+
+
+# The Monitoring page (PPY-31ba52)
+
+Editors and admins read this pipeline in the newsroom at **Administration, Monitoring**
+(`/newsroom/administration/monitoring`). The page is read only. It shows the feeds watched, recent
+collector and router runs, the collected queue with each item's routing state, what the shared
+Cyclotron judged relevant to the viewing publication (with confidence, where the Cyclotron reports
+one) and whether it reached that publication's References queue (with a link), the router mode
+(live or dry run, feedback on or off) and usage against the ceilings.
+
+## Access design
+
+`monitoringOverview(scope)` is a GraphQL query in every site's own AppSync API, admitted to the
+`editor` and `admin` groups only. It resolves to the `papyrus-monitoring-view` Lambda
+(`amplify/functions/monitoring-view/`, logic in `src/papyrus_content/monitoring_view.py`).
+
+- The function's role holds `dynamodb:GetItem` and `dynamodb:Query` on tables named
+  `papyrus-monitoring-MonitoringTable-*` and their `routing` index (no Scan, no write, no other table),
+  and `ssm:GetParameter` on `/papyrus/monitoring/table-name`.
+- That parameter is written by the monitoring stack (`TableNameParameter`), so a site backend needs no
+  deploy-time link to this stack. A site in an account without the parameter shows "not set up".
+- The browser sends a query over the signed-in session. It never sees a table name, key or secret.
+- The function checks the caller's groups again. The default scope is the viewing publication, found by
+  matching the site's AppSync endpoint to the router config; items judged not relevant to it are counted,
+  not listed. `scope: all` (every publication's judgements) is admin-only and enforced in the function.
+- The response is projected field by field. Cyclotron endpoints, the invoker role ARN, the Cyclotron account
+  and run ids, and AppSync endpoints are never returned.
+
+Why not an endpoint on this stack: it would need an allow-list of site backend role ARNs (they change
+per deploy) and the sites would still need their own group check. One resolver in the site's API keeps one
+authorization point and one least-privilege grant.
+
+## Data the page needs
+
+- `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
+  when the Cyclotron reports it between 0 and 1.
+- `ceilings` (`decisionsTotal`, `decisionsPerDay`, `items`) in `CONFIG#router` is display data mirroring the
+  shared Cyclotron's ceilings; the router never reads it to decide. Set it with
+  `seed_router_config.py --table TABLE --set ceilings=decisionsTotal=300,decisionsPerDay=100,items=300`.
+- Usage counts the decisions this router recorded (UTC days). It is the router's view, not the Cyclotron's meter.

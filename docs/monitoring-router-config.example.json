@@ -2,6 +2,7 @@
   "mode": "dry-run",
   "maxItemsPerRun": 5,
   "feedback": false,
+  "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300},
   "publications": [
     {"publicationId": "anth-us", "site": "anth.us",
      "appsyncEndpoint": "https://2m5fh2nqlnfxlfg2mxepp7tdbm.appsync-api.us-east-1.amazonaws.com/graphql"},
