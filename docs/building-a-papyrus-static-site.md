@@ -60,7 +60,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 An item's section comes from its CMS path (`essays/slow-water`). A section lists its entries at `/<base>/`
 (paginated at `/<base>/page/N/`) and only when it has entries. `pages: false` makes a link-only section: items have
 no page, appear in listings as cards that link to `linkField` (front matter `url` by default), and are never in
-the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
+the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `groupBy` (`week`, Monday start, or `month`) gives the listing view dated groups (`listing.groups`) which the default listing renders under headings, `archive` (`{by: month|year, base, description}`) adds one page per month or year that has entries at `/<section>/<archive base>/<YYYY-MM>/` (in the sitemap, each with its own inputs), `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
 Items in a section that is not declared are ignored; items with no section are root pages (`/about.html`).
 
 ### Entries
@@ -163,13 +163,14 @@ error (prefix helpers with `_`):
 | `card(entry, page)` | an entry | one card in a listing |
 | `head_extra(page)` | the page | raw markup appended to `<head>` |
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
+| `derive(summary)` | the item summary | a dict of derived fields (a tier, a week, a shape); available as `entry.derived`, part of every fingerprint, and how a site picks which row or card component renders |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
 
-`page` is a `StandardPage`: `kind` (`item`, `home`, `listing`, `tags`, `tag`, `custom`, `not_found`), `path`, `title`,
+`page` is a `StandardPage`: `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,
 `entry`, `fragment`, `listing` (the slice, page numbers), `custom_id`, `entries`, `summaries`, `settings`,
 `environment`, `head`, plus `skip_link` and the `components` module. `papyrus_content.projection.standard.fragments` has `article_body(fragment)` (the article without Markus's wrapper and header), `lede_of` and `first_image_of`. A site with typed content (its own card
 fields, link-only items, special pages) builds its model from `page.summaries` and composes pages in `page_body`.
-A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
+A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `archive:<section>`, `showcase`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
 A hooks module's source and its sibling modules are part of every page's inputs, so editing them re-renders.
 
 ## Showcase (logo wall)
@@ -199,3 +200,10 @@ and `page.showcase` (the sorted `ShowcaseSite` records) and can use `showcase.lo
    and compare every URL: status, normalised DOM, head metadata, sitemap URL set, redirects, feed items. Allow-list
    intentional differences with reasons (Atom added, `lastmod` added).
 9. Deploy the edge change (it re-reads `projection.json`) together with the first projection.
+
+## Extending the entry model
+
+Entries carry the item's raw front matter as `entry.data` and a `derived` map from the `derive` hook, both part of
+the dependency fingerprints, so a new per-item field (a content shape, a shelf life, a pin-until date) reaches
+hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`) and
+selection is the `listed` flag plus section options, so pin and shelf-life rules are additions at those two seams.

@@ -11,7 +11,7 @@ from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
 
-KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "not_found")
+KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found")
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,9 @@ class ListingView:
     featured: tuple[StandardEntry, ...] = ()
     section: str | None = None
     tag: str | None = None
+    groups: tuple = ()          # ((key, label, entries), ...) when the section sets groupBy, newest group first
+    group: str | None = None    # archive pages: the month or year this page lists
+    archive_keys: tuple = ()    # archive pages: every key that has a page, newest first
 
     def url_for_page(self, number: int) -> str:
         prefix = f"/{self.base}" if self.base else ""

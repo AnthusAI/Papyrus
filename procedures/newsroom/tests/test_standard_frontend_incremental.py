@@ -56,6 +56,14 @@ SHAPES = {
         ("articles", "notes"),
         None,
     ),
+    "archives-and-groups": (
+        {
+            "site": SITE,
+            "urls": {"sections": {"articles": {"groupBy": "week", "pageSize": 3, "archive": {"by": "month"}}, "notes": {"archive": {"by": "year"}}}},
+        },
+        ("articles", "notes"),
+        Hooks(derive=lambda summary: {"band": len(summary.front_matter.get("title", "")) % 3}, fingerprint="derive-v1"),
+    ),
     "hooked": (
         {"site": SITE, "listings": {"pageSize": 2}, "components": {"itemPagesDependOn": ["*"]}},
         ("articles",),

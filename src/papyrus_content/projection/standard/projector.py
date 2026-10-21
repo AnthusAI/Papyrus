@@ -42,12 +42,13 @@ from ..projector import (
 from ..public_data import entry_for, hidden_from_public_data, owns_public_data_key, public_data_files, public_data_inputs, public_static_files
 from ..writers import request_paths_for_key
 from . import components
-from .config import STANDARD_KEYS, StandardSettings, standard_settings_from_mapping
+from .config import STANDARD_KEYS, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import StandardEntry, build_entries, entry_for_summary, entry_title, newest_first
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
 from .fragments import first_image_of, lede_of
+from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
 from .showcase import logo_wall, showcase_sites
@@ -105,7 +106,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ model
 
     def _entries(self, site: SiteIndex) -> list[StandardEntry]:
-        return newest_first(build_entries(site.items, self.standard, self.policy))
+        return newest_first(build_entries(site.items, self.standard, self.policy, self.hooks.derive))
 
     @staticmethod
     def _authored_home(site: SiteIndex) -> bool:
@@ -124,7 +125,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return ()
         if self._is_home_source(summary):
             return (HOME_PAGE_PATH,)
-        entry = entry_for_summary(summary, self.standard, self.policy)
+        entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
         return (entry.key,) if entry is not None and entry.key else ()
 
     def item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]:
@@ -147,7 +148,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             )
             page = self._page("home", head, site, entries=entries, fragment=fragment)
             return {key: self._render(page)}
-        entry = entry_for_summary(summary, self.standard, self.policy)
+        entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
         article = entry.type in self.standard.listings.types
         crumbs = self._breadcrumbs(entry)
@@ -251,6 +252,28 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 key = self.policy.listing_key(base, view.page)
                 add(key, f"listing:{section_name or 'flat'}", [self._fingerprints(view.entries), view.page, view.pages, len(view.featured)], self._listing_builder("listing", view, site, listed))
 
+        # archives: one page per month (or year) that has entries
+        for section_config in self.standard.sections:
+            archive = section_config.archive
+            if archive is None or not section_config.listing:
+                continue
+            members = [entry for entry in listed if entry.section and entry.section.name == section_config.name]
+            for view in self._archive_views(section_config, members):
+                add(
+                    self.policy.listing_key(view.base),
+                    f"archive:{section_config.name}",
+                    [self._fingerprints(view.entries), list(view.archive_keys), view.group],
+                    lambda view=view, section_config=section_config: self._page(
+                        "archive",
+                        PageHead(
+                            title=f"{view.label}: {self._archive_label(view.group, section_config.archive.by)}",
+                            path=f"/{view.base}/",
+                            description=section_config.archive.description or section_config.description or self.standard.identity.description,
+                        ),
+                        site, entries=tuple(listed), listing=view,
+                    ),
+                )
+
         # tags
         tags = self._tag_map(listed)
         if self.standard.listings.tags and tags:
@@ -343,7 +366,26 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 start = first + (number - 2) * size
                 shown = members[start : start + size]
                 featured = ()
-            yield ListingView(base, label, tuple(shown), tuple(members), number, pages, featured, section, tag)
+            by = configured.group_by if configured is not None else None
+            groups = tuple(group_entries(shown, by)) if by else ()
+            yield ListingView(base, label, tuple(shown), tuple(members), number, pages, featured, section, tag, groups)
+
+    @staticmethod
+    def _archive_label(key: str, by: str) -> str:
+        return group_label(key, "month") if by == "month" else key
+
+    def _archive_views(self, section: "SectionConfig", members: list[StandardEntry]):
+        archive = section.archive
+        width = 7 if archive.by == "month" else 4
+        keys = sorted({entry.date[:width] for entry in members if len(entry.date) >= width}, reverse=True)
+        for key in keys:
+            found = tuple(entry for entry in members if entry.date[:width] == key)
+            by = section.group_by
+            groups = tuple(group_entries(found, by)) if by else ()
+            yield ListingView(
+                f"{section.base}/{archive.base}/{key}", section.label, found, tuple(members), 1, 1, (), section.name, None,
+                groups, key, tuple(keys),
+            )
 
     def _tag_map(self, listed: list[StandardEntry]) -> dict[str, list[StandardEntry]]:
         merged: dict[str, tuple[str, list[StandardEntry]]] = {}
@@ -383,6 +425,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         groups = list(self._listing_groups(listed))
         for base, _label, _section, members in groups:
             urls.append(SitemapUrl(f"/{base}/", max((entry.updated for entry in members), default="")))
+        for section_config in self.standard.sections:
+            if section_config.archive is not None and section_config.listing and section_config.sitemap:
+                members = [entry for entry in listed if entry.section and entry.section.name == section_config.name]
+                for view in self._archive_views(section_config, members):
+                    urls.append(SitemapUrl(f"/{view.base}/", max(entry.updated for entry in view.entries)))
         if self.standard.sitemap_tags and self.standard.listings.tags:
             tags = self._tag_map(listed)
             if tags:
@@ -528,6 +575,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _breadcrumbs_html(self, page: StandardPage) -> str:
         return components.breadcrumbs(page.breadcrumbs) if page.kind == "item" else ""
 
+    def _grouped_html(self, page: StandardPage, view: ListingView, heading: str) -> str:
+        groups = view.groups or ((view.group or "", heading, view.entries),)
+        blocks = "".join(
+            f'<section class="markus-group" aria-labelledby="group-{components.esc(key)}"><h2 id="group-{components.esc(key)}">{components.esc(label)}</h2>'
+            f'<div class="markus-card-grid">{chr(10).join(self._card(entry, page) for entry in found)}</div></section>'
+            for key, label, found in groups
+        )
+        pager = components.pager(view.page, view.pages, view.url_for_page) if view.pages > 1 else ""
+        return f'<div class="markus-document"><h1>{components.esc(heading)}</h1>{blocks}{pager}</div>'
+
     def _card(self, entry: StandardEntry, page: StandardPage) -> str:
         return self.hooks.card(entry, page) if self.hooks.card is not None else components.card(entry)
 
@@ -556,8 +613,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             intro = f"<p>{components.esc(identity.description)}</p>" if identity.description else ""
             cards = "\n".join(self._card(entry, page) for entry in view.entries) if view else ""
             return f'<div class="markus-document"><h1>{components.esc(identity.name)}</h1>{intro}<div class="markus-card-grid">{cards}</div>{more}</div>'
+        if page.kind == "archive":
+            view = page.listing
+            heading = f"{view.label}: {self._archive_label(view.group, self.standard.section(view.section).archive.by)}"
+            return self._grouped_html(page, view, heading)
         if page.kind in ("listing", "tag"):
             view = page.listing
+            if view.groups:
+                return self._grouped_html(page, view, view.label)
             featured = "\n".join(self._card(entry, page) for entry in view.featured)
             rest = view.entries[len(view.featured):]
             grid = "\n".join(self._card(entry, page) for entry in rest)
