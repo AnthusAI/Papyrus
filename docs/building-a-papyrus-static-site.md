@@ -183,6 +183,18 @@ a responsive CSS grid of links with lazy-loaded images and `rel="noopener"`; nam
 no pages of their own and are not in listings, feeds or the sitemap. A `page_body` hook sees `page.kind == "showcase"`
 and `page.showcase` (the sorted `ShowcaseSite` records) and can use `showcase.logo_wall(...)` inside its own layout.
 
+## Content in the repository (no CMS)
+
+A site whose Markdown lives in its repository and is built by CI projects the same way, with no CMS:
+
+```
+papyrus ops content project --all --from-dir content --static-dir web --out dist
+```
+
+Every `.md` under `content/` is a published item (the first directory is its section; front matter `type` defaults to
+`article`, `type: page` makes a root page, `aliases` become redirects). Redirects are reported by the CMS path only;
+a repository-built site keeps them in `projection.json` (`redirects`). Sync `dist/` to the bucket as before.
+
 ## Migration checklist
 
 1. Copy `web/projection.json`: `site`, `urls` (style and sections to match today's URLs), `nav`, `footer`, `seo`,
