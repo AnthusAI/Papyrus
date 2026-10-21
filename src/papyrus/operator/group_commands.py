@@ -43,6 +43,7 @@ COMMAND_USAGE = {
   ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",
   ("messages", "handle"): "--message-id ID [--note TEXT] [--author-label NAME] [--dry-run]",
   ("publication", "init"): "--key KEY --name NAME",
+  ("site", "google-secrets"): "set|check [--site PATH] [--profile NAME] [--account ID] [--region R] [--app-id ID] [--branch NAME] [--client-id ID] [--secret-stdin]",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
   ("sections", "doctrine"): "set --kind mission|policy --file MD [--dry-run]",
   ("sections", "update"): "--id SECTION [--editorial-mission-file F] [--editorial-policy-file F] [--assignment-guidance-file F] [--kill-criteria-file F] [--enabled true|false] [--dry-run]",
@@ -62,6 +63,8 @@ def group_subcommands(group: str) -> list[str] | None:
     return list(PROCEDURES_COMMANDS)
   if group == "publication":
     return ["init"]
+  if group == "site":
+    return ["google-secrets"]
   if group == "ops":
     return list(OPS_GROUPS)
   if group in CONTENT_GROUPS_BY_PAPYRUS_GROUP:
@@ -82,6 +85,7 @@ def generic_group_help(group: str) -> str | None:
   for name in names:
     usage = COMMAND_USAGE.get((group, name))
     lines.append(f"  {name}" + (f"  {usage}" if usage else ""))
-  lines.append("")
-  lines.append("Mutating commands write by default; pass --dry-run to preview.")
+  if group != "site":
+    lines.append("")
+    lines.append("Mutating commands write by default; pass --dry-run to preview.")
   return "\n".join(lines)

@@ -34,6 +34,13 @@ assert.equal(staticConfig.reader?.domainName, "pilobol.us");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.reader.includeWww = true)), "includeWww");
 
 
+const awsConfig = parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.aws = { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" })));
+assert.deepEqual(awsConfig.aws, { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" });
+assert.equal(staticConfig.aws, undefined);
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { accountId: "1234" })), "aws.accountId");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { region: "mars" })), "aws.region");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { secret: "x" })), "aws.secret");
+
 const anthUsFixture = () => JSON.parse(fs.readFileSync(path.resolve(here, "fixtures/anth-us.site.json"), "utf8"));
 const mutatedAnthUs = (change: (config: any) => void): unknown => {
   const config = anthUsFixture();
@@ -197,7 +204,7 @@ assert.equal(resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn), "
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.prospectusAccountsApiStageArn = "arn:aws:execute-api:us-east-1:712236451410:abc123defg/*")), "cms.prospectusAccountsApiStageArn");
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.prospectusAccountsApiStageArn = "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/")), "cms.prospectusAccountsApiStageArn");
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.environment.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT = "https://example.test/")), "cms.environment.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT");
-assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.environment.PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:111111111111:secret:x")), "cms.environment.PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN");
+assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.environment.PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER = "/papyrus/x/y")), "cms.environment.PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER");
 assertRejects(mutated("p-apyr-us.site.json", (c) => (c.cms.environment.PAPYRUS_PROSPECTUS_SITE_PRODUCT = "papyrus-other")), "cms.environment.PAPYRUS_PROSPECTUS_SITE_PRODUCT");
 
 assert.equal(resolveStackName(parseSiteConfig(mutated("pretext.site.json", () => {}))), "amplify-app-shell-pretext-example");

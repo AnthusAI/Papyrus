@@ -156,9 +156,11 @@ try {
     const ssmGrants = Object.values(template.Resources)
       .filter((resource) => resource.Type === "AWS::IAM::Policy")
       .flatMap((resource) => resource.Properties.PolicyDocument.Statement)
-      .filter((statement) => JSON.stringify(statement.Action).includes("ssm:"));
+      .filter((statement) => JSON.stringify(statement.Action).includes("ssm:GetParameter"));
     const isPretext = JSON.parse(fs.readFileSync(site, "utf8")).frontend === "pretext";
     assert.equal(ssmGrants.length, isPretext ? 1 : 0, `${example}: SSM grants`);
+    assert.equal(resourcesOfType(template, "Custom::SecureStringParameter").length, isPretext ? 1 : 0, `${example}: revalidate parameter is created by the stack`);
+    assert.equal(resourcesOfType(template, "AWS::SecretsManager::Secret").length, 0, `${example}: no Secrets Manager secret`);
     if (isPretext) {
       assert.deepEqual(ssmGrants[0].Action, "ssm:GetParameter", `${example}: SSM grant is a single read`);
       assert.match(JSON.stringify(ssmGrants[0].Resource), new RegExp(`parameter/papyrus/${siteId}/revalidate-secret`), `${example}: SSM grant is the revalidate parameter`);
@@ -335,6 +337,7 @@ try {
   assert.match(reusableDeploy, /role-to-assume: \$\{\{ inputs\.role-to-assume \}\}/);
   assert.match(reusableDeploy, /--commit-id "\$COMMIT_ID"/, "the job builds the exact commit that passed CI");
   assert.match(reusableDeploy, /get-job/, "the workflow waits for the job");
+  assert.match(reusableDeploy, /LimitExceededException/, "back-to-back merges wait for the running job instead of failing");
   const callerTemplate = fs.readFileSync(path.join(shell, "examples/deploy-on-merge.workflow.yml"), "utf8");
   assert.match(callerTemplate, /needs: ci/, "deploy only after CI");
   assert.match(callerTemplate, /github\.ref == 'refs\/heads\/main'/, "deploy only from main");
@@ -393,17 +396,28 @@ try {
   for (const branch of resourcesOfType(prospectusTemplate, "AWS::Amplify::Branch")) {
     const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
     assert.equal(variables.PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT, "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/", `prospectus: ${branch.Properties.BranchName} endpoint`);
-    assert.ok(variables.PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN?.Ref?.startsWith("ProspectusSessionSealingSecret"), `prospectus: ${branch.Properties.BranchName} session sealing secret`);
+    assert.equal(variables.PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER, "/papyrus/p-apyr-us/prospectus-session-sealing", `prospectus: ${branch.Properties.BranchName} session sealing parameter`);
+    assert.equal("PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN" in variables, false, `prospectus: ${branch.Properties.BranchName} no secret ARN variable`);
     assert.equal(variables.PAPYRUS_PROSPECTUS_SITE_PRODUCT, "papyrus-p-apyr-us", `prospectus: ${branch.Properties.BranchName} site product`);
   }
-  const sealingSecretKeys = Object.keys(prospectusTemplate.Resources).filter((key) => prospectusTemplate.Resources[key].Type === "AWS::SecretsManager::Secret");
-  assert.deepEqual(sealingSecretKeys.length, 1, "prospectus: one generated session sealing secret");
+  assert.equal(resourcesOfType(prospectusTemplate, "AWS::SecretsManager::Secret").length, 0, "prospectus: no Secrets Manager secret");
+  const generatedParameters = resourcesOfType(prospectusTemplate, "Custom::SecureStringParameter");
+  assert.deepEqual(generatedParameters.map((parameter) => parameter.Properties.ParameterName).sort(), ["/papyrus/p-apyr-us/prospectus-session-sealing", "/papyrus/p-apyr-us/revalidate-secret"], "prospectus: generated parameters are the sealing and revalidate secrets");
+  const sealingParameters = generatedParameters.filter((parameter) => parameter.Properties.ParameterName.endsWith("prospectus-session-sealing"));
+  assert.equal(sealingParameters[0].Properties.ParameterName, "/papyrus/p-apyr-us/prospectus-session-sealing");
+  assert.equal(sealingParameters[0].DeletionPolicy, "Retain", "prospectus: the sealing parameter survives stack deletion");
   const sealingSecretReads = Object.values(prospectusTemplate.Resources)
     .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === prospectusComputeRoleKey))
     .flatMap((resource) => resource.Properties.PolicyDocument.Statement)
     .filter((statement) => statement.Sid === "ReadProspectusSessionSealingSecret");
-  assert.equal(sealingSecretReads.length, 1, "prospectus: the compute role reads the sealing secret");
-  assert.deepEqual(sealingSecretReads[0].Resource, { Ref: sealingSecretKeys[0] }, "prospectus: sealing secret read is scoped to that secret");
+  assert.equal(sealingSecretReads.length, 1, "prospectus: the compute role reads the sealing parameter");
+  assert.equal(sealingSecretReads[0].Action, "ssm:GetParameter", "prospectus: read only, no list or decrypt grants");
+  assert.equal(
+    /^\[?"?\{"Fn::Join":\["",\["arn:",\{"Ref":"AWS::Partition"\},":ssm:us-east-1:\d{12}:parameter\/papyrus\/p-apyr-us\/prospectus-session-sealing"\]\]\}"?\]?$/.test(JSON.stringify(sealingSecretReads[0].Resource)),
+    true,
+    "prospectus: sealing parameter read is scoped to that parameter's ARN",
+  );
+  assert.equal(JSON.stringify(prospectusTemplate).includes("secretsmanager:GetSecretValue"), false, "prospectus: nothing reads Secrets Manager");
 
   const synthVariant = (label, example, change, { repositoryConnected = false } = {}) => {
     const config = JSON.parse(fs.readFileSync(path.join(shell, "examples", example), "utf8"));

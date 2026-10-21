@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1da0def5-fad2-444b-be2c-4d2b37998bc5",
+  "title": "papyrus site google-secrets: standard command replacing per-site Google OAuth secrets scripts",
+  "description": "Add `papyrus site google-secrets set` and `check`, run from a site repo. Reads infra/site.json for stack, app and Cognito domain prefix; asserts the AWS account with STS before any write; prompts for the client id and a hidden secret (or --client-id and stdin); writes the Amplify secret SSM SecureStrings at /amplify/<appId>/<branch>-branch-<hash>/GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; prints the Google Cloud Console origin and redirect URI to register and the redeploy step. check reports names, last-modified, fingerprints and whether the deployed Cognito Google IdP uses the same client id. Never enables or disables Google OAuth (mentions PAPYRUS_DISABLE_GOOGLE_OAUTH). Tests with fake SSM/STS. Docs: site-hosting.md and the CLI reference. After release, the two ~/Projects *-store-google-secrets.sh scripts become a one-line pointer.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T18:11:57.759875Z",
+  "updated_at": "2026-10-21T18:12:05.618070Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

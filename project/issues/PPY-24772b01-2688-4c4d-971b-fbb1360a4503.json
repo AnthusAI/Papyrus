@@ -3,17 +3,25 @@
   "title": "Add the O'Reilly agentic code review article as a Reference",
   "description": "https://www.oreilly.com/radar/agentic-code-review/ added as a pending Reference with no label; the accept label is recorded by Ryan through his delegation.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e0766ded-010f-42c5-891a-331e58aada64",
+      "author": "home",
+      "text": "Added unlabeled: reference-knowledge-corpus-data-parade-oreilly-agentic-code-review-v1 (title Agentic Code Review, authors field Addy Osmani, sourcePublishedAt 2026-06-26, rationale: added by operator for curation).",
+      "created_at": "2026-10-21T19:13:49.647619Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T16:54:40.211299Z",
-  "updated_at": "2026-10-21T16:54:51.502514Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:13:49.647646Z",
+  "closed_at": "2026-10-21T19:13:40.231001Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

@@ -14,7 +14,7 @@ PARSER_GROUPS = {
     "knowledge": help_text.build_knowledge_parser,
     "editorial": help_text.build_editorial_parser,
 }
-GENERIC_GROUPS = ["reporting", "research", "sections", "procedures", "stories", "editions", "batch", "videos", "analysis", "ops", "publication"]
+GENERIC_GROUPS = ["reporting", "research", "sections", "procedures", "stories", "editions", "batch", "videos", "analysis", "ops", "publication", "site"]
 
 
 def run(args):

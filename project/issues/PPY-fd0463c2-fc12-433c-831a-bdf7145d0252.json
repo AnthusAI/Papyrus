@@ -3,17 +3,25 @@
   "title": "Import the Data Parade knowledge-base pod references into the hosted newsroom",
   "description": "Source: the local pod knowledge-base (corpus dataparade-wiki, checkout under the DataParade-io folder), 180 pod reference rows. Import into the canonical corpus of the hosted newsroom through the catalog registration path (papyrus references create-from-catalog). The pod is read only. Its operator CLI config podPath is stale (it points at a path outside the DataParade-io checkout).",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7bdae9e6-a15e-4d42-86cd-77a763c58798",
+      "author": "home",
+      "text": "Applied 2026-10-21: 180 pod references imported into corpus knowledge-corpus-data-parade. All are pending: the 9 pod-accepted rows did not keep accepted status (pod status is recorded in the rationale). Pod unmodified.",
+      "created_at": "2026-10-21T19:13:48.885238Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T16:55:11.466801Z",
-  "updated_at": "2026-10-21T16:55:12.164214Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:13:48.885263Z",
+  "closed_at": "2026-10-21T19:13:39.765632Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

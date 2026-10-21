@@ -10,9 +10,17 @@
   "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c341fb6a-60ba-4ded-8571-e928c7627434",
+      "author": "home",
+      "text": "Bound 2026-10-21: router CONFIG#router now lists publicationId data-parade (site dataparade.anth.us, AppSync https endpoint of the new backend, corpus knowledge-corpus-data-parade). Mode stays dry-run. Cyclotron already declares binding data-parade with pending output data-parade-relevance. Open: the Data Parade classifier and criteria; do not flip the router to live before then.",
+      "created_at": "2026-10-21T19:13:24.627096Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T16:54:36.946102Z",
-  "updated_at": "2026-10-21T16:54:50.481030Z",
+  "updated_at": "2026-10-21T19:13:24.627130Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

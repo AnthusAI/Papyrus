@@ -3,17 +3,25 @@
   "title": "CLI publish derives the publication kind and projection function from the site, not env",
   "description": "On 5.7.0 'papyrus ops content publish' on an S3-projection site falls back to Pretext revalidation (error: PAPYRUS_PUBLIC_SITE_BASE_URL or publicSite.baseUrl required) because projection_configured() only reads the PAPYRUS_PUBLICATION_KIND env var, which the content-actions Lambda has but an operator shell doesn't. Derive the publication kind (s3-projection vs pretext) and the content-actions function name from the site's papyrus.config.ts / deployed backend outputs (amplify_outputs custom outputs), so publish/unpublish re-project with no env. Workaround: PAPYRUS_PUBLICATION_KIND=s3-projection PAPYRUS_CONTENT_ACTIONS_FUNCTION=<name>.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "19f7864f-3c07-4fcc-b998-3963e3afc2c6",
+      "author": "home",
+      "text": "Fixed in Papyrus PR #459 (a64b2244, released 5.9.0+): backends write custom.publication {kind, contentActionsFunction} into amplify_outputs.json and the CLI derives from it when PAPYRUS_PUBLICATION_KIND / PAPYRUS_CONTENT_ACTIONS_FUNCTION are unset (env still wins). Verified 2026-10-21 against deployed backends in papyrus-production 712236451410: the p.apyr.us CMS (p-apyr-us-cms, ds6yswxui41yi) and Pilobol.us CMS (d1eiwl0gedkmnj) outputs contain custom.publication (s3-projection + function name). With both env vars unset, publish and unpublish --dry-run on slug author-is-elon return ok/dryRun, and trigger_projection() resolves to scheduled via each site's content-actions Lambda (Lambda call mocked; no real publish). Existing sites pick it up on their next backend deploy, which the 5.12.0 rollout did.",
+      "created_at": "2026-10-21T18:43:07.500733Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:08:44.702456Z",
-  "updated_at": "2026-10-21T12:08:44.702523Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T18:43:07.651527Z",
+  "closed_at": "2026-10-21T18:43:07.651493Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

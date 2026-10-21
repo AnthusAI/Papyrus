@@ -68,12 +68,23 @@ jobs:
         run: |
           set -euo pipefail
           subject="$(printf '%s' "${COMMIT_MESSAGE:-deploy ${COMMIT_ID}}" | head -n 1 | cut -c1-200)"
-          job_id="$(aws amplify start-job \
-            --app-id "$APP_ID" --branch-name "$BRANCH_NAME" --job-type RELEASE \
-            --commit-id "$COMMIT_ID" --commit-message "$subject" \
-            --query 'jobSummary.jobId' --output text)"
-          echo "Started Amplify job ${job_id} on ${APP_ID}/${BRANCH_NAME} for commit ${COMMIT_ID}"
           deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+          # Amplify allows one running and one pending job per branch: an earlier merge's job may still
+          # be running, so wait and retry instead of failing on LimitExceededException.
+          while :; do
+            if job_id="$(aws amplify start-job \
+              --app-id "$APP_ID" --branch-name "$BRANCH_NAME" --job-type RELEASE \
+              --commit-id "$COMMIT_ID" --commit-message "$subject" \
+              --query 'jobSummary.jobId' --output text 2>start-job.err)"; then break; fi
+            if grep -q LimitExceededException start-job.err && [ "$(date +%s)" -lt "$deadline" ]; then
+              echo "An earlier job is still running on ${APP_ID}/${BRANCH_NAME}; retrying in 30s"
+              sleep 30
+              continue
+            fi
+            cat start-job.err >&2
+            exit 1
+          done
+          echo "Started Amplify job ${job_id} on ${APP_ID}/${BRANCH_NAME} for commit ${COMMIT_ID}"
           while :; do
             status="$(aws amplify get-job --app-id "$APP_ID" --branch-name "$BRANCH_NAME" --job-id "$job_id" \
               --query 'job.summary.status' --output text)"

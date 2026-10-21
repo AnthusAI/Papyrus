@@ -59,9 +59,10 @@ Prospectus accounts (optional): set `cms.prospectusAccountsApiStageArn` to the
 Prospectus accounts API stage, `arn:aws:execute-api:<region>:<account>:<api id>/api`,
 once the site is registered in Prospectus `accounts/papyrus-sites.json`. The stack
 grants the compute role `execute-api:Invoke` on exactly the site routes Prospectus
-admits, generates a Secrets Manager secret that seals the sign-in cookies (readable
-only by the compute role; replacing it signs everyone out), and sets
-`PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT` and `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN` on
+admits, generates an SSM SecureString `/papyrus/<siteId>/prospectus-session-sealing` that
+seals the sign-in cookies (readable only by the compute role; replacing it signs
+everyone out), and sets
+`PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT` and `PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER` on
 the CMS branches, which are therefore rejected in `cms.environment`. The site's
 Google-only Cognito client for that registration comes from the Amplify backend
 (`custom.prospectusSignIn.clientId` in `amplify_outputs.json`); the sign-in routes
@@ -107,6 +108,10 @@ re-deploy the stack.
 Optional `stackName` (default `amplify-app-shell-<siteId>`) names the CloudFormation
 stack, so a new stack for the same `siteId` can coexist with an older one until the
 older stack is deleted. Existing sites that omit it synthesize identically.
+
+Optional `aws` (`profile`, `accountId`, `region`) tells operator tooling where the site
+lives; `papyrus site google-secrets` asserts `accountId` with STS before it writes. The
+stack ignores it, so it never changes a synthesized template.
 
 The generated reader build runs `papyrus ops content export-published --auth guest`
 (Cognito identity pool guest, no credentials, no SSM token; boto3 comes with the

@@ -337,6 +337,18 @@ throwaway workflow on a listed branch (allowed: `amplify list-jobs`; denied:
 `iam list-users`), and confirm a run from an unlisted branch fails at the
 assume-role step.
 
+## Which account hosts a site
+
+A site whose product has a dedicated AWS account is hosted in that account, not in `papyrus-production`
+(`712236451410`): Apricity in `apricity-production` (873363353715), Auritus in `auritus-production`
+(961068435042), Kanbus in `kanbus-production` (494166748521), Cyclotron and Prospectus in
+`cyclotron-production`, Chattic.us in `chatticus-production`. Publication bucket, CloudFront, certificate,
+pipeline and CodeConnections connection all live there; only DNS validation and alias records may be written
+cross-account into the zone's own account. Sites that belong to the Papyrus platform itself (Shipped,
+Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`.
+A new CodeConnections connection is created PENDING and needs a one-time console approval by a human
+(Developer Tools, Settings, Connections, Update pending connection) before its pipeline can run.
+
 ## Deploy on merge to main
 
 A merge to `main` always deploys, with no manual step. How depends on whether the site's
@@ -385,8 +397,10 @@ that has this feature **in the same change** as the workflow. The production bui
 the role. After the stack has the role, the first merge to `main` is the proof: the workflow
 run shows the job id, and `aws amplify list-jobs` shows the merged commit id.
 
-Private sites keep `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
-CodePipeline. If a repository-connected Amplify app answers the push webhook but starts no
+Private sites set `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
+CodePipeline. A private site's app-shell stack that was deployed before this setting existed
+(for example `prospectus-web-cms`) must get `autoDeploy: false` before its next deploy, or its
+auto-build stays off and nothing builds. If a repository-connected Amplify app answers the push webhook but starts no
 job, check that the branch has `enableAutoBuild` true, that exactly one Amplify app is
 connected to the repository branch, and CloudTrail for the `amplify.amazonaws.com` webhook
 events before replacing it with a pipeline.
@@ -462,9 +476,16 @@ predictable; without it Amplify generates the domain (see
    `https://<prefix>.auth.us-east-1.amazoncognito.com` and the redirect URI
    `https://<prefix>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`. The same
    client can serve several sites.
-2. In the Amplify console, **Hosting**, **Secrets**, set `GOOGLE_CLIENT_ID` and
-   `GOOGLE_CLIENT_SECRET` for branch `main`.
-3. Redeploy the CMS `main` branch. Details: [`google-oauth-setup.md`](google-oauth-setup.md).
+2. From the site repository, store the client id and secret as the CMS app's Amplify secrets:
+
+   ```bash
+   papyrus site google-secrets set      # prompts: client id (visible), secret (hidden)
+   ```
+
+   It reads `infra/site.json`, asserts the AWS account with STS before writing, and prints the exact origin and redirect URI for step 1. For automation: `--client-id <id> --secret-stdin` and pipe the secret in (there is no `--secret` argument, so it cannot reach shell history). Which account, profile and region to use comes from the optional `aws` block of `infra/site.json` (`{"profile": "...", "accountId": "...", "region": "us-east-1"}`) or `--profile`, `--account`, `--region`.
+3. Redeploy the CMS `main` branch so the Cognito Google provider picks up the values, then run `papyrus site google-secrets check`: it reports whether both parameters exist (name, last modified, fingerprint) and whether the deployed Cognito provider uses the same client id. Details: [`google-oauth-setup.md`](google-oauth-setup.md).
+
+The command never enables or disables Google OAuth. If the CMS branch sets `PAPYRUS_DISABLE_GOOGLE_OAUTH=1`, the backend ignores the secrets and builds no Google provider; `check` reports the variable's state.
 
 - [ ] Google secrets set on the CMS app (date: ____)
 
@@ -475,7 +496,7 @@ Give each site its own Google Cloud project and OAuth client rather than sharing
 1. Create the project and the OAuth client ([`google-oauth-setup.md`](google-oauth-setup.md) Part A).
 2. Choose the **consent screen user type** by who will sign in: **Internal** only when every editor's Google account belongs to the Google Cloud project's own organization. When the editor's Google account is **not** in that organization (a personal Gmail, or another company's Workspace), the consent screen must be **External**; with Internal, Google refuses the sign-in with an `org_internal` error. An External app in Testing needs each editor listed as a test user until the app is published.
 3. Pick a distinct `cms.cognitoDomainPrefix` per site; the Cognito hosted-UI domain, `https://<prefix>.auth.us-east-1.amazoncognito.com`, is region-global and the prefix is what you register in Google.
-4. Put the client id and secret in the Amplify backend secrets of that site's CMS app only (never in `site.json`, Git, or a branch variable).
+4. Put the client id and secret in the Amplify backend secrets of that site's CMS app only (`papyrus site google-secrets set`; never in `site.json`, Git, or a branch variable).
 
 ### Roles are Cognito groups
 
@@ -485,11 +506,12 @@ The newsroom roles are the Cognito groups `admin`, `editor` and `curator`. Signi
 
 A Pretext publish refreshes the live pages immediately: `content-actions` calls
 the reader's `POST /api/revalidate` with a shared secret. The secret is an SSM
-SecureString that a human creates once and that is never in `site.json`, Git or
-an Amplify variable (those are wiped by stack updates or are visible in
-`get-app`). The template derives the parameter name `/papyrus/<siteId>/revalidate-secret`,
-sets its *name* (not the value) as branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER`
-on `main`, and grants `ssm:GetParameter` on exactly that parameter to the app's
+SecureString that the stack generates (see [Generated secrets](#generated-secrets-ssm-securestring))
+and that is never in `site.json`, Git or an Amplify variable (those are wiped by
+stack updates or are visible in `get-app`). The template derives the parameter name
+`/papyrus/<siteId>/revalidate-secret`, creates it, sets its *name* (not the value) as
+branch variable `PAPYRUS_REVALIDATE_SECRET_PARAMETER` on `main`, and grants
+`ssm:GetParameter` on exactly that parameter to the app's
 SSR compute role. The backend (`amplify/site-backend.ts`, when `revalidateBaseUrl`
 is set) passes the same name to `content-actions` and grants it the same read
 (`ssm:GetParameter` and `ssm:GetParameters`, because the Lambda reads through boto3
@@ -515,24 +537,45 @@ After a publish refreshes the reader, `content-actions` invalidates the paths th
 
 | Secret | Where it lives | Set by |
 | --- | --- | --- |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets | human, console |
-| `PAPYRUS_REVALIDATE_SECRET` value | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | human, once (below) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets (SSM) | human, `papyrus site google-secrets set` |
+| Revalidate secret | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | the app-shell stack, generated |
+| Prospectus session sealing secret | SSM SecureString `/papyrus/<siteId>/prospectus-session-sealing` | the app-shell stack, generated |
 
-One-time step after the first stack deploy (never echo the value):
-
-```bash
-AWS_PROFILE=legacy aws ssm put-parameter --region us-east-1 \
-  --name "/papyrus/<siteId>/revalidate-secret" --type SecureString \
-  --value "$(openssl rand -hex 32)"
-```
-
-Rotate by re-running it with `--overwrite`. The new value is live within five
-minutes. Migration from the old mechanism: `PAPYRUS_REVALIDATE_SECRET` as a branch
-variable, `readerCache.revalidateSecret` in `.papyrus/config.yaml` and the
-`secret("PAPYRUS_REVALIDATE_SECRET")` backend secret are no longer read. Delete
-them, create the SSM parameter, and redeploy; do not reuse the old value.
 Sites not on the template must set `PAPYRUS_REVALIDATE_SECRET_PARAMETER` on the
 branch and grant their compute role and `content-actions` role the read themselves.
+
+### Generated secrets (SSM SecureString)
+
+Per-site secrets that the stack can generate live in SSM Parameter Store as standard
+SecureStrings (free, AWS-managed `aws/ssm` key), never in Secrets Manager ($0.40 per
+secret per month, which would grow with every site). Use Secrets Manager only where
+a service needs it, such as a value CloudFormation must resolve.
+
+CloudFormation cannot create a SecureString, so the `SecureStringParameter` construct
+(`infra/amplify-app-shell/lib/secure-string-parameter.ts`) uses a custom resource
+Lambda that puts one. The Lambda generates a random 64-character value, never returns
+or logs it (it is in no template, output or stack event), creates only (an update
+never regenerates it and never overwrites a parameter that already exists, so a
+hand-made `revalidate-secret` is adopted as it is), and delete retains it. One Lambda
+serves every parameter in a stack, and its role can `ssm:PutParameter` only on the
+parameters the stack declares. Readers get `ssm:GetParameter` on that one parameter
+ARN and read with decryption; the AWS-managed key needs no KMS grant.
+
+The Prospectus accounts sign-in (`cms.prospectusAccountsApiStageArn`) seals its
+cookies with `/papyrus/<siteId>/prospectus-session-sealing`, passed to the runtime as
+`PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER` (`lib/prospectus-session.ts` reads it
+with decryption and caches it per container for five minutes). Rotating or replacing
+it signs everyone out. Rotate either secret without echoing it:
+
+```bash
+aws ssm put-parameter --region us-east-1 --name "/papyrus/<siteId>/revalidate-secret" \
+  --type SecureString --overwrite --value "$(openssl rand -hex 32)"
+```
+
+Moving a site off the old Secrets Manager sealing secret (`ProspectusSessionSealingSecret`,
+variable `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN`) is a one-time sign-out: there is no
+dual-read. Deploy the stack with the old secret set to `RemovalPolicy.RETAIN` first, then
+the stack without it, then delete the retained secret by hand once sign-in works.
 
 ## Custom domains and Route 53
 

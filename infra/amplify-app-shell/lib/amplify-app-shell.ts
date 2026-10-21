@@ -2,10 +2,10 @@ import { Construct } from "constructs";
 import { ArnFormat, CfnOutput, Duration, Fn, Stack, StackProps } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import { SecureStringParameter } from "./secure-string-parameter";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -100,37 +100,39 @@ export class AmplifyAppShellStack extends Stack {
 
     const revalidateSecretParameterName = config.frontend === "pretext" ? resolveRevalidateSecretParameterName(config) : undefined;
     if (revalidateSecretParameterName) {
+      const revalidateSecret = new SecureStringParameter(this, "RevalidateSecretParameter", {
+        parameterName: revalidateSecretParameterName,
+        description: `Shared secret that authorizes publishes to call the /api/revalidate route of ${cmsAppName}`,
+      });
       computeRole.addToPolicy(
         new iam.PolicyStatement({
           sid: "ReadRevalidateSecret",
           actions: ["ssm:GetParameter"],
-          resources: [
-            this.formatArn({ service: "ssm", resource: "parameter", resourceName: revalidateSecretParameterName.slice(1), arnFormat: ArnFormat.SLASH_RESOURCE_NAME }),
-          ],
+          resources: [revalidateSecret.parameterArn],
         }),
       );
     }
 
     const prospectusAccountsApiStageArn = config.cms.prospectusAccountsApiStageArn;
-    const prospectusSessionSealingSecret = prospectusAccountsApiStageArn
-      ? new secretsmanager.Secret(this, "ProspectusSessionSealingSecret", {
+    const prospectusSessionSealing = prospectusAccountsApiStageArn
+      ? new SecureStringParameter(this, "ProspectusSessionSealingParameter", {
+        parameterName: resolveProspectusSessionSealingParameterName(config),
         description: `Seals the Prospectus sign-in cookies of ${cmsAppName}; replacing it signs everyone out`,
-        generateSecretString: { passwordLength: 64, excludePunctuation: true },
       })
       : undefined;
-    const prospectusEnvironment = prospectusAccountsApiStageArn && prospectusSessionSealingSecret
+    const prospectusEnvironment = prospectusAccountsApiStageArn && prospectusSessionSealing
       ? {
         PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn),
-        PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN: prospectusSessionSealingSecret.secretArn,
+        PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER: prospectusSessionSealing.parameterName,
         PAPYRUS_PROSPECTUS_SITE_PRODUCT: `papyrus-${config.siteId}`,
       }
       : {};
-    if (prospectusSessionSealingSecret) {
+    if (prospectusSessionSealing) {
       computeRole.addToPolicy(
         new iam.PolicyStatement({
           sid: "ReadProspectusSessionSealingSecret",
-          actions: ["secretsmanager:GetSecretValue"],
-          resources: [prospectusSessionSealingSecret.secretArn],
+          actions: ["ssm:GetParameter"],
+          resources: [prospectusSessionSealing.parameterArn],
         }),
       );
     }
