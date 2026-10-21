@@ -42,6 +42,23 @@ def only_a_name(context) -> None:
     remember(context, ProjectedSite(settings=settings, content=Path(__file__).resolve().parents[1] / "fixtures" / "standard-site" / "flat" / "content"))
 
 
+@given("a standard site with hand-published routes that carry Markdown twins")
+def static_twins_site(context) -> None:
+    settings = {
+        "site": {"name": "Example", "productionUrl": "https://example.org"},
+        "static": {"copy": ["site"]},
+        "sitemap": {"extra": ["/docs/usage/", "/docs/missing/"]},
+    }
+    files = {
+        "site/docs/usage/index.html": "<html></html>",
+        "site/docs/usage/index.md": "# Using the widget\n\nAdd the script to a page.\n",
+    }
+    remember(
+        context,
+        ProjectedSite(settings=settings, extra_files=files, content=Path(__file__).resolve().parents[1] / "fixtures" / "standard-site" / "flat" / "content"),
+    )
+
+
 @given("the standard sectioned fixture site")
 def sectioned_site(context) -> None:
     remember(context, ProjectedSite("sectioned"))
