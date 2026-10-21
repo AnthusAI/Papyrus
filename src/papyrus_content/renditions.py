@@ -150,6 +150,8 @@ def original_site_key(media_key: str) -> str | None:
 class RenditionStore(Protocol):
     def get(self, key: str) -> bytes | None: ...
 
+    def keys(self, prefix: str) -> list[str]: ...
+
     def put(self, key: str, body: bytes, *, cache_control: str) -> None: ...
 
 
@@ -165,6 +167,10 @@ class DirectoryRenditionStore:
         path = self._root / key
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(body)
+
+    def keys(self, prefix: str) -> list[str]:
+        base = self._root / prefix
+        return sorted(path.relative_to(self._root).as_posix() for path in base.rglob("*") if path.is_file()) if base.is_dir() else []
 
 
 class S3RenditionStore:
@@ -190,6 +196,19 @@ class S3RenditionStore:
             ContentType=content_type_for_key(key),
             CacheControl=cache_control,
         )
+
+    def keys(self, prefix: str) -> list[str]:
+        found: list[str] = []
+        token = None
+        while True:
+            arguments = {"Bucket": self._bucket, "Prefix": prefix}
+            if token:
+                arguments["ContinuationToken"] = token
+            page = self._s3.list_objects_v2(**arguments)
+            found.extend(entry["Key"] for entry in page.get("Contents", []))
+            if not page.get("IsTruncated"):
+                return sorted(found)
+            token = page.get("NextContinuationToken")
 
 
 def write_listing_copy(source_file: Path, destination: Path, maximum_width: int) -> None:
@@ -304,6 +323,18 @@ class RenditionCatalog:
         with ThreadPoolExecutor(max_workers=min(workers, len(pending))) as executor:
             for source, record in zip(pending, executor.map(self._load, pending)):
                 self._records[source] = record
+
+    def all_records(self, *, workers: int = 8) -> list[dict]:
+        """Every record in the store, by source path: the images a site has, without a list kept in the repository."""
+        keys = [key for key in self._store.keys(f"{self._pipeline.out_subdir}/") if key.endswith(META_SUFFIX)]
+        if not keys:
+            return []
+        with ThreadPoolExecutor(max_workers=min(workers, len(keys))) as executor:
+            raw = list(executor.map(self._store.get, keys))
+        records = [json.loads(body) for body in raw if body is not None]
+        for record in records:
+            self._records[record["source"]] = record
+        return sorted(records, key=lambda record: record["source"])
 
     def record(self, source: str) -> dict:
         if source not in self._records:
