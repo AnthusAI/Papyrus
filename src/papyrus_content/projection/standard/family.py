@@ -81,10 +81,16 @@ def family_footer(family: FamilyFooter, site_name: str, text: str, columns: tupl
     if is_company:
         own.insert(0, _column("Anthus", [_link(label, href, external=False) for label, href in brand_links()]))
     eyebrow = f'<span class="papyrus-family-footer-eyebrow">{esc(family.tagline)}</span>' if family.tagline else ""
+    copy = (
+        f'<h2 class="papyrus-family-footer-title">{esc(name)}</h2>'
+        f'<p class="papyrus-family-footer-description">{esc(family.description or text or DEFAULT_DESCRIPTION)}</p>'
+    )
+    if family.logo:
+        logo = f'<img class="papyrus-family-footer-logo" src="{esc(family.logo)}" alt="{esc(family.logo_alt)}" width="48" height="48">'
+        copy = f'<div class="papyrus-family-footer-intro-row">{logo}<div>{copy}</div></div>'
     local = (
         '<div class="papyrus-family-footer-shell"><div class="papyrus-family-footer-local">'
-        f'<div class="papyrus-family-footer-intro">{eyebrow}<h2 class="papyrus-family-footer-title">{esc(name)}</h2>'
-        f'<p class="papyrus-family-footer-description">{esc(family.description or text or DEFAULT_DESCRIPTION)}</p></div>'
+        f'<div class="papyrus-family-footer-intro">{eyebrow}{copy}</div>'
         f'{"".join(own)}</div></div>'
     )
     groups = "".join(

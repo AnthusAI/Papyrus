@@ -48,6 +48,8 @@
 .papyrus-family-footer a { color: var(--papyrus-family-footer-link, #f7f4ff); font-weight: 400; text-decoration: none; }
 .papyrus-family-footer-local { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem 1.5rem; align-items: start; }
 .papyrus-family-footer-intro { display: grid; gap: .35rem; justify-items: start; text-align: left; }
+.papyrus-family-footer-intro-row { display: grid; grid-template-columns: auto 1fr; gap: .75rem 1rem; align-items: start; width: 100%; }
+.papyrus-family-footer-logo { max-width: 64px; height: auto; }
 .papyrus-family-footer-eyebrow { display: inline-block; text-transform: uppercase; letter-spacing: .08em; font-size: .68rem; font-weight: 500; color: var(--papyrus-family-footer-muted-text, #cbbfef); }
 .papyrus-family-footer-title { margin: 0; font-size: 1.12rem; line-height: 1.25; font-weight: 400; text-align: left; }
 .papyrus-family-footer-description { margin: 0; font-size: .92rem; line-height: 1.55; font-weight: 300; color: var(--papyrus-family-footer-muted-text, #cbbfef); text-align: left; }
