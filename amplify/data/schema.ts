@@ -26,7 +26,27 @@ const modelWithoutSubscriptions = <Fields extends Parameters<typeof a.model>[0]>
   a.model(fields).disableOperations(["subscriptions"]);
 const realtimeModel = <Fields extends Parameters<typeof a.model>[0]>(fields: Fields) => a.model(fields);
 
-const baseDefinitions = {
+/**
+ * Model groups a site may leave out of its data API. CloudFormation creates at most 2,500 resources in one stack
+ * operation, nested stacks included, and the full model set exceeds that on a fresh create. A first deploy that
+ * excludes a group fits; a second deploy without the exclusion adds the models as an ordinary update.
+ */
+export const OPTIONAL_MODEL_GROUPS = {
+  editions: ["Edition", "EditionItem", "PublishedEdition", "PublishedEditionItem"],
+} as const;
+
+export type OptionalModelGroup = keyof typeof OPTIONAL_MODEL_GROUPS;
+
+export function assertKnownModelGroups(groups: readonly string[]): asserts groups is readonly OptionalModelGroup[] {
+  for (const group of groups) {
+    if (!(group in OPTIONAL_MODEL_GROUPS)) {
+      throw new Error(`Unknown model group "${group}"; known groups: ${Object.keys(OPTIONAL_MODEL_GROUPS).join(", ")}`);
+    }
+  }
+}
+
+function buildBaseDefinitions(includeEditions: boolean) {
+const definitions = {
   UserProfile: modelWithoutSubscriptions({
       id: a.id().required(),
       email: a.email(),
@@ -1799,7 +1819,7 @@ const baseDefinitions = {
       updatedAt: a.datetime(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
-      editionItems: a.hasMany("EditionItem", "itemId"),
+      ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
     })
     .secondaryIndexes((index) => [
       index("lineageId").sortKeys(["versionNumber"]).queryField("listItemsByLineageAndVersion"),
@@ -2125,6 +2145,18 @@ const baseDefinitions = {
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
 };
+if (!includeEditions) {
+  const mutableDefinitions = definitions as Record<string, unknown>;
+  for (const modelName of OPTIONAL_MODEL_GROUPS.editions) delete mutableDefinitions[modelName];
+}
+return definitions;
+}
+
+export function baseModelNames(excludedGroups: readonly OptionalModelGroup[] = []): string[] {
+  return Object.keys(buildBaseDefinitions(!excludedGroups.includes("editions")));
+}
+
+const baseDefinitions = buildBaseDefinitions(true);
 
 export const schema = a.schema(baseDefinitions).authorization((allow) => [
   allow.resource(assignmentAction).to(["query", "mutate"]),
@@ -2147,6 +2179,22 @@ export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
     allow.resource(modelAttachmentUpload),
     allow.resource(newsroomSummary),
     allow.resource(procedureAction),
+  ]);
+}
+
+/** The schema of a site that leaves optional model groups out of its first deploy. */
+export function schemaExcludingGroups(excludedGroups: readonly OptionalModelGroup[], pluginDefinitions: Record<string, any> = {}) {
+  const definitions = buildBaseDefinitions(!excludedGroups.includes("editions")) as unknown as typeof baseDefinitions;
+  const hasPlugins = Object.keys(pluginDefinitions).length > 0;
+  return a.schema({ ...definitions, ...pluginDefinitions } as typeof baseDefinitions).authorization((allow) => [
+    allow.resource(assignmentAction).to(["query", "mutate"]),
+    allow.resource(categoryAction),
+    allow.resource(contentActions),
+    allow.resource(manageUserRole),
+    allow.resource(modelAttachmentUpload),
+    allow.resource(newsroomSummary),
+    allow.resource(procedureAction),
+    ...(hasPlugins ? [] : [allow.resource(publicForms).to(["mutate"])]),
   ]);
 }
 

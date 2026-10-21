@@ -118,7 +118,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     categoryAction,
     contentActions,
     editorialChecks,
-    data: defineSiteData(pluginDefinitions),
+    data: defineSiteData(pluginDefinitions, site.excludeModelGroups ?? []),
     knowledgeQuery,
     manageUserRole,
     monitoringView,
