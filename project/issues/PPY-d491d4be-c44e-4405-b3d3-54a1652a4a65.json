@@ -22,10 +22,22 @@
         "model": "claude-sonnet-5-5",
         "name": "Sonnet monitoring agent"
       }
+    },
+    {
+      "id": "44205a83-732a-4511-96b4-c236c868aa9e",
+      "author": "home",
+      "text": "2026-10-21 18:15Z: wedge cleared, root cause of the repeating worker failure still unknown. Cyclotron PR 85/86 merged and released to main: python -m decision_flywheel.command_recovery diagnose|reconcile (dry-run default, owner+fence match, audit record as job result, evidence refusal, matching DLQ message only). Applied to bf25e156 (reason as approved), then to two further jobs wedged by my smoke attempts (f5868e71, c1e4cfcb). AWSPREVIOUS label removed from cyclotron/providers/openai (the unlabeled old version is still retrievable by explicit version id until Secrets Manager prunes it; rotate the key). Direct Jev call with the secret: 200, 158 ms, choice include, 318 in/31 out tokens. A local replay of the DEPLOYED 0.31.0 worker code against an in-memory copy of the books bucket completes the decide fine (label/confidence/decisionId produced). In the real worker Lambda the same decide fails in ~10.0 s after the secret is read, leaving the job running; with TYPESAFE_LOG_LEVEL=info no SDK request was logged, so it fails before any provider request. The worker logs no exception by design. Next: ship a sanitized diagnostic (exception class and file:line only) in worker_handler, or find the Lambda-only difference; then smoke, bounded pass, live flip. Router is dry-run (maxItemsPerRun 5); route 50108717 cleaned (attempt 4).",
+      "created_at": "2026-10-21T18:15:30.492250Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Sonnet monitoring agent"
+      }
     }
   ],
   "created_at": "2026-10-21T17:47:09.374027Z",
-  "updated_at": "2026-10-21T17:47:19.170168Z",
+  "updated_at": "2026-10-21T18:15:30.492289Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
