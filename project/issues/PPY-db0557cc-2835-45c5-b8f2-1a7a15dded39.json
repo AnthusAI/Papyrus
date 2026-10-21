@@ -1,0 +1,20 @@
+{
+  "id": "PPY-db0557cc-2835-45c5-b8f2-1a7a15dded39",
+  "title": "Position Papyrus as agent-accessible publishing on the marketing site",
+  "description": "Ryan, 2026-10-20: agent accessibility is a core feature and part of Papyrus's positioning. On the Papyrus marketing site (p.apyr.us): a feature section/page explaining that every Papyrus site is readable by agents and people alike: per-page Markdown, llms.txt and llms-full.txt, Accept: text/markdown negotiation, page actions (Copy Markdown, open in AI assistants), RSS/Atom, sitemap and structured data; agents operating the newsroom through the CLI and API; roadmap: MCP and WebMCP. Include it in the homepage positioning and the features list (PPY-b9b038). Ship after PPY-f172d7 and the page-actions story are live, with real examples from a live site.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T02:56:47.534009Z",
+  "updated_at": "2026-10-21T02:56:47.534074Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

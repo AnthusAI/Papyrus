@@ -45,6 +45,17 @@ The note is saved separately; it does not automatically rerun extraction or a
 model. Priming classification rationale is separate and optional. Revised previews need
 labels again. Accepted examples cannot use the draft correction route.
 
+## One entry point: Add a reference
+
+References has a single "Add a reference" area. "Paste a URL" is the live URL form
+and works as before. "Import a file" is the shared Cyclotron panel and renders only
+when a curation session supplies example support and the person may review
+(`useReferenceImport` in `components/reference-curation-controls.tsx`); with no
+provider, only "Paste a URL" renders. Editor-facing copy describes adding
+references, never the engine behind it. Leaving an import preview (cancel or
+reject) saves nothing; `features_backend/newsroom_curation.feature` covers that
+and the full preview details and source provenance for a web page.
+
 ## Reproducible local review and dependency boundary
 
 The local review is `scripts/curation-review/serve.py`, temporary loopback only.

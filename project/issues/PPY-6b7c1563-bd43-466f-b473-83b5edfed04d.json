@@ -3,17 +3,25 @@
   "title": "Pilot: migrate Pilobol.us (no-sections reference case)",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8f02fe65-f745-4e77-b9e2-8dc4749a919a",
+      "author": "home",
+      "text": "Pilobol.us is on the standard Papyrus front end and live. Papyrus #415 (written-out dates, released in 5.1.0); Pilobol.us #108 merged (5758ac8): projector, legacy builder, feed generator and reader build removed (~3,470 lines), web/projection.json + theme + hooks.py (290 lines) added. Parity vs old projector, same published data (18 items, Markus 0.7.0): 98 URLs, 0 blocking differences, 21/21 HTML pages DOM-identical after allow-listed items; sitemap URL set, redirects, robots, search data equal; RSS and Atom valid; incremental equals full after 12 random edits. Deployed: Amplify job 48 (backend) then content-actions deploy-render (87 pages written, no drift), one /* invalidation. Live: all 20 old sitemap URLs same status, /feed.xml and /atom.xml valid. Finding: reprojectOnDeploy is not set for this site, so deploy-render is a manual step after a web/ change. Section note: URLs need articles and effects declared as sections; Papyrus 5.1.0 treats effects/index as that section's introduction (listEmpty + page_body hook).",
+      "created_at": "2026-10-21T02:59:19.137493Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:40.891247Z",
-  "updated_at": "2026-10-21T00:22:40.891313Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T02:59:19.321628Z",
+  "closed_at": "2026-10-21T02:59:19.321596Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "title": "Humanus copy editing by default: every site starts with policies and every draft is checked",
+  "description": "Editorial checks (Humanus, humanus[jev]) are core and on by default since 5.0.0, but in practice a new site checks nothing: it starts with zero EditorialPolicy records (starter packs need an admin import), its prose mission and policy are not turned into Humanus judgment policies, and drafts are only checked when an editor opens the article editor or someone runs the CLI. Drafts saved by agents (stories save-version), imports (ops content import-markus) and copywriting handoffs are never checked.\n\nGoal: copy editing with Humanus happens by default, for people and agents alike, with no setup beyond the Jev and OpenAI secrets. Publishing is still never blocked; findings stay advice and a person chooses.\n\nPilot: Distinctive Mark on 5.0.0 (2026-10-21: 0 EditorialPolicy, no EditorialCheckSettings row, 0 EditorialFeedback; 38 unpublished drafts loaded by agents and never checked).",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:16:29.607113Z",
+  "updated_at": "2026-10-21T03:16:29.607147Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

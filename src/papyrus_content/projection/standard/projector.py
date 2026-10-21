@@ -47,6 +47,7 @@ from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_sum
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
+from .markdown import LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import first_image_of, lede_of, with_listing
 from .grouping import group_entries, group_key, group_label
@@ -146,9 +147,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if PurePosixPath(summary.output_path).name.startswith(("_", ".")):
             return ()
         if self._is_home_source(summary):
-            return (HOME_PAGE_PATH,)
+            return self._with_markdown((HOME_PAGE_PATH,), noindex=False)
         entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
-        return (entry.key,) if entry is not None and entry.key else ()
+        return self._with_markdown((entry.key,), noindex=entry.noindex) if entry is not None and entry.key else ()
+
+    def _with_markdown(self, keys: tuple[str, ...], *, noindex: bool) -> tuple[str, ...]:
+        twin = md_key(keys[0]) if self.standard.agents.markdown and not noindex else None
+        return keys + ((twin,) if twin else ())
 
     def item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]:
         summary = item.summary
@@ -169,7 +174,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 image=first_image_of(fragment),
             )
             page = self._page("home", head, site, entries=entries, fragment=fragment)
-            return {key: self._render(page)}
+            pages = {key: self._render(page)}
+            if len(paths) > 1:
+                pages[paths[1]] = self._home_markdown(title, head.description, item.source_text).encode("utf-8")
+            return pages
         entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
         article = entry.type in self.standard.listings.types
@@ -190,7 +198,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
             breadcrumbs=crumbs,
         )
         page = self._page("item", head, site, entry=entry, entries=entries, fragment=fragment, crumbs=crumbs)
-        return {key: self._render(page)}
+        pages = {key: self._render(page)}
+        if len(paths) > 1:
+            canonical = entry.canonical or self.head.absolute(entry.url)
+            pages[paths[1]] = item_markdown(entry, item.source_text, canonical).encode("utf-8")
+        return pages
+
+    def _home_markdown(self, title: str, description: str, source_text: str) -> str:
+        lines = [f"# {title}", ""] + ([f"> {description}", ""] if description else [])
+        return "\n".join(lines + [body_of(source_text)]).rstrip() + "\n"
 
     def _json_ld_type(self, entry: StandardEntry) -> str:
         mapping = dict(self.standard.seo.json_ld_types)
@@ -250,9 +266,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         plan: dict[str, tuple[str, Callable[[], bytes]]] = {}
         shared = self._shared_fingerprint
 
-        def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage]) -> None:
+        def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage], markdown: bool = True) -> None:
             dependency = self._dependency_digest(entries, page_id)
-            plan[key] = (digest_of([shared, key, digest_input, dependency]), lambda: self._render(build_page()))
+            digest = digest_of([shared, key, digest_input, dependency])
+            plan[key] = (digest, lambda: self._render(build_page()))
+            twin = md_key(key) if markdown and self.standard.agents.markdown else None
+            if twin:
+                plan[twin] = (digest_of([digest, "markdown"]), lambda: self._markdown_for(build_page()).encode("utf-8"))
 
         # home
         if not self._authored_home(site):
@@ -346,6 +366,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     PageHead(title=custom.title, path=f"/{custom.path}/", description=custom.description or self.standard.identity.description, noindex=custom.noindex),
                     site, entries=tuple(listed), custom_id=custom.id,
                 ),
+                markdown=not custom.noindex,
             )
 
         # 404
@@ -361,8 +382,80 @@ class StandardMarkusProjector(MarkusSiteProjector):
         selection = feed_selection(entries, self.standard)
         for key, body in {**sitemap, **feed_files(selection, self.standard, self.environment)}.items():
             plan[key] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
+        self._add_llms_files(plan, site, entries, listed)
         self._plan_cache = (site.items, plan)
         return plan
+
+    # ------------------------------------------------------------------ agent-readable files
+
+    def _llms_groups(self, listed: list[StandardEntry], entries: list[StandardEntry]) -> list[tuple[str, list[StandardEntry]]]:
+        limit = self.standard.agents.llms_max_links
+        visible = [entry for entry in listed if (entry.key or entry.link) and not entry.noindex]
+        if self.standard.sectioned:
+            groups = [
+                (section.label, [entry for entry in visible if entry.section and entry.section.name == section.name][:limit])
+                for section in self.standard.sections
+            ]
+        else:
+            groups = [("Articles", visible[:limit])]
+        pages = [entry for entry in entries if not entry.listed and entry.key and not entry.noindex][:limit]
+        return [*groups, ("Pages", pages)]
+
+    def _llms_full_entries(self, entries: list[StandardEntry]) -> list[StandardEntry]:
+        return [entry for entry in entries if entry.key and not entry.noindex and (entry.listed or entry.type == "page")]
+
+    def _add_llms_files(self, plan, site: SiteIndex, entries, listed) -> None:
+        agents = self.standard.agents
+        if not agents.markdown or self.environment.guarded:
+            return
+        origin = self.environment.origin
+        full_entries = self._llms_full_entries(entries)
+        full_enabled = agents.llms_full and 0 < len(full_entries) <= agents.llms_full_max_items
+        if agents.llms_txt:
+            optional = []
+            if "rss" in self.standard.feeds.formats:
+                optional.append(("RSS feed", "/" + self.standard.feeds.rss_path))
+            if "atom" in self.standard.feeds.formats:
+                optional.append(("Atom feed", "/" + self.standard.feeds.atom_path))
+            optional.append(("Sitemap", "/sitemap-index.xml" if self.standard.sitemap_style == "index" else "/sitemap.xml"))
+            if full_enabled:
+                optional.append(("Full content of this site in one file", "/" + LLMS_FULL_KEY))
+            body = llms_txt(self.standard.identity, self._llms_groups(listed, entries), optional, origin).encode("utf-8")
+            plan[LLMS_KEY] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
+        if full_enabled:
+            identity = self.standard.identity
+            versions = [[entry.item_id, entry.summary.version_number] for entry in full_entries]
+            digest = digest_of([self._shared_fingerprint, versions, agents.llms_full_max_bytes])
+
+            def render() -> bytes:
+                documents = (
+                    item_markdown(entry, site.load_item(entry.item_id).source_text, entry.canonical or self.head.absolute(entry.url))
+                    for entry in full_entries
+                )
+                return llms_full_txt(identity, documents, agents.llms_full_max_bytes).encode("utf-8")
+
+            plan[LLMS_FULL_KEY] = (digest, render)
+
+    def _markdown_for(self, page: StandardPage) -> str:
+        identity = self.standard.identity
+        origin = self.environment.origin
+        description = page.description or identity.description
+        view = page.listing
+        if page.kind == "home" and view is not None:
+            return listing_markdown(identity.name, description, view.entries, origin)
+        if page.kind in ("listing", "tag", "archive") and view is not None:
+            title = page.title
+            return listing_markdown(
+                title, description, view.entries, origin, page=view.page, pages=view.pages,
+                page_md=lambda number: md_path(self.policy.listing_key(view.base, number)),
+            )
+        if page.kind == "tags":
+            entries = [f"- [{tag}]({(origin or '') + md_path(self.policy.listing_key(self.policy.tag_base(slugify_tag(tag))))}) ({len(found)})" for tag, found in page.tags.items()]
+            return "\n".join([f"# {page.title}", "", *entries]).rstrip() + "\n"
+        if page.kind == "showcase":
+            wall = [f"- [{site.name}]({site.url}) ({site.kind})" if site.kind else f"- [{site.name}]({site.url})" for site in page.showcase]
+            return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else []), *wall]).rstrip() + "\n"
+        return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else [])]).rstrip() + "\n"
 
     def _section_links(self) -> list:
         return [(section.label, section.base) for section in self.standard.sections if section.listing]
@@ -529,6 +622,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return False
         if key == HOME_PAGE_PATH or key in SITEMAP_KEYS or key in (self.standard.feeds.rss_path, self.standard.feeds.atom_path):
             return True
+        if key in (LLMS_KEY, LLMS_FULL_KEY) or (key.endswith(".md") and not key.startswith(("css/", "assets/", "_"))):
+            return True
         if owns_public_data_key(key):
             return True
         return key.endswith(".html") and not key.startswith(("css/", "assets/", "_"))
@@ -572,7 +667,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
         extra = self.hooks.head_extra(page) if self.hooks.head_extra is not None else ""
-        head_html = self.head.build(dataclasses.replace(page.head, extra=extra))
+        twin = None
+        if self.standard.agents.markdown and not page.head.noindex:
+            key = page.path.lstrip("/") + "index.html" if page.path.endswith("/") else page.path.lstrip("/")
+            twin = md_path(key) if md_key(key) else None
+        head_html = self.head.build(dataclasses.replace(page.head, extra=extra, markdown_path=twin))
         if self.hooks.body_class is not None:
             base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
         sheets = list(base.stylesheets)

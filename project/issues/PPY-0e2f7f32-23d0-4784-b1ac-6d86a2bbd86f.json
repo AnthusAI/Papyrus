@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0e2f7f32-23d0-4784-b1ac-6d86a2bbd86f",
+  "title": "CLI parity for editorial checks",
+  "description": "The editorial-copyedit-cycle skill documents papyrus editorial check, suggest and pack, but the 5.0.0 CLI only offers diagnose, context and options (papyrus editorial check is 'Unsupported'). Ship check/suggest/pack plus policies list/import-starter and settings show, against the hosted backend with SigV4 or a user session.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:16:30.012619Z",
+  "updated_at": "2026-10-21T03:16:30.012664Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

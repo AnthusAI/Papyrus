@@ -1,0 +1,38 @@
+{
+  "id": "PPY-02e6945c-681b-4ad8-b7a7-e2c944820a8a",
+  "title": "Unify Add a reference entry point (URL + optional file import)",
+  "description": "One 'Add a reference' area: Paste a URL (unchanged) or, only with a curation session, Import a file (shared panel). Editor-facing copy free of engine terms. Specs: cancel/reject commits nothing; web candidate preview shows full model_representation and provenance; no session renders URL only. Part of PPY-7227ac (Kanbus forbids a task under a story).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-7227acea-e3f5-4bc2-b3c5-17f62568d49d",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "a47e1dbc-b682-49da-9772-dc0f0445af71",
+      "author": "home",
+      "text": "Implemented: ReferenceAddEntry (components/reference-add-entry.tsx) is the single Add a reference area; Paste a URL unchanged; Import a file only via useReferenceImport (session with priming + review). Specs: features_backend/newsroom_curation.feature (leave-preview-saves-nothing, web preview details + provenance), scripts/test-reference-add-entry.ts.",
+      "created_at": "2026-10-21T01:58:59.639661Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T01:42:19.430480Z",
+  "updated_at": "2026-10-21T01:58:59.639689Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

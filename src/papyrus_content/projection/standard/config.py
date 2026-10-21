@@ -19,7 +19,7 @@ from .redirects import RedirectRule, rule_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
-    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms",
+    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -208,6 +208,18 @@ FORM_FIELD_TYPES = ("text", "email", "textarea", "select")
 
 
 @dataclass(frozen=True)
+class AgentSettings:
+    """Agent-readable representations (see ``markdown.py``); all on by default."""
+
+    markdown: bool = True            # a .md twin of every page, advertised in the head and served on Accept: text/markdown
+    llms_txt: bool = True
+    llms_full: bool = True           # omitted when the site has more than llms_full_max_items pages
+    llms_full_max_items: int = 200
+    llms_full_max_bytes: int = 1_000_000
+    llms_max_links: int = 200
+
+
+@dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
@@ -240,6 +252,7 @@ class StandardSettings:
     summary_fields: tuple[str, ...] = ()
     showcase: ShowcaseSettings | None = None
     forms: tuple[FormSpec, ...] = ()
+    agents: AgentSettings = field(default_factory=AgentSettings)
 
     @property
     def sectioned(self) -> bool:
@@ -491,6 +504,19 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     for custom_page in custom:
         if custom_page.form is not None and custom_page.form not in known_forms:
             raise ValueError(f"pages.{custom_page.id}.form names an unknown form {custom_page.form!r}")
+    agents_raw = dict(raw.get("agents") or {})
+    _only(agents_raw, {"markdown", "llmsTxt", "llmsFull", "llmsFullMaxItems", "llmsFullMaxBytes", "llmsMaxLinks"}, "agents")
+    agent_defaults = AgentSettings()
+    agents = AgentSettings(
+        markdown=bool(agents_raw.get("markdown", agent_defaults.markdown)),
+        llms_txt=bool(agents_raw.get("llmsTxt", agent_defaults.llms_txt)),
+        llms_full=bool(agents_raw.get("llmsFull", agent_defaults.llms_full)),
+        llms_full_max_items=int(agents_raw.get("llmsFullMaxItems", agent_defaults.llms_full_max_items)),
+        llms_full_max_bytes=int(agents_raw.get("llmsFullMaxBytes", agent_defaults.llms_full_max_bytes)),
+        llms_max_links=int(agents_raw.get("llmsMaxLinks", agent_defaults.llms_max_links)),
+    )
+    if (agents.llms_txt or agents.llms_full) and not agents.markdown:
+        raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -530,4 +556,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         summary_fields=tuple(site.get("summaryFields") or ()),
         showcase=showcase,
         forms=tuple(forms),
+        agents=agents,
     )

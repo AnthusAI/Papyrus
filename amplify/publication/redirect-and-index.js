@@ -45,6 +45,49 @@ function lookUpPatternRedirect(uri) {
   return null;
 }
 
+// Content negotiation for agents: when the site publishes Markdown twins (standard front end, agents.markdown), a request
+// whose Accept header prefers text/markdown over text/html is rewritten to the .md object before the cache lookup. The
+// flag is spliced in by redirect-rules.ts at deploy time.
+const negotiateMarkdown = /*PAPYRUS_NEGOTIATE_MARKDOWN*/false/*END_PAPYRUS_NEGOTIATE_MARKDOWN*/;
+
+function qualityOf(accept, mediaType) {
+  let quality = 0;
+  const parts = accept.toLowerCase().split(",");
+  for (let index = 0; index < parts.length; index += 1) {
+    const fields = parts[index].split(";");
+    if (fields[0].trim() !== mediaType) {
+      continue;
+    }
+    quality = 1;
+    for (let field = 1; field < fields.length; field += 1) {
+      const pair = fields[field].trim();
+      if (pair.indexOf("q=") === 0) {
+        quality = Number(pair.substring(2));
+        if (isNaN(quality)) {
+          quality = 0;
+        }
+      }
+    }
+  }
+  return quality;
+}
+
+function prefersMarkdown(request) {
+  const header = request.headers && request.headers.accept;
+  if (!header || !header.value) {
+    return false;
+  }
+  const markdown = qualityOf(header.value, "text/markdown");
+  return markdown > 0 && markdown > qualityOf(header.value, "text/html");
+}
+
+function markdownTwin(uri) {
+  if (uri === "/404.html" || uri.length < 6 || uri.substring(uri.length - 5) !== ".html") {
+    return null;
+  }
+  return uri.substring(0, uri.length - 5) + ".md";
+}
+
 async function handler(event) {
   const request = event.request;
   const redirectTarget = await lookUpRedirectTarget(request.uri);
@@ -64,5 +107,11 @@ async function handler(event) {
     };
   }
   request.uri = rewriteToIndexDocument(request.uri);
+  if (negotiateMarkdown && prefersMarkdown(request)) {
+    const twin = markdownTwin(request.uri);
+    if (twin !== null) {
+      request.uri = twin;
+    }
+  }
   return request;
 }

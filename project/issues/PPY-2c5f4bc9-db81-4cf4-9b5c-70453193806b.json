@@ -1,0 +1,20 @@
+{
+  "id": "PPY-2c5f4bc9-db81-4cf4-9b5c-70453193806b",
+  "title": "Every saved draft version is checked automatically, by people or agents",
+  "description": "Saving a draft version through any path (article editor, stories save-version, ops content import-markus, copywriting assignment output, API) triggers an asynchronous Humanus check of that version against the effective pack for its section. The result (findings, lane status, pack hash, version number) is stored with the version, shown in the story's reporting trail and as an open-findings count on the board card, and readable through the CLI. Re-saving rescans; finding ids stay stable so editor decisions carry over.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:16:29.818800Z",
+  "updated_at": "2026-10-21T03:16:29.818834Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -15,6 +15,7 @@ Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing mod
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from hashlib import sha256
 import json
 import os
@@ -44,6 +45,7 @@ PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
 FEEDBACK_PARTITION = "FEEDBACK#hn#pending"
 ROUTING_FINAL = ("routed", "refused", "uncertain", "error")
+NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
@@ -75,6 +77,27 @@ class ItemInvalid(Exception):
 
 # --- config ---------------------------------------------------------------------------------------
 
+CEILING_KEYS = ("decisionsTotal", "decisionsPerDay", "items")
+
+
+def validate_ceilings(raw) -> dict | None:
+    """The shared Cyclotron's decision ceilings, mirrored as display data for the Monitoring page.
+
+    The router never reads them to decide anything: Cyclotron enforces its own ceilings and the router
+    stops when it says so. They exist only so the page can show usage against them.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or not raw or set(raw) - set(CEILING_KEYS):
+        raise ValueError(f"router ceilings must be an object with only {', '.join(CEILING_KEYS)}")
+    out = {}
+    for key, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)) or value <= 0 or value != int(value):
+            raise ValueError(f"router ceilings.{key} must be a positive whole number")
+        out[key] = int(value)
+    return out
+
+
 def validate_router_config(raw: dict) -> dict:
     mode = raw.get("mode")
     if mode not in ("dry-run", "live"):
@@ -99,6 +122,7 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
+    ceilings = validate_ceilings(raw.get("ceilings"))
     publications, seen = [], set()
     for entry in raw.get("publications") or []:
         publication_id = str(entry.get("publicationId") or "")
@@ -119,7 +143,7 @@ def validate_router_config(raw: dict) -> dict:
     if not publications:
         raise ValueError("router needs at least one publication")
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-            "feedback": raw.get("feedback") is True, "publications": publications,
+            "feedback": raw.get("feedback") is True, "ceilings": ceilings, "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
                           "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}}
 
@@ -127,9 +151,16 @@ def validate_router_config(raw: dict) -> dict:
 # --- request building -------------------------------------------------------------------------------
 
 def request_id(account_id: str, run_id: str, publication_id: str, binding_revision: str, item_id: str,
-               fingerprint: str) -> str:
-    """Deterministic: the same item revision against the same binding always has the same id."""
-    text = "\n".join([account_id, run_id, f"{publication_id}@{binding_revision}", item_id, fingerprint])
+               fingerprint: str, attempt: int = 0) -> str:
+    """Deterministic: the same item revision against the same binding always has the same id.
+
+    `attempt` is 0 until Cyclotron refuses a job without consuming any provider request (key missing,
+    ceiling reached). Cyclotron keeps a refused job under its request id, so a later retry needs a new one.
+    """
+    parts = [account_id, run_id, f"{publication_id}@{binding_revision}", item_id, fingerprint]
+    if attempt:
+        parts.append(f"attempt-{attempt}")
+    text = "\n".join(parts)
     return sha256(text.encode()).hexdigest()
 
 
@@ -143,11 +174,11 @@ def build_item(discovery: dict) -> dict:
         "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""), "text": f"{title}\n{url}"}}
 
 
-def build_decide_request(config: dict, publication: dict, discovery: dict) -> dict:
+def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0) -> dict:
     cyclotron, item = config["cyclotron"], build_item(discovery)
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
-                                    cyclotron["bindingRevision"], item["id"], str(discovery["fingerprint"])),
+                                    cyclotron["bindingRevision"], item["id"], str(discovery["fingerprint"]), attempt),
             "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}}
     validate_request(body)
     return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
@@ -347,9 +378,13 @@ def checked_decision(response: dict, publication: dict, config: dict, item_id: s
             or type(classifier.get("version")) is not int):
         raise ItemInvalid("response lacks a valid labelled output with fingerprint and version")
     source = response.get("source") if isinstance(response.get("source"), dict) else {}
-    return {"decisionId": decision["decisionId"], "output": publication["output"], "label": classifier["label"],
-            "fingerprint": classifier["fingerprint"], "version": classifier["version"],
-            "source": {k: source[k] for k in ("id", "revision", "fingerprint") if k in source}}
+    checked = {"decisionId": decision["decisionId"], "output": publication["output"], "label": classifier["label"],
+               "fingerprint": classifier["fingerprint"], "version": classifier["version"],
+               "source": {k: source[k] for k in ("id", "revision", "fingerprint") if k in source}}
+    confidence = classifier.get("confidence")
+    if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and 0 <= confidence <= 1:
+        checked["confidence"] = Decimal(str(round(float(confidence), 4)))   # for the Monitoring page; DynamoDB takes Decimal
+    return checked
 
 
 # --- table ----------------------------------------------------------------------------------------
@@ -549,12 +584,12 @@ class Router:
         item_id = f"hn-{disc['sourceId']}"
         for publication in self.config["publications"]:
             pub_id = publication["publicationId"]
-            built = build_decide_request(self.config, publication, disc)
+            built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
             job = jobs.get(pub_id)
+            if job and job.get("checked"):
+                continue   # already decided under an earlier request id; the shared decision is cached
             if job and job.get("requestId") != built["body"]["requestId"]:
                 raise ItemInvalid("stored job belongs to a different request")
-            if job and job.get("checked"):
-                continue
             if job and job.get("jobId"):
                 if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
                     raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
@@ -578,7 +613,15 @@ class Router:
                     jobs[pub_id]["checked"] = checked_decision(immediate, publication, self.config, item_id)
                     self.save(route)
                     continue
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+            try:
+                response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+            except StopSweep as stop:
+                if stop.code in NON_CONSUMING_REFUSALS:
+                    # Nothing ran at the provider. Drop the refused job and use a new request id next time.
+                    del jobs[pub_id]
+                    route["attempt"] = int(route.get("attempt", 0)) + 1
+                    self.save(route)
+                raise
             jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
             self.save(route)
         checked = {pid: jobs[pid]["checked"] for pid in (p["publicationId"] for p in self.config["publications"])}
@@ -591,7 +634,8 @@ class Router:
             "decisionId": first["decisionId"], "source": first["source"], "decidedAt": _iso(self.now),
             "accountId": self.config["cyclotron"]["accountId"], "runId": self.config["cyclotron"]["runId"],
             "bindingRevision": self.config["cyclotron"]["bindingRevision"],
-            "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version")} for pid, c in checked.items()}}
+            "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version", "confidence") if k in c}
+                             for pid, c in checked.items()}}
         route["publications"] = {pid: {"label": c["label"], "delivered": False, "attempts": 0}
                                  for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"]}
         route.pop("nextAttemptAt", None)

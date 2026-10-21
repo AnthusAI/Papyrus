@@ -1,0 +1,20 @@
+{
+  "id": "PPY-12e5e073-fe8f-4566-be55-4a7c51f75176",
+  "title": "M4 New publication from a bundle, and scheduled backups",
+  "description": "Create a new publication from a template bundle (e.g. a starter editorial setup) and schedule private bundle exports to the site's backup storage, with retention, as the data half of disaster recovery.",
+  "type": "epic",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:20:59.138913Z",
+  "updated_at": "2026-10-21T03:20:59.138950Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

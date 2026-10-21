@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c00450ec-5808-421f-98bf-02771675ce21",
+  "issue_id": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T02:29:00.676Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Agent tools for Papyrus sites: remote MCP and WebMCP",
+    "description": "Follow-up to agent-readable pages (PPY-f172d7): expose search/read (and later authorized actions) to external agents via a remote MCP server per site, and evaluate WebMCP for in-browser agents. Builds on the newsroom CLI/GraphQL surface. Not started.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

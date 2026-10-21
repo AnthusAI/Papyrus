@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "00f74b37-f1b4-4428-aba1-ed94ef0b7753",
+  "issue_id": "PPY-7cf750be-11fe-4874-a9ac-a7fc4ec121ae",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:16:30.075Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "CLI credentials: refreshed SSO sessions not picked up",
+    "description": "After aws sso login, the aws CLI worked but the papyrus CLI (botocore in the papyrus-newsroom environment) still failed with 'Token has expired and refresh failed'; exporting credentials with aws configure export-credentials worked around it. Check the botocore/boto3 pin and SSO token cache handling, and make the error message suggest the fix.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": []
+  }
+}

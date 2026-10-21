@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0d99a4d5-b8e3-47e4-bf62-918ba8d42dee",
+  "title": "M3 Export and import in Administration",
+  "description": "An Administration page to download a bundle (choose kinds, personal data excluded by default) and to upload one, showing the dry-run plan before anything is written. Admin only.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:20:59.072296Z",
+  "updated_at": "2026-10-21T03:20:59.072329Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

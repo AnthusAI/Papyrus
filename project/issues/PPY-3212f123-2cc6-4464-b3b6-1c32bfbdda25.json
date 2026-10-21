@@ -177,10 +177,34 @@
         "model": "claude-sonnet-5-5",
         "name": "router-worker"
       }
+    },
+    {
+      "id": "b03890b4-5225-4ca4-8196-7c12db5821d1",
+      "author": "home",
+      "text": "Status 2026-10-21 (loop wiring). Changed: standing run 566df5dc created in the Anthus AI Solutions Cyclotron account by Cyclotron's own bootstrap logic using operator credentials, owner person recorded; 37 of the 50 preserved decisions imported and natively primed (received 37, catalog-accepted 37, native-applied 37: Anth.us 14, p.apyr.us 11, Threat Intelligence 12; 13 Pilobolus decisions skipped, no Cyclotron). Cyclotron v0.30.0 deployed with standing runs, a machine route, and a worker read of the provider key from Secrets Manager (name cyclotron/providers/openai, absent, fails closed). Papyrus router deployed in dry-run (PR 417, 406). Evidence: signed machine call from the router role reached Cyclotron and was refused only because live decisions are off (HTTP 503); dry-run request bodies validated for 5 items. Live decisions remain off pending the owner's own confirmation and the key. Next: key in Secrets Manager, AllowLive=true, router mode=live, then feedback flag.",
+      "created_at": "2026-10-21T02:39:19.978159Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "Claude Code"
+      }
+    },
+    {
+      "id": "d74d3cf2-bf3d-4595-af58-f796750dd539",
+      "author": "home",
+      "text": "Live switched on 2026-10-21. Cyclotron stack parameter AllowLive=true (change set limited to the function environments); router mode=live and feedback=true in the monitoring table. With the provider key secret absent, a router run stopped with provider_key_unavailable: zero provider calls, items stay collected. Trust boundary for feedback: Cyclotron authenticates only the Papyrus router role (via the machine invoker role); the editor identity (user:<sub> from the Reference curation actor, site name) is asserted by Papyrus and recorded by Cyclotron as asserted, not verified. Feedback applies only to that publication's own output, is idempotent per request, and triggers no optimizer or provider call. Ceilings: 300 total, 100 per day, 300 items. Next: once the secret exists, one bounded pass, then verify delivery into each References queue and one editor decision flowing back.",
+      "created_at": "2026-10-21T02:41:37.042721Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "Claude Code"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-21T02:11:20.640511Z",
+  "updated_at": "2026-10-21T02:41:37.042776Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

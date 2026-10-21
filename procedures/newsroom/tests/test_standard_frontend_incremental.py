@@ -104,7 +104,9 @@ class StandardIncrementalEqualsFullTests(unittest.TestCase):
                     state = read_item_state(site.store, item_id)
                     own = set(state.page_keys) | set(state.former_page_keys) if state else set()
                     if name != "rename" and hooks is None:   # hooks may read any field, so their listings depend on all of them and may rewrite identical bytes. # a rename is two projections; pages the in-between state rewrote and the end state restored are legitimate
-                        self.assertEqual(touched - changed - own, set(), f"{context}: pages written that did not change")
+                        # llms-full.txt is keyed on item versions (a body edit is visible only there), so a republish that changes
+                        # only fields the file does not show rewrites it with identical bytes.
+                        self.assertEqual(touched - changed - own - {"llms-full.txt"}, set(), f"{context}: pages written that did not change")
                     before_pages = full_pages
         finally:
             incremental_site.SECTIONS = original

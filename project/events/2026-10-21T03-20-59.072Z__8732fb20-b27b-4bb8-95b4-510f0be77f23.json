@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8732fb20-b27b-4bb8-95b4-510f0be77f23",
+  "issue_id": "PPY-0d99a4d5-b8e3-47e4-bf62-918ba8d42dee",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:20:59.072Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M3 Export and import in Administration",
+    "description": "An Administration page to download a bundle (choose kinds, personal data excluded by default) and to upload one, showing the dry-run plan before anything is written. Admin only.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+    "labels": []
+  }
+}

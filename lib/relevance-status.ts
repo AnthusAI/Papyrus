@@ -52,10 +52,10 @@ export const DEMO_CYCLOTRON_STATUS: CyclotronStatus = {
   },
   calibration: { saysSure: null, isRight: null, gapPoints: null, curve: [] },
   reviewRate: {
-    state: "onboarding", rate: 1, reason: "Onboarding: every decision is reviewed until the cyclotron earns a lower rate.",
+    state: "onboarding", rate: 1, reason: "Getting started: every suggestion is reviewed until suggestions earn a lower review rate.",
     auditFloor: 0.05, confidenceThreshold: 0.7, override: null,
     nextCheckAfterDecisions: 99,
-    nextStep: "Steps down to 50% after 2 more windows of 100 decisions with accuracy on confident decisions of at least 85% (at least 20 reviewed) and a calibration gap under 5 points. Next check in 99 decisions.",
+    nextStep: "Steps down to 50% after 2 more windows of 100 decisions with accuracy on confident decisions of at least 85% (at least 20 reviewed) and a gap under 5 points between how sure suggestions say they are and how often they are right. Next check in 99 decisions.",
     expectedReviewsPerWeek: 1,
   },
   lastChange: null,

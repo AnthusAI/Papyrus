@@ -2,6 +2,7 @@ import { type ClientSchema, a } from "@aws-amplify/backend";
 import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
+import { monitoringViewSchemaDefinitions } from "../functions/monitoring-view/schema";
 import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
 import { manageUserRole } from "../functions/manage-user-role/resource";
@@ -2121,6 +2122,7 @@ const baseDefinitions = {
       allow.groups(contentWriteGroups),
     ]),
   ...editorialChecksSchemaDefinitions,
+  ...monitoringViewSchemaDefinitions,
 };
 
 export const schema = a.schema(baseDefinitions).authorization((allow) => [

@@ -40,6 +40,7 @@ class PageHead:
     noindex: bool = False
     json_ld_type: str | None = None   # "Article", "NewsArticle", ... or None for no JSON-LD
     breadcrumbs: tuple[tuple[str, str], ...] = ()   # (name, site path)
+    markdown_path: str | None = None   # site path of the page's Markdown twin
     extra: str = ""                # raw head markup appended last (the head_extra hook)
 
 
@@ -82,6 +83,8 @@ class HeadBuilder:
             lines.append(f'<link rel="alternate" type="application/rss+xml" title="{_q(feeds.title)}" href="/{_q(feeds.rss_path)}">')
         if "atom" in feeds.formats:
             lines.append(f'<link rel="alternate" type="application/atom+xml" title="{_q(feeds.title)}" href="/{_q(feeds.atom_path)}">')
+        if page.markdown_path:
+            lines.append(f'<link rel="alternate" type="text/markdown" href="{_q(page.markdown_path)}">')
         sitemap_path = "sitemap-index.xml" if settings.sitemap_style == "index" else "sitemap.xml"
         lines.append(f'<link rel="sitemap" type="application/xml" href="/{sitemap_path}">')
         if page.noindex or self.environment.guarded:

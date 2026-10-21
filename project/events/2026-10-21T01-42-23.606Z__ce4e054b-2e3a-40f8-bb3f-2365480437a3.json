@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ce4e054b-2e3a-40f8-bb3f-2365480437a3",
+  "issue_id": "PPY-670e8e53-0132-45c8-bfec-a1c4f98e4726",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T01:42:23.606Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Bump Cyclotron UI to ui-v0.2.3 and engine pin to v0.30.0",
+    "description": "Part of PPY-7227ac. Package ui-v0.2.3 (strings only); update tests asserting old strings; engine pin only if full CI stays green.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

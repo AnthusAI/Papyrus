@@ -96,6 +96,7 @@ class FakeCyclotron:
     def __init__(self, labels=None):
         self.calls, self.jobs = [], {}
         self.labels = labels or {}            # (itemId, pub) -> label; default include for all
+        self.confidence = {}                  # (itemId, pub) -> confidence the machine API reports
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
         self.pending_polls = 0
@@ -123,7 +124,8 @@ class FakeCyclotron:
         return 200, {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
                      "decision": {"decisionId": f"dec-{item}", "itemId": item, "classifiers": {
                          f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
-                                              "fingerprint": f"fp-{pub}", "version": 3}}},
+                                              "fingerprint": f"fp-{pub}", "version": 3,
+                                              **({"confidence": self.confidence[(item, pub)]} if (item, pub) in self.confidence else {})}}},
                      "outputs": [{"id": f"{pub}-relevance"}], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
 
     def posts(self):
@@ -303,6 +305,23 @@ def test_live_happy_path_one_shared_decision_and_per_publication_delivery(table)
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
+def test_decision_receipt_keeps_a_valid_confidence_for_the_monitoring_page(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    cyclotron.confidence = {("hn-101", "anth-us"): 0.91234, ("hn-101", "p-apyr-us"): 1.7, ("hn-101", "threat-intelligence"): "high"}
+    go(table, store, cyclotron)
+    publications = table.items[("MONITOR#hn", "ROUTE#101#000001")]["decision"]["publications"]
+    assert publications["anth-us"]["confidence"] == Decimal("0.9123")
+    assert "confidence" not in publications["p-apyr-us"] and "confidence" not in publications["threat-intelligence"]
+
+
+def test_ceilings_are_display_data_validated_and_ignored_by_routing():
+    base = router_config()
+    assert validate_router_config({**base, "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}})["mode"] == "live"
+    for bad in ({"decisionsTotal": 0}, {"decisionsPerDay": "many"}, {"items": -1}, {"surprise": 1}, "300"):
+        with pytest.raises(ValueError):
+            validate_router_config({**base, "ceilings": bad})
+
+
 def test_all_exclude_routes_without_delivery(table):
     store, cyclotron = setup_router(table, maxItemsPerRun=1)
     cyclotron.labels = {("hn-101", p): "exclude" for p in PUBS}
@@ -328,19 +347,33 @@ def test_post_refusals_stop_the_sweep_and_leave_items_collected_without_retry(ta
     assert "routed" in set(routing_of(table).values())
 
 
-@pytest.mark.parametrize("status,code", [(503, "provider_key_unavailable"), (429, "request_ceiling_reached"),
-                                         (507, "standing_capacity_reached"), (409, "run_busy")])
-def test_poll_refusals_stop_the_sweep_and_never_repost(table, status, code):
+def test_run_busy_poll_refusal_stops_the_sweep_and_never_reposts(table):
     store, cyclotron = setup_router(table)
-    cyclotron.poll_override["p-apyr-us"] = (status, {"code": code})
+    cyclotron.poll_override["p-apyr-us"] = (409, {"code": "run_busy"})
     result = go(table, store, cyclotron)
-    assert result["status"] == "stopped" and result["stoppedBy"] == code
+    assert result["status"] == "stopped" and result["stoppedBy"] == "run_busy"
     assert set(routing_of(table).values()) == {"collected"}
     posts = len(cyclotron.posts())
     cyclotron.poll_override.clear()
     go(table, store, cyclotron, now=3000)
     first = [c for c in cyclotron.posts() if c[2]["payload"]["item"]["id"] == "hn-101"]
     assert len(first) == 3 and len(cyclotron.posts()) > posts      # item 101 was not re-POSTed per publication
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+@pytest.mark.parametrize("status,code", [(503, "provider_key_unavailable"), (429, "request_ceiling_reached"),
+                                         (507, "standing_capacity_reached")])
+def test_non_consuming_poll_refusals_retry_under_a_new_request_id(table, status, code):
+    store, cyclotron = setup_router(table)
+    cyclotron.poll_override["p-apyr-us"] = (status, {"code": code})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == code
+    assert set(routing_of(table).values()) == {"collected"}
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["attempt"] == 1
+    cyclotron.poll_override.clear()
+    go(table, store, cyclotron, now=3000)
+    ids = [c[2]["requestId"] for c in cyclotron.posts() if c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == len(set(ids)) and len(ids) >= 3
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
@@ -624,3 +657,23 @@ def test_router_function_schedule_and_collector_isolation():
     assert template["RouterInvokeConfig"]["Properties"]["MaximumRetryAttempts"] == 0
     assert {"RouterErrorsAlarm", "RouterDeadLetterAlarm", "RouterLogGroup", "RouterDeadLetterQueue"} <= set(template)
     assert template["RouterLogGroup"]["Properties"]["RetentionInDays"] == 30
+
+
+def test_table_name_is_published_for_the_read_only_monitoring_page():
+    from papyrus_content.monitoring_view import TABLE_PARAMETER
+    parameter = _template()["Resources"]["TableNameParameter"]
+    assert parameter["Type"] == "AWS::SSM::Parameter"
+    assert parameter["Properties"]["Name"] == TABLE_PARAMETER
+    assert parameter["Properties"]["Value"] == ("Ref", "MonitoringTable")
+
+
+def test_seed_script_sets_and_clears_ceilings():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra" / "monitoring" / "seed_router_config.py")
+    seed = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed)
+    assert seed.coerce("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300") == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
+    assert seed.coerce("ceilings", "none") is None
+    for bad in ("300", "decisionsTotal=many", "=5"):
+        with pytest.raises(ValueError):
+            seed.coerce("ceilings", bad)

@@ -34,7 +34,7 @@ async function main() {
   const strip = renderToStaticMarkup(createElement(ReferenceCyclotronStatus, {
     status: DEMO_CYCLOTRON_STATUS, now: new Date("2026-05-18T12:00:00.000Z"),
   }));
-  for (const text of ["Version 1", "Agreement not measured yet", "Onboarding · 100% reviewed", "1 awaiting review",
+  for (const text of ["Agreement not measured yet", "Getting started · 100% reviewed", "1 awaiting review",
     "Status last updated 48 hours ago", "Suggestion details"]) {
     assert.ok(strip.includes(text), `strip shows: ${text}`);
   }

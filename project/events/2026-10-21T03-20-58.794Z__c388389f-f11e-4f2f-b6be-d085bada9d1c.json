@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c388389f-f11e-4f2f-b6be-d085bada9d1c",
+  "issue_id": "PPY-90e312f1-4720-4d32-9cd0-55e1622e8303",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:20:58.794Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Writing guidelines live beside the mission and policies in Administration",
+    "description": "As a publication admin, I manage the publication's writing guidelines (the Humanus policies: starter packs such as AI-writing tells, Federal Plain Language and ASD-STE100, plus our own) in the same Administration area as the editorial mission, the editorial policy and the section guidance, not on a separate panel. One editorial view shows, for the publication and for each section: the mission and policy prose, the section guidance, and the writing guidelines that apply (rule and judgment policies, severity, enabled, source starter:<pack> or custom), with the link between a prose policy and the judgment checks drafted from it (PPY-604f84). Admins can add a starter pack, edit, disable or retire a guideline, and try it on sample text. All of it is backend data (EditorialPolicy and doctrine records), never repo files, and is part of the publication export (see the publication data import/export initiative).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": []
+  }
+}

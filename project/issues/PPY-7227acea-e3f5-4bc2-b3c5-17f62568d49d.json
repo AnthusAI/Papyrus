@@ -10,9 +10,29 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "cb706dbd-0dda-4d7f-9859-082f9e7f4cd6",
+      "author": "home",
+      "text": "Plan (Claude Code). Tasks: PPY-02e694 (unified Add a reference entry point + specs), PPY-670e8e (Cyclotron ui-v0.2.3 / engine pin bump). Plan: (1) new ReferenceAddEntry wraps one 'Add a reference' section with 'Paste a URL' (existing #223 form, unchanged behaviour) and 'Import a file' (shared PrimingPanel) shown only when a curation session (or host priming prop) supplies priming; fail-closed otherwise. (2) Remove the second 'Add example references' section and the PrimingPanel mount from Publication curation. (3) Editor copy free of engine words. (4) Specs: cancel/reject commits nothing; web candidate preview shows full model_representation + provenance; no session = URL only. (5) Bump cyclotron to ui-v0.2.3, engine pin if CI stays green. No backend or server-route changes (PPY-58f107 route not built).",
+      "created_at": "2026-10-21T01:42:28.488514Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Sonnet 5.5",
+        "name": "Claude Code"
+      }
+    },
+    {
+      "id": "bb7f6015-11be-49a1-931c-e17e378f1d03",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/418 (branch feature/PPY-7227ac-add-a-reference) open against develop; not merged. Verification: typecheck, lint, npm test 121/121, build, pytest, behave green except 5 Keychain-login environmental failures (see PR).",
+      "created_at": "2026-10-21T02:04:15.951123Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-20T14:02:30.121815Z",
-  "updated_at": "2026-10-20T14:02:30.121864Z",
+  "updated_at": "2026-10-21T02:04:15.951156Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

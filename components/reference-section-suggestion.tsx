@@ -40,7 +40,7 @@ export function SectionSuggestionBlock({
     <section aria-label="Suggested Section" className="space-y-2 border-y border-foreground py-3" data-reference-section-suggestion={referenceLineageId}>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Suggested Section</h3>
       <p className="text-sm text-foreground">
-        The cyclotron suggests <span className="font-semibold">{titleOf(sections, suggestion.sectionId)}</span>
+        Papyrus suggests <span className="font-semibold">{titleOf(sections, suggestion.sectionId)}</span>
         {suggestion.confidence !== null ? ` (${formatPercentage(suggestion.confidence)})` : ""}.
       </p>
       {others.length ? (

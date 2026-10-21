@@ -6,7 +6,7 @@ import { primingStateText, type PrimingRequestView } from "../lib/relevance-stat
 export type PrimingFormInput = { url: string; label: string; explanation: string };
 
 /**
- * A compact "Add a reference" form for a pasted URL. The page is read in the
+ * The "Paste a URL" option of the Add a reference area. The page is read in the
  * background and the outcome is shown beside each added reference.
  */
 export function ReferenceCyclotronPriming({
@@ -36,7 +36,7 @@ export function ReferenceCyclotronPriming({
   }
 
   return (
-    <section aria-label="Add a reference" className="space-y-2 text-sm" data-reference-cyclotron-priming>
+    <div className="space-y-2 text-sm" data-reference-cyclotron-priming>
       <form
         className="flex flex-wrap items-end gap-3"
         onSubmit={(event) => {
@@ -45,7 +45,7 @@ export function ReferenceCyclotronPriming({
         }}
       >
         <label className="flex min-w-64 flex-1 flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Add a reference by URL</span>
+          <span className="text-xs text-muted-foreground">Web page address</span>
           <input
             aria-label="Reference URL"
             onChange={(event) => setUrl(event.target.value)}
@@ -79,6 +79,6 @@ export function ReferenceCyclotronPriming({
           ))}
         </ul>
       ) : null}
-    </section>
+    </div>
   );
 }
