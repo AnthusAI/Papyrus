@@ -69,6 +69,12 @@ Feature: The standard Markus front end
     And the standard page "llms-full.txt" says "Marsh orchids flower in June"
     And the standard site lacks these pages: "404.md, cycads.md"
 
+  Scenario: Markdown twins published by hand for static routes are listed in llms.txt and llms-full.txt
+    Given a standard site with hand-published routes that carry Markdown twins
+    Then the standard page "llms.txt" says "[Using the widget](https://example.org/docs/usage/index.md)"
+    And the standard page "llms.txt" does not say "docs/missing"
+    And the standard page "llms-full.txt" says "Add the script to a page."
+
   Scenario: Unpublishing withdraws the Markdown twin and the llms entries
     Given the standard flat fixture site
     When the standard item "item-moss" is unpublished and projected

@@ -460,6 +460,8 @@ environment publishes no `llms` files. Everything is regenerated on publish: a t
 title, summary or date changes, `llms-full.txt` whenever any item is republished (it is keyed on item versions, so a
 body edit is seen; a republish that changes no visible field rewrites it with identical bytes).
 
+**Hand-published routes.** A page copied verbatim with `static.copy` has no twin of its own. If the site also lists its route in `sitemap.extra` and ships the twin in the copied directory (`/docs/usage/` and `docs/usage/index.md`, or `/x.html` and `x.md`), `llms.txt` lists the twin under "Pages" with the title from its first `# ` heading, and `llms-full.txt` includes its text. The twin is the site's file: Papyrus does not generate it, and the HTML page should carry its own `<link rel="alternate" type="text/markdown">`.
+
 **Documentation sites** (`papyrus_content.markus_renderer.docs_site`, GitHub Pages) are a separate builder. When the site declares its public address (`--site-url` / `published_site_url`) it also publishes a `.md` twin beside each page, `/llms.txt`, `/llms-full.txt` (200 pages, 1,000,000 bytes), a `sitemap.xml` whose `lastmod` is the date of the last git commit of the source page, and a `robots.txt` with a `Sitemap:` line (an existing one is kept). Docs have no dated content, so no feeds, and no page actions. A site that stages its own content calls `write_sitemap_and_not_found_page(config, out, content_directory=staging)`.
 
 **Content negotiation.** The shared CloudFront viewer-request function rewrites a request whose `Accept` prefers
