@@ -22,7 +22,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
-PUBLICATION_ID = "threat-intelligence"
+PUBLICATION_ID = "publication-one"
 ACCOUNT_ID = "account-a"
 PERSON_ID = "person-a"
 BINDING_REVISION = "binding-1"
