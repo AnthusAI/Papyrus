@@ -330,11 +330,11 @@ a repository-built site keeps them in `projection.json` (`redirects`). Directori
 `forms` defines a public form as data: `fields` (`name`, `label`, `type` of `text`, `email`, `textarea` or `select`,
 `required`, `options`, `autocomplete`, `help`), a `honeypot` field name (default `website`), texts, and an `endpoint`
 (https or a site path). A custom page with `"form": "<id>"` shows it; a hook can place it with `page.form("<id>")`.
-With an endpoint, `_plugins/papyrus-form-v1.js` posts the fields as JSON plus `page` (the page path) and the honeypot
+With an endpoint, `_plugins/papyrus-form-v1.js` posts the fields as JSON to the endpoint with `?form=<id>` added, plus `page` (the page path) and the honeypot
 field, and reports success only for a 2xx answer (anything else shows `failureText`). **With `endpoint: null` the form
 is a disabled fieldset under a "not open yet" notice: nothing can be submitted and success is never faked.** The
-receiving endpoint (shared, rate-limited, bot-protected; submissions as newsroom Messages) is separate backend work
-(PPY-caf9be).
+receiving endpoint is built into every site's backend: set `endpoint` to its URL (the backend output
+`custom.publicForms.endpoint`); submissions arrive as newsroom Messages. See [public-forms.md](public-forms.md).
 
 ## Agent-readable pages
 

@@ -8,6 +8,7 @@ import { knowledgeQuery } from "../functions/knowledge-query/resource";
 import { manageUserRole } from "../functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "../functions/model-attachment-upload/resource";
 import { newsroomSummary } from "../functions/newsroom-summary/resource";
+import { publicForms } from "../functions/public-forms/resource";
 import { procedureAction } from "../functions/procedure-action/resource";
 import { readerSettings } from "../functions/reader-settings/resource";
 
@@ -2133,6 +2134,7 @@ export const schema = a.schema(baseDefinitions).authorization((allow) => [
   allow.resource(modelAttachmentUpload),
   allow.resource(newsroomSummary),
   allow.resource(procedureAction),
+  allow.resource(publicForms).to(["mutate"]),
 ]);
 
 /** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */
