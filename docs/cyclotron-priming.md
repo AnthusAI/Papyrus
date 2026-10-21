@@ -322,6 +322,9 @@ authorization.
   with that name is reused as-is, whatever its image or settings, so remove or rename a stale one to pick
   up new defaults. CrossRef consolidation is off unless `BIBLICUS_GROBID_CONSOLIDATE_HEADER` or
   `BIBLICUS_GROBID_CONSOLIDATE_CITATIONS` is set to a truthy value (`1`, `true`, `yes`, `on`).
+  `papyrus references process-fetch-url-text` runs its preflight through that same launcher
+  (`biblicus.grobid_runtime.ensure_grobid_running`); Papyrus has no launcher of its own, and `--grobid-url` only
+  chooses the endpoint that Biblicus then verifies or starts.
 - Human-input page (temporary loopback process, never a persistent service):
 
   ```sh

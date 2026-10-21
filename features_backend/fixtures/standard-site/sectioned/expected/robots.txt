@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ledger.example.org/sitemap-index.xml

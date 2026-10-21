@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "39f078a0-887b-4921-af63-d0b6c409b738",
+  "issue_id": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:44.694Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Framework marketing sites: shared header/footer and Markus prose (Chatticus, Tactus, Cyclotron-web)",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

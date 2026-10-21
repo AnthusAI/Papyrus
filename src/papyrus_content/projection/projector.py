@@ -28,6 +28,7 @@ from ..markus_renderer.pages import (
 from ..markus_renderer.consent import consent_mode_from_mapping
 from ..markus_renderer.shell import DEFAULT_CHROME, SiteChrome
 from ..markus_renderer.vendor_css import vendor_markus_css_text
+from .standard.config import STANDARD_KEYS
 from ..renditions import (
     IMAGES_SETTINGS_KEY,
     RenditionCatalog,
@@ -51,6 +52,7 @@ from .public_data import (
 )
 from .writers import request_paths_for_key
 
+STANDARD_SETTINGS_KEYS = STANDARD_KEYS
 HOME_PAGE_PATH = "index.html"
 PROJECTION_SETTINGS_FILE = "projection.json"
 SITE_THEME_PATH = "css/site-theme.css"
@@ -106,7 +108,10 @@ class MarkusProjectorSettings:
 
 
 def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
-    unknown = set(raw) - {"theme", "sections", "citations", "chrome", IMAGES_SETTINGS_KEY, PUBLIC_DATA_SETTINGS_KEY}
+    allowed = {"theme", "sections", "citations", "chrome", IMAGES_SETTINGS_KEY, PUBLIC_DATA_SETTINGS_KEY}
+    if "site" in raw:
+        allowed |= set(STANDARD_SETTINGS_KEYS)
+    unknown = set(raw) - allowed
     if unknown:
         raise ValueError(f"Unknown projection settings: {', '.join(sorted(unknown))}")
     chrome_raw = dict(raw.get("chrome") or {})
@@ -190,6 +195,10 @@ class MarkusSiteProjector:
     ) -> "MarkusSiteProjector":
         settings_path = static_directory / PROJECTION_SETTINGS_FILE if static_directory is not None else None
         raw = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path and settings_path.is_file() else {}
+        if "site" in raw:  # a 'site' object opts the project into the standard front end
+            from .standard.projector import StandardMarkusProjector
+
+            return StandardMarkusProjector.from_static_directory(static_directory, renditions=renditions, plugins=plugins)
         settings = dataclasses.replace(settings_from_mapping(raw), plugins=plugins)
         return cls(settings, read_static_files(static_directory, settings.theme), renditions=renditions)
 

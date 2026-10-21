@@ -10,11 +10,13 @@ import * as route53 from "aws-cdk-lib/aws-route53";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import type { Construct } from "constructs";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertValidPublicationConfig, type PapyrusPublicationConfig } from "../site-backend-config";
 import { addRenditionsFunction, type RenditionsFunction } from "./renditions-function";
 import { RENDITIONS_FUNCTION_NAME_ENV, type RenditionsPlan } from "./renditions-settings";
+import { compileRedirectFunctionSource, readEdgeRules } from "./redirect-rules";
 import { addInvalidationPathAlarm } from "./invalidation-alarm";
 import { distributionIdFromArn, s3ProjectionEnvironment, s3ProjectionPolicyStatements } from "./s3-projection-settings";
 
@@ -112,7 +114,9 @@ export function addS3ProjectionPublication(
   const keyValueStore = new cloudfront.KeyValueStore(scope, "RedirectsKeyValueStore");
   const redirectFunction = new cloudfront.Function(scope, "RedirectAndIndexFunction", {
     runtime: cloudfront.FunctionRuntime.JS_2_0,
-    code: cloudfront.FunctionCode.fromFile({ filePath: redirectFunctionSourcePath }),
+    code: cloudfront.FunctionCode.fromInline(
+      compileRedirectFunctionSource(readFileSync(redirectFunctionSourcePath, "utf8"), readEdgeRules(props.staticDir)),
+    ),
     keyValueStore,
   });
   const deadLetterQueue = new sqs.Queue(scope, "ProjectionDeadLetterQueue", {

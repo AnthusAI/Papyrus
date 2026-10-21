@@ -18,6 +18,7 @@ const { isDemoAmplifyOutputs } = require("../lib/demo-amplify-outputs.ts");
 const { getNewsroomDemoProfile } = require("../lib/newsroom-demo-profile.ts");
 const {
   getBrandAnalysisProfilesPath,
+  getBrandNewsroomSectionsConfigPath,
   getBrandSteeringConfigPath,
   resolveActiveSiteBrand,
 } = require("../lib/site-brand-tenant.ts");
@@ -167,6 +168,15 @@ assert.match(newsDeskPageSource, /createDemoCategorySteeringDashboard\(brand\.id
 assert.doesNotMatch(newsDeskPageSource, /BRAND_OVERRIDE_COOKIE/);
 
 (async () => {
+  // Data-driven sites keep steering/sections/analysis profiles in the backend: no path, no file lookup.
+  const dataDriven = { ...pilobolus, steeringConfigPath: undefined, newsroomSectionsConfigPath: undefined, analysisProfilesPath: undefined };
+  assert.equal(getBrandSteeringConfigPath(dataDriven), undefined);
+  assert.equal(getBrandAnalysisProfilesPath(dataDriven), undefined);
+  assert.equal(getBrandNewsroomSectionsConfigPath(dataDriven), undefined);
+  assert.deepEqual(await loadConfiguredCorpusSummaries(undefined), []);
+  assert.deepEqual(await require("../lib/category-repository.ts").loadAnalysisProfileSummaries(undefined), []);
+  assert.deepEqual(createDemoCategorySteeringDashboard("pilobol-us", undefined).newsroomSections, []);
+
   const pilobolusCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(pilobolus));
   assert.ok(pilobolusCorpora.some((corpus) => /Pilobolus Field Notes Corpus/.test(corpus.name)));
   assert.ok(!pilobolusCorpora.some((corpus) => /Threat Intelligence|Papyrus publication KB/i.test(corpus.name)));

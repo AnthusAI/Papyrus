@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7fc98851-05d9-41e9-b6d5-0d95cc0f145f",
+  "issue_id": "PPY-e329c386-d7f6-4079-a536-c5d54446ebe7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:48.695Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us onto the standard front end (production, gated phases)",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

@@ -67,8 +67,8 @@ function lines(text: string): string[] {
   return text.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
-/** The policy as Limatus sees it (its key is the policy id). Throws on invalid detector JSON. */
-function limatusPolicy(draft: Draft): Record<string, unknown> {
+/** The policy as Humanus sees it (its key is the policy id). Throws on invalid detector JSON. */
+function humanusPolicy(draft: Draft): Record<string, unknown> {
   const detectors = JSON.parse(draft.detectorsText || "[]") as unknown;
   if (!Array.isArray(detectors)) throw new Error("Detectors must be a JSON list.");
   const violates = lines(draft.violatesText);
@@ -133,7 +133,7 @@ export function EditorialChecksAdminPanel() {
       const key = draft.record.policyKey.trim();
       if (!POLICY_KEY.test(key)) throw new Error("The key must be lowercase letters, digits, dots, hyphens or underscores.");
       if (!draft.record.title.trim() || !draft.record.guidance.trim()) throw new Error("A policy needs a title and guidance.");
-      const policy = limatusPolicy(draft);
+      const policy = humanusPolicy(draft);
       const record: EditorialPolicyRecord = {
         ...draft.record,
         id: draft.isNew ? `${draft.record.scope}#${key}` : draft.record.id,
@@ -252,7 +252,7 @@ export function EditorialChecksAdminPanel() {
           <label>Examples that break it (one per line) <Textarea onChange={(event) => setDraft({ ...draft, violatesText: event.target.value })} rows={3} value={draft.violatesText} /></label>
           <label>Examples that follow it (one per line) <Textarea onChange={(event) => setDraft({ ...draft, compliesText: event.target.value })} rows={3} value={draft.compliesText} /></label>
           <label>
-            Detectors (JSON; see <code>limatus schema policy-pack-v1</code>)
+            Detectors (JSON; see <code>humanus schema policy-pack-v1</code>)
             <Textarea className="font-mono text-xs" onChange={(event) => setDraft({ ...draft, detectorsText: event.target.value })} rows={10} value={draft.detectorsText} />
           </label>
           <div className="flex flex-wrap gap-2">
@@ -293,7 +293,7 @@ export function EditorialChecksAdminPanel() {
             <Button
               disabled={working !== null || !tryText.trim()}
               onClick={() => run("try", async () => {
-                setTryResult(await tryPolicy(limatusPolicy(draft), tryText));
+                setTryResult(await tryPolicy(humanusPolicy(draft), tryText));
               })}
               size="sm"
               type="button"

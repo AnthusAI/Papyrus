@@ -42,7 +42,8 @@ before due. `--watch --max-runs 2` runs a bounded local scheduling loop.
 `--force` permits one explicit recovery run. No scheduler is installed. SQLite
 is only a private local worker checkpoint with a process lock; it is not a
 hosted or distributed storage design. Keep one worker/checkpoint per Monitor.
-The cloud deployment and distributed ownership remain separate work.
+The scheduled cloud collector (distributed lock, DynamoDB checkpoint) is
+described in [monitoring-cloud.md](monitoring-cloud.md).
 
 This worker requires explicit IAM operator selection. It never falls back from
 editorial user authentication. Editorial-session intake is owned by

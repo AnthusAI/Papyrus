@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dfeeaff2-5139-4ddb-85c0-74b4275f6661",
+  "issue_id": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:42.758Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate the small product and docs sites",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

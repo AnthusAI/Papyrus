@@ -2,7 +2,7 @@
 name: editorial-copyedit-cycle
 description: >
   Copy-edit a Papyrus article against the site's editorial policies with
-  `papyrus editorial check` and `papyrus editorial suggest` (Limatus). Use when
+  `papyrus editorial check` and `papyrus editorial suggest` (Humanus). Use when
   someone asks to check, lint or copy-edit a draft, wants the AI-writing tells
   found, or asks for rewrite options for a passage. Findings and options are
   advice; apply only what a person chose.
@@ -11,7 +11,7 @@ description: >
 # Editorial copy-edit cycle
 
 Papyrus keeps the publication's editorial policies in the CMS (Administration →
-Editorial checks: `EditorialPolicy`, `EditorialCheckSettings`). Limatus checks
+Editorial checks: `EditorialPolicy`, `EditorialCheckSettings`). Humanus checks
 drafts against them: rule policies (phrases, patterns, built-in checks) and
 judgment policies, which a decision model (TypeSafe Jev) answers sentence by
 sentence with a probability. Editors see the same findings in the article
@@ -29,7 +29,7 @@ editor, marked in the markup and on the preview.
 
   Omit `--section` for publication-only work, or use the context command's
   `--story`/`--assignment` selector to resolve the actual section. Doctrine and
-  Limatus rule controls are complementary; load both. Retain the effective
+  Humanus rule controls are complementary; load both. Retain the effective
   context hash and source revisions privately. A denied, missing, conflicting or
   ambiguous required context stops the pass; do not substitute seed YAML or
   escalate a failed user session to IAM. Explicit IAM operator access remains
@@ -38,7 +38,7 @@ editor, marked in the markup and on the preview.
   reasons private. Do not copy them into public source, fixtures, issues, logs,
   feeds or reader content. Synthetic test guidance is safe for public tests.
 - For explicitly offline file work, pass
-  `--pack pack.json` (a Limatus policy pack; `papyrus editorial pack` exports
+  `--pack pack.json` (a Humanus policy pack; `papyrus editorial pack` exports
   the site's private effective pack). File mode is not current hosted policy.
 - `TYPESAFE_API_KEY` for judgment policies (without it, rule policies still
   run and the result says the classifier lane is unavailable) and

@@ -3,7 +3,7 @@ Feature: Editorial checks
   Editors check an article against the publication's editorial policies and ask
   for rewrite options without leaving the newsroom. Admins keep the policies in
   Papyrus: they start from a starter pack, write their own, try them on sample
-  text, and recalibrate them from editors' decisions. Limatus does the checking;
+  text, and recalibrate them from editors' decisions. Humanus does the checking;
   Papyrus owns the policies, the settings and the decisions.
 
   Background:
@@ -22,11 +22,11 @@ Feature: Editorial checks
     Given the editorial check settings turn editorial checks off
     When an editor checks "This game-changing release." in section "engineering"
     Then the check is refused because editorial checks are turned off
-    And Limatus was not asked to check
+    And Humanus was not asked to check
 
   Scenario: Check an article against publication and section policies
     When an editor checks "This game-changing synergy ships going forward." in section "engineering"
-    Then the check result is a valid Limatus "check-result-v1" document
+    Then the check result is a valid Humanus "check-result-v1" document
     And the findings are for policies "no-hype, jargon"
 
   Scenario: Section policies apply only to their section
@@ -42,14 +42,14 @@ Feature: Editorial checks
   Scenario: Settings choose the lanes, the models and a deadline under the API timeout
     Given the editorial check settings turn the classifier on with a 12 second deadline
     When an editor checks "This game-changing release." in section "engineering"
-    Then Limatus was asked to run the classifier with a 12 second deadline
+    Then Humanus was asked to run the classifier with a 12 second deadline
     And the classifier lane status is reported
 
   Scenario: Editors' decisions with text travel as examples for the classifier
     Given editors have recorded 3 decisions with text on policy "no-hype"
     And the editorial check settings turn the classifier on with a 12 second deadline
     When an editor checks "This game-changing release." in section "engineering"
-    Then Limatus received 3 past decisions as examples
+    Then Humanus received 3 past decisions as examples
 
   Scenario: Ask for rewrite options for a finding
     Given the rewrite model will propose "This release cuts build times."

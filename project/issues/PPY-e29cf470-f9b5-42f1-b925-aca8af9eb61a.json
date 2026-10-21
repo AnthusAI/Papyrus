@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e29cf470-f9b5-42f1-b925-aca8af9eb61a",
+  "title": "Core standard front end (StandardMarkusProjector, projection.json, feeds, SEO, sitemap, listings, hooks)",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:22:37.214371Z",
+  "updated_at": "2026-10-21T00:22:37.214438Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

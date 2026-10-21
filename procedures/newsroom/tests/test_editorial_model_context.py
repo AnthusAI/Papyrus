@@ -87,9 +87,9 @@ def policy(key, scope, guidance):
                             'violation': {'answer': 'no'}, 'threshold': 0.8}])
 
 
-def test_actual_limatus_check_and_rewrite_prompts_receive_doctrine_and_rule_overlay():
+def test_actual_humanus_check_and_rewrite_prompts_receive_doctrine_and_rule_overlay():
     from papyrus_content.editorial_checks import Services, check_editorial, suggest_rewrite
-    from limatus.classifier_lane import DecisionAnswers
+    from humanus.classifier_lane import DecisionAnswers
     calls, prompts = [], []
     current = [context('a')]
     rows = [policy('shared', 'publication', 'BASE_RULE'), policy('shared', 'a', 'OVERRIDE_RULE'),
@@ -173,6 +173,19 @@ def test_graphql_edit_context_is_reloaded_and_bound_to_backend_publication(monke
     assert first['contextHash'] != second['contextHash'] and len(seen) == 4
 
 
+def test_graphql_edit_context_accepts_the_awsjson_string_the_deployed_resolver_returns(monkeypatch):
+    # The deployed Lambda returns JSON.stringify(pack) for an AWSJSON field, so AppSync delivers a JSON string
+    # whose content is the JSON document: the client must decode it to the document, not stop at the string.
+    from papyrus_content.editorial_checks import GraphQLEditorialStore
+    monkeypatch.delenv('PAPYRUS_TENANT_ID', raising=False)
+    def execute(query, variables):
+        if 'CanonicalEditorialPublication' in query:
+            return {'listKnowledgeCorporaByRoleAndName': {'items': [
+                {'id': 'knowledge-corpus-example', 'name': 'Example', 'role': 'canonical'}], 'nextToken': None}}
+        return {'getEditorialContext': json.dumps(json.dumps(context('a')))}
+    assert GraphQLEditorialStore(execute).get_editorial_context('a')['contextHash'] == context('a')['contextHash']
+
+
 def test_database_section_update_refreshes_its_classifier_and_selector_without_other_desk_leakage():
     from procedures.newsroom.tests.test_editorial_context import Records
     from papyrus_content.editorial_model_context import classification_model, CONTEXT_HASHES
@@ -210,7 +223,7 @@ def test_database_section_update_refreshes_its_classifier_and_selector_without_o
 def test_offline_pack_keeps_disabled_controls_out_of_check_and_rewrite_prompts(tmp_path, guidance):
     from papyrus_content.editorial_commands import PackFileStore
     from papyrus_content.editorial_checks import Services, check_editorial, suggest_rewrite, policy_from_record
-    from limatus.classifier_lane import DecisionAnswers
+    from humanus.classifier_lane import DecisionAnswers
     disabled = policy('disabled', 'publication', 'DISABLED_CONTROL_GUIDANCE')
     disabled['enabled'] = False
     payload = {'schemaVersion': 1, 'packId': 'synthetic', 'version': '1', 'policies': [

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e329c386-d7f6-4079-a536-c5d54446ebe7",
+  "title": "Anth.us onto the standard front end (production, gated phases)",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:22:48.695547Z",
+  "updated_at": "2026-10-21T00:22:48.695613Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

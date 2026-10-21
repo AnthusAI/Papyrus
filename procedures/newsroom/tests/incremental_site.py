@@ -70,7 +70,9 @@ class Draft:
         )
 
 
-def make_projector(kind: str):
+def make_projector(kind):
+    if callable(kind):
+        return kind()
     public_data = PublicDataSettings(latest_count=4, summary_characters=40) if kind == "public" else None
     settings = MarkusProjectorSettings(theme=DEFAULT_THEME, sections=("notes",), public_data=public_data)
     files = read_static_files(None, DEFAULT_THEME)
@@ -80,7 +82,7 @@ def make_projector(kind: str):
 class Site:
     """An incrementally maintained store next to the data it projects."""
 
-    def __init__(self, kind: str, work: Path) -> None:
+    def __init__(self, kind, work: Path) -> None:
         self.kind = kind
         self.work = work
         self.client = FakeAuthoringClient()
