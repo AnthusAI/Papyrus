@@ -74,9 +74,10 @@ def content_import_markus(flags: list[str]) -> None:
         print(f"content import-markus ({mode}): ok={payload['ok']}")
         for key in (
             "created", "updated", "unchanged", "skippedEditedInCms", "published",
-            "mediaUploaded", "mediaUnchanged", "readerOwnedAssets", "notInSource",
+            "mediaUploaded", "mediaUnchanged", "readerOwnedAssets",
         ):
             print(f"  {key}: {payload[key]}")
+        print(f"  board-only items (created on the board, not in the source; left untouched): {payload['notInSource']}")
         if "rebuild" in payload:
             print(f"  rebuild: {json.dumps(payload['rebuild'])}")
         for message in payload["errors"]:

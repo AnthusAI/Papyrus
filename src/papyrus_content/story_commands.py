@@ -9,7 +9,9 @@ from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .story_reporting import (
     STORY_MESSAGE_KINDS,
+    advance_stage,
     append_story_message,
+    move_story_stage,
     latest_story_version,
     link_reference_to_story,
     save_story_version,
@@ -34,7 +36,7 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
 
 
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name>"""
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance]"""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories save-version")
     lineage_id = _required_option(options, "story")
@@ -53,7 +55,12 @@ def stories_save_version(flags: list[str]) -> None:
     print(f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t{'write' if apply else 'dry run'}")
     if not apply:
         return
-    record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason)
+    stage = normalize_string(options.get("stage"))
+    if options.get("advance"):
+        if stage:
+            raise ValueError("Pass --stage or --advance, not both.")
+        stage = advance_stage(latest.get("stage"))
+    record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
 
 
@@ -150,3 +157,23 @@ def stories_create(flags: list[str]) -> None:
         from .assignments_workflow import create_reporting_assignment
 
         create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
+
+
+def stories_move(flags: list[str]) -> None:
+    """papyrus stories move --story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]"""
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories move")
+    lineage_id = _required_option(options, "story")
+    stage = _required_option(options, "stage")
+    from .content_item_lifecycle import require_content_item_stage
+
+    require_content_item_stage(stage)
+    print(f"stories\tmove\t{lineage_id}\t{stage}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        return
+    client, _ = create_authoring_client()
+    result = move_story_stage(
+        client, lineage_id, stage, actor=normalize_string(options.get("author-label")) or "papyrus-cli",
+        reason=normalize_string(options.get("reason")),
+    )
+    print(f"stories\tmove\t{'moved' if result['changed'] else 'unchanged'}\t{result['from']}\t{result['stage']}")

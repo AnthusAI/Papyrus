@@ -50,6 +50,15 @@ def load_dotenv() -> None:
 
 
 def amplify_outputs_path() -> Path:
+    """The site's amplify_outputs.json: PAPYRUS_SITE_ROOT, then the working directory, then the Papyrus root."""
+    candidates = []
+    site_root = os.environ.get("PAPYRUS_SITE_ROOT", "").strip()
+    if site_root:
+        candidates.append(Path(site_root))
+    candidates.append(Path.cwd())
+    for root in candidates:
+        if (root / "amplify_outputs.json").exists():
+            return root / "amplify_outputs.json"
     return PAPYRUS_ROOT / "amplify_outputs.json"
 
 
