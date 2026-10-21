@@ -46,11 +46,17 @@ class ReferenceIntake:
                 or provenance.get("sourceItemUrl") != item.source_item_url):
             raise ValueError("Discovery provenance does not match the source item")
         matches = []
+        addresses = {item.canonical_url}
+        for alias in item.aliases:
+            try:
+                addresses.add(canonical_url(alias))
+            except ValueError:
+                continue
         for row in self.client.list_records("Reference"):
             if row.get("corpusId") != self.monitor.corpus_id or row.get("versionState") not in {None, "current"}:
                 continue
             try:
-                same = canonical_url(row.get("sourceUri") or "") == item.canonical_url
+                same = canonical_url(row.get("sourceUri") or "") in addresses
             except ValueError:
                 same = False
             if same:
