@@ -15,7 +15,9 @@ import html
 import posixpath
 import re
 import shutil
+import subprocess
 import tempfile
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -219,15 +221,51 @@ def stage_generated_pages(staging_directory: Path) -> None:
     )
 
 
-def write_sitemap_and_not_found_page(config: DocsSiteConfig, output_directory: Path) -> None:
-    """Write ``sitemap.xml`` and a root ``404.html`` whose relative links resolve from any address."""
-    site_url = config.published_site_url
-    page_addresses = sorted(
+LLMS_FULL_MAX_PAGES = 200
+LLMS_FULL_MAX_BYTES = 1_000_000
+
+
+def git_commit_date(directory: Path, relative_path: str | None = None) -> str | None:
+    """The ISO date of the last commit touching a path (or the whole checkout), or None outside git."""
+    command = ["git", "-C", str(directory), "log", "-1", "--format=%cs"]
+    if relative_path is not None:
+        command += ["--", relative_path]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    date = completed.stdout.strip()
+    return date if completed.returncode == 0 and date else None
+
+
+def default_last_modified(config: DocsSiteConfig) -> str:
+    return git_commit_date(config.documentation_directory) or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def published_pages(output_directory: Path) -> list[str]:
+    return sorted(
         page.relative_to(output_directory).as_posix()
         for page in output_directory.rglob("*.html")
         if page.name not in ("404.html", f"{GENERATED_NOT_FOUND_NAME}.html") and not is_redirect_stub(page)
     )
-    sitemap_entries = "".join(f"<url><loc>{html.escape(site_url + address)}</loc></url>" for address in page_addresses)
+
+
+def write_sitemap_and_not_found_page(
+    config: DocsSiteConfig,
+    output_directory: Path,
+    content_directory: Path | None = None,
+    last_modified_by_address: dict[str, str] | None = None,
+) -> None:
+    """Write ``sitemap.xml`` (with ``lastmod``), a root ``404.html`` whose relative links resolve from any address, and,
+    when the staged content directory is given, the agent-readable outputs (Markdown twins, ``llms.txt``, ``llms-full.txt``, ``robots.txt``)."""
+    site_url = config.published_site_url
+    page_addresses = published_pages(output_directory)
+    fallback_date = default_last_modified(config)
+    dates = last_modified_by_address or {}
+    sitemap_entries = "".join(
+        f"<url><loc>{html.escape(site_url + address)}</loc><lastmod>{dates.get(address, fallback_date)}</lastmod></url>"
+        for address in page_addresses
+    )
     (output_directory / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>'
         f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{sitemap_entries}</urlset>',
@@ -240,6 +278,47 @@ def write_sitemap_and_not_found_page(config: DocsSiteConfig, output_directory: P
         encoding="utf-8",
     )
     not_found_page.unlink()
+    if content_directory is not None:
+        write_agent_outputs(config, output_directory, content_directory, page_addresses)
+
+
+def twin_text(staged_page: Path) -> tuple[str, str]:
+    """The Markdown twin's text (with a title heading) and the page title."""
+    text = staged_page.read_text(encoding="utf-8").strip()
+    title = next((line[2:].strip() for line in text.splitlines() if line.startswith("# ")), None)
+    if title is None:
+        title = staged_page.stem.replace("_", " ").replace("-", " ").title()
+        text = f"# {title}\n\n{text}"
+    return text + "\n", title
+
+
+def write_agent_outputs(
+    config: DocsSiteConfig, output_directory: Path, content_directory: Path, page_addresses: list[str]
+) -> None:
+    """Markdown twins beside the pages, ``/llms.txt``, ``/llms-full.txt`` and ``/robots.txt`` (kept when the site wrote one)."""
+    site_url = config.published_site_url
+    entries: list[tuple[str, str, str]] = []
+    for address in page_addresses:
+        twin_address = address.removesuffix(".html") + ".md"
+        staged_page = content_directory / twin_address
+        if not staged_page.is_file():
+            continue
+        text, title = twin_text(staged_page)
+        (output_directory / twin_address).write_text(text, encoding="utf-8")
+        entries.append((twin_address, title, text))
+    entries.sort(key=lambda entry: (entry[0] != INDEX_PAGE_PATH, entry[0]))
+    summary = config.tagline or f"Documentation for {config.site_name}."
+    links = "\n".join(f"- [{title}]({site_url}{address})" for address, title, _ in entries)
+    (output_directory / "llms.txt").write_text(
+        f"# {config.site_name}\n\n> {summary}\n\n## Documentation\n\n{links}\n", encoding="utf-8"
+    )
+    if 0 < len(entries) <= LLMS_FULL_MAX_PAGES:
+        full = "\n\n---\n\n".join(f"Source: {site_url}{address}\n\n{text.strip()}" for address, _, text in entries)
+        encoded = f"# {config.site_name}\n\n> {summary}\n\n{full}\n".encode("utf-8")
+        (output_directory / "llms-full.txt").write_bytes(encoded[:LLMS_FULL_MAX_BYTES])
+    robots = output_directory / "robots.txt"
+    if not robots.exists():
+        robots.write_text(f"User-agent: *\nAllow: /\n\nSitemap: {site_url}sitemap.xml\n", encoding="utf-8")
 
 
 def is_redirect_stub(page: Path) -> bool:
@@ -381,6 +460,17 @@ def write_redirects_from_former_urls(config: DocsSiteConfig, output_directory: P
         )
 
 
+def source_last_modified(config: DocsSiteConfig) -> dict[str, str]:
+    """Published page address to the date of the last commit that touched its source page."""
+    dates: dict[str, str] = {}
+    for source_page in source_documentation_pages(config):
+        relative_path = source_page.relative_to(config.documentation_directory).as_posix()
+        date = git_commit_date(config.documentation_directory, relative_path)
+        if date is not None:
+            dates[published_page_path(relative_path).removesuffix(".md") + ".html"] = date
+    return dates
+
+
 def build_docs_site(config: DocsSiteConfig, output_directory: Path) -> BuildResult:
     with tempfile.TemporaryDirectory(prefix="papyrus-docs-site-") as staging_name:
         staging_directory = Path(staging_name)
@@ -392,10 +482,15 @@ def build_docs_site(config: DocsSiteConfig, output_directory: Path) -> BuildResu
             site_css=config.site_stylesheet or DEFAULT_SITE_STYLESHEET,
             chrome=docs_site_chrome(config),
         )
-    if config.redirect_former_directory_urls:
-        write_redirects_from_former_urls(config, output_directory)
-    if config.published_site_url:
-        write_sitemap_and_not_found_page(config, output_directory)
+        if config.redirect_former_directory_urls:
+            write_redirects_from_former_urls(config, output_directory)
+        if config.published_site_url:
+            write_sitemap_and_not_found_page(
+                config,
+                output_directory,
+                content_directory=staging_directory,
+                last_modified_by_address=source_last_modified(config),
+            )
     return result
 
 
