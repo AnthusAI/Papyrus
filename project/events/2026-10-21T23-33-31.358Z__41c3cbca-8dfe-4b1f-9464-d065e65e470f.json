@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "41c3cbca-8dfe-4b1f-9464-d065e65e470f",
+  "issue_id": "PPY-b2e95d3d-d5b0-497a-b214-9248a86eea22",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T23:33:31.358Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Agent twins carry Markus source, not plain Markdown",
+    "description": "Ryan (2026-10-21): the agent-readable twins should be Markus (Anthus-flavoured Markdown), not Markus stripped down to plain Markdown. Raised by the Papyrus marketing redesign session.\n\nCurrent behaviour (develop, src/papyrus_content/projection/standard/):\n1. markdown.py body_of() rewrites every ::image{...} directive to plain ![alt](src), dropping layout, caption and sizes. Every other Markus directive passes through verbatim.\n2. blocks.py twin() drops ::band and ::column, flattens ::button into Markdown links, and omits ::island entirely, so interactive sections give agents nothing.\n3. The naming says 'Markdown' throughout: docs, page actions ('Copy Markdown', 'View as Markdown'), llms.txt and the text/markdown content type.\n\nWanted:\n- The twin keeps Markus directives verbatim: images with all attributes, and page blocks as written.\n- Islands get a text fallback that agents can read, e.g. a directive body or a summary/fallback attribute, carried into the twin and rendered for no-JS readers.\n- Decide the naming. Proposed: keep the .md extension and text/markdown content type for compatibility (Markus is a Markdown superset), but have docs, page-action labels and llms.txt say Markus where it adds meaning, e.g. 'Copy Markus' or 'View source (Markus)'. Ryan to confirm.\n- Related gap: page blocks are a Papyrus pre-pass, not Markus, so the CMS save path (Markus validation) rejects them and they only work for directory-of-files sites. Either move page blocks into Markus proper or let the CMS validator accept them.\n\nCoordinate with the Data Parade session (basePath work in projection/standard) and the Shipped work (hook-rendered item twins 404). Ends with a p.apyr.us docs update.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "papyrus-anthus"
+    }
+  }
+}
