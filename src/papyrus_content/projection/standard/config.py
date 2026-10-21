@@ -16,11 +16,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from .redirects import RedirectRule, rule_from_mapping
+from .select import Selection, selection_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands",
+    "values", "islands", "collections", "notFound",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -79,7 +80,8 @@ class SectionConfig:
     base: str
     label: str
     pages: bool = True
-    listing: bool = True
+    listing: bool = True              # the section's entries are listed: found by listings, tag pages, feeds and public data
+    listing_page: bool = True         # the section has a listing page of its own (False: a collection or a page is its listing)
     feed: bool = True
     sitemap: bool = True
     link_field: str = "url"
@@ -92,17 +94,47 @@ class SectionConfig:
 
 
 @dataclass(frozen=True)
-class CustomPage:
-    """A generated page whose body a hook composes (a tracker, a subscribe page)."""
+class NotFoundSettings:
+    """The 404 page: its title and description in the head, and whether it asks search engines to leave it out."""
+
+    title: str = "Page not found"
+    description: str = ""
+    noindex: bool = True
+
+
+@dataclass(frozen=True)
+class CollectionConfig:
+    """A listing defined by a selection (tags, sections) instead of by a CMS section: ``/<base>/``, then ``/<base>/page/N/``."""
 
     id: str
-    path: str
+    base: str
+    label: str
+    select: Selection
+    description: str = ""
+    page_size: int | None = None      # None: the site's listings.pageSize
+    featured_count: int | None = None # None: the site's listings.featuredCount
+    sort: str = "date"                # "date" (newest first), "order" (front matter order, then title) or "title"
+    ties: str = "slug-desc"           # sort "date" with equal dates: "slug-desc" or "slug-asc"
+    drafts: bool = False              # the view of page 1 also carries the draft entries the selection matches
+    sitemap: bool = True
+    sitemap_pages: bool = False       # every page of the collection is in the sitemap, not only the first
+    list_empty: bool = False
+
+
+@dataclass(frozen=True)
+class CustomPage:
+    """A generated page whose body a hook composes (a tracker, a subscribe page), or an authored page file."""
+
+    id: str
+    path: str                         # "" is the home page
     title: str
     description: str = ""
     depends_on: tuple[str, ...] = ("*",)
     sitemap: bool = True
     noindex: bool = False
     form: str | None = None           # the id of a ``forms`` entry the default body shows
+    source: str | None = None         # a Markus page file in the static directory; see ``includes.py``
+    image: str | None = None          # the page's share image, a site path
 
 
 @dataclass(frozen=True)
@@ -170,6 +202,12 @@ class ListingSettings:
     tags: bool = True
     tag_base: str = "tags"
     types: tuple[str, ...] = ("article",)
+    tag_select: Selection = field(default_factory=Selection)  # which entries the tag pages and the tag index cover
+    tag_page_size: int | None = None  # None: pageSize and featuredCount; 0: every entry of a tag on one page
+    page_suffix: str = " — page {page}"   # appended to the title of page 2 and later of a listing
+    tag_title: str = "Tagged {tag}"       # the title and heading of a tag page
+    draft_field: str = ""             # a front matter field whose value (draft_values) marks an item as a draft
+    draft_values: tuple[str, ...] = ("draft",)
 
 
 @dataclass(frozen=True)
@@ -269,6 +307,8 @@ class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
     sections: tuple[SectionConfig, ...] = ()
+    collections: tuple[CollectionConfig, ...] = ()
+    not_found: NotFoundSettings = field(default_factory=NotFoundSettings)
     exact_redirects: tuple[tuple[str, str], ...] = ()
     pattern_redirects: tuple[RedirectRule, ...] = ()
     nav: tuple[NavLink, ...] = ()
@@ -310,6 +350,9 @@ class StandardSettings:
 
     def section(self, name: str | None) -> SectionConfig | None:
         return next((section for section in self.sections if section.name == name), None)
+
+    def collection(self, collection_id: str | None) -> CollectionConfig | None:
+        return next((collection for collection in self.collections if collection.id == collection_id), None)
 
     def edge_rules(self) -> tuple[RedirectRule, ...]:
         """Pattern rules plus, for directory URLs, ``/x.html`` to ``/x/``; compiled into the edge function."""
@@ -364,7 +407,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort"}, f"urls.sections.{section_name}")
+        _only(entry, {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort"}, f"urls.sections.{section_name}")
         if entry.get("sort", "date") not in ("date", "order"):
             raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
         group_by = entry.get("groupBy")
@@ -388,6 +431,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 label=str(entry.get("label") or section_name.replace("-", " ").title()),
                 pages=bool(entry.get("pages", True)),
                 listing=bool(entry.get("listing", True)),
+                listing_page=bool(entry.get("listingPage", True)),
                 feed=bool(entry.get("feed", True)),
                 sitemap=bool(entry.get("sitemap", True)),
                 link_field=str(entry.get("linkField", "url")),
@@ -488,7 +532,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError("feeds.count must be positive")
 
     listings = dict(raw.get("listings") or {})
-    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types"}, "listings")
+    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle"}, "listings")
+    draft_raw = dict(listings.get("draft") or {})
+    _only(draft_raw, {"field", "values"}, "listings.draft")
     listing_defaults = ListingSettings()
     listing_settings = ListingSettings(
         page_size=int(listings.get("pageSize", listing_defaults.page_size)),
@@ -498,7 +544,15 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         tags=bool(listings.get("tags", True)),
         tag_base=_path_segment(str(listings.get("tagBase", "tags")), "listings.tagBase"),
         types=tuple(listings.get("types", listing_defaults.types)),
+        tag_select=selection_from_mapping(listings.get("tagSelect"), "listings.tagSelect"),
+        tag_page_size=int(listings["tagPageSize"]) if listings.get("tagPageSize") is not None else None,
+        page_suffix=str(listings.get("pageSuffix", listing_defaults.page_suffix)),
+        tag_title=str(listings.get("tagTitle", listing_defaults.tag_title)),
+        draft_field=str(draft_raw.get("field", "")),
+        draft_values=tuple(str(value) for value in draft_raw.get("values", listing_defaults.draft_values)),
     )
+    if listing_settings.tag_page_size is not None and listing_settings.tag_page_size < 0:
+        raise ValueError("listings.tagPageSize must not be negative (0 puts every entry of a tag on one page)")
     if listing_settings.page_size < 1 or listing_settings.featured_count < 0:
         raise ValueError("listings.pageSize must be positive and featuredCount must not be negative")
     if any(section.page_size is not None and section.page_size < 1 for section in sections):
@@ -512,9 +566,46 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     environment = dict(raw.get("environment") or {})
     _only(environment, {"guard"}, "environment")
 
+    collections = []
+    for entry in raw.get("collections") or ():
+        _only(entry, {"id", "base", "label", "select", "description", "pageSize", "featuredCount", "sort", "ties", "drafts", "sitemap", "sitemapPages", "listEmpty"}, "collections")
+        collection_id = str(entry.get("id", ""))
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", collection_id) or any(c.id == collection_id for c in collections):
+            raise ValueError(f"collections need a unique lowercase id, got {collection_id!r}")
+        base = _path_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
+        if not base or any(base == section.base and section.listing_page for section in sections):
+            raise ValueError(f"collections.{collection_id}.base must be a path that no section uses")
+        if str(entry.get("sort", "date")) not in ("date", "order", "title") or str(entry.get("ties", "slug-desc")) not in ("slug-desc", "slug-asc"):
+            raise ValueError(f"collections.{collection_id}: sort is date, order or title; ties is slug-desc or slug-asc")
+        collection = CollectionConfig(
+            id=collection_id,
+            base=base,
+            label=str(entry.get("label") or collection_id.replace("-", " ").title()),
+            select=selection_from_mapping(entry.get("select"), f"collections.{collection_id}.select"),
+            description=str(entry.get("description", "")),
+            page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
+            featured_count=int(entry["featuredCount"]) if entry.get("featuredCount") is not None else None,
+            sort=str(entry.get("sort", "date")),
+            ties=str(entry.get("ties", "slug-desc")),
+            drafts=bool(entry.get("drafts", False)),
+            sitemap=bool(entry.get("sitemap", True)),
+            sitemap_pages=bool(entry.get("sitemapPages", False)),
+            list_empty=bool(entry.get("listEmpty", False)),
+        )
+        if (collection.page_size is not None and collection.page_size < 1) or (collection.featured_count is not None and collection.featured_count < 0):
+            raise ValueError(f"collections.{collection_id}: pageSize must be positive and featuredCount must not be negative")
+        collections.append(collection)
+    not_found_raw = dict(raw.get("notFound") or {})
+    _only(not_found_raw, {"title", "description", "noindex"}, "notFound")
+    not_found_defaults = NotFoundSettings()
+    not_found = NotFoundSettings(
+        title=_text(not_found_raw, "title", not_found_defaults.title),
+        description=_text(not_found_raw, "description"),
+        noindex=bool(not_found_raw.get("noindex", True)),
+    )
     custom = []
     for entry in raw.get("pages") or ():
-        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form"}, "pages")
+        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form", "source", "image"}, "pages")
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
@@ -525,6 +616,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 sitemap=bool(entry.get("sitemap", True)),
                 noindex=bool(entry.get("noindex", False)),
                 form=entry.get("form"),
+                source=str(entry["source"]) if entry.get("source") else None,
+                image=str(entry["image"]) if entry.get("image") else None,
             )
         )
     components = dict(raw.get("components") or {})
@@ -616,6 +709,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         identity=identity,
         url_style=style,
         sections=tuple(sections),
+        collections=tuple(collections),
+        not_found=not_found,
         exact_redirects=tuple(sorted(exact)),
         pattern_redirects=patterns,
         nav=_links(nav.get("links"), "nav.links", groups=True),
