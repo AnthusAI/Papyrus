@@ -527,7 +527,7 @@ def main(page):
 def test_the_main_hook_replaces_the_inside_of_main_and_keeps_the_standard_header_and_footer():
     pages = [{"id": "shared", "path": "results/shared", "title": "Shared results", "description": "One result.", "dependsOn": [],
               "image": "/og/shared.png", "imageAlt": "A card about results", "socialTitle": "The results, in one line"}]
-    settings = {**fixture_settings("sectioned"), "hooks": "hooks.py", "pages": pages, "seo": {"imageSize": [1200, 630]}}
+    settings = {**fixture_settings("sectioned"), "hooks": "hooks.py", "pages": pages, "seo": {"imageSize": [1200, 630], "defaultImage": "/og/home.png", "defaultImageAlt": "The home card", "homeSocialTitle": "Home, in one line"}}
     site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content", extra_files={"hooks.py": MAIN_HOOK})
     try:
         page = site.text("results/shared/index.html")
@@ -540,6 +540,8 @@ def test_the_main_hook_replaces_the_inside_of_main_and_keeps_the_standard_header
         assert '<meta property="og:image:alt" content="A card about results">' in page
         assert '<meta name="twitter:image:alt" content="A card about results">' in page
         assert '<div id="gone">nothing here</div>' in site.text("404.html")
+        assert '<meta property="og:image:alt" content="The home card">' in site.text("404.html")
+        assert '<meta property="og:title" content="Home, in one line">' in site.text("index.html")      # a page on the default image takes its alt text
         assert "Fords and Crossings" in site.text("essays/index.html")          # a hook that returns None keeps the default
     finally:
         site.cleanup()

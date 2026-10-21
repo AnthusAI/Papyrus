@@ -146,6 +146,8 @@ class IslandSettings:
 @dataclass(frozen=True)
 class SeoSettings:
     default_image: str | None = None
+    default_image_alt: str = ""
+    home_social_title: str = ""
     image_width: int | None = None
     image_height: int | None = None
     twitter_site: str = ""
@@ -451,12 +453,14 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         columns.append(FooterColumn(str(column.get("title", "")), _links(column.get("links"), "footer.columns.links")))
 
     seo = dict(raw.get("seo") or {})
-    _only(seo, {"defaultImage", "imageSize", "twitterSite", "twitterCreator", "jsonLdTypes", "defaultJsonLd", "publisherName", "breadcrumbs"}, "seo")
+    _only(seo, {"defaultImage", "defaultImageAlt", "homeSocialTitle", "imageSize", "twitterSite", "twitterCreator", "jsonLdTypes", "defaultJsonLd", "publisherName", "breadcrumbs"}, "seo")
     size = seo.get("imageSize")
     if size is not None and (len(size) != 2 or not all(isinstance(number, int) for number in size)):
         raise ValueError("seo.imageSize must be [width, height]")
     seo_settings = SeoSettings(
         default_image=seo.get("defaultImage"),
+        default_image_alt=str(seo.get("defaultImageAlt", "")),
+        home_social_title=str(seo.get("homeSocialTitle", "")),
         image_width=size[0] if size else None,
         image_height=size[1] if size else None,
         twitter_site=_text(seo, "twitterSite"),

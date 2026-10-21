@@ -330,7 +330,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 [self._fingerprints(home_entries), self._section_links()],
                 lambda: self._page(
                     "home",
-                    PageHead(title=self.standard.identity.name, path="/", description=self.standard.identity.description),
+                    PageHead(title=self.standard.identity.name, path="/", description=self.standard.identity.description, social_title=self.standard.seo.home_social_title),
                     site, entries=tuple(listed), listing=ListingView("", self.standard.home_link_label, home_entries, tuple(listed), 1, 1),
                 ),
             )

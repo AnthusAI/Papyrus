@@ -111,22 +111,23 @@ class HeadBuilder:
             lines.append(f'<meta property="og:description" content="{_q(description)}">')
         if own_url:
             lines.append(f'<meta property="og:url" content="{_q(canonical or own_url)}">')
+        image_alt = page.image_alt or (seo.default_image_alt if image and image == self.absolute(seo.default_image) else "")
         size = page.image_size or ((seo.image_width, seo.image_height) if seo.image_width and seo.image_height else None)
         if image:
             lines.append(f'<meta property="og:image" content="{_q(image)}">')
             if size:
                 lines.append(f'<meta property="og:image:width" content="{size[0]}">')
                 lines.append(f'<meta property="og:image:height" content="{size[1]}">')
-            if page.image_alt:
-                lines.append(f'<meta property="og:image:alt" content="{_q(page.image_alt)}">')
+            if image_alt:
+                lines.append(f'<meta property="og:image:alt" content="{_q(image_alt)}">')
         lines.append(f'<meta name="twitter:card" content="{"summary_large_image" if image else "summary"}">')
         lines.append(f'<meta name="twitter:title" content="{_q(social_title)}">')
         if description:
             lines.append(f'<meta name="twitter:description" content="{_q(description)}">')
         if image:
             lines.append(f'<meta name="twitter:image" content="{_q(image)}">')
-            if page.image_alt:
-                lines.append(f'<meta name="twitter:image:alt" content="{_q(page.image_alt)}">')
+            if image_alt:
+                lines.append(f'<meta name="twitter:image:alt" content="{_q(image_alt)}">')
         if seo.twitter_site:
             lines.append(f'<meta name="twitter:site" content="{_q(seo.twitter_site)}">')
         if seo.twitter_creator:

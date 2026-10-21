@@ -33,7 +33,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
-| `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
+| `seo` | `defaultImage`, `defaultImageAlt` (its alt text, used when a page's share image is the default), `homeSocialTitle` (the generated home page's og/twitter title when it differs from the site name), `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
