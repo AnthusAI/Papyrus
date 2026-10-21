@@ -11,6 +11,8 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
 ``head_extra(page) -> str``         raw markup appended to ``<head>``
 ``body_class(page) -> str``         classes added to ``<body>`` after the site's ``chrome.body_class``
 ``item_decorator(html, summary) -> str``   the converted article fragment, before it is placed in the page
+``main(page) -> str | None``        the inside of ``<main>`` (after the breadcrumbs), for any page kind; the standard skip link,
+                                    masthead and footer stay. ``None`` keeps the default.
 ``page_body(page) -> str | None``   the whole body of a page (everything between ``<body>`` and the scripts);
                                     ``None`` keeps the default. ``page.kind`` says which page it is.
 
@@ -56,7 +58,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 HOOK_NAMES = (
-    "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "page_body", "derive",
+    "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "main", "page_body", "derive",
     "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head",
 )
 
@@ -69,6 +71,7 @@ class Hooks:
     head_extra: object = None
     body_class: object = None
     item_decorator: object = None
+    main: object = None
     page_body: object = None
     derive: object = None
     item_filter: object = None
@@ -86,12 +89,12 @@ class Hooks:
     @property
     def sees_the_site(self) -> bool:
         """True when a hook is handed ``page`` (and so every entry and summary of the site)."""
-        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.body_class, self.page_body, self.block, self.page_finish, self.page_head))
+        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.body_class, self.main, self.page_body, self.block, self.page_finish, self.page_head))
 
     @property
     def renders_listings(self) -> bool:
         """True when a hook may read any entry field, so listings depend on all of them."""
-        return any(hook is not None for hook in (self.card, self.page_body, self.block))
+        return any(hook is not None for hook in (self.card, self.main, self.page_body, self.block))
 
 
 NO_HOOKS = Hooks()

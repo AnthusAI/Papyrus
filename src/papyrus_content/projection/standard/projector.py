@@ -377,7 +377,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 [self._fingerprints(home_entries), self._section_links()],
                 lambda: self._page(
                     "home",
-                    PageHead(title=self.standard.identity.name, path="/", description=self.standard.identity.description),
+                    PageHead(title=self.standard.identity.name, path="/", description=self.standard.identity.description, social_title=self.standard.seo.home_social_title),
                     site, entries=tuple(listed), listing=ListingView("", self.standard.home_link_label, home_entries, tuple(listed), 1, 1),
                 ),
             )
@@ -476,7 +476,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 f"custom:{custom.id}",
                 digest_input,
                 lambda custom=custom, path=path: self._custom_page(
-                    custom, PageHead(title=custom.title, path=path, description=custom.description or self.standard.identity.description, noindex=custom.noindex, image=custom.image),
+                    custom, PageHead(title=custom.title, path=path, description=custom.description or self.standard.identity.description, noindex=custom.noindex, image=custom.image, image_alt=custom.image_alt, social_title=custom.social_title),
                     site, listed,
                 ),
                 markdown=not custom.noindex,
@@ -1011,6 +1011,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _main_html(self, page: StandardPage) -> str:
         identity = self.standard.identity
+        if self.hooks.main is not None:
+            custom = self.hooks.main(page)
+            if custom is not None:
+                return custom
         if page.kind == "item":
             entry = page.entry
             extras = []
