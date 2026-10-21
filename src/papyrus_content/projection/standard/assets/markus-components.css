@@ -22,3 +22,37 @@
 .markus-form-field :is(input, textarea, select) { font: inherit; padding: .5rem; max-width: 100%; }
 .markus-form-trap { position: absolute; left: -9999px; }
 .markus-form-status.is-error { color: var(--papyrus-error, #b00020); }
+.markus-band { padding: var(--papyrus-band-padding, 3rem 1rem); background: var(--papyrus-band-bg, transparent); }
+.markus-band[data-tone="card"] { background: var(--papyrus-band-card-bg, var(--papyrus-band-bg, transparent)); }
+.markus-band[data-tone="muted"] { background: var(--papyrus-band-muted-bg, var(--papyrus-band-bg, transparent)); }
+.markus-band[data-size="hero"] { padding-block: var(--papyrus-band-hero-padding, 5rem); }
+.markus-band-inner { max-width: var(--papyrus-band-width, 72rem); margin: 0 auto; }
+.markus-band-eyebrow { margin: 0 0 .5rem; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.markus-columns { display: grid; gap: 2rem; }
+.markus-columns:not([data-count="1"]) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+.markus-column[data-panel="card"] { padding: 1.5rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: var(--papyrus-radius, .5rem); }
+.markus-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.markus-button { display: inline-block; padding: .6rem 1.1rem; border: 1px solid transparent; border-radius: var(--papyrus-radius, .5rem); background: var(--papyrus-button-bg, var(--papyrus-ink, #000)); color: var(--papyrus-button-ink, var(--papyrus-bg, #fff)); font-weight: 600; text-decoration: none; }
+.markus-button[data-size="lg"] { padding: .85rem 1.5rem; font-size: 1.1rem; }
+.markus-button[data-variant="secondary"] { background: transparent; border-color: currentColor; color: inherit; }
+.markus-nav-group > summary { cursor: pointer; }
+.markus-nav-group-links { display: grid; gap: .5rem; padding: .5rem 0 .5rem 1rem; }
+@media (min-width: 40.01rem) {
+  .markus-nav-group { position: relative; display: inline-block; }
+  .markus-nav-group-links { position: absolute; top: 100%; left: 0; z-index: 10; min-width: 12rem; padding: .75rem 1rem; background: var(--papyrus-bg, #fff); border: 1px solid var(--papyrus-rule, currentColor); border-radius: var(--papyrus-radius, .5rem); }
+  .markus-nav-group:hover::details-content { content-visibility: visible; }
+  .markus-nav-group:focus-within::details-content { content-visibility: visible; }
+}
+.papyrus-family-footer { width: 100%; box-sizing: border-box; padding: 1.5rem 1rem; background: var(--papyrus-family-footer-background, #27213a); color: var(--papyrus-family-footer-text, #f7f4ff); font-family: var(--papyrus-family-footer-font-family, inherit); }
+.papyrus-family-footer-shell { max-width: var(--papyrus-family-footer-max-width, 1120px); margin: 0 auto; }
+.papyrus-family-footer a { color: var(--papyrus-family-footer-link, #f7f4ff); font-weight: 600; text-decoration: none; }
+.papyrus-family-footer-community { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem 1rem; margin-bottom: 1rem; font-size: .95rem; }
+.papyrus-family-footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.papyrus-family-footer-brand, .papyrus-family-footer-column { padding: 1.25rem; border-radius: var(--papyrus-family-footer-radius, 8px); background: var(--papyrus-family-footer-panel-background, #332b49); }
+.papyrus-family-footer-brand { background: var(--papyrus-family-footer-accent-background, #3c3357); }
+.papyrus-family-footer-eyebrow { display: inline-block; margin-bottom: .5rem; color: var(--papyrus-family-footer-muted-text, #cbbfef); font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.papyrus-family-footer-heading { margin: 0 0 .75rem; font-size: 1.1rem; }
+.papyrus-family-footer-column .papyrus-family-footer-heading { font-size: 1rem; }
+.papyrus-family-footer-brand p { margin: 0; line-height: 1.6; }
+.papyrus-family-footer-column ul { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.papyrus-family-footer-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1rem; margin-top: 1rem; padding-top: 1rem; color: var(--papyrus-family-footer-muted-text, #cbbfef); font-size: .9rem; }

@@ -1,0 +1,135 @@
+{
+  "_comment": "Canonical Anthus site registry and footer defaults. The other consumer is the npm package anthus-footer (github.com/AnthusAI/anthus-footer: src/sites.js and defaultCommunityLinks in src/index.js); keep the two in step.",
+  "communityLinks": [
+    {
+      "label": "Contact us",
+      "href": "https://docs.google.com/forms/d/e/1FAIpQLSdWlt4KpwPSBHzg3o8fikHcfrzxo5rCcV-0-zDt815NZ1tcyg/viewform?usp=sf_link"
+    },
+    {
+      "label": "GitHub",
+      "href": "https://github.com/AnthusAI"
+    },
+    {
+      "label": "LinkedIn",
+      "href": "https://www.linkedin.com/in/ryanalynporter/"
+    },
+    {
+      "label": "Discord",
+      "href": "https://discord.gg/uStyWraJ2M"
+    }
+  ],
+  "sites": {
+    "anthus": {
+      "id": "anthus",
+      "label": "Anth.us",
+      "href": "https://anth.us/",
+      "kind": "company",
+      "status": "live",
+      "showInFooter": true
+    },
+    "anthusSolutions": {
+      "id": "anthus-solutions",
+      "label": "AI Solutions",
+      "href": "https://anth.us/ai-solutions",
+      "kind": "company-page",
+      "status": "live",
+      "showInFooter": true
+    },
+    "anthusPlatform": {
+      "id": "anthus-platform",
+      "label": "Anthus Platform",
+      "href": "https://anth.us/platform",
+      "kind": "company-page",
+      "status": "live",
+      "showInFooter": true
+    },
+    "anthusArticles": {
+      "id": "anthus-articles",
+      "label": "Articles",
+      "href": "https://anth.us/blog",
+      "kind": "company-page",
+      "status": "live",
+      "showInFooter": true
+    },
+    "primus": {
+      "id": "primus",
+      "label": "Primus",
+      "href": "https://primus.anth.us/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "tactus": {
+      "id": "tactus",
+      "label": "Tactus",
+      "href": "https://tactus.anth.us/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "korporus": {
+      "id": "korporus",
+      "label": "Korporus",
+      "href": "https://korpor.us/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "biblicus": {
+      "id": "biblicus",
+      "label": "Biblicus",
+      "href": "https://anthusai.github.io/Biblicus/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "babulus": {
+      "id": "babulus",
+      "label": "Babulus",
+      "href": "https://babul.us/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "kanbus": {
+      "id": "kanbus",
+      "label": "Kanbus",
+      "href": "https://kanb.us/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "caducus": {
+      "id": "caducus",
+      "label": "Caducus",
+      "href": "https://caduc.us/",
+      "kind": "platform",
+      "status": "live",
+      "showInFooter": true
+    },
+    "virtuus": {
+      "id": "virtuus",
+      "label": "Virtuus",
+      "href": null,
+      "kind": "platform",
+      "status": "excluded-for-now",
+      "showInFooter": false
+    }
+  },
+  "anthusLinkSiteIds": [
+    "anthus",
+    "anthusSolutions",
+    "anthusPlatform",
+    "anthusArticles"
+  ],
+  "platformSiteIds": [
+    "primus",
+    "tactus",
+    "korporus",
+    "biblicus",
+    "babulus",
+    "kanbus",
+    "caducus",
+    "virtuus"
+  ]
+}
