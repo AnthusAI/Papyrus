@@ -598,6 +598,8 @@ hand-written `amplify.yml` must export it (`-e '^PAPYRUS_SITE_ORIGIN='`, as the 
 headers. Unset, the routes answer `503 site_origin_not_configured`, except under `next dev`
 (SITE_ENV development, NODE_ENV not production) on a loopback host, which uses the request origin.
 
+Sites behind their own edge (an own CloudFront distribution, no Amplify domain association) set `cms.siteOrigin` in `site.json` so the app shell exports their public origin, for example `https://shipped.anth.us`; it is rejected together with `cms.domainName`.
+
 Moving a site off the old Secrets Manager sealing secret (`ProspectusSessionSealingSecret`,
 variable `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN`) is a one-time sign-out: there is no
 dual-read. Deploy the stack with the old secret set to `RemovalPolicy.RETAIN` first, then

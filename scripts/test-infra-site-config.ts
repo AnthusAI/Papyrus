@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { papyrusVersionToPep440 } from "../infra/amplify-app-shell/lib/build-specs";
-import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveDeployEnvironment, resolveProspectusAccountsEndpoint, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
+import { hasCmsApp, isStagingEnabled, parseSiteConfig, resolveCmsHostName, resolveDeployEnvironment, resolveProspectusAccountsEndpoint, resolveSiteOrigin, resolveStackName, resolveStagingDomainName } from "../infra/amplify-app-shell/lib/site-config";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const examples = path.resolve(here, "../infra/amplify-app-shell/examples");
@@ -124,6 +124,13 @@ const domainFreeConfig = parseCmsSite(mutated("pretext.site.json", domainFree));
 assert.equal(domainFreeConfig.cms.domainName, undefined);
 assert.equal(domainFreeConfig.hostedZoneId, undefined);
 assert.equal(resolveStagingDomainName(domainFreeConfig), undefined);
+const edgeSiteConfig = parseCmsSite(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.siteOrigin = "https://shipped.anth.us"; }));
+assert.equal(resolveSiteOrigin(edgeSiteConfig), "https://shipped.anth.us");
+assert.equal(resolveSiteOrigin(domainFreeConfig), undefined);
+for (const bad of ["http://shipped.anth.us", "https://shipped.anth.us/newsroom", "https://shipped.anth.us/", "https://shipped.anth.us?x=1", "shipped.anth.us", "https://Shipped.anth.us"]) {
+  assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.siteOrigin = bad; }), "cms.siteOrigin");
+}
+assertRejects(mutated("pretext.site.json", (c) => { c.cms.siteOrigin = "https://shipped.anth.us"; }), "remove it when cms.domainName is set");
 const noStagingConfig = parseCmsSite(mutated("pretext.site.json", (c) => {
   c.cms.staging = false;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.example.test/";

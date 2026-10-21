@@ -5,7 +5,7 @@ import * as amplify from "aws-cdk-lib/aws-amplify";
 import { SecureStringParameter } from "./secure-string-parameter";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -178,11 +178,14 @@ export class AmplifyAppShellStack extends Stack {
       ? `https://${stagingDomainName}/`
       : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain, "/"]);
     // The compute adapter's request URL is https://localhost:3000, so the site names its own public origin.
-    const productionSiteOrigin = cmsHostName ? `https://${cmsHostName}` : Fn.join("", ["https://main.", cmsApp.attrDefaultDomain]);
+    // A site served by its own edge (cms.siteOrigin) has no Amplify domain, so the edge host is its origin.
+    const siteOrigin = resolveSiteOrigin(config);
+    const productionSiteOrigin = cmsHostName ? `https://${cmsHostName}` : siteOrigin ?? Fn.join("", ["https://main.", cmsApp.attrDefaultDomain]);
     const stagingSiteOrigin = stagingDomainName ? `https://${stagingDomainName}` : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain]);
     const sharedRootDomain = config.cms.domainPrefix !== undefined;
     const defaultOriginsToAllow = [
       ...(config.cms.domainName ? [] : [productionOrigin]),
+      ...(siteOrigin ? [`${siteOrigin}/`] : []),
       ...(stagingEnabled && !stagingDomainName ? [stagingOrigin] : []),
     ];
     const oauthRedirectUrls = defaultOriginsToAllow.length === 0

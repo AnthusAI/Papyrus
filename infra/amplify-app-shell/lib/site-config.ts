@@ -32,6 +32,8 @@ export type CmsConfig = {
   appName?: string;
   domainName?: string;
   domainPrefix?: string;
+  /** Public https origin of a site whose host is served by its own edge (no Amplify domain association). */
+  siteOrigin?: string;
   staging?: boolean;
   stagingPreview?: StagingPreviewConfig;
   cognitoDomainPrefix: string;
@@ -133,6 +135,7 @@ const REPOSITORY_PATTERN = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_
 const SECRETS_MANAGER_SECRET_ARN_PATTERN = /^arn:aws:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+$/;
 const HOSTED_ZONE_ID_PATTERN = /^Z[A-Z0-9]+$/;
 const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
+const SITE_ORIGIN_PATTERN = /^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(:\d{1,5})?$/;
 const DOMAIN_PREFIX_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
 const STACK_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9-]{0,127}$/;
@@ -298,6 +301,10 @@ export function resolveCmsHostName(config: Pick<CmsSiteConfig, "cms">): string |
   return config.cms.domainPrefix ? `${config.cms.domainPrefix}.${config.cms.domainName}` : config.cms.domainName;
 }
 
+export function resolveSiteOrigin(config: Pick<CmsSiteConfig, "cms">): string | undefined {
+  return config.cms.siteOrigin;
+}
+
 export function resolveStagingDomainName(config: Pick<CmsSiteConfig, "cms">): string | undefined {
   if (!isStagingEnabled(config)) return undefined;
   if (config.cms.domainPrefix) {
@@ -329,7 +336,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "deployStackInBuild"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "deployStackInBuild"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -347,6 +354,7 @@ function parseCms(value: unknown): CmsConfig {
     appName: optionalString(cmsRecord.appName, "cms.appName", APP_NAME_PATTERN),
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
     domainPrefix: optionalString(cmsRecord.domainPrefix, "cms.domainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
+    siteOrigin: optionalString(cmsRecord.siteOrigin, "cms.siteOrigin", SITE_ORIGIN_PATTERN, "https origin with no path, query or trailing slash, such as https://shipped.anth.us"),
     staging: cmsRecord.staging as boolean | undefined,
     cognitoDomainPrefix: requireString(
       cmsRecord.cognitoDomainPrefix,
@@ -380,6 +388,9 @@ function parseCms(value: unknown): CmsConfig {
     }
   }
 
+  if (cms.siteOrigin && cms.domainName) {
+    fail("cms.siteOrigin", "is for sites whose host is served by their own edge; remove it when cms.domainName is set");
+  }
   if (cms.staging === false && cms.stagingDomainName) {
     fail("cms.stagingDomainName", "must not be set when cms.staging is false");
   }

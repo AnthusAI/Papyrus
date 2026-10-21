@@ -492,6 +492,21 @@ try {
   assert.match(noDomainRedirects, /amplifyapp\.com|DefaultDomain/);
   assert.match(JSON.stringify(noDomains.Outputs.CmsOrigin), /DefaultDomain/);
 
+  const edgeSite = synthVariant("edge-site", "pretext.site.json", (config) => {
+    removeDomains(config);
+    config.cms.siteOrigin = "https://shipped.anth.us";
+  });
+  assert.equal(resourcesOfType(edgeSite, "AWS::Amplify::Domain").length, 0, "siteOrigin: no Amplify domain association");
+  const edgeMain = resourcesOfType(edgeSite, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "main");
+  const edgeVariables = JSON.stringify(edgeMain.Properties.EnvironmentVariables);
+  assert.match(edgeVariables, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped\.anth\.us"/);
+  assert.match(edgeVariables, /https:\/\/shipped\.anth\.us\//, "siteOrigin joins the OAuth redirect list");
+  assert.match(edgeVariables, /DefaultDomain/, "the amplifyapp.com origin stays in the OAuth redirect list");
+  const edgeStaging = resourcesOfType(edgeSite, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "staging");
+  assert.match(JSON.stringify(edgeStaging.Properties.EnvironmentVariables), /"Name":"PAPYRUS_SITE_ORIGIN","Value":\{"Fn::Join":\["",\["https:\/\/staging\.",\{"Fn::GetAtt":\["App","DefaultDomain"\]\}\]\]\}/, "staging origin is unchanged");
+  assert.doesNotMatch(noDomainRedirects, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped/, "without siteOrigin the origin is still the default domain");
+  assert.match(noDomainRedirects, /"Name":"PAPYRUS_SITE_ORIGIN","Value":\{"Fn::Join":\["",\["https:\/\/main\.",\{"Fn::GetAtt":\["[A-Za-z0-9]+","DefaultDomain"\]\}\]\]\}/);
+
   const noStaging = synthVariant("no-staging", "pretext.site.json", (config) => {
     config.cms.staging = false;
     config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.example.test/";
