@@ -18,8 +18,8 @@ import uuid
 from typing import Callable
 from urllib.parse import urlsplit
 
-from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, parse_hn_feed,
-                         parse_ttab_decisions, ttab_search_body)
+from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, merge_source_items,
+                         parse_hn_feed, parse_ttab_decisions, ttab_search_body)
 
 LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout; a crashed run's lease expires
 DUE_SLACK_SECONDS = 60       # scheduler jitter must not skip a whole interval
@@ -144,16 +144,27 @@ def _validate_config(raw: dict) -> dict:
         lookback = int(raw.get("lookbackDays", 30))
         if not 1 <= lookback <= 180:
             raise ValueError("Config lookbackDays must be between 1 and 180")
-        config.update(lookbackDays=lookback, finalDecisionsOnly=raw.get("finalDecisionsOnly", True) is not False)
+        recheck = int(raw.get("precedentialLookbackDays", 0))
+        if recheck and not lookback < recheck <= 365:
+            raise ValueError("Config precedentialLookbackDays must be 0 (off) or longer than lookbackDays, up to 365")
+        config.update(lookbackDays=lookback, finalDecisionsOnly=raw.get("finalDecisionsOnly", True) is not False,
+                      precedentialLookbackDays=recheck)
+    config["maxItems"] = limit * (2 if config.get("precedentialLookbackDays") else 1)
     return config
 
 
 def read_source(config: dict, now: float, fetch: Callable[..., bytes] | None = None) -> list:
     """Fetch and parse one source. `fetch` replaces the network call in tests."""
     if config["sourceType"] == "ttab-decisions":
-        body = ttab_search_body(now, config["lookbackDays"], config["limit"])
-        return parse_ttab_decisions((fetch or fetch_ttab_decisions)(config["sourceUrl"], body),
-                                    final_decisions_only=config["finalDecisionsOnly"])
+        fetch = fetch or fetch_ttab_decisions
+        recent = parse_ttab_decisions(fetch(config["sourceUrl"], ttab_search_body(now, config["lookbackDays"], config["limit"])),
+                                      final_decisions_only=config["finalDecisionsOnly"])
+        if not config["precedentialLookbackDays"]:
+            return recent
+        # Precedential designations can come months after a decision issues. Every decision type
+        # counts here: a precedential order on a motion matters as much as a final decision.
+        body = ttab_search_body(now, config["precedentialLookbackDays"], config["limit"], precedential_only=True)
+        return merge_source_items(recent, parse_ttab_decisions(fetch(config["sourceUrl"], body), final_decisions_only=False))
     return parse_hn_feed((fetch or fetch_hn_feed)(config["sourceUrl"]))
 
 
@@ -189,7 +200,7 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             result["errors"].append({"stage": "fetch", "message": str(error)[:300]})
             items = []
         result["itemCount"] = len(items)
-        for item in items[:config["limit"]]:
+        for item in items[:config["maxItems"]]:
             try:
                 old = store.get_item(monitor_id, item.source_id)
                 if old and old["fingerprint"] == item.fingerprint:
@@ -202,7 +213,8 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
                           "sourceItemUrl": item.source_item_url, "sourcePublishedAt": item.published_at,
                           "fingerprint": item.fingerprint, "revision": revision, "eventId": event_id,
                           "observedAt": observed, "monitorId": monitor_id, "sourceUrl": config["sourceUrl"],
-                          "mediaType": item.media_type if item.media_type != "text/html" else None}
+                          "mediaType": item.media_type if item.media_type != "text/html" else None,
+                          "aliases": list(item.aliases) or None}
                 discovery = {k: v for k, v in fields.items() if v is not None}
                 discovery.update(pk=pk(monitor_id), sk=f"DISC#{item.source_id}#{revision:06d}",
                                  routing=ROUTING_COLLECTED, runId=run_id,

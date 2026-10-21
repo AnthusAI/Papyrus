@@ -543,7 +543,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
                       publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
                       source_name=source_name_for(source_url))
     item = SourceItem(str(disc["sourceId"]), disc["title"], disc["canonicalUrl"], disc["sourceItemUrl"],
-                      disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html")
+                      disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html", tuple(disc.get("aliases") or ()))
     if item.fingerprint != disc["fingerprint"]:
         raise ItemInvalid("stored fingerprint does not match the discovery")
     if config.get("decisions") == "direct":

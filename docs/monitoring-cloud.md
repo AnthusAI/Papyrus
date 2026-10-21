@@ -11,7 +11,11 @@ CloudFormation stack in account 712236451410, us-east-1, applied with a change s
 
 Each monitor is its own `MONITOR#<id>` partition with its own schedules. `CONFIG.sourceType` names what
 it reads: `hn-rss` (the default, the Hacker News feed) or `ttab-decisions` (the USPTO TTAB Reading Room
-decision search, `lookbackDays` 1 to 180, `finalDecisionsOnly` true by default). Each source type only
+decision search, `lookbackDays` 1 to 180, `finalDecisionsOnly` true by default, and `precedentialLookbackDays`:
+when set, a second search over that longer window asks only for precedential decisions of any type, because the
+Board can designate a decision precedential months after it issues). A TTAB item also lists the decision's other
+addresses (the TTABVUE PDF, the Reading Room's double-slash path), and intake reuses a Reference stored under
+any of them rather than creating a second one for the same decision. Each source type only
 accepts a `sourceUrl` on its own host. `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
