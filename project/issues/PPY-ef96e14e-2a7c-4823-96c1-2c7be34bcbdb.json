@@ -17,10 +17,22 @@
       "text": "Migration built on branch feature/PPY-ef96e1-papyrus-standard-front-end in Chattic.us-web (commit 068c180, local): whole public site is a standard Papyrus static site (web/projection.json, site-theme.css, 150-line hooks.py; Markus pages with page blocks; WorkspaceDemo/mark/forms/confirm+invite as islands; social previews built; offers and worked examples single-sourced). Decision: forms stay app code as islands because core forms cannot express the intake payloads (contact_type + nested details, two-phase abandoned-lead survey with dynamic questions, token pages); everything else migrated. Parity vs live (82 URLs): all present, text identical on 57, 12 within 3% (chatticus docs drift since last deploy), explained diffs on 13; head metadata diffs allow-listed. Blocked on: core page-blocks release (PR #424 open, python check failing); PyPI 5.2.0/5.3.0 do not contain it.",
       "created_at": "2026-10-21T04:23:16.325490Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8bd62bc3-ec72-466f-b200-96ca74520b5d",
+      "author": "home",
+      "text": "Migration built on branch feature/PPY-ef96e1-papyrus-standard-front-end in Chattic.us-web (local commit 068c180). The whole public site is a standard Papyrus static site: web/projection.json, web/css/site-theme.css, a small web/hooks.py, Markus pages with page blocks, WorkspaceDemo / animated mark / intake forms / confirm and invite pages as islands, social previews built, offers and worked examples single-sourced. Decision: the forms stay application code (islands) because core forms cannot express the intake payloads (contact_type plus nested details, a two-phase survey with dynamic questions, token pages). Everything else is migrated. Parity vs live, 82 URLs: all present, text identical on 57, 12 within 3% (chatticus docs moved since the last deploy), 13 with explained differences. Blocked on the core page-blocks release (PR 424 open, python check failing); PyPI 5.2.0 and 5.3.0 do not contain it.",
+      "created_at": "2026-10-21T04:23:26.733352Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5",
+        "name": "chat-migration"
+      }
     }
   ],
   "created_at": "2026-10-21T00:48:26.166067Z",
-  "updated_at": "2026-10-21T04:23:16.325511Z",
+  "updated_at": "2026-10-21T04:23:26.733379Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
