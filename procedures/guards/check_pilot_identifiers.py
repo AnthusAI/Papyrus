@@ -42,6 +42,7 @@ ALLOWED_PATH_PATTERNS = tuple(
         r"^package-lock\.json$",
         r"^poetry\.lock$",
         r"^\.env\.example$",
+        r"(^|/)anthus_sites\.json$",  # the Anthus site registry is configuration data (site addresses), mirrored from anthus-footer
     )
 )
 
