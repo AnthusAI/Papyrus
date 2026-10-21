@@ -5,7 +5,7 @@ from __future__ import annotations
 import html
 import re
 
-LEDE_PATTERN = re.compile(r"<p[^>]*>(.*?)</p>", re.S)
+LEDE_PATTERN = re.compile(r'<p(?![^>]*\bmarkus-(?:band-eyebrow|actions)\b)[^>]*>(.*?)</p>', re.S)
 TAG_PATTERN = re.compile(r"<[^>]+>")
 FIRST_IMAGE_PATTERN = re.compile(r'<img\b[^>]*\bsrc="([^"]+)"')
 MARKUS_HEADER_PATTERN = re.compile(r'<header class="markus-header">.*?</header>', re.S)
