@@ -10,9 +10,17 @@
   "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8d06e1a4-e59b-4507-ad21-f26eb09e64e1",
+      "author": "home",
+      "text": "Scope from Ryan's direction on PPY-de11ec: produce the feature table (core / optional plug-in / Chatticus-only), define the background-job contract the chat agent uses instead of a computer (start a job, stream its progress into the turn, report the result), and identify the seam in Chatticus where computer summoning attaches, so it can be left out by sites that embed the core (Papyrus, Auritus).",
+      "created_at": "2026-10-21T12:17:25.537312Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:14:25.324633Z",
-  "updated_at": "2026-10-21T12:14:25.324658Z",
+  "updated_at": "2026-10-21T12:17:25.537329Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

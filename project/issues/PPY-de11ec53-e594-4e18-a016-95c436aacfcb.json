@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b20d9475-84ad-4bfe-8a71-99348d865126",
+      "author": "home",
+      "text": "Design direction (Ryan, 2026-10-21):\n- A Papyrus agent never runs a computer. It only triggers things in the site's cloud backend. Any analysis or long work the chat agent starts is filed as a background job (a Tactus procedure run, an assignment) and handled by cloud machinery; the chat reports progress and results. This will be the common pattern for every app that embeds a chat.\n- Second consumer: Auritus. Its agent drives audio work (text-to-speech, transcription) through its own backend and has no need for a computer either.\n- So the reusable piece is Chatticus's chat core with the computer made optional: the turn protocol (POST plus per-turn SSE, Last-Event-Id replay, no always-on process), PyDurable for durable turns, and the PyAgents agent loop that runs the model and streams the response. Chatticus already distinguishes computerless turns (a worker with CPU and network but no display, browser or /workspace finishes text-only turns, and a computer is summoned only when a tool needs one), which is the natural seam: the embeddable core is the computerless path, and summoning a computer becomes an optional capability that Chatticus itself plugs in.\n- Many Chatticus features should stay out of the embed: the household and roster of named bots, computers and their screens, browser sessions, the shared workspace, and probably routines and the full approvals system (to be decided). M1 should list Chatticus's features and mark each one core, optional plug-in, or Chatticus-only.",
+      "created_at": "2026-10-21T12:17:25.487913Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:14:25.261425Z",
-  "updated_at": "2026-10-21T12:14:25.261460Z",
+  "updated_at": "2026-10-21T12:17:25.487937Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
