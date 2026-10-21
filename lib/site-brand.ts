@@ -142,9 +142,12 @@ export type SiteBrand = {
   readerBasePath?: string;
   opsChrome: OpsChrome;
   corpusKey: string;
-  steeringConfigPath: string;
-  newsroomSectionsConfigPath: string;
-  analysisProfilesPath: string;
+  /** Optional repo file for topic steering. Editorial and steering configuration is backend data; a data-driven site sets none and nothing is looked up. */
+  steeringConfigPath?: string;
+  /** Optional repo file for the local-preview demo sections only. Sections live in the backend. */
+  newsroomSectionsConfigPath?: string;
+  /** Optional repo file listing analysis profiles. */
+  analysisProfilesPath?: string;
   publicationName: string;
   components?: SiteBrandComponents;
   /**
