@@ -10,9 +10,17 @@
   "parent": "PPY-1dd7d0af-c74e-407a-9a65-c123d5b6f944",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4adcd26c-8760-4194-b498-96ee7c73b667",
+      "author": "home",
+      "text": "Branch feature/PPY-933586-shadow-sample-corpus, PR https://github.com/AnthusAI/Papyrus/pull/444 (not merged). Verified: 18 new pytest specs plus relevance/site/priming suites pass (93); config scenarios exercised directly (behave needs humanus, absent in this venv); dry run against production p.apyr.us knowledge-corpus-ai-ml-research read-only (4,618 pending; default sample 172, with citation stubs 300). Finding: the References list and detail show 'Suggestion: include/exclude' on any reference with a decision, so editors are not blind in a shadow comparison.",
+      "created_at": "2026-10-21T08:14:22.787520Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T07:59:34.322587Z",
-  "updated_at": "2026-10-21T07:59:36.704327Z",
+  "updated_at": "2026-10-21T08:14:22.787546Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
