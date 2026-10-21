@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0499ef50-9ab1-4478-b222-ef589d01eaad",
+  "issue_id": "PPY-e8db7cd6-190c-4f97-8d3d-9677c2eee85c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T06:55:43.241Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us onto the standard front end, part 2 (switch the base class, collections, authored pages)",
+    "description": "What PPY-e329c3 left after phases a, b, d and e (all live and verified, see that epic). Phases c and f need the site to run on StandardMarkusProjector with hooks plus the core gaps listed in the two tasks below. Gate for every step: parity on every published URL with 0 blocking differences, using ~/Projects/.baselines/std-anthus/{parity2.py,crawl.py,poll.py,shoot.cjs} (copied into Anth.us-web bin/ by the part 1 closing PR if present).",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

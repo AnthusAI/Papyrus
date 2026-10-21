@@ -22,7 +22,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
-PUBLICATION_ID = "demo-publication"
+PUBLICATION_ID = "threat-intelligence"
 ACCOUNT_ID = "account-a"
 PERSON_ID = "person-a"
 BINDING_REVISION = "binding-1"
@@ -66,8 +66,8 @@ class CurationWorkspace:
     def __init__(self, behave_context, execution_mode):
         from decision_flywheel import Cyclotron
         from decision_flywheel.priming import HTTPTransformer, PrimingService
-        from decision_flywheel.publication_lab import PublicationActor, PublicationBinding, PublicationLab
-        from decision_flywheel.publication_lab_test import DEFINITION, OfflineModel
+        from decision_flywheel.publication_lab import PublicationActor, PublicationLab
+        from decision_flywheel.publication_lab_test import BINDINGS, DEFINITION, OfflineModel
         from decision_flywheel.web_store import WebStore
         from papyrus_content.publication_bff import PublicationSelection
 
@@ -80,7 +80,7 @@ class CurationWorkspace:
 
         self.classifier_model = OfflineModel()
         self.engine = resources.enter_context(Cyclotron.open(workspace_root / "engine", DEFINITION, self.classifier_model))
-        self.publication_lab = PublicationLab(self.engine, account_id=ACCOUNT_ID, bindings=(PublicationBinding(PUBLICATION_ID, outputs=("intel",), revision=BINDING_REVISION),))
+        self.publication_lab = PublicationLab(self.engine, account_id=ACCOUNT_ID, bindings=BINDINGS)
         self.publication_actor = PublicationActor(ACCOUNT_ID, PERSON_ID, frozenset(
             (PUBLICATION_ID, capability) for capability in GRANTED_PUBLICATION_CAPABILITIES))
         self.original_selection = PublicationSelection(ACCOUNT_ID, PERSON_ID, PUBLICATION_ID, BINDING_REVISION)

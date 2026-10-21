@@ -3,17 +3,25 @@
   "title": "Migrate Markus docs site onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "588855f4-f2c3-4010-a08e-7ddd28474faf",
+      "author": "home",
+      "text": "Done: Markus PRs #30 and #31 merged, Pages deployed. papyrus-newsroom 5.1.0 + Markus 0.13.0 checkout; sitemap, 404 and robots added. Live: 48/48 old URLs same status, 0 blocking parity. Note: still its own build_site.py rather than docs_site (uses docs_site helpers for sitemap and 404).",
+      "created_at": "2026-10-21T04:07:07.300892Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:15.790533Z",
-  "updated_at": "2026-10-21T00:48:15.790593Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T04:07:07.341923Z",
+  "closed_at": "2026-10-21T04:07:07.341889Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

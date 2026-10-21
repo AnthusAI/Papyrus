@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "b7e9cfe5-64b8-45f4-b9f0-5c5e3ba6407b",
+  "issue_id": "PPY-ef96e14e-2a7c-4823-96c1-2c7be34bcbdb",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-21T05:25:20.032Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "fc4b1561-2eee-4902-987a-69cef53f2ab9",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "chat-migration"
+    }
+  }
+}

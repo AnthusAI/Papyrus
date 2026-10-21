@@ -20,6 +20,7 @@ from .redirects import RedirectRule, rule_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
+    "values", "islands",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -109,12 +110,33 @@ class NavLink:
     label: str
     href: str
     cta: bool = False
+    external: bool = False                    # adds rel="noopener"; the target is not changed
+    children: tuple["NavLink", ...] = ()      # nav only: a group rendered as <details class="markus-nav-group">
 
 
 @dataclass(frozen=True)
 class FooterColumn:
     title: str
     links: tuple[NavLink, ...]
+
+
+@dataclass(frozen=True)
+class FamilyFooter:
+    """``footer.family``: the Anthus family footer (see ``family.py``). Empty strings fall back to the package's defaults."""
+
+    site_id: str = ""
+    name: str = ""
+    tagline: str = ""
+    description: str = ""
+    byline: str = ""
+    logo: str = ""        # a site path or https URL of an image shown beside the name and description
+    logo_alt: str = ""
+
+
+@dataclass(frozen=True)
+class IslandSettings:
+    script: str                # path of the site's island bundle in the static directory, e.g. "assets/islands.js"
+    stylesheet: str | None = None
 
 
 @dataclass(frozen=True)
@@ -237,6 +259,11 @@ class PageActionSettings:
     prompt: str = "Read {url} and help me with it."
 
 
+#: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
+DIRECTORY_HTML_PATTERN = r"^/(?!(?:.*/)?index\.html$)(.+)\.html$"
+DIRECTORY_SLASH_PATTERN = r"^/((?:[^/]+/)*[^/.]+)$"
+
+
 @dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
@@ -246,8 +273,12 @@ class StandardSettings:
     pattern_redirects: tuple[RedirectRule, ...] = ()
     nav: tuple[NavLink, ...] = ()
     nav_disclosure: bool = False
+    nav_brand_html: str = ""
     footer_columns: tuple[FooterColumn, ...] = ()
     footer_text: str = ""
+    footer_family: FamilyFooter | None = None
+    values: tuple[tuple[str, str], ...] = ()    # {{name}} tokens for page blocks
+    islands: IslandSettings | None = None
     seo: SeoSettings = field(default_factory=SeoSettings)
     sitemap_style: str = "single"
     sitemap_lastmod: bool = True
@@ -284,17 +315,27 @@ class StandardSettings:
         """Pattern rules plus, for directory URLs, ``/x.html`` to ``/x/``; compiled into the edge function."""
         rules = list(self.pattern_redirects)
         if self.url_style == "directory":
-            rules.append(RedirectRule(pattern=r"^/(.+)\.html$", to="/$1/", status=301, except_paths=("/404.html",)))
+            # /x.html to /x/ (a directory index file such as /x/index.html is served as it is), then /x to /x/.
+            rules.append(RedirectRule(pattern=DIRECTORY_HTML_PATTERN, to="/$1/", status=301, except_paths=("/404.html",)))
+            rules.append(RedirectRule(pattern=DIRECTORY_SLASH_PATTERN, to="/$1/", status=301, except_paths=("/404",)))
         return tuple(rules)
 
 
-def _links(raw, where: str) -> tuple[NavLink, ...]:
+def _links(raw, where: str, *, groups: bool = False) -> tuple[NavLink, ...]:
     links = []
     for entry in raw or ():
-        _only(entry, {"label", "href", "cta"}, where)
-        if not entry.get("label") or not entry.get("href"):
+        _only(entry, {"label", "href", "cta", "external", *({"children"} if groups else set())}, where)
+        children = entry.get("children")
+        if not entry.get("label") or (not entry.get("href") and not children):
             raise ValueError(f"{where} entries need label and href")
-        links.append(NavLink(str(entry["label"]), str(entry["href"]), bool(entry.get("cta", False))))
+        if children and entry.get("href"):
+            raise ValueError(f"{where} entry {entry['label']!r} has children, so it takes no href")
+        links.append(
+            NavLink(
+                str(entry["label"]), str(entry.get("href", "")), bool(entry.get("cta", False)), bool(entry.get("external", False)),
+                _links(children, f"{where}.children") if children else (),
+            )
+        )
     return tuple(links)
 
 
@@ -376,9 +417,26 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     patterns = tuple(rule_from_mapping(entry) for entry in redirects.get("patterns") or ())
 
     nav = dict(raw.get("nav") or {})
-    _only(nav, {"links", "disclosure", "homeLabel"}, "nav")
+    _only(nav, {"links", "disclosure", "homeLabel", "brandHtml"}, "nav")
     footer = dict(raw.get("footer") or {})
-    _only(footer, {"columns", "text"}, "footer")
+    _only(footer, {"columns", "text", "family"}, "footer")
+    family_raw = footer.get("family")
+    family = None
+    if family_raw is not None:
+        _only(family_raw, {"siteId", "name", "tagline", "description", "byline", "logo", "logoAlt"}, "footer.family")
+        family = FamilyFooter(*(_text(family_raw, key) for key in ("siteId", "name", "tagline", "description", "byline", "logo", "logoAlt")))
+    values = []
+    for key, value in dict(raw.get("values") or {}).items():
+        if not re.fullmatch(r"\w+", key) or isinstance(value, bool) or not isinstance(value, (str, int, float)):
+            raise ValueError(f"values.{key} must be a string or a number, with a name of letters, digits and underscores")
+        values.append((key, str(value)))
+    islands_raw = raw.get("islands")
+    islands = None
+    if islands_raw is not None:
+        _only(islands_raw, {"script", "stylesheet"}, "islands")
+        if not islands_raw.get("script"):
+            raise ValueError("islands.script is required")
+        islands = IslandSettings(str(islands_raw["script"]).lstrip("/"), str(islands_raw["stylesheet"]).lstrip("/") if islands_raw.get("stylesheet") else None)
     columns = []
     for column in footer.get("columns") or ():
         _only(column, {"title", "links"}, "footer.columns")
@@ -560,10 +618,14 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         sections=tuple(sections),
         exact_redirects=tuple(sorted(exact)),
         pattern_redirects=patterns,
-        nav=_links(nav.get("links"), "nav.links"),
+        nav=_links(nav.get("links"), "nav.links", groups=True),
         nav_disclosure=bool(nav.get("disclosure", False)),
+        nav_brand_html=str(nav.get("brandHtml") or ""),
         footer_columns=tuple(columns),
         footer_text=_text(footer, "text"),
+        footer_family=family,
+        values=tuple(values),
+        islands=islands,
         seo=seo_settings,
         sitemap_style=sitemap_style,
         sitemap_lastmod=bool(sitemap.get("lastmod", True)),

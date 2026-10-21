@@ -33,12 +33,27 @@ def _same_route(href: str, current: str) -> bool:
     return href.rstrip("/") == current.rstrip("/") or (href in ("/", "") and current in ("/", ""))
 
 
+def noopener(link: NavLink) -> str:
+    return ' rel="noopener"' if link.external else ""
+
+
+def _nav_link(link: NavLink, current_path: str) -> str:
+    current = ' aria-current="page"' if _same_route(link.href, current_path) else ""
+    cta = ' class="markus-nav-cta"' if link.cta else ""
+    return f'<a{cta} href="{esc(link.href)}"{noopener(link)}{current}>{esc(link.label)}</a>'
+
+
 def nav(links: tuple[NavLink, ...], current_path: str, *, label: str = "Site", disclosure: bool = False) -> str:
     items = []
     for link in links:
-        current = ' aria-current="page"' if _same_route(link.href, current_path) else ""
-        cta = ' class="markus-nav-cta"' if link.cta else ""
-        items.append(f'<a{cta} href="{esc(link.href)}"{current}>{esc(link.label)}</a>')
+        if link.children:
+            children = "".join(_nav_link(child, current_path) for child in link.children)
+            items.append(
+                f'<details class="markus-nav-group"><summary>{esc(link.label)}</summary>'
+                f'<div class="markus-nav-group-links">{children}</div></details>'
+            )
+        else:
+            items.append(_nav_link(link, current_path))
     toggle = (
         '<button class="markus-nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>'
         if disclosure
@@ -48,11 +63,16 @@ def nav(links: tuple[NavLink, ...], current_path: str, *, label: str = "Site", d
     return f'{toggle}<nav class="markus-site-nav" id="site-nav" aria-label="{esc(label)}">\n      {body}\n    </nav>'
 
 
-def masthead(site_name: str, links: tuple[NavLink, ...], current_path: str, *, tagline: str = "", disclosure: bool = False) -> str:
+def masthead(
+    site_name: str, links: tuple[NavLink, ...], current_path: str, *, tagline: str = "", disclosure: bool = False, brand_html: str = ""
+) -> str:
     tag = f'\n    <p class="markus-site-tagline">{esc(tagline)}</p>' if tagline else ""
+    brand = (
+        f'<a href="/" aria-label="{esc(site_name)}, home">{brand_html}</a>' if brand_html else f'<a href="/">{esc(site_name)}</a>'
+    )
     return (
         '  <header class="markus-site-masthead">\n'
-        f'    <p class="markus-site-wordmark"><a href="/">{esc(site_name)}</a></p>{tag}\n'
+        f'    <p class="markus-site-wordmark">{brand}</p>{tag}\n'
         f"    {nav(links, current_path, disclosure=disclosure)}\n"
         "  </header>"
     )
@@ -106,7 +126,9 @@ def card_list(entries, render_card=None) -> str:
 def footer(columns: tuple[FooterColumn, ...], text: str = "") -> str:
     blocks = []
     for column in columns:
-        links = "".join(f'<li><a href="{esc(link.href)}">{esc(link.label)}</a></li>' for link in column.links)
+        links = "".join(
+            f'<li><a href="{esc(link.href)}"{noopener(link)}>{esc(link.label)}</a></li>' for link in column.links
+        )
         heading = f'<h2 class="markus-footer-heading">{esc(column.title)}</h2>' if column.title else ""
         blocks.append(f'<div class="markus-footer-column">{heading}<ul>{links}</ul></div>')
     note = f'<p class="markus-footer-text">{esc(text)}</p>' if text else ""

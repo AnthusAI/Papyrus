@@ -135,6 +135,16 @@ EDGE_CASES = [
     ("/articles/hello.html", "/articles/hello/"),
     ("/404.html", None),
     ("/articles/hello/", None),
+    ("/about", "/about/"),
+    ("/articles/hello", "/articles/hello/"),
+    ("/404", None),
+    ("/", None),
+    ("/index.html", None),
+    ("/articles/index.html", None),
+    ("/articles/page/2/index.html", None),
+    ("/myindex.html", "/myindex/"),
+    ("/sitemap.xml", None),
+    ("/_plugins/papyrus-search.js", None),
 ]
 
 
@@ -277,6 +287,17 @@ def test_json_ld_adds_date_modified_and_publisher():
     data = json.loads(re.search(r'application/ld\+json">(.*?)</script>', head).group(1))
     assert data["@type"] == "NewsArticle" and data["dateModified"] == "2026-02-02" and data["datePublished"] == "2026-01-01"
     assert data["author"] == [{"@type": "Person", "name": "Ann"}] and data["publisher"]["name"] == "Example Press"
+
+
+def test_json_ld_headline_can_differ_from_the_title_that_carries_the_site_name():
+    head = builder(minimal()).build(
+        PageHead(title="Slow water | Example", headline="Slow water", path="/t.html", og_type="article", json_ld_type="Article", published="2026-01-01")
+    )
+    data = json.loads(re.search(r'application/ld\+json">(.*?)</script>', head).group(1))
+    assert data["headline"] == "Slow water"
+    assert '<meta property="og:title" content="Slow water | Example">' in head
+    plain = builder(minimal()).build(PageHead(title="Slow water", path="/t.html", og_type="article", json_ld_type="Article"))
+    assert json.loads(re.search(r'application/ld\+json">(.*?)</script>', plain).group(1))["headline"] == "Slow water"
 
 
 def test_head_has_discovery_links_icons_fonts_and_robots_for_noindex():

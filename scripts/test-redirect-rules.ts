@@ -43,6 +43,16 @@ const cases: [string, string | null][] = [
   ["/articles/hello.html", "/articles/hello/"],
   ["/404.html", null],
   ["/articles/hello/", null],
+  ["/about", "/about/"],
+  ["/articles/hello", "/articles/hello/"],
+  ["/404", null],
+  ["/", null],
+  ["/index.html", null],
+  ["/articles/index.html", null],
+  ["/articles/page/2/index.html", null],
+  ["/myindex.html", "/myindex/"],
+  ["/sitemap.xml", null],
+  ["/_plugins/papyrus-search.js", null],
 ];
 
 for (const [uri, expected] of cases) {
@@ -60,6 +70,10 @@ for (const [uri, expected] of cases) {
 test("an exact redirect in the store wins over a pattern", async () => {
   const response = await run(rules, { "/blog/hello/": "/elsewhere/" }, "/blog/hello/");
   assert.equal(response.headers?.location.value, "/elsewhere/");
+});
+
+test("the 404 page is reachable at /404", async () => {
+  assert.equal((await run(rules, {}, "/404")).uri, "/404.html");
 });
 
 test("with no rules the source is unchanged and plain paths still get an index document", async () => {

@@ -8,7 +8,7 @@ deploy time. This module is the Python definition: it validates a rule, applies
 it (for tests and for parity simulation) and serialises it for the compiler.
 
 Patterns use the subset of regular expressions that Python and JavaScript read
-the same way (no named groups, lookbehind or inline flags). A target substitutes
+the same way (no named groups, lookbehind or inline flags; lookahead is fine). A target substitutes
 ``$1`` .. ``$9`` for the pattern's groups.
 """
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-_UNPORTABLE = re.compile(r"\(\?[<P!=]|\(\?[a-zA-Z]+\)|\\[AZzG]")
+_UNPORTABLE = re.compile(r"\(\?<|\(\?P|\(\?[a-zA-Z]+\)|\\[AZzG]")
 _SUBSTITUTION = re.compile(r"\$([0-9])")
 
 
