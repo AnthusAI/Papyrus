@@ -42,7 +42,7 @@ from .reference_policy import normalize_reference_curation_status
 from .reference_url_text import run_reference_url_text_extraction
 from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text
 from .reporting_packet_review import build_reporting_packet_review_plan
-from .steering import default_corpus_key
+from .publication import publication_corpus_key
 
 RESEARCH_MODES = frozenset({"internal_brief", "source_discovery", "full_research"})
 REPORTING_RECOMMENDATIONS = frozenset({"select", "merge", "brief", "hold", "kill"})
@@ -125,7 +125,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     if not title:
         raise ValueError("assignments create-research requires --title <text>.")
     section_key = normalize_string(options.get("section"))
-    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
+    corpus_key = publication_corpus_key(client, normalize_string(options.get("corpus-key")))
     research_mode = normalize_research_mode(options.get("research-mode") or options.get("researchMode"))
     now = _utc_now()
     assignment_type_key = normalize_string(options.get("type")) or "research.candidate"
@@ -274,7 +274,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     if not title:
         raise ValueError("assignments create-reporting requires --title <text>.")
     section_key = normalize_string(options.get("section"))
-    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
+    corpus_key = publication_corpus_key(client, normalize_string(options.get("corpus-key")))
     now = _utc_now()
     assignment_type_key = normalize_string(options.get("type")) or "reporting.candidate"
     if assignment_type_key != "reporting.candidate":
@@ -411,7 +411,8 @@ def run_research_assignment(flags: list[str]) -> None:
     assignment_id = normalize_string(options.get("assignment"))
     if not assignment_id:
         raise ValueError("assignments run-research requires --assignment <id>.")
-    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
+    client, _ = create_authoring_client()
+    corpus_key = publication_corpus_key(client, normalize_string(options.get("corpus-key")))
     research_mode = normalize_research_mode(
         options.get("research-mode") or options.get("researchMode") or "source_discovery"
     )
@@ -429,7 +430,6 @@ def run_research_assignment(flags: list[str]) -> None:
     max_evidence_items = normalize_non_negative_integer(options.get("max-evidence-items"), "--max-evidence-items") or 20
     knowledge_query_scope = assignment_run_knowledge_scope(options)
     started_at = _utc_now()
-    client, _ = create_authoring_client()
     run = start_cloud_procedure_run(
         client=client,
         alias="assignments.run-research",
@@ -602,7 +602,8 @@ def run_reporting_assignment(flags: list[str]) -> None:
     assignment_id = normalize_string(options.get("assignment"))
     if not assignment_id:
         raise ValueError("assignments run-reporting requires --assignment <id>.")
-    corpus_key = normalize_string(options.get("corpus-key")) or default_corpus_key()
+    client, _ = create_authoring_client()
+    corpus_key = publication_corpus_key(client, normalize_string(options.get("corpus-key")))
     run_id = normalize_string(options.get("run-id")) or (
         f"reporting-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
@@ -615,7 +616,6 @@ def run_reporting_assignment(flags: list[str]) -> None:
     context_profile = normalize_string(options.get("context-profile")) or "reporting"
     knowledge_query_scope = assignment_run_knowledge_scope(options)
     started_at = _utc_now()
-    client, _ = create_authoring_client()
     assignment = client.get_record("Assignment", assignment_id)
     if not assignment:
         raise ValueError(f"Assignment not found: {assignment_id}.")

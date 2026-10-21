@@ -71,3 +71,24 @@ Feature: Operating a data-driven publication from the CLI
     Given a signed-in session for a different publication endpoint
     When GraphQL headers are requested for this endpoint
     Then the error mentions "PAPYRUS_GRAPHQL_AUTH=iam"
+
+  Scenario Outline: A story is minted at a chosen stage without opening an assignment
+    Given a backend with section "news" and canonical corpus "example-pub"
+    When the operator creates a story titled "Example story" in section "news" at stage "<stage>"
+    Then one content item exists at stage "<stage>" and no assignment exists
+
+    Examples:
+      | stage      |
+      | idea       |
+      | assignment |
+      | reporting  |
+
+  Scenario: A story can open its reporting assignment in the same command
+    Given a backend with section "news" and canonical corpus "example-pub"
+    When the operator creates a story titled "Example story" in section "news" at stage "reporting" with an assignment
+    Then one content item exists at stage "reporting" and the assignment works on it
+
+  Scenario: Reporting create resolves the corpus from the backend
+    Given a backend with section "news" and canonical corpus "example-pub"
+    When the operator creates a reporting assignment titled "Example" in section "news" with no corpus key
+    Then the assignment is for corpus "example-pub"

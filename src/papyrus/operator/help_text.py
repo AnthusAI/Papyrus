@@ -125,7 +125,10 @@ def print_group_help(group: str) -> None:
   }
   builder = builders.get(group)
   if builder is None:
-    print(TOP_LEVEL_HELP)
+    from papyrus.operator.group_commands import generic_group_help
+
+    text = generic_group_help(group)
+    print(text if text is not None else TOP_LEVEL_HELP)
     return
   parser = builder()
   if group == "assignments":

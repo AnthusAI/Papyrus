@@ -308,6 +308,7 @@ PORTED_COMMANDS = frozenset(
         "stories:link-reference",
         "stories:note",
         "stories:show",
+        "stories:create",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -631,6 +632,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_note(flags)
     elif route == "stories:show":
         stories_show(flags)
+    elif route == "stories:create":
+        from .story_commands import stories_create
+
+        stories_create(flags)
     elif route == "assignments:backfill-content-items":
         assignments_backfill_content_items(flags)
     elif route == "assignments:demote-undrafted-content-items":

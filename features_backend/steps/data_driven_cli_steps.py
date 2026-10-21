@@ -257,3 +257,61 @@ def offline(context):
 @then("the registration output has no traceback")
 def no_traceback(context):
     assert "Traceback" not in context.output.getvalue() and "URLError" not in context.output.getvalue()
+
+
+@given('a backend with section "{section}" and canonical corpus "{key}"')
+def backend_with_section(context, section, key):
+    backend_with_corpus(context, key)
+    context.backend.tables["NewsroomSection"] = {section: {"id": section, "title": section.title()}}
+
+
+def _hide_steering():
+    return patch("papyrus_content.steering.resolve_topics_steering_config_path", return_value="/nonexistent/papyrus-steering.yml")
+
+
+def _run_cli(context, args):
+    from papyrus_content import cli as content_cli
+
+    with patch("papyrus_content.story_commands.create_authoring_client", return_value=(context.backend, {})), \
+            patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(context.backend, {})), \
+            patch("papyrus_content.cli.create_authoring_client", return_value=(context.backend, {})), \
+            patch("papyrus_content.assignments_commands.create_authoring_client", return_value=(context.backend, {})), \
+            patch("papyrus_content.records.upload_attachment_body"), _hide_steering():
+        _run(context, lambda: content_cli.dispatch(args[0], args[1], args[2:]))
+    assert context.error is None, context.error
+
+
+@when('the operator creates a story titled "{title}" in section "{section}" at stage "{stage}"')
+def create_story(context, title, section, stage):
+    _run_cli(context, ["stories", "create", "--title", title, "--section", section, "--stage", stage])
+
+
+@when('the operator creates a story titled "{title}" in section "{section}" at stage "{stage}" with an assignment')
+def create_story_with_assignment(context, title, section, stage):
+    _run_cli(context, ["stories", "create", "--title", title, "--section", section, "--stage", stage, "--with-assignment"])
+
+
+@then('one content item exists at stage "{stage}" and no assignment exists')
+def item_no_assignment(context, stage):
+    items = list(context.backend.tables.get("Item", {}).values())
+    assert [item["stage"] for item in items] == [stage], items
+    assert not context.backend.tables.get("Assignment")
+
+
+@then("one content item exists at stage \"{stage}\" and the assignment works on it")
+def item_with_assignment(context, stage):
+    items = list(context.backend.tables.get("Item", {}).values())
+    assert [item["stage"] for item in items] == [stage], items
+    assignments = list(context.backend.tables.get("Assignment", {}).values())
+    assert [a["itemLineageId"] for a in assignments] == [items[0]["lineageId"]]
+
+
+@when('the operator creates a reporting assignment titled "{title}" in section "{section}" with no corpus key')
+def create_reporting(context, title, section):
+    _run_cli(context, ["assignments", "create-reporting", "--title", title, "--section", section])
+
+
+@then('the assignment is for corpus "{key}"')
+def assignment_corpus(context, key):
+    assignments = list(context.backend.tables.get("Assignment", {}).values())
+    assert [a["corpusId"] for a in assignments] == [f"knowledge-corpus-{key}"]

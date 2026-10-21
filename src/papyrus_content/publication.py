@@ -14,14 +14,14 @@ from typing import Any, Callable
 
 from .ids import knowledge_corpus_id
 
-CANONICAL_ROLE = "canonical"
+CANONICAL_CORPUS_KIND = "canonical"
 PUBLICATION_KEY_ENVIRONMENT = "PAPYRUS_PUBLICATION_CORPUS_KEY"
 PUBLICATION_NAME_ENVIRONMENT = "PAPYRUS_PUBLICATION_NAME"
 INIT_HINT = "papyrus publication init --key <key> --name <name>"
 
 
 def _canonical_corpora(client) -> list[dict[str, Any]]:
-    return [row for row in client.list_by_index("knowledgeCorporaByRoleAndName", CANONICAL_ROLE) if row.get("role") == CANONICAL_ROLE]
+    return [row for row in client.list_by_index("knowledgeCorporaByRoleAndName", CANONICAL_CORPUS_KIND) if row.get("role") == CANONICAL_CORPUS_KIND]
 
 
 def ensure_publication(client, key: str, name: str | None = None) -> dict[str, Any]:
@@ -40,11 +40,11 @@ def ensure_publication(client, key: str, name: str | None = None) -> dict[str, A
         return {"created": False, "key": key, "corpusId": corpus_id, "name": canonical[0].get("name")}
     current = client.get_record("KnowledgeCorpus", corpus_id)
     if current:
-        raise ValueError(f"Corpus {corpus_id} already exists with role {current.get('role')!r}, not {CANONICAL_ROLE!r}; it is not changed.")
+        raise ValueError(f"Corpus {corpus_id} already exists with role {current.get('role')!r}, not {CANONICAL_CORPUS_KIND!r}; it is not changed.")
     display_name = (name or "").strip() or key
     now = datetime.now(timezone.utc).isoformat()
     client.create_record("KnowledgeCorpus", {
-        "id": corpus_id, "name": display_name, "role": CANONICAL_ROLE, "itemCount": 0, "createdAt": now, "updatedAt": now,
+        "id": corpus_id, "name": display_name, "role": CANONICAL_CORPUS_KIND, "itemCount": 0, "createdAt": now, "updatedAt": now,
     })
     return {"created": True, "key": key, "corpusId": corpus_id, "name": display_name}
 
@@ -95,4 +95,13 @@ def resolve_catalog_corpus(
     if steering is not None and corpus_key:
         return require_corpus_config(steering, corpus_key, "--corpus-key"), steering
     publication = hosted_publication(client, corpus_key if isinstance(corpus_key, str) else None)
-    return {"key": publication["key"], "name": publication["name"], "role": CANONICAL_ROLE}, steering
+    return {"key": publication["key"], "name": publication["name"], "role": CANONICAL_CORPUS_KIND}, steering
+
+
+def publication_corpus_key(client, explicit: str | None = None) -> str:
+    """`--corpus-key` when given, else the key of the backend's canonical publication corpus."""
+    if explicit:
+        return explicit
+    from .editorial_context import hosted_publication
+
+    return hosted_publication(client)["key"]
