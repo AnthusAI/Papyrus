@@ -550,7 +550,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return found
 
     def _llms_full_entries(self, entries: list[StandardEntry]) -> list[StandardEntry]:
-        return [entry for entry in entries if entry.key and not entry.noindex and (entry.listed or entry.type == "page")]
+        return [entry for entry in entries if entry.key and not entry.noindex]
 
     def _add_llms_files(self, plan, site: SiteIndex, entries, listed) -> None:
         agents = self.standard.agents
@@ -833,7 +833,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _page(self, kind: str, head: PageHead, site: SiteIndex, *, entries=(), **extra) -> StandardPage:
         crumbs = extra.pop("crumbs", ())
-        return StandardPage(
+        page = StandardPage(
             kind=kind,
             path=head.path,
             title=head.title,
@@ -847,6 +847,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             site=self._hook_site(site),
             **extra,
         )
+        return dataclasses.replace(page, page_actions=self._page_actions(page)) if kind == "item" else page
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
