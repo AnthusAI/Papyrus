@@ -42,7 +42,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `icons` | `icon`, `iconType`, `appleTouch`, `manifest`, `themeColor`, `themeColorDark` |
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
-| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form}]`; the body comes from the `page_body` hook |
+| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form, image, imageAlt, socialTitle}]`; the body comes from the `main` (or `page_body`) hook. `image` is the page's own share image (default `seo.defaultImage`), `imageAlt` its alt text and `socialTitle` the og/twitter title when that differs from `title` |
 | `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
@@ -176,6 +176,7 @@ error (prefix helpers with `_`):
 | `body_class(page)` | the page | classes added to `<body>` after `chrome.body_class` |
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
 | `derive(summary)` | the item summary | a dict of derived fields (a tier, a week, a shape); available as `entry.derived`, part of every fingerprint, and how a site picks which row or card component renders |
+| `main(page)` | the page | the inside of `<main>` (any page kind), or `None` for the default; the standard skip link, masthead and footer stay. For pages whose content a site's own build renders (a data-driven results page) |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
 
 `page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,

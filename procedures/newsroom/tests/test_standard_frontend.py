@@ -514,6 +514,37 @@ def test_named_hooks_shape_the_page(tmp_path):
         site.cleanup()
 
 
+MAIN_HOOK = '''
+def main(page):
+    if page.kind == "custom":
+        return '<div id="fragment">fragment for ' + page.custom_id + '</div>'
+    if page.kind == "not_found":
+        return '<div id="gone">nothing here</div>'
+    return None
+'''
+
+
+def test_the_main_hook_replaces_the_inside_of_main_and_keeps_the_standard_header_and_footer():
+    pages = [{"id": "shared", "path": "results/shared", "title": "Shared results", "description": "One result.", "dependsOn": [],
+              "image": "/og/shared.png", "imageAlt": "A card about results", "socialTitle": "The results, in one line"}]
+    settings = {**fixture_settings("sectioned"), "hooks": "hooks.py", "pages": pages, "seo": {"imageSize": [1200, 630]}}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content", extra_files={"hooks.py": MAIN_HOOK})
+    try:
+        page = site.text("results/shared/index.html")
+        assert '<div id="fragment">fragment for shared</div>' in page
+        assert '<main id="main">' in page and "markus-site-footer" in page and 'class="markus-skip' in page
+        assert '<title>Shared results' in page                                  # the head still takes the page title
+        assert '<meta property="og:title" content="The results, in one line">' in page
+        assert '<meta name="twitter:title" content="The results, in one line">' in page
+        assert '<meta property="og:image" content="/og/shared.png">' in page or "/og/shared.png" in page
+        assert '<meta property="og:image:alt" content="A card about results">' in page
+        assert '<meta name="twitter:image:alt" content="A card about results">' in page
+        assert '<div id="gone">nothing here</div>' in site.text("404.html")
+        assert "Fords and Crossings" in site.text("essays/index.html")          # a hook that returns None keeps the default
+    finally:
+        site.cleanup()
+
+
 def test_an_unknown_public_function_in_the_hooks_module_is_an_error(tmp_path):
     (tmp_path / "hooks.py").write_text("def mastheed(page):\n    return ''\n")
     with pytest.raises(ValueError, match="unknown hooks: mastheed"):

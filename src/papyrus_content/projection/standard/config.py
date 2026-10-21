@@ -103,6 +103,9 @@ class CustomPage:
     sitemap: bool = True
     noindex: bool = False
     form: str | None = None           # the id of a ``forms`` entry the default body shows
+    image: str | None = None          # the page's own share image (site path or URL); default ``seo.defaultImage``
+    image_alt: str = ""               # og:image:alt / twitter:image:alt
+    social_title: str = ""            # og:title / twitter:title when it differs from ``title``
 
 
 @dataclass(frozen=True)
@@ -519,7 +522,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
 
     custom = []
     for entry in raw.get("pages") or ():
-        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form"}, "pages")
+        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form", "image", "imageAlt", "socialTitle"}, "pages")
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
@@ -530,6 +533,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 sitemap=bool(entry.get("sitemap", True)),
                 noindex=bool(entry.get("noindex", False)),
                 form=entry.get("form"),
+                image=entry.get("image") or None,
+                image_alt=str(entry.get("imageAlt", "")),
+                social_title=str(entry.get("socialTitle", "")),
             )
         )
     components = dict(raw.get("components") or {})
