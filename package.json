@@ -41,6 +41,7 @@
     "test:markus-projection": "tsx scripts/test-markus-projection.ts",
     "test:markus-to-article": "tsx scripts/test-markus-to-article.ts",
     "test:markus-body": "tsx scripts/test-markus-body.ts",
+    "test:content-actions-requirements": "node scripts/test-content-actions-requirements.mjs",
     "test:content-actions-asset-size": "tsx scripts/test-content-actions-asset-size.ts",
     "test:content-actions-client": "tsx scripts/test-content-actions-client.ts",
     "test:newsroom-articles": "tsx scripts/test-newsroom-articles.ts",
