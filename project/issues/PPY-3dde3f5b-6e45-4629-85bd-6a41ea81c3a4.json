@@ -17,10 +17,17 @@
       "text": "Blocked on Ryan (2026-10-21): Google OAuth client and secrets script, then the Amplify console Connect repository on app d35q7zv4zad2we.",
       "created_at": "2026-10-21T16:54:49.975967Z",
       "comment_type": "default"
+    },
+    {
+      "id": "96314e54-c0d1-41ca-97d0-95a46ba93aed",
+      "author": "home",
+      "text": "2026-10-21: the console connect pointed app d35q7zv4zad2we at anthusai/shipped-web (with the Shipped service role) because the AWS Amplify GitHub App is not installed on the DataParade-io org. I cancelled build 1 before it ran, restored the service role and the branch variables, and turned branch auto-build off so a Shipped push cannot deploy into this app. Ryan must install the AWS Amplify GitHub App on DataParade-io (access to DataParade-newsroom) and re-point the app's repository to it; the API refuses a repository change without a token.",
+      "created_at": "2026-10-21T17:29:10.777252Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T16:54:33.610485Z",
-  "updated_at": "2026-10-21T16:54:49.975993Z",
+  "updated_at": "2026-10-21T17:29:10.777295Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
