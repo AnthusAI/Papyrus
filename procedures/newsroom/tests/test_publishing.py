@@ -171,14 +171,14 @@ class PublishItemTests(unittest.TestCase):
         self.assertFalse(result.changed)
         self.assertEqual(client.write_calls(), [])
 
-    def test_edit_and_republish_increments_version(self) -> None:
+    def test_edit_and_republish_increments_the_published_counter_only(self) -> None:
         client = self.saved()
         publish_item(client, ITEM_ID, actor="tester", now=NOW)
         save_item(client, fields(body_markus="Edited.\n"), actor="tester", now=LATER)
         result = publish_item(client, ITEM_ID, actor="tester", now=LATER)
         self.assertTrue(result.changed)
         self.assertEqual(client.tables["PublishedItem"]["published-" + ITEM_ID]["versionNumber"], 2)
-        self.assertEqual(client.tables["Item"][ITEM_ID]["versionNumber"], 2)
+        self.assertEqual(client.tables["Item"][ITEM_ID]["versionNumber"], 1)  # publishing never renumbers the record
 
     def test_missing_image_blocks_publish(self) -> None:
         client = self.saved(body_markus=image_body("a.png"))

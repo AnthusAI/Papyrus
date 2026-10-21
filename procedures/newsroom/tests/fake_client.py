@@ -73,6 +73,12 @@ class FakeAuthoringClient:
         self._maybe_fail("upsert", model_name)
         return "updated" if existed else "created"
 
+    def create_record(self, model_name: str, payload: dict[str, Any]) -> None:
+        self.calls.append(("create", model_name, payload["id"]))
+        if payload["id"] in self._table(model_name):
+            raise ValueError(f"{model_name} {payload['id']} already exists")
+        self._table(model_name)[payload["id"]] = copy.deepcopy(payload)
+
     def update_record(self, model_name: str, payload: dict[str, Any]) -> None:
         self.calls.append(("update", model_name, payload["id"]))
         self.updates.append((model_name, payload))
@@ -86,4 +92,4 @@ class FakeAuthoringClient:
         self._maybe_fail("delete", model_name)
 
     def write_calls(self) -> list[tuple[str, str, Any]]:
-        return [call for call in self.calls if call[0] in ("upsert", "update", "delete")]
+        return [call for call in self.calls if call[0] in ("create", "upsert", "update", "delete")]

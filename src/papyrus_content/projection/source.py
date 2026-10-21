@@ -104,6 +104,10 @@ class PublishedContentSource:
             return None
         return row
 
+    def lineage_id_of(self, item_id: str) -> str:
+        item = self._client.get_record("Item", item_id)
+        return (item.get("lineageId") if item else None) or item_id
+
     def published_item(self, item_id: str) -> ProjectedItem | None:
         row = self.published_row(item_id)
         if row is None:
