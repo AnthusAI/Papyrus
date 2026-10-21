@@ -694,7 +694,7 @@ def test_seed_script_sets_and_clears_ceilings():
 def test_not_ready_binding_must_not_halt_the_sweep(table):
     """Reproduces the halt: one binding answers 409 criteria_pending; the others must still decide and deliver."""
     store, cyclotron = setup_router(table)
-    cyclotron.post_override["threat-intelligence"] = (409, {"error": {"code": "criteria_pending"}})
+    cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
     delivery = Delivery()
     result = go(table, store, cyclotron, deliver=delivery)
     assert result["status"] == "complete" and result["stoppedBy"] is None
@@ -708,7 +708,7 @@ def test_not_ready_binding_must_not_halt_the_sweep(table):
 
 def test_not_ready_binding_is_parked_probed_after_backoff_and_backfilled_when_ready(table):
     store, cyclotron = setup_router(table, maxItemsPerRun=1)
-    cyclotron.post_override["threat-intelligence"] = (409, {"error": {"code": "criteria_pending"}})
+    cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
     delivery = Delivery()
     ti = lambda: [c for c in cyclotron.posts() if c[1].split("/")[3] == "threat-intelligence"]
     first = go(table, store, cyclotron, now=2000, deliver=delivery)
@@ -741,6 +741,12 @@ def test_other_409_and_ceiling_refusals_still_stop_the_sweep(table):
     result = go(table, store, cyclotron)
     assert result["status"] == "stopped" and result["stoppedBy"] == "something_else"
     assert ("MONITOR#hn", "PARK#anth-us") not in table.items
+
+
+def test_typed_criteria_pending_code_is_also_not_ready(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["anth-us"] = (409, {"error": {"code": "criteria_pending"}})
+    assert go(table, store, cyclotron)["waitingForClassifier"] == ["anth-us"]
 
 
 def test_all_bindings_not_ready_parks_the_item_without_looping(table):

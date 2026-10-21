@@ -120,7 +120,7 @@ export class AmplifyAppShellStack extends Stack {
         description: `Seals the Prospectus sign-in cookies of ${cmsAppName}; replacing it signs everyone out`,
       })
       : undefined;
-    const prospectusEnvironment = prospectusAccountsApiStageArn && prospectusSessionSealing
+    const prospectusEnvironment: Record<string, string> = prospectusAccountsApiStageArn && prospectusSessionSealing
       ? {
         PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: resolveProspectusAccountsEndpoint(prospectusAccountsApiStageArn),
         PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER: prospectusSessionSealing.parameterName,

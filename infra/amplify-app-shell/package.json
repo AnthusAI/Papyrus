@@ -5,9 +5,9 @@
   "description": "CDK stack that provisions the Amplify app shell (CMS app with production and staging branches, optional static reader app, domains, IAM roles) for a Papyrus publication from its site.json. The backend itself deploys via `ampx pipeline-deploy`.",
   "scripts": {
     "build": "tsc --noEmit",
-    "synth": "cdk synth -c site=${SITE:?set SITE=<path-to-site.json>}",
-    "diff": "cdk diff -c site=${SITE:?set SITE=<path-to-site.json>}",
-    "deploy": "cdk deploy -c site=${SITE:?set SITE=<path-to-site.json>} --require-approval never"
+    "synth": "./node_modules/.bin/cdk synth -c site=${SITE:?set SITE=<path-to-site.json>}",
+    "diff": "./node_modules/.bin/cdk diff -c site=${SITE:?set SITE=<path-to-site.json>}",
+    "deploy": "./node_modules/.bin/cdk deploy -c site=${SITE:?set SITE=<path-to-site.json>} --require-approval never"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.257.0",
@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "aws-cdk": "2.1146.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.0"
   }

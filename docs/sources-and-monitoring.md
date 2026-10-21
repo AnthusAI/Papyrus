@@ -15,6 +15,14 @@ A monitor that watches the Hacker News feed and offers items to the publications
 
 Beta because it is one monitor with one source, configured as data by an operator.
 
+## TTAB decisions monitor (Beta)
+
+A monitor that watches the USPTO TTAB Reading Room for new Board decisions and delivers every final decision to the publications it is configured for. First used by Distinctive Mark's TTAB rulings section.
+
+- **Source.** The Reading Room's decision search (`sourceType: ttab-decisions`), a JSON POST over a rolling `lookbackDays` window (30 by default). Each final decision becomes one item: the opinion PDF is its canonical URL and the TTABVUE proceeding page its item page. A decision redesignated as precedential within the window is collected again as a new revision.
+- **Direct routing.** The router config has `decisions: direct`: no relevance call, every collected item goes to every configured publication as a `pending` Reference, and the provenance Message says it came from the monitor's own rule. A rulings tracker wants every decision, so there is nothing to decide; notability comes later, from the publication's own review or Cyclotron. Direct monitors have no feedback.
+- **Schedules.** It collects once a day (its `intervalSeconds`; the schedule wakes it every 6 hours) and routes hourly.
+
 Details: [monitoring-cloud.md](monitoring-cloud.md) (stack, table layout, router, operating notes), [monitoring-hn-pilot.md](monitoring-hn-pilot.md) (the earlier local worker, `papyrus monitors run` and `papyrus monitors status`), and the router config example in [monitoring-router-config.example.json](monitoring-router-config.example.json).
 
 ## Adding a reference by hand (Live)
@@ -48,6 +56,7 @@ When a reference points at a known kind of site, a plugin resolves its identifie
 ## Not built yet
 
 - **General RSS and Atom monitors** for a publication's own feeds (PPY-731c23).
-- **Many monitors per publication** (PPY-7d9bbd). Today there is the one Hacker News monitor.
+- **Many monitors per publication** (PPY-7d9bbd). Today there are two monitors, Hacker News and TTAB decisions, each configured by an operator in the table.
+- **A monitor that starts a procedure** (PPY-9a79b5): for example, the TTAB monitor starting a publication's ruling-analysis procedure for each new decision.
 - **X search** as a source (PPY-e50a74).
 - **Newsletter intake**, subscribing the publication to newsletters as a source (PPY-68d06c). Forwarding a newsletter by email to the submission address works today; a subscription does not.
