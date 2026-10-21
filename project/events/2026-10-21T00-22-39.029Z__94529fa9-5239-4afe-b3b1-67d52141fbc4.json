@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "94529fa9-5239-4afe-b3b1-67d52141fbc4",
+  "issue_id": "PPY-df8ae394-f2a6-4d0f-a97e-46b6ec68005e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:39.029Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Pilot: migrate Distinctive Mark onto the standard front end",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

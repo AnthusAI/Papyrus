@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d15e8c72-239b-4e48-b1c5-124e1dbe681e",
+  "issue_id": "PPY-a55f7512-3404-4d3f-b606-b543d333c0ca",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:50.783Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Unify Markus version pins across the fleet",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

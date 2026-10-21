@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9e5c74d0-e581-411f-bc6f-502ff20ce832",
+  "issue_id": "PPY-e29cf470-f9b5-42f1-b925-aca8af9eb61a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:37.214Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Core standard front end (StandardMarkusProjector, projection.json, feeds, SEO, sitemap, listings, hooks)",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}
