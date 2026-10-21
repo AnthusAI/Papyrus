@@ -34,7 +34,7 @@ async function main() {
   assert.ok(!html.includes("references/lin-3"));
 
   // The default view names only the viewing publication.
-  assert.ok(!ready.includes("p-apyr-us") && !ready.includes("threat-intelligence"));
+  assert.ok(!ready.includes("desk-b") && !ready.includes("desk-c"));
 
   // Status is words and marks, not colour alone.
   assert.match(html, /data-delivery="delivered"/);
@@ -43,7 +43,7 @@ async function main() {
   // Whole-pipeline mode lists every publication; other publications' references are not linked from this site.
   const all = render(FIXTURE_ALL_PIPELINE_OVERVIEW, { mode: "all" });
   const allText = text(all);
-  for (const expected of ["anth-us", "p-apyr-us", "Not relevant", "threat-intelligence", "confidence not reported"]) {
+  for (const expected of ["desk-a", "desk-b", "Not relevant", "desk-c", "confidence not reported"]) {
     assert.ok(allText.includes(expected), `whole pipeline shows: ${expected}`);
   }
   assert.ok(!all.includes("references/lin-2"), "a reference in another publication's queue is not linked from this site");

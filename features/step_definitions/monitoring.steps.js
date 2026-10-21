@@ -40,7 +40,7 @@ Then("the monitoring usage should read {string} and {string}", async function (t
 
 Then("the monitoring page should not name any other publication", async function () {
   const text = await requirePage(this).locator("[data-news-desk-admin-panel='monitoring']").innerText();
-  assert.ok(!text.includes("p-apyr-us") && !text.includes("threat-intelligence"), "another publication is named");
+  assert.ok(!text.includes("desk-b") && !text.includes("desk-c"), "another publication is named");
 });
 
 When("I choose the whole shared pipeline", async function () {
@@ -49,5 +49,5 @@ When("I choose the whole shared pipeline", async function () {
 
 Then("the monitoring queue should list the judgement for every publication", async function () {
   const text = await item(this, "Quantum paper on arXiv").innerText();
-  for (const publication of ["anth-us", "p-apyr-us", "threat-intelligence"]) assert.ok(text.includes(publication), `${publication} missing`);
+  for (const publication of ["desk-a", "desk-b", "desk-c"]) assert.ok(text.includes(publication), `${publication} missing`);
 });
