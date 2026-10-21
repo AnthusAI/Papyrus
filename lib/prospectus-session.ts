@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 import { readAmplifyOutputsFile } from "./amplify-outputs-path";
 import {
   ProspectusSiteAccounts,
@@ -21,7 +21,7 @@ import {
 export const PROSPECTUS_PENDING_SIGN_IN_COOKIE = "__Host-papyrus-prospectus-pending";
 export const PROSPECTUS_SESSION_COOKIE = "__Host-papyrus-prospectus-session";
 export const PROSPECTUS_ACCOUNTS_ENDPOINT_ENV = "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT";
-export const PROSPECTUS_SESSION_SECRET_ARN_ENV = "PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN";
+export const PROSPECTUS_SESSION_SECRET_PARAMETER_ENV = "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER";
 export const PROSPECTUS_SESSION_SECRET_CACHE_MILLISECONDS = 5 * 60 * 1000;
 
 const SEALED_COOKIE_FORMAT_VERSION = "v1";
@@ -101,37 +101,37 @@ export function sameSiteReturnPath(requestedReturnPath: string | null | undefine
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
 
-export type ProspectusSessionSecretReader = (secretArn: string) => Promise<string | null>;
+export type ProspectusSessionSecretReader = (parameterName: string) => Promise<string | null>;
 
-type CachedSealingSecret = { secretArn: string; value: string; expiresAt: number };
+type CachedSealingSecret = { parameterName: string; value: string; expiresAt: number };
 
 let cachedSealingSecret: CachedSealingSecret | null = null;
-let defaultSecretsManagerClient: SecretsManagerClient | null = null;
+let defaultSsmClient: SSMClient | null = null;
 
 export function resetProspectusSessionSecretCache(): void {
   cachedSealingSecret = null;
 }
 
-async function readSealingSecretFromSecretsManager(secretArn: string): Promise<string | null> {
-  defaultSecretsManagerClient ??= new SecretsManagerClient({});
-  const response = await defaultSecretsManagerClient.send(new GetSecretValueCommand({ SecretId: secretArn }));
-  return response.SecretString?.trim() || null;
+export async function readSealingSecretFromSsm(parameterName: string, client?: Pick<SSMClient, "send">): Promise<string | null> {
+  defaultSsmClient ??= new SSMClient({});
+  const response = await (client ?? defaultSsmClient).send(new GetParameterCommand({ Name: parameterName, WithDecryption: true }));
+  return response.Parameter?.Value?.trim() || null;
 }
 
 export async function loadProspectusSessionSealingSecret(
   options: { environment?: Record<string, string | undefined>; readSecret?: ProspectusSessionSecretReader; now?: number } = {},
 ): Promise<string | null> {
   const environment = options.environment ?? process.env;
-  const secretArn = environment[PROSPECTUS_SESSION_SECRET_ARN_ENV]?.trim();
-  if (!secretArn) return null;
+  const parameterName = environment[PROSPECTUS_SESSION_SECRET_PARAMETER_ENV]?.trim();
+  if (!parameterName) return null;
   const now = options.now ?? Date.now();
-  if (cachedSealingSecret && cachedSealingSecret.secretArn === secretArn && cachedSealingSecret.expiresAt > now) {
+  if (cachedSealingSecret && cachedSealingSecret.parameterName === parameterName && cachedSealingSecret.expiresAt > now) {
     return cachedSealingSecret.value;
   }
   try {
-    const value = (await (options.readSecret ?? readSealingSecretFromSecretsManager)(secretArn))?.trim();
+    const value = (await (options.readSecret ?? readSealingSecretFromSsm)(parameterName))?.trim();
     if (!value || value.length < MINIMUM_SEALING_SECRET_LENGTH) return null;
-    cachedSealingSecret = { secretArn, value, expiresAt: now + PROSPECTUS_SESSION_SECRET_CACHE_MILLISECONDS };
+    cachedSealingSecret = { parameterName, value, expiresAt: now + PROSPECTUS_SESSION_SECRET_CACHE_MILLISECONDS };
     return value;
   } catch (error) {
     console.error(`Prospectus session sealing secret could not be read (${error instanceof Error ? error.name : "error"}).`);

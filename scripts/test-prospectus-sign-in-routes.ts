@@ -14,6 +14,7 @@ import {
   PROSPECTUS_SESSION_COOKIE,
   googleOnlyCognitoClientFromOutputs,
   loadProspectusSessionSealingSecret,
+  readSealingSecretFromSsm,
   openProspectusCookie,
   regionOfProspectusAccountsEndpoint,
   resetProspectusSessionSecretCache,
@@ -132,13 +133,13 @@ async function configurationTests() {
 
   const configuredEnvironment = {
     PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT: "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/",
-    PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN: "arn:aws:secretsmanager:us-east-1:111111111111:secret:sealing",
+    PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER: "/papyrus/p-apyr-us/prospectus-session-sealing",
   };
   const readSecret = async () => sealingSecret;
   const unusedTransport = async () => ({});
   resetProspectusSessionSecretCache();
   assert.ok(await resolveProspectusSignInRuntime(siteOrigin, { environment: configuredEnvironment, amplifyOutputs, readSecret, transport: unusedTransport }));
-  for (const missing of ["PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN"] as const) {
+  for (const missing of ["PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER"] as const) {
     resetProspectusSessionSecretCache();
     const environment = { ...configuredEnvironment, [missing]: "" };
     assert.equal(await resolveProspectusSignInRuntime(siteOrigin, { environment, amplifyOutputs, readSecret, transport: unusedTransport }), null, `${missing} unset means no sign-in`);
@@ -151,6 +152,21 @@ async function configurationTests() {
     null,
     "an unreadable secret means no sign-in",
   );
+  resetProspectusSessionSecretCache();
+
+  const sentCommands: Array<{ Name?: string; WithDecryption?: boolean }> = [];
+  const fakeSsm = { send: async (command: { input: { Name?: string; WithDecryption?: boolean } }) => {
+    sentCommands.push(command.input);
+    return { Parameter: { Value: `  ${sealingSecret}\n` } };
+  } };
+  assert.equal(await readSealingSecretFromSsm("/papyrus/p-apyr-us/prospectus-session-sealing", fakeSsm as never), sealingSecret, "the SSM reader trims the value");
+  assert.deepEqual(sentCommands, [{ Name: "/papyrus/p-apyr-us/prospectus-session-sealing", WithDecryption: true }], "the SSM reader asks for the named parameter, decrypted");
+
+  let reads = 0;
+  const countingRead = async () => { reads += 1; return sealingSecret; };
+  assert.equal(await loadProspectusSessionSealingSecret({ environment: configuredEnvironment, readSecret: countingRead, now: 1_000 }), sealingSecret);
+  assert.equal(await loadProspectusSessionSealingSecret({ environment: configuredEnvironment, readSecret: countingRead, now: 2_000 }), sealingSecret);
+  assert.equal(reads, 1, "the container reads the parameter once while the cache is fresh");
   resetProspectusSessionSecretCache();
 }
 
