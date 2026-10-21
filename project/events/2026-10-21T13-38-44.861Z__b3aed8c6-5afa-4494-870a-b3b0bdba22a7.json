@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b3aed8c6-5afa-4494-870a-b3b0bdba22a7",
+  "issue_id": "PPY-10283944-df85-43bf-8cad-2023a8d724e6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T13:38:44.861Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fresh site deploy exceeds the CloudFormation per-operation resource cap",
+    "description": "A new site's first backend deploy fails with 'Limit on the number of resources in a single stack operation exceeded'. CloudFormation creates at most 2,500 resources per stack operation, nested stacks included; the data stack is about 2,560 (130 top-level + 2,432 across 45 nested stacks). Existing sites reached that size through incremental updates. Found deploying Shipped (shipped.anth.us), where the first four builds rolled back. resolverWaveSize does not help (all waves are in one root operation). Workaround, PR #463: backend.excludeModelGroups (editions) for a staged first deploy, then remove it and deploy again. Real fix to decide: trim or split the schema (e.g. a second data stack or a model-group opt-in default), so a fresh create fits. Every new site hits this.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
