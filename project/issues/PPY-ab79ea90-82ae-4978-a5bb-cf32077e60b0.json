@@ -3,17 +3,25 @@
   "title": "Document the standard front end on the Papyrus marketing site",
   "description": "Standing rule (Ryan): every feature epic ends with documenting the feature on the Papyrus marketing site (p.apyr.us product site). Cover: one standard front end for static sites (projection.json, theme, hooks), RSS and Atom feeds, sitemap/robots/SEO, listings and archives, forms component, logo-wall showcase. Related: PPY-b9b038 (features list kept current).",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "23724713-21b9-4cb0-9c61-29d7d98a1fbd",
+      "author": "home",
+      "text": "Live 2026-10-21: https://p.apyr.us/standard-front-end.html documents the standard front end (projection.json, theme, hooks, feeds RSS/Atom, sitemap/robots/SEO, listings, forms, the Built-with wall, page blocks, islands, family footer, clean URLs, and the 5.12.0 options). Papyrus-web PRs #15, #20, #22 (Amplify jobs 14, 18, 20 SUCCEED, papyrus-production 712236451410); page returns 200 text/html, its .md twin 200 text/markdown, Accept: text/markdown returns markdown, and it is listed in llms.txt and sitemap.xml. Claims were limited to behaviour described in docs/building-a-papyrus-static-site.md and confirmed by curl on the sites named.",
+      "created_at": "2026-10-21T19:41:26.171420Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T01:35:44.817417Z",
-  "updated_at": "2026-10-21T01:35:44.817477Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:41:26.321368Z",
+  "closed_at": "2026-10-21T19:41:26.321334Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

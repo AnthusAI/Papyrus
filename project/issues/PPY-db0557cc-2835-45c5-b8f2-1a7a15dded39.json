@@ -3,17 +3,25 @@
   "title": "Position Papyrus as agent-accessible publishing on the marketing site",
   "description": "Ryan, 2026-10-20: agent accessibility is a core feature and part of Papyrus's positioning. On the Papyrus marketing site (p.apyr.us): a feature section/page explaining that every Papyrus site is readable by agents and people alike: per-page Markdown, llms.txt and llms-full.txt, Accept: text/markdown negotiation, page actions (Copy Markdown, open in AI assistants), RSS/Atom, sitemap and structured data; agents operating the newsroom through the CLI and API; roadmap: MCP and WebMCP. Include it in the homepage positioning and the features list (PPY-b9b038). Ship after PPY-f172d7 and the page-actions story are live, with real examples from a live site.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d78413f0-f693-4707-8521-bd6169b98b34",
+      "author": "home",
+      "text": "Live 2026-10-21: https://p.apyr.us/agent-accessible.html ('Readable by agents and people alike') plus an agents section on the home page and 'For agents' nav/footer links (Papyrus-web PRs #15, #20, #22; Amplify job 20 SUCCEED). Covers per-page Markdown twins, llms.txt and llms-full.txt, Accept: text/markdown negotiation (and exactly where it does not run: GitHub Pages docs sites, the two leaderboards), page actions Copy Markdown / View as Markdown / Open in ChatGPT, Claude, Perplexity (with the list of sites where the three links were curl-verified), RSS/Atom, sitemap, structured data, agents operating the newsroom through CLI and API, and MCP/WebMCP stated as NOT built. Real examples from live sites (pilobol.us index.md, llms.txt, llms-full.txt, feeds, an article with Accept negotiation) were each curled before citing. There is no separate features-list page on the site (PPY-b9b038 stays separate).",
+      "created_at": "2026-10-21T19:41:26.793930Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T02:56:47.534009Z",
-  "updated_at": "2026-10-21T02:56:47.534074Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:41:26.847799Z",
+  "closed_at": "2026-10-21T19:41:26.847773Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

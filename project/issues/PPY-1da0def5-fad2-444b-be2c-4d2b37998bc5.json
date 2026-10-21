@@ -3,17 +3,32 @@
   "title": "papyrus site google-secrets: standard command replacing per-site Google OAuth secrets scripts",
   "description": "Add `papyrus site google-secrets set` and `check`, run from a site repo. Reads infra/site.json for stack, app and Cognito domain prefix; asserts the AWS account with STS before any write; prompts for the client id and a hidden secret (or --client-id and stdin); writes the Amplify secret SSM SecureStrings at /amplify/<appId>/<branch>-branch-<hash>/GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET; prints the Google Cloud Console origin and redirect URI to register and the redeploy step. check reports names, last-modified, fingerprints and whether the deployed Cognito Google IdP uses the same client id. Never enables or disables Google OAuth (mentions PAPYRUS_DISABLE_GOOGLE_OAUTH). Tests with fake SSM/STS. Docs: site-hosting.md and the CLI reference. After release, the two ~/Projects *-store-google-secrets.sh scripts become a one-line pointer.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d64665e2-2019-4151-9170-1256ec8a101e",
+      "author": "home",
+      "text": "Released in v5.15.0. PR #480 (merged to develop), promoted to main in #479. Tests: procedures/newsroom/tests/test_site_google_secrets.py (fake STS/SSM/CFN/Amplify/Cognito). Verified: papyrus site google-secrets check against Shipped (dkycd9pntgo6d) and Data Parade (d35q7zv4zad2we) in papyrus-production: both parameters present, deployed Cognito IdP client id matches. Old scripts in ~/Projects now one-line pointers.",
+      "created_at": "2026-10-21T19:39:53.618676Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "96afb5dd-45ab-42b1-b90e-fa02686f52b0",
+      "author": "home",
+      "text": "Released in v5.15.0. PR #480 (merged to develop), promoted to main in #479. Tests: procedures/newsroom/tests/test_site_google_secrets.py (fake STS/SSM/CFN/Amplify/Cognito). Verified with check against Shipped (dkycd9pntgo6d) and Data Parade (d35q7zv4zad2we) in papyrus-production: both parameters present, deployed Cognito IdP client id matches. Old scripts in ~/Projects are now one-line pointers.",
+      "created_at": "2026-10-21T19:40:02.412769Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T18:11:57.759875Z",
-  "updated_at": "2026-10-21T18:12:05.618070Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:40:02.412797Z",
+  "closed_at": "2026-10-21T19:39:54.175115Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

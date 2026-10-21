@@ -3,17 +3,25 @@
   "title": "Framework marketing sites: shared header/footer and Markus prose (Chatticus, Tactus, Cyclotron-web)",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9663a846-4663-44bd-9750-4de370cf34d6",
+      "author": "home",
+      "text": "All children closed: Cyclotron, Tactus and Chattic marketing sites migrated and live; page blocks, islands, family footer, clean URLs in core; follow-ups 7954f8, 9cd419, 2c3c69, c385b2, 715a85, 5e3d24, 13369f done with evidence on each; the three sites run Papyrus 5.12.0+ and deploy from their pipelines (Amplify for Tactus, CodePipeline for Chattic and Cyclotron).",
+      "created_at": "2026-10-21T19:42:59.959947Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:44.694511Z",
-  "updated_at": "2026-10-21T00:22:44.694571Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:43:00.015384Z",
+  "closed_at": "2026-10-21T19:43:00.015357Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

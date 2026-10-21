@@ -3,7 +3,7 @@
   "title": "Bring HN reference router live after provider key correction",
   "description": "The shared Cyclotron provider secret now holds the TypeSafe key. A live smoke attempt on 2026-10-21 (one item, router flipped live for one invocation, then restored to dry-run) was refused by Cyclotron with run_busy: command job bf25e156 on the standing run is claimed and running with no result, left by the earlier wrong-key attempt; its queue message is in the dead-letter queue. The worker refuses to reclaim it by design (running command requires scoped reconciliation). Router is in dry-run, 115 items waiting. Needs an owner-approved reconciliation of that one job before the bounded live pass, the live flip and the two-cycle watch.",
   "type": "sub-task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -46,11 +46,35 @@
         "model": "claude-sonnet-5-5",
         "name": "Sonnet monitoring agent"
       }
+    },
+    {
+      "id": "c4f3290c-ba1b-4cbf-bf9b-d94d41e406ff",
+      "author": "home",
+      "text": "2026-10-21 20:00Z: router LIVE (maxItemsPerRun 5, feedback true; Anth.us, p.apyr.us, Threat Intelligence). Root cause found with the 0.33.0 worker diagnostic: reserve raised 'explicit retry required' for a failed shared request left by the earlier wrong-key attempt and it escaped unrecorded after the claim. Fixed in Cyclotron 0.33.1 (recorded source_refused refusal; post-dispatch failures stay fail-closed); both releases deployed to cyclotron-console by change set (Code only; LabVerifierEnabled=true, set by a concurrent deploy, preserved). Smoke: 2 items, 3 decisions each. Bounded pass: 15 decided + 2 refused (source_refused). Per publication: anth-us 0 include / 15 exclude, p-apyr-us 0 / 15, threat-intelligence 2 include / 13 exclude; 2 pending References delivered to TI, none auto-accepted. Watch 19:22, 19:37, 19:52 router runs + 19:28, 19:43 collector runs: 0 errors, decisions 15 -> 30, 4 pending TI References total. Data Parade had been added to the router publications by someone else; removed for live (its POST returns 409 pending criteria and stops the sweep); backup of the prior config is not committed. Backlog drains at 5 per run against the 100/day Cyclotron ceiling.",
+      "created_at": "2026-10-21T19:57:35.052964Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Sonnet monitoring agent"
+      }
+    },
+    {
+      "id": "99e804a0-06ad-4af5-8b88-a5c7f33be5a6",
+      "author": "home",
+      "text": "Correction: after the watch the pending References are 4 in total, not 4 at TI: threat-intelligence 3, anth-us 1, p-apyr-us 0. All 4 verified curationStatus pending, set by papyrus-monitoring-worker.",
+      "created_at": "2026-10-21T19:57:45.865984Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Sonnet monitoring agent"
+      }
     }
   ],
   "created_at": "2026-10-21T17:47:09.374027Z",
-  "updated_at": "2026-10-21T18:37:13.538135Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:57:45.866027Z",
+  "closed_at": "2026-10-21T19:57:35.515960Z",
   "agent": {
     "platform": "claude-code",
     "model": "claude-sonnet-5-5",
