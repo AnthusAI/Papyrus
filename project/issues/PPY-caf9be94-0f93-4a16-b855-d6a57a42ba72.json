@@ -1,0 +1,20 @@
+{
+  "id": "PPY-caf9be94-0f93-4a16-b855-d6a57a42ba72",
+  "title": "Readers send a message through a public contact form; it lands in newsroom Messages",
+  "description": "As a reader of a Papyrus publication, I can send the editors a message (corrections, tips, questions) from a contact form on the public site, and editors see it in the newsroom's Messages as a reader message they can triage and reply to by email.\n\nShares the public-endpoint work of this milestone (newsletter signup): an unauthenticated, rate-limited endpoint with a bot challenge (e.g. Turnstile) and a honeypot, strict size limits, no reflection of input, and an explicit consent line. Stores a Message (messageKind reader_contact; name, reply-to email, topic, body, page URL, received-at) in the site backend, visible to editors and admins only, never through the guest or content API; email addresses are personal data (same handling as subscriber records). Optional notification to editors (e.g. Slack or email) when one arrives.\n\nSite contract: the publication's static site renders a /contact/ page whose form posts to a configured endpoint; while the endpoint is not configured the page says the form is not open yet and never fakes a successful send. Pilot: Distinctive Mark (its editorial policy points readers to the footer contact link for corrections). Acceptance: a message sent from the live form appears in Messages within seconds; spam controls block scripted posts; editors can mark handled and reply.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T01:32:53.983592Z",
+  "updated_at": "2026-10-21T01:32:53.983618Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
