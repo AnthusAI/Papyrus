@@ -76,6 +76,7 @@ class SectionConfig:
     description: str = ""
     page_size: int | None = None      # None: the site's listings.pageSize
     list_empty: bool = False          # keep the listing page when the section has no entries
+    sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
 
 
 @dataclass(frozen=True)
@@ -245,7 +246,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty"}, f"urls.sections.{section_name}")
+        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "sort"}, f"urls.sections.{section_name}")
+        if entry.get("sort", "date") not in ("date", "order"):
+            raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
         sections.append(
             SectionConfig(
                 name=section_name,
@@ -259,6 +262,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 description=str(entry.get("description", "")),
                 page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
                 list_empty=bool(entry.get("listEmpty", False)),
+                sort=str(entry.get("sort", "date")),
             )
         )
 
