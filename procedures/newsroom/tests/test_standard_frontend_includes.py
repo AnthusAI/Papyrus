@@ -293,7 +293,7 @@ def test_a_showcase_include_depends_on_the_showcase_items_only():
     [
         ('::include{kind="nope"}', "needs kind to be one of listing, showcase, form, block"),
         ("::include{tags=\"x\"}", "needs kind to be one of"),
-        ('::include{kind="listing" tag="x"}', "::include listing has unknown attributes: tag"),
+        ('::include{kind="listing" bogus="x"}', "::include listing has unknown attributes: bogus"),
         ('::include{kind="listing" id="x" depends="posts"}', "unknown attributes: depends, id"),
         ('::include{kind="listing" collection="missing"}', "names collection 'missing', which projection.json does not define"),
         ('::include{kind="listing" layout="wide"}', "layout must be one of grid, bare"),
@@ -551,5 +551,41 @@ def test_publishing_a_post_changes_the_block_that_counts_posts():
         assert project(site.context, "item-posts-z1").ok
         assert "blk/index.html" in written_keys(site) and "posts=8" in site.text("blk/index.html")
         assert "blk-none/index.html" not in written_keys(site)
+    finally:
+        site.cleanup()
+
+
+# ------------------------------------------------------------------ the wrapper element, and the 404 page file
+
+def test_a_listing_include_with_a_tag_wraps_the_cards_and_draws_nothing_when_nothing_is_selected():
+    files = {
+        "wrapped.md": f'{BAND}::include{{kind="listing" tags="tie" layout="bare" tag="ul" class="grid list"}}\n',
+        "empty.md": f'{BAND}Before.\n\n::include{{kind="listing" tags="nothing" layout="bare" tag="ul" class="grid list"}}\n\nAfter.\n',
+    }
+    site = cms_site(settings(urls=SECTIONS, pages=[page_entry("wrapped"), page_entry("empty")]), posts(), files)
+    try:
+        wrapped = main_of(site.text("wrapped/index.html"))
+        assert wrapped.startswith('<ul class="grid list"><article') and wrapped.endswith("</ul>")
+        assert "<ul" not in main_of(site.text("empty/index.html"))
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize("line", ['::include{kind="listing" tag="table" layout="bare"}', '::include{kind="listing" class="x" layout="bare"}', '::include{kind="listing" tag="ul"}'])
+def test_a_bad_wrapper_is_an_error(line):
+    site = DirectorySite(settings(pages=[page_entry("p")]), [item("x", section="posts", tags=["t"])], {"p.md": f"{BAND}{line}\n"})
+    try:
+        with pytest.raises(ValueError, match="::include tag"):
+            site.project_all()
+    finally:
+        site.cleanup()
+
+
+def test_the_not_found_page_can_be_a_page_file_with_includes():
+    files = {"404.md": f'{BAND}::raw\n<p class="lost">Lost.</p>\n::endraw\n\n::include{{kind="listing" tags="tie" count="1" layout="bare"}}\n'}
+    site = cms_site(settings(urls=SECTIONS, notFound={"title": "Gone", "source": "404.md"}), posts(), files)
+    try:
+        page = site.text("404.html")
+        assert '<p class="lost">Lost.</p>' in page and "<title>Gone" in page and "<article" in page
     finally:
         site.cleanup()

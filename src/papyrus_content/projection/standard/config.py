@@ -100,6 +100,7 @@ class NotFoundSettings:
     title: str = "Page not found"
     description: str = ""
     noindex: bool = True
+    source: str | None = None         # a Markus page file in the static directory that is the body of the 404 page
 
 
 @dataclass(frozen=True)
@@ -600,12 +601,13 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             raise ValueError(f"collections.{collection_id}: pageSize must be positive and featuredCount must not be negative")
         collections.append(collection)
     not_found_raw = dict(raw.get("notFound") or {})
-    _only(not_found_raw, {"title", "description", "noindex"}, "notFound")
+    _only(not_found_raw, {"title", "description", "noindex", "source"}, "notFound")
     not_found_defaults = NotFoundSettings()
     not_found = NotFoundSettings(
         title=_text(not_found_raw, "title", not_found_defaults.title),
         description=_text(not_found_raw, "description"),
         noindex=bool(not_found_raw.get("noindex", True)),
+        source=_text(not_found_raw, "source") or None,
     )
     custom = []
     for entry in raw.get("pages") or ():

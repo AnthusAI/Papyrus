@@ -13,6 +13,8 @@ source) says where generated blocks go::
               configured collection, and the other attributes refine it), newest first unless ``sort`` says otherwise,
               ``skip`` entries dropped, then ``count`` kept. Each entry is the site's ``card`` hook (``card`` names a
               variant) or the default card; ``layout="grid"`` (default) wraps them in the card grid, ``bare`` does not.
+              ``tag`` (``ul``, ``ol``, ``div`` or ``section``, with ``class``) wraps them in that element instead, and draws
+              nothing at all when the selection is empty.
 ``showcase``  the logo wall of the ``showcase`` settings.
 ``form``      a ``forms`` entry of ``projection.json``.
 ``block``     the markup the site's ``block`` hook returns for ``name``; the remaining attributes are passed to it.
@@ -32,7 +34,8 @@ from .entries import StandardEntry, sorted_by
 from .select import Selection, selection_from_mapping
 
 KINDS = ("listing", "showcase", "form", "block")
-LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "sort", "ties", "count", "skip", "card", "layout"}
+LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "sort", "ties", "count", "skip", "card", "layout", "tag", "class"}
+WRAPPER_TAGS = ("ul", "ol", "div", "section")
 LAYOUTS = ("grid", "bare")
 
 
@@ -64,6 +67,10 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
             raise ValueError(f"{source}: ::include layout must be one of {', '.join(LAYOUTS)}")
         if attributes.get("sort", "date") not in ("date", "order", "title") or attributes.get("ties", "slug-desc") not in ("slug-desc", "slug-asc"):
             raise ValueError(f"{source}: ::include sort is date, order or title; ties is slug-desc or slug-asc")
+        if attributes.get("tag", "ul") not in WRAPPER_TAGS or ("class" in attributes and "tag" not in attributes):
+            raise ValueError(f"{source}: ::include tag is one of {', '.join(WRAPPER_TAGS)}, and class needs a tag")
+        if "tag" in attributes and attributes.get("layout", "grid") != "bare":
+            raise ValueError(f"{source}: ::include tag goes with layout=\"bare\"")
         _number(attributes, "count", source)
         _number(attributes, "skip", source)
     elif kind == "form":

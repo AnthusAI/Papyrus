@@ -448,7 +448,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         # custom pages, and authored page files
         for custom in self.standard.pages:
             selected = [entry for entry in entries if "*" in custom.depends_on or (entry.section and entry.section.name in custom.depends_on)]
-            authored = self._page_includes(custom) if custom.source else None
+            authored = self._page_includes(custom.source, f"pages.{custom.id}") if custom.source else None
             digest_input = [self._fingerprints(selected, full=True) if self.hooks.page_body else []]
             if authored is not None:
                 text, found = authored
@@ -466,14 +466,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
             )
 
         # 404
+        not_found = self.standard.not_found
+        not_found_input: list = []
+        if not_found.source:
+            text, found = self._page_includes(not_found.source, "notFound")
+            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found)]
         add(
             NOT_FOUND_KEY,
             "not_found",
-            [],
-            lambda: self._page(
-                "not_found",
-                PageHead(title=self.standard.not_found.title, path="/404.html", description=self.standard.not_found.description, noindex=self.standard.not_found.noindex),
-                site, entries=tuple(listed),
+            not_found_input,
+            lambda: self._not_found_page(
+                PageHead(title=not_found.title, path="/404.html", description=not_found.description, noindex=not_found.noindex), site, listed,
             ),
         )
 
@@ -924,21 +927,21 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     # ------------------------------------------------------------------ authored pages and includes
 
-    def _page_text(self, custom: CustomPage) -> str:
-        if custom.source not in self._page_text_cache:
+    def _page_text(self, source: str, owner: str) -> str:
+        if source not in self._page_text_cache:
             directory = self._static_directory
-            path = (directory / custom.source).resolve() if directory is not None else None
+            path = (directory / source).resolve() if directory is not None else None
             if path is None or directory.resolve() not in path.parents or not path.is_file():
-                raise ValueError(f"pages.{custom.id}.source {custom.source!r} is not a file inside the static directory")
-            self._page_text_cache[custom.source] = path.read_text(encoding="utf-8")
-        return self._page_text_cache[custom.source]
+                raise ValueError(f"{owner}.source {source!r} is not a file inside the static directory")
+            self._page_text_cache[source] = path.read_text(encoding="utf-8")
+        return self._page_text_cache[source]
 
-    def _page_includes(self, custom: CustomPage) -> tuple[str, list[dict]]:
+    def _page_includes(self, source: str, owner: str) -> tuple[str, list[dict]]:
         """The text of an authored page file and its validated ``::include`` attributes (a page's declared dependencies)."""
-        text = blocks.substitute(self._page_text(custom), dict(self.standard.values), custom.source)
+        text = blocks.substitute(self._page_text(source, owner), dict(self.standard.values), source)
         found = blocks.includes_in(text)
         for attributes in found:
-            includes.check(attributes, self.standard, custom.source)
+            includes.check(attributes, self.standard, source)
         return text, found
 
     def _showcase_inputs(self, summaries, found: list[dict]) -> list:
@@ -947,23 +950,33 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return []
         return [site.fingerprint() for site in showcase_sites(summaries, wall)]
 
+    def _authored_fragment(self, source: str, owner: str, key: str, page: StandardPage) -> str:
+        return self._fragment(
+            self._page_text(source, owner), key.count("/"), source, trusted=True,
+            include=lambda attributes: self._include(attributes, page, source),
+        )
+
     def _custom_page(self, custom: CustomPage, head: PageHead, site: SiteIndex, listed) -> StandardPage:
         page = self._page("custom", head, site, entries=tuple(listed), custom_id=custom.id)
         if custom.source is None:
             return page
-        text = self._page_text(custom)
-        depth = self.policy.listing_key(custom.path).count("/")
-        fragment = self._fragment(
-            text, depth, custom.source, trusted=True,
-            include=lambda attributes: self._include(attributes, page, custom.source),
-        )
-        return dataclasses.replace(page, fragment=fragment)
+        return dataclasses.replace(page, fragment=self._authored_fragment(custom.source, f"pages.{custom.id}", self.policy.listing_key(custom.path), page))
+
+    def _not_found_page(self, head: PageHead, site: SiteIndex, listed) -> StandardPage:
+        page = self._page("not_found", head, site, entries=tuple(listed))
+        source = self.standard.not_found.source
+        if source is None:
+            return page
+        return dataclasses.replace(page, fragment=self._authored_fragment(source, "notFound", NOT_FOUND_KEY, page))
 
     def _include(self, attributes: dict, page: StandardPage, source: str) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
             chosen = includes.listing_entries(attributes, list(page.entries), self.standard)
             cards = [self._card(entry, page, attributes.get("card"), position) for position, entry in enumerate(chosen)]
+            if "tag" in attributes:
+                css = f' class="{components.esc(attributes["class"])}"' if "class" in attributes else ""
+                return f'<{attributes["tag"]}{css}>' + "".join(cards) + f'</{attributes["tag"]}>' if cards else ""
             return "".join(cards) if attributes.get("layout") == "bare" else '<div class="markus-card-grid">' + "\n".join(cards) + "</div>"
         if kind == "showcase":
             wall = self.standard.showcase
@@ -1031,6 +1044,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             wall = self.standard.showcase
             intro = f"<p>{components.esc(wall.description)}</p>" if wall.description else ""
             return f'<div class="markus-document"><h1>{components.esc(wall.title)}</h1>{intro}{logo_wall(page.showcase, wall)}</div>'
+        if page.kind == "not_found" and page.fragment:
+            return page.fragment
         if page.kind == "not_found":
             return (
                 '<div class="markus-document"><h1>Page not found</h1>'
