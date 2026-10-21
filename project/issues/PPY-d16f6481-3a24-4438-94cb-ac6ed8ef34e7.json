@@ -29,10 +29,17 @@
       "text": "Decision (PPY-e8db7c, Papyrus 5.7.0, PR #440). Include construct, minimal: ::include{kind=listing|showcase|form|block} in an authored page (a pages entry with source; path empty = home). A listing is a selection (sections, tags any, allTags, notTags; or collection=) with sort, ties, skip, count, card variant, wrapper. The selection an include renders from is the page dependency: the page digest holds the full fingerprints of exactly the entries shown, so incremental projection rewrites the page when they change and not otherwise; blocks declare depends=. Collections are selections, not storage. Unsupported custom queries are a named block hook with declared depends. ::raw...::endraw (verbatim HTML) is allowed only in page files of the static directory, never in CMS items. Anth.us is live on it (parity 0 blocking on 1107 live URLs).",
       "created_at": "2026-10-21T11:52:56.474013Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c5432d30-7092-4d99-8e77-a5f049f58f8c",
+      "author": "home",
+      "text": "Decision (PPY-e8db7c, Papyrus 5.7.0, PR #440). Include construct, minimal: ::include{kind=listing|showcase|form|block} in an authored page (a pages entry with source; path empty = home). A listing is a selection (sections, tags any, allTags, notTags; or collection=) with sort, ties, skip, count, card variant, wrapper. The selection an include renders from is the page dependency: the page digest holds the full fingerprints of exactly the entries shown, so incremental projection rewrites the page when they change and not otherwise; blocks declare depends=. Collections are selections, not storage. Unsupported custom queries are a named block hook with declared depends. ::raw/::endraw (verbatim HTML) is allowed only in page files of the static directory, never in CMS items. Anth.us is live on it (parity 0 blocking on 1107 live URLs).",
+      "created_at": "2026-10-21T11:53:02.666404Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T02:53:27.625624Z",
-  "updated_at": "2026-10-21T11:52:56.624772Z",
+  "updated_at": "2026-10-21T11:53:02.666428Z",
   "closed_at": "2026-10-21T11:52:56.624736Z",
   "agent": {
     "platform": "codex",
