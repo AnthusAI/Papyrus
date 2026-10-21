@@ -1,0 +1,25 @@
+{
+  "id": "PPY-da545d51-a3c6-4117-b925-1defd06f2617",
+  "title": "Asynchronous entity extraction and the entity confirm step",
+  "description": "As a submitter, I want to confirm or fix the entities found in my link after it has been read, so that the knowledge base stays accurate without making me wait.\n\nNotes: after submit the item shows \"we are reading the link\". A worker (not a Lambda; heavy extraction dependencies stay out of Lambda bundles) fetches text, runs the typed-entity extractor (Biblicus: blbs-81ec10; backend chosen by the evaluation story blbs-e14d5c) and posts proposals on the existing steering-proposal rails. The submitter then confirms, fixes or removes entities on the item page. \"Save draft\" is browser-only and says so. LLM tasks default to the cheap GPT-6 Luna tier unless stated otherwise.\n\n```gherkin\nFeature: Asynchronous extraction\n  Scenario: Extraction completes later\n    Given a pending submission\n    When the extraction worker finishes\n    Then the item gains proposed entities in state \"proposed\"\n    And the submitter sees a confirm, fix or remove step\n\n  Scenario: Extraction fails\n    When the worker fails or times out\n    Then the submission stays public and pending\n    And the failure is recorded for staff without exposing internals to readers\n\n  Scenario: No extraction in the request\n    When a reader submits\n    Then no extraction code runs inside the submit request\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:27.182013Z",
+  "updated_at": "2026-10-21T12:49:27.182041Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

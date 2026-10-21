@@ -1,0 +1,38 @@
+{
+  "id": "PPY-0331f5ca-9cb2-46e0-bef9-4bab79030a72",
+  "title": "Emerging-cluster callouts",
+  "description": "Show \"what the graph noticed\": clusters that are new, growing or cooling. Uses cluster identity across topic-model runs from Biblicus (blbs-846d62) and weekly bins (blbs-7d8c88). Only clusters the desk accepted as a steering proposal are named and shown; unaccepted clusters appear as \"unnamed, n items\" or are hidden (editor choice). State labels are never claimed with fewer than 4 weeks of data. At launch show accepted proposals, not raw clusters.\n\nWeekly modelling runs on a worker (a developer workstation for now; see Biblicus cloud job runner blbs-9668cf for the later automated path). Parent initiative: PPY-428252.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f5dfabb8-c774-4cf2-8a2d-3b04e93c4a6a",
+      "author": "home",
+      "text": "Biblicus: blbs-846d62 (cluster identity), blbs-7d8c88 (weekly bins), blbs-9668cf (pending cloud job runner).",
+      "created_at": "2026-10-21T12:50:17.975938Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
+  "created_at": "2026-10-21T12:50:05.806356Z",
+  "updated_at": "2026-10-21T12:50:17.975956Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

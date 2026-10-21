@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "57ffcb3f-0b19-4c09-958a-0d0e604cb18a",
+  "issue_id": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.812Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Votes, ratings and karma",
+    "description": "Reader and editor signals on items. Decisions (2026-10-21): an upvote is separate from the 1-5 dimension ratings; karma is needed. The way editor and reader scores combine is an open exploration (see the score combination epic), so this epic stores both signals separately and tallies each.\n\nParent initiative: PPY-77bb3b (milestones 3 and 4). Depends on reader accounts. Pilot: Shipped, voting story ship-b35fa2 (dimensions real, useful, notable, novel are publication data, never code).\n\nChildren: upvote and vote model; dimension ratings with histograms; minimum-n rules and derived values; karma model.\nDefinition of Done: signed-in readers can upvote and rate; tallies are produced per item with editor and reader values separate; karma is computed and shown.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

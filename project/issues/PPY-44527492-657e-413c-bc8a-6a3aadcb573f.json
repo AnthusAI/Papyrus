@@ -1,0 +1,25 @@
+{
+  "id": "PPY-44527492-657e-413c-bc8a-6a3aadcb573f",
+  "title": "Reader sign-in with Google, scoped to one publication",
+  "description": "As a reader, I want to sign in with my Google account on a publication, so that I can vote, submit and comment under my own name.\n\nNotes: per-publication accounts (a reader of one publication is not automatically known to another); reader role has no access to staff models; guests keep read access to published content. Builds on PPY-58f107 (publication BFF with Prospectus accounts).\n\n```gherkin\nFeature: Reader sign-in\n  Scenario: A guest signs in\n    Given a publication with reader accounts enabled\n    When a guest chooses \"Sign in\" and completes Google sign-in\n    Then the guest becomes a signed-in reader of that publication only\n    And the reader cannot read or write staff-only records\n\n  Scenario: Reader accounts disabled\n    Given a publication with reader accounts disabled\n    Then no sign-in control is rendered and no reader mutation is accepted\n\n  Scenario: Password sign-up is not offered\n    Then no password-based account can be created\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:26.900346Z",
+  "updated_at": "2026-10-21T12:49:26.900375Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

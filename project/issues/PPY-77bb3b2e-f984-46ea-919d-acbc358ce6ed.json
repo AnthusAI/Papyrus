@@ -10,9 +10,22 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4be0b4ef-094a-4f0f-b9d8-3e1b94540108",
+      "author": "home",
+      "text": "Decisions recorded 2026-10-21 and filed work.\n- Submissions are public immediately; moderation is supported and optional per publication (default goal: AI moderation with human override; human moderation to be switched off once AI is trusted).\n- Karma: needed. Comments: wanted and solicited; comment text is a steering signal for Cyclotrons and AI.\n- How editor and reader scores combine: open exploration, not decided.\n- Language-model tasks default to the cheap GPT-6 Luna tier unless stated otherwise.\n\nEpics: reader accounts PPY-1546fc; public submit-a-link PPY-5b8cdc; moderation PPY-af98c7; votes, ratings and karma PPY-73a82d; comments as a steering signal PPY-739cb4; score combination exploration PPY-0b2cbb; live numbers for static sites PPY-64cb48. Documentation story: PPY-ddd434.\nSibling initiative: PPY-428252 (public knowledge base). Biblicus epic: blbs-d380cb. Shipped pilot: ship-b35fa2 (voting story) and ship-4a59a1 (design story).",
+      "created_at": "2026-10-21T12:50:17.475482Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
   "created_at": "2026-10-21T11:39:25.403593Z",
-  "updated_at": "2026-10-21T11:39:25.403677Z",
+  "updated_at": "2026-10-21T12:50:17.475500Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "47b5e8cf-0c50-42e7-88cd-46a01615f9de",
+  "issue_id": "PPY-05c10f54-3726-41f8-bab8-b8ab8b746bf8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.950Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document the public knowledge base on the Papyrus marketing site",
+    "description": "Standing rule: each initiative gets a documentation story on the Papyrus marketing site when its features are live. Document the knowledge snapshot command, public wiki pages, components and how to adopt them. Conventions: PPY-ab79ea, PPY-228e8d.\n\n```gherkin\nFeature: Marketing site documentation\n  Scenario: Features documented\n    Given the public knowledge base features are live on a pilot site\n    Then the Papyrus marketing site describes setup, the snapshot command and the components\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

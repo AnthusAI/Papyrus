@@ -1,0 +1,38 @@
+{
+  "id": "PPY-4939307b-9fd0-4380-872f-6bd0d2222974",
+  "title": "Knowledge snapshot command and standard components",
+  "description": "A generic Papyrus command that writes public-safe knowledge JSON, and standard front-end components that read it, built once in core so any publication with a knowledge base can use them (the pilot supplies theme tokens).\n\nSnapshot: a papyrus knowledge snapshot command reads staff-side records, filters to public-safe (accepted nodes only; published items only; counts, ids, names, series and neighbour keys; never reference text or private notes), and writes JSON to the site data path (index, per-entity, clusters). Derived and rebuildable. Shares the scheduling mechanism with the live-numbers epic in PPY-77bb3b (scheduled job; needs explicit approval for new cloud resources).\n\nComponents (shared bundle): entity chip, sparkline, trend chart, graph neighbourhood, score readout; wire the existing recent-concepts, concept-list and concept-count Markus directives to the knowledge index so they stop rendering empty placeholders in static builds.\n\nParent initiative: PPY-428252. Related: PPY-64cb48 (live numbers for static sites, same snapshot mechanism); Biblicus blbs-d380cb.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c0cb5bef-0f00-43e7-8255-476ce93193bd",
+      "author": "home",
+      "text": "Live numbers epic under PPY-77bb3b: PPY-64cb48. Biblicus weekly bins: blbs-7d8c88.",
+      "created_at": "2026-10-21T12:50:17.869533Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
+  "created_at": "2026-10-21T12:50:05.164853Z",
+  "updated_at": "2026-10-21T12:50:17.869555Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

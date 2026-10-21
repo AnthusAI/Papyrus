@@ -1,0 +1,25 @@
+{
+  "id": "PPY-0b2cbbcc-2c57-4748-9738-eccb8fb31fae",
+  "title": "Score combination: how editor and reader scores combine (exploration)",
+  "description": "Open question, no decision yet: how should editor and reader scores combine into what a publication shows and ranks by? This epic holds an exploration only. Parent initiative: PPY-77bb3b (milestone 4).",
+  "type": "epic",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:28.461390Z",
+  "updated_at": "2026-10-21T12:49:28.461415Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

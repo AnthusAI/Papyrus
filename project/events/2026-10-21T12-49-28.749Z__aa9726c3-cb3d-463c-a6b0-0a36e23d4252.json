@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "aa9726c3-cb3d-463c-a6b0-0a36e23d4252",
+  "issue_id": "PPY-e870bb56-50da-4518-a3ac-14c5707958fb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:28.749Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Board, score and freshness client components",
+    "description": "As a reader, I want a fast board that tells me how fresh its numbers are, so that I trust what I see.\n\nStandard components: ranked board (sortable table from snapshot JSON), score readout (5-segment meter, value, n; grey when below a threshold), vote control (part of the votes plugin), \"updated N min ago\" label. Content that matters to search engines and agents is rendered as text; the user's own vote updates optimistically.\n\n```gherkin\nFeature: Board components\n  Scenario: Render from JSON\n    Given a board JSON file\n    Then the board component renders ranked rows with scores and counts\n\n  Scenario: Freshness\n    Then the component shows how long ago the snapshot was generated\n\n  Scenario: Optimistic own vote\n    When the signed-in reader votes\n    Then the reader's own control updates at once, before the next snapshot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

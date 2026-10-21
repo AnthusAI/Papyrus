@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "f7b46d0d-2847-4dee-8b2d-c65e5647a90e",
+  "issue_id": "PPY-ddd4341d-ee8a-4a5d-ae9e-d57ff3b2f2d4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:28.821Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document collaborative steering on the Papyrus marketing site",
+    "description": "Standing rule: each initiative gets a documentation story on the Papyrus marketing site when its features are live. Document reader accounts, submit-a-link, moderation modes, votes and ratings, karma, comments as a steering signal, and the snapshot-driven live numbers. See the existing marketing-site documentation stories PPY-ab79ea and PPY-228e8d for conventions.\n\n```gherkin\nFeature: Marketing site documentation\n  Scenario: Features documented\n    Given the collaborative steering features are live on a pilot site\n    Then the Papyrus marketing site describes each, with setup steps and a link to the pilot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

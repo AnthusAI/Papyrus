@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "ace34520-69e8-480b-98fb-dd8264982442",
+  "issue_id": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-21T12:49:26.689Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "probe",
+        "to": "Goal: let any Papyrus publication expose its knowledge base to readers, read-only: entity (wiki) pages, topic pages, weekly trends, sparklines and emerging-cluster callouts. Built once in Papyrus core so any publication with a knowledge base can use it; the Shipped publication (AnthusAI/Shipped-web, board key SHIP) is the pilot and first consumer.\n\nPrinciple: keep pages static and small; put churning numbers in versioned, public-safe JSON that a small client component reads. The only thing that must be a Papyrus Item is prose a human has approved.\n\nEpics:\n1. Read-only public wiki: accepted entities become editor-published pages (ties to the wiki lifecycle epic PPY-964472: no auto-written pages without a human gate).\n2. Knowledge snapshot command and standard components (entity chip, sparkline, trend chart, graph neighbourhood, score readout).\n3. Entity trends by weekly counting.\n4. Emerging-cluster callouts.\n\nRelated boards:\n- Collaborative steering initiative PPY-77bb3b (accounts, votes, moderation, comments, scheduled snapshots of live numbers).\n- Biblicus epic blbs-d380cb (typed-entity extractor, weekly bins, cluster identity, extractor evaluation, cloud job runner).\n- Shipped pilot: SHIP voting story ship-b35fa2 and design story ship-4a59a1.\n\nStanding rule: each initiative carries a story \"Document on the Papyrus marketing site\" (see the story under this initiative). Existing marketing-site docs work: PPY-ab79ea, PPY-228e8d.\n\nOut of scope for v1: public editing, history UI, discussion, contributor counts. Public graph claims (relations between named things) are only published after desk confirmation."
+      }
+    }
+  }
+}

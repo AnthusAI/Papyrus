@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a2f45efd-364b-4ce3-b9da-b969811b35ab",
+  "issue_id": "PPY-739cb425-c6b0-41c7-ab90-c51f4b2cb00d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:28.166Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Comments as a steering signal",
+    "description": "Decision (2026-10-21): comments are wanted and solicited. Comment text is a steering signal for Cyclotrons and AI: it feeds Cyclotron feedback and priming as a text rationale next to the vote or decision it explains.\n\nParent initiative: PPY-77bb3b (milestones 5 and 7). Depends on reader accounts; subject to the moderation epic (siblings). Related: Cyclotron priming work PPY-7227ac; Cyclotron relevance epic PPY-b0396f.\n\nChildren: public comments; prompting for a rationale at vote time; comment text into Cyclotron feedback.\nDefinition of Done: signed-in readers post comments that are shown publicly under the moderation mode, and comment text reaches Cyclotron feedback with attribution.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

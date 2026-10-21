@@ -1,0 +1,25 @@
+{
+  "id": "PPY-1bf36681-5556-4344-85eb-cf1ffa524954",
+  "title": "Exploration: combining editor and reader scores",
+  "description": "Research story, not a decision. Question: how do editor ratings and reader ratings combine into a headline score and a ranking?\n\nOptions to compare: separate and always both shown; weighted blend; editor overrides when present; editor sets a prior that reader votes update (Bayesian); reader-only until an editor weighs in; time decay for \"front\" ranking versus \"this week\"; per-item mean versus per-vote mean for topic aggregates. Use real data from the pilot (Shipped) and simulated data for volume and abuse scenarios.\n\nDeliverable: a short written comparison with the data used, trade-offs, abuse resistance and a recommendation or a recommended experiment, recorded on this story. A decision (if any) is then filed as a separate story under the votes, ratings and karma epic.\n\n```gherkin\nFeature: Score combination exploration\n  Scenario: Comparison written\n    Given pilot or simulated rating data with editor and reader votes\n    When each candidate combination is applied\n    Then the story records rankings produced by each, with differences explained\n\n  Scenario: Outcome recorded\n    Then a recommendation or a follow-up experiment is recorded, and no behaviour changes\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0b2cbbcc-2c57-4748-9738-eccb8fb31fae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:28.530634Z",
+  "updated_at": "2026-10-21T12:49:28.530664Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "07ddb1ce-fa53-410a-972b-6b744e351ae5",
+  "issue_id": "PPY-495ec80d-6bbe-4ab0-afc3-cb1010c9500d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:04.787Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Read-only public wiki: accepted entities become editor-published pages",
+    "description": "Expose the knowledge base as read-only entity (wiki) pages. Principle: an entity page is a published Item of type page in a wiki section. A sync job creates or updates a DRAFT Item for each accepted node; an editor publishes through the normal gate. The projector then provides listings, sitemap, search index, agent-readable twin and llms.txt for free. Counts, series and neighbours come from snapshot JSON (see the snapshot epic), not from the page.\n\nTies to the wiki lifecycle epic PPY-964472: no auto-written wiki pages without a human gate; stamps distinguish reviewed from draft; a stale page cannot look current. Public editing, history, discussion and contributor counts are out of scope.\n\nParent initiative: PPY-428252. Pilot: Shipped (ship-b35fa2, design story ship-4a59a1). Later option: a dedicated concept page kind reading a guest-readable published-concept model, only if the Item volume hurts.\n\nChildren: draft sync; reviewed-vs-draft stamp; suggest-an-edit; topic and beat pages.\nDefinition of Done: an accepted entity has a public page after an editor publishes it, with no page created or published without the editor.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

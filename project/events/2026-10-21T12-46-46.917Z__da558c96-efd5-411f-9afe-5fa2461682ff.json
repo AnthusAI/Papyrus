@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "da558c96-efd5-411f-9afe-5fa2461682ff",
+  "issue_id": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:46:46.917Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public knowledge base: expose the wiki, topics and trends in publications",
+    "description": "probe",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

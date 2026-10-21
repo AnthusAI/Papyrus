@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8a7d4175-34f7-4426-b795-daf9af5ef540",
+  "issue_id": "PPY-a227f591-b2e1-4c9b-bb45-4b2e2e253923",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.012Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Suggest an edit (replaces public edit controls)",
+    "description": "As a reader, I want to suggest a correction to a wiki page, so that errors reach the desk without public editing.\n\nUses the existing public form endpoint (stores a private message for the desk). Shows \"Updated DATE\" and a link to the entity's graph JSON.\n\n```gherkin\nFeature: Suggest an edit\n  Scenario: Submit a suggestion\n    When a reader submits a suggestion on a page\n    Then the desk receives a message that names the page\n    And nothing changes on the public page\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-495ec80d-6bbe-4ab0-afc3-cb1010c9500d",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

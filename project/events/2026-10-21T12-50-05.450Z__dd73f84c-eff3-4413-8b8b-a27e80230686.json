@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "dd73f84c-eff3-4413-8b8b-a27e80230686",
+  "issue_id": "PPY-bda2549a-0368-4ced-9daa-05e51a067968",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.450Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Graph neighbourhood component",
+    "description": "As a reader, I want to see what an entity is connected to, so that I can navigate by relation.\n\nColumns by relation type (for example made by, built on, measured by, replaces) with weight bars where weight is the number of items linking both ends. Reads the entity JSON from the snapshot. Relation types are publication data.\n\n```gherkin\nFeature: Graph neighbourhood\n  Scenario: Render columns\n    Given an entity with relations of two types\n    Then the component renders one column per type with entries ordered by weight\n\n  Scenario: Only desk-confirmed relations\n    Then relations not confirmed by the desk are not shown\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4939307b-9fd0-4380-872f-6bd0d2222974",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

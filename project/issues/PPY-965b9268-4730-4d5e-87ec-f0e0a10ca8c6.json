@@ -1,0 +1,25 @@
+{
+  "id": "PPY-965b9268-4730-4d5e-87ec-f0e0a10ca8c6",
+  "title": "Public handle, first-login handle picker and reader profile",
+  "description": "As a reader, I want a public handle I choose once, so that my activity is attributed without exposing my email address.\n\nOpen policy decisions to settle in this story and record on it: handle format and uniqueness, minimum account age before voting, whether editors act under their own handles, handle changes. The email address is never published or stored in public records.\n\n```gherkin\nFeature: Reader handle\n  Scenario: First login\n    Given a newly signed-in reader without a handle\n    When the reader opens any interactive control\n    Then a handle picker is shown first\n    And the chosen handle must be unique within the publication\n\n  Scenario: Handle is public, email is not\n    When a reader's vote or submission is displayed\n    Then only the handle appears\n    And no email address appears in any public JSON or page\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:26.969440Z",
+  "updated_at": "2026-10-21T12:49:26.969465Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

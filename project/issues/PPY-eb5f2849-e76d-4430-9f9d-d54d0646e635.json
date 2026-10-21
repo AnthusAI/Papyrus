@@ -1,0 +1,25 @@
+{
+  "id": "PPY-eb5f2849-e76d-4430-9f9d-d54d0646e635",
+  "title": "Weekly entity counts and the change percentage definition",
+  "description": "As a reader, I want trend figures I can trust, so that \"up 40%\" means something stated.\n\n```gherkin\nFeature: Entity trend counting\n  Scenario: Weekly series\n    Given confirmed entity links with item publish dates\n    When trends are computed\n    Then each entity has a count per ISO week for the last 8 and 26 weeks\n\n  Scenario: Change figure\n    Given 12 items in the last 4 weeks and 6 in the prior 4\n    Then the change is reported as +100 percent with counts 12 and 6\n\n  Scenario: Small base\n    Given fewer than 5 items in the prior 4 weeks\n    Then no percent is reported\n\n  Scenario: Short history\n    Given an entity first linked 2 weeks ago\n    Then it is marked new\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a45fd1e5-60fe-4068-981f-1ca5851ba3d0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:50:05.663015Z",
+  "updated_at": "2026-10-21T12:50:05.663042Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

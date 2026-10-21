@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a1d2a3fc-342d-4ebd-8bb4-14ff755d04fd",
+  "issue_id": "PPY-5ce33a99-3aa8-4b37-af92-44b9e6f4c5e3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:28.023Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Minimum-n rules and derived values (for example the hype gap)",
+    "description": "As a reader, I want values shown only when there is enough data, so that I am not misled by two votes.\n\nRules (configurable per publication, defaults shown): a dimension mean is shown with \"n=3, too few\" when n < 5; derived values (for example the gap between the mean of two \"buzz\" dimensions and the mean of two \"substance\" dimensions) show an em dash when any input has n < 5; ranking requires a floor of votes or the item appears under \"New\". Derived values are computed in the snapshot job, not in the browser.\n\n```gherkin\nFeature: Minimum-n rules\n  Scenario: Too few ratings\n    Given a dimension with 3 ratings and a floor of 5\n    Then the mean is flagged too few and the derived value is a dash\n\n  Scenario: Enough ratings\n    Given all inputs have at least 5 ratings\n    Then the derived value is computed and its sign is shown\n\n  Scenario: Partially rated item\n    Given an item rated on 2 of 4 dimensions\n    Then it displays the rated dimensions and is not ranked by a composite\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

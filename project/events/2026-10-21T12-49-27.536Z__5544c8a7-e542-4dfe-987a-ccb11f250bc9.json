@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "5544c8a7-e542-4dfe-987a-ccb11f250bc9",
+  "issue_id": "PPY-e598a589-bbe7-4a78-ab21-36c1b534e275",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.536Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Moderation queue in Administration: approve, hide, ban",
+    "description": "As a moderator, I want a queue of submissions, comments and reports, so that I can approve, hide or ban quickly.\n\n```gherkin\nFeature: Moderation queue\n  Scenario: Review an item\n    Given an item awaiting review\n    When the moderator chooses \"Approve\"\n    Then the item is marked approved and leaves the queue\n\n  Scenario: Hide\n    When the moderator chooses \"Hide\"\n    Then the item disappears from public pages and JSON\n    And the action is recorded with the moderator and reason\n\n  Scenario: Ban\n    When the moderator bans a reader\n    Then that reader's new content is rejected\n    And the reader's existing content is hidden or kept per the chosen option\n\n  Scenario: Permissions\n    Then only moderator roles can see the queue\n```\nLives in Administration; follows the existing staff-role model.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}
