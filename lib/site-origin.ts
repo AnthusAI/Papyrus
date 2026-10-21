@@ -60,3 +60,8 @@ export function publicSiteOrigin(request: Pick<NextRequest, "nextUrl">, environm
   if (isLoopbackHostname(hostname) && developing) return origin;
   throw new SiteOriginNotConfiguredError(`${SITE_ORIGIN_ENV} is not set; this site cannot tell its public origin.`);
 }
+
+/** An absolute URL on the site's public origin, for redirects. Fails closed like publicSiteOrigin. */
+export function publicSiteUrl(path: string, request: Pick<NextRequest, "nextUrl">, environment: EnvironmentVariables = process.env): URL {
+  return new URL(path, publicSiteOrigin(request, environment));
+}

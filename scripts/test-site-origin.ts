@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { SiteOriginNotConfiguredError, publicSiteOrigin } from "../lib/site-origin";
+import { SiteOriginNotConfiguredError, publicSiteOrigin, publicSiteUrl } from "../lib/site-origin";
 
 const at = (origin: string, headers: Record<string, string> = {}) => new NextRequest(new URL("/x", origin), { headers });
 const adapter = at("https://localhost:3000");
@@ -35,4 +35,6 @@ assert.throws(() => publicSiteOrigin(at("https://example.com"), {}), SiteOriginN
 const error = (() => { try { publicSiteOrigin(adapter, { SITE_ENV: "production" }); } catch (caught) { return caught as SiteOriginNotConfiguredError; } })();
 assert.equal(error?.status, 503);
 assert.equal(error?.code, "site_origin_not_configured");
+assert.equal(publicSiteUrl("/newsroom?x=1", adapter, { PAPYRUS_SITE_ORIGIN: "https://p.apyr.us" }).toString(), "https://p.apyr.us/newsroom?x=1", "redirect URLs are built on the public origin");
+assert.throws(() => publicSiteUrl("/", adapter, { SITE_ENV: "production" }), SiteOriginNotConfiguredError);
 console.log("site origin: ok");
