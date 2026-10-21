@@ -22,10 +22,22 @@
         "model": "claude-opus-5-5",
         "name": "DataParade.anth.us implementation"
       }
+    },
+    {
+      "id": "16c706b0-d916-49d7-bd34-69f3e84fa955",
+      "author": "home",
+      "text": "2026-10-21: Ryan's Google account added to the admin Cognito group of the Data Parade user pool (us-east-1_ewYJ5H4M2) at his request; the five landing posts are now published newsroom articles at dataparade.anth.us/posts.",
+      "created_at": "2026-10-21T22:27:01.526032Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
     }
   ],
   "created_at": "2026-10-21T16:54:14.133658Z",
-  "updated_at": "2026-10-21T20:30:59.688421Z",
+  "updated_at": "2026-10-21T22:27:13.340234Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
