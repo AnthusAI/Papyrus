@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "03a83e03-65a3-48e1-9946-420f5f407415",
+  "issue_id": "PPY-9cd419d8-ce84-4d8a-8ec4-35674282ba2e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T05:25:10.529Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Core follow-ups from the Chatticus migration: literal placeholders, date format, leading column, grouped listings",
+    "description": "Gaps the chattic.us migration worked around in web/hooks.py and its build scripts. (1) {{name}} is replaced on every page of a site that has values, so documents that print placeholders literally (the chatticus product docs) need identity values; add an escape or limit substitution to pages with bands. (2) A ::band whose content starts with ::column gets an empty implicit first column that shifts nth-child CSS; skip it. (3) Article header: sites reformat dates (September 4, 2026) and swap the lede (standfirst) in item_decorator; add site.dateFormat and a lede field. (4) Listings grouped by a front matter field (wiki: Ideas, Product) need a card-hook trick today; groupBy only does week and month. (5) og:type is article only for listed types, so an unlisted page reports website.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "chat-migration"
+    }
+  }
+}

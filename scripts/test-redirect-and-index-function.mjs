@@ -37,6 +37,7 @@ assert.equal(redirectedToUrl.headers.location.value, "https://example.org/elsewh
 assert.equal((await handler(viewerRequest("/"))).uri, "/index.html");
 assert.equal((await handler(viewerRequest("/articles/a-post/"))).uri, "/articles/a-post/index.html");
 assert.equal((await handler(viewerRequest("/articles/a-post"))).uri, "/articles/a-post/index.html");
+assert.equal((await handler(viewerRequest("/404"))).uri, "/404.html");
 assert.equal((await handler(viewerRequest("/sitemap.xml"))).uri, "/sitemap.xml");
 assert.equal((await handler(viewerRequest("/assets/app.css"))).uri, "/assets/app.css");
 assert.equal((await handler(viewerRequest("/tags/c.s/"))).uri, "/tags/c.s/index.html");

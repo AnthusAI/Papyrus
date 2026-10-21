@@ -135,6 +135,16 @@ EDGE_CASES = [
     ("/articles/hello.html", "/articles/hello/"),
     ("/404.html", None),
     ("/articles/hello/", None),
+    ("/about", "/about/"),
+    ("/articles/hello", "/articles/hello/"),
+    ("/404", None),
+    ("/", None),
+    ("/index.html", None),
+    ("/articles/index.html", None),
+    ("/articles/page/2/index.html", None),
+    ("/myindex.html", "/myindex/"),
+    ("/sitemap.xml", None),
+    ("/_plugins/papyrus-search.js", None),
 ]
 
 

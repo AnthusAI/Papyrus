@@ -3,17 +3,25 @@
   "title": "read.p.apyr.us reader onto static projection",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-283b448b-c2e1-42a4-9b61-449918d59632",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "059da3dc-8a13-4c59-8020-4d18afa5b97b",
+      "author": "home",
+      "text": "read.p.apyr.us is on the standard Papyrus front end: S3 projection (Papyrus 5.4.0), edge ReaderDistribution E2EM0JLBC2W9WW switched by change set reader-static-projection-2. Parity: 12 of 12 articles equal, old /articles/<slug> URLs 301. 162 polls through the cutover, all 200. Rollback and leftovers: p.apyr.us docs/reader-static-projection.md. PRs: p.apyr.us #55, #56, #57.",
+      "created_at": "2026-10-21T05:47:48.626561Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:36.114477Z",
-  "updated_at": "2026-10-21T00:48:36.114540Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T05:47:48.742993Z",
+  "closed_at": "2026-10-21T05:47:48.742964Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

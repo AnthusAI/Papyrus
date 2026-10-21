@@ -1,0 +1,25 @@
+{
+  "id": "PPY-5e3d24a2-4f7a-4319-9b0b-1b990db42922",
+  "title": "Redeploy the chatticus-marketing pipeline stack (Verify buildspec still installs limatus)",
+  "description": "The deployed Verify CodeBuild project (chatticus-marketing-verify, account 340169921348) still runs 'pip install pyyaml limatus', so every push to Chattic.us-web main since #36 fails at check_editorial_rules.py (ModuleNotFoundError: humanus) and never reaches Deploy. 'cdk diff ChatticusMarketingPipeline' shows the buildspec change (humanus, check_content_links) plus a policy resource update. Needs a reviewed manual 'cdk deploy ChatticusMarketingPipeline --exclusively' (README, One-time pipeline setup). The 2026-10-21 chattic.us migration was deployed with scripts/deploy-local.sh because of this.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T05:25:02.625276Z",
+  "updated_at": "2026-10-21T05:25:09.789720Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "chat-migration"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

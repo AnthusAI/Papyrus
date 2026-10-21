@@ -3,17 +3,25 @@
   "title": "Standard Markus front end in core (StandardMarkusProjector)",
   "description": "One standard front end for Markus static sites, configured by projection.json: URL policy, environment guard, head builder, sitemap/robots/404, RSS+Atom, listings and tags, accessible components, named hooks, pattern redirects compiled into the edge function. Opt-in by a top-level site object.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3fad3386-b3aa-4ddf-8190-d81bee538ef8",
+      "author": "home",
+      "text": "Distinctive Mark is live on the standard Markus front end with Papyrus 5.4.0 (Distinctive-web a6b0c4e + a3da54d, Amplify job 16 SUCCEED; job 15 on 5.3.0 failed on the monitoring-view bundling regression fixed in 5.4.0). Live checks 2026-10-21: all 7 pre-migration sitemap URLs, /feed.xml and the 404 return the same statuses; the sitemap lists the same 7 URLs; /atom.xml and /feed.xml are well-formed (0 entries: nothing published yet); /llms.txt and .md twins (/index.md, /rulings/index.md, /guides/index.md, text/markdown) present; pages carry the skip link, main#main, Atom link and Twitter cards. lastmod and llms-full.txt appear once items are published (verified in a local build with launch content). 33 site tests pass.",
+      "created_at": "2026-10-21T05:54:58.353565Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:27:59.914541Z",
-  "updated_at": "2026-10-21T00:27:59.914593Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T05:54:58.388286Z",
+  "closed_at": "2026-10-21T05:54:58.388259Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

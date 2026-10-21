@@ -12,6 +12,9 @@ async function lookUpRedirectTarget(uri) {
 }
 
 function rewriteToIndexDocument(uri) {
+  if (uri === "/404") {
+    return "/404.html";
+  }
   if (uri.endsWith("/")) {
     return uri + "index.html";
   }

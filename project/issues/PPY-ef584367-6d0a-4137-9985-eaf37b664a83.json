@@ -3,7 +3,7 @@
   "title": "Migrate Tactus marketing site: standard header/footer and Markus prose",
   "description": "",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Migration built locally on branch feature/PPY-ef5843-papyrus-front-end (Tactus-web). Parity vs live snapshot: 69 URLs compared, 0 blocking diffs, main content (text, headings, links, images, code, islands, video) identical on 66 pages; head/og diffs allow-listed. Layout: 63 of 68 pages within 40px total height at 1440 (footer included); pixel-identical down to the footer on sampled pages. Core PRs: #427 nested directory slugs (merged), #424 page blocks + family footer (footer rewritten to mirror anthus-footer main, fence fix, goldens, guard fixes) in CI, PPY-c9952a islands/buttons inside cards ready to follow. Waiting for core 5.2.0 release to pin requirements.",
       "created_at": "2026-10-21T04:31:11.434190Z",
       "comment_type": "default"
+    },
+    {
+      "id": "91be5ce4-c21d-434b-ab08-14bfd459d5a4",
+      "author": "home",
+      "text": "LIVE and verified. Tactus-web PR https://github.com/AnthusAI/Tactus-web/pull/13 merged to main (CI green). Amplify app dfkbdffs2viq8 (account 335163751677, profile legacy), job 110 SUCCEED (previous good job 109). Core: #427 nested directory slugs, #424 page blocks + islands + family footer (footer rewritten to mirror anthus-footer main, longer-fence fix, locked-Markus goldens, guard fixes), #434 islands/buttons inside cards, #435 footer.family logo; promoted via #430; released papyrus-newsroom 5.4.0 (pinned in requirements-publication.txt). Parity vs pre-migration live snapshot: 68 pages, main content (text, headings, links, images, code, islands, video) identical on 65, 3 orphan MDX pages differ for listed reasons; 0 blocking diffs; head/OG diffs allow-listed (canonical, og:url, twitter:large card, descriptions clipped at 300, og:title without suffix, 404 text). Pixel diff at 1440: sampled pages identical from header to footer; at 390 content identical, footer differs. Live check after deploy: 83 URLs return the expected status; 69 HTML pages are byte-identical to the local build; /sitemap.xml, /robots.txt, .md twins, llms.txt, manifest all served; /features -> 301 /features/. Removed on purpose: /demo-animated-square/, /page-2/, /using-typescript/, /404/. Follow-ups filed on the Tactus board: tctw-48a90f (guardrails #sandboxing anchor), tctw-df2f4a (fonts never loaded), tctw-0e9cbd (orphan example pages), tctw-a5a59a (dark scheme compare).",
+      "created_at": "2026-10-21T05:30:00.968587Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T00:48:28.348756Z",
-  "updated_at": "2026-10-21T04:31:11.434212Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T05:30:05.750901Z",
+  "closed_at": "2026-10-21T05:30:05.750804Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

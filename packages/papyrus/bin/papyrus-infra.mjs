@@ -19,6 +19,7 @@ const USAGE = [
   "       papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]",
   "       papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader",
   "       papyrus-infra deploy-edge --stack NAME --template FILE [--adoption-template FILE --adopt-resources FILE] [--parameter KEY=VALUE]... [--delete-function NAME] [--only-branch main] [--only-app-id ID] [--region R]",
+  "       papyrus-infra compile-edge-function --static-dir web [--out FILE]",
   "       papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]",
 ].join("\n");
 
@@ -36,9 +37,27 @@ const resolveEnvironmentOrExit = () => {
   }
 };
 const command = args[0];
-if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge") {
+if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge" && command !== "compile-edge-function") {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
+}
+
+if (command === "compile-edge-function") {
+  // The viewer-request CloudFront Function with the site's projection.json rules compiled in: for an edge stack that is
+  // not deployed by the CMS backend, so that no site writes its own redirect function.
+  const staticDir = opt("static-dir");
+  if (!staticDir) {
+    console.error(USAGE);
+    process.exit(1);
+  }
+  const { compileRedirectFunctionSource, readEdgeConfig } = await import("../amplify/publication/redirect-rules.js");
+  const functionSource = fs.readFileSync(new URL("../amplify/publication/redirect-and-index.js", import.meta.url), "utf8");
+  const config = readEdgeConfig(staticDir);
+  const compiled = compileRedirectFunctionSource(functionSource, config.rules, { negotiateMarkdown: config.negotiateMarkdown });
+  const out = opt("out");
+  if (out) fs.writeFileSync(path.resolve(out), compiled);
+  else process.stdout.write(compiled);
+  process.exit(0);
 }
 
 if (command === "deploy-edge") {
