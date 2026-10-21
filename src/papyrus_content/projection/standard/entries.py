@@ -109,6 +109,12 @@ class StandardEntry:
         ]
 
 
+def entry_title(summary: ItemSummary) -> str:
+    """The parsed front matter title first: the stored page title comes from a line scan that keeps YAML quote escapes."""
+    parsed = str(summary.front_matter.get("title") or "").strip()
+    return clipped(parsed or summary.page_title or summary.title or summary.slug.replace("-", " ").title(), 200)
+
+
 def build_entries(items, settings: StandardSettings, policy: UrlPolicy) -> list[StandardEntry]:
     entries = []
     for summary in items:
@@ -151,8 +157,8 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         section=section,
         key=key,
         url=policy.url_for_key(key) if key else None,
-        title=clipped(summary.page_title or summary.title or summary.slug.replace("-", " ").title(), 200),
-        summary_text=clipped(first_text(front_matter, SUMMARY_FIELDS), 300),
+        title=entry_title(summary),
+        summary_text=clipped(first_text(front_matter, settings.summary_fields or SUMMARY_FIELDS), 300),
         date=date,
         updated=updated,
         image=first_text(front_matter, IMAGE_FIELDS) or None,

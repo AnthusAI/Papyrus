@@ -29,8 +29,8 @@ Every block is optional except `site.name`. Unknown keys are errors.
 
 | Key | Contents |
 |---|---|
-| `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS) |
-| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, pages, listing, feed, sitemap, linkField } }`. Leave it out for a site without sections |
+| `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
+| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta}]`, `disclosure` (a menu button for narrow screens), `homeLabel` |
 | `footer` | `columns: [{title, links}]`, `text` |
 | `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
@@ -59,7 +59,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 An item's section comes from its CMS path (`essays/slow-water`). A section lists its entries at `/<base>/`
 (paginated at `/<base>/page/N/`) and only when it has entries. `pages: false` makes a link-only section: items have
 no page, appear in listings as cards that link to `linkField` (front matter `url` by default), and are never in
-the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view.
+the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
 Items in a section that is not declared are ignored; items with no section are root pages (`/about.html`).
 
 ### Entries
@@ -166,9 +166,9 @@ error (prefix helpers with `_`):
 
 `page` is a `StandardPage`: `kind` (`item`, `home`, `listing`, `tags`, `tag`, `custom`, `not_found`), `path`, `title`,
 `entry`, `fragment`, `listing` (the slice, page numbers), `custom_id`, `entries`, `summaries`, `settings`,
-`environment`, `head`, plus `skip_link` and the `components` module. A site with typed content (its own card
+`environment`, `head`, plus `skip_link` and the `components` module. `papyrus_content.projection.standard.fragments` has `article_body(fragment)` (the article without Markus's wrapper and header), `lede_of` and `first_image_of`. A site with typed content (its own card
 fields, link-only items, special pages) builds its model from `page.summaries` and composes pages in `page_body`.
-When any of `card` or `page_body` is defined, listings depend on every entry field, because a hook may read any.
+A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
 A hooks module's source and its sibling modules are part of every page's inputs, so editing them re-renders.
 
 ## Migration checklist

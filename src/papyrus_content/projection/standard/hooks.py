@@ -14,6 +14,12 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
                                     ``None`` keeps the default. ``page.kind`` says which page it is.
 
 ``page`` is a :class:`papyrus_content.projection.standard.page.StandardPage`.
+
+A hook that takes ``page`` can read any entry, so by default every page depends on all of them. A module may narrow
+that with ``DEPENDS_ON = ["essays", "@root"]`` (section names; ``@root`` is the items with no section) or ``[]`` for
+"nothing beyond the page's own entry and the listing slice". It may also be a dict keyed by page id (``home``,
+``item``, ``listing:<section>``, ``listing:flat``, ``tags``, ``tag``, ``custom:<id>``, ``not_found``; ``"*"`` is the
+fallback) for pages that each depend on less. Editing a hooks module always re-renders.
 """
 
 from __future__ import annotations
@@ -36,6 +42,12 @@ class Hooks:
     item_decorator: object = None
     page_body: object = None
     fingerprint: str = ""
+    depends_on: tuple[str, ...] | dict | None = None
+
+    @property
+    def sees_the_site(self) -> bool:
+        """True when a hook is handed ``page`` (and so every entry and summary of the site)."""
+        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.page_body))
 
     @property
     def renders_listings(self) -> bool:
@@ -72,4 +84,9 @@ def load_hooks(static_directory: Path | None, relative_path: str | None) -> Hook
         digest.update(sibling.name.encode())
         digest.update(sibling.read_bytes())
     fingerprint = digest.hexdigest()[:16]
-    return Hooks(**{name: getattr(module, name) for name in public}, fingerprint=fingerprint)
+    declared = getattr(module, "DEPENDS_ON", None)
+    return Hooks(
+        **{name: getattr(module, name) for name in public},
+        fingerprint=fingerprint,
+        depends_on=declared if isinstance(declared, dict) or declared is None else tuple(declared),
+    )

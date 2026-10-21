@@ -43,10 +43,11 @@ from ..public_data import entry_for, hidden_from_public_data, owns_public_data_k
 from ..writers import request_paths_for_key
 from . import components
 from .config import STANDARD_KEYS, StandardSettings, standard_settings_from_mapping
-from .entries import StandardEntry, build_entries, entry_for_summary, newest_first
+from .entries import StandardEntry, build_entries, entry_for_summary, entry_title, newest_first
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
+from .fragments import first_image_of, lede_of
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
@@ -55,41 +56,6 @@ from .urls import NOT_FOUND_KEY, UrlPolicy, slugify_tag
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
-LEDE_PATTERN = re.compile(r"<p[^>]*>(.*?)</p>", re.S)
-TAG_PATTERN = re.compile(r"<[^>]+>")
-FIRST_IMAGE_PATTERN = re.compile(r'<img\b[^>]*\bsrc="([^"]+)"')
-MARKUS_HEADER_PATTERN = re.compile(r'<header class="markus-header">.*?</header>', re.S)
-MARKUS_ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document">')
-MARKUS_ARTICLE_CLOSE_PATTERN = re.compile(r"</article>\s*$")
-
-
-def article_body(fragment: str) -> str:
-    """The Markus article without its ``<article>`` wrapper and ``<header>``; for hooks that supply their own."""
-    fragment = MARKUS_HEADER_PATTERN.sub("", fragment, count=1)
-    fragment = MARKUS_ARTICLE_OPEN_PATTERN.sub("", fragment, count=1)
-    return MARKUS_ARTICLE_CLOSE_PATTERN.sub("", fragment, count=1).strip()
-
-
-def plain_text(fragment_html: str) -> str:
-    import html
-
-    return " ".join(html.unescape(TAG_PATTERN.sub(" ", fragment_html)).split())
-
-
-def lede_of(fragment: str, limit: int = 200) -> str:
-    body = MARKUS_HEADER_PATTERN.sub("", fragment, count=1)
-    match = LEDE_PATTERN.search(body)
-    if not match:
-        return ""
-    text = plain_text(match.group(1))
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
-
-
-def first_image_of(fragment: str) -> str | None:
-    match = FIRST_IMAGE_PATTERN.search(fragment)
-    return match.group(1) if match else None
-
-
 class StandardMarkusProjector(MarkusSiteProjector):
     def __init__(
         self,
@@ -171,7 +137,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             fragment = self.hooks.item_decorator(fragment, summary)
         entries = tuple(self._entries(site)) if self._depends_on_entries() else ()
         if self._is_home_source(summary):
-            title = summary.page_title or summary.title or self.standard.identity.name
+            title = entry_title(summary) if summary.front_matter.get("title") else (summary.page_title or summary.title or self.standard.identity.name)
             head = PageHead(
                 title=title,
                 path="/",
@@ -216,16 +182,37 @@ class StandardMarkusProjector(MarkusSiteProjector):
         crumbs.append((entry.title, entry.url))
         return tuple(crumbs) if len(crumbs) > 1 else ()
 
+    def _dependencies(self, page_id: str = "item") -> tuple[str, ...]:
+        """Which entries a page also depends on: ``*``, section names or ``@root``; empty for none.
+
+        ``page_id`` is ``item``, ``home``, ``listing:<section>`` (``listing:flat`` for the flat listing), ``tags``,
+        ``tag``, ``custom:<id>`` or ``not_found``. A hooks module's ``DEPENDS_ON`` is a list for all pages or a dict
+        keyed by those ids (``"*"`` is the fallback key).
+        """
+        declared = self.hooks.depends_on
+        if isinstance(declared, dict):
+            declared = declared.get(page_id, declared.get("*", ("*",)))
+            declared = (declared,) if isinstance(declared, str) else tuple(declared)
+        if declared is None:
+            declared = ("*",) if self.hooks.sees_the_site else ()
+        return tuple(dict.fromkeys((*declared, *self.standard.item_depends_on)))
+
     def _depends_on_entries(self) -> bool:
-        return bool(self.standard.item_depends_on)
+        return bool(self._dependencies())
+
+    def _dependency_digest(self, entries: list[StandardEntry], page_id: str = "item") -> list:
+        wanted = self._dependencies(page_id)
+        if not wanted:
+            return []
+        selected = [
+            entry for entry in entries
+            if "*" in wanted or (entry.section.name if entry.section else "@root") in wanted
+        ]
+        return self._fingerprints(selected, full=True)
 
     def shared_inputs(self, site: SiteIndex) -> str:
-        wanted = self.standard.item_depends_on
-        selected = []
-        if wanted:
-            selected = [entry for entry in self._entries(site) if "*" in wanted or (entry.section and entry.section.name in wanted)]
-        authored_home = self._authored_home(site)
-        return digest_of([self._shared_fingerprint, self._fingerprints(selected, full=True), authored_home])
+        entries = self._entries(site) if self._depends_on_entries() else []
+        return digest_of([self._shared_fingerprint, self._dependency_digest(entries), self._authored_home(site)])
 
     # ------------------------------------------------------------------ generated pages
 
@@ -238,16 +225,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
         summaries = site.items
         plan: dict[str, tuple[str, Callable[[], bytes]]] = {}
         shared = self._shared_fingerprint
-        full = self._full()
 
-        def add(key: str, digest_input, build_page: Callable[[], StandardPage]) -> None:
-            plan[key] = (digest_of([shared, key, digest_input]), lambda: self._render(build_page()))
+        def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage]) -> None:
+            dependency = self._dependency_digest(entries, page_id)
+            plan[key] = (digest_of([shared, key, digest_input, dependency]), lambda: self._render(build_page()))
 
         # home
         if not self._authored_home(site):
             home_entries = tuple(listed[: self.standard.listings.home_count])
             add(
                 HOME_PAGE_PATH,
+                "home",
                 [self._fingerprints(home_entries), self._section_links()],
                 lambda: self._page(
                     "home",
@@ -260,13 +248,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for base, label, section_name, members in self._listing_groups(listed):
             for view in self._paginate(base, label, members, section_name):
                 key = self.policy.listing_key(base, view.page)
-                add(key, [self._fingerprints(view.entries), view.page, view.pages, len(view.featured)], self._listing_builder("listing", view, site, listed))
+                add(key, f"listing:{section_name or 'flat'}", [self._fingerprints(view.entries), view.page, view.pages, len(view.featured)], self._listing_builder("listing", view, site, listed))
 
         # tags
         tags = self._tag_map(listed)
         if self.standard.listings.tags and tags:
             add(
                 self.policy.listing_key(self.policy.tag_base()),
+                "tags",
                 [sorted((tag, len(found)) for tag, found in tags.items())],
                 lambda: self._tag_index_page(tags, site, listed),
             )
@@ -276,13 +265,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     continue
                 for view in self._paginate(self.policy.tag_base(slug), tag, found, None, tag=tag):
                     key = self.policy.listing_key(view.base, view.page)
-                    add(key, [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
+                    add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
 
         # custom pages
         for custom in self.standard.pages:
             selected = [entry for entry in entries if "*" in custom.depends_on or (entry.section and entry.section.name in custom.depends_on)]
             add(
                 self.policy.listing_key(custom.path),
+                f"custom:{custom.id}",
                 [self._fingerprints(selected, full=True) if self.hooks.page_body else []],
                 lambda custom=custom: self._page(
                     "custom",
@@ -294,6 +284,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         # 404
         add(
             NOT_FOUND_KEY,
+            "not_found",
             [],
             lambda: self._page("not_found", PageHead(title="Page not found", path="/404.html", description="", noindex=True), site, entries=tuple(listed)),
         )
@@ -318,21 +309,23 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if not section.listing:
                 continue
             members = [entry for entry in listed if entry.section and entry.section.name == section.name]
-            if members:
+            if members or section.list_empty:
                 yield section.base, section.label, section.name, members
 
     def _paginate(self, base: str, label: str, members: list[StandardEntry], section: str | None, *, tag: str | None = None):
         settings = self.standard.listings
-        first = settings.featured_count + settings.page_size
+        configured = self.standard.section(section)
+        size = configured.page_size if configured is not None and configured.page_size else settings.page_size
+        first = settings.featured_count + size
         remaining = max(0, len(members) - first)
-        pages = 1 + math.ceil(remaining / settings.page_size)
+        pages = 1 + math.ceil(remaining / size)
         for number in range(1, pages + 1):
             if number == 1:
                 shown = members[:first]
                 featured = tuple(shown[: settings.featured_count])
             else:
-                start = first + (number - 2) * settings.page_size
-                shown = members[start : start + settings.page_size]
+                start = first + (number - 2) * size
+                shown = members[start : start + size]
                 featured = ()
             yield ListingView(base, label, tuple(shown), tuple(members), number, pages, featured, section, tag)
 
@@ -351,10 +344,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         def build() -> StandardPage:
             suffix = f" — page {view.page}" if view.page > 1 else ""
             title = (f"Tagged {view.label}" if kind == "tag" else view.label) + suffix
+            configured = self.standard.section(view.section)
             head = PageHead(
                 title=title,
                 path=view.url_for_page(view.page),
-                description=self.standard.identity.description,
+                description=(configured.description if configured is not None else "") or self.standard.identity.description,
             )
             return self._page(kind, head, site, entries=tuple(listed), listing=view)
 
@@ -372,7 +366,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 urls.append(SitemapUrl(entry.url, entry.updated))
         groups = list(self._listing_groups(listed))
         for base, _label, _section, members in groups:
-            urls.append(SitemapUrl(f"/{base}/", max(entry.updated for entry in members)))
+            urls.append(SitemapUrl(f"/{base}/", max((entry.updated for entry in members), default="")))
         if self.standard.sitemap_tags and self.standard.listings.tags:
             tags = self._tag_map(listed)
             if tags:

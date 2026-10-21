@@ -73,6 +73,9 @@ class SectionConfig:
     feed: bool = True
     sitemap: bool = True
     link_field: str = "url"
+    description: str = ""
+    page_size: int | None = None      # None: the site's listings.pageSize
+    list_empty: bool = False          # keep the listing page when the section has no entries
 
 
 @dataclass(frozen=True)
@@ -178,6 +181,7 @@ class StandardSettings:
     item_byline: bool = False
     breadcrumbs: bool = True
     home_link_label: str = "Home"
+    summary_fields: tuple[str, ...] = ()
 
     @property
     def sectioned(self) -> bool:
@@ -206,7 +210,7 @@ def _links(raw, where: str) -> tuple[NavLink, ...]:
 
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
-    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss"}, "site")
+    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields"}, "site")
     name = _text(site, "name")
     if not name:
         raise ValueError("site.name is required")
@@ -229,7 +233,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField"}, f"urls.sections.{section_name}")
+        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty"}, f"urls.sections.{section_name}")
         sections.append(
             SectionConfig(
                 name=section_name,
@@ -240,6 +244,9 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 feed=bool(entry.get("feed", True)),
                 sitemap=bool(entry.get("sitemap", True)),
                 link_field=str(entry.get("linkField", "url")),
+                description=str(entry.get("description", "")),
+                page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
+                list_empty=bool(entry.get("listEmpty", False)),
             )
         )
 
@@ -314,8 +321,10 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         tag_base=_path_segment(str(listings.get("tagBase", "tags")), "listings.tagBase"),
         types=tuple(listings.get("types", listing_defaults.types)),
     )
-    if listing_settings.page_size < 1 or listing_settings.featured_count < 0 or listing_settings.featured_count >= listing_settings.page_size + 1:
-        raise ValueError("listings.pageSize must be positive and featuredCount must not exceed it")
+    if listing_settings.page_size < 1 or listing_settings.featured_count < 0:
+        raise ValueError("listings.pageSize must be positive and featuredCount must not be negative")
+    if any(section.page_size is not None and section.page_size < 1 for section in sections):
+        raise ValueError("urls.sections.*.pageSize must be positive")
 
     fonts = dict(raw.get("fonts") or {})
     _only(fonts, {"stylesheet", "preconnect"}, "fonts")
@@ -376,4 +385,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         item_byline=bool(components.get("itemByline", False)),
         breadcrumbs=bool(components.get("breadcrumbs", True)),
         home_link_label=_text(nav, "homeLabel", "Home"),
+        summary_fields=tuple(site.get("summaryFields") or ()),
     )

@@ -538,3 +538,29 @@ def test_golden_pages(name, flat, sectioned):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(site.tree[key])
         assert site.tree[key] == target.read_bytes(), f"{name}/{key} differs from its golden (UPDATE_GOLDEN=1 regenerates)"
+
+
+def test_the_title_comes_from_parsed_front_matter_not_the_quote_escaped_line_scan():
+    from papyrus_content.projection.model import ItemSummary
+
+    summary = ItemSummary(
+        item_id="i", type="article", section=None, slug="s", output_path="s.md", version_number=1,
+        title="It''s", page_title="It''s", front_matter={"title": "It's"}, aliases=(), published_at=None,
+    )
+    entry = entry_for_summary(summary, standard_settings_from_mapping(minimal()), UrlPolicy(standard_settings_from_mapping(minimal())))
+    assert entry.title == "It's"
+
+
+def test_dependency_declarations_narrow_what_a_page_depends_on():
+    from papyrus_content.projection.standard.hooks import Hooks
+
+    settings = standard_settings_from_mapping(minimal(urls={"sections": {"a": {}, "b": {}}}))
+    projector = StandardMarkusProjector(
+        __import__("papyrus_content.projection.projector", fromlist=["x"]).MarkusProjectorSettings(theme=None),
+        read_static_files(None, None),
+        settings,
+        hooks=Hooks(page_body=lambda page: None, depends_on={"home": ["a"], "listing:b": [], "*": ["*"]}),
+    )
+    assert projector._dependencies("home") == ("a",)
+    assert projector._dependencies("listing:b") == ()
+    assert projector._dependencies("item") == ("*",)
