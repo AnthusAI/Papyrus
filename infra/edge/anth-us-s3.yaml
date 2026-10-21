@@ -28,25 +28,7 @@ Resources:
 
         const redirectStore = cf.kvs();
 
-        const PATTERN_REDIRECT_RULES = [
-          { pattern: /^\/blog\/page\/([^/]+)\/$/, target: "/articles/page/$1/" },
-          { pattern: /^\/blog\/page\/([^/]+)\/index\.html$/, target: "/articles/page/$1/" },
-          { pattern: /^\/blog\/([^/]+)\/$/, target: "/articles/$1/" },
-          { pattern: /^\/blog\/([^/]+)\/index\.html$/, target: "/articles/$1/" },
-          { pattern: /^\/biased-decisions(?:\/(.*))?$/, target: "https://biased-decisions.anth.us/$1" },
-        ];
-
-        const SERVED_HTML_FILES = ["/404.html"];
-
-        function permanentRedirect(location) {
-          return {
-            statusCode: 301,
-            statusDescription: "Moved Permanently",
-            headers: { location: { value: location } },
-          };
-        }
-
-        async function exactRedirectTarget(uri) {
+        async function lookUpRedirectTarget(uri) {
           try {
             const target = await redirectStore.get(uri);
             return target ? String(target) : null;
@@ -55,58 +37,112 @@ Resources:
           }
         }
 
-        function patternRedirectTarget(uri) {
-          for (let index = 0; index < PATTERN_REDIRECT_RULES.length; index++) {
-            const rule = PATTERN_REDIRECT_RULES[index];
-            const match = rule.pattern.exec(uri);
+        function rewriteToIndexDocument(uri) {
+          if (uri === "/404") {
+            return "/404.html";
+          }
+          if (uri.endsWith("/")) {
+            return uri + "index.html";
+          }
+          const lastSegment = uri.substring(uri.lastIndexOf("/") + 1);
+          if (lastSegment.indexOf(".") === -1) {
+            return uri + "/index.html";
+          }
+          return uri;
+        }
+
+        // Pattern redirects: data from the site's projection.json, spliced between the markers at deploy
+        // time by redirect-rules.ts. Each rule is {p: regex, t: target with $1..$9, s: status, x: excluded paths}.
+        const patternRules = /*PAPYRUS_PATTERN_RULES*/[{"p":"^/blog/page/([^/]+)/$","t":"/articles/page/$1/","s":301,"x":[]},{"p":"^/blog/page/([^/]+)/index\\.html$","t":"/articles/page/$1/","s":301,"x":[]},{"p":"^/blog/([^/]+)/$","t":"/articles/$1/","s":301,"x":[]},{"p":"^/blog/([^/]+)/index\\.html$","t":"/articles/$1/","s":301,"x":[]},{"p":"^/biased-decisions(?:/(.*))?$","t":"https://biased-decisions.anth.us/$1","s":301,"x":[]},{"p":"^/(?!(?:.*/)?index\\.html$)(.+)\\.html$","t":"/$1/","s":301,"x":["/404.html"]},{"p":"^/((?:[^/]+/)*[^/.]+)$","t":"/$1/","s":301,"x":["/404"]}]/*END_PAPYRUS_PATTERN_RULES*/;
+
+        function lookUpPatternRedirect(uri) {
+          for (let index = 0; index < patternRules.length; index += 1) {
+            const rule = patternRules[index];
+            if (rule.x.indexOf(uri) !== -1) {
+              continue;
+            }
+            const match = new RegExp(rule.p).exec(uri);
             if (match !== null) {
-              const captured = match[1] === undefined ? "" : match[1];
-              return rule.target.replace("$1", function () {
-                return captured;
-              });
+              return {
+                status: rule.s,
+                target: rule.t.replace(/\$([0-9])/g, function (whole, group) {
+                  return match[Number(group)] || "";
+                }),
+              };
             }
           }
           return null;
         }
 
-        function lastSegmentHasExtension(uri) {
-          return uri.substring(uri.lastIndexOf("/") + 1).indexOf(".") !== -1;
-        }
+        // Content negotiation for agents: when the site publishes Markdown twins (standard front end, agents.markdown), a request
+        // whose Accept header prefers text/markdown over text/html is rewritten to the .md object before the cache lookup. The
+        // flag is spliced in by redirect-rules.ts at deploy time.
+        const negotiateMarkdown = /*PAPYRUS_NEGOTIATE_MARKDOWN*/false/*END_PAPYRUS_NEGOTIATE_MARKDOWN*/;
 
-        function isDirectoryIndexFile(uri) {
-          return uri === "/index.html" || uri.endsWith("/index.html");
-        }
-
-        function staticHostingResult(request) {
-          const uri = request.uri;
-          if (uri.endsWith("/")) {
-            request.uri = uri + "index.html";
-            return request;
-          }
-          if (uri === "/404") {
-            request.uri = "/404.html";
-            return request;
-          }
-          if (lastSegmentHasExtension(uri)) {
-            if (uri.endsWith(".html") && !isDirectoryIndexFile(uri) && SERVED_HTML_FILES.indexOf(uri) === -1) {
-              return permanentRedirect(uri.substring(0, uri.length - ".html".length) + "/");
+        function qualityOf(accept, mediaType) {
+          let quality = 0;
+          const parts = accept.toLowerCase().split(",");
+          for (let index = 0; index < parts.length; index += 1) {
+            const fields = parts[index].split(";");
+            if (fields[0].trim() !== mediaType) {
+              continue;
             }
-            return request;
+            quality = 1;
+            for (let field = 1; field < fields.length; field += 1) {
+              const pair = fields[field].trim();
+              if (pair.indexOf("q=") === 0) {
+                quality = Number(pair.substring(2));
+                if (isNaN(quality)) {
+                  quality = 0;
+                }
+              }
+            }
           }
-          return permanentRedirect(uri + "/");
+          return quality;
+        }
+
+        function prefersMarkdown(request) {
+          const header = request.headers && request.headers.accept;
+          if (!header || !header.value) {
+            return false;
+          }
+          const markdown = qualityOf(header.value, "text/markdown");
+          return markdown > 0 && markdown > qualityOf(header.value, "text/html");
+        }
+
+        function markdownTwin(uri) {
+          if (uri === "/404.html" || uri.length < 6 || uri.substring(uri.length - 5) !== ".html") {
+            return null;
+          }
+          return uri.substring(0, uri.length - 5) + ".md";
         }
 
         async function handler(event) {
           const request = event.request;
-          const exactTarget = await exactRedirectTarget(request.uri);
-          if (exactTarget !== null) {
-            return permanentRedirect(exactTarget);
+          const redirectTarget = await lookUpRedirectTarget(request.uri);
+          if (redirectTarget !== null) {
+            return {
+              statusCode: 301,
+              statusDescription: "Moved Permanently",
+              headers: { location: { value: redirectTarget } },
+            };
           }
-          const patternTarget = patternRedirectTarget(request.uri);
-          if (patternTarget !== null) {
-            return permanentRedirect(patternTarget);
+          const patternRedirect = lookUpPatternRedirect(request.uri);
+          if (patternRedirect !== null) {
+            return {
+              statusCode: patternRedirect.status,
+              statusDescription: "Moved",
+              headers: { location: { value: patternRedirect.target } },
+            };
           }
-          return staticHostingResult(request);
+          request.uri = rewriteToIndexDocument(request.uri);
+          if (negotiateMarkdown && prefersMarkdown(request)) {
+            const twin = markdownTwin(request.uri);
+            if (twin !== null) {
+              request.uri = twin;
+            }
+          }
+          return request;
         }
   ViewerResponseFunction:
     Type: AWS::CloudFront::Function
