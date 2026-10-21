@@ -153,10 +153,22 @@
       "text": "Status 2026-10-21, step 1 (cloud HN collector) done. Dedicated hand-run stack papyrus-monitoring (account 712236451410, us-east-1) deployed from infra/monitoring/papyrus-monitoring.yaml: DynamoDB table (config as data, lease lock, checkpoint, per-item discoveries with routing=collected, run receipts), Lambda papyrus-monitoring-collector, EventBridge schedule papyrus-monitoring-hn-collect rate(15 minutes) with retries and DLQ, error alarm. PRs #401 and #402 merged to develop; carried to main by promotion PR #400. Evidence: first scheduled run (no manual invoke) 2026-10-21T00:44:27Z run 4218c0fb: 30 new, 0 errors; next scheduled run 00:58:56Z run a22d8a46: 0 new, 30 unchanged. Collect-only: no AppSync, no provider keys, nothing delivered to any publication queue. Account Lambda concurrency quota is 10, so reserved concurrency 1 cannot be set; the table lease serializes runs (ReservedConcurrency parameter, default 1, applied as 0). Hourly local automation from earlier work should be retired to avoid duplicate collection (separate queue). Next: step 4, router that reads discoveries with routing=collected (index routing) and delivers only Cyclotron-relevant outputs. Docs: docs/monitoring-cloud.md.",
       "created_at": "2026-10-21T00:59:26.922680Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f54e3804-980c-4b0b-8c0d-e1138dd3c597",
+      "author": "home",
+      "text": "Status 2026-10-20 (steps 2-3, shared Cyclotron). Changed: the shared Cyclotron now exists under the Anthus AI Solutions account, created with Cyclotron's own definition-save logic using operator credentials (no hand-written storage records). It has three classifiers (Anth.us, p.apyr.us, Threat Intelligence), one definition revision, and per-output priming lists staged. Criteria are drafts awaiting editor approval and are marked as drafts in the definition description. Data Parade is a pending output (no classifier, no predictions). Evidence: definition and item-list readback from the account catalog. Not done: the frozen-run bootstrap and the priming import both need Ryan's signed-in console session; the Papyrus side has no machine credential path to the console yet; the deployed design freezes the item list per run, so a continuous stream needs a Cyclotron change. Next: bootstrap and priming from the signed-in session, then the router stage against the monitoring table.",
+      "created_at": "2026-10-21T01:05:13.399716Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "Claude Code"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-21T00:59:26.922722Z",
+  "updated_at": "2026-10-21T01:05:16.169163Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
