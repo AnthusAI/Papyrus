@@ -1,0 +1,25 @@
+{
+  "id": "PPY-24772b01-2688-4c4d-971b-fbb1360a4503",
+  "title": "Add the O'Reilly agentic code review article as a Reference",
+  "description": "https://www.oreilly.com/radar/agentic-code-review/ added as a pending Reference with no label; the accept label is recorded by Ryan through his delegation.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T16:54:40.211299Z",
+  "updated_at": "2026-10-21T16:54:51.502514Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "dataparade-newsroom"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

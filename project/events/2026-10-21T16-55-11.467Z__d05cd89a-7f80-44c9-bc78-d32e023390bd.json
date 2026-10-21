@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d05cd89a-7f80-44c9-bc78-d32e023390bd",
+  "issue_id": "PPY-fd0463c2-fc12-433c-831a-bdf7145d0252",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T16:55:11.467Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Import the Data Parade knowledge-base pod references into the hosted newsroom",
+    "description": "Source: the local pod knowledge-base (corpus dataparade-wiki, checkout under the DataParade-io folder), 180 pod reference rows. Import into the canonical corpus of the hosted newsroom through the catalog registration path (papyrus references create-from-catalog). The pod is read only. Its operator CLI config podPath is stale (it points at a path outside the DataParade-io checkout).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": []
+  }
+}

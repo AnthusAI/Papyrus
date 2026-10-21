@@ -1,0 +1,33 @@
+{
+  "id": "PPY-3dde3f5b-6e45-4629-85bd-6a41ea81c3a4",
+  "title": "First staged backend deploy, edge stack and DNS for dataparade.anth.us",
+  "description": "Blocked on Ryan: Google OAuth client plus ~/Projects/dataparade-store-google-secrets.sh, then the Amplify console Connect repository step on app d35q7zv4zad2we. Then: first main build with backend.excludeModelGroups editions, remove the exclusion and deploy again, create papyrus-edge-dataparade (infra/edge/dataparade.yaml), set edgeDistributionArn in papyrus.config.ts, add the dataparade alias record in the anth.us zone Z04979341DPRV5BDQNZMG. Verify /newsroom returns 200 and the stub returns 200.",
+  "type": "task",
+  "status": "blocked",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "702cb9f1-0c1e-49b8-b9e2-ee0f8b474a14",
+      "author": "home",
+      "text": "Blocked on Ryan (2026-10-21): Google OAuth client and secrets script, then the Amplify console Connect repository on app d35q7zv4zad2we.",
+      "created_at": "2026-10-21T16:54:49.975967Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T16:54:33.610485Z",
+  "updated_at": "2026-10-21T16:54:49.975993Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "dataparade-newsroom"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

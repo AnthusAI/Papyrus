@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "98e0f083-fa2a-4017-b862-16ab74becfac",
+  "issue_id": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T16:54:14.133Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Data Parade hosted newsroom and article front end",
+    "description": "Approved by Ryan 2026-10-21. A hosted Papyrus newsroom for Data Parade (focus: technology for shifting privacy and security left) plus a public front-end stub at dataparade.anth.us that carries only articles (and maybe posts). Domain lives in infra/site.json and may move to a dataparade.io host later. Repo DataParade-io/DataParade-newsroom (private). Hosting in papyrus-production 712236451410, Amplify app d35q7zv4zad2we (dataparade-cms), stack amplify-app-shell-dataparade-cms, standard app shell, Papyrus 5.12.0. Styled from the dataparade.io landing site tokens, fonts and logo (newsroom via Kanbus refined-newsprint token overrides; front end via web/css/site-theme.css). Data Parade is a pending output of the shared relevance Cyclotron (PPY-3212f1, PPY-2d77c8). Out of scope: plugging the stub into the main dataparade.io app; changing that app.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

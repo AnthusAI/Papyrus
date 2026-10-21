@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4c4a78db-2f2f-4db6-8398-f4bd6f76f703",
+  "issue_id": "PPY-cad5f695-466d-4617-969e-29e985e490b8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T16:54:36.946Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Bind Data Parade into reference monitoring and the shared relevance Cyclotron",
+    "description": "Add publication data-parade to the papyrus-monitoring router config (CONFIG#router, MONITOR#hn) with the new backend AppSync endpoint and corpus knowledge-corpus-data-parade. Router stays in dry-run. The Cyclotron side already declares binding data-parade and pending output data-parade-relevance on standing run 566df5dc (target config). Open: the Data Parade criteria and classifier (pending from Ryan); do not flip the router to live until the output has a classifier. Relates to PPY-3212f1 and PPY-2d77c8.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": []
+  }
+}
