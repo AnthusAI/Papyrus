@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "9025b986-1ba9-4d23-b58e-9b934bb228d6",
+  "issue_id": "PPY-f5d86c88-f993-4581-8d90-c407e7e32690",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T13:06:27.804Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move Hard-Decisions onto the standard Papyrus front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

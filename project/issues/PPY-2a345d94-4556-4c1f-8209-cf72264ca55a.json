@@ -1,0 +1,20 @@
+{
+  "id": "PPY-2a345d94-4556-4c1f-8209-cf72264ca55a",
+  "title": "Move Biased-Decisions onto the standard Papyrus front end",
+  "description": "Feature: Biased-Decisions on the standard front end\n  Scenario: Every URL keeps its content\n    Given the live site before the move\n    When the site is built with Papyrus 5.8.0 (projection.json, hooks.py, theme)\n    Then every page body, social card and data file is identical, and the sitemap, robots.txt, llms.txt and Markdown twins are served",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T13:06:24.309068Z",
+  "updated_at": "2026-10-21T13:06:36.841404Z",
+  "closed_at": "2026-10-21T13:06:36.841351Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

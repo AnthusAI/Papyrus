@@ -3,7 +3,7 @@
   "title": "Decide and plan: Biased-Decisions and Hard-Decisions (Astro): decide standard vs stay different",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -20,8 +20,8 @@
     }
   ],
   "created_at": "2026-10-21T00:48:42.826940Z",
-  "updated_at": "2026-10-21T11:01:30.932237Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:06:38.266426Z",
+  "closed_at": "2026-10-21T13:06:38.266392Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

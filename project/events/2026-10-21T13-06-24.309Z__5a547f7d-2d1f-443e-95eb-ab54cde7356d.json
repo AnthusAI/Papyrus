@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5a547f7d-2d1f-443e-95eb-ab54cde7356d",
+  "issue_id": "PPY-2a345d94-4556-4c1f-8209-cf72264ca55a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T13:06:24.309Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move Biased-Decisions onto the standard Papyrus front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

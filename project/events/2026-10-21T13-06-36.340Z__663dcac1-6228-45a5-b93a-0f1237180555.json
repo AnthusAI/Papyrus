@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "663dcac1-6228-45a5-b93a-0f1237180555",
+  "issue_id": "PPY-2a345d94-4556-4c1f-8209-cf72264ca55a",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-21T13:06:36.340Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "Feature: Biased-Decisions on the standard front end\n  Scenario: Every URL keeps its content\n    Given the live site before the move\n    When the site is built with Papyrus 5.8.0 (projection.json, hooks.py, theme)\n    Then every page body, social card and data file is identical, and the sitemap, robots.txt, llms.txt and Markdown twins are served"
+      }
+    }
+  }
+}
