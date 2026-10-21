@@ -82,5 +82,9 @@ def content_import_markus(flags: list[str]) -> None:
             print(f"  rebuild: {json.dumps(payload['rebuild'])}")
         for message in payload["errors"]:
             print(f"  error: {message}")
+    if apply and report.ok and (payload["created"] or payload["updated"]) and not options.get("no-check"):
+        from .editorial_commands import editorial_check_drafts
+
+        editorial_check_drafts([])
     if not report.ok:
         raise SystemExit(1)

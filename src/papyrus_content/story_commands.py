@@ -36,7 +36,7 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
 
 
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance]"""
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--no-check]"""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories save-version")
     lineage_id = _required_option(options, "story")
@@ -62,6 +62,10 @@ def stories_save_version(flags: list[str]) -> None:
         stage = advance_stage(latest.get("stage"))
     record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    if not options.get("no-check"):
+        from .editorial_commands import check_after_save
+
+        check_after_save(record["id"])
 
 
 def stories_versions(flags: list[str]) -> None:
