@@ -22,6 +22,8 @@ RESEARCH_COMMANDS = {
 SECTIONS_COMMANDS = {
   "import": "import-sections",
   "import-doctrine": "import-doctrine",
+  "doctrine": "set-doctrine",
+  "update": "update-section",
   "recount-summary": "recount-summary",
   "repair-message-status": "repair-message-status",
   "backfill-feed-fields": "backfill-feed-fields",
@@ -42,6 +44,8 @@ COMMAND_USAGE = {
   ("messages", "handle"): "--message-id ID [--note TEXT] [--author-label NAME] [--dry-run]",
   ("publication", "init"): "--key KEY --name NAME",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
+  ("sections", "doctrine"): "set --kind mission|policy --file MD [--dry-run]",
+  ("sections", "update"): "--id SECTION [--editorial-mission-file F] [--editorial-policy-file F] [--assignment-guidance-file F] [--kill-criteria-file F] [--enabled true|false] [--dry-run]",
   ("research", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
 }
 
