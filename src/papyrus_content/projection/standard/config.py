@@ -11,10 +11,12 @@ holds them all. Unknown keys are rejected so a typo never silently does nothing.
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
 
@@ -61,6 +63,8 @@ class SiteIdentity:
     language: str = "en"
     production_url: str | None = None
     author: str = ""
+    date_format: str = ""             # strftime pattern for the dates the core components print ("%B %d, %Y"); empty: ISO dates
+    lede_field: str = ""              # front matter field whose text is printed as the article's lede (standfirst) under its title
 
 
 @dataclass(frozen=True)
@@ -88,7 +92,7 @@ class SectionConfig:
     description: str = ""
     page_size: int | None = None      # None: the site's listings.pageSize
     list_empty: bool = False          # keep the listing page when the section has no entries
-    group_by: str | None = None       # "week" (Monday start) or "month": the listing view carries grouped entries
+    group_by: str | None = None       # "week" (Monday start), "month" or "field:<name>": the listing view carries grouped entries
     archive: ArchiveConfig | None = None
     sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
 
@@ -188,6 +192,8 @@ class SeoSettings:
     default_json_ld: str = "Article"
     publisher_name: str = ""
     breadcrumbs_json_ld: bool = True
+    based_on_field: str = ""          # front matter field with the URL of the original this page is based on (JSON-LD isBasedOn)
+    article_types: tuple[str, ...] = ()   # entry types that are not listed but still report og:type article and Article JSON-LD
 
 
 @dataclass(frozen=True)
@@ -391,7 +397,7 @@ def _links(raw, where: str, *, groups: bool = False) -> tuple[NavLink, ...]:
 
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     site = raw["site"]
-    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields"}, "site")
+    _only(site, {"name", "shortName", "publisher", "tagline", "description", "language", "productionUrl", "author", "componentsCss", "summaryFields", "dateFormat", "ledeField"}, "site")
     name = _text(site, "name")
     if not name:
         raise ValueError("site.name is required")
@@ -404,7 +410,14 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         language=_text(site, "language", "en"),
         production_url=_text(site, "productionUrl").rstrip("/") or None,
         author=_text(site, "author"),
+        date_format=_text(site, "dateFormat"),
+        lede_field=_text(site, "ledeField"),
     )
+    if identity.date_format:
+        try:
+            dt.date(2026, 1, 2).strftime(identity.date_format)
+        except ValueError as error:
+            raise ValueError(f"site.dateFormat is not a valid strftime pattern: {error}") from error
 
     urls = dict(raw.get("urls") or {})
     _only(urls, {"style", "sections"}, "urls")
@@ -418,8 +431,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         if entry.get("sort", "date") not in ("date", "order"):
             raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
         group_by = entry.get("groupBy")
-        if group_by not in (None, "week", "month"):
-            raise ValueError(f"urls.sections.{section_name}.groupBy must be 'week' or 'month'")
+        if group_by is not None and not valid_group_by(group_by):
+            raise ValueError(f"urls.sections.{section_name}.groupBy must be 'week', 'month' or 'field:<front matter field>'")
         archive_raw = entry.get("archive")
         archive = None
         if archive_raw is not None:
@@ -498,7 +511,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         columns.append(FooterColumn(str(column.get("title", "")), _links(column.get("links"), "footer.columns.links")))
 
     seo = dict(raw.get("seo") or {})
-    _only(seo, {"defaultImage", "defaultImageAlt", "homeSocialTitle", "imageSize", "twitterSite", "twitterCreator", "jsonLdTypes", "defaultJsonLd", "publisherName", "breadcrumbs"}, "seo")
+    _only(seo, {"defaultImage", "defaultImageAlt", "homeSocialTitle", "imageSize", "twitterSite", "twitterCreator", "jsonLdTypes", "defaultJsonLd", "publisherName", "breadcrumbs", "isBasedOnField", "articleTypes"}, "seo")
     size = seo.get("imageSize")
     if size is not None and (len(size) != 2 or not all(isinstance(number, int) for number in size)):
         raise ValueError("seo.imageSize must be [width, height]")
@@ -514,6 +527,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         default_json_ld=_text(seo, "defaultJsonLd", "Article"),
         publisher_name=_text(seo, "publisherName") or identity.publisher or identity.name,
         breadcrumbs_json_ld=bool(seo.get("breadcrumbs", True)),
+        based_on_field=_text(seo, "isBasedOnField"),
+        article_types=tuple(str(name) for name in (seo.get("articleTypes") or ())),
     )
 
     sitemap = dict(raw.get("sitemap") or {})

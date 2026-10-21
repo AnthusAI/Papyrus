@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import html
 import re
 
@@ -31,6 +32,39 @@ def with_listing(fragment: str, listing_html: str) -> str:
     if closing is not None:
         return fragment[: closing.start()] + listing_html + fragment[closing.start():]
     return fragment + listing_html
+
+
+LEDE_PARAGRAPH = re.compile(r'<p class="markus-lede">.*?</p>', re.S)
+ISO_DATE = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+
+
+def with_lede(fragment: str, text) -> str:
+    """Print ``text`` as the article's lede (``<p class="markus-lede">``): it replaces the header's lede, else ends the header.
+
+    A fragment with no header or an empty text is returned as it is."""
+    text = str(text).strip() if text is not None and not isinstance(text, (list, dict)) else ""
+    match = MARKUS_HEADER_PATTERN.search(fragment)
+    if not text or match is None:
+        return fragment
+    lede = f'<p class="markus-lede">{html.escape(text, quote=False)}</p>'
+    header = match.group(0)
+    header = LEDE_PARAGRAPH.sub(lambda _found: lede, header, count=1) if "markus-lede" in header else header[: -len("</header>")] + lede + "</header>"
+    return fragment[: match.start()] + header + fragment[match.end():]
+
+
+def with_date_format(fragment: str, date_format: str) -> str:
+    """Write the dates of the article header (``YYYY-MM-DD``) with ``date_format`` (``site.dateFormat``)."""
+    match = MARKUS_HEADER_PATTERN.search(fragment)
+    if not date_format or match is None:
+        return fragment
+
+    def shown(found: re.Match) -> str:
+        try:
+            return dt.date.fromisoformat(found.group(1)).strftime(date_format)
+        except ValueError:
+            return found.group(0)
+
+    return fragment[: match.start()] + ISO_DATE.sub(shown, match.group(0)) + fragment[match.end():]
 
 
 def plain_text(fragment_html: str) -> str:

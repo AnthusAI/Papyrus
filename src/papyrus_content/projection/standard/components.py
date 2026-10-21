@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import html
 
 from .config import FooterColumn, NavLink
@@ -16,16 +17,26 @@ def skip_link(target: str = "main", label: str = "Skip to main content") -> str:
     return f'<a class="markus-skip-link" href="#{esc(target)}">{esc(label)}</a>'
 
 
-def time_tag(date: str, *, class_name: str = "markus-time") -> str:
-    return f'<time class="{esc(class_name)}" datetime="{esc(date)}">{esc(date)}</time>' if date else ""
+def shown_date(date: str, date_format: str = "") -> str:
+    """The text of a date: ISO as stored, or ``date_format`` (``site.dateFormat``) for a calendar date."""
+    if not (date and date_format):
+        return date
+    try:
+        return dt.date.fromisoformat(date[:10]).strftime(date_format)
+    except ValueError:
+        return date
 
 
-def byline(entry: StandardEntry) -> str:
+def time_tag(date: str, *, class_name: str = "markus-time", date_format: str = "") -> str:
+    return f'<time class="{esc(class_name)}" datetime="{esc(date)}">{esc(shown_date(date, date_format))}</time>' if date else ""
+
+
+def byline(entry: StandardEntry, date_format: str = "") -> str:
     parts = []
     if entry.authors:
         parts.append(f'<span class="markus-byline-authors">{esc(", ".join(entry.authors))}</span>')
     if entry.date:
-        parts.append(time_tag(entry.date))
+        parts.append(time_tag(entry.date, date_format=date_format))
     return f'<p class="markus-byline">{" · ".join(parts)}</p>' if parts else ""
 
 
@@ -106,12 +117,12 @@ def pager(page: int, pages: int, url_for_page) -> str:
     )
 
 
-def card(entry: StandardEntry, *, heading_level: int = 2) -> str:
+def card(entry: StandardEntry, *, heading_level: int = 2, date_format: str = "") -> str:
     level = f"h{heading_level}"
     image = f'<img class="markus-card-image" src="{esc(entry.image)}" alt="" loading="lazy">' if entry.image else ""
     href = entry.url or entry.link or "#"
     summary = f'<p class="markus-card-summary">{esc(entry.summary_text)}</p>' if entry.summary_text else ""
-    meta = byline(entry)
+    meta = byline(entry, date_format)
     return (
         '<article class="markus-card">'
         f"{image}"

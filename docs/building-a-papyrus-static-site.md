@@ -29,11 +29,11 @@ Every block is optional except `site.name`. Unknown keys are errors.
 
 | Key | Contents |
 |---|---|
-| `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
+| `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`), `dateFormat` (a `strftime` pattern such as `%B %d, %Y` for the dates the core components and the article header print; default: ISO dates), `ledeField` (a front matter field whose text is printed as the article's lede under its title, in place of the summary-derived one; default: none) |
 | `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, listingPage, feed, sitemap, linkField, pageSize, listEmpty, sort, groupBy, archive } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
-| `seo` | `defaultImage`, `defaultImageAlt` (its alt text, used when a page's share image is the default), `homeSocialTitle` (the generated home page's og/twitter title when it differs from the site name), `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
+| `seo` | `defaultImage`, `defaultImageAlt` (its alt text, used when a page's share image is the default), `homeSocialTitle` (the generated home page's og/twitter title when it differs from the site name), `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs`, `isBasedOnField` (a front matter field holding the absolute URL of the original a page is based on; it becomes `isBasedOn` in the article JSON-LD), `articleTypes` (entry types that are not listed but still report `og:type` article and Article JSON-LD) |
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
@@ -68,7 +68,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 An item's section comes from its CMS path (`essays/slow-water`). A section lists its entries at `/<base>/`
 (paginated at `/<base>/page/N/`) and only when it has entries. `pages: false` makes a link-only section: items have
 no page, appear in listings as cards that link to `linkField` (front matter `url` by default), and are never in
-the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `groupBy` (`week`, Monday start, or `month`) gives the listing view dated groups (`listing.groups`) which the default listing renders under headings, `archive` (`{by: month|year, base, description}`) adds one page per month or year that has entries at `/<section>/<archive base>/<YYYY-MM>/` (in the sitemap, each with its own inputs), An item named `index` in a declared section is that section's **introduction**: it has no page of its own; its body (and title and description) head the section's listing at `/<base>/`, and a line `{{ section listing }}` in it places the generated cards (otherwise they follow the introduction). `sort: "order"` lists a section by front matter `order` (ascending, then title) instead of newest first. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
+the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `groupBy` (`week`, Monday start, `month`, or `field:<front matter field>`, which groups by that field's value in the listing's own order, with entries lacking it last under "Other") gives the listing view dated groups (`listing.groups`) which the default listing renders under headings, `archive` (`{by: month|year, base, description}`) adds one page per month or year that has entries at `/<section>/<archive base>/<YYYY-MM>/` (in the sitemap, each with its own inputs), An item named `index` in a declared section is that section's **introduction**: it has no page of its own; its body (and title and description) head the section's listing at `/<base>/`, and a line `{{ section listing }}` in it places the generated cards (otherwise they follow the introduction). `sort: "order"` lists a section by front matter `order` (ascending, then title) instead of newest first. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
 Items in a section that is not declared are ignored; items with no section are root pages (`/about.html`).
 
 ### Entries
@@ -87,7 +87,8 @@ or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, Sept
 requests to `.html` objects; listings stay at `/<base>/`. With `directory`, the edge function also redirects `/x.html` to
 `/x/` (except `/404.html`; a directory index file such as `/x/index.html` is served as it is) and a path with no extension
 and no trailing slash, `/x`, to `/x/`. `/404` serves the 404 page. Aliases on an item and slug
-renames become exact redirects in the KeyValueStore as before. `redirects.exact` adds fixed ones.
+renames become exact redirects in the KeyValueStore as before; with `clean` they point at the clean path (`/x`), and a renamed
+page's old `/old` and `/old.html` both redirect there. `redirects.exact` adds fixed ones.
 
 **Pattern redirects are data.** `redirects.patterns` rules such as
 
@@ -290,7 +291,9 @@ after the container is converted; `::band` and `::column` stay top-level only.
 **Values.** `{{name}}` is replaced, in text and in directive attributes, before conversion, from the top-level
 `values` object of `projection.json` (strings or numbers). A name that is not defined is a build error naming the file
 and the token. A site with no `values` leaves every `{{...}}` alone (and `{{ section listing }}`, with its spaces, is
-never a value). Values are part of the shared fingerprint, so changing one re-renders every page.
+never a value). To print a placeholder literally on a site that has values, put a backslash before it: `\{{name}}` comes
+out as `{{name}}`. Values are part of the shared fingerprint, so changing one re-renders every page. A band whose first
+line of content is a `::column` has no empty implicit first column: that `::column` is the first one.
 
 **Agent-readable twins.** For a page with bands, the `.md` twin and `llms-full.txt` drop the band and column markers,
 turn buttons into Markdown links on one line (`[Start](/start/) · [Source](https://example.org/)`), omit islands and

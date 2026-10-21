@@ -55,7 +55,7 @@ from .head import HeadBuilder, PageHead
 from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
-from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_listing
+from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
 from .family import family_footer
 from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, HookSite, Hooks, load_hooks
@@ -254,6 +254,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         fragment = self._fragment(text, key.count("/"), summary.output_path, transform=transform)
         if self.hooks.item_decorator is not None:
             fragment = self.hooks.item_decorator(fragment, summary)
+        if self.standard.identity.lede_field:
+            fragment = with_lede(fragment, summary.front_matter.get(self.standard.identity.lede_field))
+        fragment = with_date_format(fragment, self.standard.identity.date_format)
         entries = tuple(self._entries(site)) if self._depends_on_entries() else ()
         if self._is_home_source(summary):
             title = entry_title(summary) if summary.front_matter.get("title") else (summary.page_title or summary.title or self.standard.identity.name)
@@ -270,7 +273,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return pages
         entry = self._entry(summary)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
-        article = entry.type in self.standard.listings.types
+        article = entry.type in self.standard.listings.types or entry.type in self.standard.seo.article_types
         crumbs = self._breadcrumbs(entry)
         head = PageHead(
             title=entry.title,
@@ -284,6 +287,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             authors=entry.authors,
             tags=entry.tags,
             noindex=entry.noindex,
+            based_on=self._based_on(entry),
             json_ld_type=self._json_ld_type(entry) if article else None,
             breadcrumbs=crumbs,
         )
@@ -297,6 +301,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _home_markdown(self, title: str, description: str, source_text: str) -> str:
         lines = [f"# {title}", ""] + ([f"> {description}", ""] if description else [])
         return "\n".join(lines + [body_of(source_text)]).rstrip() + "\n"
+
+    def _based_on(self, entry: StandardEntry) -> str:
+        """The original this page is based on: the URL in ``seo.isBasedOnField``, only when it is an absolute http(s) URL."""
+        field = self.standard.seo.based_on_field
+        value = entry.data.get(field) if field else None
+        return value.strip() if isinstance(value, str) and value.strip().startswith(("http://", "https://")) else ""
 
     def _json_ld_type(self, entry: StandardEntry) -> str:
         mapping = dict(self.standard.seo.json_ld_types)
@@ -800,6 +810,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
         files["robots.txt"] = robots_text(self.standard.sitemap_style, self.environment, self.standard.robots_extra).encode("utf-8")
         return files
 
+    def canonical_path(self, key: str) -> str:
+        """The public path of a page key (what rename redirects point at)."""
+        return self.policy.url_for_key(key)
+
     def redirects(self, site: SiteIndex) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for summary in site.items:
@@ -955,7 +969,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if hook is None:
             if variant is not None:
                 raise ValueError(f"::include card={variant!r}: the site has no card hook")
-            return components.card(entry)
+            return components.card(entry, date_format=self.standard.identity.date_format)
         names = inspect.signature(hook).parameters
         keywords = {}
         if "variant" in names:
@@ -1041,7 +1055,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             entry = page.entry
             extras = []
             if entry is not None and self.standard.item_byline:
-                extras.append(components.byline(entry))
+                extras.append(components.byline(entry, self.standard.identity.date_format))
             if entry is not None and entry.tags and self.standard.listings.tags:
                 extras.append(components.tag_list(entry.tags, lambda tag: f"/{self.policy.tag_base(slugify_tag(tag))}/"))
             actions = self._page_actions(page)
