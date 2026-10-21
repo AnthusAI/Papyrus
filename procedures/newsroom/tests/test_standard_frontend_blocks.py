@@ -253,6 +253,68 @@ def test_a_site_without_islands_never_gets_the_runtime():
         site.cleanup()
 
 
+# ------------------------------------------------------------------ prerendered islands
+
+PRERENDER = [
+    {"name": "Chart", "props": {"kind": "bar", "note": "it's <b>"}, "html": "<svg><title>bar</title></svg>"},
+    {"name": "Bare", "props": {}, "html": "<p>server</p>"},
+    {"name": "Brand", "props": {}, "html": "<b>Ex</b>ample"},
+]
+
+
+def prerendered_site(**extra):
+    brand = '<span class="papyrus-island" data-island="Brand" data-props=\'{}\'></span>'
+    files = {**ISLAND_FILES, "assets/islands.html.json": json.dumps(PRERENDER)}
+    config = settings(islands={**ISLANDS["islands"], "prerender": "assets/islands.html.json"}, nav={"brandHtml": brand}, **extra)
+    return Site(config, {"index.md": HOME, "about.md": PLAIN}, files)
+
+
+def test_prerendered_html_fills_matching_mount_points_and_stays_out_of_the_site():
+    site = prerendered_site()
+    try:
+        assert site.project_all().ok
+        page = site.text("index.html")
+        assert "<svg><title>bar</title></svg></div>" in page and 'data-island="Bare" data-props=\'{}\'><p>server</p></div>' in page
+        assert '<span class="papyrus-island" data-island="Brand" data-props=\'{}\'><b>Ex</b>ample</span>' in page
+        assert "islands.js" in page
+        assert not (site.out / "assets" / "islands.html.json").exists()
+        assert "papyrus-island" not in site.text("about.html").split("</header>")[1].split("</main>")[0]
+    finally:
+        site.cleanup()
+
+
+def test_a_mount_point_without_an_entry_stays_empty():
+    mounted = blocks.fill_islands('<div class="papyrus-island" data-island="Other" data-props=\'{}\'></div>', {"Chart": [({}, "x")]})
+    assert mounted.endswith("></div>") and "x" not in mounted
+    different = blocks.fill_islands('<div class="papyrus-island" data-island="Chart" data-props=\'{"a":1}\'></div>', {"Chart": [({"a": 2}, "x")]})
+    assert "x" not in different
+
+
+def test_prerender_file_is_checked():
+    with pytest.raises(ValueError, match="list of"):
+        blocks.parse_prerendered(b"{}")
+    with pytest.raises(ValueError, match="name and html"):
+        blocks.parse_prerendered(b'[{"name": "A"}]')
+    site = Site(settings(islands={**ISLANDS["islands"], "prerender": "assets/missing.json"}), {"index.md": PLAIN}, ISLAND_FILES)
+    try:
+        with pytest.raises(ValueError, match="assets/missing.json"):
+            site.context()
+    finally:
+        site.cleanup()
+
+
+def test_changing_the_prerendered_html_rerenders_pages():
+    site = prerendered_site()
+    try:
+        assert site.project_all().ok
+        before = site.text("index.html")
+        (site.static / "assets" / "islands.html.json").write_text(json.dumps([{**PRERENDER[1], "html": "<p>changed</p>"}, PRERENDER[0], PRERENDER[2]]), encoding="utf-8")
+        assert site.project_all().ok
+        assert site.text("index.html") != before and "<p>changed</p>" in site.text("index.html")
+    finally:
+        site.cleanup()
+
+
 # ------------------------------------------------------------------ incremental equals full
 
 def test_incremental_projection_equals_project_all_for_a_site_using_blocks():

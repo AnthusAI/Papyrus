@@ -22,7 +22,7 @@ STANDARD_KEYS = (
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
     "values", "islands",
 )
-URL_STYLES = ("html", "directory")
+URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
 FEED_FORMATS = ("rss", "atom")
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-_/]*$")
@@ -137,6 +137,7 @@ class FamilyFooter:
 class IslandSettings:
     script: str                # path of the site's island bundle in the static directory, e.g. "assets/islands.js"
     stylesheet: str | None = None
+    prerender: str | None = None   # a JSON file of server-rendered island HTML, read at build time and never published
 
 
 @dataclass(frozen=True)
@@ -433,10 +434,14 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     islands_raw = raw.get("islands")
     islands = None
     if islands_raw is not None:
-        _only(islands_raw, {"script", "stylesheet"}, "islands")
+        _only(islands_raw, {"script", "stylesheet", "prerender"}, "islands")
         if not islands_raw.get("script"):
             raise ValueError("islands.script is required")
-        islands = IslandSettings(str(islands_raw["script"]).lstrip("/"), str(islands_raw["stylesheet"]).lstrip("/") if islands_raw.get("stylesheet") else None)
+        islands = IslandSettings(
+            str(islands_raw["script"]).lstrip("/"),
+            str(islands_raw["stylesheet"]).lstrip("/") if islands_raw.get("stylesheet") else None,
+            str(islands_raw["prerender"]).lstrip("/") if islands_raw.get("prerender") else None,
+        )
     columns = []
     for column in footer.get("columns") or ():
         _only(column, {"title", "links"}, "footer.columns")

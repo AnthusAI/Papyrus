@@ -30,7 +30,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | Key | Contents |
 |---|---|
 | `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
-| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
+| `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
 | `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
@@ -50,7 +50,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `pageActions` | copy / view / open-in actions on article pages: `{enabled, placement (header\|aside), actions (copy, view), ai (chatgpt, claude, perplexity), prompt}` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `values` | `{ "name": "text or number" }`: the `{{name}}` tokens of page blocks (see "Page blocks") |
-| `islands` | `{script, stylesheet}`: the site bundle that mounts islands, and an optional stylesheet linked on every page (see "Islands") |
+| `islands` | `{script, stylesheet, prerender}`: the site bundle that mounts islands, an optional stylesheet linked on every page, and an optional file of server-rendered island HTML (see "Islands") |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
 
@@ -80,10 +80,11 @@ or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, Sept
 
 ## URL policy
 
-`urls.style` decides the shape of every page: `html` writes `x.html`, `directory` writes `x/index.html`. With
-`directory`, the edge function also redirects `/x.html` to `/x/` (except `/404.html`; a directory index file such as
-`/x/index.html` is served as it is) and a path with no extension and no trailing slash, `/x`, to `/x/`. `/404` serves
-the 404 page. Aliases on an item and slug
+`urls.style` decides the shape of every page: `html` writes `x.html`, `directory` writes `x/index.html`, `clean` writes
+`x.html` and addresses it as `/x` (canonical URL, sitemap, feeds, links), for a site whose own edge maps extensionless
+requests to `.html` objects; listings stay at `/<base>/`. With `directory`, the edge function also redirects `/x.html` to
+`/x/` (except `/404.html`; a directory index file such as `/x/index.html` is served as it is) and a path with no extension
+and no trailing slash, `/x`, to `/x/`. `/404` serves the 404 page. Aliases on an item and slug
 renames become exact redirects in the KeyValueStore as before. `redirects.exact` adds fixed ones.
 
 **Pattern redirects are data.** `redirects.patterns` rules such as
@@ -266,6 +267,13 @@ The contract: the site bundle assigns `window.papyrusIslands = { ...window.papyr
 `[data-island]`; `props` is the parsed `data-props` JSON (the `::island` attributes other than `name` and `height`).
 An unknown name logs a console warning and never throws; an island that throws is logged and does not stop the others.
 `height` becomes `style="min-height:.."` so the page does not jump when the island mounts.
+
+**Server-rendered islands.** `islands.prerender` names a JSON file in `web/` (build input: it is read, never published)
+holding `[{"name": "Chart", "props": {"kind": "bar"}, "html": "<svg>..</svg>"}]`. Every empty mount point (a `div` or
+`span` with `class="papyrus-island"`, including one a site writes into `nav.brandHtml`) whose name and props equal an entry
+gets that HTML inside it, so the page has its content before the script runs and the site bundle hydrates it. A mount point
+without an entry stays empty. The site build produces the file (for example by rendering React components with
+`renderToString`); the entries are inserted as written, so only the site's own build output belongs in it.
 
 ## Header and footer options
 
