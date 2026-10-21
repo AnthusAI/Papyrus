@@ -47,15 +47,24 @@ def authors_of(front_matter: dict) -> tuple[str, ...]:
     return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
 
 
+WRITTEN_DATE_FORMATS = ("%A, %B %d, %Y", "%B %d, %Y", "%A, %b %d, %Y", "%b %d, %Y", "%d %B %Y")
+
+
 def calendar_date(value) -> str:
-    """``YYYY-MM-DD`` of a date-ish value, or an empty string."""
+    """``YYYY-MM-DD`` of a date-ish value (ISO, or written out as in "Sunday, September 6, 2026"), or an empty string."""
     if isinstance(value, (dt.datetime, dt.date)):
         return value.strftime("%Y-%m-%d")
-    text = str(value or "").strip()
+    text = str(value or "").strip().strip("'\"")
     try:
         return dt.date.fromisoformat(text[:10]).isoformat()
     except ValueError:
-        return ""
+        pass
+    for date_format in WRITTEN_DATE_FORMATS:
+        try:
+            return dt.datetime.strptime(text, date_format).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return ""
 
 
 @dataclass(frozen=True)

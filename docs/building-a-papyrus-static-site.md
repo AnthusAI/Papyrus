@@ -67,7 +67,7 @@ Items in a section that is not declared are ignored; items with no section are r
 
 Every view (listings, tags, feeds, sitemap, hooks) reads one extended public entry model built from item summaries,
 never from bodies: `title`, `summary_text` (front matter `description`, `summary`, `dek`, `standfirst`, `excerpt`
-or `blurb`), `date`, `updated` (front matter `updated`, `modified`, `lastmod`, else the published time), `image`
+or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, September 6, 2026"; else the published day), `updated` (front matter `updated`, `modified`, `lastmod`, else the published time), `image`
 (`image`, `cover`, `ogImage`, `thumbnail`), `authors` (`authors` or `author`), `type`, `canonical`, `tags`,
 `section`, `feed_eligible` (not `feed: false`, in a feeding section, has a page), `noindex` (`noindex: true`,
 `robots: noindex` or `draft: true`), `listed`, and the raw `data` for hooks.
