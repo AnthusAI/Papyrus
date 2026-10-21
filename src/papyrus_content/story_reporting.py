@@ -63,6 +63,18 @@ def latest_story_version(client, lineage_id: str) -> dict[str, Any]:
     return versions[0]
 
 
+def next_version_record_id(lineage_id: str, version_number: int, taken_ids: set[str]) -> str:
+    """The record id for a new version: `<lineage>-v<n>`, skipping ids already used in the lineage.
+
+    Ids written by other paths (for example a draft saved under a renamed slug) can already hold
+    `<lineage>-v<n>` with a different version number, so the id is chosen to be free, not derived blindly.
+    """
+    suffix = version_number
+    while f"{lineage_id}-v{suffix}" in taken_ids:
+        suffix += 1
+    return f"{lineage_id}-v{suffix}"
+
+
 def save_story_version(
     client,
     lineage_id: str,
@@ -76,8 +88,12 @@ def save_story_version(
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded."""
     now = now or utc_now_iso()
-    latest = latest_story_version(client, lineage_id)
-    next_number = int(latest.get("versionNumber") or 1) + 1
+    versions = story_versions(client, lineage_id)
+    if not versions:
+        raise ValueError(f"No story found for lineage {lineage_id}.")
+    latest = versions[0]
+    next_number = max(int(row.get("versionNumber") or 1) for row in versions) + 1
+    record_id = next_version_record_id(lineage_id, next_number, {row["id"] for row in versions})
     fields = ItemFields(
         type=latest["type"],
         slug=latest["slug"],
@@ -93,7 +109,7 @@ def save_story_version(
     record = {
         **_without_server_fields(latest),
         **compact_dict(columns),
-        "id": f"{lineage_id}-v{next_number}",
+        "id": record_id,
         "lineageId": lineage_id,
         "versionNumber": next_number,
         "previousVersionId": latest["id"],

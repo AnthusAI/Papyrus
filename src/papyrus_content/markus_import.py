@@ -157,6 +157,7 @@ class PlannedItem:
     media: list[PlannedMedia]
     action: str
     existing: dict | None = None
+    superseded_note: str = ""
     media_changed: bool = False
     needs_publish: bool = False
 
@@ -177,6 +178,7 @@ class ImportReport:
     updated: int = 0
     unchanged: int = 0
     skipped_edited_in_cms: list[str] = field(default_factory=list)
+    skipped_superseded: list[str] = field(default_factory=list)
     published: int = 0
     media_uploaded: int = 0
     media_unchanged: int = 0
@@ -194,6 +196,8 @@ class ImportReport:
             "unchanged": self.unchanged,
             "skippedEditedInCms": len(self.skipped_edited_in_cms),
             "skippedEditedInCmsIds": list(self.skipped_edited_in_cms),
+            "skippedSuperseded": len(self.skipped_superseded),
+            "skippedSupersededDetails": list(self.skipped_superseded),
             "published": self.published,
             "mediaUploaded": self.media_uploaded,
             "mediaUnchanged": self.media_unchanged,
@@ -515,6 +519,10 @@ def _classify(planned: PlannedItem, options: ImportOptions, client) -> None:
         planned.needs_publish = desired_published
         planned.media_changed = bool(planned.media)
         return
+    if existing.get("versionState") == "superseded":
+        planned.action = "skip-superseded"
+        planned.superseded_note = _superseded_note(planned, existing, client)
+        return
     planned.media_changed = _media_differs(client, planned.source.item_id, planned.media)
     needs_publish = desired_published and existing.get("status") != "published"
     if existing.get("contentHash") == planned.content_hash:
@@ -528,6 +536,19 @@ def _classify(planned: PlannedItem, options: ImportOptions, client) -> None:
     planned.needs_publish = desired_published
 
 
+def _superseded_note(planned: PlannedItem, existing: dict, client) -> str:
+    """Explains why a source file was not written: its matching record is an old version of the story."""
+    lineage_id = existing.get("lineageId") or planned.source.item_id
+    rows = client.list_by_index("itemsByLineageAndVersion", lineage_id)
+    current = next((row for row in rows if row.get("versionState") == "current"), None)
+    current_id = current["id"] if current else "unknown"
+    return (
+        f"{planned.source.relative_path}: matches {existing['id']}, a superseded version of {lineage_id} "
+        f"(current version {current_id}); not written. Save a new version with "
+        f"`papyrus stories save-version --story {lineage_id}` instead."
+    )
+
+
 def _count_reader_owned_assets(content_dir: Path, planned_items: list[PlannedItem]) -> int:
     assets_dir = Path(content_dir) / "assets"
     if not assets_dir.is_dir():
@@ -539,7 +560,7 @@ def _count_reader_owned_assets(content_dir: Path, planned_items: list[PlannedIte
 def _unique_media(plan: ImportPlan) -> dict[str, PlannedMedia]:
     unique: dict[str, PlannedMedia] = {}
     for planned in plan.items:
-        if planned.action == "skip-edited":
+        if planned.action in ("skip-edited", "skip-superseded"):
             continue
         for entry in planned.media:
             unique.setdefault(entry.storage_path, entry)
@@ -568,6 +589,9 @@ def run_import(plan: ImportPlan, client, store: MediaStore, *, apply: bool) -> I
             adopt_legacy_item_family(client, planned.source.tenant_id, planned.source.item_id)
         if planned.action == "skip-edited":
             report.skipped_edited_in_cms.append(planned.source.item_id)
+            continue
+        if planned.action == "skip-superseded":
+            report.skipped_superseded.append(planned.superseded_note)
             continue
         if planned.action == "unchanged":
             report.unchanged += 1
