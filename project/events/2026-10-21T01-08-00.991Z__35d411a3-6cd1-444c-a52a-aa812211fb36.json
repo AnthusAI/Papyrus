@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "35d411a3-6cd1-444c-a52a-aa812211fb36",
+  "issue_id": "PPY-2dae6b4d-f4c5-4b53-a36e-caf406c97d66",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T01:08:00.991Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Agents and operators manage shapes and file shaped stories through the CLI",
+    "description": "As an agent or operator using the papyrus CLI over SigV4, I can list, create and update content shapes and create or update a story with a shape, so a publication is fully configurable without the UI. Acceptance: papyrus shapes list/show/set (create-only import from a file outside the repo, never overwriting edits), papyrus stories create/update --shape, JSON output.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+    "labels": []
+  }
+}

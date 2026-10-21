@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b4ae6f23-831b-431d-a270-1e4346a6bfc3",
+  "issue_id": "PPY-43ccacde-9da0-409c-bd69-370e8ab18b91",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T01:08:00.933Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Admins configure the publication's content shapes in Administration",
+    "description": "As a publication admin, I configure the list of content shapes in the newsroom Administration (alongside Policies and Sections): add, rename, reorder, retire, and edit each shape's attributes (description, typical length, shelf life, pinnable, own page or not, default sections, writer and classifier guidance, board color/icon). Changes take effect on the board without a deploy. Retiring a shape keeps existing stories readable. Acceptance: CRUD in Administration, editor read access, admin write access, audit fields like other Administration records.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+    "labels": []
+  }
+}

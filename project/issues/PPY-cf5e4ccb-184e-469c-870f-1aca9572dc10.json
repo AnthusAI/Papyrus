@@ -1,0 +1,20 @@
+{
+  "id": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+  "title": "Content shapes: publication-defined story types as backend data, shown on the newsroom board",
+  "description": "Each publication defines the shapes of content it publishes, and every story in the newsroom carries one. A trademark-law publication (the pilot) uses: feature or investigation, analysis, running story, tracker entry, wire post, guide, data page, newsletter issue; other publications will define different lists. Today a content item has one fixed board type (lib/newsroom-board.ts contentItemBoardConfig builds a single type with stage columns) and Item.type is only article or page.\n\nDesign principles:\n- Shapes are backend data, like the editorial mission, policy and sections (4.0.0): configured in the newsroom Administration and via the CLI/API, never in repo YAML or seed files.\n- No generated Kanbus YAML: the newsroom board's KanbanConfig is already built at runtime, so it reads the shape list and emits one Kanbus type per shape (name, color, icon), keeping the existing stage columns. Board filters, list view and the desk board work by shape.\n- Each shape carries editorial and presentation attributes that later work can use: description, typical length, front-page shelf life, whether it can be pinned (pin-until date), whether it gets its own page, default section(s), and guidance for writers and the Cyclotron.\n- Shape guidance joins the effective editorial context (publication > section > shape > assignment) so drafting, editorial checks and classifiers see it.\nPilot: Distinctive Mark (Markus static site on 4.0.0).",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T01:08:00.819666Z",
+  "updated_at": "2026-10-21T01:08:00.819696Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

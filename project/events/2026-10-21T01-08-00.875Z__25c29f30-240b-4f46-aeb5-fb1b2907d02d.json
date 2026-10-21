@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "25c29f30-240b-4f46-aeb5-fb1b2907d02d",
+  "issue_id": "PPY-44b460a6-1308-4b15-82fd-a29578398fba",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T01:08:00.875Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editors file and see stories by their content shape",
+    "description": "As an editor of a publication that defines content shapes, when I create or file a story I choose its shape (e.g. analysis, running story, tracker entry, wire post), and the newsroom board shows each story's shape as its issue type, with a type filter, so I can see and plan the mix of shapes. Acceptance: a story's shape is stored on the item, shown on its card and detail, filterable on the content board and desk board, changeable by an editor, and defaults to the shape of its section when unset. A publication with no shapes configured behaves exactly as today (one story type).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+    "labels": []
+  }
+}

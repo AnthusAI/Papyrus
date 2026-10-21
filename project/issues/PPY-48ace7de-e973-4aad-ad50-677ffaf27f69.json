@@ -1,0 +1,25 @@
+{
+  "id": "PPY-48ace7de-e973-4aad-ad50-677ffaf27f69",
+  "title": "Shape attributes reach the public front end",
+  "description": "Expose shape, shelf life and pin-until to site projectors (and to the StandardMarkusProjector work) through item summaries, so a front page can order items by recency scaled by shape shelf life and keep pinned features in the lead. Coordinate with the standard Markus front end; the pilot site needs this for its inverted-pyramid front page.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-194190ad-5602-41b7-9cd0-dec6a1a6cadf",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-21T01:08:01.281056Z",
+  "updated_at": "2026-10-21T01:08:07.372820Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

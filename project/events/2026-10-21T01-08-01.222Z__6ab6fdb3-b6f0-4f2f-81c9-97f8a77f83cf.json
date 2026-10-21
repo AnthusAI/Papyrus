@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6ab6fdb3-b6f0-4f2f-81c9-97f8a77f83cf",
+  "issue_id": "PPY-804dbdf4-3df3-414e-b458-5f418c02a376",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T01:08:01.222Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add shape guidance to the effective editorial context",
+    "description": "Extend resolve_editorial_context (publication > section > assignment) with the story's shape: its writer guidance and classifier guidance, with source provenance, so drafting, editorial checks and the Cyclotron request see it. Include in the context hash.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+    "labels": []
+  }
+}
