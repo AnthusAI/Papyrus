@@ -48,6 +48,7 @@ from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
 from .markdown import LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
+from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import first_image_of, lede_of, with_listing
 from .grouping import group_entries, group_key, group_label
@@ -94,6 +95,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[COMPONENTS_CSS_PATH] = (ASSET_DIRECTORY / "markus-components.css").read_bytes()
         if standard.nav_disclosure:
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
+        if standard.page_actions.enabled and standard.agents.markdown:
+            files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
         if any(form.endpoint for form in standard.forms):
             files[FORM_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-form.js").read_bytes()
         super().__init__(settings, files, **kwargs)
@@ -680,6 +683,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         scripts = tuple(base.scripts) + ((NAV_SCRIPT_PATH,) if self.standard.nav_disclosure else ())
         if any(form.endpoint for form in self.standard.forms):
             scripts += (FORM_SCRIPT_PATH,)
+        if self.standard.page_actions.enabled and self.standard.agents.markdown:
+            scripts += (PAGE_ACTIONS_SCRIPT,)
         identity = self.standard.identity
         return dataclasses.replace(
             base,
@@ -726,6 +731,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _breadcrumbs_html(self, page: StandardPage) -> str:
         return components.breadcrumbs(page.breadcrumbs) if page.kind == "item" else ""
 
+    def _page_actions(self, page: StandardPage) -> str:
+        """Copy / view / open-in actions on an article's page; only where the page has a Markdown twin."""
+        settings = self.standard.page_actions
+        entry = page.entry
+        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or entry.type not in self.standard.listings.types:
+            return ""
+        twin = md_path(entry.key)
+        if twin is None:
+            return ""
+        return render_page_actions(settings, markdown_path=twin, title=entry.title, canonical=entry.canonical or self.head.absolute(entry.url))
+
     def _grouped_html(self, page: StandardPage, view: ListingView, heading: str) -> str:
         groups = view.groups or ((view.group or "", heading, view.entries),)
         blocks = "".join(
@@ -748,7 +764,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 extras.append(components.byline(entry))
             if entry is not None and entry.tags and self.standard.listings.tags:
                 extras.append(components.tag_list(entry.tags, lambda tag: f"/{self.policy.tag_base(slugify_tag(tag))}/"))
-            return page.fragment + ("\n" + "\n".join(extras) if extras else "")
+            actions = self._page_actions(page)
+            before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
+            return before + page.fragment + after + ("\n" + "\n".join(extras) if extras else "")
         if page.kind == "home" and page.fragment:
             return page.fragment
         if page.kind == "home":
