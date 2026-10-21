@@ -30,7 +30,7 @@ for (const text of [
   "Should this candidate source become a reference for this publication?",
   "Suggested: ",
   " (82% sure)",
-  "Why you are seeing this: Every decision is reviewed while the cyclotron is onboarding.",
+  "Why you are seeing this: Every suggestion is reviewed while suggestions are getting started.",
   "Yes · include",
   "No · exclude",
   "Submit review",

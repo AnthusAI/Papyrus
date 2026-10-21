@@ -5,7 +5,7 @@ const output=path.resolve('.papyrus-runs/curation-review-proof');fs.mkdirSync(ou
 (async()=>{const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-proxy-server']});try{
  const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[],failed=[];page.on('pageerror',e=>errors.push(e.message));page.on('requestfailed',r=>failed.push(r.url()));
  await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
- await page.goto(base+'/newsroom/references');await page.getByText('Decision provenance and version').first().waitFor();
+ await page.goto(base+'/newsroom/references');await page.getByText('Where this suggestion came from').first().waitFor();
  assert(await page.getByRole('button',{name:'Submit review',exact:true}).isDisabled());
  await page.getByRole('button',{name:'not publish',exact:true}).click();assert(await page.getByRole('button',{name:'Submit review',exact:true}).isEnabled());assert.equal(await page.getByLabel('Explanation (optional)',{exact:true}).inputValue(),'');await page.getByRole('button',{name:'Submit review',exact:true}).click();
  await page.waitForFunction(async()=>Object.values((await(await fetch('/review/proof')).json()).accounts)[0].operationalLabels===1);
@@ -20,9 +20,9 @@ const output=path.resolve('.papyrus-runs/curation-review-proof');fs.mkdirSync(ou
  assert.equal(await page.getByRole('button',{name:/Explicit publication judgment: publish/}).getAttribute('aria-pressed'),'true');
  assert.equal(await page.getByLabel('Explanation for Explicit publication judgment').inputValue(),'');
  await page.getByRole('button',{name:'Retry last request'}).click();await page.getByText('References saved.').waitFor();
- await page.getByLabel('Fixture account',{exact:true}).selectOption({index:1});await page.getByText('Decision provenance and version').first().waitFor();assert(!(await page.locator('body').innerText()).includes('References saved.'));
- await page.getByRole('button',{name:'Evaluate classifier proposal',exact:true}).click();await page.getByLabel('Proposed instructions').fill('Synthetic scoped evaluation rubric.');await page.getByLabel('Why make this change?').fill('Verify explicit evaluation before promotion.');await page.getByRole('button',{name:'Evaluate proposal',exact:true}).click();await page.getByText('Evaluation complete: no improvement was reported.').waitFor();assert(await page.getByRole('button',{name:'Promote evaluated proposal'}).isDisabled());
- await page.getByRole('button',{name:'Close proposal'}).click();
+ await page.getByLabel('Fixture account',{exact:true}).selectOption({index:1});await page.getByText('Where this suggestion came from').first().waitFor();assert(!(await page.locator('body').innerText()).includes('References saved.'));
+ await page.getByRole('button',{name:'Test a rule change',exact:true}).click();await page.getByLabel('Proposed rule').fill('Synthetic scoped evaluation rubric.');await page.getByLabel('Why make this change?').fill('Verify explicit evaluation before promotion.');await page.getByRole('button',{name:'Test change',exact:true}).click();await page.getByText('Test finished: no improvement was found.').waitFor();assert(await page.getByRole('button',{name:'Adopt tested change'}).isDisabled());
+ await page.getByRole('button',{name:'Close',exact:true}).click();
  for(const [width,height,theme,name] of [[1440,1000,'light','desktop-light'],[1440,1000,'dark','desktop-dark'],[375,812,'light','mobile-light'],[375,812,'dark','mobile-dark']]){
   await page.setViewportSize({width,height});await page.getByLabel('Appearance',{exact:true}).selectOption(theme);await page.emulateMedia({reducedMotion:'reduce'});await page.evaluate(()=>document.querySelectorAll('[data-curation-mode],.organizer-main').forEach(element=>element.scrollTop=0));await page.screenshot({path:path.join(output,name+'.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' horizontal overflow');
  }

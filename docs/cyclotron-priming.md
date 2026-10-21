@@ -470,7 +470,7 @@ from `cyclotron-publication/v1`, and optionally:
   request ID after an error; a correction gets new content and identity. Do not
   blindly retry paid or uncertain engine operations.
 - `onSteer(classifier)`: opens the host's classifier-proposal workflow through
-  the **Evaluate classifier proposal** button. Leave absent until supported. Do
+  the **Test a rule change** button. Leave absent until supported. Do
   not wire the global SDK review-rate override as a publication-specific change;
   it would affect sibling outputs.
 

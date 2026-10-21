@@ -4,7 +4,9 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
-import { DEFAULT_RELEVANCE_CYCLOTRON } from "../lib/relevance-status";
+import { createDemoCategorySteeringDashboard } from "../lib/category-repository";
+import { currentRelevanceDecisions } from "../lib/relevance-decisions";
+import { DEFAULT_RELEVANCE_CYCLOTRON, DEMO_CYCLOTRON_STATUS } from "../lib/relevance-status";
 import type { CurationBootstrap } from "../lib/curation-client";
 
 const ENGINE_WORDS = /priming|cyclotron|classifier|calibration|sweep|onboarding|version/i;
@@ -77,16 +79,26 @@ test("A session adds Import a file to the same Add a reference area", async () =
 });
 
 test("Editor-facing copy never exposes engine concepts", async () => {
-  const { ReferenceAddEntry, NewsroomReferencesView } = await modules();
+  const { ReferenceAddEntry, NewsroomReferencesView, NewsroomCurationProvider, ReferenceCurationControls } = await modules();
+  const dashboard = createDemoCategorySteeringDashboard();
+  const decisions = currentRelevanceDecisions(dashboard.semanticRelations);
+  const Provider = NewsroomCurationProvider as React.ComponentType<{ bootstrap: CurationBootstrap | null; children?: React.ReactNode }>;
+  const pending = dashboard.references.find((reference) => reference.curationStatus === "pending");
+  const fullView = (extra: object = {}) => renderToStaticMarkup(createElement(Provider, { bootstrap: bootstrap({}) },
+    createElement(NewsroomReferencesView, {
+      references: dashboard.references, decisions, onReview: () => undefined, cyclotronStatus: DEMO_CYCLOTRON_STATUS,
+      cyclotronPriming: { labels, requests: [], onRequest: () => undefined },
+      initialReferenceLineageId: pending?.lineageId ?? pending?.id, ...extra,
+    })));
   const pages = [
     renderToStaticMarkup(createElement(ReferenceAddEntry, { url, importOptions: null })),
     renderToStaticMarkup(createElement(ReferenceAddEntry, { url, importOptions: panel })),
-    renderToStaticMarkup(createElement(NewsroomReferencesView, {
-      references: [], onReview: () => undefined, cyclotronPriming: { labels, requests: [], onRequest: () => undefined },
-    })),
+    renderToStaticMarkup(createElement(Provider, { bootstrap: bootstrap({}) }, createElement(ReferenceCurationControls, {}))),
+    fullView(),
   ];
+  assert.ok(pages[3].includes("Suggestions for this publication") && pages[3].includes("Add a reference") && pages[3].includes("Papyrus suggests"), "the whole References view rendered");
   for (const html of pages) {
     const visible = text(html.replace(/(aria-label|data-[a-z-]+|class|placeholder)="[^"]*"/g, ""));
-    assert.ok(!ENGINE_WORDS.test(visible), `engine word in editor-facing copy: ${visible.match(ENGINE_WORDS)?.[0]}`);
+    assert.ok(!ENGINE_WORDS.test(visible), `engine word in editor-facing copy: ${visible.match(ENGINE_WORDS)?.[0]} in ${visible.slice(Math.max(0, visible.search(ENGINE_WORDS) - 60), visible.search(ENGINE_WORDS) + 60)}`);
   }
 });

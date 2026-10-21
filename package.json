@@ -53,6 +53,7 @@
     "test:curation-section": "tsx scripts/test-curation-section.ts",
     "test:relevance-review-ui": "tsx scripts/test-relevance-review-ui.ts",
     "test:relevance-status-ui": "tsx scripts/test-relevance-status-ui.ts",
+    "test:reference-import-refresh": "tsx scripts/test-reference-import-refresh.ts",
     "test:reference-add-entry": "tsx scripts/test-reference-add-entry.ts",
     "test:relevance-priming-ui": "tsx scripts/test-relevance-priming-ui.ts",
     "test:priming-proof-page": "tsx scripts/test-priming-proof-page.ts",

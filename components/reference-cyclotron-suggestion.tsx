@@ -60,7 +60,7 @@ export function ReferenceSuggestionBlock({
     <section aria-label="Suggestion" className="space-y-2 border-y border-foreground py-3" data-reference-suggestion={referenceLineageId}>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Suggestion</h3>
       <p className="text-sm text-foreground">
-        The cyclotron suggests <span className="font-semibold">{decision.label}</span> ({suggestionConfidenceWords(decision)}).
+        Papyrus suggests <span className="font-semibold">{decision.label}</span> ({suggestionConfidenceWords(decision)}).
       </p>
       <p className="text-xs text-foreground" data-reference-suggestion-notice>
         A suggestion never changes the status until an editor acts. This reference is {statusLabel.toLowerCase()}.

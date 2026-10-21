@@ -486,6 +486,7 @@ export function NewsroomReferencesView({
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
   const sessionImport = useReferenceImport(disabled);
+  const [importedCount, setImportedCount] = useState(0);
   const isMobileDetail = useMediaQuery("(max-width: 767px)");
   const pathnameLineageId = useMemo(
     () => parseReferenceLineageIdFromNewsroomPathname(pathname),
@@ -594,11 +595,12 @@ export function NewsroomReferencesView({
         <ReferenceAddEntry
           importOptions={disabled ? null : priming ?? sessionImport?.panel}
           key={sessionImport?.sessionKey ?? "no-session"}
+          onImported={() => setImportedCount((count) => count + 1)}
           url={cyclotronPriming && !disabled
             ? { labels: cyclotronPriming.labels, onRequest: cyclotronPriming.onRequest, requests: cyclotronPriming.requests }
             : null}
         />
-        <ReferenceCurationControls disabled={disabled} />
+        <ReferenceCurationControls disabled={disabled} refreshSignal={importedCount} />
         {cyclotronStatus ? (
           <div className="shrink-0">
             <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />

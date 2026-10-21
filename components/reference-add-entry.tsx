@@ -23,9 +23,12 @@ type Option = "url" | "file";
 export function ReferenceAddEntry({
   url,
   importOptions,
+  onImported,
 }: {
   url?: ReferenceUrlOption | null;
   importOptions?: PrimingPanelProps | null;
+  /** Called after an import is saved, so the host can reload what depends on it. */
+  onImported?: () => void;
 }) {
   const [chosen, setChosen] = useState<Option>("url");
   const [fileOpened, setFileOpened] = useState(false);
@@ -61,6 +64,7 @@ export function ReferenceAddEntry({
             onAccepted={(draft) => {
               setSaved(`Added ${draft.rows.length} reference${draft.rows.length === 1 ? "" : "s"}.`);
               importOptions.onAccepted?.(draft);
+              onImported?.();
             }}
           />
           {saved ? <p role="status">{saved}</p> : null}
