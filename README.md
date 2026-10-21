@@ -1,31 +1,21 @@
 # Papyrus
 
-You are focused on a topic. For us, it is AI/ML information systems. For you,
-it might be golf club technology, oil markets, local
-politics, or any other beat worth watching closely.
+Papyrus is an open-source system that keeps a continuous, steerable feed of insight about the subjects you choose: it watches sources, decides what is relevant from your include/exclude labels, has editor agents write and check it up to your policies, and publishes it for people and agents.
 
-Papyrus turns that focus into a fully automated newsroom. Research agents
-monitor the beat while you sleep, update a publication-specific knowledge base,
-and surface surprising developments. Editor agents turn those signals into
-assignments. Reporter agents prepare private reporting packets: the verified
-facts, source trail, open questions, risks, angle, and copywriter brief an editor
-needs before commissioning reader-facing copy. Copywriter agents turn selected
-packets into draft Items for review. The next morning, you can open your
-newsroom and see what it found, what it recommends, what needs copywriting, and
-what is ready for review.
+You are focused on a topic. For us, it is AI/ML information systems. For you, it might be golf club technology, oil markets, local politics, or any other beat worth watching closely. The beat is configuration, not code. The current AI/ML corpus is pilot content, not an application assumption. A Papyrus publication changes subject by changing publication configuration, corpus set, category/graph steering state, edition plans, and worker instructions.
 
-You steer it like an executive editor, as much or as little as you want:
-choosing the canonical categories for topic coverage, configuring editorial
-sections for the issue, setting editorial policy, selecting the strongest
-packets for copywriting, commenting on drafts, and culling assignments before
-publication. When you step back, Papyrus keeps operating from the momentum you
-already gave it: accepted categories, current policy, section doctrine, open
-assignments, prior decisions, and rejected proposal memory.
+Research agents monitor the beat, update a publication-specific knowledge base, and surface developments. Editor agents turn those signals into assignments. Reporter agents prepare private reporting packets: the verified facts, source trail, open questions, risks, angle, and copywriter brief an editor needs before commissioning reader-facing copy. Copywriter agents turn selected packets into draft Items for review. You steer as much or as little as you want, and editors decide what is published.
 
-The beat is configuration, not code. The current AI/ML corpus is pilot content,
-not an application assumption. A Papyrus publication changes subject by
-changing publication configuration, corpus set, category/graph steering state,
-edition plans, and worker instructions.
+## What Papyrus does
+
+Status: Live, Beta, or Not built yet. Each line links to the page that says what exists.
+
+- **Publishes for people and agents.** Static Markus sites with Markdown twins, `llms.txt`, `Accept: text/markdown`, page actions, feeds and a sitemap. Live. [Agent-readable sites](docs/agent-readable-sites.md), [building a static site](docs/building-a-papyrus-static-site.md).
+- **Steers from your decisions.** Doctrine, include and exclude labels, category steering. Live. The relevance Cyclotron and per-Section Cyclotron are Beta; steering by votes, ratings and comments is Not built yet. [Steering and relevance](docs/steering-and-relevance.md).
+- **Watches sources.** The Hacker News Monitor is Beta. Email, Slack and research dispatch are Live. General RSS monitors, many monitors per publication and X search are Not built yet. [Sources and monitoring](docs/sources-and-monitoring.md).
+- **Runs editor agents.** Researcher, editor, reporter and copywriter procedures, editorial checks on by default, story versions and a reporting trail. Live. [Editor agents](docs/editor-agents.md).
+- **Keeps a knowledge base.** Concepts wiki for editors, topics, graph, context packs: Live. Trending concepts report: Beta. Public wiki, topics and trends: Not built yet. [Knowledge base](docs/knowledge-base.md).
+- **Collects newsletter signups.** Signup capture is Live. Sending is Not built yet. [Newsletter](docs/newsletter.md).
 
 To start a new publication from a pile of files, follow
 [`docs/new-publication-from-corpus.md`](docs/new-publication-from-corpus.md).
