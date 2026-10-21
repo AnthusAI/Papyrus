@@ -256,7 +256,7 @@ def _print_google_console(ctx: Context, out: TextIO) -> None:
 
 def _print_disable_note(out: TextIO) -> None:
     print("", file=out)
-    print(f"This command does not enable or disable Google OAuth. If the CMS branch sets {DISABLE_SWITCH}=1 (Shipped does),", file=out)
+    print(f"This command does not enable or disable Google OAuth. If the CMS branch sets {DISABLE_SWITCH}=1,", file=out)
     print("the backend ignores these secrets and builds no Google provider until that variable is removed.", file=out)
 
 
