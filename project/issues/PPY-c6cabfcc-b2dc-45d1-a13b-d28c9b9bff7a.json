@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c6cabfcc-b2dc-45d1-a13b-d28c9b9bff7a",
+  "title": "Migrate Cyclotron marketing site (Cyclotron-web): standard header/footer and Markus prose",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:48:30.970772Z",
+  "updated_at": "2026-10-21T00:48:30.970823Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

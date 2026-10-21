@@ -1,0 +1,20 @@
+{
+  "id": "PPY-dbef71f5-a4c3-48b4-a4a0-91088695badc",
+  "title": "Papyrus marketing site: 'Built with Papyrus' showcase page with a logo wall",
+  "description": "Ryan, 2026-10-20: the Papyrus marketing site (p.apyr.us product site, not the Papyrus publication) gets a page that proudly lists every site built on Papyrus, as a logo wall for social proof. Sites with a logo show the logo; others show the name. Honest framing: today almost all are Anthus's own sites (say so); design partners get featured as they join, then paying customers. The list is data managed in the CMS (one record per site: name, logo, URL, kind = Anthus / design partner / customer, ordering), not hard-coded, so new logos can be added without code. Built on the standard front end (a core 'showcase/logo wall' component usable by any site).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:52:43.796175Z",
+  "updated_at": "2026-10-21T00:52:43.796253Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

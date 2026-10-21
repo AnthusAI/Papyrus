@@ -146,10 +146,41 @@
       "text": "2026-10-20 Data Parade relevance output, read-only findings. (1) Shared Cyclotron definitions are DATA in the account catalog (Cyclotron docs/hosted-publications.md; save_cyclotron_definition via authenticated console), not code; Papyrus relevanceCyclotron in corpora/*-steering.yml is the per-publication local sweep, not the shared engine. (2) Production check (cyclotron-production 682849160744): bootstrap route POST /publication-runs/bootstrap is deployed (API returns 400 validation), BFF/worker modified 2026-10-20T20:03Z, CYCLOTRON_ALLOW_LIVE=false, no CYCLOTRON_PUBLICATION_TARGETS. The books bucket has no catalog for the Anthus AI Solutions (40abda23) or Data Parade (10dcf52a) accounts, so the shared Cyclotron, its four classifiers and any frozen run do NOT exist in production yet. (3) Cyclotron PR58 already supports a Data Parade style output via target pendingOutputs (status pending_criteria, decide/prime refused, no prediction), so no engine code change is needed. (4) Not applied: writing the definition needs an authenticated Anthus AI Solutions console session (none available to the agent; Chrome extension unresponsive) and the four outputs question/criteria text, which lives in private publication policy and was not invented. Plan once available: under Anthus AI Solutions, save definition with 4 active classifiers plus a Data Parade output marked pending criteria; share read of the Data Parade output to the Data Parade account via the sharing owner; bootstrap the run; set targets with pendingOutputs for Data Parade. Distinctive Mark is excluded (PPY-3106ee), own Cyclotrons. PENDING from Ryan: Data Parade screening criteria and labels, the four current output questions to carry over, and a bounded live-test budget. Live stays disabled, no provider calls made.",
       "created_at": "2026-10-20T22:10:28.139436Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8c6791a5-f2fa-4107-9a5f-81c5e046927a",
+      "author": "home",
+      "text": "Status 2026-10-21, step 1 (cloud HN collector) done. Dedicated hand-run stack papyrus-monitoring (account 712236451410, us-east-1) deployed from infra/monitoring/papyrus-monitoring.yaml: DynamoDB table (config as data, lease lock, checkpoint, per-item discoveries with routing=collected, run receipts), Lambda papyrus-monitoring-collector, EventBridge schedule papyrus-monitoring-hn-collect rate(15 minutes) with retries and DLQ, error alarm. PRs #401 and #402 merged to develop; carried to main by promotion PR #400. Evidence: first scheduled run (no manual invoke) 2026-10-21T00:44:27Z run 4218c0fb: 30 new, 0 errors; next scheduled run 00:58:56Z run a22d8a46: 0 new, 30 unchanged. Collect-only: no AppSync, no provider keys, nothing delivered to any publication queue. Account Lambda concurrency quota is 10, so reserved concurrency 1 cannot be set; the table lease serializes runs (ReservedConcurrency parameter, default 1, applied as 0). Hourly local automation from earlier work should be retired to avoid duplicate collection (separate queue). Next: step 4, router that reads discoveries with routing=collected (index routing) and delivers only Cyclotron-relevant outputs. Docs: docs/monitoring-cloud.md.",
+      "created_at": "2026-10-21T00:59:26.922680Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f54e3804-980c-4b0b-8c0d-e1138dd3c597",
+      "author": "home",
+      "text": "Status 2026-10-20 (steps 2-3, shared Cyclotron). Changed: the shared Cyclotron now exists under the Anthus AI Solutions account, created with Cyclotron's own definition-save logic using operator credentials (no hand-written storage records). It has three classifiers (Anth.us, p.apyr.us, Threat Intelligence), one definition revision, and per-output priming lists staged. Criteria are drafts awaiting editor approval and are marked as drafts in the definition description. Data Parade is a pending output (no classifier, no predictions). Evidence: definition and item-list readback from the account catalog. Not done: the frozen-run bootstrap and the priming import both need Ryan's signed-in console session; the Papyrus side has no machine credential path to the console yet; the deployed design freezes the item list per run, so a continuous stream needs a Cyclotron change. Next: bootstrap and priming from the signed-in session, then the router stage against the monitoring table.",
+      "created_at": "2026-10-21T01:05:13.399716Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "Claude Code"
+      }
+    },
+    {
+      "id": "defa2ceb-61f9-4241-8341-8da7a5d44ccb",
+      "author": "home",
+      "text": "Step 4 (router + feedback) status. What changed: PR 417 merged to develop (6f06316): a router Lambda in the papyrus-monitoring stack (own role, zip, schedule cron(7/15 * * * ? *), DLQ, 2 alarms); data-driven CONFIG#router item; dry-run builds and validates decide requests with deterministic requestIds and records receipts, live decides per binding (poll only, every refusal code stops the sweep) and delivers include items through ReferenceIntake; feedback pass behind router.feedback (default false). Change set was additions only (collector unchanged), executed, UPDATE_COMPLETE. Router seeded in dry-run, feedback false. Evidence: one manual dry-run invocation validated 5 discoveries, 3 requests each, receipts under ROUTE# and ROUTERUN#; the Threat Intelligence context hash was read through the router role, so AppSync IAM access works from the new role; Anth.us and p.apyr.us have no stored mission, recorded as contextHash null with reason. Anth.us now has its canonical KnowledgeCorpus (additive single record, read back). Next: Cyclotron invoker role trust update for the router role, ALLOW_LIVE flip, then mode=live (a data change); feedback stays off pending approval.\n",
+      "created_at": "2026-10-21T02:11:20.640471Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "router-worker"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-20T22:10:28.139471Z",
+  "updated_at": "2026-10-21T02:11:20.640511Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

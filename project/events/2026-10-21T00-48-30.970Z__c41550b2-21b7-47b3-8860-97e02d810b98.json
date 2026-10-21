@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c41550b2-21b7-47b3-8860-97e02d810b98",
+  "issue_id": "PPY-c6cabfcc-b2dc-45d1-a13b-d28c9b9bff7a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:30.970Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Cyclotron marketing site (Cyclotron-web): standard header/footer and Markus prose",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": []
+  }
+}

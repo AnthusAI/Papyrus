@@ -13,6 +13,19 @@ authorization stays read-only. Its `PAPYRUS_USER_POOL_ISSUER` environment value 
 derived from the backend's own Cognito pool at deployment, not caller input.
 There are no new role policies, credentials, grants or bucket access rules.
 
+## Operators without an editor session
+
+`intakePendingReferences` refuses callers that are not a validated editor or admin of
+the publication, and its error says so. The supported operator path is
+`papyrus references create-from-catalog --status pending` with explicit IAM
+credentials (`PAPYRUS_GRAPHQL_AUTH=iam`), followed by delegated curation of the
+pending references. On a data-driven publication (no repo steering file) the command
+resolves the publication from the backend's single canonical corpus, so
+`--corpus-key` is optional (if given it must match), and catalog items without an
+`item_id` get one computed from their source URL, as `references make-catalog` does.
+A stored `papyrus login` session for another publication is not used for a different
+endpoint; set `PAPYRUS_GRAPHQL_AUTH=iam` for that endpoint.
+
 ## Publication and actor boundary
 
 AppSync validates the Cognito token. The handler additionally requires a subject,

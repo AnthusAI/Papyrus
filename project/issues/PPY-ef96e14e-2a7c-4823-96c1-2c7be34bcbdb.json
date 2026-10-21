@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ef96e14e-2a7c-4823-96c1-2c7be34bcbdb",
+  "title": "Migrate Chatticus marketing site (chattic.us): standard header/footer and Markus prose",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:48:26.166067Z",
+  "updated_at": "2026-10-21T00:48:26.166119Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

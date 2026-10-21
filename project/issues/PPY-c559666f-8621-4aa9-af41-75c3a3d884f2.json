@@ -70,10 +70,29 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "7abf5a78-ce42-434a-a8c6-67246f0657c6",
+      "author": "home",
+      "text": "Cloud variant of the collector now runs on a 15 minute AWS schedule (stack papyrus-monitoring, PRs #401 and #402). Same fingerprint and event-id semantics as the local SQLite collector; checkpoint, lock and receipts live in DynamoDB. Verified two scheduled runs: 30 new, then 30 unchanged. See docs/monitoring-cloud.md. Intake into publication References remains out of scope until the routing step.",
+      "created_at": "2026-10-21T00:59:26.951474Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "02dca1fc-f221-4369-b606-9f5d581e37d0",
+      "author": "home",
+      "text": "Collector side unchanged by step 4. The router (PR 417) consumes this collector's output: it reads discoveries from the sparse routing index (collected, then dry-run-validated and decided partitions), and moves routing to dry-run-validated, decided, routed, refused, uncertain or error. Documented in docs/monitoring-cloud.md. Evidence: dry-run invocation read 5 collected discoveries oldest first; 30 remain collected, 5 dry-run-validated.\n",
+      "created_at": "2026-10-21T02:11:20.674074Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "router-worker"
+      }
     }
   ],
   "created_at": "2026-10-20T11:02:36.927481Z",
-  "updated_at": "2026-10-20T13:02:39.106545Z",
+  "updated_at": "2026-10-21T02:11:20.674108Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

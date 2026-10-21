@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "04a0c2b8-e53e-45de-9c98-881d12805622",
+  "issue_id": "PPY-194190ad-5602-41b7-9cd0-dec6a1a6cadf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T01:08:01.048Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Data model: ContentShape records and a shape field on content items",
+    "description": "Add a ContentShape model (id/key, title, description, sortOrder, enabled, typicalLength, shelfLifeDays, pinnable, hasOwnPage, defaultSectionIds, writerGuidance, classifierGuidance, boardColor, boardIcon, audit fields) with Administration-style authorization (editors read, admins write; IAM/authoring role for operators), and an optional shape key on Item/content item versions (and assignments where useful). Include the GraphQL indexes needed to list shapes in order and stories by shape. No seed YAML; an empty table means no shapes.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-cf5e4ccb-184e-469c-870f-1aca9572dc10",
+    "labels": []
+  }
+}

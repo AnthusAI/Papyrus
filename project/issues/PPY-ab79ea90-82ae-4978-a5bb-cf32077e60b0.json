@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ab79ea90-82ae-4978-a5bb-cf32077e60b0",
+  "title": "Document the standard front end on the Papyrus marketing site",
+  "description": "Standing rule (Ryan): every feature epic ends with documenting the feature on the Papyrus marketing site (p.apyr.us product site). Cover: one standard front end for static sites (projection.json, theme, hooks), RSS and Atom feeds, sitemap/robots/SEO, listings and archives, forms component, logo-wall showcase. Related: PPY-b9b038 (features list kept current).",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T01:35:44.817417Z",
+  "updated_at": "2026-10-21T01:35:44.817477Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

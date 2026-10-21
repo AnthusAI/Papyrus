@@ -19,7 +19,7 @@ from .redirects import RedirectRule, rule_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
-    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media",
+    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -62,6 +62,15 @@ class SiteIdentity:
 
 
 @dataclass(frozen=True)
+class ArchiveConfig:
+    """One listing page per month (or year) that has entries: ``<section base>/<archive base>/<YYYY-MM>/``."""
+
+    by: str = "month"
+    base: str = "archive"
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class SectionConfig:
     """One section; a site that declares none is a site without sections."""
 
@@ -76,6 +85,9 @@ class SectionConfig:
     description: str = ""
     page_size: int | None = None      # None: the site's listings.pageSize
     list_empty: bool = False          # keep the listing page when the section has no entries
+    group_by: str | None = None       # "week" (Monday start) or "month": the listing view carries grouped entries
+    archive: ArchiveConfig | None = None
+    sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
 
 
 @dataclass(frozen=True)
@@ -89,6 +101,7 @@ class CustomPage:
     depends_on: tuple[str, ...] = ("*",)
     sitemap: bool = True
     noindex: bool = False
+    form: str | None = None           # the id of a ``forms`` entry the default body shows
 
 
 @dataclass(frozen=True)
@@ -154,6 +167,47 @@ class IconSettings:
 
 
 @dataclass(frozen=True)
+class ShowcaseSettings:
+    """A logo wall fed from published items: every item of ``section`` is one site (front matter: name, logo, url, kind, order)."""
+
+    section: str
+    path: str = "built-with"
+    title: str = "Built with Papyrus"
+    description: str = ""
+    kinds: tuple[tuple[str, str], ...] = (("anthus", "Built by Anthus"), ("design-partner", "Design partners"), ("customer", "Customers"))
+
+
+@dataclass(frozen=True)
+class FormField:
+    name: str
+    label: str
+    type: str = "text"                      # text, email, textarea, select
+    required: bool = False
+    options: tuple[tuple[str, str], ...] = ()   # select: (value, label)
+    autocomplete: str = ""
+    help: str = ""
+
+
+@dataclass(frozen=True)
+class FormSpec:
+    """A public form defined as data. ``endpoint`` is ``None`` until the receiving endpoint exists: the form then
+    says it is not open yet and cannot be submitted. It never shows success it did not get from the endpoint."""
+
+    id: str
+    title: str
+    fields: tuple[FormField, ...]
+    endpoint: str | None = None
+    submit_label: str = "Send"
+    honeypot: str = "website"
+    closed_notice: str = "This form is not open yet. Please check back soon."
+    success_text: str = "Thank you. Your message was sent."
+    failure_text: str = "Your message could not be sent. Please try again later."
+
+
+FORM_FIELD_TYPES = ("text", "email", "textarea", "select")
+
+
+@dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
@@ -168,6 +222,7 @@ class StandardSettings:
     sitemap_style: str = "single"
     sitemap_lastmod: bool = True
     sitemap_tags: bool = True
+    sitemap_extra: tuple[str, ...] = ()   # site paths listed in the sitemap that core does not generate (static.copy routes)
     robots_extra: tuple[str, ...] = ()
     feeds: FeedSettings = field(default_factory=FeedSettings)
     listings: ListingSettings = field(default_factory=ListingSettings)
@@ -177,11 +232,14 @@ class StandardSettings:
     hooks_path: str | None = None
     pages: tuple[CustomPage, ...] = ()
     item_depends_on: tuple[str, ...] = ()
+    static_copy: tuple[str, ...] = ()   # directories of the static directory published verbatim at the site root
     components_css: bool = True
     item_byline: bool = False
     breadcrumbs: bool = True
     home_link_label: str = "Home"
     summary_fields: tuple[str, ...] = ()
+    showcase: ShowcaseSettings | None = None
+    forms: tuple[FormSpec, ...] = ()
 
     @property
     def sectioned(self) -> bool:
@@ -233,7 +291,23 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty"}, f"urls.sections.{section_name}")
+        _only(entry, {"base", "label", "pages", "listing", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort"}, f"urls.sections.{section_name}")
+        if entry.get("sort", "date") not in ("date", "order"):
+            raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
+        group_by = entry.get("groupBy")
+        if group_by not in (None, "week", "month"):
+            raise ValueError(f"urls.sections.{section_name}.groupBy must be 'week' or 'month'")
+        archive_raw = entry.get("archive")
+        archive = None
+        if archive_raw is not None:
+            _only(archive_raw, {"by", "base", "description"}, f"urls.sections.{section_name}.archive")
+            if archive_raw.get("by", "month") not in ("month", "year"):
+                raise ValueError("archive.by must be 'month' or 'year'")
+            archive = ArchiveConfig(
+                by=archive_raw.get("by", "month"),
+                base=_path_segment(str(archive_raw.get("base", "archive")), f"urls.sections.{section_name}.archive.base"),
+                description=str(archive_raw.get("description", "")),
+            )
         sections.append(
             SectionConfig(
                 name=section_name,
@@ -247,8 +321,18 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 description=str(entry.get("description", "")),
                 page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
                 list_empty=bool(entry.get("listEmpty", False)),
+                group_by=group_by,
+                archive=archive,
+                sort=str(entry.get("sort", "date")),
             )
         )
+
+    static = dict(raw.get("static") or {})
+    _only(static, {"copy"}, "static")
+    static_copy = tuple(str(name) for name in static.get("copy", ()))
+    for name in static_copy:
+        if not name or name.startswith("/") or ".." in name.split("/") or name in ("css", "assets"):
+            raise ValueError(f"static.copy entries must be relative directories other than css and assets, not {name!r}")
 
     redirects = dict(raw.get("redirects") or {})
     _only(redirects, {"exact", "patterns"}, "redirects")
@@ -286,7 +370,11 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     )
 
     sitemap = dict(raw.get("sitemap") or {})
-    _only(sitemap, {"style", "lastmod", "tags"}, "sitemap")
+    _only(sitemap, {"style", "lastmod", "tags", "extra"}, "sitemap")
+    sitemap_extra = tuple(str(path) for path in sitemap.get("extra", ()))
+    for path in sitemap_extra:
+        if not path.startswith("/"):
+            raise ValueError(f"sitemap.extra paths start with /, not {path!r}")
     sitemap_style = sitemap.get("style", "single")
     if sitemap_style not in SITEMAP_STYLES:
         raise ValueError(f"sitemap.style must be one of {SITEMAP_STYLES}")
@@ -336,7 +424,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
 
     custom = []
     for entry in raw.get("pages") or ():
-        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex"}, "pages")
+        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form"}, "pages")
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
@@ -346,11 +434,63 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 depends_on=tuple(entry.get("dependsOn", ("*",))),
                 sitemap=bool(entry.get("sitemap", True)),
                 noindex=bool(entry.get("noindex", False)),
+                form=entry.get("form"),
             )
         )
     components = dict(raw.get("components") or {})
     _only(components, {"itemByline", "breadcrumbs", "itemPagesDependOn"}, "components")
 
+    showcase_raw = raw.get("showcase")
+    showcase = None
+    if showcase_raw is not None:
+        _only(showcase_raw, {"section", "path", "title", "description", "kinds"}, "showcase")
+        defaults = ShowcaseSettings(section="x")
+        showcase = ShowcaseSettings(
+            section=_path_segment(str(showcase_raw["section"]), "showcase.section"),
+            path=_path_segment(str(showcase_raw.get("path", defaults.path)), "showcase.path"),
+            title=_text(showcase_raw, "title", defaults.title),
+            description=_text(showcase_raw, "description"),
+            kinds=tuple((str(key), str(label)) for key, label in dict(showcase_raw.get("kinds") or dict(defaults.kinds)).items()),
+        )
+        if any(section.name == showcase.section for section in sections):
+            raise ValueError("showcase.section must not also be declared in urls.sections")
+    forms = []
+    for form_id, spec in dict(raw.get("forms") or {}).items():
+        _only(spec, {"title", "fields", "endpoint", "submitLabel", "honeypot", "closedNotice", "successText", "failureText"}, f"forms.{form_id}")
+        fields = []
+        for field_raw in spec.get("fields") or ():
+            _only(field_raw, {"name", "label", "type", "required", "options", "autocomplete", "help"}, f"forms.{form_id}.fields")
+            kind = field_raw.get("type", "text")
+            if kind not in FORM_FIELD_TYPES:
+                raise ValueError(f"forms.{form_id}.fields type must be one of {FORM_FIELD_TYPES}")
+            if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", str(field_raw.get("name", ""))):
+                raise ValueError(f"forms.{form_id}.fields needs a simple name")
+            fields.append(
+                FormField(
+                    name=field_raw["name"], label=str(field_raw.get("label", field_raw["name"])), type=kind,
+                    required=bool(field_raw.get("required", False)),
+                    options=tuple((str(o["value"]), str(o.get("label", o["value"]))) for o in field_raw.get("options") or ()),
+                    autocomplete=str(field_raw.get("autocomplete", "")), help=str(field_raw.get("help", "")),
+                )
+            )
+        endpoint = spec.get("endpoint")
+        if endpoint is not None and not str(endpoint).startswith(("https://", "/")):
+            raise ValueError(f"forms.{form_id}.endpoint must be https or a site path")
+        defaults = FormSpec(form_id, "", ())
+        forms.append(
+            FormSpec(
+                id=form_id, title=str(spec.get("title", "")), fields=tuple(fields), endpoint=endpoint,
+                submit_label=str(spec.get("submitLabel", defaults.submit_label)), honeypot=str(spec.get("honeypot", defaults.honeypot)),
+                closed_notice=str(spec.get("closedNotice", defaults.closed_notice)),
+                success_text=str(spec.get("successText", defaults.success_text)), failure_text=str(spec.get("failureText", defaults.failure_text)),
+            )
+        )
+        if any(field.name == forms[-1].honeypot for field in forms[-1].fields):
+            raise ValueError(f"forms.{form_id}.honeypot collides with a field name")
+    known_forms = {form.id for form in forms}
+    for custom_page in custom:
+        if custom_page.form is not None and custom_page.form not in known_forms:
+            raise ValueError(f"pages.{custom_page.id}.form names an unknown form {custom_page.form!r}")
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -365,6 +505,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         sitemap_style=sitemap_style,
         sitemap_lastmod=bool(sitemap.get("lastmod", True)),
         sitemap_tags=bool(sitemap.get("tags", True)),
+        sitemap_extra=sitemap_extra,
         robots_extra=tuple(robots.get("extra") or ()),
         feeds=feed_settings,
         listings=listing_settings,
@@ -381,9 +522,12 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         hooks_path=_text(raw, "hooks") or None,
         pages=tuple(custom),
         item_depends_on=tuple(components.get("itemPagesDependOn", ())),
+        static_copy=static_copy,
         components_css=bool(site.get("componentsCss", True)),
         item_byline=bool(components.get("itemByline", False)),
         breadcrumbs=bool(components.get("breadcrumbs", True)),
         home_link_label=_text(nav, "homeLabel", "Home"),
         summary_fields=tuple(site.get("summaryFields") or ()),
+        showcase=showcase,
+        forms=tuple(forms),
     )

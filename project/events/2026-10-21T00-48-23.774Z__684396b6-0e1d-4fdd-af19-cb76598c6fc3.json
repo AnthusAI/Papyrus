@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "684396b6-0e1d-4fdd-af19-cb76598c6fc3",
+  "issue_id": "PPY-9723ab6b-fa33-4716-af27-6405397260e2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:23.774Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Cyclotron docs site (publish) onto the standard front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+    "labels": []
+  }
+}

@@ -26,6 +26,7 @@ from papyrus_content.operator_errors import (  # noqa: E402
     run_with_operator_error_handling,
 )
 from papyrus_newsroom import cli as newsroom_cli  # noqa: E402
+from papyrus.operator.group_commands import REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS  # noqa: E402
 from papyrus.operator.help_text import TOP_LEVEL_HELP, print_group_help  # noqa: E402
 from papyrus.operator.runtime import (  # noqa: E402
     dispatch_operator_command,
@@ -69,46 +70,21 @@ def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
 
 
 def _map_reporting(command: str, flags: list[str]) -> None:
-    mapped = {
-        "create": "create-reporting",
-        "run": "run-reporting",
-        "apply": "apply-reporting-packet",
-        "review": "review-reporting-packet",
-        "copywriting": "run-copywriting",
-        "copywriting-output": "copywriting-output",
-    }.get(command)
+    mapped = REPORTING_COMMANDS.get(command)
     if not mapped:
         raise ValueError(f"Unsupported papyrus reporting command: {command}")
     _delegate_content("assignments", mapped, flags)
 
 
 def _map_research(command: str, flags: list[str]) -> None:
-    mapped = {
-        "create": "create-research",
-        "run": "run-research",
-        "run-tavily-deep": "run-tavily-deep-research",
-        "poll-tavily-deep": "poll-tavily-deep-research",
-        "apply": "apply-research-packet",
-        "process": "process-research-now",
-        "packets": "research-packets",
-        "process-proposals": "process-proposals",
-    }.get(command)
+    mapped = RESEARCH_COMMANDS.get(command)
     if not mapped:
         raise ValueError(f"Unsupported papyrus research command: {command}")
     _delegate_content("assignments", mapped, flags)
 
 
 def _map_sections(command: str, flags: list[str]) -> None:
-    mapped = {
-        "import": "import-sections",
-        "import-doctrine": "import-doctrine",
-        "recount-summary": "recount-summary",
-        "repair-message-status": "repair-message-status",
-        "backfill-feed-fields": "backfill-feed-fields",
-        "backfill-operational-indexes": "backfill-operational-indexes",
-        "prune-attachments": "prune-attachments",
-        "purge-planning": "purge-planning",
-    }.get(command)
+    mapped = SECTIONS_COMMANDS.get(command)
     if not mapped:
         raise ValueError(f"Unsupported papyrus sections command: {command}")
     _delegate_content("newsroom", mapped, flags)
@@ -297,7 +273,8 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         return _map_assignments(command, flags)
     if group == "stories":
         if command is None:
-            raise ValueError("papyrus stories requires <command>: save-version, versions, link-reference, note or show.")
+            print_group_help(group)
+            return 0
         _delegate_content("stories", command, flags)
         return 0
     if group == "references":
@@ -307,31 +284,37 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         return _map_references(command, flags)
     if group == "analysis":
         if command is None:
-            raise ValueError("papyrus analysis requires <command>.")
+            print_group_help(group)
+            return 0
         return _map_analysis(command, flags)
     if group in {"editions", "batch"}:
         if command is None:
-            raise ValueError(f"papyrus {group} requires <command>.")
+            print_group_help(group)
+            return 0
         _delegate_content(group, command, flags)
         return 0
     if group == "reporting":
         if command is None:
-            raise ValueError("papyrus reporting requires <command>.")
+            print_group_help(group)
+            return 0
         _map_reporting(command, flags)
         return 0
     if group == "research":
         if command is None:
-            raise ValueError("papyrus research requires <command>.")
+            print_group_help(group)
+            return 0
         _map_research(command, flags)
         return 0
     if group == "sections":
         if command is None:
-            raise ValueError("papyrus sections requires <command>.")
+            print_group_help(group)
+            return 0
         _map_sections(command, flags)
         return 0
     if group == "procedures":
         if command is None:
-            raise ValueError("papyrus procedures requires <command>.")
+            print_group_help(group)
+            return 0
         return _map_procedures(command, flags)
     if group == "knowledge":
         if command is None:
@@ -343,12 +326,24 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         return 0
     if group == "ops":
         if command is None:
-            raise ValueError("papyrus ops requires <command>.")
+            print_group_help(group)
+            return 0
         return _map_ops(command, flags)
     if group == "videos":
         if command is None:
-            raise ValueError("papyrus videos requires <command>.")
+            print_group_help(group)
+            return 0
         _delegate_content("videos", command, flags)
+        return 0
+    if group == "publication":
+        if command is None:
+            print_group_help(group)
+            return 0
+        if command != "init":
+            raise ValueError("papyrus publication requires <command>: init --key <key> --name <name>.")
+        from papyrus_content.publication import publication_init_command
+
+        publication_init_command(flags)
         return 0
     if group == "editorial" and command == "context":
         from papyrus_content.editorial_context import editorial_context_command

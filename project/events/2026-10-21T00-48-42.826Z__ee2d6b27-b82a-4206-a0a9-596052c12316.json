@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ee2d6b27-b82a-4206-a0a9-596052c12316",
+  "issue_id": "PPY-398d1c14-5d12-4953-9e6c-24a878c8fd76",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:42.826Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Decide and plan: Biased-Decisions and Hard-Decisions (Astro): decide standard vs stay different",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

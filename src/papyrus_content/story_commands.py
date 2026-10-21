@@ -9,7 +9,9 @@ from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .story_reporting import (
     STORY_MESSAGE_KINDS,
+    advance_stage,
     append_story_message,
+    move_story_stage,
     latest_story_version,
     link_reference_to_story,
     save_story_version,
@@ -34,7 +36,7 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
 
 
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name>"""
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance]"""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories save-version")
     lineage_id = _required_option(options, "story")
@@ -53,7 +55,12 @@ def stories_save_version(flags: list[str]) -> None:
     print(f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t{'write' if apply else 'dry run'}")
     if not apply:
         return
-    record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason)
+    stage = normalize_string(options.get("stage"))
+    if options.get("advance"):
+        if stage:
+            raise ValueError("Pass --stage or --advance, not both.")
+        stage = advance_stage(latest.get("stage"))
+    record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
 
 
@@ -113,3 +120,60 @@ def stories_show(flags: list[str]) -> None:
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tlatest version {latest.get('versionNumber')} of {len(versions)}")
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+
+
+def stories_create(flags: list[str]) -> None:
+    """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--with-assignment]"""
+    from datetime import datetime, timezone
+
+    from .content_item_lifecycle import build_new_content_item_version, content_item_lineage_id_for_first_work
+    from .records import apply_record_changes, build_record_changes
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories create")
+    title = _required_option(options, "title")
+    stage = normalize_string(options.get("stage")) or "idea"
+    if stage not in ("idea", "assignment", "reporting"):
+        raise ValueError("--stage must be idea, assignment or reporting.")
+    section_key = normalize_string(options.get("section"))
+    summary = normalize_string(options.get("summary")) or title
+    actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
+    now = datetime.now(timezone.utc).isoformat()
+    lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
+    item = build_new_content_item_version(
+        lineage_id=lineage_id, title=title, summary=summary, section_key=section_key, stage=stage, actor_label=actor, now=now
+    )
+    client, _ = create_authoring_client()
+    if section_key and not client.get_record("NewsroomSection", section_key):
+        raise ValueError(f"Unknown NewsroomSection for --section {section_key}.")
+    print(f"stories\tcreate\t{lineage_id}\tstage {stage}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        if options.get("with-assignment"):
+            print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
+        return
+    apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
+    print(f"stories\tcreate\tcreated\t{item['id']}")
+    if options.get("with-assignment"):
+        from .assignments_workflow import create_reporting_assignment
+
+        create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
+
+
+def stories_move(flags: list[str]) -> None:
+    """papyrus stories move --story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]"""
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories move")
+    lineage_id = _required_option(options, "story")
+    stage = _required_option(options, "stage")
+    from .content_item_lifecycle import require_content_item_stage
+
+    require_content_item_stage(stage)
+    print(f"stories\tmove\t{lineage_id}\t{stage}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        return
+    client, _ = create_authoring_client()
+    result = move_story_stage(
+        client, lineage_id, stage, actor=normalize_string(options.get("author-label")) or "papyrus-cli",
+        reason=normalize_string(options.get("reason")),
+    )
+    print(f"stories\tmove\t{'moved' if result['changed'] else 'unchanged'}\t{result['from']}\t{result['stage']}")

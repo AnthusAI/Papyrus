@@ -1,0 +1,25 @@
+{
+  "id": "PPY-3d3f24fc-d1a2-4bdb-a40f-f41cffd3d7ef",
+  "title": "Document public site forms on the Papyrus marketing site",
+  "description": "When PPY-caf9be (public site forms into newsroom Messages) ships, add it to the features list on the Papyrus marketing site (AnthusAI/Papyrus-web, private; content/index.md, or the features page created by the marketing features-list task): what it does (contact and call-to-action forms on the public site land in newsroom Messages, triaged by editors and agents; a built-in alternative to a CRM), spam protection, privacy handling, and how a site enables a form.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-caf9be94-0f93-4a16-b855-d6a57a42ba72",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-21T01:35:14.319054Z",
+  "updated_at": "2026-10-21T01:35:14.381593Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

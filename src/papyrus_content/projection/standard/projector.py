@@ -39,19 +39,39 @@ from ..projector import (
     read_static_files,
     settings_from_mapping,
 )
-from ..public_data import entry_for, hidden_from_public_data, owns_public_data_key, public_data_files, public_data_inputs, public_static_files
+from ..public_data import clipped, entry_for, hidden_from_public_data, owns_public_data_key, public_data_files, public_data_inputs, public_static_files
 from ..writers import request_paths_for_key
 from . import components
-from .config import STANDARD_KEYS, StandardSettings, standard_settings_from_mapping
-from .entries import StandardEntry, build_entries, entry_for_summary, entry_title, newest_first
+from .config import STANDARD_KEYS, SectionConfig, StandardSettings, standard_settings_from_mapping
+from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
-from .fragments import first_image_of, lede_of
+from .forms import FORM_SCRIPT_PATH, render_form
+from .fragments import first_image_of, lede_of, with_listing
+from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
+from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
 from .urls import NOT_FOUND_KEY, UrlPolicy, slugify_tag
+
+def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
+    """Add every file under the named directories of the static directory to ``files`` at its relative path."""
+    added: list[str] = []
+    if static_directory is None:
+        return added
+    for name in names:
+        root = static_directory / name
+        if not root.is_dir():
+            raise ValueError(f"static.copy names {name!r}, which is not a directory of the static directory")
+        for path in sorted(root.rglob("*")):
+            key = path.relative_to(root).as_posix()
+            if path.is_file() and key not in files:
+                files[key] = path.read_bytes()
+                added.append(key)
+    return added
+
 
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
@@ -68,10 +88,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         **kwargs,
     ) -> None:
         files = dict(static_files)
+        self._passthrough = frozenset(copy_directories(kwargs.pop("static_directory", None), standard.static_copy, files))
         if standard.components_css:
             files[COMPONENTS_CSS_PATH] = (ASSET_DIRECTORY / "markus-components.css").read_bytes()
         if standard.nav_disclosure:
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
+        if any(form.endpoint for form in standard.forms):
+            files[FORM_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-form.js").read_bytes()
         super().__init__(settings, files, **kwargs)
         self.standard = standard
         self.hooks = hooks
@@ -96,6 +119,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             settings,
             read_static_files(static_directory, settings.theme),
             standard,
+            static_directory=static_directory,
             hooks=load_hooks(static_directory, standard.hooks_path),
             environment=resolve_environment(standard, environ),
             renditions=renditions,
@@ -104,7 +128,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ model
 
     def _entries(self, site: SiteIndex) -> list[StandardEntry]:
-        return newest_first(build_entries(site.items, self.standard, self.policy))
+        return newest_first(build_entries(site.items, self.standard, self.policy, self.hooks.derive))
 
     @staticmethod
     def _authored_home(site: SiteIndex) -> bool:
@@ -123,7 +147,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return ()
         if self._is_home_source(summary):
             return (HOME_PAGE_PATH,)
-        entry = entry_for_summary(summary, self.standard, self.policy)
+        entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
         return (entry.key,) if entry is not None and entry.key else ()
 
     def item_pages(self, item: ProjectedItem, site: SiteIndex) -> dict[str, bytes]:
@@ -141,12 +165,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
             head = PageHead(
                 title=title,
                 path="/",
-                description=lede_of(fragment) or self.standard.identity.description,
+                description=clipped(first_text(summary.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or self.standard.identity.description,
                 image=first_image_of(fragment),
             )
             page = self._page("home", head, site, entries=entries, fragment=fragment)
             return {key: self._render(page)}
-        entry = entry_for_summary(summary, self.standard, self.policy)
+        entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
         article = entry.type in self.standard.listings.types
         crumbs = self._breadcrumbs(entry)
@@ -248,7 +272,35 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for base, label, section_name, members in self._listing_groups(listed):
             for view in self._paginate(base, label, members, section_name):
                 key = self.policy.listing_key(base, view.page)
-                add(key, f"listing:{section_name or 'flat'}", [self._fingerprints(view.entries), view.page, view.pages, len(view.featured)], self._listing_builder("listing", view, site, listed))
+                intro = self._intro(summaries, section_name) if view.page == 1 else None
+                add(
+                    key,
+                    f"listing:{section_name or 'flat'}",
+                    [self._fingerprints(view.entries), view.page, view.pages, len(view.featured), self._intro_fingerprint(intro)],
+                    self._listing_builder("listing", view, site, listed, intro),
+                )
+
+        # archives: one page per month (or year) that has entries
+        for section_config in self.standard.sections:
+            archive = section_config.archive
+            if archive is None or not section_config.listing:
+                continue
+            members = [entry for entry in listed if entry.section and entry.section.name == section_config.name]
+            for view in self._archive_views(section_config, members):
+                add(
+                    self.policy.listing_key(view.base),
+                    f"archive:{section_config.name}",
+                    [self._fingerprints(view.entries), list(view.archive_keys), view.group],
+                    lambda view=view, section_config=section_config: self._page(
+                        "archive",
+                        PageHead(
+                            title=f"{view.label}: {self._archive_label(view.group, section_config.archive.by)}",
+                            path=f"/{view.base}/",
+                            description=section_config.archive.description or section_config.description or self.standard.identity.description,
+                        ),
+                        site, entries=tuple(listed), listing=view,
+                    ),
+                )
 
         # tags
         tags = self._tag_map(listed)
@@ -266,6 +318,21 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 for view in self._paginate(self.policy.tag_base(slug), tag, found, None, tag=tag):
                     key = self.policy.listing_key(view.base, view.page)
                     add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
+
+        # showcase (logo wall)
+        wall = self.standard.showcase
+        if wall is not None:
+            sites = showcase_sites(summaries, wall)
+            add(
+                self.policy.listing_key(wall.path),
+                "showcase",
+                [[site.fingerprint() for site in sites]],
+                lambda: self._page(
+                    "showcase",
+                    PageHead(title=wall.title, path=f"/{wall.path}/", description=wall.description or self.standard.identity.description),
+                    site, entries=tuple(listed), showcase=tuple(sites),
+                ),
+            )
 
         # custom pages
         for custom in self.standard.pages:
@@ -309,6 +376,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if not section.listing:
                 continue
             members = [entry for entry in listed if entry.section and entry.section.name == section.name]
+            if section.sort == "order":
+                members = sorted(members, key=order_of)
             if members or section.list_empty:
                 yield section.base, section.label, section.name, members
 
@@ -327,7 +396,26 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 start = first + (number - 2) * size
                 shown = members[start : start + size]
                 featured = ()
-            yield ListingView(base, label, tuple(shown), tuple(members), number, pages, featured, section, tag)
+            by = configured.group_by if configured is not None else None
+            groups = tuple(group_entries(shown, by)) if by else ()
+            yield ListingView(base, label, tuple(shown), tuple(members), number, pages, featured, section, tag, groups)
+
+    @staticmethod
+    def _archive_label(key: str, by: str) -> str:
+        return group_label(key, "month") if by == "month" else key
+
+    def _archive_views(self, section: "SectionConfig", members: list[StandardEntry]):
+        archive = section.archive
+        width = 7 if archive.by == "month" else 4
+        keys = sorted({entry.date[:width] for entry in members if len(entry.date) >= width}, reverse=True)
+        for key in keys:
+            found = tuple(entry for entry in members if entry.date[:width] == key)
+            by = section.group_by
+            groups = tuple(group_entries(found, by)) if by else ()
+            yield ListingView(
+                f"{section.base}/{archive.base}/{key}", section.label, found, tuple(members), 1, 1, (), section.name, None,
+                groups, key, tuple(keys),
+            )
 
     def _tag_map(self, listed: list[StandardEntry]) -> dict[str, list[StandardEntry]]:
         merged: dict[str, tuple[str, list[StandardEntry]]] = {}
@@ -340,17 +428,32 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 found.append(entry)
         return {label: found for label, found in sorted(merged.values(), key=lambda pair: slugify_tag(pair[0]))}
 
-    def _listing_builder(self, kind: str, view: ListingView, site: SiteIndex, listed: list[StandardEntry]):
+    def _intro(self, summaries, section_name: str | None) -> ItemSummary | None:
+        """The authored ``index`` item of a declared section: its body is shown above that section's listing."""
+        if section_name is None:
+            return None
+        for summary in summaries:
+            if summary.section == section_name and summary.slug == "index" and not PurePosixPath(summary.output_path).name.startswith(("_", ".")):
+                return summary
+        return None
+
+    @staticmethod
+    def _intro_fingerprint(intro: ItemSummary | None) -> list:
+        return [] if intro is None else [intro.item_id, intro.version_number, intro.front_matter]
+
+    def _listing_builder(self, kind: str, view: ListingView, site: SiteIndex, listed: list[StandardEntry], intro: ItemSummary | None = None):
         def build() -> StandardPage:
             suffix = f" — page {view.page}" if view.page > 1 else ""
             title = (f"Tagged {view.label}" if kind == "tag" else view.label) + suffix
             configured = self.standard.section(view.section)
-            head = PageHead(
-                title=title,
-                path=view.url_for_page(view.page),
-                description=(configured.description if configured is not None else "") or self.standard.identity.description,
-            )
-            return self._page(kind, head, site, entries=tuple(listed), listing=view)
+            description = (configured.description if configured is not None else "") or self.standard.identity.description
+            fragment = ""
+            if intro is not None:
+                fragment = self._fragment(site.load_item(intro.item_id).source_text, view.url_for_page(view.page).count("/") - 1)
+                title = entry_title(intro)
+                description = clipped(first_text(intro.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or description
+            head = PageHead(title=title, path=view.url_for_page(view.page), description=description)
+            return self._page(kind, head, site, entries=tuple(listed), listing=view, fragment=fragment)
 
         return build
 
@@ -367,14 +470,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
         groups = list(self._listing_groups(listed))
         for base, _label, _section, members in groups:
             urls.append(SitemapUrl(f"/{base}/", max((entry.updated for entry in members), default="")))
+        for section_config in self.standard.sections:
+            if section_config.archive is not None and section_config.listing and section_config.sitemap:
+                members = [entry for entry in listed if entry.section and entry.section.name == section_config.name]
+                for view in self._archive_views(section_config, members):
+                    urls.append(SitemapUrl(f"/{view.base}/", max(entry.updated for entry in view.entries)))
         if self.standard.sitemap_tags and self.standard.listings.tags:
             tags = self._tag_map(listed)
             if tags:
                 urls.append(SitemapUrl(f"/{self.policy.tag_base()}/", ""))
                 urls.extend(SitemapUrl(f"/{self.policy.tag_base(slugify_tag(tag))}/", max(entry.updated for entry in found)) for tag, found in tags.items() if slugify_tag(tag))
+        if self.standard.showcase is not None:
+            urls.append(SitemapUrl(f"/{self.standard.showcase.path}/", ""))
         for custom in self.standard.pages:
             if custom.sitemap and not custom.noindex:
                 urls.append(SitemapUrl(f"/{custom.path}/", ""))
+        urls.extend(SitemapUrl(path, "") for path in self.standard.sitemap_extra)
         unique = {}
         for url in urls:
             unique.setdefault(url.path, url)
@@ -395,7 +506,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if settings is None:
             return []
         return [
-            entry_for(entry.summary, entry.key, settings)
+            entry_for(entry.summary, entry.key, settings, date=entry.date)
             for entry in self._entries(site)
             if entry.listed and entry.key and not entry.noindex and not hidden_from_public_data(entry.summary)
         ]
@@ -414,6 +525,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ ownership, static files, redirects
 
     def owns_page_key(self, key: str) -> bool:
+        if key in self._passthrough:
+            return False
         if key == HOME_PAGE_PATH or key in SITEMAP_KEYS or key in (self.standard.feeds.rss_path, self.standard.feeds.atom_path):
             return True
         if owns_public_data_key(key):
@@ -460,10 +573,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
         base = self._settings.chrome
         extra = self.hooks.head_extra(page) if self.hooks.head_extra is not None else ""
         head_html = self.head.build(dataclasses.replace(page.head, extra=extra))
+        if self.hooks.body_class is not None:
+            base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
         sheets = list(base.stylesheets)
         if self.standard.components_css and COMPONENTS_CSS_PATH not in sheets:
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         scripts = tuple(base.scripts) + ((NAV_SCRIPT_PATH,) if self.standard.nav_disclosure else ())
+        if any(form.endpoint for form in self.standard.forms):
+            scripts += (FORM_SCRIPT_PATH,)
         identity = self.standard.identity
         return dataclasses.replace(
             base,
@@ -510,6 +627,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _breadcrumbs_html(self, page: StandardPage) -> str:
         return components.breadcrumbs(page.breadcrumbs) if page.kind == "item" else ""
 
+    def _grouped_html(self, page: StandardPage, view: ListingView, heading: str) -> str:
+        groups = view.groups or ((view.group or "", heading, view.entries),)
+        blocks = "".join(
+            f'<section class="markus-group" aria-labelledby="group-{components.esc(key)}"><h2 id="group-{components.esc(key)}">{components.esc(label)}</h2>'
+            f'<div class="markus-card-grid">{chr(10).join(self._card(entry, page) for entry in found)}</div></section>'
+            for key, label, found in groups
+        )
+        pager = components.pager(view.page, view.pages, view.url_for_page) if view.pages > 1 else ""
+        return f'<div class="markus-document"><h1>{components.esc(heading)}</h1>{blocks}{pager}</div>'
+
     def _card(self, entry: StandardEntry, page: StandardPage) -> str:
         return self.hooks.card(entry, page) if self.hooks.card is not None else components.card(entry)
 
@@ -538,14 +665,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
             intro = f"<p>{components.esc(identity.description)}</p>" if identity.description else ""
             cards = "\n".join(self._card(entry, page) for entry in view.entries) if view else ""
             return f'<div class="markus-document"><h1>{components.esc(identity.name)}</h1>{intro}<div class="markus-card-grid">{cards}</div>{more}</div>'
+        if page.kind == "archive":
+            view = page.listing
+            heading = f"{view.label}: {self._archive_label(view.group, self.standard.section(view.section).archive.by)}"
+            return self._grouped_html(page, view, heading)
         if page.kind in ("listing", "tag"):
             view = page.listing
+            if view.groups:
+                return self._grouped_html(page, view, view.label)
             featured = "\n".join(self._card(entry, page) for entry in view.featured)
             rest = view.entries[len(view.featured):]
             grid = "\n".join(self._card(entry, page) for entry in rest)
             pager = components.pager(view.page, view.pages, view.url_for_page)
             heading = f"Tagged {view.label}" if page.kind == "tag" else view.label
             featured_html = f'<div class="markus-featured">{featured}</div>' if featured else ""
+            if page.fragment:
+                return with_listing(page.fragment, f'{featured_html}<div class="markus-card-grid">{grid}</div>{pager}')
             return f'<div class="markus-document"><h1>{components.esc(heading)}</h1>{featured_html}<div class="markus-card-grid">{grid}</div>{pager}</div>'
         if page.kind == "tags":
             items = "".join(
@@ -553,10 +688,24 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 for tag, found in page.tags.items()
             )
             return f'<div class="markus-document"><h1>Tags</h1><ul class="markus-tag-cloud">{items}</ul></div>'
+        if page.kind == "showcase":
+            wall = self.standard.showcase
+            intro = f"<p>{components.esc(wall.description)}</p>" if wall.description else ""
+            return f'<div class="markus-document"><h1>{components.esc(wall.title)}</h1>{intro}{logo_wall(page.showcase, wall)}</div>'
         if page.kind == "not_found":
             return (
                 '<div class="markus-document"><h1>Page not found</h1>'
                 "<p>That page is not here. It may have moved, or the address may be mistyped.</p>"
                 '<p><a href="/">Back to the home page</a></p></div>'
             )
-        return f'<div class="markus-document"><h1>{components.esc(page.title)}</h1>' + (f"<p>{components.esc(page.description)}</p>" if page.description else "") + "</div>"
+        form = next((spec for spec in self.standard.forms if page.kind == "custom" and spec.id == self._custom_form(page)), None)
+        return (
+            f'<div class="markus-document"><h1>{components.esc(page.title)}</h1>'
+            + (f"<p>{components.esc(page.description)}</p>" if page.description else "")
+            + (render_form(form) if form is not None else "")
+            + "</div>"
+        )
+
+    def _custom_form(self, page: StandardPage) -> str | None:
+        custom = next((c for c in self.standard.pages if c.id == page.custom_id), None)
+        return custom.form if custom is not None else None

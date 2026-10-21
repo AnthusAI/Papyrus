@@ -30,11 +30,11 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | Key | Contents |
 |---|---|
 | `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
-| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty } }`. Leave it out for a site without sections |
+| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta}]`, `disclosure` (a menu button for narrow screens), `homeLabel` |
 | `footer` | `columns: [{title, links}]`, `text` |
 | `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
-| `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags` |
+| `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
 | `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`) |
@@ -42,7 +42,10 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `icons` | `icon`, `iconType`, `appleTouch`, `manifest`, `themeColor`, `themeColorDark` |
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
-| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex}]`; the body comes from the `page_body` hook |
+| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form}]`; the body comes from the `page_body` hook |
+| `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
+| `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
+| `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
@@ -59,14 +62,14 @@ Every block is optional except `site.name`. Unknown keys are errors.
 An item's section comes from its CMS path (`essays/slow-water`). A section lists its entries at `/<base>/`
 (paginated at `/<base>/page/N/`) and only when it has entries. `pages: false` makes a link-only section: items have
 no page, appear in listings as cards that link to `linkField` (front matter `url` by default), and are never in
-the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
+the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `groupBy` (`week`, Monday start, or `month`) gives the listing view dated groups (`listing.groups`) which the default listing renders under headings, `archive` (`{by: month|year, base, description}`) adds one page per month or year that has entries at `/<section>/<archive base>/<YYYY-MM>/` (in the sitemap, each with its own inputs), An item named `index` in a declared section is that section's **introduction**: it has no page of its own; its body (and title and description) head the section's listing at `/<base>/`, and a line `{{ section listing }}` in it places the generated cards (otherwise they follow the introduction). `sort: "order"` lists a section by front matter `order` (ascending, then title) instead of newest first. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
 Items in a section that is not declared are ignored; items with no section are root pages (`/about.html`).
 
 ### Entries
 
 Every view (listings, tags, feeds, sitemap, hooks) reads one extended public entry model built from item summaries,
 never from bodies: `title`, `summary_text` (front matter `description`, `summary`, `dek`, `standfirst`, `excerpt`
-or `blurb`), `date`, `updated` (front matter `updated`, `modified`, `lastmod`, else the published time), `image`
+or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, September 6, 2026"; else the published day), `updated` (front matter `updated`, `modified`, `lastmod`, else the published time), `image`
 (`image`, `cover`, `ogImage`, `thumbnail`), `authors` (`authors` or `author`), `type`, `canonical`, `tags`,
 `section`, `feed_eligible` (not `feed: false`, in a feeding section, has a page), `noindex` (`noindex: true`,
 `robots: noindex` or `draft: true`), `listed`, and the raw `data` for hooks.
@@ -161,15 +164,51 @@ error (prefix helpers with `_`):
 | `footer(page)` | the page | the inside of the footer |
 | `card(entry, page)` | an entry | one card in a listing |
 | `head_extra(page)` | the page | raw markup appended to `<head>` |
+| `body_class(page)` | the page | classes added to `<body>` after `chrome.body_class` |
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
+| `derive(summary)` | the item summary | a dict of derived fields (a tier, a week, a shape); available as `entry.derived`, part of every fingerprint, and how a site picks which row or card component renders |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
 
-`page` is a `StandardPage`: `kind` (`item`, `home`, `listing`, `tags`, `tag`, `custom`, `not_found`), `path`, `title`,
+`page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,
 `entry`, `fragment`, `listing` (the slice, page numbers), `custom_id`, `entries`, `summaries`, `settings`,
 `environment`, `head`, plus `skip_link` and the `components` module. `papyrus_content.projection.standard.fragments` has `article_body(fragment)` (the article without Markus's wrapper and header), `lede_of` and `first_image_of`. A site with typed content (its own card
 fields, link-only items, special pages) builds its model from `page.summaries` and composes pages in `page_body`.
-A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
+A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `archive:<section>`, `showcase`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
 A hooks module's source and its sibling modules are part of every page's inputs, so editing them re-renders.
+
+## Showcase (logo wall)
+
+`"showcase": { "section": "showcase", "path": "built-with", "title": "Built with Papyrus", "kinds": { "anthus": "Built by Anthus", "design-partner": "Design partners", "customer": "Customers" } }`
+turns every published item of the `showcase` section into one tile on a generated page at `/built-with/`. The data
+is content, managed in the CMS: front matter `name` (or the title), `logo` (image path or URL; the name is the text
+fallback), `logoAlt`, `url` (http or https only; anything else is skipped), `kind` (one of the configured kinds;
+unknown kinds go under "More") and `order` (lower first, then name). The page is one heading and one `<ul>` per kind,
+a responsive CSS grid of links with lazy-loaded images and `rel="noopener"`; names are escaped. Showcase items have
+no pages of their own and are not in listings, feeds or the sitemap. A `page_body` hook sees `page.kind == "showcase"`
+and `page.showcase` (the sorted `ShowcaseSite` records) and can use `showcase.logo_wall(...)` inside its own layout.
+
+## Content in the repository (no CMS)
+
+A site whose Markdown lives in its repository and is built by CI projects the same way, with no CMS:
+
+```
+papyrus ops content project --all --from-dir content --static-dir web --out dist
+```
+
+Every `.md` under `content/` is a published item (the first directory is its section; front matter `type` defaults to
+`article`, `type: page` makes a root page, `aliases` become redirects). Redirects are reported by the CMS path only;
+a repository-built site keeps them in `projection.json` (`redirects`). Sync `dist/` to the bucket as before.
+
+## Forms
+
+`forms` defines a public form as data: `fields` (`name`, `label`, `type` of `text`, `email`, `textarea` or `select`,
+`required`, `options`, `autocomplete`, `help`), a `honeypot` field name (default `website`), texts, and an `endpoint`
+(https or a site path). A custom page with `"form": "<id>"` shows it; a hook can place it with `page.form("<id>")`.
+With an endpoint, `_plugins/papyrus-form-v1.js` posts the fields as JSON plus `page` (the page path) and the honeypot
+field, and reports success only for a 2xx answer (anything else shows `failureText`). **With `endpoint: null` the form
+is a disabled fieldset under a "not open yet" notice: nothing can be submitted and success is never faked.** The
+receiving endpoint (shared, rate-limited, bot-protected; submissions as newsroom Messages) is separate backend work
+(PPY-caf9be).
 
 ## Migration checklist
 
@@ -187,3 +226,10 @@ A hooks module's source and its sibling modules are part of every page's inputs,
    and compare every URL: status, normalised DOM, head metadata, sitemap URL set, redirects, feed items. Allow-list
    intentional differences with reasons (Atom added, `lastmod` added).
 9. Deploy the edge change (it re-reads `projection.json`) together with the first projection.
+
+## Extending the entry model
+
+Entries carry the item's raw front matter as `entry.data` and a `derived` map from the `derive` hook, both part of
+the dependency fingerprints, so a new per-item field (a content shape, a shelf life, a pin-until date) reaches
+hooks, cards and listings without a change to the model. Ordering is one function (`entries.newest_first`) and
+selection is the `listed` flag plus section options, so pin and shelf-life rules are additions at those two seams.

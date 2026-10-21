@@ -74,7 +74,8 @@ def hosted_publication(client, requested_key: str | None = None) -> dict:
     corpora = client.list_by_index('knowledgeCorporaByRoleAndName', 'canonical')
     if (len(corpora) != 1 or corpora[0].get('role') != 'canonical' or not str(corpora[0].get('name') or '').strip()
             or not str(corpora[0].get('id') or '').startswith('knowledge-corpus-')):
-        raise ValueError('The hosted backend has no single canonical corpus; missing or ambiguous publication binding.')
+        raise ValueError('The hosted backend has no single canonical corpus; missing or ambiguous publication binding. '
+                         'On a fresh backend create it with `papyrus publication init --key <key> --name <name>`.')
     key = corpora[0]['id'].removeprefix('knowledge-corpus-')
     if requested_key and requested_key != key:
         raise ValueError(f'Requested publication {requested_key} does not match the hosted canonical corpus {key}; publication binding mismatch.')

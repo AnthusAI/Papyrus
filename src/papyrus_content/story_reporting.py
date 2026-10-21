@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
 from .ids import hash_short, safe_id
 from .publishing import (
     ItemFields,
@@ -71,6 +72,7 @@ def save_story_version(
     actor: str,
     change_reason: str,
     now: str | None = None,
+    stage: str | None = None,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded."""
     now = now or utc_now_iso()
@@ -107,9 +109,37 @@ def save_story_version(
         "contentHash": _source_content_hash(fields),
         "publishedAt": None,
     }
+    if stage:
+        record["stage"] = require_content_item_stage(stage)
     client.create_record("Item", compact_dict(record))
     client.update_record("Item", {"id": latest["id"], "versionState": "superseded"})
     return record
+
+
+def advance_stage(stage: str | None) -> str:
+    """The stage after this one on the board, for stages before publication."""
+    order = [name for name in CONTENT_ITEM_STAGES if name not in ("published", "held", "spiked")]
+    current = stage or "idea"
+    if current not in order:
+        raise ValueError(f"Stage {current!r} has no next stage to advance to; pass --stage.")
+    index = order.index(current)
+    if index + 1 >= len(order):
+        raise ValueError(f"Stage {current!r} is the last before publication; publish the story instead.")
+    return order[index + 1]
+
+
+def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason: str | None = None, now: str | None = None) -> dict[str, Any]:
+    """Moves a story to a board stage (the Item stage update a card move makes) and records it in the reporting trail."""
+    require_content_item_stage(stage)
+    latest = latest_story_version(client, lineage_id)
+    previous = latest.get("stage") or "idea"
+    if previous == stage:
+        return {"changed": False, "stage": stage, "from": previous, "itemId": latest["id"]}
+    now = now or utc_now_iso()
+    client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now})
+    summary = f"Stage: {previous} -> {stage}" + (f" ({reason})" if reason else "")
+    message = append_story_message(client, lineage_id, body=summary, summary=summary, author_label=actor, message_kind="note", now=now)
+    return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"], "messageId": message["id"]}
 
 
 def story_reference_relation_id(lineage_id: str, reference_lineage_id: str) -> str:

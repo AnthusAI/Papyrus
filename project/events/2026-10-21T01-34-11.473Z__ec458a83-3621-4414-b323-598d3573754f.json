@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ec458a83-3621-4414-b323-598d3573754f",
+  "issue_id": "PPY-caf9be94-0f93-4a16-b855-d6a57a42ba72",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-21T01:34:11.473Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Readers send a message through a public contact form; it lands in newsroom Messages",
+        "to": "Public site forms (contact and calls to action) submit into newsroom Messages"
+      },
+      "description": {
+        "from": "As a reader of a Papyrus publication, I can send the editors a message (corrections, tips, questions) from a contact form on the public site, and editors see it in the newsroom's Messages as a reader message they can triage and reply to by email.\n\nShares the public-endpoint work of this milestone (newsletter signup): an unauthenticated, rate-limited endpoint with a bot challenge (e.g. Turnstile) and a honeypot, strict size limits, no reflection of input, and an explicit consent line. Stores a Message (messageKind reader_contact; name, reply-to email, topic, body, page URL, received-at) in the site backend, visible to editors and admins only, never through the guest or content API; email addresses are personal data (same handling as subscriber records). Optional notification to editors (e.g. Slack or email) when one arrives.\n\nSite contract: the publication's static site renders a /contact/ page whose form posts to a configured endpoint; while the endpoint is not configured the page says the form is not open yet and never fakes a successful send. Pilot: Distinctive Mark (its editorial policy points readers to the footer contact link for corrections). Acceptance: a message sent from the live form appears in Messages within seconds; spam controls block scripted posts; editors can mark handled and reply.",
+        "to": "As a publication without its own CRM, I can put simple forms on the public site (a contact form, a consultation or sponsorship request, any call-to-action button that opens a short form) and every submission lands in the newsroom's Messages, where editors triage, assign, mark handled and reply by email. Sites that do have a CRM can keep pointing their calls to action there; this is the built-in default.\n\nForms are defined as data (site config or backend data): an id, title, fields (name, email, topic choices, message, hidden context such as the page URL), the notification route, and the confirmation text. The site renders them; the backend receives them.\n\nPublic endpoint (shared with this milestone's newsletter signup work): unauthenticated, rate-limited, bot challenge (e.g. Turnstile) plus a honeypot, strict size limits, no input reflection. Each submission becomes a Message (messageKind form_submission, form id, fields, page URL, received-at) visible to editors and admins only, never through the guest or content API; email addresses are personal data handled like subscriber records. Optional notification (email or Slack) per form. The same messages are readable and answerable through the CLI so agents can triage them too.\n\nSite contract: while a form's endpoint is not configured, the page says it is not open yet and never fakes a successful send. Pilot: Distinctive Mark, whose /contact/ page and Report-an-error links already post to contact.endpoint (null until this ships). Acceptance: a message sent from the live form appears in Messages within seconds; scripted posts are blocked; editors and agents can mark handled and reply."
+      }
+    }
+  }
+}

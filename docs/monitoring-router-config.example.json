@@ -1,0 +1,21 @@
+{
+  "mode": "dry-run",
+  "maxItemsPerRun": 5,
+  "feedback": false,
+  "publications": [
+    {"publicationId": "anth-us", "site": "anth.us",
+     "appsyncEndpoint": "https://2m5fh2nqlnfxlfg2mxepp7tdbm.appsync-api.us-east-1.amazonaws.com/graphql"},
+    {"publicationId": "p-apyr-us", "site": "p.apyr.us", "corpusId": "knowledge-corpus-ai-ml-research",
+     "appsyncEndpoint": "https://632qpvm7w5emhb2zo2vomc5rae.appsync-api.us-east-1.amazonaws.com/graphql"},
+    {"publicationId": "threat-intelligence", "site": "threat-intelligence",
+     "appsyncEndpoint": "https://2neu5y2cjrbnbkord2mdaetysi.appsync-api.us-east-1.amazonaws.com/graphql"}
+  ],
+  "cyclotron": {
+    "endpoint": "https://o01d28uizl.execute-api.us-east-1.amazonaws.com",
+    "accountId": "<Cyclotron account id>",
+    "runId": "<standing run id>",
+    "bindingRevision": "1",
+    "roleArn": "arn:aws:iam::682849160744:role/cyclotron-machine-invoker",
+    "pollSeconds": 45
+  }
+}

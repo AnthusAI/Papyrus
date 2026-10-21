@@ -564,3 +564,298 @@ def test_dependency_declarations_narrow_what_a_page_depends_on():
     assert projector._dependencies("home") == ("a",)
     assert projector._dependencies("listing:b") == ()
     assert projector._dependencies("item") == ("*",)
+
+
+# ------------------------------------------------------------------ showcase (logo wall)
+
+@pytest.fixture(scope="module")
+def showcase():
+    site = ProjectedSite("showcase")
+    yield site
+    site.cleanup()
+
+
+def test_the_logo_wall_is_fed_by_published_items_and_items_are_not_pages(showcase):
+    assert "built-with/index.html" in showcase.tree
+    assert not any(key.startswith("showcase/") for key in showcase.tree)         # the data items have no pages
+    assert "showcase" not in showcase.text("sitemap.xml").replace("showcase.example.org", "")
+    assert "/built-with/" in showcase.text("sitemap.xml")
+    assert "Showcase entry" not in showcase.text("feed.xml")
+
+
+def test_the_logo_wall_groups_by_kind_in_the_configured_order_and_sorts_by_order(showcase):
+    page = showcase.text("built-with/index.html")
+    headings = re.findall(r"<h2 id=\"showcase-[a-z-]+\">(.*?)</h2>", page)
+    assert headings == ["Built by Anthus", "Design partners", "Customers"]
+    customers = page[page.index("showcase-customer"):]
+    assert customers.index("Zeta") < customers.index("Acme Gazette")             # order 1 before order 2
+
+
+def test_the_logo_wall_is_accessible_and_safe(showcase):
+    page = showcase.text("built-with/index.html")
+    dom = Dom(page)
+    assert dom.find("img", src="/assets/acme.svg", alt="Acme Gazette logo", loading="lazy")
+    assert dom.find("a", href="https://borealis.example.org", rel="noopener")      # a text fallback link without a logo
+    assert dom.find("section", **{"aria-labelledby": "showcase-customer"})
+    assert "javascript:" not in page and "Bad Link" not in page                    # unsafe URLs are skipped
+    assert "<b>Times</b>" not in page and "&lt;b&gt;Times&lt;/b&gt;" in page      # names are escaped
+
+
+def test_editing_a_showcase_item_rewrites_only_the_wall():
+    from procedures.newsroom.tests.standard_frontend_support import edit_item, written_keys
+
+    site = ProjectedSite("showcase")
+    try:
+        edit_item(site, "item-showcase-borealis", front_matter={"name": "Borealis Weekly"})
+        assert written_keys(site) == {"built-with/index.html"}
+        assert "Borealis Weekly" in site.text("built-with/index.html")
+        before = site.tree["built-with/index.html"]
+        # Data items have no pages, so the engine keeps no state for them and re-projects the wall; the bytes do not change.
+        edit_item(site, "item-showcase-borealis", body="Another body.\n", front_matter={"name": "Borealis Weekly"})
+        assert written_keys(site) <= {"built-with/index.html"} and site.tree["built-with/index.html"] == before
+    finally:
+        site.cleanup()
+
+
+# ------------------------------------------------------------------ keyed listings, derived fields, grouping
+
+def test_week_groups_start_on_monday_and_month_groups_on_the_first():
+    from papyrus_content.projection.standard.grouping import group_key, group_label
+
+    assert group_key("2026-03-01", "week") == "2026-02-23"      # a Sunday belongs to the week that began on the Monday before
+    assert group_key("2026-03-02", "week") == "2026-03-02"
+    assert group_key("2026-03-31", "month") == "2026-03" and group_key("", "week") == ""
+    assert group_label("2026-03-02", "week") == "Week of March 2, 2026" and group_label("2026-03", "month") == "March 2026"
+
+
+ARCHIVE_SETTINGS = {
+    **fixture_settings("sectioned"),
+    "urls": {
+        "style": "directory",
+        "sections": {
+            "essays": {"label": "Essays", "groupBy": "week", "pageSize": 100, "archive": {"by": "month", "description": "Essays by month."}},
+            "notes": {},
+        },
+    },
+}
+
+
+@pytest.fixture(scope="module")
+def archived():
+    site = ProjectedSite(settings=ARCHIVE_SETTINGS, content=FIXTURES / "sectioned" / "content")
+    yield site
+    site.cleanup()
+
+
+def test_a_section_can_have_one_archive_page_per_month_present(archived):
+    assert "essays/archive/2026-03/index.html" in archived.tree
+    page = archived.text("essays/archive/2026-03/index.html")
+    assert "<title>Essays: March 2026" in page and 'content="Essays by month."' in page
+    assert "/essays/archive/2026-03/" in archived.text("sitemap-0.xml")
+    assert not any(key.startswith("notes/archive") for key in archived.tree)       # only sections that ask for one
+
+
+def test_listings_can_group_entries_by_week(archived):
+    headings = re.findall(r'<h2 id="group-[0-9-]+">(.*?)</h2>', archived.text("essays/index.html"))
+    assert headings == ["Week of March 16, 2026", "Week of March 9, 2026", "Week of March 2, 2026", "Week of February 23, 2026"]
+
+
+def test_a_new_month_adds_an_archive_page_and_an_edit_inside_a_month_rewrites_only_that_month():
+    from procedures.newsroom.tests.standard_frontend_support import edit_item, written_keys
+
+    site = ProjectedSite(settings=ARCHIVE_SETTINGS, content=FIXTURES / "sectioned" / "content")
+    try:
+        edit_item(site, "item-essays-fords", front_matter={"date": "2026-04-02"})
+        assert "essays/archive/2026-04/index.html" in site.tree and "essays/archive/2026-03/index.html" in site.tree
+        edit_item(site, "item-essays-fords", front_matter={"date": "2026-04-02"}, title="Fords, Again")
+        assert "essays/archive/2026-03/index.html" not in written_keys(site)
+        assert "essays/archive/2026-04/index.html" in written_keys(site)
+    finally:
+        site.cleanup()
+
+
+def test_a_derive_hook_adds_fields_that_hooks_and_fingerprints_see(tmp_path):
+    hooks = '''
+def derive(summary):
+    return {"tier": "long" if len(summary.front_matter.get("title", "")) > 12 else "short"}
+
+def card(entry, page):
+    return '<div class="c" data-tier="' + entry.derived["tier"] + '">' + entry.title + '</div>'
+'''
+    settings = {**ARCHIVE_SETTINGS, "hooks": "hooks.py"}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content", extra_files={"hooks.py": hooks})
+    try:
+        page = site.text("essays/index.html")
+        assert 'data-tier="short"' in page and 'data-tier="long"' in page
+        assert site.projector._entries(site.context.source.site_index())[0].derived["tier"] in ("long", "short")
+    finally:
+        site.cleanup()
+
+
+def test_an_authored_home_page_uses_its_front_matter_description(tmp_path):
+    content = tmp_path / "content"
+    content.mkdir()
+    (content / "index.md").write_text("---\ntitle: Home\ndescription: The curated description.\n---\nFirst paragraph of the page.\n", encoding="utf-8")
+    site = ProjectedSite(settings=minimal(), content=content)
+    try:
+        html = site.text("index.html")
+        assert '<meta name="description" content="The curated description.">' in html
+    finally:
+        site.cleanup()
+
+
+def _intro_site(tmp_path, *, placeholder: bool):
+    content = tmp_path / "content"
+    (content / "guides").mkdir(parents=True)
+    intro = "## Start here\n\n{{ section listing }}\n\n## After the list\n\nMore words.\n" if placeholder else "Choose a guide.\n"
+    (content / "guides" / "index.md").write_text(f"---\ntitle: All guides\ndescription: Every guide we have.\n---\n{intro}", encoding="utf-8")
+    for slug, title, order in (("zeta", "Zeta guide", 1), ("alpha", "Alpha guide", 3), ("middle", "Middle guide", 2)):
+        (content / "guides" / f"{slug}.md").write_text(f"---\ntitle: {title}\norder: {order}\ndate: '2026-01-0{order}'\n---\nBody of {slug}.\n", encoding="utf-8")
+    settings = minimal(urls={"sections": {"guides": {"base": "guides", "label": "Guides", "sort": "order"}}})
+    return ProjectedSite(settings=settings, content=content)
+
+
+def test_a_section_index_is_the_introduction_of_its_listing(tmp_path):
+    site = _intro_site(tmp_path, placeholder=False)
+    try:
+        assert "guides/index.html" in site.tree and "guides/alpha.html" in site.tree
+        listing = site.text("guides/index.html")
+        assert "<title>All guides" in listing and "Choose a guide." in listing
+        assert 'content="Every guide we have."' in listing
+        assert listing.index("Choose a guide.") < listing.index("Zeta guide")  # the introduction comes first
+        assert listing.index("Zeta guide") < listing.index("Middle guide") < listing.index("Alpha guide")  # sort: order
+        assert "/guides/</loc>" in site.text("sitemap.xml") and "/guides/index.html" not in site.text("sitemap.xml")
+    finally:
+        site.cleanup()
+
+
+def test_the_listing_goes_where_the_introduction_asks(tmp_path):
+    site = _intro_site(tmp_path, placeholder=True)
+    try:
+        listing = site.text("guides/index.html")
+        assert listing.index("Start here") < listing.index("Zeta guide") < listing.index("After the list")
+        assert "{{ section listing }}" not in listing
+    finally:
+        site.cleanup()
+
+
+def test_a_body_class_hook_adds_classes_per_page(tmp_path):
+    hooks = tmp_path / "hooks.py"
+    hooks.write_text("def body_class(page):\n    return 'is-' + page.kind\n", encoding="utf-8")
+    settings = minimal(hooks="hooks.py", chrome={"body_class": "site"})
+    site = ProjectedSite(settings=settings, extra_files={"hooks.py": hooks.read_text()}, content=FIXTURES / "flat" / "content")
+    try:
+        assert '<body class="site is-home">' in site.text("index.html")
+        assert '<body class="site is-item">' in site.text("orchids.html")
+    finally:
+        site.cleanup()
+
+
+def test_static_copy_publishes_a_directory_verbatim_and_core_does_not_own_it(tmp_path):
+    files = {"site/docs/guide/index.html": "<p>exported</p>", "site/_next/app.js": "console.log(1)", "site/hero.svg": "<svg/>"}
+    site = ProjectedSite(settings=minimal(static={"copy": ["site"]}), extra_files=files, content=FIXTURES / "flat" / "content")
+    try:
+        assert site.tree["docs/guide/index.html"] == b"<p>exported</p>"
+        assert site.tree["_next/app.js"] == b"console.log(1)" and site.tree["hero.svg"] == b"<svg/>"
+        assert not site.projector.owns_page_key("docs/guide/index.html")
+        assert site.projector.owns_page_key("orchids.html")
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize("copy", [["../x"], ["/abs"], ["css"], ["assets"]])
+def test_static_copy_rejects_unsafe_directories(copy):
+    with pytest.raises(ValueError, match="static.copy"):
+        standard_settings_from_mapping(minimal(static={"copy": copy}))
+
+
+def test_sitemap_extra_lists_paths_core_does_not_generate():
+    site = ProjectedSite(settings=minimal(sitemap={"extra": ["/docs/guide/", "/examples/"]}), content=FIXTURES / "flat" / "content")
+    try:
+        sitemap = site.text("sitemap.xml")
+        assert "https://example.org/docs/guide/</loc>" in sitemap and "https://example.org/examples/</loc>" in sitemap
+    finally:
+        site.cleanup()
+    with pytest.raises(ValueError, match="sitemap.extra"):
+        standard_settings_from_mapping(minimal(sitemap={"extra": ["docs/"]}))
+
+
+# ------------------------------------------------------------------ public form component
+
+CONTACT_FORM = {
+    "title": "Contact us",
+    "fields": [
+        {"name": "topic", "label": "Topic", "type": "select", "options": [{"value": "general", "label": "General"}, {"value": "error", "label": "Report an error"}]},
+        {"name": "name", "label": "Name", "required": True, "autocomplete": "name"},
+        {"name": "email", "label": "Email", "type": "email", "required": True, "autocomplete": "email", "help": "We only use it to reply."},
+        {"name": "message", "label": "Message <b>", "type": "textarea", "required": True},
+    ],
+}
+
+
+def form_site(endpoint):
+    settings = {
+        "site": {"name": "Example", "productionUrl": "https://example.org"},
+        "forms": {"contact": {**CONTACT_FORM, "endpoint": endpoint}},
+        "pages": [{"id": "contact", "path": "contact", "title": "Contact", "form": "contact"}],
+    }
+    return ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content")
+
+
+def test_a_form_without_an_endpoint_says_it_is_not_open_and_cannot_be_submitted():
+    site = form_site(None)
+    try:
+        page = site.text("contact/index.html")
+        assert "This form is not open yet" in page and 'role="status"' in page
+        assert "<fieldset disabled>" in page and 'type="submit"' not in page and "data-papyrus-form" not in page
+        assert "_plugins/papyrus-form-v1.js" not in site.tree and "papyrus-form" not in page
+        assert "Thank you" not in page
+    finally:
+        site.cleanup()
+
+
+def test_a_form_with_an_endpoint_has_labelled_fields_a_honeypot_and_the_submit_script():
+    site = form_site("https://forms.example.org/intake")
+    try:
+        page = site.text("contact/index.html")
+        dom = Dom(page)
+        assert dom.find("form", **{"data-papyrus-form": "contact", "data-endpoint": "https://forms.example.org/intake"})
+        for field in ("topic", "name", "email", "message"):
+            assert f'<label for="form-contact-{field}">' in page
+        assert dom.find("input", name="email", type="email", required=None, autocomplete="email")
+        assert dom.find("input", name="website", tabindex="-1")          # the honeypot
+        assert 'aria-describedby="form-contact-email-help"' in page
+        assert "Message &lt;b&gt;" in page                                # labels are escaped
+        assert 'aria-live="polite"' in page and "hidden" in page
+        assert '<script src="/_plugins/papyrus-form-v1.js' in page
+        script = site.text("_plugins/papyrus-form-v1.js")
+        assert "response.ok" in script and "JSON.stringify" in script and "location.pathname" in script
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize(
+    "form, message",
+    [
+        ({"fields": [{"name": "x", "type": "file"}]}, "type must be one of"),
+        ({"fields": [{"name": "1bad"}]}, "simple name"),
+        ({"endpoint": "http://insecure.example.org/"}, "https or a site path"),
+        ({"fields": [{"name": "website"}]}, "honeypot collides"),
+    ],
+)
+def test_bad_form_definitions_are_rejected(form, message):
+    with pytest.raises(ValueError, match=message):
+        standard_settings_from_mapping({"site": {"name": "X"}, "forms": {"f": form}})
+
+
+def test_a_page_cannot_name_a_form_that_does_not_exist():
+    with pytest.raises(ValueError, match="unknown form"):
+        standard_settings_from_mapping({"site": {"name": "X"}, "pages": [{"id": "p", "path": "p", "title": "P", "form": "nope"}]})
+
+
+def test_a_data_file_next_to_the_hooks_is_part_of_their_fingerprint(tmp_path):
+    (tmp_path / "hooks.py").write_text("def footer(page):\n    return ''\n")
+    (tmp_path / "data.json").write_text('{"a": 1}')
+    before = load_hooks(tmp_path, "hooks.py").fingerprint
+    (tmp_path / "data.json").write_text('{"a": 2}')
+    assert load_hooks(tmp_path, "hooks.py").fingerprint != before

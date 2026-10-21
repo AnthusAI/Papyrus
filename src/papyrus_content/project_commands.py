@@ -22,6 +22,7 @@ from .projection.runtime import (
     context_from_environment,
     load_projector,
 )
+from .projection.directory_source import DirectoryContentSource
 from .projection.source import PublishedContentSource
 from .projection.writers import LocalDirectoryWriter
 
@@ -40,6 +41,16 @@ def _projection_environment(options: dict) -> dict[str, str]:
 def _context_for(client, options: dict) -> ProjectionContext:
     environment = _projection_environment(options)
     output_directory = normalize_string(options.get("out"))
+    from_directory = normalize_string(options.get("from-dir"))
+    if from_directory:
+        if not output_directory:
+            raise ValueError("--from-dir needs --out DIR.")
+        return ProjectionContext(
+            source=DirectoryContentSource(Path(from_directory)),
+            projector=load_projector(environment),
+            writer=LocalDirectoryWriter(Path(output_directory)),
+            keep_state=False,
+        )
     if output_directory:
         return ProjectionContext(
             source=PublishedContentSource(client),
@@ -62,7 +73,12 @@ def content_project(flags: list[str]) -> None:
     ]
     if sum(modes) != 1:
         raise ValueError("Pass exactly one of --all, --listings, --reconcile, --item-pages or --item <item-id>.")
-    client, _claims = create_authoring_client()
+    if options.get("from-dir"):
+        if not options.get("all"):
+            raise ValueError("--from-dir supports --all only.")
+        client = None
+    else:
+        client, _claims = create_authoring_client()
     context = _context_for(client, options)
     if options.get("reconcile"):
         _run_reconcile(context, options)

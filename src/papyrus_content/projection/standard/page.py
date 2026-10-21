@@ -11,7 +11,7 @@ from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
 
-KINDS = ("item", "home", "listing", "tags", "tag", "custom", "not_found")
+KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found")
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,9 @@ class ListingView:
     featured: tuple[StandardEntry, ...] = ()
     section: str | None = None
     tag: str | None = None
+    groups: tuple = ()          # ((key, label, entries), ...) when the section sets groupBy, newest group first
+    group: str | None = None    # archive pages: the month or year this page lists
+    archive_keys: tuple = ()    # archive pages: every key that has a page, newest first
 
     def url_for_page(self, number: int) -> str:
         prefix = f"/{self.base}" if self.base else ""
@@ -50,6 +53,7 @@ class StandardPage:
     custom_id: str | None = None
     breadcrumbs: tuple[tuple[str, str], ...] = ()
     tags: dict = field(default_factory=dict)    # tag index: tag -> entries
+    showcase: tuple = ()                        # showcase page: the ShowcaseSite records, sorted
     components = components
 
     @property
@@ -59,6 +63,12 @@ class StandardPage:
     @property
     def skip_link(self) -> str:
         return components.skip_link()
+
+    def form(self, form_id: str) -> str:
+        """The markup of a ``forms`` entry, for a hook composing its own page."""
+        from .forms import render_form
+
+        return render_form(next(spec for spec in self.settings.forms if spec.id == form_id))
 
     def render_nav(self) -> str:
         return components.nav(self.settings.nav, self.path, disclosure=self.settings.nav_disclosure)

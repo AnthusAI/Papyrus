@@ -23,6 +23,7 @@ from papyrus_content.rebuild_trigger import (
     trigger_staging_build,
 )
 from papyrus_content.story_reporting import save_story_version
+from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.reference_intake import IntakeError, intake_references
 from papyrus_content.publishing import (
     ItemFields,
@@ -151,6 +152,7 @@ def schedule_unpurged_invalidation(keys: list[str]) -> None:
 
 def run_deploy_render_task(client) -> dict:
     """Render every published page after a backend deploy, then report drift (a dry run: nothing is deleted)."""
+    ensure_publication_from_environment(client)
     context = projection_context(client)
     report = deploy_render(context)
     print(drift_metric_line(report))
@@ -284,6 +286,17 @@ def unpublish_item_action(arguments: dict, actor: str) -> dict:
     return response
 
 
+def move_story_stage_action(arguments: dict, actor: str) -> dict:
+    from papyrus_content.story_reporting import move_story_stage
+
+    client, _claims = create_authoring_client()
+    try:
+        result = move_story_stage(client, arguments["lineageId"], arguments["stage"], actor=actor, reason=arguments.get("reason"))
+    except ValueError as error:
+        return {"ok": False, "errors": [{"code": "invalid-stage", "message": str(error), "line": None}]}
+    return {"ok": True, **result}
+
+
 def request_staging_build_action() -> dict:
     cms_app_id = (os.environ.get("PAPYRUS_CMS_AMPLIFY_APP_ID") or "").strip()
     if not cms_app_id:
@@ -312,6 +325,8 @@ def handler(event, context):
             return save_item_draft_action(arguments, actor)
         if field == "publishItem":
             return publish_item_action(arguments, actor)
+        if field == "moveStoryStage":
+            return move_story_stage_action(arguments, actor)
         if field == "unpublishItem":
             return unpublish_item_action(arguments, actor)
         if field == "requestStagingBuild":

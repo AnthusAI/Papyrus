@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "51f2b7ae-741d-4387-ad06-d72d71c8f1b2",
+  "issue_id": "PPY-71336c67-a862-449f-be04-2d0a3514383a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:36.114Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "read.p.apyr.us reader onto static projection",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-283b448b-c2e1-42a4-9b61-449918d59632",
+    "labels": []
+  }
+}

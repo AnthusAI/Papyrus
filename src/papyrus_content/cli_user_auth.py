@@ -344,7 +344,8 @@ class Session:
 
     def headers(self, endpoint):
         if endpoint != self.config.graphql_endpoint:
-            raise AuthError('GraphQL endpoint does not match the signed-in publication; select its own login configuration.')
+            raise AuthError('GraphQL endpoint does not match the signed-in publication; select its own login configuration, '
+                            'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for this endpoint instead.')
         with session_lock(self.config):
             record = self._record()  # Check even with a cached access token: local logout must win.
             if self._subject is not None and self._subject != record['subject']:

@@ -52,3 +52,9 @@ Feature: The standard Markus front end
   Scenario: Without a site object the bare projector is used
     Given a static directory whose projection.json has no site object
     Then the standard projector choice is the bare Markus projector
+
+  Scenario: Dates written out in words order entries like ISO dates
+    Then the standard entry date of "Sunday, September 6, 2026" is "2026-09-06"
+    And the standard entry date of "'September 6, 2026'" is "2026-09-06"
+    And the standard entry date of "2026-09-06" is "2026-09-06"
+    And the standard entry date of "last Tuesday" is blank
