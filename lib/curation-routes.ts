@@ -8,6 +8,7 @@ import {
   type ProspectusSignInRouteOptions,
 } from "./prospectus-sign-in-routes";
 import { resolveProspectusSignInRuntime } from "./prospectus-session";
+import { SiteOriginNotConfiguredError, publicSiteOrigin } from "./site-origin";
 
 /**
  * Same-origin curation routes for the References tab. Each is an authenticated
@@ -270,7 +271,8 @@ export async function handleCurationRoute(request: NextRequest, route: CurationR
     if (!base) return jsonResponse({ error: "curation_not_configured", message: "Curation is not configured for this site." }, 503);
 
     const origin = request.headers.get("origin");
-    if (route !== "context" ? origin !== request.nextUrl.origin : origin !== null && origin !== request.nextUrl.origin) {
+    const siteOrigin = publicSiteOrigin(request, options.environment);
+    if (route !== "context" ? origin !== siteOrigin : origin !== null && origin !== siteOrigin) {
       throw refusal(403, "cross_origin", "Curation requests must come from this site.");
     }
     let text: string | null = null;
@@ -279,7 +281,7 @@ export async function handleCurationRoute(request: NextRequest, route: CurationR
       text = await boundedText(request);
     }
 
-    const runtime = await (options.resolveRuntime ?? resolveProspectusSignInRuntime)(request.nextUrl.origin);
+    const runtime = await (options.resolveRuntime ?? resolveProspectusSignInRuntime)(siteOrigin);
     if (!runtime) return jsonResponse({ error: "prospectus_sign_in_unavailable", message: "Sign-in through Prospectus is not configured for this site." }, 503);
     const nowInSeconds = options.nowInSeconds?.();
     const cookieSession = signedInProspectusSession(request, runtime.sealingSecret, nowInSeconds);
@@ -336,6 +338,7 @@ export async function handleCurationRoute(request: NextRequest, route: CurationR
     });
   } catch (error) {
     if (error instanceof CurationRefusal) return jsonResponse({ error: error.message, code: error.code }, error.status);
+    if (error instanceof SiteOriginNotConfiguredError) return jsonResponse({ error: error.message, code: error.code }, error.status);
     console.error(`Curation route failed (${error instanceof Error ? error.name : "error"}).`);
     return jsonResponse({ error: "Curation is unavailable. Check saved history before retrying.", code: "curation_unavailable" }, 503);
   }

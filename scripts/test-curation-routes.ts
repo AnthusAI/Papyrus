@@ -53,7 +53,7 @@ function setup(overrides: Partial<World> = {}, upstream?: (call: UpstreamCall) =
     return (upstream ?? defaultUpstream)(call);
   }) as unknown as typeof fetch;
   const options: CurationRouteOptions = {
-    resolveRuntime: async () => runtime, nowInSeconds: () => now, siteProduct: "papyrus-p-apyr-us",
+    resolveRuntime: async () => runtime, nowInSeconds: () => now, siteProduct: "papyrus-p-apyr-us", environment: { PAPYRUS_SITE_ORIGIN: origin },
     upstreamUrl: "https://lab.example.test", publicationId: "pub-1", fetcher,
   };
   return { world, options, prospectusCalls, upstreamCalls };
@@ -111,6 +111,33 @@ async function main() {
     const response = await handleCurationRoute(post("publication", statusBody, { cookie }), "publication", options);
     assert.equal(response.status, 401, label);
     assert.equal(prospectusCalls.length + upstreamCalls.length, 0, `${label}: nothing downstream`);
+  }
+
+  // Behind the Amplify compute adapter the request URL is https://localhost:3000; the public Origin is judged.
+  {
+    const { options, upstreamCalls } = setup();
+    const behindAdapter = (originHeader: string | null) => {
+      const request = post("publication", statusBody, { originHeader });
+      return new NextRequest(new URL("/api/newsroom/curation/publication", "https://localhost:3000"), { method: "POST", headers: request.headers, body: JSON.stringify(statusBody) });
+    };
+    assert.equal((await handleCurationRoute(behindAdapter(origin), "publication", options)).status, 200, "the public Origin is accepted");
+    for (const rejected of ["https://localhost:3000", "https://evil.example", null]) {
+      assert.equal((await handleCurationRoute(behindAdapter(rejected), "publication", options)).status, 403, `Origin ${rejected} is refused`);
+    }
+    const contextBehindAdapter = (originHeader?: string) => new NextRequest(new URL("/api/newsroom/curation/context", "https://localhost:3000"), { headers: { cookie: cookieFor(), ...(originHeader ? { origin: originHeader } : {}) } });
+    assert.equal((await handleCurationRoute(contextBehindAdapter("https://localhost:3000"), "context", options)).status, 403, "context refuses the localhost Origin");
+    assert.equal((await handleCurationRoute(contextBehindAdapter(origin), "context", options)).status, 200, "context accepts the public Origin");
+
+    const calls = upstreamCalls.length;
+    for (const environment of [{ SITE_ENV: "production" }, { PAPYRUS_SITE_ORIGIN: "http://p.apyr.us" }]) {
+      const closed = await handleCurationRoute(behindAdapter("https://localhost:3000"), "publication", { ...options, environment });
+      assert.equal(closed.status, 503, "an unset or invalid site origin fails closed");
+      assert.equal((await closed.json()).code, "site_origin_not_configured");
+    }
+    assert.equal(upstreamCalls.length, calls, "failing closed never reaches the upstream");
+
+    const local = new NextRequest(new URL("/api/newsroom/curation/publication", "http://localhost:3001"), { method: "POST", headers: { ...Object.fromEntries(post("publication", statusBody).headers), origin: "http://localhost:3001" }, body: JSON.stringify(statusBody) });
+    assert.equal((await handleCurationRoute(local, "publication", { ...options, environment: {} })).status, 200, "loopback development falls back to the request origin");
   }
 
   // Origin, content type, size.
