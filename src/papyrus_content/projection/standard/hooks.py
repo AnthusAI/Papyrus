@@ -32,9 +32,9 @@ The hooks that shape an item page before and after it is converted (a site whose
 ``page_head(head, page) -> PageHead``   the description of the page's ``<head>`` (title, description, image, dates, JSON-LD) before it is built;
                                     return ``dataclasses.replace(head, ...)``
 ``page_finish(html, page) -> str``  the finished page, as text, before it is written (canonical links, a head tag); it is the last step
-``item_inputs(site) -> object``     JSON-able data that every item page also renders from (a table of the site's URLs a page rewrites
-                                    its links with); with ``DEPENDS_ON`` declaring ``[]`` for item pages, saving an article
-                                    re-renders the others only when this data changes
+``page_inputs(site) -> object``     JSON-able data that every page also renders from (a table of the site's URLs a page rewrites
+                                    its links with); with ``DEPENDS_ON`` declaring ``[]``, saving an article
+                                    re-renders the other pages only when this data changes
 ``redirects(site) -> dict``         exact redirects (``{"/old/": "/new/"}``) a site derives from its items, on top of the items' ``aliases``;
                                     ``projection.json`` ``redirects.exact`` wins over it, and a path that is a page is never redirected
 ``block(name, attributes, page) -> str``    the markup of ``::include{kind="block" name="..."}`` in an authored page; the include's
@@ -57,7 +57,7 @@ from pathlib import Path
 
 HOOK_NAMES = (
     "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "page_body", "derive",
-    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "item_inputs", "redirects", "page_head",
+    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head",
 )
 
 
@@ -77,7 +77,7 @@ class Hooks:
     image_pipeline: object = None
     page_finish: object = None
     block: object = None
-    item_inputs: object = None
+    page_inputs: object = None
     redirects: object = None
     page_head: object = None
     fingerprint: str = ""

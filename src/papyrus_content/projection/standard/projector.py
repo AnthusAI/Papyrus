@@ -326,9 +326,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
         ]
         return self._fingerprints(selected, full=True)
 
+    def _page_inputs(self, site: SiteIndex):
+        return self.hooks.page_inputs(self._hook_site(site)) if self.hooks.page_inputs is not None else None
+
     def shared_inputs(self, site: SiteIndex) -> str:
         entries = self._entries(site) if self._depends_on_entries() else []
-        inputs = self.hooks.item_inputs(self._hook_site(site)) if self.hooks.item_inputs is not None else None
+        inputs = self._page_inputs(site)
         return digest_of([self._shared_fingerprint, self._dependency_digest(entries), self._authored_home(site), inputs])
 
     # ------------------------------------------------------------------ generated pages
@@ -343,9 +346,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         plan: dict[str, tuple[str, Callable[[], bytes]]] = {}
         shared = self._shared_fingerprint
 
+        page_inputs = self._page_inputs(site)
+
         def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage], markdown: bool = True) -> None:
             dependency = self._dependency_digest(entries, page_id)
-            digest = digest_of([shared, key, digest_input, dependency])
+            digest = digest_of([shared, key, digest_input, dependency, page_inputs])
             plan[key] = (digest, lambda: self._render(build_page()))
             twin = md_key(key) if markdown and self.standard.agents.markdown else None
             if twin:

@@ -42,7 +42,7 @@ def hook_names(module_text: str, tmp_path) -> Hooks:
 # ------------------------------------------------------------------ the hook module
 
 def test_the_new_hooks_are_named_and_loaded(tmp_path):
-    names = ("item_filter", "source", "item_transform", "image_pipeline", "page_head", "page_finish", "block", "item_inputs", "redirects")
+    names = ("item_filter", "source", "item_transform", "image_pipeline", "page_head", "page_finish", "block", "page_inputs", "redirects")
     assert set(names) <= set(HOOK_NAMES)
     module = "\n".join(f"def {name}(*args):\n    return None\n" for name in names)
     hooks = hook_names(module, tmp_path)
@@ -56,7 +56,7 @@ def test_a_misspelled_new_hook_is_still_an_error(tmp_path):
 
 def test_which_hooks_see_the_whole_site():
     quiet = (Hooks(item_filter=lambda s: True), Hooks(source=lambda s, t, site: t), Hooks(item_transform=lambda s: None),
-             Hooks(image_pipeline=lambda p: p), Hooks(item_inputs=lambda site: 1), Hooks(redirects=lambda site: {}))
+             Hooks(image_pipeline=lambda p: p), Hooks(page_inputs=lambda site: 1), Hooks(redirects=lambda site: {}))
     assert not any(hooks.sees_the_site or hooks.renders_listings for hooks in quiet)
     for hooks in (Hooks(page_head=lambda h, p: h), Hooks(page_finish=lambda h, p: h), Hooks(block=lambda n, a, p: "")):
         assert hooks.sees_the_site
@@ -342,7 +342,7 @@ def test_the_redirects_hook_reads_the_current_items_when_it_is_projected_again()
         site.cleanup()
 
 
-# ------------------------------------------------------------------ item_inputs
+# ------------------------------------------------------------------ page_inputs
 
 COUNTING = '''
 DEPENDS_ON = []
@@ -351,7 +351,7 @@ def source(summary, text, site):
     return text + "\\nThe site has " + str(len(site.items)) + " items.\\n"
 '''
 INPUTS = COUNTING + '''
-def item_inputs(site):
+def page_inputs(site):
     return sorted(summary.slug for summary in site.items)
 '''
 NO_INPUTS = COUNTING
@@ -378,7 +378,7 @@ def publish_new_item(site) -> str:
     return fields.id
 
 
-def test_changed_item_inputs_re_render_every_item_page_and_nothing_else():
+def test_changed_page_inputs_re_render_every_item_page_and_nothing_else():
     site = inputs_site(INPUTS)
     try:
         edit_item(site, "item-posts-b", title="B renamed")                               # the table of slugs did not change
@@ -387,8 +387,7 @@ def test_changed_item_inputs_re_render_every_item_page_and_nothing_else():
         written = html_written(written_keys(site))
         assert {"posts/a.html", "posts/b.html", "posts/c.html", "posts/d.html", "posts/index.html"} <= written
         assert "The site has 4 items." in site.text("posts/a.html")
-        assert written - {"posts/a.html", "posts/b.html", "posts/c.html", "posts/d.html", "posts/index.html", "index.html", "tags/green/index.html"} == set()
-        assert "quiet/index.html" not in written and "404.html" not in written
+        assert {"quiet/index.html", "404.html"} <= written                                # not only item pages: every page reads it
     finally:
         site.cleanup()
 
@@ -428,7 +427,7 @@ def source(summary, text, site):
     site.memo("table", lambda: _count(site, "source-table") or {s.slug: s.output_path for s in site.items})
     return text
 
-def item_inputs(site):
+def page_inputs(site):
     return site.memo("table", lambda: _count(site, "inputs-table") or {})
 
 def redirects(site):

@@ -219,13 +219,13 @@ error (prefix helpers with `_`):
 | `image_pipeline(pipeline)` | the `ImagePipeline` built from `images` | the pipeline to render with (`dataclasses.replace(pipeline, wrap=...)` sets the callbacks that are not data); only called when the site has `images` |
 | `page_head(head, page)` | the `PageHead` (title, description, image, dates, JSON-LD) and the page | the head to build, usually `dataclasses.replace(head, ...)`; it reaches the description, Open Graph, Twitter and JSON-LD tags |
 | `page_finish(html, page)` | the finished page as text, the page | the text that is written; the last step, after `head_extra`, `body_class` and `page_body` |
-| `item_inputs(site)` | a `HookSite` | JSON-able data every item page also renders from (a table of URLs it rewrites links with); item pages are rendered again when it changes |
+| `page_inputs(site)` | a `HookSite` | JSON-able data every page also renders from (a table of URLs it rewrites links with); every page is rendered again when it changes |
 | `redirects(site)` | a `HookSite` | exact redirects `{"/old/": "/new/"}` derived from the items, on top of the items' `aliases`; `redirects.exact` of `projection.json` wins over it, and a path that is a page is never redirected |
 | `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
 
 `card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.
 `HookSite` (also `page.site`) is the site-wide view the item-level hooks get: `items` (every published `ItemSummary`), `static_directory`, `rendition_records()` (the `meta.json` records of the site's image store; empty without `images`) and `memo(name, build)`, which calls `build()` once per name for one version of the site, so a table built from every item is built once per projection.
-`masthead`, `footer`, `card`, `head_extra`, `body_class`, `page_body`, `page_head`, `page_finish` and `block` are handed `page`, so they make every page depend on all entries (narrow it with `DEPENDS_ON`, below); `item_filter`, `source`, `item_transform`, `image_pipeline`, `item_inputs` and `redirects` do not.
+`masthead`, `footer`, `card`, `head_extra`, `body_class`, `page_body`, `page_head`, `page_finish` and `block` are handed `page`, so they make every page depend on all entries (narrow it with `DEPENDS_ON`, below); `item_filter`, `source`, `item_transform`, `image_pipeline`, `page_inputs` and `redirects` do not.
 
 `page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,
 `entry`, `fragment`, `listing` (the slice, page numbers), `custom_id`, `entries`, `summaries`, `settings`,
