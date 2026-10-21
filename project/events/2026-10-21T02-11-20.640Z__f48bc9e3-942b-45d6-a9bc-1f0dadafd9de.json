@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "f48bc9e3-942b-45d6-a9bc-1f0dadafd9de",
+  "issue_id": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-21T02:11:20.640Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "defa2ceb-61f9-4241-8341-8da7a5d44ccb",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "router-worker"
+    }
+  }
+}

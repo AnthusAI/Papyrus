@@ -165,10 +165,22 @@
         "model": "Sonnet 5.5",
         "name": "Claude Code"
       }
+    },
+    {
+      "id": "defa2ceb-61f9-4241-8341-8da7a5d44ccb",
+      "author": "home",
+      "text": "Step 4 (router + feedback) status. What changed: PR 417 merged to develop (6f06316): a router Lambda in the papyrus-monitoring stack (own role, zip, schedule cron(7/15 * * * ? *), DLQ, 2 alarms); data-driven CONFIG#router item; dry-run builds and validates decide requests with deterministic requestIds and records receipts, live decides per binding (poll only, every refusal code stops the sweep) and delivers include items through ReferenceIntake; feedback pass behind router.feedback (default false). Change set was additions only (collector unchanged), executed, UPDATE_COMPLETE. Router seeded in dry-run, feedback false. Evidence: one manual dry-run invocation validated 5 discoveries, 3 requests each, receipts under ROUTE# and ROUTERUN#; the Threat Intelligence context hash was read through the router role, so AppSync IAM access works from the new role; Anth.us and p.apyr.us have no stored mission, recorded as contextHash null with reason. Anth.us now has its canonical KnowledgeCorpus (additive single record, read back). Next: Cyclotron invoker role trust update for the router role, ALLOW_LIVE flip, then mode=live (a data change); feedback stays off pending approval.\n",
+      "created_at": "2026-10-21T02:11:20.640471Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "router-worker"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-21T01:05:16.169163Z",
+  "updated_at": "2026-10-21T02:11:20.640511Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
