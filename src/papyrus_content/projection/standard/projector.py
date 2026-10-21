@@ -799,7 +799,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if self.standard.agents.markdown and not page.head.noindex:
             key = page.path.lstrip("/") + "index.html" if page.path.endswith("/") else page.path.lstrip("/")
             twin = md_path(key) if md_key(key) else None
-        described = self.hooks.page_head(page.head, page) if self.hooks.page_head is not None else page.head
+        described = self._described(page)
         head_html = self.head.build(dataclasses.replace(described, extra=extra, markdown_path=twin))
         if self.hooks.body_class is not None:
             base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
@@ -828,10 +828,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             render_body=lambda context, parts: self._body(page, parts),
         )
 
+    def _described(self, page: StandardPage) -> PageHead:
+        """The page's head description after the site's ``page_head`` hook."""
+        return self.hooks.page_head(page.head, page) if self.hooks.page_head is not None else page.head
+
     def _render(self, page: StandardPage) -> bytes:
         chrome = self._chrome(page)
         html_text = render_page(
-            title=page.title, fragment="", active_href=page.path, nav_items=[], chrome=chrome, css_version=self.version
+            title=self._described(page).title, fragment="", active_href=page.path, nav_items=[], chrome=chrome, css_version=self.version
         )
         if self.hooks.page_finish is not None:
             html_text = self.hooks.page_finish(html_text, page)
@@ -995,7 +999,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             more = (
                 f'<ul class="markus-section-links">{links}</ul>'
                 if links
-                else (f'<p><a href="/{components.esc(self.standard.listings.flat_path)}/">All articles</a></p>' if page.entries else "")
+                else (f'<p><a href="/{components.esc(self.standard.listings.flat_path)}/">All articles</a></p>' if page.entries and not self.standard.sectioned else "")
             )
             intro = f"<p>{components.esc(identity.description)}</p>" if identity.description else ""
             cards = "\n".join(self._card(entry, page) for entry in view.entries) if view else ""

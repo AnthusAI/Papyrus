@@ -574,7 +574,11 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             raise ValueError(f"collections need a unique lowercase id, got {collection_id!r}")
         base = _path_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
         if not base or any(base == section.base and section.listing_page for section in sections):
-            raise ValueError(f"collections.{collection_id}.base must be a path that no section uses")
+            raise ValueError(f"collections.{collection_id}.base must be a path that no section with a listing page uses")
+        if any(base == other.base for other in collections):
+            raise ValueError(f"collections.{collection_id}.base {base!r} is already the base of another collection")
+        if base == str(raw.get("listings", {}).get("tagBase", "tags")).strip("/") and raw.get("listings", {}).get("tags", True):
+            raise ValueError(f"collections.{collection_id}.base {base!r} is the tag pages' base")
         if str(entry.get("sort", "date")) not in ("date", "order", "title") or str(entry.get("ties", "slug-desc")) not in ("slug-desc", "slug-asc"):
             raise ValueError(f"collections.{collection_id}: sort is date, order or title; ties is slug-desc or slug-asc")
         collection = CollectionConfig(

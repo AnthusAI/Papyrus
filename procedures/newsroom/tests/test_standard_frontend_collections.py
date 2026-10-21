@@ -67,8 +67,8 @@ def test_every_collection_setting_is_read():
         ({"collections": [collection(pageSize=0)]}, "pageSize must be positive"),
         ({"collections": [collection(featuredCount=-1)]}, "featuredCount must not be negative"),
         ({"collections": [collection(base="Bad Base")]}, "lowercase path"),
-        ({"collections": [collection(base="posts")], "urls": {"sections": {"posts": {}}}}, "must be a path that no section uses"),
-        ({"collections": [collection(base="writing")], "urls": {"sections": {"posts": {"base": "writing"}}}}, "must be a path that no section uses"),
+        ({"collections": [collection(base="posts")], "urls": {"sections": {"posts": {}}}}, "must be a path that no section with a listing page uses"),
+        ({"collections": [collection(base="writing")], "urls": {"sections": {"posts": {"base": "writing"}}}}, "must be a path that no section with a listing page uses"),
         ({"listings": {"tagPageSize": -1}}, "tagPageSize must not be negative"),
         ({"listings": {"tagSelect": {"tag": ["x"]}}}, "Unknown listings.tagSelect settings"),
         ({"listings": {"draft": {"fields": "status"}}}, "Unknown listings.draft settings"),
@@ -426,11 +426,6 @@ def test_the_breadcrumb_of_an_item_skips_a_section_without_a_listing_page():
         site.cleanup()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="src bug: the generated home page of a sectioned site links to /archive/ ('All articles') when no section has a listing page, "
-    "but a sectioned site generates no flat listing, so the link is dead",
-)
 def test_the_generated_home_page_does_not_link_to_a_listing_that_does_not_exist():
     site = cms_site(settings(urls=SECTIONS), [item("a", date="2026-01-01")])
     try:
@@ -440,13 +435,11 @@ def test_the_generated_home_page_does_not_link_to_a_listing_that_does_not_exist(
         site.cleanup()
 
 
-@pytest.mark.xfail(strict=True, reason="src gap: two collections with the same base are not rejected; one silently overwrites the other's pages")
 def test_two_collections_cannot_share_a_base():
     with pytest.raises(ValueError):
         parse(collections=[collection(id="a", base="x"), collection(id="b", base="x")])
 
 
-@pytest.mark.xfail(strict=True, reason="src gap: a collection whose base is the tag base is not rejected; its pages collide with the tag index")
 def test_a_collection_cannot_take_the_tag_index_path():
     with pytest.raises(ValueError):
         parse(collections=[collection(base="tags")])

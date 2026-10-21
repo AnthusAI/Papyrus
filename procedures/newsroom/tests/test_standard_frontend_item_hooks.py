@@ -247,10 +247,6 @@ def test_page_head_overrides_the_description_of_the_head():
         site.cleanup()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="src bug: the <title> tag is built from page.title, so a page_head override of head.title reaches og:title and JSON-LD but not <title>",
-)
 def test_page_head_title_override_reaches_the_title_tag():
     site = site_with(HEAD)
     try:
