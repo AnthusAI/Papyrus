@@ -13,7 +13,7 @@ import { emailSubmissionProcessor } from "../functions/email-submission-processo
 import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
-import { schema as leanSchema, schemaWithPlugins } from "./schema";
+import { assertKnownModelGroups, schema as leanSchema, schemaExcludingGroups, schemaWithPlugins } from "./schema";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -2306,10 +2306,14 @@ export type Schema = ClientSchema<typeof schema>;
  * The site's data API. Amplify allows one `defineData` per backend and registers it when called, so this is
  * a function: a site without plugins passes none and gets exactly the base schema.
  */
-export function defineSiteData(pluginDefinitions: Record<string, unknown> = {}) {
+export function defineSiteData(pluginDefinitions: Record<string, unknown> = {}, excludeModelGroups: readonly string[] = []) {
+  assertKnownModelGroups(excludeModelGroups);
+  const hasPlugins = Object.keys(pluginDefinitions).length > 0;
   return defineData({
     name: "PapyrusCmsApi",
-    schema: Object.keys(pluginDefinitions).length === 0 ? leanSchema : schemaWithPlugins(pluginDefinitions),
+    schema: excludeModelGroups.length > 0
+      ? schemaExcludingGroups(excludeModelGroups, pluginDefinitions)
+      : hasPlugins ? schemaWithPlugins(pluginDefinitions) : leanSchema,
     authorizationModes: {
       defaultAuthorizationMode: "userPool",
       apiKeyAuthorizationMode: {

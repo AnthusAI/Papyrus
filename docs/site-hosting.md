@@ -536,6 +536,17 @@ model nested stacks in waves: each wave of `backend.resolverWaveSize` stacks
 between nested stacks; no resource, schema or API changes. Set
 `backend: { resolverWaveSize: 0 }` in `papyrus.config.ts` to turn it off.
 
+## Fresh deploy exceeds the CloudFormation per-operation cap (staged first deploy)
+
+CloudFormation creates at most 2,500 resources in one stack operation, nested stacks included. The full model set is
+about 2,560 resources, so the first deploy of a brand-new site fails with "Limit on the number of resources in a single
+stack operation exceeded" and rolls back. Existing sites passed it through incremental updates. `resolverWaveSize` does
+not help: every wave runs inside the same root operation.
+
+Stage the first deploy: set `backend.excludeModelGroups: ["editions"]` in `papyrus.config.ts` (the four edition models;
+editions are off by default), deploy, then remove the line and deploy again. The second deploy is an ordinary update
+that adds the models. Known groups are in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`); an unknown name fails the build.
+
 ## Backend features and account-global names
 
 `defineSiteBackend(site)` creates four optional features, each behind a flag
