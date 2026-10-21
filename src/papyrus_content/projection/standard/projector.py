@@ -482,6 +482,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for custom in self.standard.pages:
             if custom.sitemap and not custom.noindex:
                 urls.append(SitemapUrl(f"/{custom.path}/", ""))
+        urls.extend(SitemapUrl(path, "") for path in self.standard.sitemap_extra)
         unique = {}
         for url in urls:
             unique.setdefault(url.path, url)

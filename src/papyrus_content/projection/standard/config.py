@@ -191,6 +191,7 @@ class StandardSettings:
     sitemap_style: str = "single"
     sitemap_lastmod: bool = True
     sitemap_tags: bool = True
+    sitemap_extra: tuple[str, ...] = ()   # site paths listed in the sitemap that core does not generate (static.copy routes)
     robots_extra: tuple[str, ...] = ()
     feeds: FeedSettings = field(default_factory=FeedSettings)
     listings: ListingSettings = field(default_factory=ListingSettings)
@@ -337,7 +338,11 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     )
 
     sitemap = dict(raw.get("sitemap") or {})
-    _only(sitemap, {"style", "lastmod", "tags"}, "sitemap")
+    _only(sitemap, {"style", "lastmod", "tags", "extra"}, "sitemap")
+    sitemap_extra = tuple(str(path) for path in sitemap.get("extra", ()))
+    for path in sitemap_extra:
+        if not path.startswith("/"):
+            raise ValueError(f"sitemap.extra paths start with /, not {path!r}")
     sitemap_style = sitemap.get("style", "single")
     if sitemap_style not in SITEMAP_STYLES:
         raise ValueError(f"sitemap.style must be one of {SITEMAP_STYLES}")
@@ -430,6 +435,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         sitemap_style=sitemap_style,
         sitemap_lastmod=bool(sitemap.get("lastmod", True)),
         sitemap_tags=bool(sitemap.get("tags", True)),
+        sitemap_extra=sitemap_extra,
         robots_extra=tuple(robots.get("extra") or ()),
         feeds=feed_settings,
         listings=listing_settings,

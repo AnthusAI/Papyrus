@@ -767,3 +767,14 @@ def test_static_copy_publishes_a_directory_verbatim_and_core_does_not_own_it(tmp
 def test_static_copy_rejects_unsafe_directories(copy):
     with pytest.raises(ValueError, match="static.copy"):
         standard_settings_from_mapping(minimal(static={"copy": copy}))
+
+
+def test_sitemap_extra_lists_paths_core_does_not_generate():
+    site = ProjectedSite(settings=minimal(sitemap={"extra": ["/docs/guide/", "/examples/"]}), content=FIXTURES / "flat" / "content")
+    try:
+        sitemap = site.text("sitemap.xml")
+        assert "https://example.org/docs/guide/</loc>" in sitemap and "https://example.org/examples/</loc>" in sitemap
+    finally:
+        site.cleanup()
+    with pytest.raises(ValueError, match="sitemap.extra"):
+        standard_settings_from_mapping(minimal(sitemap={"extra": ["docs/"]}))
