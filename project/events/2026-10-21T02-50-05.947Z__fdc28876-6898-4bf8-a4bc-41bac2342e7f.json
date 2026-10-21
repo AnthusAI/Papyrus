@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "fdc28876-6898-4bf8-a4bc-41bac2342e7f",
+  "issue_id": "PPY-31ba5235-b139-4de5-8a6d-5665550eb04f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T02:50:05.947Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Monitoring page in the newsroom Administration",
+    "description": "Editors and admins can see the automated research pipeline (HN collector and Cyclotron router) in the newsroom, read-only.\n\n```gherkin\nFeature: Monitoring page\n  Scenario: An editor sees what the pipeline did for their publication\n    Given the collector and router have recorded runs, discoveries and routing decisions\n    When an editor opens Administration, Monitoring\n    Then they see the feeds watched, recent runs, the collected queue with routing states, per-item relevance for their publication with a link to the References entry, and usage against the ceilings\n  Scenario: A non-editor is refused\n    When a reader asks for the monitoring overview\n    Then the request is refused and no data is returned\n  Scenario: Nothing collected yet\n    Given the table has no discoveries\n    Then the page says so plainly and shows the router mode\n```\n\nDesign: AppSync query monitoringOverview (editor/admin) -> Python Lambda with a read-only IAM grant (GetItem, Query) on the monitoring table and its routing index; table found via an SSM parameter written by the papyrus-monitoring stack; own publication matched by AppSync endpoint; whole pipeline admin-only.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
