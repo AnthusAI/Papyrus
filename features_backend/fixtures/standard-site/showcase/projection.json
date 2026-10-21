@@ -1,0 +1,4 @@
+{
+  "site": { "name": "Example Showcase", "productionUrl": "https://showcase.example.org", "description": "Sites built with the platform." },
+  "showcase": { "section": "showcase", "path": "built-with", "title": "Built with the platform", "description": "A few sites." }
+}

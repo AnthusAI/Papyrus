@@ -43,6 +43,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
 | `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex}]`; the body comes from the `page_body` hook |
+| `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
@@ -170,6 +171,17 @@ error (prefix helpers with `_`):
 fields, link-only items, special pages) builds its model from `page.summaries` and composes pages in `page_body`.
 A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
 A hooks module's source and its sibling modules are part of every page's inputs, so editing them re-renders.
+
+## Showcase (logo wall)
+
+`"showcase": { "section": "showcase", "path": "built-with", "title": "Built with Papyrus", "kinds": { "anthus": "Built by Anthus", "design-partner": "Design partners", "customer": "Customers" } }`
+turns every published item of the `showcase` section into one tile on a generated page at `/built-with/`. The data
+is content, managed in the CMS: front matter `name` (or the title), `logo` (image path or URL; the name is the text
+fallback), `logoAlt`, `url` (http or https only; anything else is skipped), `kind` (one of the configured kinds;
+unknown kinds go under "More") and `order` (lower first, then name). The page is one heading and one `<ul>` per kind,
+a responsive CSS grid of links with lazy-loaded images and `rel="noopener"`; names are escaped. Showcase items have
+no pages of their own and are not in listings, feeds or the sitemap. A `page_body` hook sees `page.kind == "showcase"`
+and `page.showcase` (the sorted `ShowcaseSite` records) and can use `showcase.logo_wall(...)` inside its own layout.
 
 ## Migration checklist
 

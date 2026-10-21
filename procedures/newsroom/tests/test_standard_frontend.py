@@ -564,3 +564,54 @@ def test_dependency_declarations_narrow_what_a_page_depends_on():
     assert projector._dependencies("home") == ("a",)
     assert projector._dependencies("listing:b") == ()
     assert projector._dependencies("item") == ("*",)
+
+
+# ------------------------------------------------------------------ showcase (logo wall)
+
+@pytest.fixture(scope="module")
+def showcase():
+    site = ProjectedSite("showcase")
+    yield site
+    site.cleanup()
+
+
+def test_the_logo_wall_is_fed_by_published_items_and_items_are_not_pages(showcase):
+    assert "built-with/index.html" in showcase.tree
+    assert not any(key.startswith("showcase/") for key in showcase.tree)         # the data items have no pages
+    assert "showcase" not in showcase.text("sitemap.xml").replace("showcase.example.org", "")
+    assert "/built-with/" in showcase.text("sitemap.xml")
+    assert "Showcase entry" not in showcase.text("feed.xml")
+
+
+def test_the_logo_wall_groups_by_kind_in_the_configured_order_and_sorts_by_order(showcase):
+    page = showcase.text("built-with/index.html")
+    headings = re.findall(r"<h2 id=\"showcase-[a-z-]+\">(.*?)</h2>", page)
+    assert headings == ["Built by Anthus", "Design partners", "Customers"]
+    customers = page[page.index("showcase-customer"):]
+    assert customers.index("Zeta") < customers.index("Acme Gazette")             # order 1 before order 2
+
+
+def test_the_logo_wall_is_accessible_and_safe(showcase):
+    page = showcase.text("built-with/index.html")
+    dom = Dom(page)
+    assert dom.find("img", src="/assets/acme.svg", alt="Acme Gazette logo", loading="lazy")
+    assert dom.find("a", href="https://borealis.example.org", rel="noopener")      # a text fallback link without a logo
+    assert dom.find("section", **{"aria-labelledby": "showcase-customer"})
+    assert "javascript:" not in page and "Bad Link" not in page                    # unsafe URLs are skipped
+    assert "<b>Times</b>" not in page and "&lt;b&gt;Times&lt;/b&gt;" in page      # names are escaped
+
+
+def test_editing_a_showcase_item_rewrites_only_the_wall():
+    from procedures.newsroom.tests.standard_frontend_support import edit_item, written_keys
+
+    site = ProjectedSite("showcase")
+    try:
+        edit_item(site, "item-showcase-borealis", front_matter={"name": "Borealis Weekly"})
+        assert written_keys(site) == {"built-with/index.html"}
+        assert "Borealis Weekly" in site.text("built-with/index.html")
+        before = site.tree["built-with/index.html"]
+        # Data items have no pages, so the engine keeps no state for them and re-projects the wall; the bytes do not change.
+        edit_item(site, "item-showcase-borealis", body="Another body.\n", front_matter={"name": "Borealis Weekly"})
+        assert written_keys(site) <= {"built-with/index.html"} and site.tree["built-with/index.html"] == before
+    finally:
+        site.cleanup()
