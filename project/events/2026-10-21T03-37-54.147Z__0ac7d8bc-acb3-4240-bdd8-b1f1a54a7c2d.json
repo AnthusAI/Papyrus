@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0ac7d8bc-acb3-4240-bdd8-b1f1a54a7c2d",
+  "issue_id": "PPY-1fcd1cf3-e3a8-4087-957c-073f1dedbd99",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:37:54.147Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Checks cover front-matter prose, not only the body",
+    "description": "Wire items have no body: their text is the title and the one- or two-sentence take in front matter; rulings and commentary also carry dek, summary and ownerTakeaway there. checkItemVersion (and check-drafts) should check those fields as segments with their own provenance (field name), so wire takes, deks and owner takeaways are copy-edited too.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": []
+  }
+}
