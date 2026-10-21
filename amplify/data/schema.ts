@@ -564,6 +564,13 @@ const baseDefinitions = {
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(a.handler.function(contentActions)),
 
+  moveStoryStage: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(a.handler.function(contentActions)),
+
   unpublishItem: a
     .mutation()
     .arguments({ input: a.json().required() })

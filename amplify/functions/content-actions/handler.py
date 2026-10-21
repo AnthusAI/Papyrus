@@ -286,6 +286,17 @@ def unpublish_item_action(arguments: dict, actor: str) -> dict:
     return response
 
 
+def move_story_stage_action(arguments: dict, actor: str) -> dict:
+    from papyrus_content.story_reporting import move_story_stage
+
+    client, _claims = create_authoring_client()
+    try:
+        result = move_story_stage(client, arguments["lineageId"], arguments["stage"], actor=actor, reason=arguments.get("reason"))
+    except ValueError as error:
+        return {"ok": False, "errors": [{"code": "invalid-stage", "message": str(error), "line": None}]}
+    return {"ok": True, **result}
+
+
 def request_staging_build_action() -> dict:
     cms_app_id = (os.environ.get("PAPYRUS_CMS_AMPLIFY_APP_ID") or "").strip()
     if not cms_app_id:
@@ -314,6 +325,8 @@ def handler(event, context):
             return save_item_draft_action(arguments, actor)
         if field == "publishItem":
             return publish_item_action(arguments, actor)
+        if field == "moveStoryStage":
+            return move_story_stage_action(arguments, actor)
         if field == "unpublishItem":
             return unpublish_item_action(arguments, actor)
         if field == "requestStagingBuild":

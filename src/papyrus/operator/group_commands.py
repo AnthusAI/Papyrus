@@ -36,6 +36,8 @@ CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions",
 # Usage lines for commands whose flags are worth showing in group help.
 COMMAND_USAGE = {
   ("stories", "create"): "--title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment] [--dry-run]",
+  ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]",
+  ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
   ("publication", "init"): "--key KEY --name NAME",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
   ("research", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",

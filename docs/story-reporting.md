@@ -21,6 +21,16 @@ papyrus stories save-version --story <lineage> --body-file draft.md \
 papyrus stories versions --story <lineage>
 ```
 
+A new version keeps the previous version's board stage. Add `--stage <stage>` (or `--advance` for the next stage before publication) to save the draft and move the stage in one recorded step.
+
+To move a story between board stages without saving a draft:
+
+```bash
+papyrus stories move --story <lineage> --stage reporting [--reason "why"] [--author-label "ChatGPT"]
+```
+
+This is the same `Item.stage` update a card move makes. The stage must be one of the content item stages (`idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked`), and each move posts a note in the story's Reporting trail. The `moveStoryStage` GraphQL mutation (input `{ lineageId, stage, reason }`, editor groups) does the same for browser and agent clients.
+
 The new `Item` row gets `versionNumber` n+1, `previousVersionId`, `versionCreatedBy`, `versionCreatedAt` and
 `changeReason`; the previous latest version becomes `superseded`. The editor preview always shows the **latest**
 version. Older versions are listed in the story's Reporting trail and open read-only. Publishing still publishes the
