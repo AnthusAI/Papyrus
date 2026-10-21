@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ce758e52-4eec-49ca-9284-187294531bc6",
+  "title": "M4 Agent tools for every backend feature, with the editor's permissions and approvals",
+  "description": "Expose the newsroom's capabilities to the chat agent as tools: stories (create, save version, move stage, set slug), references, sections and doctrine, editorial checks and Humanus, publishing, messages, procedures. Generate or map them from the same operations the CLI and GraphQL API use so there is one source of truth, enforce the signed-in editor's group (editor vs admin), and require in-pane approval for publish, unpublish, delete and send.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:14:25.517027Z",
+  "updated_at": "2026-10-21T12:14:25.517061Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
