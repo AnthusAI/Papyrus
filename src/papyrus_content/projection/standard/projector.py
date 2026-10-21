@@ -41,16 +41,17 @@ from ..projector import (
 )
 from ..public_data import clipped, entry_for, hidden_from_public_data, owns_public_data_key, public_data_files, public_data_inputs, public_static_files
 from ..writers import request_paths_for_key
-from . import components
+from . import blocks, components
 from .config import STANDARD_KEYS, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
-from .markdown import LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
+from .markdown import FRONT_MATTER, LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
-from .fragments import first_image_of, lede_of, with_listing
+from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_listing
+from .family import family_footer
 from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
@@ -75,8 +76,10 @@ def copy_directories(static_directory: Path | None, names, files: dict[str, byte
     return added
 
 
+ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document"[^>]*>')
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
+ISLANDS_RUNTIME_PATH = "_plugins/papyrus-islands-v1.js"
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
 class StandardMarkusProjector(MarkusSiteProjector):
     def __init__(
@@ -90,7 +93,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         **kwargs,
     ) -> None:
         files = dict(static_files)
-        self._passthrough = frozenset(copy_directories(kwargs.pop("static_directory", None), standard.static_copy, files))
+        static_directory = kwargs.pop("static_directory", None)
+        self._passthrough = frozenset(copy_directories(static_directory, standard.static_copy, files))
         if standard.components_css:
             files[COMPONENTS_CSS_PATH] = (ASSET_DIRECTORY / "markus-components.css").read_bytes()
         if standard.nav_disclosure:
@@ -99,6 +103,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
         if any(form.endpoint for form in standard.forms):
             files[FORM_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-form.js").read_bytes()
+        if standard.islands is not None:
+            files[ISLANDS_RUNTIME_PATH] = (ASSET_DIRECTORY / "papyrus-islands.js").read_bytes()
+            for path in (standard.islands.script, standard.islands.stylesheet):
+                if path and path not in files:
+                    source = static_directory / path if static_directory is not None else None
+                    if source is None or not source.is_file():
+                        raise ValueError(f"islands names {path!r}, which is not a file of the static directory")
+                    files[path] = source.read_bytes()
         super().__init__(settings, files, **kwargs)
         self.standard = standard
         self.hooks = hooks
@@ -144,6 +156,26 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _fingerprints(self, entries, *, full: bool | None = None) -> list:
         return [entry.fingerprint(full=self._full() if full is None else full) for entry in entries]
 
+    # ------------------------------------------------------------------ page blocks
+
+    def _fragment(self, text: str, depth: int, source: str = "") -> str:
+        """Tokens and page blocks are handled before Markus; a page with neither is converted exactly as before."""
+        values = dict(self.standard.values)
+        text = blocks.substitute(text, values, source)
+        if not blocks.uses_bands(text):
+            return super()._fragment(text, depth)
+        front = FRONT_MATTER.match(text)
+        body = text[front.end():] if front else text
+
+        def convert(markdown: str) -> str:
+            fragment = super(StandardMarkusProjector, self)._fragment(markdown, depth)
+            return MARKUS_ARTICLE_CLOSE_PATTERN.sub("", ARTICLE_OPEN_PATTERN.sub("", fragment, count=1), count=1).strip()
+
+        return blocks.render(body, source, convert)
+
+    def _twin(self, text: str, source: str) -> str:
+        return blocks.twin(text, dict(self.standard.values), source)
+
     # ------------------------------------------------------------------ item pages
 
     def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:
@@ -164,7 +196,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if not paths:
             return {}
         key = paths[0]
-        fragment = self._fragment(item.source_text, key.count("/"))
+        fragment = self._fragment(item.source_text, key.count("/"), summary.output_path)
         if self.hooks.item_decorator is not None:
             fragment = self.hooks.item_decorator(fragment, summary)
         entries = tuple(self._entries(site)) if self._depends_on_entries() else ()
@@ -179,7 +211,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             page = self._page("home", head, site, entries=entries, fragment=fragment)
             pages = {key: self._render(page)}
             if len(paths) > 1:
-                pages[paths[1]] = self._home_markdown(title, head.description, item.source_text).encode("utf-8")
+                pages[paths[1]] = self._home_markdown(title, head.description, self._twin(item.source_text, summary.output_path)).encode("utf-8")
             return pages
         entry = entry_for_summary(summary, self.standard, self.policy, self.hooks.derive)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
@@ -204,7 +236,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         pages = {key: self._render(page)}
         if len(paths) > 1:
             canonical = entry.canonical or self.head.absolute(entry.url)
-            pages[paths[1]] = item_markdown(entry, item.source_text, canonical).encode("utf-8")
+            pages[paths[1]] = item_markdown(entry, self._twin(item.source_text, summary.output_path), canonical).encode("utf-8")
         return pages
 
     def _home_markdown(self, title: str, description: str, source_text: str) -> str:
@@ -432,7 +464,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
             def render() -> bytes:
                 documents = (
-                    item_markdown(entry, site.load_item(entry.item_id).source_text, entry.canonical or self.head.absolute(entry.url))
+                    item_markdown(entry, self._twin(site.load_item(entry.item_id).source_text, entry.summary.output_path), entry.canonical or self.head.absolute(entry.url))
                     for entry in full_entries
                 )
                 return llms_full_txt(identity, documents, agents.llms_full_max_bytes).encode("utf-8")
@@ -545,7 +577,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             description = (configured.description if configured is not None else "") or self.standard.identity.description
             fragment = ""
             if intro is not None:
-                fragment = self._fragment(site.load_item(intro.item_id).source_text, view.url_for_page(view.page).count("/") - 1)
+                fragment = self._fragment(site.load_item(intro.item_id).source_text, view.url_for_page(view.page).count("/") - 1, intro.output_path)
                 title = entry_title(intro)
                 description = clipped(first_text(intro.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or description
             head = PageHead(title=title, path=view.url_for_page(view.page), description=description)
@@ -680,6 +712,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         sheets = list(base.stylesheets)
         if self.standard.components_css and COMPONENTS_CSS_PATH not in sheets:
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
+        if self.standard.islands is not None and self.standard.islands.stylesheet:
+            sheets.append(self.standard.islands.stylesheet)
         scripts = tuple(base.scripts) + ((NAV_SCRIPT_PATH,) if self.standard.nav_disclosure else ())
         if any(form.endpoint for form in self.standard.forms):
             scripts += (FORM_SCRIPT_PATH,)
@@ -706,6 +740,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return html_text.encode("utf-8")
 
     def _body(self, page: StandardPage, parts: BodyParts) -> str:
+        body = self._body_html(page, parts)
+        islands = self.standard.islands
+        if islands is not None and 'data-island="' in body:
+            suffix = f"?v={components.esc(self.version)}"
+            body += (
+                f'\n<script src="/{ISLANDS_RUNTIME_PATH}{suffix}"></script>'
+                f'\n<script type="module" src="/{components.esc(islands.script)}{suffix}"></script>'
+            )
+        return body
+
+    def _body_html(self, page: StandardPage, parts: BodyParts) -> str:
         if self.hooks.page_body is not None:
             custom = self.hooks.page_body(page)
             if custom is not None:
@@ -714,11 +759,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
         masthead = (
             self.hooks.masthead(page)
             if self.hooks.masthead is not None
-            else components.masthead(identity.name, self.standard.nav, page.path, tagline=identity.tagline, disclosure=self.standard.nav_disclosure)
+            else components.masthead(
+                identity.name, self.standard.nav, page.path, tagline=identity.tagline,
+                disclosure=self.standard.nav_disclosure, brand_html=self.standard.nav_brand_html,
+            )
         )
+        family = self.standard.footer_family
         footer_inner = (
             self.hooks.footer(page)
             if self.hooks.footer is not None
+            else family_footer(family, identity.name, self.standard.footer_text, self.standard.footer_columns)
+            if family is not None
             else (components.footer(self.standard.footer_columns, self.standard.footer_text) or self._settings.chrome.footer_html or f"<p>{components.esc(identity.name)}</p>")
         )
         main = "\n".join(part for part in (self._breadcrumbs_html(page), self._main_html(page)) if part)

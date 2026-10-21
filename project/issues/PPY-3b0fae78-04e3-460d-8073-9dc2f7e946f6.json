@@ -3,17 +3,25 @@
   "title": "Migrate Biblicus docs site onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2ad2e6be-1bb5-4986-afae-6836abec71ba",
+      "author": "home",
+      "text": "Done: Biblicus PR #96 merged, Docs run succeeded. papyrus-newsroom 5.1.0, anthus-markus >=0.13,<0.14, site-url set. 530/530 old URLs same status, sitemap 98 URLs, 404 page serves; 860 URLs compared, 0 blocking.",
+      "created_at": "2026-10-21T04:07:07.384276Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:18.268039Z",
-  "updated_at": "2026-10-21T00:48:18.268095Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T04:07:07.420447Z",
+  "closed_at": "2026-10-21T04:07:07.420416Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

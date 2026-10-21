@@ -109,3 +109,31 @@ Offline checks: owner-composed publication SDK/ASGI harness, new host and actual
 flow pytest modules, shared-control and controller TS checks, isolated Vite build,
 typecheck with a type-only missing-output declaration, focused ESLint and browser
 screenshots. The declaration provides no runtime Amplify outputs or credentials.
+
+## Production routes (PPY-58f107 phase A)
+
+`app/api/newsroom/curation/{context,publication,priming}` are Node route handlers
+(`lib/curation-routes.ts`) that sit between the References tab and a curation
+upstream, the central Cyclotron lab. They run no Python and hold no storage. Per
+request, in order: the upstream is configured (`PAPYRUS_CURATION_UPSTREAM_URL`,
+https, else 503 `curation_not_configured`); Origin matches and the body is JSON
+under 4 MB; the sealed Prospectus session has a selected account; Prospectus
+re-authorizes that account now; the three pins match the session account and the
+site publication (`PAPYRUS_CURATION_PUBLICATION_ID`, default the site brand id);
+the role grants the capability (priming imports and other mutations need
+`review`). The request is forwarded with the person's current access token (read
+from the cookie on that call), no redirects, a 15 s timeout and an 8 MB response
+cap. Before anything is returned the person is re-authorized again and the echoed
+pins and publication envelope must equal the request. Any failure is a refusal or
+a generic 503; the token is never returned or logged.
+
+`components/newsroom-curation-bootstrap.tsx` mounts `NewsroomCurationProvider`
+around the References view. It reads the Prospectus session, and only for a
+signed-in person with a selected account asks for `context`. Everything else
+leaves the provider empty, so the released CMS is unchanged.
+
+Nothing is activated by this code. Phase B needs separate approval: the upstream
+(lab priming routes, S3 priming storage authority, extraction worker and provider
+budget), `PAPYRUS_CURATION_UPSTREAM_URL` and `PAPYRUS_CURATION_PUBLICATION_ID` on
+the site (plus an `amplify.yml` export line), `cms.prospectusAccountsApiStageArn`
+(PPY-0c5242), and the site's Prospectus registration.

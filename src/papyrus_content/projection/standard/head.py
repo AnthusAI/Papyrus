@@ -28,6 +28,7 @@ class PageHead:
 
     title: str
     path: str                      # site path of the page, e.g. "/articles/x/"
+    headline: str = ""             # the JSON-LD headline when it differs from the title (a title template adds the site name)
     description: str = ""
     og_type: str = "website"
     image: str | None = None       # absolute URL or site path
@@ -139,7 +140,7 @@ class HeadBuilder:
         return "\n" + "\n".join(lines)
 
     def _article_json_ld(self, page: PageHead, url: str | None, image: str | None, description: str, title: str) -> dict:
-        data: dict = {"@context": "https://schema.org", "@type": page.json_ld_type, "headline": title}
+        data: dict = {"@context": "https://schema.org", "@type": page.json_ld_type, "headline": page.headline or title}
         if description:
             data["description"] = description
         if page.published:
