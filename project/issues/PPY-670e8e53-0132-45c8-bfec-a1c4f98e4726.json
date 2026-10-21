@@ -1,0 +1,38 @@
+{
+  "id": "PPY-670e8e53-0132-45c8-bfec-a1c4f98e4726",
+  "title": "Bump Cyclotron UI to ui-v0.2.3 and engine pin to v0.30.0",
+  "description": "Part of PPY-7227ac. Package ui-v0.2.3 (strings only); update tests asserting old strings; engine pin only if full CI stays green.",
+  "type": "chore",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-7227acea-e3f5-4bc2-b3c5-17f62568d49d",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "91c032de-5fc4-43b6-9acf-51cf18b691a6",
+      "author": "home",
+      "text": "ui-v0.2.3 in package.json + lockfile (integrity verified); engine pin 002e6f2 (v0.30.0) in pyproject/poetry.lock.",
+      "created_at": "2026-10-21T01:58:59.671317Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T01:42:23.606904Z",
+  "updated_at": "2026-10-21T01:58:59.671349Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
