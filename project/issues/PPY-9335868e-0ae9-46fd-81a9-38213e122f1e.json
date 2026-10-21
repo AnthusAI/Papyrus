@@ -1,0 +1,25 @@
+{
+  "id": "PPY-9335868e-0ae9-46fd-81a9-38213e122f1e",
+  "title": "Shadow sample: relevance cyclotron corpus key and a seeded spread sample for decide-relevance",
+  "description": "",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1dd7d0af-c74e-407a-9a65-c123d5b6f944",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T07:59:34.322587Z",
+  "updated_at": "2026-10-21T07:59:36.704327Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

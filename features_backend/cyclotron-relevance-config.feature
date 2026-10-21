@@ -32,6 +32,22 @@ Feature: Relevance cyclotron configuration
     When the steering config is loaded
     Then loading fails saying keys come from the environment
 
+  Scenario: The relevance cyclotron defaults to the canonical corpus
+    Given a steering config with a relevance cyclotron block
+    When the steering config is loaded
+    Then the relevance cyclotron decides the corpus "example"
+
+  Scenario: A publication points the relevance cyclotron at its own corpus
+    Given a steering config whose relevance cyclotron names the corpus "research"
+    When the steering config is loaded
+    Then the relevance cyclotron decides the corpus "research"
+    And the canonical topic set is still the corpus "example"
+
+  Scenario: A relevance corpus that is not configured is refused with the field named
+    Given a steering config whose relevance cyclotron names the corpus "missing"
+    When the steering config is loaded
+    Then loading fails naming "relevanceCyclotron.corpusKey"
+
   Scenario: Without a block there is no relevance cyclotron
     Given a steering config without a relevance cyclotron block
     When the steering config is loaded

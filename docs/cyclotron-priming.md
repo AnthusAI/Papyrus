@@ -64,6 +64,7 @@ relevanceCyclotron:
     localPath: "var/cyclotrons/papyrus-relevance"
     s3Prefix: "s3://<private media bucket>/cyclotrons/papyrus-relevance/"
   maxRequestsPerSweep: 200
+  corpusKey: "<corpus key>"   # optional: the corpus whose pending references it decides; default canonicalTopicSet.corpusKey
   reviewProgram:            # placeholders until the engine's review-rate experiments
     rates: [1.0, 0.5, 0.25, 0.1]
     auditShare: 0.05
@@ -125,7 +126,8 @@ a schedule. Each run:
    `out_of_scope` or `policy_exclusion` is `exclude`; other outcomes close the
    decision without a label. The editor's note is the explanation and the
    curation Message id is the review id, so a rerun records nothing twice.
-4. Decides every current pending reference of the canonical corpus and records
+4. Decides every current pending reference of the relevance corpus
+   (`relevanceCyclotron.corpusKey`, else the canonical corpus) and records
    each new decision as a `relevance_decision_is` relation. An unchanged
    reference keeps its decision without a model call.
 5. Records the `cyclotron-status/v1` snapshot
@@ -134,6 +136,27 @@ a schedule. Each run:
 
 The sweep never accepts, rejects or archives a reference. A reference an editor
 reopens to pending is decided again only when a new version is promoted.
+
+### Shadow-run sample
+
+To record decisions for a spread of a large pending queue before editors decide
+it, instead of the oldest N, draw a deterministic sample and decide it in batches:
+
+```bash
+# Dry run: draws the sample, lists it, writes the manifest (a local file); no model call, no write.
+papyrus references decide-relevance --sample 300 --seed 20261021 --sample-manifest sample.json
+# Batches (the same command each time): a reference with a current decision is skipped,
+# and one an editor has already decided is no longer pending, so it is left out.
+papyrus references decide-relevance --sample-list sample.json --max-count 30 --apply
+```
+
+The draw (`relevance_sample.py`) leaves out bulk housekeeping origins (the
+auto-created GROBID citation stubs; `--sample-include-housekeeping` tops the
+sample up from them) and test fixtures, splits the size evenly across intake
+origins, picks evenly spaced members of each origin's `importedAt` order from a
+seeded offset, and orders the picks by a seeded hash so any batch is itself a
+spread. Each decision's provenance records the policy, seed, pool fingerprint
+and selection fingerprint.
 
 ### What editors see
 
