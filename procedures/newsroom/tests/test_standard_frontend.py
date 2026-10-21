@@ -650,6 +650,13 @@ def test_the_logo_wall_is_accessible_and_safe(showcase):
     page = showcase.text("built-with/index.html")
     dom = Dom(page)
     assert dom.find("img", src="/assets/acme.svg", alt="Acme Gazette logo", loading="lazy")
+    # One link per tile: named by the visible name, described by the description (never in the alt text).
+    assert 'aria-labelledby="showcase-customer-' in page and 'aria-describedby="showcase-customer-' in page
+    assert re.search(r'<span class="markus-logo-name" id="showcase-customer-\d-name">Acme Gazette</span>', page)
+    assert re.search(r'<span class="markus-logo-description" id="showcase-customer-\d-description">Regional news and weather, published daily</span>', page)
+    assert "Regional news" not in "".join(re.findall(r'alt="[^"]*"', page))
+    assert re.search(r'<span class="markus-logo-text" id="showcase-anthus-0-name">Borealis Review</span><span class="markus-logo-description"', page)   # text-only tile: name is the mark
+    assert 'aria-describedby' not in page[page.index("Cedar Notes") - 200:page.index("Cedar Notes")]                # no description, no describedby
     assert dom.find("a", href="https://borealis.example.org", rel="noopener")      # a text fallback link without a logo
     assert dom.find("section", **{"aria-labelledby": "showcase-customer"})
     assert "javascript:" not in page and "Bad Link" not in page                    # unsafe URLs are skipped
