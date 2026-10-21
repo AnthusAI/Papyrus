@@ -77,6 +77,7 @@ class StandardEntry:
     listed: bool             # appears in listings, tag pages and feeds' selection
     tags: tuple[str, ...]
     link: str | None         # external target of a link-only item
+    derived: dict            # fields a site's ``derive`` hook computed from the item (a tier, a week); open for new shapes
 
     @property
     def slug(self) -> str:
@@ -100,12 +101,12 @@ class StandardEntry:
 
     def fingerprint(self, *, full: bool = False) -> list:
         """What a listing card renders from. ``full`` is for pages a hook composes: every field, plus the raw front matter."""
-        card = [self.key, self.title, self.summary_text, self.date, self.image, list(self.authors), self.link]
+        card = [self.key, self.title, self.summary_text, self.date, self.image, list(self.authors), self.link, self.derived]
         if not full:
             return card
         return card + [
             self.item_id, self.updated, self.type, self.canonical, self.feed_eligible, self.noindex, self.listed,
-            list(self.tags), self.section.name if self.section else None, self.summary.front_matter,
+            list(self.tags), self.section.name if self.section else None, self.summary.front_matter, self.derived,
         ]
 
 
@@ -115,16 +116,16 @@ def entry_title(summary: ItemSummary) -> str:
     return clipped(parsed or summary.page_title or summary.title or summary.slug.replace("-", " ").title(), 200)
 
 
-def build_entries(items, settings: StandardSettings, policy: UrlPolicy) -> list[StandardEntry]:
+def build_entries(items, settings: StandardSettings, policy: UrlPolicy, derive=None) -> list[StandardEntry]:
     entries = []
     for summary in items:
-        entry = entry_for_summary(summary, settings, policy)
+        entry = entry_for_summary(summary, settings, policy, derive)
         if entry is not None:
             entries.append(entry)
     return entries
 
 
-def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: UrlPolicy) -> StandardEntry | None:
+def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: UrlPolicy, derive=None) -> StandardEntry | None:
     if PurePosixPath(summary.output_path).name.startswith(("_", ".")):
         return None
     if settings.showcase is not None and summary.section == settings.showcase.section:
@@ -172,6 +173,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         listed=in_selection and section_listed,
         tags=tags_of(front_matter.get("tags")),
         link=link,
+        derived=dict(derive(summary) or {}) if derive is not None else {},
     )
 
 

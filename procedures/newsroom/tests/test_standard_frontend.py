@@ -615,3 +615,78 @@ def test_editing_a_showcase_item_rewrites_only_the_wall():
         assert written_keys(site) <= {"built-with/index.html"} and site.tree["built-with/index.html"] == before
     finally:
         site.cleanup()
+
+
+# ------------------------------------------------------------------ keyed listings, derived fields, grouping
+
+def test_week_groups_start_on_monday_and_month_groups_on_the_first():
+    from papyrus_content.projection.standard.grouping import group_key, group_label
+
+    assert group_key("2026-03-01", "week") == "2026-02-23"      # a Sunday belongs to the week that began on the Monday before
+    assert group_key("2026-03-02", "week") == "2026-03-02"
+    assert group_key("2026-03-31", "month") == "2026-03" and group_key("", "week") == ""
+    assert group_label("2026-03-02", "week") == "Week of March 2, 2026" and group_label("2026-03", "month") == "March 2026"
+
+
+ARCHIVE_SETTINGS = {
+    **fixture_settings("sectioned"),
+    "urls": {
+        "style": "directory",
+        "sections": {
+            "essays": {"label": "Essays", "groupBy": "week", "pageSize": 100, "archive": {"by": "month", "description": "Essays by month."}},
+            "notes": {},
+        },
+    },
+}
+
+
+@pytest.fixture(scope="module")
+def archived():
+    site = ProjectedSite(settings=ARCHIVE_SETTINGS, content=FIXTURES / "sectioned" / "content")
+    yield site
+    site.cleanup()
+
+
+def test_a_section_can_have_one_archive_page_per_month_present(archived):
+    assert "essays/archive/2026-03/index.html" in archived.tree
+    page = archived.text("essays/archive/2026-03/index.html")
+    assert "<title>Essays: March 2026" in page and 'content="Essays by month."' in page
+    assert "/essays/archive/2026-03/" in archived.text("sitemap-0.xml")
+    assert not any(key.startswith("notes/archive") for key in archived.tree)       # only sections that ask for one
+
+
+def test_listings_can_group_entries_by_week(archived):
+    headings = re.findall(r'<h2 id="group-[0-9-]+">(.*?)</h2>', archived.text("essays/index.html"))
+    assert headings == ["Week of March 16, 2026", "Week of March 9, 2026", "Week of March 2, 2026", "Week of February 23, 2026"]
+
+
+def test_a_new_month_adds_an_archive_page_and_an_edit_inside_a_month_rewrites_only_that_month():
+    from procedures.newsroom.tests.standard_frontend_support import edit_item, written_keys
+
+    site = ProjectedSite(settings=ARCHIVE_SETTINGS, content=FIXTURES / "sectioned" / "content")
+    try:
+        edit_item(site, "item-essays-fords", front_matter={"date": "2026-04-02"})
+        assert "essays/archive/2026-04/index.html" in site.tree and "essays/archive/2026-03/index.html" in site.tree
+        edit_item(site, "item-essays-fords", front_matter={"date": "2026-04-02"}, title="Fords, Again")
+        assert "essays/archive/2026-03/index.html" not in written_keys(site)
+        assert "essays/archive/2026-04/index.html" in written_keys(site)
+    finally:
+        site.cleanup()
+
+
+def test_a_derive_hook_adds_fields_that_hooks_and_fingerprints_see(tmp_path):
+    hooks = '''
+def derive(summary):
+    return {"tier": "long" if len(summary.front_matter.get("title", "")) > 12 else "short"}
+
+def card(entry, page):
+    return '<div class="c" data-tier="' + entry.derived["tier"] + '">' + entry.title + '</div>'
+'''
+    settings = {**ARCHIVE_SETTINGS, "hooks": "hooks.py"}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content", extra_files={"hooks.py": hooks})
+    try:
+        page = site.text("essays/index.html")
+        assert 'data-tier="short"' in page and 'data-tier="long"' in page
+        assert site.projector._entries(site.context.source.site_index())[0].derived["tier"] in ("long", "short")
+    finally:
+        site.cleanup()

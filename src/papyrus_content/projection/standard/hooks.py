@@ -13,6 +13,8 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
 ``page_body(page) -> str | None``   the whole body of a page (everything between ``<body>`` and the scripts);
                                     ``None`` keeps the default. ``page.kind`` says which page it is.
 
+``derive(summary) -> dict``         fields computed from an item's summary (a tier, a week); they appear as ``entry.derived``,
+                                    are part of every fingerprint, and are how a site's row or card component is chosen
 ``page`` is a :class:`papyrus_content.projection.standard.page.StandardPage`.
 
 A hook that takes ``page`` can read any entry, so by default every page depends on all of them. A module may narrow
@@ -30,7 +32,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-HOOK_NAMES = ("masthead", "footer", "card", "head_extra", "item_decorator", "page_body")
+HOOK_NAMES = ("masthead", "footer", "card", "head_extra", "item_decorator", "page_body", "derive")
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,7 @@ class Hooks:
     head_extra: object = None
     item_decorator: object = None
     page_body: object = None
+    derive: object = None
     fingerprint: str = ""
     depends_on: tuple[str, ...] | dict | None = None
 
