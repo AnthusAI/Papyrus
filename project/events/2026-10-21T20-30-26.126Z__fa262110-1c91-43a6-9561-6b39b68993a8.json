@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "fa262110-1c91-43a6-9561-6b39b68993a8",
+  "issue_id": "PPY-ca1f45b6-df3a-41f4-afb2-4d7499c7be45",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:26.126Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document mounting a projection on another site's CloudFront",
+    "description": "The hosting runbook (docs/site-hosting.md) gains a section for serving a projection with urls.basePath under a path of another site's CloudFront distribution: add the Papyrus edge distribution as a custom HTTPS origin, one cache behavior for <basePath>/* with caching disabled on the outer layer (CachingDisabled) and the AllViewerExceptHostHeader origin request policy, productionUrl set to the host origin so canonical links, feeds and the sitemap name the host, and the host reading <basePath>/_data/latest.json for a recent-posts strip. Works across AWS accounts because the outer distribution only talks HTTPS to the inner one.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

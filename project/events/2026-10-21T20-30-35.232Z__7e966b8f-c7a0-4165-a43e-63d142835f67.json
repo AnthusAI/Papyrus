@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "7e966b8f-c7a0-4165-a43e-63d142835f67",
+  "issue_id": "PPY-c0e46e60-af5a-4188-bd3d-33fba26af4d0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:35.232Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Headless article JSON and publish events for host sites",
+    "description": "Backlog. Per-article JSON (front matter fields plus the rendered body fragment) and a full index next to _data/latest.json, plus an event (EventBridge or webhook) when an article is published, changed or removed, so a server-rendered host app can render articles in its own components and revalidate only those pages. Alternative to mounting with a base path. Gherkin to be written when picked up.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

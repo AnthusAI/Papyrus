@@ -399,6 +399,9 @@ try {
     assert.equal(variables.PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER, "/papyrus/p-apyr-us/prospectus-session-sealing", `prospectus: ${branch.Properties.BranchName} session sealing parameter`);
     assert.equal("PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN" in variables, false, `prospectus: ${branch.Properties.BranchName} no secret ARN variable`);
     assert.equal(variables.PAPYRUS_PROSPECTUS_SITE_PRODUCT, "papyrus-p-apyr-us", `prospectus: ${branch.Properties.BranchName} site product`);
+    const expectedSiteOrigin = branch.Properties.BranchName === "main" ? "https://p.apyr.us" : undefined;
+    if (expectedSiteOrigin) assert.equal(variables.PAPYRUS_SITE_ORIGIN, expectedSiteOrigin, "prospectus: the production branch names its public origin from the site host");
+    assert.ok(variables.PAPYRUS_SITE_ORIGIN, `prospectus: ${branch.Properties.BranchName} has a public site origin`);
   }
   assert.equal(resourcesOfType(prospectusTemplate, "AWS::SecretsManager::Secret").length, 0, "prospectus: no Secrets Manager secret");
   const generatedParameters = resourcesOfType(prospectusTemplate, "Custom::SecureStringParameter");

@@ -10,9 +10,22 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0ece06f9-f657-427b-8567-1f96d54342bf",
+      "author": "home",
+      "text": "Scope change (Ryan, 2026-10-21, DataParade.anth.us implementation thread): the articles will also be served at dataparade.io/posts by mounting the projection on the dataparade.io CloudFront, so publishing never needs a dataparade.io redeploy. Papyrus side: epic PPY-116551 (urls.basePath, PPY-f8da7a). Data Parade side: PPY-be0f8d (serve under /posts), PPY-b63c46 (mount on dataparade.io, landing reads /posts/_data/latest.json), PPY-e19725 (move the five landing posts). Deploying dataparade.anth.us for testing is in scope; a dataparade.io deploy needs its owner's go-ahead.",
+      "created_at": "2026-10-21T20:30:59.688381Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
+    }
+  ],
   "created_at": "2026-10-21T16:54:14.133658Z",
-  "updated_at": "2026-10-21T16:54:16.874157Z",
+  "updated_at": "2026-10-21T20:30:59.688421Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

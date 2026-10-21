@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "9e9d0e81-0b4c-49e8-bf92-5ae0786f8a3e",
+  "issue_id": "PPY-f70d3243-9ce1-4640-a2b6-4cc2f2066c16",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:38.250Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Import a folder of Markdown or MDX posts into the newsroom",
+    "description": "Backlog. A papyrus ops command that imports Markdown/MDX files with front matter (title, description, date, author, tags) as published items, keeping their slugs so existing URLs keep working. First user: the five dataparade.io landing posts. Gherkin to be written when picked up.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

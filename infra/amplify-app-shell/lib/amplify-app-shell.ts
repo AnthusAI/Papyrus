@@ -177,6 +177,9 @@ export class AmplifyAppShellStack extends Stack {
     const stagingOrigin = stagingDomainName
       ? `https://${stagingDomainName}/`
       : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain, "/"]);
+    // The compute adapter's request URL is https://localhost:3000, so the site names its own public origin.
+    const productionSiteOrigin = cmsHostName ? `https://${cmsHostName}` : Fn.join("", ["https://main.", cmsApp.attrDefaultDomain]);
+    const stagingSiteOrigin = stagingDomainName ? `https://${stagingDomainName}` : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain]);
     const sharedRootDomain = config.cms.domainPrefix !== undefined;
     const defaultOriginsToAllow = [
       ...(config.cms.domainName ? [] : [productionOrigin]),
@@ -200,6 +203,7 @@ export class AmplifyAppShellStack extends Stack {
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
         PAPYRUS_SITE_BRAND: config.brand,
         SITE_ENV: "production",
+        PAPYRUS_SITE_ORIGIN: productionSiteOrigin,
         PAPYRUS_CONTENT_SOURCE: "published",
         ...(revalidateSecretParameterName ? { PAPYRUS_REVALIDATE_SECRET_PARAMETER: revalidateSecretParameterName } : {}),
         ...prospectusEnvironment,
@@ -222,6 +226,7 @@ export class AmplifyAppShellStack extends Stack {
           PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
           PAPYRUS_SITE_BRAND: config.brand,
           SITE_ENV: "staging",
+          PAPYRUS_SITE_ORIGIN: stagingSiteOrigin,
           ...stagingMode,
           ...prospectusEnvironment,
           NEXT_PUBLIC_PAPYRUS_STAGING_URL: stagingDomainName

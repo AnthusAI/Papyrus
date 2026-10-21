@@ -5,6 +5,7 @@ import { newsroomHref } from "./lib/newsroom-base-path";
 import { getReaderBasePath } from "./lib/reader-base-path";
 import { isStagingGatedPath, isStaticOrApiPath } from "./lib/staging-gated-path";
 import { getSiteEnv, isIndexable } from "./lib/site-env";
+import { SiteOriginNotConfiguredError, publicSiteUrl, siteOriginNotConfiguredResponse } from "./lib/site-origin";
 import { getStagingAccess } from "./lib/staging-gate";
 import {
   isPreviewGatedPath,
@@ -38,11 +39,11 @@ function routeRequest(request: NextRequest): NextResponse {
   }
 
   if (pathname === "/newsroom" || pathname === "/newsroom/") {
-    return NextResponse.redirect(new URL(`/${request.nextUrl.search}`, request.url));
+    return NextResponse.redirect(publicSiteUrl(`/${request.nextUrl.search}`, request));
   }
   if (pathname.startsWith("/newsroom/")) {
     const target = pathname.slice("/newsroom".length) || "/";
-    return NextResponse.redirect(new URL(`${target}${request.nextUrl.search}`, request.url));
+    return NextResponse.redirect(publicSiteUrl(`${target}${request.nextUrl.search}`, request));
   }
 
   if (pathname === "/" || pathname === "") {
@@ -59,6 +60,16 @@ function routeRequest(request: NextRequest): NextResponse {
 }
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
+  try {
+    return await handleRequest(request);
+  } catch (error) {
+    // Redirects name the site's public origin (request.url is localhost on Amplify); without it, fail closed.
+    if (error instanceof SiteOriginNotConfiguredError) return withRobotsHeader(siteOriginNotConfiguredResponse(error));
+    throw error;
+  }
+}
+
+async function handleRequest(request: NextRequest): Promise<NextResponse> {
   let sessionResponse: NextResponse | null = null;
   const { pathname } = request.nextUrl;
   const gated = isStaticPreviewEnabled()
@@ -68,7 +79,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     sessionResponse = NextResponse.next();
     const access = await getStagingAccess(request, sessionResponse);
     if (access === "anonymous") {
-      return withRobotsHeader(NextResponse.redirect(new URL(newsroomHref(), request.url)));
+      return withRobotsHeader(NextResponse.redirect(publicSiteUrl(newsroomHref(), request)));
     }
     if (access === "forbidden") {
       return withRobotsHeader(new NextResponse("Staging is limited to editors and admins.", { status: 403 }));
