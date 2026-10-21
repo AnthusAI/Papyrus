@@ -1,0 +1,31 @@
+# Example Ledger
+
+> Essays, field notes and links about rivers and walls.
+
+## Essays
+
+- [Fords and Crossings](https://ledger.example.org/essays/fords/index.md): Where roads meet rivers. (2026-03-22)
+- [Hedgerows](https://ledger.example.org/essays/hedgerows/index.md) (2026-03-15)
+- [Stone Walls](https://ledger.example.org/essays/stone-walls/index.md): Walls without mortar. (2026-03-08)
+- [Slow Water](https://ledger.example.org/essays/slow-water/index.md): How a river forgets its banks. (2026-03-01)
+
+## Notes
+
+- [Field Note Two](https://ledger.example.org/notes/field-note-two/index.md) (2026-03-09)
+- [Field Note One](https://ledger.example.org/notes/field-note-one/index.md): A short note. (2026-03-02)
+
+## Links
+
+- [Tide Tables](https://tides.example.net/) (2026-03-10)
+- [A Map Archive](https://maps.example.net/archive): Old maps, scanned. (2026-03-03)
+
+## Pages
+
+- [About the Ledger](https://ledger.example.org/about/index.md) (2026-01-01)
+
+## Optional
+
+- [RSS feed](https://ledger.example.org/feed.xml)
+- [Atom feed](https://ledger.example.org/atom.xml)
+- [Sitemap](https://ledger.example.org/sitemap-index.xml)
+- [Full content of this site in one file](https://ledger.example.org/llms-full.txt)

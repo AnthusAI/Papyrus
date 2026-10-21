@@ -8,7 +8,7 @@ const START_MARKER = "/*PAPYRUS_PATTERN_RULES*/";
 const END_MARKER = "/*END_PAPYRUS_PATTERN_RULES*/";
 
 type ProjectionRedirects = { patterns?: { pattern: string; to: string; status?: number; except?: string[] }[] };
-type ProjectionSettings = { urls?: { style?: string }; redirects?: ProjectionRedirects };
+type ProjectionSettings = { site?: unknown; urls?: { style?: string }; redirects?: ProjectionRedirects; agents?: { markdown?: boolean } };
 
 /**
  * The pattern rules a site declares in projection.json: its `redirects.patterns`, plus, for
@@ -27,21 +27,47 @@ export function edgeRulesFromSettings(settings: ProjectionSettings): EdgeRedirec
   return rules;
 }
 
-export function readEdgeRules(staticDir: string | undefined, baseDirectory: string = process.cwd()): EdgeRedirectRule[] {
-  if (staticDir === undefined) return [];
-  const settingsPath = resolve(baseDirectory, staticDir, "projection.json");
-  if (!existsSync(settingsPath)) return [];
-  return edgeRulesFromSettings(JSON.parse(readFileSync(settingsPath, "utf8")) as ProjectionSettings);
+/** A standard-front-end site publishes Markdown twins unless it turns `agents.markdown` off. */
+export function negotiatesMarkdown(settings: ProjectionSettings): boolean {
+  return settings.site !== undefined && settings.agents?.markdown !== false;
 }
 
-/** The CloudFront Function source with the site's pattern rules spliced in; the source unchanged when there are none. */
-export function compileRedirectFunctionSource(source: string, rules: EdgeRedirectRule[]): string {
+export type EdgeConfig = { rules: EdgeRedirectRule[]; negotiateMarkdown: boolean };
+
+export function readEdgeConfig(staticDir: string | undefined, baseDirectory: string = process.cwd()): EdgeConfig {
+  if (staticDir === undefined) return { rules: [], negotiateMarkdown: false };
+  const settingsPath = resolve(baseDirectory, staticDir, "projection.json");
+  if (!existsSync(settingsPath)) return { rules: [], negotiateMarkdown: false };
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as ProjectionSettings;
+  return { rules: edgeRulesFromSettings(settings), negotiateMarkdown: negotiatesMarkdown(settings) };
+}
+
+export function readEdgeRules(staticDir: string | undefined, baseDirectory: string = process.cwd()): EdgeRedirectRule[] {
+  return readEdgeConfig(staticDir, baseDirectory).rules;
+}
+
+const NEGOTIATE_START = "/*PAPYRUS_NEGOTIATE_MARKDOWN*/";
+const NEGOTIATE_END = "/*END_PAPYRUS_NEGOTIATE_MARKDOWN*/";
+
+/** The CloudFront Function source with the site's pattern rules and Markdown negotiation flag spliced in. */
+export function compileRedirectFunctionSource(
+  source: string,
+  rules: EdgeRedirectRule[],
+  options: { negotiateMarkdown?: boolean } = {},
+): string {
   const start = source.indexOf(START_MARKER);
   const end = source.indexOf(END_MARKER);
   if (start === -1 || end === -1 || end < start) {
     throw new Error("redirect function source has no pattern-rule markers");
   }
-  if (rules.length === 0) return source;
-  const literal = JSON.stringify(rules);
-  return source.slice(0, start + START_MARKER.length) + literal + source.slice(end);
+  let compiled = rules.length === 0 ? source : source.slice(0, start + START_MARKER.length) + JSON.stringify(rules) + source.slice(end);
+  if (options.negotiateMarkdown === true) {
+    const from = compiled.indexOf(NEGOTIATE_START);
+    const to = compiled.indexOf(NEGOTIATE_END);
+    if (from === -1 || to === -1 || to < from) {
+      throw new Error("redirect function source has no markdown negotiation markers");
+    }
+    compiled = compiled.slice(0, from + NEGOTIATE_START.length) + "true" + compiled.slice(to);
+  }
+  return compiled;
 }

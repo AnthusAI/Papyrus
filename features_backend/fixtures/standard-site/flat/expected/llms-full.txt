@@ -1,0 +1,85 @@
+# Example Almanac
+
+---
+
+# Fungi Underground
+
+> The network beneath the forest floor.
+
+Published 2026-02-16
+
+Canonical: https://almanac.example.org/fungi.html
+
+Mycelium connects roots.
+
+---
+
+# Algae on the Pond
+
+Published 2026-02-09
+
+Canonical: https://almanac.example.org/algae.html
+
+This note stays out of the feeds but keeps its page.
+
+---
+
+# Lichen is Two Things
+
+> A fungus and an alga living together.
+
+Published 2026-02-02
+
+Canonical: https://almanac.example.org/lichen.html
+
+Lichen is a partnership.
+
+---
+
+# A Closer Look at Moss
+
+By Ada Fern, Bo Reed · Published 2026-01-19
+
+Canonical: https://almanac.example.org/moss.html
+
+Moss has no roots, only rhizoids.
+
+---
+
+# Ferns in Winter
+
+> What ferns do when it is cold.
+
+Published 2026-01-12 · Updated 2026-02-01
+
+Canonical: https://almanac.example.org/ferns.html
+
+Ferns keep their fronds under snow.
+
+---
+
+# Orchids of the Marsh
+
+> A short guide to marsh orchids.
+
+By Ada Fern · Published 2026-01-05
+
+Canonical: https://almanac.example.org/orchids.html
+
+Marsh orchids flower in June. They like wet ground.
+
+## Where to look
+
+Along the edges of slow water.
+
+---
+
+# About the Almanac
+
+> Who writes the almanac.
+
+Published 2026-01-01
+
+Canonical: https://almanac.example.org/about.html
+
+The almanac is written by a small group of volunteers.

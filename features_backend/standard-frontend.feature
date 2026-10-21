@@ -19,7 +19,7 @@ Feature: The standard Markus front end
   Scenario: Editing only the body writes only the article
     Given the standard flat fixture site
     When the body of the standard item "item-orchids" is edited and projected
-    Then the standard site wrote exactly "orchids.html"
+    Then the standard site wrote exactly "orchids.html, orchids.md, llms-full.txt"
 
   Scenario: Retitling an article rewrites its listings, tag pages, feeds and search data
     Given the standard flat fixture site
@@ -58,3 +58,24 @@ Feature: The standard Markus front end
     And the standard entry date of "'September 6, 2026'" is "2026-09-06"
     And the standard entry date of "2026-09-06" is "2026-09-06"
     And the standard entry date of "last Tuesday" is blank
+
+  Scenario: Every page has a Markdown twin and the site has llms.txt
+    Given the standard flat fixture site
+    Then the standard site has these pages: "orchids.md, index.md, archive/index.md, llms.txt, llms-full.txt"
+    And the standard page "orchids.html" says "text/markdown"
+    And the standard page "orchids.html" says "/orchids.md"
+    And the standard page "llms.txt" says "# Example Almanac"
+    And the standard page "llms.txt" says "(https://almanac.example.org/orchids.md)"
+    And the standard page "llms-full.txt" says "Marsh orchids flower in June"
+    And the standard site lacks these pages: "404.md, cycads.md"
+
+  Scenario: Unpublishing withdraws the Markdown twin and the llms entries
+    Given the standard flat fixture site
+    When the standard item "item-moss" is unpublished and projected
+    Then the standard site lacks these pages: "moss.md"
+    And the standard page "llms.txt" does not say "moss.md"
+    And the standard page "llms-full.txt" does not say "no roots"
+
+  Scenario: A guarded environment publishes no llms files
+    Given the standard flat fixture site served from "https://staging.example.org"
+    Then the standard site lacks these pages: "llms.txt, llms-full.txt"
