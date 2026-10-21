@@ -737,3 +737,15 @@ def test_the_listing_goes_where_the_introduction_asks(tmp_path):
         assert "{{ section listing }}" not in listing
     finally:
         site.cleanup()
+
+
+def test_a_body_class_hook_adds_classes_per_page(tmp_path):
+    hooks = tmp_path / "hooks.py"
+    hooks.write_text("def body_class(page):\n    return 'is-' + page.kind\n", encoding="utf-8")
+    settings = minimal(hooks="hooks.py", chrome={"body_class": "site"})
+    site = ProjectedSite(settings=settings, extra_files={"hooks.py": hooks.read_text()}, content=FIXTURES / "flat" / "content")
+    try:
+        assert '<body class="site is-home">' in site.text("index.html")
+        assert '<body class="site is-item">' in site.text("orchids.html")
+    finally:
+        site.cleanup()
