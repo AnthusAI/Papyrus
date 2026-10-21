@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { schema } from "../amplify/data/schema";
+import { firstPipRequirements } from "../amplify/functions/shared/python-bundle";
 import { MONITORING_VIEW_TIMEOUT_SECONDS } from "../amplify/functions/monitoring-view/resource";
 import {
   MONITORING_TABLE_PARAMETER,
@@ -28,5 +29,10 @@ assert.deepEqual(arns, [
 assert.ok(arns.every((arn) => arn.includes("papyrus-monitoring-MonitoringTable-")), "scoped to the monitoring stack's table");
 assert.equal(MONITORING_TABLE_PARAMETER, "/papyrus/monitoring/table-name");
 assert.equal(monitoringViewParameterArn("us-east-1", "712236451410"), "arn:aws:ssm:us-east-1:712236451410:parameter/papyrus/monitoring/table-name");
+
+// A function with no dependencies of its own (this one) must not hand pip an empty requirement list; that failed the first site build.
+assert.deepEqual(firstPipRequirements({ noDeps: true }), []);
+assert.deepEqual(firstPipRequirements({ noDeps: true, requirements: ["humanus[jev]>=0.33,<0.34"] }), ["humanus[jev]>=0.33,<0.34"]);
+assert.equal(firstPipRequirements({}).length, 1, "with dependencies, papyrus-newsroom itself is the requirement");
 
 console.log("monitoring view backend: ok");
