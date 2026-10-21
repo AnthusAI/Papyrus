@@ -247,7 +247,7 @@ def template():
 def test_template_inventory(template):
     assert {r["Type"] for r in template.values()} == {
         "AWS::DynamoDB::Table", "AWS::Logs::LogGroup", "AWS::IAM::Role", "AWS::Lambda::Function",
-        "AWS::SQS::Queue", "AWS::Scheduler::Schedule", "AWS::CloudWatch::Alarm"}
+        "AWS::SQS::Queue", "AWS::Scheduler::Schedule", "AWS::CloudWatch::Alarm", "AWS::Lambda::EventInvokeConfig"}
 
 
 def test_template_function_and_schedule(template):
