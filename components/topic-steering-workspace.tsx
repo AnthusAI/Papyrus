@@ -89,6 +89,7 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
+import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
@@ -3115,6 +3116,7 @@ function NewsDeskDashboard({
           />
         ) : null}
         {activeTab === "references" ? (
+          <NewsroomCurationBootstrap enabled={!dashboard.isDemo}>
           <NewsroomReferencesView
             demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
@@ -3152,6 +3154,7 @@ function NewsDeskDashboard({
             referenceAttachments={referenceAttachments}
             references={references}
           />
+          </NewsroomCurationBootstrap>
         ) : null}
         {activeTab === "messages" ? (
           <MessagesDeskView
