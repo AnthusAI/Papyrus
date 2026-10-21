@@ -3,7 +3,7 @@
   "title": "Core: urls.style clean (extensionless URLs) and islands.prerender (server-rendered island HTML)",
   "description": "Needed by the Cyclotron-web migration (PPY-c6cabf): the live site serves /x for x.html, and its React islands ship server-rendered HTML that the browser hydrates.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -20,8 +20,8 @@
     }
   ],
   "created_at": "2026-10-21T03:34:13.110638Z",
-  "updated_at": "2026-10-21T10:57:07.308091Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T10:57:29.666078Z",
+  "closed_at": "2026-10-21T10:57:29.666Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

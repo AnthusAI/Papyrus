@@ -3,7 +3,7 @@
   "title": "Migrate Cyclotron marketing site (Cyclotron-web): standard header/footer and Markus prose",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -20,8 +20,8 @@
     }
   ],
   "created_at": "2026-10-21T00:48:30.970772Z",
-  "updated_at": "2026-10-21T10:57:06.778935Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T10:57:29.199135Z",
+  "closed_at": "2026-10-21T10:57:29.198385Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
