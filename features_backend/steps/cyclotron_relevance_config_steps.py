@@ -12,7 +12,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content.relevance_cyclotron import build_relevance_cyclotron  # noqa: E402
-from papyrus_content.steering import load_steering_config  # noqa: E402
+from papyrus_content.steering import load_steering_config, relevance_corpus_key  # noqa: E402
 
 BASE = {
     "schemaVersion": 1,
@@ -125,6 +125,26 @@ def step_bad_positive(context):
 def step_key_in_config(context):
     before_each(context)
     write_config(context, {**BLOCK, "decisionModel": {"provider": "jev", "apiKey": "do-not-commit"}})
+
+
+@given('a steering config whose relevance cyclotron names the corpus "{corpus_key}"')
+def step_relevance_corpus(context, corpus_key):
+    before_each(context)
+    raw = {**BASE, "corpora": [*BASE["corpora"], {"key": "research", "name": "research", "role": "source"}],
+           "relevanceCyclotron": {**BLOCK, "corpusKey": corpus_key}}
+    context.config_path = Path(context.tmp_dir) / "steering.yml"
+    context.config_path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+
+@then('the relevance cyclotron decides the corpus "{corpus_key}"')
+def step_decides_corpus(context, corpus_key):
+    assert context.error is None, context.error
+    assert relevance_corpus_key(context.loaded) == corpus_key
+
+
+@then('the canonical topic set is still the corpus "{corpus_key}"')
+def step_canonical_unchanged(context, corpus_key):
+    assert context.loaded["canonicalTopicSet"]["corpusKey"] == corpus_key
 
 
 @given("a steering config without a relevance cyclotron block")

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dc5f122f-6044-40fe-89b0-7de0d02a6e64",
+  "issue_id": "PPY-9335868e-0ae9-46fd-81a9-38213e122f1e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T07:59:34.322Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shadow sample: relevance cyclotron corpus key and a seeded spread sample for decide-relevance",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1dd7d0af-c74e-407a-9a65-c123d5b6f944",
+    "labels": []
+  }
+}

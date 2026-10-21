@@ -3,17 +3,25 @@
   "title": "Migrate Cyclotron marketing site (Cyclotron-web): standard header/footer and Markus prose",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "79433363-1767-4515-b8a6-214092c5ada1",
+      "author": "home",
+      "text": "Migrated and live. Approach: full migration to a standard Papyrus site (web/projection.json, web/hooks.py, Markdown content, React islands rendered to HTML at build time and hydrated). Core: AnthusAI/Papyrus#443 (urls.style clean, islands.prerender, div wordmark), released in papyrus-newsroom 5.6.0, pinned. Site PR AnthusAI/Cyclotron-web#143 (merged to develop; local npm run ci passed: 255 site tests, infra, editorial, hooks), promoted via #144 to main; cyclotron-marketing pipeline execution 4162270d (account 682849160744, profile cyclotron-production, asserted) Succeeded. Parity vs live crawl, 32 URLs: all 200, main text identical on 31 (one whitespace-only), links identical, head identical except allow-listed (guide og:type article, article og/twitter title carries site name, added feeds/sitemap/llms/md twins/image size). Visual 1440/390: page bodies and header 0.00% differing pixels on 23 of 30 compared pages, max 0.69% (anti-aliasing) on use-case pages; footer is the Papyrus family footer by design; /editorial-evaluation gains header and footer (live page had none). Live verified after deploy: all 32 URLs, sitemap.xml (32 URLs), robots.txt, llms.txt, feeds, md twins, 404, no console errors, screenshots match pre-migration.",
+      "created_at": "2026-10-21T10:57:06.778912Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:30.970772Z",
-  "updated_at": "2026-10-21T00:48:30.970823Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T10:57:29.199135Z",
+  "closed_at": "2026-10-21T10:57:29.198385Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

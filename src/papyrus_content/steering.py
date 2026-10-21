@@ -39,6 +39,11 @@ def default_corpus_key(config_path: str | None = None) -> str:
     return require_steering_config(config_path)["canonicalTopicSet"]["corpusKey"]
 
 
+def relevance_corpus_key(config: dict[str, Any]) -> str:
+    """The corpus whose pending references the relevance cyclotron decides: its own key, else the canonical one."""
+    return (config.get("relevanceCyclotron") or {}).get("corpusKey") or config["canonicalTopicSet"]["corpusKey"]
+
+
 def require_steering_config(config_path: str | None = None) -> dict[str, Any]:
     config = load_steering_config(config_path)
     if config is None:
@@ -71,6 +76,9 @@ def normalize_steering_config(raw_config: Any, config_path: str) -> dict[str, An
 
     publication = raw_config.get("publication") or {}
     relevance_cyclotron = normalize_relevance_cyclotron_config(raw_config.get("relevanceCyclotron"))
+    relevance_corpus_key = (relevance_cyclotron or {}).get("corpusKey")
+    if relevance_corpus_key and not any(corpus["key"] == relevance_corpus_key for corpus in normalized_corpora):
+        raise ValueError(f"relevanceCyclotron.corpusKey does not match a configured corpus: {relevance_corpus_key}")
     return {
         "configPath": config_path,
         "schemaVersion": 1,

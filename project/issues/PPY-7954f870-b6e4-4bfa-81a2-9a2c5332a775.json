@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7954f870-b6e4-4bfa-81a2-9a2c5332a775",
+  "title": "Core: edge-served redirects for urls.style clean (alias and slug-rename redirects target /x.html)",
+  "description": "engine.py renames and CMS alias redirects use request_paths_for_key, which gives /x.html for a clean-style page. Use UrlPolicy.url_for_key.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T10:57:08.805654Z",
+  "updated_at": "2026-10-21T10:57:08.805687Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
