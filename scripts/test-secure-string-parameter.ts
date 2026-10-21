@@ -4,8 +4,8 @@
  */
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { App, Stack } from "../infra/amplify-app-shell/node_modules/aws-cdk-lib";
-import { Template } from "../infra/amplify-app-shell/node_modules/aws-cdk-lib/assertions";
+import { App, Stack } from "aws-cdk-lib";
+import { Template } from "aws-cdk-lib/assertions";
 import { SecureStringParameter } from "../infra/amplify-app-shell/lib/secure-string-parameter";
 import { SECURE_STRING_PARAMETER_HANDLER_SOURCE } from "../infra/amplify-app-shell/lib/secure-string-parameter-handler";
 
