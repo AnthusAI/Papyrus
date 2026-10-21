@@ -3,7 +3,7 @@
   "title": "Plan Anth.us-web migration from custom homepage assembly to authored pages",
   "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nFuture implementation-design task supporting behavior stories PPY-c08790af-4c51-4c9d-a7ae-7a3346504bb2 and PPY-b6ede164-fad8-45da-a242-51362c5f8285. Reuse the existing all-sites Papyrus dogfooding epic rather than starting a parallel migration program. Current verified source baseline is AnthusAI/Anth.us-web main 5ce142cab725cbf27e30ee15cb4904dc282da0d7; homepage content is custom Python HTML assembly in web/anthus_pages.py, with build_via_papyrus.py shell wrapping and projector.py fragment-digest incremental invalidation. Do not confuse the older default develop/local homepage with main.\n\nPrepare an inventory and parity plan for authored homepage copy, ordinary path pages, embedded article/post and other collection listings, current selection semantics, links/assets/heading anchors, canonical/OG/social/SEO metadata and visual brand. Specify what moves into editable Markus composition versus reusable construct behavior versus theme-owned outer chrome. Preserve `/`, current product and documentation routes, redirects, content and design; `/features` and `/wiki` are ordinary subtrees of one system, not separate engines. Resolve mapping from current tag-based lists to supported item/issue-type and featured selection without silently changing membership, sort or limits.\n\nDesign compatibility with shared Help/docs PPY-9ad680, construct-derived reverse index and post-save PPY-defff0. Replace custom content assembly only after the shared design can express it and parity is verified; define handling of unsupported custom queries explicitly. Package/extension ownership, syntax, storage/path fields, orchestration, atomicity, migration/cutover and rollback specifics remain design choices. No new repository, new type without concrete need, code conversion, publication, production cutover or deployment in this planning task.\n\nFinal agreed authoring direction, planning only: “include” is the working construct name, not approved concrete syntax. It supports inclusion of a single page or a selected list. “Collection” means a selection of content, not a new storage object. On page/content save or compile, the supported pipeline scans/parses include constructs, updates the generated site-wide dependency index, and actually uses that index to regenerate affected pages; merely recording dependencies is incomplete. Reuse each include's rendering selection as the sole source of invalidation selection, with separate enforced publication/access/published gates. Nested/transitive includes, cycles, deduplication, edits/deletion and retries require observable behavior, not arbitrary-code inference.\n\nRSS/Atom feed eligibility is distinct from page existence, include membership and navigation. An ordinary static wiki/help or product page does not automatically become a feed entry. Define shared feed selection/metadata and editorial eligibility without building a separate page or wiki engine. Exact include syntax, extension ownership and selection schema remain design questions; current Anth.us custom Python homepage code is evidence of a migration gap, not proof the proposed include construct is shipped.\n\nDetailed include BDD: PPY-b6ede164-fad8-45da-a242-51362c5f8285. Author/operator documentation behavior: PPY-01b5e07f-773e-407f-9057-941f4e4c5a0c. Review must trace these scenarios through actual public output changes and failure recovery when implemented; documentation presence or an index write alone is insufficient.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,25 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "95826051-ab44-4a34-bbef-b916a2f98cf5",
+      "author": "home",
+      "text": "Decision (PPY-e8db7c, Papyrus 5.7.0, PR #440). Include construct, minimal: ::include{kind=listing|showcase|form|block} in an authored page (a pages entry with source; path empty = home). A listing is a selection (sections, tags any, allTags, notTags; or collection=) with sort, ties, skip, count, card variant, wrapper. The selection an include renders from is the page dependency: the page digest holds the full fingerprints of exactly the entries shown, so incremental projection rewrites the page when they change and not otherwise; blocks declare depends=. Collections are selections, not storage. Unsupported custom queries are a named block hook with declared depends. ::raw...::endraw (verbatim HTML) is allowed only in page files of the static directory, never in CMS items. Anth.us is live on it (parity 0 blocking on 1107 live URLs).",
+      "created_at": "2026-10-21T11:52:56.474013Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "c5432d30-7092-4d99-8e77-a5f049f58f8c",
+      "author": "home",
+      "text": "Decision (PPY-e8db7c, Papyrus 5.7.0, PR #440). Include construct, minimal: ::include{kind=listing|showcase|form|block} in an authored page (a pages entry with source; path empty = home). A listing is a selection (sections, tags any, allTags, notTags; or collection=) with sort, ties, skip, count, card variant, wrapper. The selection an include renders from is the page dependency: the page digest holds the full fingerprints of exactly the entries shown, so incremental projection rewrites the page when they change and not otherwise; blocks declare depends=. Collections are selections, not storage. Unsupported custom queries are a named block hook with declared depends. ::raw/::endraw (verbatim HTML) is allowed only in page files of the static directory, never in CMS items. Anth.us is live on it (parity 0 blocking on 1107 live URLs).",
+      "created_at": "2026-10-21T11:53:02.666404Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-20T02:53:27.625624Z",
-  "updated_at": "2026-10-20T03:11:34.513924Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T11:53:02.666428Z",
+  "closed_at": "2026-10-21T11:52:56.624736Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
