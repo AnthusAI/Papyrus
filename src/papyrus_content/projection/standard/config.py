@@ -319,6 +319,7 @@ DIRECTORY_SLASH_PATTERN = r"^/((?:[^/]+/)*[^/.]+)$"
 class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
+    base_path: str = ""     # urls.basePath without slashes: every generated key and URL lives under it ("" is the root)
     sections: tuple[SectionConfig, ...] = ()
     collections: tuple[CollectionConfig, ...] = ()
     not_found: NotFoundSettings = field(default_factory=NotFoundSettings)
@@ -420,10 +421,13 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             raise ValueError(f"site.dateFormat is not a valid strftime pattern: {error}") from error
 
     urls = dict(raw.get("urls") or {})
-    _only(urls, {"style", "sections"}, "urls")
+    _only(urls, {"style", "sections", "basePath"}, "urls")
     style = urls.get("style", "html")
     if style not in URL_STYLES:
         raise ValueError(f"urls.style must be one of {URL_STYLES}")
+    base_path = _path_segment(str(urls.get("basePath") or ""), "urls.basePath")
+    if base_path and ("images" in raw or "media" in raw):
+        raise ValueError("urls.basePath does not work with images or media yet: their renditions are written at the bucket root")
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
@@ -746,6 +750,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     return StandardSettings(
         identity=identity,
         url_style=style,
+        base_path=base_path,
         sections=tuple(sections),
         collections=tuple(collections),
         not_found=not_found,

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "520ddf65-dce7-433c-91c0-04bd22d4939e",
+  "issue_id": "PPY-be0f8d24-ef45-4f35-883f-87dab1b61350",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-21T20:49:06.179Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "bb4a5453-d981-4700-b742-59e65d8be087",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

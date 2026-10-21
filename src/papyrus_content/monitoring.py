@@ -1,4 +1,9 @@
-"""Bounded HN collection through existing intake; never curates or trains."""
+"""Bounded monitor collection through existing intake; never curates or trains.
+
+A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, or the USPTO TTAB
+Reading Room's decision search. Each type turns its source into `SourceItem`s; everything after
+that (fingerprints, revisions, routing, intake) is shared.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,7 +22,10 @@ from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 HN_FEED = "https://news.ycombinator.com/rss"
+TTAB_DECISIONS_URL = "https://ttab-reading-room.uspto.gov/ttab-efoia-api/decision/search"
+TTAB_DOCUMENT_ROOT = "https://ttab-reading-room.uspto.gov/ttab-document"
 MAX_FEED_BYTES = 2_000_000
+USER_AGENT = "Papyrus-Monitor/0.2 (+https://github.com/AnthusAI/Papyrus)"
 
 
 def canonical_url(value: str) -> str:
@@ -44,6 +52,7 @@ class SourceItem:
     canonical_url: str
     source_item_url: str
     published_at: str | None
+    media_type: str = "text/html"
 
     @property
     def fingerprint(self) -> str:
@@ -60,6 +69,8 @@ class Monitor:
     interval_seconds: int = 900
     limit: int = 10
     source_ids: tuple[str, ...] = ()
+    source_url: str = HN_FEED
+    source_name: str = "Hacker News"
 
     def __post_init__(self):
         endpoint = urlsplit(self.endpoint)
@@ -74,7 +85,7 @@ class Monitor:
     @property
     def binding(self) -> dict:
         return {"monitorId": self.id, "publication": self.publication, "corpusId": self.corpus_id,
-                "endpoint": self.endpoint, "sourceUrl": HN_FEED}
+                "endpoint": self.endpoint, "sourceUrl": self.source_url}
 
 
 def parse_hn_feed(body: bytes) -> list[SourceItem]:
@@ -110,12 +121,77 @@ def parse_hn_feed(body: bytes) -> list[SourceItem]:
 
 
 def fetch_hn_feed(url: str = HN_FEED) -> bytes:
-    request = Request(url, headers={"User-Agent": "Papyrus-Monitor/0.1", "Accept": "application/rss+xml, application/xml"})
+    request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/rss+xml, application/xml"})
     with urlopen(request, timeout=25) as response:
         body = response.read(MAX_FEED_BYTES + 1)
     if len(body) > MAX_FEED_BYTES:
         raise ValueError("HN feed exceeds the response size bound")
     return body
+
+
+def ttab_search_body(now: float, lookback_days: int, limit: int) -> bytes:
+    """The Reading Room search for decisions issued in the last `lookback_days`, newest first.
+
+    The date filter key is `decisionDate`, but sorting must use `issueDate`: sorting by
+    `decisionDate` silently returns nothing.
+    """
+    end = datetime.fromtimestamp(now, timezone.utc).date()
+    start = datetime.fromtimestamp(now - lookback_days * 86400, timezone.utc).date()
+    return json.dumps({"dateRangeData": {"decisionDate": {"from": start.isoformat(), "to": end.isoformat()}},
+                       "facetData": {}, "parameterData": {}, "recordTotalQuantity": limit, "searchText": "",
+                       "sortDataBag": [{"issueDate": "desc"}], "recordStartNumber": 0}).encode()
+
+
+def fetch_ttab_decisions(url: str, body: bytes) -> bytes:
+    request = Request(url, data=body, method="POST",
+                      headers={"User-Agent": USER_AGENT, "Content-Type": "application/json", "Accept": "application/json"})
+    with urlopen(request, timeout=25) as response:
+        payload = response.read(MAX_FEED_BYTES + 1)
+    if len(payload) > MAX_FEED_BYTES:
+        raise ValueError("TTAB decision search exceeds the response size bound")
+    return payload
+
+
+def parse_ttab_decisions(body: bytes, *, final_decisions_only: bool = True) -> list[SourceItem]:
+    """One item per decision document. A redesignation as precedential changes the title,
+    so the decision is collected again as a new revision."""
+    if len(body) > MAX_FEED_BYTES:
+        raise ValueError("TTAB decision search response is oversized")
+    try:
+        payload = json.loads(body)
+    except ValueError as error:
+        raise ValueError("TTAB decision search did not return JSON") from error
+    if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+        raise ValueError("Expected a TTAB decision search result, not an error response")
+    items, seen = [], set()
+    for row in payload["results"]:
+        document = str(row.get("documentId") or "")
+        proceeding = str(row.get("proceedingNumber") or "")
+        party, decision = str(row.get("partyName") or "").strip(), str(row.get("decision") or "").strip()
+        if not document.startswith("/legal-proceeding/") or not document.endswith(".pdf") or not proceeding.isdigit() or not party:
+            raise ValueError("TTAB decision is missing its document, proceeding number or party")
+        if final_decisions_only and row.get("decisionTypeCategory") != "Final Decision":
+            continue
+        source_id = f"{proceeding}-{document.rsplit('/', 1)[-1].removesuffix('.pdf')}"
+        if source_id in seen:
+            continue
+        seen.add(source_id)
+        precedential = " [precedential]" if row.get("precedentCitableIndicator") == "Y" else ""
+        kind = str(row.get("proceedingTypeCd") or "").strip()
+        issued = row.get("issueDate")
+        published = _iso(issued / 1000) if isinstance(issued, (int, float)) else None
+        title = " ".join(f"{party}: {decision}{precedential}".split())[:1000]
+        items.append(SourceItem(source_id, title, f"{TTAB_DOCUMENT_ROOT}{document}",
+                                f"https://ttabvue.uspto.gov/ttabvue/v?pno={proceeding}&pty={kind}", published,
+                                "application/pdf"))
+    return items
+
+
+#: Source types a monitor can read: the hosts its sourceUrl may name, its display name and how to read it.
+SOURCE_TYPES = {
+    "hn-rss": {"host": "news.ycombinator.com", "name": "Hacker News", "media": "rss"},
+    "ttab-decisions": {"host": "ttab-reading-room.uspto.gov", "name": "TTAB Reading Room", "media": "json-search"},
+}
 
 
 def collect(monitor: Monitor, intake: Callable[[SourceItem, dict], dict], *,

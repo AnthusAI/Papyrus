@@ -76,6 +76,9 @@ class FakeTable:
 
     def delete_item(self, Key, ConditionExpression=None, ExpressionAttributeNames=None, ExpressionAttributeValues=None):
         existing = self.items.get((Key["pk"], Key["sk"]))
+        if ConditionExpression is None:
+            self.items.pop((Key["pk"], Key["sk"]), None)
+            return
         if not existing or existing["owner"] != ExpressionAttributeValues[":owner"]:
             raise Conditional()
         del self.items[(Key["pk"], Key["sk"])]
@@ -642,6 +645,13 @@ def test_router_role_is_least_privilege():
     assert not any(f.startswith(("delete", "update")) and f != "updateReferenceAttachment" for f in fields)
     assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}"}
     assert all(len([r for r in resources if f"${{{p}}}" in r]) == len(fields) for p in ("AnthUsApiId", "PapyrusApiId", "ThreatIntelApiId"))
+    distinctive = template["Resources"]["RouterDistinctiveIntakePolicy"]["Properties"]
+    assert distinctive["Roles"] == [("Ref", "RouterRole")]
+    (statement,) = distinctive["PolicyDocument"]["Statement"]
+    assert statement["Action"] == "appsync:GraphQL"
+    distinctive_resources = [r[1] for r in statement["Resource"]]
+    assert {r.split("apis/")[1].split("/")[0] for r in distinctive_resources} == {"${DistinctiveApiId}"}
+    assert {r.rsplit("/", 1)[1] for r in distinctive_resources} == fields and "*" not in "".join(distinctive_resources)
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
@@ -677,3 +687,67 @@ def test_seed_script_sets_and_clears_ceilings():
     for bad in ("300", "decisionsTotal=many", "=5"):
         with pytest.raises(ValueError):
             seed.coerce("ceilings", bad)
+
+
+# --- not-ready outputs (criteria_pending) --------------------------------------------------------------
+
+def test_not_ready_binding_must_not_halt_the_sweep(table):
+    """Reproduces the halt: one binding answers 409 criteria_pending; the others must still decide and deliver."""
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["threat-intelligence"] = (409, {"error": {"code": "criteria_pending"}})
+    delivery = Delivery()
+    result = go(table, store, cyclotron, deliver=delivery)
+    assert result["status"] == "complete" and result["stoppedBy"] is None
+    assert result["counts"]["routed"] == 3                      # every candidate item reached the ready bindings
+    assert {c[0] for c in delivery.calls} == {"anth-us", "p-apyr-us"}
+    assert result["counts"]["skippedNotReady"] == 3
+    assert result["waitingForClassifier"] == ["threat-intelligence"]
+    assert [c for c in cyclotron.posts() if c[1].split("/")[3] == "threat-intelligence"][0:1]   # probed once, not per item
+    assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "threat-intelligence"]) == 1
+
+
+def test_not_ready_binding_is_parked_probed_after_backoff_and_backfilled_when_ready(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    cyclotron.post_override["threat-intelligence"] = (409, {"error": {"code": "criteria_pending"}})
+    delivery = Delivery()
+    ti = lambda: [c for c in cyclotron.posts() if c[1].split("/")[3] == "threat-intelligence"]
+    first = go(table, store, cyclotron, now=2000, deliver=delivery)
+    assert first["status"] == "complete" and len(ti()) == 1
+    park = table.items[("MONITOR#hn", "PARK#threat-intelligence")]
+    assert park["ready"] is False and park["nextProbeAt"] == 2000 + 1800 and len(park["items"]) == 1
+    # inside the backoff window: no call at all for the waiting binding, other bindings carry on
+    second = go(table, store, cyclotron, now=2300, deliver=delivery)
+    assert len(ti()) == 1 and second["waitingForClassifier"] == ["threat-intelligence"]
+    assert second["counts"]["decided"] == 1 and second["counts"]["skippedNotReady"] == 1
+    # backoff elapsed and still pending: exactly one probe, backoff doubles
+    third = go(table, store, cyclotron, now=3900, deliver=delivery)
+    assert len(ti()) == 2 and third["status"] == "complete"
+    park = table.items[("MONITOR#hn", "PARK#threat-intelligence")]
+    assert park["backoffSeconds"] == 3600 and park["probes"] == 1 and len(park["items"]) == 3
+    # classifier ready: the next item's probe succeeds, then parked items are decided one budget at a time
+    cyclotron.post_override.clear()
+    run_collection(DynamoStore(table), "hn", fetch=lambda url: FEED.replace(b"</channel>", b"<item><title>Delta source</title><link>https://example.org/delta</link><comments>https://news.ycombinator.com/item?id=104</comments></item></channel>"), now=7000)
+    fourth = go(table, store, cyclotron, now=8000, deliver=delivery)
+    assert fourth["waitingForClassifier"] == [] and fourth["status"] == "complete"
+    for n in range(1, 6):
+        go(table, store, cyclotron, now=8000 + 900 * n, deliver=delivery)
+    assert {"101", "102", "103", "104"} == {c[1] for c in delivery.calls if c[0] == "threat-intelligence"}
+    assert ("MONITOR#hn", "PARK#threat-intelligence") not in table.items
+
+
+def test_other_409_and_ceiling_refusals_still_stop_the_sweep(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["anth-us"] = (409, {"error": {"code": "something_else"}})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "something_else"
+    assert ("MONITOR#hn", "PARK#anth-us") not in table.items
+
+
+def test_all_bindings_not_ready_parks_the_item_without_looping(table):
+    store, cyclotron = setup_router(table)
+    for pub in PUBS:
+        cyclotron.post_override[pub] = (409, {"code": "criteria_pending"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and result["counts"]["parked"] == 3
+    assert sorted(result["waitingForClassifier"]) == sorted(PUBS)
+    assert set(routing_of(table).values()) == {"parked"}

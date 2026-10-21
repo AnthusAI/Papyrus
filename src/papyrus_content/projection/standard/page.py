@@ -33,10 +33,11 @@ class ListingView:
     archive_keys: tuple = ()    # archive pages: every key that has a page, newest first
     collection: str | None = None   # the id of the collection this page lists
     drafts: tuple[StandardEntry, ...] = ()   # page 1 of a collection with drafts: the draft entries its selection matches
+    root: str = ""              # the base path with a trailing slash ("posts/"), or "" for a site at the root
 
     def url_for_page(self, number: int) -> str:
-        prefix = f"/{self.base}" if self.base else ""
-        return f"{prefix}/" if number == 1 else f"{prefix}/page/{number}/"
+        prefix = "/" + self.root + (f"{self.base}/" if self.base else "")
+        return prefix if number == 1 else f"{prefix}page/{number}/"
 
 
 @dataclass(frozen=True)

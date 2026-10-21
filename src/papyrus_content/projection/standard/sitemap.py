@@ -33,21 +33,23 @@ def _urlset(origin: str | None, urls: list[SitemapUrl], lastmod: bool) -> str:
     return f'{XML_DECLARATION}<urlset xmlns="{SITEMAP_NS}">{body}</urlset>\n'
 
 
-def sitemap_files(style: str, environment: SiteEnvironment, urls: list[SitemapUrl], *, lastmod: bool = True) -> dict[str, bytes]:
+def sitemap_files(style: str, environment: SiteEnvironment, urls: list[SitemapUrl], *, lastmod: bool = True, root: str = "") -> dict[str, bytes]:
+    """``root`` is the base path with a trailing slash (``posts/``): the files live under it."""
     urlset = _urlset(environment.origin, urls, lastmod).encode("utf-8")
     if style == "index":
         index = (
             f'{XML_DECLARATION}<sitemapindex xmlns="{SITEMAP_NS}"><sitemap>'
-            f"<loc>{escape((environment.origin or '') + '/' + INDEXED_KEY)}</loc></sitemap></sitemapindex>\n"
+            f"<loc>{escape((environment.origin or '') + '/' + root + INDEXED_KEY)}</loc></sitemap></sitemapindex>\n"
         ).encode("utf-8")
-        return {INDEX_KEY: index, INDEXED_KEY: urlset}
-    return {SINGLE_KEY: urlset}
+        return {root + INDEX_KEY: index, root + INDEXED_KEY: urlset}
+    return {root + SINGLE_KEY: urlset}
 
 
-def robots_text(style: str, environment: SiteEnvironment, extra: tuple[str, ...] = ()) -> str:
+def robots_text(style: str, environment: SiteEnvironment, extra: tuple[str, ...] = (), *, root: str = "") -> str:
+    """robots.txt stays at the bucket root (crawlers read only that one); its sitemap line names the sitemap under ``root``."""
     if environment.guarded:
         return "User-agent: *\nDisallow: /\n"
     sitemap_key = INDEX_KEY if style == "index" else SINGLE_KEY
-    sitemap_line = f"Sitemap: {environment.origin}/{sitemap_key}\n" if environment.origin else ""
+    sitemap_line = f"Sitemap: {environment.origin}/{root}{sitemap_key}\n" if environment.origin else ""
     extras = "".join(f"{line}\n" for line in extra)
     return f"User-agent: *\nAllow: /\n{extras}{sitemap_line}"
