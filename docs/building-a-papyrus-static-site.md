@@ -473,6 +473,28 @@ two representations cache separately. It is enabled at deploy time for every sta
 `agents.markdown: false`. A `Link: rel=alternate` response header is not added (S3 objects cannot carry one and no
 response function is attached); the `<link>` in the HTML head is the discovery path.
 
+Where negotiation is not available: a site served by an Amplify managed edge (no function can be attached) or by GitHub
+Pages serves HTML for every `Accept`; its `.md` twins and `llms.txt` still work by direct URL. As of 2026-10-21 that is
+biased-decisions.anth.us and hard-decisions.anth.us (Amplify manual deployments in the legacy account; fronting them
+with an own distribution needs the custom domain association removed from the Amplify app first, as was done for
+tactus.anth.us) and the four GitHub Pages docs sites (Markus, Biblicus, Kanbus, Cyclotron).
+
+## Deploy triggers
+
+Every site is meant to deploy when a change merges to `main`, with no manual step. What starts the deploy:
+
+- Amplify apps with a GitHub webhook and auto build on `main` (Distinctive Mark, Pilobol.us, Anth.us, p.apyr.us, Threat
+  Intelligence, read.p.apyr.us, Tactus). Proven 2026-10-21 for the first three with empty-commit merges.
+- AWS CodePipeline V2 with a push trigger on `main` (Chattic.us, Cyclotron, Prospectus, and the new Auritus, Apricity and
+  Kanbus pipelines, which need their GitHub connection authorised once in the console).
+- GitHub Actions (the Biased-Decisions and Hard-Decisions deploys through OIDC, and the four GitHub Pages docs
+  workflows). Actions does not start for private repositories while the organisation's billing is failing, so no
+  private-repository site may depend on it.
+
+Expect a delay: on 2026-10-21 GitHub delivered push webhooks 8 to 20 minutes late, to Amplify and to CodePipeline alike.
+A job that has not started after a merge is usually that delay, not a missing trigger. Amplify ignores the late push when
+a manual job has already built the same commit, so starting a build by hand right after a merge hides the automatic one.
+
 ## Page actions
 
 Article pages (entries of a listed type that have a Markdown twin) get a small actions group, on by default, above the
