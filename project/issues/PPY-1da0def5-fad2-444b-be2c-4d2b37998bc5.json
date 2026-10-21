@@ -17,10 +17,17 @@
       "text": "Released in v5.15.0. PR #480 (merged to develop), promoted to main in #479. Tests: procedures/newsroom/tests/test_site_google_secrets.py (fake STS/SSM/CFN/Amplify/Cognito). Verified: papyrus site google-secrets check against Shipped (dkycd9pntgo6d) and Data Parade (d35q7zv4zad2we) in papyrus-production: both parameters present, deployed Cognito IdP client id matches. Old scripts in ~/Projects now one-line pointers.",
       "created_at": "2026-10-21T19:39:53.618676Z",
       "comment_type": "default"
+    },
+    {
+      "id": "96afb5dd-45ab-42b1-b90e-fa02686f52b0",
+      "author": "home",
+      "text": "Released in v5.15.0. PR #480 (merged to develop), promoted to main in #479. Tests: procedures/newsroom/tests/test_site_google_secrets.py (fake STS/SSM/CFN/Amplify/Cognito). Verified with check against Shipped (dkycd9pntgo6d) and Data Parade (d35q7zv4zad2we) in papyrus-production: both parameters present, deployed Cognito IdP client id matches. Old scripts in ~/Projects are now one-line pointers.",
+      "created_at": "2026-10-21T19:40:02.412769Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T18:11:57.759875Z",
-  "updated_at": "2026-10-21T19:39:54.175507Z",
+  "updated_at": "2026-10-21T19:40:02.412797Z",
   "closed_at": "2026-10-21T19:39:54.175115Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
