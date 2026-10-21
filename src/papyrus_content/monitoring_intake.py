@@ -33,6 +33,8 @@ class ReferenceIntake:
         decision = provenance.get("machineDecision")
         if not isinstance(decision, dict):
             return ""
+        if decision.get("system") == "direct":
+            return " Delivered by the monitor's rule for this source (every collected item); no machine relevance decision."
         return (f" Machine decision: {decision.get('system')} labelled {decision.get('output')} "
                 f"{decision.get('label')} (decision {decision.get('decisionId')}, version {decision.get('version')}).")
 
@@ -56,10 +58,10 @@ class ReferenceIntake:
         if len({row.get("lineageId") for row in matches}) > 1:
             raise ValueError("Multiple canonical Reference lineages match; editorial resolution is required")
         source = catalog_item_with_external_item_id({
-            "source_uri": item.canonical_url, "title": item.title, "media_type": "text/html",
+            "source_uri": item.canonical_url, "title": item.title, "media_type": item.media_type,
             "published_at": item.published_at, "retrieved_at": provenance["observedAt"],
             "curation_status": "pending", "ingestion_rationale":
-                f"Discovered through Hacker News Monitor {self.monitor.id} for {self.monitor.publication}; pending human review. {item.source_item_url}"
+                f"Discovered through {self.monitor.source_name} Monitor {self.monitor.id} for {self.monitor.publication}; pending human review. {item.source_item_url}"
                 + self._machine_decision_note(provenance),
         })
         context = {"corpusId": self.monitor.corpus_id,
@@ -90,7 +92,7 @@ class ReferenceIntake:
         event_id = "message-monitor-" + hash_short([self.monitor.binding, item.source_id, item.fingerprint])
         message = message_record({"id": event_id, "messageKind": "ingestion_rationale",
                                   "source": "papyrus-monitoring", "authorLabel": "Papyrus Monitor worker",
-                                  "summary": f"Hacker News discovery: {item.title}",
+                                  "summary": f"{self.monitor.source_name} discovery: {item.title}",
                                   "body": json.dumps(provenance, sort_keys=True),
                                   "metadata": {"corpusId": self.monitor.corpus_id},
                                   "createdAt": provenance["observedAt"], "importRunId": context["importRunId"]})
