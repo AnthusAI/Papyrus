@@ -83,7 +83,7 @@ def load_hooks(static_directory: Path | None, relative_path: str | None) -> Hook
     if unknown:
         raise ValueError(f"{relative_path} defines unknown hooks: {', '.join(sorted(unknown))}. Named hooks are {', '.join(HOOK_NAMES)}.")
     digest = hashlib.sha256()
-    for sibling in sorted(path.parent.glob("*.py")):  # a change in a module the hooks import must re-render too
+    for sibling in sorted([*path.parent.glob("*.py"), *path.parent.glob("*.json")]):  # modules and data files the hooks read must re-render too
         digest.update(sibling.name.encode())
         digest.update(sibling.read_bytes())
     fingerprint = digest.hexdigest()[:16]

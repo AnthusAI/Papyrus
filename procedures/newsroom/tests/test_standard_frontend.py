@@ -763,3 +763,11 @@ def test_bad_form_definitions_are_rejected(form, message):
 def test_a_page_cannot_name_a_form_that_does_not_exist():
     with pytest.raises(ValueError, match="unknown form"):
         standard_settings_from_mapping({"site": {"name": "X"}, "pages": [{"id": "p", "path": "p", "title": "P", "form": "nope"}]})
+
+
+def test_a_data_file_next_to_the_hooks_is_part_of_their_fingerprint(tmp_path):
+    (tmp_path / "hooks.py").write_text("def footer(page):\n    return ''\n")
+    (tmp_path / "data.json").write_text('{"a": 1}')
+    before = load_hooks(tmp_path, "hooks.py").fingerprint
+    (tmp_path / "data.json").write_text('{"a": 2}')
+    assert load_hooks(tmp_path, "hooks.py").fingerprint != before
