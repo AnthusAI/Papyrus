@@ -1045,6 +1045,29 @@ def test_page_actions_types_opt_guides_and_standing_pages_in():
         standard_settings_from_mapping({"site": {"name": "X"}, "pageActions": {"types": [""]}})
 
 
+def test_a_page_body_hook_can_place_the_page_actions_itself():
+    hook = "def page_body(page):\n    if page.kind != 'item':\n        return None\n    return '<main id=\"own\">' + page.page_actions + page.fragment + '</main>'\n"
+    settings = {**fixture_settings("flat"), "hooks": "hooks.py"}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content", extra_files={"hooks.py": hook})
+    try:
+        page = site.text("orchids.html")
+        assert page.index('id="own"') < page.index("markus-page-actions") < page.index("Marsh orchids flower")
+        assert 'data-markdown="/orchids.md"' in page and "papyrus-page-actions-v1.js" in page
+        assert "markus-page-actions" not in site.text("about.html")
+    finally:
+        site.cleanup()
+
+
+def test_llms_full_includes_unlisted_pages_that_llms_txt_lists():
+    settings = {**fixture_settings("flat"), "listings": {"types": ["nothing"]}}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content")
+    try:
+        assert "orchids.md" in site.text("llms.txt")
+        assert "Marsh orchids flower" in site.text("llms-full.txt")
+    finally:
+        site.cleanup()
+
+
 def test_ai_destinations_carry_a_short_prompt_with_the_url_and_never_the_page_body():
     site = with_actions(ai=["chatgpt", "claude", "perplexity"], placement="aside")
     try:

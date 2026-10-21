@@ -58,6 +58,7 @@ class StandardPage:
     tags: dict = field(default_factory=dict)    # tag index: tag -> entries
     showcase: tuple = ()                        # showcase page: the ShowcaseSite records, sorted
     site: HookSite | None = None                # the site-wide view the item-level hooks also get
+    page_actions: str = ""                      # item pages: the page-actions markup core would place (empty when off), for hooks that compose their own body
     components = components
 
     @property
