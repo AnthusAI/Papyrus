@@ -3,7 +3,7 @@
   "title": "Migrate Tactus marketing site: standard header/footer and Markus prose",
   "description": "",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -34,8 +34,8 @@
     }
   ],
   "created_at": "2026-10-21T00:48:28.348756Z",
-  "updated_at": "2026-10-21T05:30:00.968646Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T05:30:05.750901Z",
+  "closed_at": "2026-10-21T05:30:05.750804Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
