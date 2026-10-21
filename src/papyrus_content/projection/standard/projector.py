@@ -573,7 +573,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             entries = [f"- [{tag}]({(origin or '') + md_path(self.policy.listing_key(self.policy.tag_base(slugify_tag(tag))))}) ({len(found)})" for tag, found in page.tags.items()]
             return "\n".join([f"# {page.title}", "", *entries]).rstrip() + "\n"
         if page.kind == "showcase":
-            wall = [f"- [{site.name}]({site.url}) ({site.kind})" if site.kind else f"- [{site.name}]({site.url})" for site in page.showcase]
+            wall = [
+                f"- [{site.name}]({site.url})" + (f" ({site.kind})" if site.kind else "") + (f": {site.description}" if site.description else "")
+                for site in page.showcase
+            ]
             return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else []), *wall]).rstrip() + "\n"
         return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else [])]).rstrip() + "\n"
 

@@ -411,9 +411,9 @@ from it. Only sites that are `live` and shown in the footer appear, in the packa
 `"showcase": { "section": "showcase", "path": "built-with", "title": "Built with Papyrus", "kinds": { "anthus": "Built by Anthus", "design-partner": "Design partners", "customer": "Customers" } }`
 turns every published item of the `showcase` section into one tile on a generated page at `/built-with/`. The data
 is content, managed in the CMS: front matter `name` (or the title), `logo` (image path or URL; the name is the text
-fallback), `logoAlt`, `url` (http or https only; anything else is skipped), `kind` (one of the configured kinds;
+fallback), `logoAlt` (only when the logo says more than the name: the name is shown under every logo and is the link's accessible name), `description` (optional, one short line under the name), `url` (http or https only; anything else is skipped), `kind` (one of the configured kinds;
 unknown kinds go under "More") and `order` (lower first, then name). The page is one heading and one `<ul>` per kind,
-a responsive CSS grid of links with lazy-loaded images and `rel="noopener"`; names are escaped. Showcase items have
+a responsive CSS grid of links (each tile one link: logo, name, description) with lazy-loaded images and `rel="noopener"`; names are escaped. Showcase items have
 no pages of their own and are not in listings, feeds or the sitemap. A `page_body` hook sees `page.kind == "showcase"`
 and `page.showcase` (the sorted `ShowcaseSite` records) and can use `showcase.logo_wall(...)` inside its own layout.
 
