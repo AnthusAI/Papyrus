@@ -3,7 +3,7 @@
   "title": "First staged backend deploy, edge stack and DNS for dataparade.anth.us",
   "description": "Blocked on Ryan: Google OAuth client plus ~/Projects/dataparade-store-google-secrets.sh, then the Amplify console Connect repository step on app d35q7zv4zad2we. Then: first main build with backend.excludeModelGroups editions, remove the exclusion and deploy again, create papyrus-edge-dataparade (infra/edge/dataparade.yaml), set edgeDistributionArn in papyrus.config.ts, add the dataparade alias record in the anth.us zone Z04979341DPRV5BDQNZMG. Verify /newsroom returns 200 and the stub returns 200.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -31,11 +31,18 @@
       "text": "Ryan decision 2026-10-21: Data Parade runs on our AWS and Google accounts and the repo is AnthusAI/DataParade-newsroom (the AWS Amplify GitHub App is already on AnthusAI). The DataParade-io copy is left alone, unused. site.json updated and pushed; the app must be re-pointed to the AnthusAI repo in the console, then the stack redeployed and auto-build re-enabled.",
       "created_at": "2026-10-21T17:42:31.740138Z",
       "comment_type": "default"
+    },
+    {
+      "id": "1755187f-bb51-4d23-b5e6-097078a79672",
+      "author": "home",
+      "text": "Done 2026-10-21. App d35q7zv4zad2we builds from AnthusAI/DataParade-newsroom; auto-start on push confirmed with real commit ids. First build failed on the account IAM role quota (917 of 1000); raised to 2000 (approved). Jobs 3 and 4 succeeded (staged, then with editions). Edge stack papyrus-edge-dataparade (distribution EIAVDLXO64F62), A and AAAA aliases in the anth.us zone. https://dataparade.anth.us/ and /newsroom return 200; Google sign-in redirect reaches the accounts.google.com sign-in page with no redirect_uri_mismatch. /archive/ is 404 until the first article is published.",
+      "created_at": "2026-10-21T19:13:48.398996Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T16:54:33.610485Z",
-  "updated_at": "2026-10-21T19:13:22.668175Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T19:13:48.399026Z",
+  "closed_at": "2026-10-21T19:13:34.731315Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",
