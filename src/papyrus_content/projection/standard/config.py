@@ -257,6 +257,11 @@ class PageActionSettings:
     prompt: str = "Read {url} and help me with it."
 
 
+#: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
+DIRECTORY_HTML_PATTERN = r"^/(?!(?:.*/)?index\.html$)(.+)\.html$"
+DIRECTORY_SLASH_PATTERN = r"^/((?:[^/]+/)*[^/.]+)$"
+
+
 @dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
@@ -308,7 +313,9 @@ class StandardSettings:
         """Pattern rules plus, for directory URLs, ``/x.html`` to ``/x/``; compiled into the edge function."""
         rules = list(self.pattern_redirects)
         if self.url_style == "directory":
-            rules.append(RedirectRule(pattern=r"^/(.+)\.html$", to="/$1/", status=301, except_paths=("/404.html",)))
+            # /x.html to /x/ (a directory index file such as /x/index.html is served as it is), then /x to /x/.
+            rules.append(RedirectRule(pattern=DIRECTORY_HTML_PATTERN, to="/$1/", status=301, except_paths=("/404.html",)))
+            rules.append(RedirectRule(pattern=DIRECTORY_SLASH_PATTERN, to="/$1/", status=301, except_paths=("/404",)))
         return tuple(rules)
 
 

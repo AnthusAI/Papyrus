@@ -62,6 +62,8 @@ for (const required of [
   "package/infra/index.js",
   "package/infra/site-config.js",
   "package/infra/build-specs.js",
+  "package/amplify/publication/redirect-rules.js",
+  "package/amplify/publication/redirect-and-index.js",
 ]) {
   if (!listing.includes(required)) fail(`tarball does not contain ${required}`);
 }

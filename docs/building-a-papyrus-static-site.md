@@ -81,7 +81,9 @@ or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, Sept
 ## URL policy
 
 `urls.style` decides the shape of every page: `html` writes `x.html`, `directory` writes `x/index.html`. With
-`directory`, the edge function also redirects `/x.html` to `/x/` (except `/404.html`). Aliases on an item and slug
+`directory`, the edge function also redirects `/x.html` to `/x/` (except `/404.html`; a directory index file such as
+`/x/index.html` is served as it is) and a path with no extension and no trailing slash, `/x`, to `/x/`. `/404` serves
+the 404 page. Aliases on an item and slug
 renames become exact redirects in the KeyValueStore as before. `redirects.exact` adds fixed ones.
 
 **Pattern redirects are data.** `redirects.patterns` rules such as
@@ -92,8 +94,10 @@ renames become exact redirects in the KeyValueStore as before. `redirects.exact`
 
 are compiled into the CloudFront Function at deploy time (`amplify/publication/redirect-rules.ts`), after the
 exact-match lookup and before the index rewrite. Patterns must be anchored (`^...$`), may use groups `$1`..`$9`,
-and may not use named groups, lookbehind or inline flags (Python and JavaScript read those differently). No site
-writes its own edge function for redirects.
+and may not use named groups, lookbehind or inline flags (Python and JavaScript read those differently; lookahead is fine). No site
+writes its own edge function for redirects. For an edge stack that the CMS backend does not deploy (a distribution
+that predates the site), `papyrus-infra compile-edge-function --static-dir web --out viewer-request.js` writes the same
+function with the site's rules compiled in; put that file in the stack's template.
 
 ## Environment guard
 
