@@ -751,6 +751,35 @@ def test_a_body_class_hook_adds_classes_per_page(tmp_path):
         site.cleanup()
 
 
+def test_static_copy_publishes_a_directory_verbatim_and_core_does_not_own_it(tmp_path):
+    files = {"site/docs/guide/index.html": "<p>exported</p>", "site/_next/app.js": "console.log(1)", "site/hero.svg": "<svg/>"}
+    site = ProjectedSite(settings=minimal(static={"copy": ["site"]}), extra_files=files, content=FIXTURES / "flat" / "content")
+    try:
+        assert site.tree["docs/guide/index.html"] == b"<p>exported</p>"
+        assert site.tree["_next/app.js"] == b"console.log(1)" and site.tree["hero.svg"] == b"<svg/>"
+        assert not site.projector.owns_page_key("docs/guide/index.html")
+        assert site.projector.owns_page_key("orchids.html")
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize("copy", [["../x"], ["/abs"], ["css"], ["assets"]])
+def test_static_copy_rejects_unsafe_directories(copy):
+    with pytest.raises(ValueError, match="static.copy"):
+        standard_settings_from_mapping(minimal(static={"copy": copy}))
+
+
+def test_sitemap_extra_lists_paths_core_does_not_generate():
+    site = ProjectedSite(settings=minimal(sitemap={"extra": ["/docs/guide/", "/examples/"]}), content=FIXTURES / "flat" / "content")
+    try:
+        sitemap = site.text("sitemap.xml")
+        assert "https://example.org/docs/guide/</loc>" in sitemap and "https://example.org/examples/</loc>" in sitemap
+    finally:
+        site.cleanup()
+    with pytest.raises(ValueError, match="sitemap.extra"):
+        standard_settings_from_mapping(minimal(sitemap={"extra": ["docs/"]}))
+
+
 # ------------------------------------------------------------------ public form component
 
 CONTACT_FORM = {
