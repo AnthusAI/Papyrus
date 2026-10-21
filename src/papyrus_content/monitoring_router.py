@@ -15,6 +15,7 @@ Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing mod
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from hashlib import sha256
 import json
 import os
@@ -76,6 +77,27 @@ class ItemInvalid(Exception):
 
 # --- config ---------------------------------------------------------------------------------------
 
+CEILING_KEYS = ("decisionsTotal", "decisionsPerDay", "items")
+
+
+def validate_ceilings(raw) -> dict | None:
+    """The shared Cyclotron's decision ceilings, mirrored as display data for the Monitoring page.
+
+    The router never reads them to decide anything: Cyclotron enforces its own ceilings and the router
+    stops when it says so. They exist only so the page can show usage against them.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict) or not raw or set(raw) - set(CEILING_KEYS):
+        raise ValueError(f"router ceilings must be an object with only {', '.join(CEILING_KEYS)}")
+    out = {}
+    for key, value in raw.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)) or value <= 0 or value != int(value):
+            raise ValueError(f"router ceilings.{key} must be a positive whole number")
+        out[key] = int(value)
+    return out
+
+
 def validate_router_config(raw: dict) -> dict:
     mode = raw.get("mode")
     if mode not in ("dry-run", "live"):
@@ -100,6 +122,7 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
+    ceilings = validate_ceilings(raw.get("ceilings"))
     publications, seen = [], set()
     for entry in raw.get("publications") or []:
         publication_id = str(entry.get("publicationId") or "")
@@ -120,7 +143,7 @@ def validate_router_config(raw: dict) -> dict:
     if not publications:
         raise ValueError("router needs at least one publication")
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-            "feedback": raw.get("feedback") is True, "publications": publications,
+            "feedback": raw.get("feedback") is True, "ceilings": ceilings, "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
                           "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}}
 
@@ -355,9 +378,13 @@ def checked_decision(response: dict, publication: dict, config: dict, item_id: s
             or type(classifier.get("version")) is not int):
         raise ItemInvalid("response lacks a valid labelled output with fingerprint and version")
     source = response.get("source") if isinstance(response.get("source"), dict) else {}
-    return {"decisionId": decision["decisionId"], "output": publication["output"], "label": classifier["label"],
-            "fingerprint": classifier["fingerprint"], "version": classifier["version"],
-            "source": {k: source[k] for k in ("id", "revision", "fingerprint") if k in source}}
+    checked = {"decisionId": decision["decisionId"], "output": publication["output"], "label": classifier["label"],
+               "fingerprint": classifier["fingerprint"], "version": classifier["version"],
+               "source": {k: source[k] for k in ("id", "revision", "fingerprint") if k in source}}
+    confidence = classifier.get("confidence")
+    if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and 0 <= confidence <= 1:
+        checked["confidence"] = Decimal(str(round(float(confidence), 4)))   # for the Monitoring page; DynamoDB takes Decimal
+    return checked
 
 
 # --- table ----------------------------------------------------------------------------------------
@@ -607,7 +634,8 @@ class Router:
             "decisionId": first["decisionId"], "source": first["source"], "decidedAt": _iso(self.now),
             "accountId": self.config["cyclotron"]["accountId"], "runId": self.config["cyclotron"]["runId"],
             "bindingRevision": self.config["cyclotron"]["bindingRevision"],
-            "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version")} for pid, c in checked.items()}}
+            "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version", "confidence") if k in c}
+                             for pid, c in checked.items()}}
         route["publications"] = {pid: {"label": c["label"], "delivered": False, "attempts": 0}
                                  for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"]}
         route.pop("nextAttemptAt", None)

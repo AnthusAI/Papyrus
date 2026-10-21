@@ -96,6 +96,7 @@ class FakeCyclotron:
     def __init__(self, labels=None):
         self.calls, self.jobs = [], {}
         self.labels = labels or {}            # (itemId, pub) -> label; default include for all
+        self.confidence = {}                  # (itemId, pub) -> confidence the machine API reports
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
         self.pending_polls = 0
@@ -123,7 +124,8 @@ class FakeCyclotron:
         return 200, {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
                      "decision": {"decisionId": f"dec-{item}", "itemId": item, "classifiers": {
                          f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
-                                              "fingerprint": f"fp-{pub}", "version": 3}}},
+                                              "fingerprint": f"fp-{pub}", "version": 3,
+                                              **({"confidence": self.confidence[(item, pub)]} if (item, pub) in self.confidence else {})}}},
                      "outputs": [{"id": f"{pub}-relevance"}], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
 
     def posts(self):
@@ -301,6 +303,23 @@ def test_live_happy_path_one_shared_decision_and_per_publication_delivery(table)
     assert len([c for c in delivery.calls if c[1] == "101"]) == 2
     assert len([c for c in cyclotron.posts() if c[2]["payload"]["item"]["id"] == "hn-101"]) == 3
     assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_decision_receipt_keeps_a_valid_confidence_for_the_monitoring_page(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    cyclotron.confidence = {("hn-101", "anth-us"): 0.91234, ("hn-101", "p-apyr-us"): 1.7, ("hn-101", "threat-intelligence"): "high"}
+    go(table, store, cyclotron)
+    publications = table.items[("MONITOR#hn", "ROUTE#101#000001")]["decision"]["publications"]
+    assert publications["anth-us"]["confidence"] == Decimal("0.9123")
+    assert "confidence" not in publications["p-apyr-us"] and "confidence" not in publications["threat-intelligence"]
+
+
+def test_ceilings_are_display_data_validated_and_ignored_by_routing():
+    base = router_config()
+    assert validate_router_config({**base, "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}})["mode"] == "live"
+    for bad in ({"decisionsTotal": 0}, {"decisionsPerDay": "many"}, {"items": -1}, {"surprise": 1}, "300"):
+        with pytest.raises(ValueError):
+            validate_router_config({**base, "ceilings": bad})
 
 
 def test_all_exclude_routes_without_delivery(table):
@@ -638,3 +657,23 @@ def test_router_function_schedule_and_collector_isolation():
     assert template["RouterInvokeConfig"]["Properties"]["MaximumRetryAttempts"] == 0
     assert {"RouterErrorsAlarm", "RouterDeadLetterAlarm", "RouterLogGroup", "RouterDeadLetterQueue"} <= set(template)
     assert template["RouterLogGroup"]["Properties"]["RetentionInDays"] == 30
+
+
+def test_table_name_is_published_for_the_read_only_monitoring_page():
+    from papyrus_content.monitoring_view import TABLE_PARAMETER
+    parameter = _template()["Resources"]["TableNameParameter"]
+    assert parameter["Type"] == "AWS::SSM::Parameter"
+    assert parameter["Properties"]["Name"] == TABLE_PARAMETER
+    assert parameter["Properties"]["Value"] == ("Ref", "MonitoringTable")
+
+
+def test_seed_script_sets_and_clears_ceilings():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra" / "monitoring" / "seed_router_config.py")
+    seed = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(seed)
+    assert seed.coerce("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300") == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
+    assert seed.coerce("ceilings", "none") is None
+    for bad in ("300", "decisionsTotal=many", "=5"):
+        with pytest.raises(ValueError):
+            seed.coerce("ceilings", bad)
