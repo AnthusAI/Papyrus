@@ -3,7 +3,7 @@
   "title": "Keep feed item identities stable across published updates",
   "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a subscriber, I want published revisions to retain article identity, so that my reader updates an existing item without creating duplicates.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Keep feed item identities stable across published updates\n  Scenario: Revise a published article\n    Given an article already appears in RSS and Atom with a stable item identity\n    When its headline, body or canonical slug is changed and published\n    Then its RSS GUID and Atom entry ID remain stable\n    And its current canonical link and meaningful published update time are returned\n    And repeated generation does not create duplicate entries\n  Scenario: Withdraw a public article\n    Given an article has appeared in public feeds\n    When it is unpublished\n    Then future served feeds exclude it within the documented freshness bound\n    And private replacement drafts never substitute for it\n```\n\nReaders may retain previously fetched content; withdrawal cannot promise deletion from third-party caches. Preserve original publication time separately from update time.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -13,10 +13,18 @@
     "planning"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ea085274-44cd-4f52-bbd1-b6204b8634f2",
+      "author": "home",
+      "text": "Shipped by the core standard front end feeds, not a parallel publisher. Verified live 2026-10-21 on pilobol.us, threat-intelligence.anth.us, read.p.apyr.us, cyclotron.anth.us, chattic.us, anth.us and distinctive-mark.com: head has <link rel=alternate> for application/rss+xml (/feed.xml) and application/atom+xml (/atom.xml); both parse as XML with one unique guid/id per item equal to the item's canonical URL (e.g. 10/10 on pilobol.us, 30/30 on anth.us). Withdrawal is covered by core spec features_backend/standard-frontend.feature ('Unpublishing withdraws an article from the listings, the sitemap and both feeds'). The p.apyr.us page /standard-front-end.html explains subscriptions.",
+      "created_at": "2026-10-21T13:38:33.297958Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-20T02:17:06.951266Z",
-  "updated_at": "2026-10-20T03:11:16.280838Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:38:33.339535Z",
+  "closed_at": "2026-10-21T13:38:33.339506Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",

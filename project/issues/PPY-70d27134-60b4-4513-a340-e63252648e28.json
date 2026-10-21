@@ -3,17 +3,25 @@
   "title": "Migrate the small product and docs sites",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bfd5cd84-57db-4798-9e87-dea2f26b1bee",
+      "author": "home",
+      "text": "All nine site stories are closed. Live 2026-10-21: pilobol-style small sites and docs sites answer 200 with llms.txt, a .md twin and sitemap: pr.ospect.us, aurit.us, p.apyr.us, kanb.us (deployed today, edge stack kanbus-web-site updated), apricity.anth.us (deployed today, apricity-marketing-publication updated), and the Markus, Biblicus, Kanbus and Cyclotron docs (markus.anth.us and anthusai.github.io/*). Remaining agent-output gaps are tracked in the epic status comment.",
+      "created_at": "2026-10-21T13:38:30.733063Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:42.758956Z",
-  "updated_at": "2026-10-21T00:22:42.759012Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:38:30.774777Z",
+  "closed_at": "2026-10-21T13:38:30.774747Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
