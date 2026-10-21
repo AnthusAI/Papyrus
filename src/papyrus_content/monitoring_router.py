@@ -432,6 +432,17 @@ def checked_decision(response: dict, publication: dict, config: dict, item_id: s
 
 # --- table ----------------------------------------------------------------------------------------
 
+def decimalize(value):
+    """DynamoStore._clean hands floats back on read; DynamoDB only accepts Decimal on write."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {k: decimalize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [decimalize(v) for v in value]
+    return value
+
+
 class RouterStore(DynamoStore):
     """Adds the router's keys to the collector's store (see docs/monitoring-cloud.md).
 
@@ -451,7 +462,7 @@ class RouterStore(DynamoStore):
         return self._get(monitor_id, sk)
 
     def put_any(self, monitor_id, record):
-        self.table.put_item(Item=record)
+        self.table.put_item(Item=decimalize(record))
 
     def acquire_router_lock(self, monitor_id, owner, now, lease=LEASE_SECONDS) -> bool:
         try:

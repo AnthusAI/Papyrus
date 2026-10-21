@@ -50,6 +50,14 @@ class FakeTable:
         self.items = {}
 
     @staticmethod
+    def _types(value):
+        if isinstance(value, dict):
+            return {k: FakeTable._types(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [FakeTable._types(v) for v in value]
+        return "float" if isinstance(value, float) else 0
+
+    @staticmethod
     def _dec(value):
         if isinstance(value, bool) or value is None:
             return value
@@ -66,6 +74,8 @@ class FakeTable:
         return {"Item": deepcopy(item)} if item else {}
 
     def put_item(self, Item, ConditionExpression=None, ExpressionAttributeValues=None):
+        if "float" in json.dumps(self._types(Item)):
+            raise TypeError("Float types are not supported. Use Decimal types instead.")
         key, existing = (Item["pk"], Item["sk"]), self.items.get((Item["pk"], Item["sk"]))
         if ConditionExpression == "attribute_not_exists(pk)" and existing:
             raise Conditional()
@@ -757,3 +767,16 @@ def test_all_bindings_not_ready_parks_the_item_without_looping(table):
     assert result["status"] == "complete" and result["counts"]["parked"] == 3
     assert sorted(result["waitingForClassifier"]) == sorted(PUBS)
     assert set(routing_of(table).values()) == {"parked"}
+
+
+def test_resumed_route_with_a_stored_confidence_saves_without_float_errors(table):
+    """A sweep that stops mid-item leaves checked jobs with confidence; the next run reads them back as floats."""
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    cyclotron.confidence.update({("hn-101", p): 0.55 for p in PUBS})
+    cyclotron.post_override["threat-intelligence"] = (429, {"code": "rate_limited"})
+    stopped = go(table, store, cyclotron, now=2000)
+    assert stopped["status"] == "stopped"
+    cyclotron.post_override.clear()
+    resumed = go(table, store, cyclotron, now=2900)
+    assert resumed["status"] == "complete" and resumed["errors"] == []
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["decision"]["publications"]["anth-us"]["confidence"] == Decimal("0.55")
