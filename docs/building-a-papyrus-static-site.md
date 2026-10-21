@@ -278,20 +278,22 @@ script beyond the existing `nav.disclosure` one. Footer column links accept `ext
 default footer rendering (a `footer` hook still wins):
 
 ```json
-"footer": { "text": "Open-source decision engine.", "family": { "siteId": "tactus", "tagline": "Made by" },
+"footer": { "text": "Open-source decision engine.", "family": { "siteId": "tactus", "byline": "Designed by us" },
             "columns": [{ "title": "Resources", "links": [{ "label": "Docs", "href": "/docs/" }] }] }
 ```
 
-`family` keys, all optional: `siteId` (a key of the registry such as `tactus`; its label is the heading), `name` (heading
-when the site is not in the registry; default the site name), `tagline` (`Part of the Anthus Platform`), `description`
-(default `footer.text`, then the package's sentence), `byline` (`Built by Anthus AI Solutions`). The markup, in order: a
-`papyrus-family-footer-community` row (Contact us, GitHub, LinkedIn, Discord), a `papyrus-family-footer-grid` with the
-`-brand` panel, the "Anthus" and "Anthus Platform" `-column`s from the registry, then one `-column` per `footer.columns`
-entry, and a `-bottom` row. The registry is `anthus_sites.json` next to the code, a copy of the package's `src/sites.js`
-(the package is its other consumer; keep them in step). Only sites that are `live` and shown in the footer appear, in the
-package's order. Like the package, the current site is not removed from the platform column. Colours come from
-`--papyrus-family-footer-background`, `-panel-background`, `-accent-background`, `-text`, `-muted-text`, `-link`, `-radius`,
-`-max-width` and `-font-family`; the defaults are the package's default theme, so a site overrides only its colours.
+`family` keys, all optional: `siteId` (a key of the registry such as `tactus`; its label is the site's heading), `name`
+(heading when the site is not in the registry; default the site name), `tagline` (a small line above the heading; none by
+default), `description` (default `footer.text`, then the package's sentence), `byline` (`© Anthus AI Solutions`, linked to
+the company site). The markup has three parts, as in the package: the site's own band (`papyrus-family-footer-local`: the
+`-intro` with heading and description, then one column per `footer.columns` entry); the "Made by Anthus AI Solutions" band
+(`-band`: the `-groups` Products, Open source we use and Research, each site with its one-line description, then the
+byline); and the `-community` links with descriptions (Contact us, GitHub, LinkedIn). The registry is `anthus_sites.json`
+next to the code, data mirrored from the package's `src/sites.js`; the package is the source of truth, so update the file
+from it. Only sites that are `live` and shown in the footer appear, in the package's order, the current site included
+(a `siteId` of `anthus` adds the "Anthus" company column and drops "Made by"). Colours come from
+`--papyrus-family-footer-background` (the site band), `-accent-background` (the platform band), `-text`, `-muted-text`,
+`-link`, `-max-width` and `-font-family`; the defaults are the package's dark theme, so a site overrides only its colours.
 
 ## Showcase (logo wall)
 

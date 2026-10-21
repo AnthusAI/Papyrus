@@ -331,41 +331,52 @@ def family_page(**footer) -> str:
     return project_home({"site": {"name": "Example Site"}, "footer": footer})
 
 
-def test_the_family_footer_has_the_packages_structure():
+def test_the_family_footer_has_the_packages_three_parts():
     page = family_page(
         text="The text fallback.",
-        family={"siteId": "tactus", "tagline": "Made by"},
+        family={"siteId": "tactus", "byline": "Designed by us"},
         columns=[{"title": "Resources", "links": [{"label": "Docs", "href": "/docs/"}, {"label": "Repo", "href": "https://example.org/r", "external": True}]}],
     )
     footer = page.split('<footer class="markus-site-footer">')[1].split("</footer>")[0]
-    assert footer.count("papyrus-family-footer-community") == 1
-    community = footer.split('papyrus-family-footer-community">')[1].split("</div>")[0]
-    assert [label for label in re.findall(r">([^<]+)</a>", community)] == ["Contact us", "GitHub", "LinkedIn", "Discord"]
-    assert community.count('target="_blank" rel="noreferrer"') == 4 and community.count('<span aria-hidden="true">·</span>') == 3
-    assert (
-        '<div class="papyrus-family-footer-brand"><span class="papyrus-family-footer-eyebrow">Made by</span>'
-        '<h2 class="papyrus-family-footer-heading">Tactus</h2><p>The text fallback.</p></div>'
-    ) in footer
-    headings = re.findall(r'<h3 class="papyrus-family-footer-heading">([^<]+)</h3>', footer)
-    assert headings == ["Anthus", "Anthus Platform", "Resources"]
-    assert '<li><a href="/docs/">Docs</a></li><li><a href="https://example.org/r" rel="noopener">Repo</a></li>' in footer
-    assert '<div class="papyrus-family-footer-bottom"><span>Built by Anthus AI Solutions</span><span>Free and open-source' in footer
+    local, rest = footer.split('<div class="papyrus-family-footer-band">')
+    band, community = rest.split('<div class="papyrus-family-footer-community">')
+    assert '<h2 class="papyrus-family-footer-title">Tactus</h2><p class="papyrus-family-footer-description">The text fallback.</p>' in local
+    assert "papyrus-family-footer-eyebrow" not in local
+    assert '<h3 class="papyrus-family-footer-column-title">Resources</h3>' in local
+    assert '<li><a href="/docs/">Docs</a></li><li><a href="https://example.org/r" rel="noopener">Repo</a></li>' in local
+    assert '<span class="papyrus-family-footer-eyebrow">Made by</span><h2 class="papyrus-family-footer-title"><a href="https://anth.us/">Anthus AI Solutions</a></h2>' in band
+    assert re.findall(r'<h3 class="papyrus-family-footer-column-title">([^<]+)</h3>', band) == ["Products", "Open source we use", "Research"]
+    assert '<div class="papyrus-family-footer-bottom"><a href="https://anth.us/">Designed by us</a></div>' in band
+    assert re.findall(r'<a href="[^"]+" target="_blank" rel="noreferrer">([^<]+)</a><p>([^<]+)</p>', community) == [
+        ("Contact us", "Tell us what you need."), ("GitHub", "Browse the code."), ("LinkedIn", "Company updates."),
+    ]
 
 
 def test_the_family_footer_lists_the_registry_in_the_packages_order_and_only_live_shown_sites():
     page = family_page(family={})
-    anthus = page.split("<h3 class=\"papyrus-family-footer-heading\">Anthus</h3><ul>")[1].split("</ul>")[0]
-    platform = page.split("Anthus Platform</h3><ul>")[1].split("</ul>")[0]
-    assert re.findall(r">([^<]+)</a>", anthus) == ["Anth.us", "AI Solutions", "Anthus Platform", "Articles"]
-    assert re.findall(r">([^<]+)</a>", platform) == ["Primus", "Tactus", "Korporus", "Biblicus", "Babulus", "Kanbus", "Caducus"]
-    assert "Virtuus" not in page
-    assert "Part of the Anthus Platform" in page and "<h2 class=\"papyrus-family-footer-heading\">Example Site</h2>" in page
+    names = re.findall(r'<div class="papyrus-family-footer-item"><a href="[^"]+">([^<]+)</a>', page)
+    assert names == [
+        "Cyclotron", "Chatticus", "Papyrus", "Auritus", "Tactus", "Biblicus", "Markus", "Kanbus", "Hard Decisions", "Biased Decisions",
+    ]
+    for hidden in ("Primus", "Korporus", "Babulus", "Caducus", "Virtuus"):
+        assert hidden not in page
+    assert "Durable runtime for agent procedures." in page
+    assert '<h2 class="papyrus-family-footer-title">Example Site</h2>' in page and "powerful, AI-native solutions" in page
+    assert "© Anthus AI Solutions" in page
+
+
+def test_the_company_site_gets_the_anthus_column_and_no_made_by():
+    page = family_page(family={"siteId": "anthus"})
+    assert '<h3 class="papyrus-family-footer-column-title">Anthus</h3>' in page and "Made by" not in page
 
 
 def test_registry_filtering_matches_status_and_visibility():
     sites = REGISTRY["sites"]
     assert not sites["virtuus"]["showInFooter"] and sites["virtuus"]["status"] != "live"
-    assert [label for label, _href in platform_links()] == [sites[key]["label"] for key in REGISTRY["platformSiteIds"] if key != "virtuus"]
+    assert all(sites[key]["status"] == "live" and sites[key]["showInFooter"] for key in ("cyclotron", "chatticus", "papyrus", "auritus"))
+    assert not sites["primus"]["showInFooter"]
+    live = [label for label, _href in platform_links()]
+    assert live == [sites[key]["label"] for key in REGISTRY["platformSiteIds"] if sites[key]["href"] and sites[key]["showInFooter"] and sites[key]["status"] == "live"]
     assert all(href.startswith("https://") for _label, href in brand_links() + platform_links())
     assert "anthus-footer" in REGISTRY["_comment"]
 

@@ -1,29 +1,45 @@
 {
-  "_comment": "Canonical Anthus site registry and footer defaults. The other consumer is the npm package anthus-footer (github.com/AnthusAI/anthus-footer: src/sites.js and defaultCommunityLinks in src/index.js); keep the two in step.",
+  "_comment": "The Anthus site registry and footer defaults, mirrored from the npm package anthus-footer (github.com/AnthusAI/anthus-footer: src/sites.js, and defaultCommunityLinks and the default byline in src/index.js). The package is the source of truth; update this file from it, not by hand.",
+  "contactUrl": "https://anth.us/engage",
+  "companyUrl": "https://anth.us/",
   "communityLinks": [
     {
       "label": "Contact us",
-      "href": "https://docs.google.com/forms/d/e/1FAIpQLSdWlt4KpwPSBHzg3o8fikHcfrzxo5rCcV-0-zDt815NZ1tcyg/viewform?usp=sf_link"
+      "href": "https://anth.us/engage",
+      "description": "Tell us what you need."
     },
     {
       "label": "GitHub",
-      "href": "https://github.com/AnthusAI"
+      "href": "https://github.com/AnthusAI",
+      "description": "Browse the code."
     },
     {
       "label": "LinkedIn",
-      "href": "https://www.linkedin.com/in/ryanalynporter/"
+      "href": "https://www.linkedin.com/in/ryanalynporter/",
+      "description": "Company updates."
+    }
+  ],
+  "footerGroups": [
+    {
+      "id": "products",
+      "title": "Products"
     },
     {
-      "label": "Discord",
-      "href": "https://discord.gg/uStyWraJ2M"
+      "id": "open-source",
+      "title": "Open source we use"
+    },
+    {
+      "id": "research",
+      "title": "Research"
     }
   ],
   "sites": {
     "anthus": {
       "id": "anthus",
-      "label": "Anth.us",
+      "label": "Anthus",
       "href": "https://anth.us/",
       "kind": "company",
+      "description": "Company, delivery model, and platform home.",
       "status": "live",
       "showInFooter": true
     },
@@ -46,8 +62,64 @@
     "anthusArticles": {
       "id": "anthus-articles",
       "label": "Articles",
-      "href": "https://anth.us/blog",
+      "href": "https://anth.us/articles/",
       "kind": "company-page",
+      "status": "live",
+      "showInFooter": true
+    },
+    "anthusAbout": {
+      "id": "anthus-about",
+      "label": "About",
+      "href": "https://anth.us/about",
+      "kind": "company-page",
+      "status": "live",
+      "showInFooter": true
+    },
+    "anthusPosts": {
+      "id": "anthus-posts",
+      "label": "Posts",
+      "href": "https://anth.us/posts",
+      "kind": "company-page",
+      "status": "live",
+      "showInFooter": true
+    },
+    "cyclotron": {
+      "id": "cyclotron",
+      "label": "Cyclotron",
+      "href": "https://cyclotron.anth.us/",
+      "kind": "product",
+      "footerGroup": "products",
+      "description": "Open-source, self-aligning decision engine.",
+      "status": "live",
+      "showInFooter": true
+    },
+    "chatticus": {
+      "id": "chatticus",
+      "label": "Chatticus",
+      "href": "https://chattic.us/",
+      "kind": "product",
+      "footerGroup": "products",
+      "description": "A shared office for people and their AI agents.",
+      "status": "live",
+      "showInFooter": true
+    },
+    "papyrus": {
+      "id": "papyrus",
+      "label": "Papyrus",
+      "href": "https://p.apyr.us/",
+      "kind": "product",
+      "footerGroup": "products",
+      "description": "Open-source newsroom that runs in your AWS account.",
+      "status": "live",
+      "showInFooter": true
+    },
+    "auritus": {
+      "id": "auritus",
+      "label": "Auritus",
+      "href": "https://aurit.us/",
+      "kind": "product",
+      "footerGroup": "products",
+      "description": "Just-in-time narration for the web.",
       "status": "live",
       "showInFooter": true
     },
@@ -55,15 +127,28 @@
       "id": "primus",
       "label": "Primus",
       "href": "https://primus.anth.us/",
-      "kind": "platform",
-      "status": "live",
-      "showInFooter": true
+      "kind": "product",
+      "description": "MLOps platform for agent evaluation and iteration.",
+      "status": "held-back",
+      "showInFooter": false
     },
     "tactus": {
       "id": "tactus",
       "label": "Tactus",
       "href": "https://tactus.anth.us/",
       "kind": "platform",
+      "footerGroup": "open-source",
+      "description": "Durable runtime for agent procedures.",
+      "status": "live",
+      "showInFooter": true
+    },
+    "markus": {
+      "id": "markus",
+      "label": "Markus",
+      "href": "https://markus.anth.us/",
+      "kind": "platform",
+      "footerGroup": "open-source",
+      "description": "GitHub-flavored Markdown with a vocabulary for layout intent.",
       "status": "live",
       "showInFooter": true
     },
@@ -72,14 +157,17 @@
       "label": "Korporus",
       "href": "https://korpor.us/",
       "kind": "platform",
-      "status": "live",
-      "showInFooter": true
+      "description": "Agent operating system and federated shell.",
+      "status": "held-back",
+      "showInFooter": false
     },
     "biblicus": {
       "id": "biblicus",
       "label": "Biblicus",
-      "href": "https://anthusai.github.io/Biblicus/",
+      "href": "https://github.com/AnthusAI/Biblicus",
       "kind": "platform",
+      "footerGroup": "open-source",
+      "description": "Corpus analysis for extraction and retrieval.",
       "status": "live",
       "showInFooter": true
     },
@@ -88,14 +176,17 @@
       "label": "Babulus",
       "href": "https://babul.us/",
       "kind": "platform",
-      "status": "live",
-      "showInFooter": true
+      "description": "Marketing automation built around VideoML.",
+      "status": "held-back",
+      "showInFooter": false
     },
     "kanbus": {
       "id": "kanbus",
       "label": "Kanbus",
       "href": "https://kanb.us/",
       "kind": "platform",
+      "footerGroup": "open-source",
+      "description": "Durable multi-agent task management.",
       "status": "live",
       "showInFooter": true
     },
@@ -104,6 +195,27 @@
       "label": "Caducus",
       "href": "https://caduc.us/",
       "kind": "platform",
+      "description": "Monitoring, alerts, and operator support.",
+      "status": "held-back",
+      "showInFooter": false
+    },
+    "hardDecisions": {
+      "id": "hard-decisions",
+      "label": "Hard Decisions",
+      "href": "https://hard-decisions.anth.us/",
+      "kind": "research",
+      "footerGroup": "research",
+      "description": "Independent benchmark of decision models.",
+      "status": "live",
+      "showInFooter": true
+    },
+    "biasedDecisions": {
+      "id": "biased-decisions",
+      "label": "Biased Decisions",
+      "href": "https://biased-decisions.anth.us/",
+      "kind": "research",
+      "footerGroup": "research",
+      "description": "Leaderboard of demographic bias in decision models.",
       "status": "live",
       "showInFooter": true
     },
@@ -117,18 +229,26 @@
     }
   },
   "anthusLinkSiteIds": [
-    "anthus",
     "anthusSolutions",
     "anthusPlatform",
-    "anthusArticles"
+    "anthusArticles",
+    "anthusAbout",
+    "anthusPosts"
   ],
   "platformSiteIds": [
+    "cyclotron",
+    "chatticus",
+    "papyrus",
+    "auritus",
     "primus",
     "tactus",
-    "korporus",
-    "biblicus",
-    "babulus",
     "kanbus",
+    "biblicus",
+    "markus",
+    "hardDecisions",
+    "biasedDecisions",
+    "korporus",
+    "babulus",
     "caducus",
     "virtuus"
   ]
