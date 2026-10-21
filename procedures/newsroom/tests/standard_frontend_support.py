@@ -202,7 +202,7 @@ def validate_atom(data: bytes) -> list[str]:
     return problems
 
 
-def edit_item(site: "ProjectedSite", item_id: str, *, title: str | None = None, body: str | None = None):
+def edit_item(site: "ProjectedSite", item_id: str, *, title: str | None = None, body: str | None = None, front_matter: dict | None = None):
     """Re-save and re-publish one fixture item with a changed title or body, then project it; returns the report."""
     import dataclasses
 
@@ -210,9 +210,11 @@ def edit_item(site: "ProjectedSite", item_id: str, *, title: str | None = None, 
 
     path = next(p for p in site.content_root.rglob("*.md") if fields_for(site.content_root, p).id == item_id)
     fields = fields_for(site.content_root, path)
-    if title is not None:
+    if title is not None or front_matter:
         data = yaml.safe_load(fields.front_matter_yaml or "") or {}
-        data["title"] = title
+        if title is not None:
+            data["title"] = title
+        data.update(front_matter or {})
         fields = dataclasses.replace(fields, front_matter_yaml=yaml.safe_dump(data, sort_keys=False))
     if body is not None:
         fields = dataclasses.replace(fields, body_markus=body)

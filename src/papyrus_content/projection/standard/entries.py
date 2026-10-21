@@ -127,6 +127,8 @@ def build_entries(items, settings: StandardSettings, policy: UrlPolicy) -> list[
 def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: UrlPolicy) -> StandardEntry | None:
     if PurePosixPath(summary.output_path).name.startswith(("_", ".")):
         return None
+    if settings.showcase is not None and summary.section == settings.showcase.section:
+        return None  # showcase items are data for the logo wall, not pages
     if summary.section is None and summary.slug == "index":
         return None  # the authored home page is an item page of its own, not a listed entry
     section: SectionConfig | None = None

@@ -19,7 +19,7 @@ from .redirects import RedirectRule, rule_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
-    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media",
+    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -154,6 +154,17 @@ class IconSettings:
 
 
 @dataclass(frozen=True)
+class ShowcaseSettings:
+    """A logo wall fed from published items: every item of ``section`` is one site (front matter: name, logo, url, kind, order)."""
+
+    section: str
+    path: str = "built-with"
+    title: str = "Built with Papyrus"
+    description: str = ""
+    kinds: tuple[tuple[str, str], ...] = (("anthus", "Built by Anthus"), ("design-partner", "Design partners"), ("customer", "Customers"))
+
+
+@dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
@@ -182,6 +193,7 @@ class StandardSettings:
     breadcrumbs: bool = True
     home_link_label: str = "Home"
     summary_fields: tuple[str, ...] = ()
+    showcase: ShowcaseSettings | None = None
 
     @property
     def sectioned(self) -> bool:
@@ -351,6 +363,20 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     components = dict(raw.get("components") or {})
     _only(components, {"itemByline", "breadcrumbs", "itemPagesDependOn"}, "components")
 
+    showcase_raw = raw.get("showcase")
+    showcase = None
+    if showcase_raw is not None:
+        _only(showcase_raw, {"section", "path", "title", "description", "kinds"}, "showcase")
+        defaults = ShowcaseSettings(section="x")
+        showcase = ShowcaseSettings(
+            section=_path_segment(str(showcase_raw["section"]), "showcase.section"),
+            path=_path_segment(str(showcase_raw.get("path", defaults.path)), "showcase.path"),
+            title=_text(showcase_raw, "title", defaults.title),
+            description=_text(showcase_raw, "description"),
+            kinds=tuple((str(key), str(label)) for key, label in dict(showcase_raw.get("kinds") or dict(defaults.kinds)).items()),
+        )
+        if any(section.name == showcase.section for section in sections):
+            raise ValueError("showcase.section must not also be declared in urls.sections")
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -386,4 +412,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         breadcrumbs=bool(components.get("breadcrumbs", True)),
         home_link_label=_text(nav, "homeLabel", "Home"),
         summary_fields=tuple(site.get("summaryFields") or ()),
+        showcase=showcase,
     )

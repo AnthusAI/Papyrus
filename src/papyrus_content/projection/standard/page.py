@@ -11,7 +11,7 @@ from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
 
-KINDS = ("item", "home", "listing", "tags", "tag", "custom", "not_found")
+KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "not_found")
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,7 @@ class StandardPage:
     custom_id: str | None = None
     breadcrumbs: tuple[tuple[str, str], ...] = ()
     tags: dict = field(default_factory=dict)    # tag index: tag -> entries
+    showcase: tuple = ()                        # showcase page: the ShowcaseSite records, sorted
     components = components
 
     @property

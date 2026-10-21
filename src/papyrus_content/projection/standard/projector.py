@@ -50,6 +50,7 @@ from .head import HeadBuilder, PageHead
 from .fragments import first_image_of, lede_of
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
+from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
 from .urls import NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
@@ -267,6 +268,21 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     key = self.policy.listing_key(view.base, view.page)
                     add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
 
+        # showcase (logo wall)
+        wall = self.standard.showcase
+        if wall is not None:
+            sites = showcase_sites(summaries, wall)
+            add(
+                self.policy.listing_key(wall.path),
+                "showcase",
+                [[site.fingerprint() for site in sites]],
+                lambda: self._page(
+                    "showcase",
+                    PageHead(title=wall.title, path=f"/{wall.path}/", description=wall.description or self.standard.identity.description),
+                    site, entries=tuple(listed), showcase=tuple(sites),
+                ),
+            )
+
         # custom pages
         for custom in self.standard.pages:
             selected = [entry for entry in entries if "*" in custom.depends_on or (entry.section and entry.section.name in custom.depends_on)]
@@ -372,6 +388,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if tags:
                 urls.append(SitemapUrl(f"/{self.policy.tag_base()}/", ""))
                 urls.extend(SitemapUrl(f"/{self.policy.tag_base(slugify_tag(tag))}/", max(entry.updated for entry in found)) for tag, found in tags.items() if slugify_tag(tag))
+        if self.standard.showcase is not None:
+            urls.append(SitemapUrl(f"/{self.standard.showcase.path}/", ""))
         for custom in self.standard.pages:
             if custom.sitemap and not custom.noindex:
                 urls.append(SitemapUrl(f"/{custom.path}/", ""))
@@ -553,6 +571,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 for tag, found in page.tags.items()
             )
             return f'<div class="markus-document"><h1>Tags</h1><ul class="markus-tag-cloud">{items}</ul></div>'
+        if page.kind == "showcase":
+            wall = self.standard.showcase
+            intro = f"<p>{components.esc(wall.description)}</p>" if wall.description else ""
+            return f'<div class="markus-document"><h1>{components.esc(wall.title)}</h1>{intro}{logo_wall(page.showcase, wall)}</div>'
         if page.kind == "not_found":
             return (
                 '<div class="markus-document"><h1>Page not found</h1>'
