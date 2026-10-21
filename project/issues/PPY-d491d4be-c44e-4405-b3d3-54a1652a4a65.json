@@ -34,10 +34,22 @@
         "model": "claude-sonnet-5-5",
         "name": "Sonnet monitoring agent"
       }
+    },
+    {
+      "id": "3dae3e74-7ff6-4275-9d33-9ee3174e0ed1",
+      "author": "home",
+      "text": "2026-10-21 18:40Z: Cyclotron PR 87 (sanitized worker failure log: exception classes, code locations, elapsed and remaining ms; no messages or payloads) is released to main as 0.33.0, but NOT deployed. main pushes do not deploy the lab stack: cyclotron-console is a hand-run SAM stack and infra/lab/README.md says every deploy needs Ryan's explicit approval and a change-set review. Waiting on that approval. Grep for a 10 s deadline found only 10 s read timeouts on the S3, KMS and Secrets Manager clients (cloud_entry.py) and httpx timeout=10 in the accounts clients; none explains an exit at 10.0 s, so the diagnostic is still needed. The two redelivered queue messages were consumed by terminal-status returns; both queues are empty. Router remains dry-run.",
+      "created_at": "2026-10-21T18:37:13.538104Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Sonnet monitoring agent"
+      }
     }
   ],
   "created_at": "2026-10-21T17:47:09.374027Z",
-  "updated_at": "2026-10-21T18:15:30.492289Z",
+  "updated_at": "2026-10-21T18:37:13.538135Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",
