@@ -44,6 +44,7 @@ PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
 FEEDBACK_PARTITION = "FEEDBACK#hn#pending"
 ROUTING_FINAL = ("routed", "refused", "uncertain", "error")
+NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
@@ -127,9 +128,16 @@ def validate_router_config(raw: dict) -> dict:
 # --- request building -------------------------------------------------------------------------------
 
 def request_id(account_id: str, run_id: str, publication_id: str, binding_revision: str, item_id: str,
-               fingerprint: str) -> str:
-    """Deterministic: the same item revision against the same binding always has the same id."""
-    text = "\n".join([account_id, run_id, f"{publication_id}@{binding_revision}", item_id, fingerprint])
+               fingerprint: str, attempt: int = 0) -> str:
+    """Deterministic: the same item revision against the same binding always has the same id.
+
+    `attempt` is 0 until Cyclotron refuses a job without consuming any provider request (key missing,
+    ceiling reached). Cyclotron keeps a refused job under its request id, so a later retry needs a new one.
+    """
+    parts = [account_id, run_id, f"{publication_id}@{binding_revision}", item_id, fingerprint]
+    if attempt:
+        parts.append(f"attempt-{attempt}")
+    text = "\n".join(parts)
     return sha256(text.encode()).hexdigest()
 
 
@@ -143,11 +151,11 @@ def build_item(discovery: dict) -> dict:
         "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""), "text": f"{title}\n{url}"}}
 
 
-def build_decide_request(config: dict, publication: dict, discovery: dict) -> dict:
+def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0) -> dict:
     cyclotron, item = config["cyclotron"], build_item(discovery)
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
-                                    cyclotron["bindingRevision"], item["id"], str(discovery["fingerprint"])),
+                                    cyclotron["bindingRevision"], item["id"], str(discovery["fingerprint"]), attempt),
             "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}}
     validate_request(body)
     return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
@@ -549,12 +557,12 @@ class Router:
         item_id = f"hn-{disc['sourceId']}"
         for publication in self.config["publications"]:
             pub_id = publication["publicationId"]
-            built = build_decide_request(self.config, publication, disc)
+            built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
             job = jobs.get(pub_id)
+            if job and job.get("checked"):
+                continue   # already decided under an earlier request id; the shared decision is cached
             if job and job.get("requestId") != built["body"]["requestId"]:
                 raise ItemInvalid("stored job belongs to a different request")
-            if job and job.get("checked"):
-                continue
             if job and job.get("jobId"):
                 if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
                     raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
@@ -578,7 +586,15 @@ class Router:
                     jobs[pub_id]["checked"] = checked_decision(immediate, publication, self.config, item_id)
                     self.save(route)
                     continue
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+            try:
+                response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+            except StopSweep as stop:
+                if stop.code in NON_CONSUMING_REFUSALS:
+                    # Nothing ran at the provider. Drop the refused job and use a new request id next time.
+                    del jobs[pub_id]
+                    route["attempt"] = int(route.get("attempt", 0)) + 1
+                    self.save(route)
+                raise
             jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
             self.save(route)
         checked = {pid: jobs[pid]["checked"] for pid in (p["publicationId"] for p in self.config["publications"])}

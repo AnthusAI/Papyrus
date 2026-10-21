@@ -328,19 +328,33 @@ def test_post_refusals_stop_the_sweep_and_leave_items_collected_without_retry(ta
     assert "routed" in set(routing_of(table).values())
 
 
-@pytest.mark.parametrize("status,code", [(503, "provider_key_unavailable"), (429, "request_ceiling_reached"),
-                                         (507, "standing_capacity_reached"), (409, "run_busy")])
-def test_poll_refusals_stop_the_sweep_and_never_repost(table, status, code):
+def test_run_busy_poll_refusal_stops_the_sweep_and_never_reposts(table):
     store, cyclotron = setup_router(table)
-    cyclotron.poll_override["p-apyr-us"] = (status, {"code": code})
+    cyclotron.poll_override["p-apyr-us"] = (409, {"code": "run_busy"})
     result = go(table, store, cyclotron)
-    assert result["status"] == "stopped" and result["stoppedBy"] == code
+    assert result["status"] == "stopped" and result["stoppedBy"] == "run_busy"
     assert set(routing_of(table).values()) == {"collected"}
     posts = len(cyclotron.posts())
     cyclotron.poll_override.clear()
     go(table, store, cyclotron, now=3000)
     first = [c for c in cyclotron.posts() if c[2]["payload"]["item"]["id"] == "hn-101"]
     assert len(first) == 3 and len(cyclotron.posts()) > posts      # item 101 was not re-POSTed per publication
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+@pytest.mark.parametrize("status,code", [(503, "provider_key_unavailable"), (429, "request_ceiling_reached"),
+                                         (507, "standing_capacity_reached")])
+def test_non_consuming_poll_refusals_retry_under_a_new_request_id(table, status, code):
+    store, cyclotron = setup_router(table)
+    cyclotron.poll_override["p-apyr-us"] = (status, {"code": code})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == code
+    assert set(routing_of(table).values()) == {"collected"}
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["attempt"] == 1
+    cyclotron.poll_override.clear()
+    go(table, store, cyclotron, now=3000)
+    ids = [c[2]["requestId"] for c in cyclotron.posts() if c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == len(set(ids)) and len(ids) >= 3
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
