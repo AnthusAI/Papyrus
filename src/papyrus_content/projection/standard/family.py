@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .components import esc
+from .components import esc, noopener
 from .config import FamilyFooter, FooterColumn
 
 REGISTRY = json.loads((Path(__file__).parent / "anthus_sites.json").read_text(encoding="utf-8"))
@@ -49,7 +49,7 @@ def family_footer(family: FamilyFooter, site_name: str, text: str, columns: tupl
     name = family.name or registered.get("label") or site_name
     community = '<span aria-hidden="true">·</span>'.join(_link(link["label"], link["href"], external=True) for link in REGISTRY["communityLinks"])
     own = [
-        _column(column.title, [_link(link.label, link.href, external=link.external) for link in column.links])
+        _column(column.title, [f'<a href="{esc(link.href)}"{noopener(link)}>{esc(link.label)}</a>' for link in column.links])
         for column in columns
     ]
     anthus = _column("Anthus", [_link(label, href, external=False) for label, href in brand_links()])

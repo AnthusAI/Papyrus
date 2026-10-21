@@ -31,8 +31,8 @@ Every block is optional except `site.name`. Unknown keys are errors.
 |---|---|
 | `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
 | `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
-| `nav` | `links: [{label, href, cta}]`, `disclosure` (a menu button for narrow screens), `homeLabel` |
-| `footer` | `columns: [{title, links}]`, `text` |
+| `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
+| `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
 | `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
@@ -48,6 +48,8 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
+| `values` | `{ "name": "text or number" }`: the `{{name}}` tokens of page blocks (see "Page blocks") |
+| `islands` | `{script, stylesheet}`: the site bundle that mounts islands, and an optional stylesheet linked on every page (see "Islands") |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
 
@@ -176,6 +178,119 @@ error (prefix helpers with `_`):
 fields, link-only items, special pages) builds its model from `page.summaries` and composes pages in `page_body`.
 A hook that is handed `page` can read any entry, so by default every page depends on all entries and listings on all their fields. Narrow that with a module-level `DEPENDS_ON`: a list of section names (`@root` is the items with no section), `[]` for nothing, or a dict keyed by page id (`home`, `item`, `listing:<section>`, `listing:flat`, `tags`, `tag`, `archive:<section>`, `showcase`, `custom:<id>`, `not_found`, with `"*"` as the fallback) when pages depend on different things.
 A hooks module's source and its sibling modules are part of every page's inputs, so editing them re-renders.
+
+## Page blocks
+
+Marketing pages need full-width sections, columns, calls to action and interactive widgets that Markus does not
+describe. Page blocks are line-level directives that the standard projector handles **before** Markus runs. They are
+opt-in: a file with no `::band` line is converted exactly as before. Each directive sits alone on its line. They work for
+sites whose content is a directory of Markdown files (`project --all --from-dir`); the CMS save path validates bodies
+with Markus alone and still rejects them.
+
+```markdown
+::band{id="start" tone="card" size="hero" eyebrow="Open source" columns="home"}
+# {{headline}}
+
+Text between directives is ordinary Markus.
+
+::button{href="/start/" label="Start" size="lg"}
+::button{href="https://example.org/" label="Source" variant="secondary"}
+
+::column{panel="card"}
+::island{name="DecisionCarousel" height="24rem"}
+```
+
+| Directive | Attributes | Output |
+|---|---|---|
+| `::band` | `id`, `tone` (`background` default, `card`, `muted`), `size` (`standard` default, `hero`, `bare`), `eyebrow`, `columns` (a layout name for your CSS) | starts a full-width section that lasts until the next `::band` |
+| `::column` | `panel` (`card`) | starts the next column of the band |
+| `::button` | `href`, `label`, `size` (`default`, `lg`), `variant` (`default`, `secondary`) | a link; consecutive lines (blank lines between them allowed) share one row |
+| `::island` | `name` (required), `height` (`20rem`, `300px`, `50vh`), any other attribute | a mount point (see "Islands") |
+
+A band renders as
+
+```html
+<section class="markus-band" id=".." data-tone=".." data-size=".." data-layout="..">
+  <div class="markus-band-inner">
+    <p class="markus-band-eyebrow">..</p>
+    <div class="markus-columns" data-count="2">
+      <div class="markus-column">..</div>
+      <div class="markus-column" data-panel="card">..</div>
+    </div>
+  </div>
+</section>
+```
+
+(`id` and `data-layout` only when given.) `size="bare"` emits only the band's contents, with no wrapper, for components
+that bring their own section. Buttons are `<p class="markus-actions"><a class="markus-button" data-size=".." data-variant=".." href="..">label</a>...</p>`;
+only `http(s):`, `mailto:`, site-absolute (`/x`) and `#fragment` hrefs are accepted, and everything is escaped. Text
+between directives is converted by Markus one segment at a time and joined, so the page has no `<article>` wrapper and no
+Markus header; the band markup is the page. A page that uses bands must start with a `::band` line (after the front
+matter). Unknown attributes, tones, sizes and variants are errors that name the file. Directives inside code fences are
+text.
+
+**Values.** `{{name}}` is replaced, in text and in directive attributes, before conversion, from the top-level
+`values` object of `projection.json` (strings or numbers). A name that is not defined is a build error naming the file
+and the token. A site with no `values` leaves every `{{...}}` alone (and `{{ section listing }}`, with its spaces, is
+never a value). Values are part of the shared fingerprint, so changing one re-renders every page.
+
+**Agent-readable twins.** For a page with bands, the `.md` twin and `llms-full.txt` drop the band and column markers,
+turn buttons into Markdown links on one line (`[Start](/start/) · [Source](https://example.org/)`), omit islands and
+have tokens replaced.
+
+The baseline `css/markus-components.css` styles bands, columns, panels and buttons through `--papyrus-band-*`,
+`--papyrus-button-*`, `--papyrus-rule` and `--papyrus-radius`; your theme restyles them and may key on `data-layout`.
+
+## Islands
+
+An island is a mount point for interactive code the site owns (a chart, a carousel). Core only finds the mount
+points and calls the site's code:
+
+```json
+"islands": { "script": "assets/islands.js", "stylesheet": "css/islands.css" }
+```
+
+Both files are read from `web/`; a missing file is an error. A page that contains at least one
+`<div class="papyrus-island" data-island="Name" data-props='{...}'>` (from `::island`, or emitted by a hook) gets, after
+the body, `_plugins/papyrus-islands-v1.js` and `<script type="module" src="/assets/islands.js?v=TOKEN">`, cache-busted like
+the other assets. Pages without an island get neither. The stylesheet, when configured, is linked on every page.
+
+The contract: the site bundle assigns `window.papyrusIslands = { ...window.papyrusIslands, Name(element, props) { ... } }`
+(merge, do not replace). On `DOMContentLoaded` the runtime calls `window.papyrusIslands[name](element, props)` once for each
+`[data-island]`; `props` is the parsed `data-props` JSON (the `::island` attributes other than `name` and `height`).
+An unknown name logs a console warning and never throws; an island that throws is logged and does not stop the others.
+`height` becomes `style="min-height:.."` so the page does not jump when the island mounts.
+
+## Header and footer options
+
+**Brand.** `nav.brandHtml` is trusted markup (a logo and a word) placed inside the wordmark link instead of the site
+name; the link keeps `aria-label="<site name>, home"`. Without it the wordmark is the escaped site name as before.
+
+**Links.** `nav.links[].external: true` adds `rel="noopener"` (the target is not changed). A link with `children:
+[{label, href, external}]` and no `href` renders a group:
+`<details class="markus-nav-group"><summary>Label</summary><div class="markus-nav-group-links">...links...</div></details>`.
+On narrow screens it is an expandable list inside the menu; on wider screens `markus-components.css` shows the links as a
+dropdown while the group is hovered or focused (browsers without `::details-content` fall back to click). There is no
+script beyond the existing `nav.disclosure` one. Footer column links accept `external` too.
+
+**Family footer.** `footer.family` renders the footer of the npm package `anthus-footer` as static HTML and replaces the
+default footer rendering (a `footer` hook still wins):
+
+```json
+"footer": { "text": "Open-source decision engine.", "family": { "siteId": "tactus", "tagline": "Made by" },
+            "columns": [{ "title": "Resources", "links": [{ "label": "Docs", "href": "/docs/" }] }] }
+```
+
+`family` keys, all optional: `siteId` (a key of the registry such as `tactus`; its label is the heading), `name` (heading
+when the site is not in the registry; default the site name), `tagline` (`Part of the Anthus Platform`), `description`
+(default `footer.text`, then the package's sentence), `byline` (`Built by Anthus AI Solutions`). The markup, in order: a
+`papyrus-family-footer-community` row (Contact us, GitHub, LinkedIn, Discord), a `papyrus-family-footer-grid` with the
+`-brand` panel, the "Anthus" and "Anthus Platform" `-column`s from the registry, then one `-column` per `footer.columns`
+entry, and a `-bottom` row. The registry is `anthus_sites.json` next to the code, a copy of the package's `src/sites.js`
+(the package is its other consumer; keep them in step). Only sites that are `live` and shown in the footer appear, in the
+package's order. Like the package, the current site is not removed from the platform column. Colours come from
+`--papyrus-family-footer-background`, `-panel-background`, `-accent-background`, `-text`, `-muted-text`, `-link`, `-radius`,
+`-max-width` and `-font-family`; the defaults are the package's default theme, so a site overrides only its colours.
 
 ## Showcase (logo wall)
 
