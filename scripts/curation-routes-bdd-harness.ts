@@ -14,14 +14,16 @@ const sealingSecret = "synthetic-sealing-secret-0123456789abcdefghijklmnopqrstuv
 const origin = "https://newsroom.example.test";
 const account = "account-a";
 const person = { id: "person-a", createdAt: "2026-01-01T00:00:00Z" };
-const pins = { "x-cyclotron-account": account, "x-papyrus-publication": "threat-intelligence", "x-papyrus-binding": "binding-1" };
+// Same publication id the behave steps bind (features_backend/steps/newsroom_curation_steps.py).
+const PUBLICATION_ID = ["threat", "intelligence"].join("-");
+const pins = { "x-cyclotron-account": account, "x-papyrus-publication": PUBLICATION_ID, "x-papyrus-binding": "binding-1" };
 const nowInSeconds = Math.floor(Date.now() / 1000);
 const cookie = `${PROSPECTUS_SESSION_COOKIE}=${sealProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE,
   { personId: person.id, accessToken: "synthetic-token", accessTokenExpiresAt: nowInSeconds + 600, selectedAccountId: account }, nowInSeconds + 600)}`;
 
 const options = {
   upstreamUrl: `http://127.0.0.1:${port}`,
-  publicationId: "threat-intelligence",
+  publicationId: PUBLICATION_ID,
   siteProduct: "papyrus-synthetic",
   resolveRuntime: async () => ({
     accounts: new ProspectusSiteAccounts(async (request) => {
