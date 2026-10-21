@@ -913,7 +913,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Copy / view / open-in actions on an article's page; only where the page has a Markdown twin."""
         settings = self.standard.page_actions
         entry = page.entry
-        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or entry.type not in self.standard.listings.types:
+        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or not (entry.type in self.standard.listings.types or entry.type in (settings.types or ())):
             return ""
         twin = md_path(entry.key)
         if twin is None:

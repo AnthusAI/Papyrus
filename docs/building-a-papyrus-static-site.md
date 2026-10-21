@@ -460,7 +460,7 @@ environment publishes no `llms` files. Everything is regenerated on publish: a t
 title, summary or date changes, `llms-full.txt` whenever any item is republished (it is keyed on item versions, so a
 body edit is seen; a republish that changes no visible field rewrites it with identical bytes).
 
-**Documentation sites** (`papyrus_content.markus_renderer.docs_site`, GitHub Pages) are a separate builder. When the site declares its public address (`--site-url` / `published_site_url`) it also publishes a `.md` twin beside each page, `/llms.txt`, `/llms-full.txt` (200 pages, 1,000,000 bytes), a `sitemap.xml` whose `lastmod` is the date of the last git commit of the source page, and a `robots.txt` with a `Sitemap:` line (an existing one is kept). Docs have no dated content, so no feeds, and no page actions. A site that stages its own content calls `write_sitemap_and_not_found_page(config, out, content_directory=staging)`.
+**Documentation sites** (`papyrus_content.markus_renderer.docs_site`, GitHub Pages) are a separate builder. When the site declares its public address (`--site-url` / `published_site_url`) it also publishes a `.md` twin beside each page, `/llms.txt`, `/llms-full.txt` (200 pages, 1,000,000 bytes), a `sitemap.xml` whose `lastmod` is the date of the last git commit of the source page, and a `robots.txt` with a `Sitemap:` line (an existing one is kept). Docs have no dated content, so no feeds. Every page that has a twin also gets the page actions (Copy Markdown, View as Markdown) at the top of its main content, with the head `<link rel="alternate">` to the twin, `_plugins/papyrus-page-actions.css` and `_plugins/papyrus-page-actions-v1.js`; without JavaScript it is a link to the twin. A site that stages its own content calls `write_sitemap_and_not_found_page(config, out, content_directory=staging)`.
 
 **Content negotiation.** The shared CloudFront viewer-request function rewrites a request whose `Accept` prefers
 `text/markdown` over `text/html` (by q-value, wildcards ignored) to the `.md` object before the cache lookup, so the
@@ -478,6 +478,9 @@ Clipboard API is unavailable or refuses, it selects the text through `execComman
 textarea. The AI links open the provider's new-chat URL with a short prompt (`prompt`, default "Read {url} and help me
 with it.") that names the page URL; the page body is never put in a URL. Everything happens on an explicit click; the
 only reporting is a `page_action` event through the site's existing `gtag`, so consent mode applies.
+
+Only entries of a listed type get actions by default. `pageActions.types` names further entry types (`["page"]`, `["guide"]`)
+that get them too, for guides and standing pages; listings, archives and the home page never do.
 
 Without JavaScript the markup is a list of links (View as Markdown, Open in ...) and the copy button stays hidden
 (`visibility: hidden`, so it also stays out of the accessibility tree and keeps its space: no layout shift). With

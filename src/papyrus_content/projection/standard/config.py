@@ -301,6 +301,7 @@ class PageActionSettings:
     actions: tuple[str, ...] = ("copy", "view")
     ai: tuple[str, ...] = ()                  # subset of AI_DESTINATIONS; none by default
     prompt: str = "Read {url} and help me with it."
+    types: tuple[str, ...] | None = None      # extra entry types that get actions (guides, docs); None = the listed types only
 
 
 #: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
@@ -707,7 +708,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if (agents.llms_txt or agents.llms_full) and not agents.markdown:
         raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
     actions_raw = dict(raw.get("pageActions") or {})
-    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt"}, "pageActions")
+    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types"}, "pageActions")
     action_defaults = PageActionSettings()
     page_actions = PageActionSettings(
         enabled=bool(actions_raw.get("enabled", True)),
@@ -715,7 +716,10 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         actions=tuple(actions_raw.get("actions", action_defaults.actions)),
         ai=tuple(actions_raw.get("ai", ())),
         prompt=str(actions_raw.get("prompt", action_defaults.prompt)),
+        types=tuple(str(name) for name in actions_raw["types"]) if actions_raw.get("types") is not None else None,
     )
+    if page_actions.types is not None and not all(page_actions.types):
+        raise ValueError("pageActions.types lists entry type names")
     if page_actions.placement not in ("header", "aside"):
         raise ValueError("pageActions.placement must be 'header' or 'aside'")
     if not set(page_actions.actions) <= {"copy", "view"}:

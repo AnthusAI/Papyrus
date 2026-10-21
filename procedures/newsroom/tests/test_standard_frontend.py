@@ -1033,6 +1033,18 @@ def test_page_actions_are_only_on_articles_with_a_twin(flat, sectioned):
     assert "markus-page-actions" in sectioned.text("essays/slow-water/index.html")
 
 
+def test_page_actions_types_opt_guides_and_standing_pages_in():
+    site = with_actions(types=["page"])
+    try:
+        page = site.text("about.html")
+        assert "markus-page-actions" in page and 'data-markdown="/about.md"' in page
+        assert "markus-page-actions" not in site.text("archive/index.html")          # listings never get actions
+    finally:
+        site.cleanup()
+    with pytest.raises(ValueError, match="pageActions.types"):
+        standard_settings_from_mapping({"site": {"name": "X"}, "pageActions": {"types": [""]}})
+
+
 def test_ai_destinations_carry_a_short_prompt_with_the_url_and_never_the_page_body():
     site = with_actions(ai=["chatgpt", "claude", "perplexity"], placement="aside")
     try:
