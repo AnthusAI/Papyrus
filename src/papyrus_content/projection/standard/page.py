@@ -64,5 +64,11 @@ class StandardPage:
     def skip_link(self) -> str:
         return components.skip_link()
 
+    def form(self, form_id: str) -> str:
+        """The markup of a ``forms`` entry, for a hook composing its own page."""
+        from .forms import render_form
+
+        return render_form(next(spec for spec in self.settings.forms if spec.id == form_id))
+
     def render_nav(self) -> str:
         return components.nav(self.settings.nav, self.path, disclosure=self.settings.nav_disclosure)

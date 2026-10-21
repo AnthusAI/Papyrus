@@ -18,3 +18,7 @@
 .markus-logo a { display: flex; align-items: center; justify-content: center; min-height: 5rem; padding: .75rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: .5rem; text-decoration: none; color: inherit; }
 .markus-logo-image { max-width: 100%; max-height: 3.5rem; height: auto; object-fit: contain; }
 .markus-logo-text { font-weight: 600; text-align: center; }
+.markus-form-field { display: grid; gap: .25rem; margin-bottom: 1rem; }
+.markus-form-field :is(input, textarea, select) { font: inherit; padding: .5rem; max-width: 100%; }
+.markus-form-trap { position: absolute; left: -9999px; }
+.markus-form-status.is-error { color: var(--papyrus-error, #b00020); }

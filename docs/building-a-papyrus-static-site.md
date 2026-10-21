@@ -42,9 +42,10 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `icons` | `icon`, `iconType`, `appleTouch`, `manifest`, `themeColor`, `themeColorDark` |
 | `environment` | `guard` (default `true`) |
 | `redirects` | `exact: {"/old/": "/new/"}`, `patterns: [{pattern, to, status, except}]` |
-| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex}]`; the body comes from the `page_body` hook |
+| `pages` | custom generated pages: `[{id, path, title, description, dependsOn, sitemap, noindex, form}]`; the body comes from the `page_body` hook |
 | `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
+| `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
@@ -197,6 +198,17 @@ papyrus ops content project --all --from-dir content --static-dir web --out dist
 Every `.md` under `content/` is a published item (the first directory is its section; front matter `type` defaults to
 `article`, `type: page` makes a root page, `aliases` become redirects). Redirects are reported by the CMS path only;
 a repository-built site keeps them in `projection.json` (`redirects`). Sync `dist/` to the bucket as before.
+
+## Forms
+
+`forms` defines a public form as data: `fields` (`name`, `label`, `type` of `text`, `email`, `textarea` or `select`,
+`required`, `options`, `autocomplete`, `help`), a `honeypot` field name (default `website`), texts, and an `endpoint`
+(https or a site path). A custom page with `"form": "<id>"` shows it; a hook can place it with `page.form("<id>")`.
+With an endpoint, `_plugins/papyrus-form-v1.js` posts the fields as JSON plus `page` (the page path) and the honeypot
+field, and reports success only for a 2xx answer (anything else shows `failureText`). **With `endpoint: null` the form
+is a disabled fieldset under a "not open yet" notice: nothing can be submitted and success is never faked.** The
+receiving endpoint (shared, rate-limited, bot-protected; submissions as newsroom Messages) is separate backend work
+(PPY-caf9be).
 
 ## Migration checklist
 
