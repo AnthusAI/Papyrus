@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { assertValidPublicationConfig, type PapyrusPublicationConfig } from "../site-backend-config";
 import { addRenditionsFunction, type RenditionsFunction } from "./renditions-function";
 import { RENDITIONS_FUNCTION_NAME_ENV, type RenditionsPlan } from "./renditions-settings";
-import { compileRedirectFunctionSource, readEdgeRules } from "./redirect-rules";
+import { compileRedirectFunctionSource, readEdgeConfig } from "./redirect-rules";
 import { addInvalidationPathAlarm } from "./invalidation-alarm";
 import { distributionIdFromArn, s3ProjectionEnvironment, s3ProjectionPolicyStatements } from "./s3-projection-settings";
 
@@ -115,7 +115,9 @@ export function addS3ProjectionPublication(
   const redirectFunction = new cloudfront.Function(scope, "RedirectAndIndexFunction", {
     runtime: cloudfront.FunctionRuntime.JS_2_0,
     code: cloudfront.FunctionCode.fromInline(
-      compileRedirectFunctionSource(readFileSync(redirectFunctionSourcePath, "utf8"), readEdgeRules(props.staticDir)),
+      compileRedirectFunctionSource(readFileSync(redirectFunctionSourcePath, "utf8"), readEdgeConfig(props.staticDir).rules, {
+        negotiateMarkdown: readEdgeConfig(props.staticDir).negotiateMarkdown,
+      }),
     ),
     keyValueStore,
   });

@@ -46,6 +46,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `static` | `copy`: directories of `web/` published verbatim at the site root (an exported app, retained routes). They are never owned by the projector, so a reconcile does not delete them; css and assets stay reserved |
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
+| `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
@@ -209,6 +210,30 @@ field, and reports success only for a 2xx answer (anything else shows `failureTe
 is a disabled fieldset under a "not open yet" notice: nothing can be submitted and success is never faked.** The
 receiving endpoint (shared, rate-limited, bot-protected; submissions as newsroom Messages) is separate backend work
 (PPY-caf9be).
+
+## Agent-readable pages
+
+Every page has a Markdown twin built from the same published content: `x.html` has `x.md`, `x/index.html` has
+`x/index.md`, the home page `index.md`. An article twin is its facts (title, summary, authors, dates, canonical URL)
+and its Markus source without front matter (`::image` becomes a Markdown image; other directives pass through). A
+listing, archive, tag or home twin is a Markdown link list pointing at the other `.md` URLs. HTML pages advertise
+their twin with `<link rel="alternate" type="text/markdown">`; the objects are stored as
+`text/markdown; charset=utf-8`. The eligibility rules are the sitemap's and the feeds': only published pages, no twin
+for a `noindex` entry or the 404 page.
+
+`/llms.txt` follows llmstxt.org: an H1 with the site name, a blockquote from the site description, H2 sections of
+links to the twins (one per section, or "Articles" for a flat site, then "Pages"), and an "Optional" section with the
+feeds, the sitemap and `llms-full.txt`. `/llms-full.txt` is the whole published content in one file, produced only
+when the site has at most `llmsFullMaxItems` pages and truncated at `llmsFullMaxBytes`. A guarded (non-production)
+environment publishes no `llms` files. Everything is regenerated on publish: a twin with its page, `llms.txt` when a
+title, summary or date changes, `llms-full.txt` whenever any item is republished (it is keyed on item versions, so a
+body edit is seen; a republish that changes no visible field rewrites it with identical bytes).
+
+**Content negotiation.** The shared CloudFront viewer-request function rewrites a request whose `Accept` prefers
+`text/markdown` over `text/html` (by q-value, wildcards ignored) to the `.md` object before the cache lookup, so the
+two representations cache separately. It is enabled at deploy time for every standard front end site that does not set
+`agents.markdown: false`. A `Link: rel=alternate` response header is not added (S3 objects cannot carry one and no
+response function is attached); the `<link>` in the HTML head is the discovery path.
 
 ## Migration checklist
 

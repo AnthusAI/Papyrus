@@ -1,0 +1,83 @@
+# Example Ledger
+
+---
+
+# Fords and Crossings
+
+> Where roads meet rivers.
+
+Published 2026-03-22
+
+Canonical: https://ledger.example.org/essays/fords/
+
+Fords predate bridges.
+
+---
+
+# Hedgerows
+
+Published 2026-03-15
+
+Canonical: https://ledger.example.org/essays/hedgerows/
+
+A hedgerow is a habitat.
+
+---
+
+# Field Note Two
+
+Published 2026-03-09
+
+Canonical: https://ledger.example.org/notes/field-note-two/
+
+Water was lower today.
+
+---
+
+# Stone Walls
+
+> Walls without mortar.
+
+Published 2026-03-08
+
+Canonical: https://ledger.example.org/essays/stone-walls/
+
+Dry stone walls last.
+
+---
+
+# Field Note One
+
+> A short note.
+
+Published 2026-03-02
+
+Canonical: https://ledger.example.org/notes/field-note-one/
+
+Water was high today.
+
+---
+
+# Slow Water
+
+> How a river forgets its banks.
+
+By Cy Marsh · Published 2026-03-01
+
+Canonical: https://ledger.example.org/essays/slow-water/
+
+A river is a conversation.
+
+## Banks
+
+Banks are a record.
+
+---
+
+# About the Ledger
+
+Published 2026-01-01
+
+Canonical: https://ledger.example.org/about/
+
+The ledger is a small publication.

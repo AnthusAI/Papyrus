@@ -31,10 +31,11 @@ from procedures.newsroom.tests.standard_frontend_support import (
 )
 
 GOLDEN_KEYS = {
-    "flat": ["index.html", "orchids.html", "archive/index.html", "404.html", "sitemap.xml", "robots.txt", "feed.xml", "atom.xml"],
+    "flat": ["index.html", "orchids.html", "archive/index.html", "404.html", "sitemap.xml", "robots.txt", "feed.xml", "atom.xml", "orchids.md", "archive/index.md", "index.md", "llms.txt", "llms-full.txt"],
     "sectioned": [
         "index.html", "essays/slow-water/index.html", "essays/index.html", "links/index.html", "404.html",
         "sitemap-index.xml", "sitemap-0.xml", "robots.txt", "feed.xml", "atom.xml", "colophon/index.html",
+        "essays/slow-water/index.md", "essays/index.md", "links/index.md", "llms.txt", "llms-full.txt",
     ],
 }
 
@@ -203,7 +204,7 @@ def test_a_section_without_entries_gets_no_listing_page(tmp_path):
 def test_directory_urls_and_link_only_sections(sectioned):
     tree = sectioned.tree
     assert "essays/slow-water/index.html" in tree and "about/index.html" in tree
-    assert not any(key.startswith("links/") and key != "links/index.html" for key in tree)   # link-only items have no pages
+    assert not any(key.startswith("links/") and key not in ("links/index.html", "links/index.md") for key in tree)   # link-only items have no pages
     links = sectioned.text("links/index.html")
     assert 'href="https://tides.example.net/"' in links
     assert "links/" in sectioned.text("sitemap-0.xml") and "tides.example.net" not in sectioned.text("sitemap-0.xml")
@@ -607,12 +608,12 @@ def test_editing_a_showcase_item_rewrites_only_the_wall():
     site = ProjectedSite("showcase")
     try:
         edit_item(site, "item-showcase-borealis", front_matter={"name": "Borealis Weekly"})
-        assert written_keys(site) == {"built-with/index.html"}
+        assert written_keys(site) == {"built-with/index.html", "built-with/index.md"}
         assert "Borealis Weekly" in site.text("built-with/index.html")
         before = site.tree["built-with/index.html"]
         # Data items have no pages, so the engine keeps no state for them and re-projects the wall; the bytes do not change.
         edit_item(site, "item-showcase-borealis", body="Another body.\n", front_matter={"name": "Borealis Weekly"})
-        assert written_keys(site) <= {"built-with/index.html"} and site.tree["built-with/index.html"] == before
+        assert written_keys(site) <= {"built-with/index.html", "built-with/index.md"} and site.tree["built-with/index.html"] == before
     finally:
         site.cleanup()
 
@@ -859,3 +860,88 @@ def test_a_data_file_next_to_the_hooks_is_part_of_their_fingerprint(tmp_path):
     before = load_hooks(tmp_path, "hooks.py").fingerprint
     (tmp_path / "data.json").write_text('{"a": 2}')
     assert load_hooks(tmp_path, "hooks.py").fingerprint != before
+
+
+# ------------------------------------------------------------------ agent-readable representations
+
+def test_every_published_page_has_a_markdown_twin_with_the_markdown_content_type(flat, sectioned):
+    from papyrus_content.projection.writers import content_type_for
+
+    for key in ("index.md", "orchids.md", "about.md", "archive/index.md", "archive/page/2/index.md", "tags/index.md", "tags/botany/index.md"):
+        assert key in flat.tree, key
+    for key in ("index.md", "essays/slow-water/index.md", "about/index.md", "essays/index.md", "links/index.md", "colophon/index.md"):
+        assert key in sectioned.tree, key
+    assert content_type_for("orchids.md") == "text/markdown; charset=utf-8"
+    assert "404.md" not in flat.tree and "cycads.md" not in flat.tree          # no twin for the 404 page or a draft (noindex)
+
+
+def test_html_pages_advertise_the_twin_and_the_404_does_not(flat, sectioned):
+    assert '<link rel="alternate" type="text/markdown" href="/orchids.md">' in flat.text("orchids.html")
+    assert '<link rel="alternate" type="text/markdown" href="/">' not in flat.text("index.html") and 'href="/index.md"' in flat.text("index.html")
+    assert 'type="text/markdown" href="/essays/slow-water/index.md"' in sectioned.text("essays/slow-water/index.html")
+    assert "text/markdown" not in flat.text("404.html") and "text/markdown" not in flat.text("cycads.html")
+
+
+def test_an_article_twin_is_the_facts_and_the_markus_source_without_front_matter(flat):
+    twin = flat.text("orchids.md")
+    assert twin.startswith("# Orchids of the Marsh\n")
+    assert "> A short guide to marsh orchids." in twin and "By Ada Fern" in twin and "Published 2026-01-05" in twin
+    assert "Canonical: https://almanac.example.org/orchids.html" in twin
+    assert "Marsh orchids flower in June." in twin and "## Where to look" in twin
+    assert "---" not in twin and "title:" not in twin
+
+
+def test_image_directives_become_markdown_images():
+    from papyrus_content.projection.standard.markdown import body_of
+
+    assert body_of('---\ntitle: x\n---\nText\n\n::image{src="/a.png" alt="An A"}\n') == "Text\n\n![An A](/a.png)"
+
+
+def test_listing_twins_are_link_lists_to_the_markdown_urls(flat):
+    archive = flat.text("archive/index.md")
+    assert archive.startswith("# Archive\n")
+    assert "- [Fungi Underground](https://almanac.example.org/fungi.md): The network beneath the forest floor. (2026-02-16)" in archive
+    assert "Page 1 of 2 · [next](https://almanac.example.org/archive/page/2/index.md)" in archive
+    assert "cycads" not in archive
+    assert "[Tide Tables](https://tides.example.net/)" in __import__("procedures.newsroom.tests.standard_frontend_support", fromlist=["x"]).ProjectedSite("sectioned").text("links/index.md")
+
+
+def test_llms_txt_follows_llmstxt_org(flat, sectioned):
+    text = flat.text("llms.txt")
+    lines = text.splitlines()
+    assert lines[0] == "# Example Almanac" and lines[2].startswith("> A small almanac")
+    assert "## Articles" in lines and "## Pages" in lines and "## Optional" in lines
+    assert "- [A Closer Look at Moss](https://almanac.example.org/moss.md)" in text
+    assert "- [About the Almanac](https://almanac.example.org/about.md)" in text
+    assert "cycads" not in text and "algae" in text                         # a draft is out; feed:false is only about feeds
+    assert "- [RSS feed](https://almanac.example.org/feed.xml)" in text and "llms-full.txt" in text
+    assert "## Essays" in sectioned.text("llms.txt") and "## Links" in sectioned.text("llms.txt")
+
+
+def test_llms_full_is_the_published_content_in_one_file(flat):
+    text = flat.text("llms-full.txt")
+    assert text.startswith("# Example Almanac\n") and "Marsh orchids flower in June." in text and "Mycelium connects roots." in text
+    assert "A draft that must not be listed" not in text
+    assert text.count("\n---\n") == 7
+
+
+def test_llms_full_is_capped_by_items_and_by_bytes():
+    small = ProjectedSite("flat", settings={**fixture_settings("flat"), "agents": {"llmsFullMaxItems": 3}})
+    tiny = ProjectedSite("flat", settings={**fixture_settings("flat"), "agents": {"llmsFullMaxBytes": 400}})
+    try:
+        assert "llms-full.txt" not in small.tree and "llms-full.txt" not in small.text("llms.txt")
+        assert "omitted to keep this file small" in tiny.text("llms-full.txt") and len(tiny.tree["llms-full.txt"]) < 700
+    finally:
+        small.cleanup()
+        tiny.cleanup()
+
+
+def test_agent_readable_output_can_be_turned_off():
+    site = ProjectedSite("flat", settings={**fixture_settings("flat"), "agents": {"markdown": False, "llmsTxt": False, "llmsFull": False}})
+    try:
+        assert not any(key.endswith(".md") for key in site.tree) and "llms.txt" not in site.tree
+        assert "text/markdown" not in site.text("orchids.html")
+    finally:
+        site.cleanup()
+    with pytest.raises(ValueError, match="turn agents.markdown on"):
+        standard_settings_from_mapping({"site": {"name": "X"}, "agents": {"markdown": False}})
