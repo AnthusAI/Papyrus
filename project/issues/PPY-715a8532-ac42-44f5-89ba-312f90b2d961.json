@@ -3,17 +3,25 @@
   "title": "Core: sync the family footer with the current anthus-footer design",
   "description": "The live npm anthus-footer now shows Made by Anthus AI Solutions with per-product descriptions in three groups; the core family footer (anthus_sites.json copy) is the older panel layout, so migrated sites (Cyclotron) changed footer layout and lost the product descriptions. Sync markup, registry and CSS.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6132fc1f-acec-434a-bdd3-5ec2a4cb40a5",
+      "author": "home",
+      "text": "Already done: the core family footer mirrors the current design (commit 36582f4f 'family footer mirrors anthus-footer main'): Products, Open source we use and Research groups, per-product descriptions, 'Made by Anthus AI Solutions'. The live footer on cyclotron.anth.us has the same groups and wording; the npm anthus-footer package no longer exists, so there is no upstream left to sync.",
+      "created_at": "2026-10-21T13:55:09.290350Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T10:57:08.061565Z",
-  "updated_at": "2026-10-21T10:57:08.061601Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:55:09.341388Z",
+  "closed_at": "2026-10-21T13:55:09.341363Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

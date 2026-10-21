@@ -3,17 +3,25 @@
   "title": "Threat Intelligence and the read.p.apyr.us reader onto static projection",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5bee50b1-3bfe-4beb-bf6b-98a23640554d",
+      "author": "home",
+      "text": "Both stories closed. Live 2026-10-21: threat-intelligence.anth.us and read.p.apyr.us serve /feed.xml and /atom.xml (200 application/xml, 18 and 12 unique guids), /llms.txt, /llms-full.txt, /sitemap.xml, /robots.txt, /index.md (text/markdown), and Accept: text/markdown returns 200 text/markdown on /.",
+      "created_at": "2026-10-21T13:38:31.235827Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:46.632022Z",
-  "updated_at": "2026-10-21T00:22:46.632078Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:38:31.279695Z",
+  "closed_at": "2026-10-21T13:38:31.279662Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

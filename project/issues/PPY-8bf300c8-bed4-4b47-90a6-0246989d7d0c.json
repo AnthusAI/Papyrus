@@ -3,17 +3,25 @@
   "title": "Core: page blocks, islands, family footer",
   "description": "Opt-in standard front end features so the Cyclotron, Chatticus and Tactus marketing sites need no chrome/layout code: ::band/::column/::button/::island page blocks and {{value}} tokens, an islands runtime, header brand and nav groups, and the Anthus family footer. YAGNI; sites using none render byte for byte as before.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "12c85cf0-0a14-49d2-934e-dc4922e52125",
+      "author": "home",
+      "text": "Shipped: page blocks, islands and family footer are in core and in use on cyclotron.anth.us, chattic.us and tactus.anth.us (live 200). Stories c9952a, fc93e4 closed; follow-ups landed in PR #464.",
+      "created_at": "2026-10-21T13:55:08.756040Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T03:12:40.925650Z",
-  "updated_at": "2026-10-21T03:12:45.577754Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:55:08.809414Z",
+  "closed_at": "2026-10-21T13:55:08.809385Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5"

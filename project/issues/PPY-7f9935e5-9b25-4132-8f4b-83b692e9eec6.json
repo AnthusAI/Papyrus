@@ -3,7 +3,7 @@
   "title": "Migrate Kanbus docs site (publish) onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Code migrated (Kanbus PR #527 merged: papyrus-newsroom 5.1.0, anthus-markus 0.13, site-url). NOT published: GitHub Pages is not enabled for AnthusAI/Kanbus (Pages API 404) and the deploy job is gated on DOCS_DEPLOY. To publish: set Pages source to GitHub Actions and DOCS_DEPLOY=true.",
       "created_at": "2026-10-21T04:07:07.464120Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9830623b-8f6f-49bb-9d5c-b46e182533c4",
+      "author": "home",
+      "text": "Verified live 2026-10-21: https://anthusai.github.io/Kanbus/ serves 200 text/html, /llms.txt 200 text/plain, /index.md 200 text/markdown, /sitemap.xml 200 application/xml. GitHub Pages is enabled (build_type workflow) and DOCS_DEPLOY=true is set; the Docs workflow last succeeded on main. The earlier blocker in the comment above is gone.",
+      "created_at": "2026-10-21T13:38:29.653782Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T00:48:21.202907Z",
-  "updated_at": "2026-10-21T04:07:07.464140Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:38:29.764677Z",
+  "closed_at": "2026-10-21T13:38:29.764646Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

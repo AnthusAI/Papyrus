@@ -3,7 +3,7 @@
   "title": "Explain public publication and section subscriptions",
   "description": "Design-only planning requested by Ryan during voice. Implementation remains unstarted; no code, infrastructure, deployment, purchase or publishing authorization is implied. Initial status stays open (Discovery), unassigned.\n\nAs a reader and publication operator, I want feed documentation with usable examples, so that I can discover subscriptions and understand published updates.\n\nAcceptance behavior (planned, not executable or verified yet):\n```gherkin\nFeature: Explain public publication and section subscriptions\n  Scenario: Use documented subscriptions\n    Given RSS and Atom delivery behavior has been implemented and verified\n    When I follow its documentation\n    Then I can discover publication and section subscription links and understand their scope\n    And stable item identities, canonical links, published updates and withdrawals are explained\n    And published-only visibility and freshness limits are explicit\n    And planned endpoints are never represented as currently available\n```\n\nDocumentation acceptance belongs to RSS epic; coordinate review with the Documentation overhaul. Avoid promising deletion from third-party caches or draft preview support.\n\nAlso document the approved automatic platform refresh after publish, saved published edits and unpublish: article, affected listings/indexes, sitemap and both RSS and Atom share current published selection/metadata. Explain private-draft isolation, freshness, known failed/pending ancillary outputs and supported retry/reconciliation. Link PPY-defff04e-17b5-4e28-9bb5-df412601a102; do not claim this new coverage is implemented or turn the guide into a single-site sitemap audit.\n\nApproved dependency-guide correction: explain automatic extraction from supported declarative listing/embedded-content constructs at save/compile time and the generated reverse index. Rendering selection is the only source of type/featured parameters; no duplicated manual per-page rules. Cover union across components, old-or-new published-state matching for additions/removals/type/featured changes, and replacement/removal of stale page registrations. Publication visibility is enforced separately. Record unsupported custom-query fallback, exact extension ownership and schema syntax as open design questions. Anth.us main currently generates custom Python listing fragments and hashes them for incremental invalidation; do not present the proposed generic construct or reverse index as already implemented. See foundation PPY-3f55c3 and story PPY-defff0 for pinned source evidence.\n\nFeed eligibility is separately enforced and shared between RSS and Atom; existing public page/content identity, path placement, wiki navigation or include selection does not by itself make a page a feed entry. Static wiki/help and product pages do not automatically enter subscription feeds. Define eligible editorial types and other selection with the common published projection, preserving ordinary-page authoring and independent publication/access/draft gates. This does not add a separate wiki model or require every page to be a news item.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -18,10 +18,18 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ee465dff-46bd-487d-a558-c6a380d020b9",
+      "author": "home",
+      "text": "Shipped by the core standard front end feeds, not a parallel publisher. Verified live 2026-10-21 on pilobol.us, threat-intelligence.anth.us, read.p.apyr.us, cyclotron.anth.us, chattic.us, anth.us and distinctive-mark.com: head has <link rel=alternate> for application/rss+xml (/feed.xml) and application/atom+xml (/atom.xml); both parse as XML with one unique guid/id per item equal to the item's canonical URL (e.g. 10/10 on pilobol.us, 30/30 on anth.us). Withdrawal is covered by core spec features_backend/standard-frontend.feature ('Unpublishing withdraws an article from the listings, the sitemap and both feeds'). The p.apyr.us page /standard-front-end.html explains subscriptions.",
+      "created_at": "2026-10-21T13:38:32.791115Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-20T02:25:03.798666Z",
-  "updated_at": "2026-10-20T03:11:27.020344Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:38:32.832193Z",
+  "closed_at": "2026-10-21T13:38:32.832163Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6",

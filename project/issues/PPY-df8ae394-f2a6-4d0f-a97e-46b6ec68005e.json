@@ -3,17 +3,25 @@
   "title": "Pilot: migrate Distinctive Mark onto the standard front end",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8826b5af-cf20-4eb4-b843-3f75c9d460e9",
+      "author": "home",
+      "text": "Distinctive Mark is live on the standard front end: https://distinctive-mark.com serves / (200 text/html), /feed.xml and /atom.xml (200, 18 unique ids), /sitemap.xml, /robots.txt, /llms.txt, /llms-full.txt, /index.md (text/markdown). Accept: text/markdown was the one gap: the hand-run papyrus-edge-distinctive-mark stack's viewer function did not negotiate; fixed today by change set accept-markdown (Distinctive-web PR #1); now Accept: text/markdown on / and /about/ returns 200 text/markdown, browsers still get text/html.",
+      "created_at": "2026-10-21T13:55:08.244609Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:39.029746Z",
-  "updated_at": "2026-10-21T00:22:39.029797Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T13:55:08.294088Z",
+  "closed_at": "2026-10-21T13:55:08.294059Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
