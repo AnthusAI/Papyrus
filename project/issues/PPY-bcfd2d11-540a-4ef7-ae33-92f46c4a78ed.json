@@ -3,7 +3,7 @@
   "title": "One standard Papyrus front end for every Papyrus site",
   "description": "Decision (Ryan, 2026-10-20): pay off front-end debt early. Every Papyrus/Markus site renders through ONE standard front end in Papyrus core (StandardMarkusProjector configured by projection.json). Sites keep only theme (CSS + tokens), brand assets, nav/redirect data and a few named hooks. Core owns: RSS and Atom feeds, sitemap with lastmod, robots, 404, canonical/Open Graph/Twitter/JSON-LD, listings/pagination/tags, accessible components, staging guard, pattern redirects as data, calls to action and forms, consent analytics.\n\nPilots: Distinctive Mark (sections, custom content types, hooks) and Pilobol.us (no sections: the reference case for a publication without sections). Then the small product sites (Papyrus-web, Prospectus-web, Kanbus-web, Auritus-web, Apricity-web), docs sites, the framework marketing sites that embed Markus prose (Chatticus, Tactus, Cyclotron-web; shared header/footer component), then Threat Intelligence and the read.p.apyr.us reader (no static projection today), and Anth.us last in gated phases (production).\n\nParity per site: every published URL before/after (status, headers, normalised DOM, head metadata, sitemap URL set, redirects, feed validity), intentional differences allow-listed with reasons.\n\nAlso: unify Markus pins (fleet ranges from 0.5.1 to git SHAs; latest 0.13.0); live gaps found in the inventory (missing sitemaps/robots on most sites, p.apyr.us 403 on missing pages, pr.ospect.us canonical ending /index.html).",
   "type": "initiative",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Status 2026-10-21 (evening). The standard Papyrus front end runs every site; every child except one is closed with evidence.\n\nLive: pilobol.us, pr.ospect.us, aurit.us, kanb.us, apricity.anth.us, p.apyr.us, distinctive-mark.com, threat-intelligence.anth.us, read.p.apyr.us, chattic.us, tactus.anth.us, cyclotron.anth.us, anth.us, the Markus/Biblicus/Kanbus/Cyclotron docs, and the Biased-/Hard-Decisions leaderboards. All Papyrus-front-end sites pin papyrus-newsroom 5.12.0 or later and anthus-markus 0.13.0 (PPY-a55f75).\n\nShipped today: kanb.us and apricity.anth.us deployed (SSO unblocked); Accept: text/markdown negotiation on tactus.anth.us (own CloudFront edge, papyrus-edge-tactus-site) and distinctive-mark.com (change set accept-markdown); aurit.us docs/examples .md twins (18 pages, Papyrus #460, Auritus-web #9-#12); page actions on guide and docs pages (Papyrus #461, #468) and Open in ChatGPT/Claude/Perplexity on every site that has page actions (docs sites included, Papyrus 5.14.0); CLI publish derives the publication kind from amplify_outputs.json (#459, verified on two deployed backends); chattic.us pipeline Verify fixed; p.apyr.us pages /standard-front-end.html and /agent-accessible.html; llms-full.txt fix for unlisted pages; humanus bundling fix for the content-actions Lambda (5.10.0 backends failed to deploy, fixed in 5.12.0, #467/#469). Papyrus-web test failure was environment (no venv), fixed in Papyrus-web #14.\n\nOpen: PPY-0609ef, every site deploys automatically on merge to main. Now owned by the dedicated DevOps agent. Evidence so far is recorded on that story: pipelines built but waiting on a human console authorisation of two CodeConnections (kanbus-production 494166748521 connection kanbus-web-github a59fcb14-cccc-4bda-b075-ea8e81b743c3; papyrus-production 712236451410 connection auritus-web-github 47db2fa9-ffa7-4879-85b4-6b1dc54c37ba, used by apricity.anth.us and aurit.us), push webhooks and V2 triggers delivered 7-20 minutes late today, GitHub Actions not starting on private repos (billing).\n\nKnown limits, not epic work: Accept negotiation cannot run on GitHub Pages docs sites or on biased-decisions.anth.us / hard-decisions.anth.us (Amplify managed edge in the legacy account; moving them means removing domain associations), documented on p.apyr.us; MCP/WebMCP (PPY-2bc3e8) re-parented under PPY-23a743 and not built. The epic stays open only for PPY-0609ef.",
       "created_at": "2026-10-21T19:43:15.120821Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3e8d38c3-dad3-4aa8-9523-c0cdd0015032",
+      "author": "home",
+      "text": "Epic complete (2026-10-21). Every Papyrus site is on the standard front end (StandardMarkusProjector) at papyrus-newsroom 5.12.0 or later. Feeds, llms.txt, .md twins, page actions and the AI links are verified on every site, and every site deploys automatically on merge to main (PPY-0609ef). Known exception, documented on p.apyr.us: Accept: text/markdown negotiation isn't available on the two leaderboards or the GitHub Pages docs sites. MCP/WebMCP (2bc3e8) moved under PPY-23a743.",
+      "created_at": "2026-10-21T20:02:32.139952Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T00:22:29.237123Z",
-  "updated_at": "2026-10-21T19:43:15.120853Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T20:02:32.185938Z",
+  "closed_at": "2026-10-21T20:02:32.185901Z",
   "agent": {
     "platform": "claude_code",
     "model": "Opus 5.5",
