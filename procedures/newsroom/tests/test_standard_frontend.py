@@ -1058,6 +1058,16 @@ def test_a_page_body_hook_can_place_the_page_actions_itself():
         site.cleanup()
 
 
+def test_llms_full_includes_unlisted_pages_that_llms_txt_lists():
+    settings = {**fixture_settings("flat"), "listings": {"types": ["nothing"]}}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content")
+    try:
+        assert "orchids.md" in site.text("llms.txt")
+        assert "Marsh orchids flower" in site.text("llms-full.txt")
+    finally:
+        site.cleanup()
+
+
 def test_ai_destinations_carry_a_short_prompt_with_the_url_and_never_the_page_body():
     site = with_actions(ai=["chatgpt", "claude", "perplexity"], placement="aside")
     try:

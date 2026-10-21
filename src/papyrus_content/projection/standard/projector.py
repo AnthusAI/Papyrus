@@ -550,7 +550,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return found
 
     def _llms_full_entries(self, entries: list[StandardEntry]) -> list[StandardEntry]:
-        return [entry for entry in entries if entry.key and not entry.noindex and (entry.listed or entry.type == "page")]
+        return [entry for entry in entries if entry.key and not entry.noindex]
 
     def _add_llms_files(self, plan, site: SiteIndex, entries, listed) -> None:
         agents = self.standard.agents
