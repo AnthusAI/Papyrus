@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "8e7b985a-af29-45d8-bd01-c01184bee1cd",
+  "issue_id": "PPY-d491d4be-c44e-4405-b3d3-54a1652a4a65",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T17:47:09.374Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Bring HN reference router live after provider key correction",
+    "description": "The shared Cyclotron provider secret now holds the TypeSafe key. A live smoke attempt on 2026-10-21 (one item, router flipped live for one invocation, then restored to dry-run) was refused by Cyclotron with run_busy: command job bf25e156 on the standing run is claimed and running with no result, left by the earlier wrong-key attempt; its queue message is in the dead-letter queue. The worker refuses to reclaim it by design (running command requires scoped reconciliation). Router is in dry-run, 115 items waiting. Needs an owner-approved reconciliation of that one job before the bounded live pass, the live flip and the two-cycle watch.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
