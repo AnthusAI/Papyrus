@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "9b230d6f-1961-4a7e-bbef-1723a73a6da1",
+  "issue_id": "PPY-22cb4e72-19c0-4a10-93d4-7fecb92b43c7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:29.195Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Projected pages can follow a host site's colour-scheme switch",
+    "description": "Backlog. A core projection.json option such as colorScheme {strategy: class, className: dark, storageKey: <key>} that emits the pre-paint script and class, instead of each site writing it in a head_extra hook. Gherkin to be written when picked up. Today a site does this with the head_extra hook (Data Parade does).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

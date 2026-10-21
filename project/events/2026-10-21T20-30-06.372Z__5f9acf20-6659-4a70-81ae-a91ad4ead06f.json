@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "5f9acf20-6659-4a70-81ae-a91ad4ead06f",
+  "issue_id": "PPY-f8da7a78-a16b-44fe-b509-1f25bfb0246c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:06.372Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A projected site lives under a base path",
+    "description": "As a publication owner, I want projection.json `urls.basePath` (for example `\"/posts\"`) to put the whole projected site under that path, so that one route on a host site's CDN serves it and nothing collides with the host's own files.\n\nRules:\n- Papyrus-generated URLs (pages, listings, tags, archive, feeds, sitemap, robots sitemap line, `_data/*.json`, `.md` twins, `llms.txt`, page actions, islands and component scripts, static files from the static directory, image renditions) live under the base path, and so do their object keys.\n- The not-found page stays at the bucket root key `404.html` (the edge distribution's error response reads it); its links use the base path.\n- Paths an author writes (nav and footer links, `redirects.exact`, item `aliases`, links inside article bodies) are request paths and are taken as written.\n- Projection state under `_papyrus/` is unchanged.\n- No base path (the default) changes nothing.\n\n```gherkin\nFeature: A standard site projected under a base path\n\n  Background:\n    Given a standard site with url style \"directory\", production URL \"https://example.com\" and base path \"/posts\"\n    And a published item \"hello\" with tags \"privacy\"\n\n  Scenario: Pages and files are stored under the base path\n    When the site is projected\n    Then the bucket holds \"posts/index.html\", \"posts/hello/index.html\" and \"posts/tags/privacy/index.html\"\n    And the bucket holds \"posts/css/site.css\" from the static directory\n    And every object outside \"_papyrus/\" is under \"posts/\" except \"404.html\"\n\n  Scenario: Generated links point under the base path\n    When the site is projected\n    Then every root-relative href and src that Papyrus generates in \"posts/hello/index.html\" starts with \"/posts/\"\n    And the canonical URL of \"posts/hello/index.html\" is \"https://example.com/posts/hello/\"\n    And the home page links to \"/posts/hello/\"\n\n  Scenario: Feeds, sitemap, public data and agent files use the base path\n    When the site is projected\n    Then the RSS feed links \"https://example.com/posts/hello/\"\n    And the sitemap lists \"https://example.com/posts/hello/\"\n    And \"posts/_data/latest.json\" lists \"/posts/hello/\"\n    And \"posts/llms.txt\" links \"https://example.com/posts/hello/index.md\"\n\n  Scenario: Paths the author writes are taken as written\n    Given a nav link \"Home\" to \"/\" and the item has the alias \"/posts/old-hello/\"\n    When the site is projected\n    Then the nav link in \"posts/hello/index.html\" points to \"/\"\n    And the edge redirects \"/posts/old-hello/\" to \"/posts/hello/\"\n\n  Scenario: A base path must be a lowercase path\n    Given a standard site with base path \"/Posts here\"\n    When the settings are read\n    Then they are refused with a message naming urls.basePath\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

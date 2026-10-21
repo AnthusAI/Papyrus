@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "dc5e4231-caf7-4d21-8862-fcb887cf1803",
+  "issue_id": "PPY-b63c46f7-162a-40af-9f75-3462a24541d6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:47.306Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Mount /posts on dataparade.io and show recent posts from the newsroom",
+    "description": "In DataParade-io/dataparade (landing): add the Papyrus edge (dataparade.anth.us) as an origin of the landing CloudFront distribution (domain-edge/template.yaml) with one /posts/* behavior (CachingDisabled, AllViewerExceptHostHeader); remove the build-time MDX posts (lib/posts.ts, app/posts, content/posts); have RecentPostsSection read /posts/_data/latest.json in the browser. Needs a dataparade.io deploy in account 688128002352, which needs the owner's go-ahead.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

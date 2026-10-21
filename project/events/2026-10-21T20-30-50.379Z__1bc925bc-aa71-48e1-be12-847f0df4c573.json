@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "1bc925bc-aa71-48e1-be12-847f0df4c573",
+  "issue_id": "PPY-e1972537-28c5-4888-9567-1786ef6b641f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:50.379Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move the five dataparade.io landing posts into the newsroom",
+    "description": "Import landing/content/posts/*.mdx into the Data Parade newsroom as published articles with the same slugs, dates, authors and tags, so /posts/<slug> keeps working after the mount. Uses the import command if PPY backlog story lands, else targeted upserts.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

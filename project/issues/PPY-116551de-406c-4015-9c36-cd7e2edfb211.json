@@ -1,0 +1,25 @@
+{
+  "id": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+  "title": "Embed an S3-projected site under a host site's path",
+  "description": "As a publication owner whose main website is a separate app, I want the projected article site to be served under a path of that website (for example dataparade.io/posts), so that publishing an article never needs a redeploy of the host app and readers stay on one domain.\n\nToday the s3-projection assumes it owns the whole domain: every object key and every generated link is rooted at /. A host can only mount it by routing many root paths (/css/, /assets/, /_data/, feeds, sitemap) to the Papyrus edge, and those collide with the host's own files.\n\nDefinition of done:\n- projection.json urls.basePath puts every projected page and file, and every URL Papyrus generates, under the prefix (story).\n- The hosting runbook documents mounting a projection on another CloudFront distribution (story).\n- First user: Data Parade (PPY-d74fb4) at dataparade.io/posts.\n\nNot included here (separate backlog stories): a core colour-scheme option, design-token themes, a headless JSON API with publish events, an MDX import command, redirecting the CMS host to the canonical public host. Host header, footer and theme toggle already work through the hooks module (masthead, footer, head_extra).",
+  "type": "epic",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T20:29:48.650088Z",
+  "updated_at": "2026-10-21T20:31:05.282513Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "DataParade.anth.us implementation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

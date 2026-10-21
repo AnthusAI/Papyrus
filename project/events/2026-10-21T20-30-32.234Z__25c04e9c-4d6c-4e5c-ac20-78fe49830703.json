@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "25c04e9c-4d6c-4e5c-ac20-78fe49830703",
+  "issue_id": "PPY-0f4e10d0-2e96-49ec-ba1d-0294460f3925",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T20:30:32.234Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Theme a projected site from a design-token file",
+    "description": "Backlog. projection.json points at a design-token file (the tokens.json a design-system canvas exports) and Papyrus generates the light and dark custom properties of the site theme, so a host site's tokens are the one source for both. The newsroom brand theme could read the same file. Gherkin to be written when picked up.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

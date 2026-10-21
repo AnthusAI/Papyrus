@@ -1,0 +1,25 @@
+{
+  "id": "PPY-63567515-52d3-49e0-9265-c532810b47d6",
+  "title": "The CMS host redirects public paths to the canonical public host",
+  "description": "Backlog. When a projection is mounted on another host (productionUrl names a different origin), requests for public pages on the CMS edge host get a 301 to the same path on the public host, so the same pages are not served on two hosts. /newsroom, /_next and /api stay. Gherkin to be written when picked up.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-116551de-406c-4015-9c36-cd7e2edfb211",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T20:30:41.276252Z",
+  "updated_at": "2026-10-21T20:30:41.276327Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "DataParade.anth.us implementation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
