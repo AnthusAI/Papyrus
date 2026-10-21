@@ -945,3 +945,79 @@ def test_agent_readable_output_can_be_turned_off():
         site.cleanup()
     with pytest.raises(ValueError, match="turn agents.markdown on"):
         standard_settings_from_mapping({"site": {"name": "X"}, "agents": {"markdown": False}})
+
+
+# ------------------------------------------------------------------ page actions
+
+def with_actions(**actions):
+    return ProjectedSite("flat", settings={**fixture_settings("flat"), "pageActions": actions})
+
+
+def test_articles_have_page_actions_with_a_working_no_javascript_fallback(flat):
+    page = flat.text("orchids.html")
+    dom = Dom(page)
+    group = dom.find("div", **{"data-papyrus-page-actions": None})
+    assert group and group[0]["role"] == "group" and group[0]["aria-label"] == "Page actions"
+    assert group[0]["data-markdown"] == "/orchids.md" and group[0]["data-canonical"] == "https://almanac.example.org/orchids.html"
+    assert dom.find("a", href="/orchids.md", **{"data-action": "view"})            # works with JavaScript off
+    assert dom.find("button", type="button", **{"data-action": "copy"})
+    assert dom.find("span", role="status", **{"aria-live": "polite"})
+    assert '<script src="/_plugins/papyrus-page-actions-v1.js' in page
+    assert page.index("markus-page-actions") < page.index('class="markus-document"')       # header placement: above the article
+
+
+def test_page_actions_are_only_on_articles_with_a_twin(flat, sectioned):
+    assert "markus-page-actions" not in flat.text("about.html")                    # a standing page is not an article
+    assert "markus-page-actions" not in flat.text("archive/index.html") and "markus-page-actions" not in flat.text("cycads.html")
+    assert "markus-page-actions" in sectioned.text("essays/slow-water/index.html")
+
+
+def test_ai_destinations_carry_a_short_prompt_with_the_url_and_never_the_page_body():
+    site = with_actions(ai=["chatgpt", "claude", "perplexity"], placement="aside")
+    try:
+        page = site.text("orchids.html")
+        dom = Dom(page)
+        prompt = "Read%20https%3A%2F%2Falmanac.example.org%2Forchids.html%20and%20help%20me%20with%20it."
+        assert dom.find("a", href=f"https://chatgpt.com/?q={prompt}", target="_blank", rel="noopener noreferrer")
+        assert dom.find("a", href=f"https://claude.ai/new?q={prompt}")
+        assert dom.find("a", href=f"https://www.perplexity.ai/search?q={prompt}")
+        assert "Open in ChatGPT" in page and "Open in Claude" in page and "Open in Perplexity" in page
+        assert "Marsh orchids flower" not in " ".join(re.findall(r'href="(https://(?:chatgpt|claude|www\.perplexity)[^"]+)"', page))
+        assert page.index('class="markus-document"') < page.index("markus-page-actions")       # aside placement: after the article
+    finally:
+        site.cleanup()
+
+
+def test_page_actions_can_be_turned_off_or_trimmed():
+    off, trimmed = with_actions(enabled=False), with_actions(actions=["view"])
+    try:
+        assert "markus-page-actions" not in off.text("orchids.html") and "_plugins/papyrus-page-actions-v1.js" not in off.tree
+        page = trimmed.text("orchids.html")
+        assert 'data-action="copy"' not in page and 'data-action="view"' in page
+    finally:
+        off.cleanup()
+        trimmed.cleanup()
+
+
+def test_no_actions_without_markdown_twins():
+    site = ProjectedSite("flat", settings={**fixture_settings("flat"), "agents": {"markdown": False, "llmsTxt": False, "llmsFull": False}})
+    try:
+        assert "markus-page-actions" not in site.text("orchids.html")
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize(
+    "bad, message",
+    [({"placement": "footer"}, "placement"), ({"actions": ["print"]}, "actions"), ({"ai": ["bard"]}, "pageActions.ai"), ({"prompt": "Help me"}, "must contain")],
+)
+def test_bad_page_action_settings_are_rejected(bad, message):
+    with pytest.raises(ValueError, match=message):
+        standard_settings_from_mapping({"site": {"name": "X"}, "pageActions": bad})
+
+
+def test_the_script_follows_the_aria_menu_button_pattern(flat):
+    script = flat.text("_plugins/papyrus-page-actions-v1.js")
+    for needle in ('"aria-haspopup", "menu"', '"aria-expanded"', '"aria-controls"', 'setAttribute("role", "menu")', '"menuitem"', "ArrowDown", "ArrowUp", "Escape", "Home", "End"):
+        assert needle in script, needle
+    assert "gtag" in script and "page_action" in script and "execCommand" in script and "ClipboardItem" in script
