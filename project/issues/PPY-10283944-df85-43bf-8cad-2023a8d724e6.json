@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "60d1f7f2-e7f4-43fa-88d8-fcbf3bbc219b",
+      "author": "home",
+      "text": "Breakdown of the existing data stack (about 2,560 resources): 1,611 AppSync FunctionConfigurations, 453 resolvers, 212 IAM roles and policies, 106 data sources, 42 tables, 19 Lambdas. Largest nested stack: FunctionDirectiveStack, 379 resources. Most of the count is Amplify-generated pipeline functions: per model, CRUD plus three subscriptions plus index and relationship queries, about 3.5 functions each.\n\nLong-term fix: trim generated operations in the schema. Disable subscriptions on models that no UI subscribes to; drop delete and list where nothing uses them; remove unused secondary indexes.\n\nShort-term workaround (PR #463): two-pass deploy with backend.excludeModelGroups (editions), then remove it and deploy again. Shipped uses it now.",
+      "created_at": "2026-10-21T13:38:51.216573Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T13:38:44.861390Z",
-  "updated_at": "2026-10-21T13:38:44.861421Z",
+  "updated_at": "2026-10-21T13:38:51.216594Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
