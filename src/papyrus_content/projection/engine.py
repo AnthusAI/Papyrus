@@ -219,32 +219,48 @@ def _log(item_id: str, report: ProjectionReport) -> None:
     )
 
 
-def _adopt_lineage_states(context: ProjectionContext, item_id: str) -> tuple[ItemState | None, list[str]]:
-    """The remembered pages of the other versions of this item's lineage, when the item itself has no state.
+VERSION_SUFFIX = re.compile(r"-v\d+$")
 
-    Publishing a different version of a story (``<lineage>-v<n>``) changes the published row's source item, so a
-    page written while another version was published is remembered under that version's id. Without this, the old
-    pages are never deleted and their addresses never redirect. Returns the merged state and the keys of the
-    states it came from; the caller deletes those once the item's own state is written.
+
+def _lineage_of_state_id(item_id: str) -> str:
+    return VERSION_SUFFIX.sub("", item_id)
+
+
+def _merge_sibling_states(own: ItemState | None, siblings: list[ItemState]) -> ItemState | None:
+    """One state for an item and the other versions of its lineage.
+
+    Publishing a different version of a story (``<lineage>-v<n>``) changes the published row's source item, so pages
+    written while another version was published stay remembered under that version's id, in states nothing reads
+    again. Merging them lets the pages those states own be deleted and their addresses redirected. The merged
+    ``page_keys`` are every page any version left in the store, the item's own first.
     """
+    if not siblings:
+        return own
+    states = ([own] if own is not None else []) + siblings
+    projected = [state for state in states if state.projected]
+    base = own if own is not None and own.projected else (projected[0] if projected else states[0])
+    return ItemState(
+        summary=base.summary,
+        page_keys=tuple(dict.fromkeys(key for state in projected for key in state.page_keys)),
+        former_page_keys=tuple(dict.fromkeys(key for state in states for key in state.former_page_keys)),
+    )
+
+
+def _sibling_states(context: ProjectionContext, item_id: str) -> list[tuple[str, ItemState]]:
+    """The states, other than the item's own, that belong to the same lineage (`<lineage>` or `<lineage>-v<n>`)."""
     lineage_id_of = getattr(context.source, "lineage_id_of", None)
-    lineage_id = lineage_id_of(item_id) if lineage_id_of is not None else item_id
+    lineage_id = lineage_id_of(item_id) if lineage_id_of is not None else _lineage_of_state_id(item_id)
     sibling = re.compile(rf"^{re.escape(lineage_id)}(-v\d+)?$")
     own_key = item_state_key(item_id)
-    adopted: list[tuple[str, ItemState]] = []
+    found: list[tuple[str, ItemState]] = []
     for entry in context.writer.list(ITEM_STATE_PREFIX + quote(lineage_id, safe="")):
-        if entry.key == own_key or not sibling.match(item_id_from_state_key(entry.key)):
+        sibling_id = item_id_from_state_key(entry.key)
+        if entry.key == own_key or not sibling.match(sibling_id):
             continue
-        state = read_item_state(context.writer, item_id_from_state_key(entry.key))
+        state = read_item_state(context.writer, sibling_id)
         if state is not None:
-            adopted.append((entry.key, state))
-    if not adopted:
-        return None, []
-    projected = [state for _key, state in adopted if state.projected] or [state for _key, state in adopted]
-    page_keys = tuple(dict.fromkeys(key for state in projected if state.projected for key in state.page_keys))
-    former = tuple(dict.fromkeys(key for _key, state in adopted for key in state.former_page_keys))
-    merged = ItemState(summary=projected[0].summary, page_keys=page_keys, former_page_keys=former)
-    return merged, [key for key, _state in adopted]
+            found.append((entry.key, state))
+    return found
 
 
 def project(context: ProjectionContext, item_id: str, *, unpublished: bool = False) -> ProjectionReport:
@@ -257,8 +273,10 @@ def project(context: ProjectionContext, item_id: str, *, unpublished: bool = Fal
     report = ProjectionReport()
     previous_state = read_item_state(context.writer, item_id) if context.keep_state else None
     adopted_keys: list[str] = []
-    if previous_state is None and context.keep_state:
-        previous_state, adopted_keys = _adopt_lineage_states(context, item_id)
+    if context.keep_state:
+        siblings = _sibling_states(context, item_id)
+        adopted_keys = [key for key, _state in siblings]
+        previous_state = _merge_sibling_states(previous_state, [state for _key, state in siblings])
     site = context.source.site_index()
     item = context.source.published_item(item_id)
     if item is None:
@@ -415,10 +433,18 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     site = SiteIndex(items=tuple(item.summary for item in items), load_item=context.source.load_item)
     rendered: dict[str, bytes] = {}
     states: list[ItemState] = []
+    sibling_keys: set[str] = set()
+    leftovers: set[str] = set()
     for item in items:
         pages = projector.item_pages(item, site)
         rendered.update(pages)
         remembered = read_item_state(context.writer, item.summary.item_id) if context.keep_state else None
+        if context.keep_state:
+            siblings = _sibling_states(context, item.summary.item_id)
+            sibling_keys.update(key for key, _state in siblings)
+            remembered = _merge_sibling_states(remembered, [state for _key, state in siblings])
+        if remembered is not None:
+            leftovers.update(set(remembered.page_keys) - set(pages))
         states.append(_updated_state(remembered, item.summary, tuple(sorted(pages))))
     inputs = projector.listing_inputs(site)
     listings = projector.listing_pages(site, None)
@@ -429,6 +455,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     _write_static(context, report, projector.static_files())
     _write_item_pages(context, report, rendered, _versions_by_page(context, site))
     _write_listing_pages(context, report, listings, inputs)
+    _delete_pages(context, report, leftovers - live_keys - set(inputs))
     if context.redirect_store is not None and redirects:
         current = context.redirect_store.list_all()
         changed = {source: target for source, target in redirects.items() if current.get(source) != target}
@@ -438,6 +465,8 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     if context.keep_state:
         for state in states:
             write_item_state(context.writer, state)
+        for key in sibling_keys:
+            context.writer.delete(key)
     return _finish(context, report)
 
 
@@ -548,6 +577,12 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
     for summary in site.items:
         if projector.item_page_paths(summary) and context.keep_state and item_state_key(summary.item_id) not in objects:
             stale.add(summary.item_id)
+    if context.keep_state:
+        published_lineages = {_lineage_of_state_id(item_id) for item_id in published_ids}
+        for state_id in states:
+            lineage = _lineage_of_state_id(state_id)
+            if state_id not in published_ids and lineage in published_lineages:
+                stale.update(item_id for item_id in published_ids if _lineage_of_state_id(item_id) == lineage)
     report.stale_items = sorted(stale)
     report.removed_items = sorted(
         item_id

@@ -870,7 +870,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         scripts = tuple(base.scripts) + ((NAV_SCRIPT_PATH,) if self.standard.nav_disclosure else ())
         if any(form.endpoint for form in self.standard.forms):
             scripts += (FORM_SCRIPT_PATH,)
-        if self.standard.page_actions.enabled and self.standard.agents.markdown:
+        if page.page_actions:  # only pages that render the actions load their script
             scripts += (PAGE_ACTIONS_SCRIPT,)
         identity = self.standard.identity
         return dataclasses.replace(
