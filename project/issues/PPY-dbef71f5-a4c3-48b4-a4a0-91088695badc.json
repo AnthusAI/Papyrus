@@ -3,17 +3,25 @@
   "title": "Papyrus marketing site: 'Built with Papyrus' showcase page with a logo wall",
   "description": "Ryan, 2026-10-20: the Papyrus marketing site (p.apyr.us product site, not the Papyrus publication) gets a page that proudly lists every site built on Papyrus, as a logo wall for social proof. Sites with a logo show the logo; others show the name. Honest framing: today almost all are Anthus's own sites (say so); design partners get featured as they join, then paying customers. The list is data managed in the CMS (one record per site: name, logo, URL, kind = Anthus / design partner / customer, ordering), not hard-coded, so new logos can be added without code. Built on the standard front end (a core 'showcase/logo wall' component usable by any site).",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bf002012-6760-419f-98c9-5da2f9d4b057",
+      "author": "home",
+      "text": "Done and live: https://p.apyr.us/built-with/ (core logo wall, data in content/showcase/*.md: name, logo or text fallback, url, kind, order). Lists 8 live sites (Papyrus, Anth.us, Pilobol.us, Distinctive Mark, Threat Intelligence, Prospectus, Markus docs, Biblicus docs), all 200 when checked; real logos from the repos for 5, text fallback for Pilobol.us and Markus docs. Linked from nav and footer. Hybrid sites (Chatticus, Cyclotron, Tactus) not listed: only part of their pages render through Papyrus; add a record to include them.",
+      "created_at": "2026-10-21T04:07:07.219054Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:52:43.796175Z",
-  "updated_at": "2026-10-21T00:52:43.796253Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T04:07:07.254949Z",
+  "closed_at": "2026-10-21T04:07:07.254921Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

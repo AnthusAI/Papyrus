@@ -351,3 +351,73 @@ def step_existing_reference_workflows_available(context):
 def step_no_curation_backend_activated(context):
     assert context.references_context_response.status_code == 401, context.references_context_response.text
     assert context.opened_curation_engines == []
+
+
+@given("a central curation peer for the publication")
+def step_central_curation_peer(context):
+    context.curation_workspace = CurationWorkspace(context, "embedded")
+
+
+async def run_routes_harness_against_peer(workspace, role):
+    """Serve the real curation host on loopback and drive the Next routes against it."""
+    import json
+    import socket
+
+    import uvicorn
+    from papyrus_content.curation_host import create_curation_host
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    peer = create_curation_host(lambda _request: workspace.embedded_curation_context())
+    server = uvicorn.Server(uvicorn.Config(peer, host="127.0.0.1", port=port, log_level="error"))
+    serving = asyncio.create_task(server.serve())
+    try:
+        while not server.started:
+            await asyncio.sleep(0.05)
+        process = await asyncio.create_subprocess_exec(
+            "npx", "tsx", "scripts/curation-routes-bdd-harness.ts", str(port), role,
+            cwd=REPO_ROOT, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+        assert process.returncode == 0, stderr.decode()
+        return json.loads(stdout)
+    finally:
+        server.should_exit = True
+        await serving
+
+
+@when("a member and a viewer of the account open References through the Papyrus routes")
+def step_member_and_viewer_open_references(context):
+    workspace = context.curation_workspace
+    context.route_outcomes = {}
+    for role in ("member", "viewer"):
+        context.route_outcomes[role] = asyncio.run(run_routes_harness_against_peer(workspace, role))
+        if role == "member":
+            context.inputs_after_member = list(workspace.source_transformer.received_inputs)
+
+
+@then("the routes pass monitoring and a source URL preview to the peer for the member")
+def step_routes_pass_member_requests(context):
+    member = context.route_outcomes["member"]
+    assert member["context"]["status"] == 200, member["context"]
+    assert member["context"]["body"]["scope"] == {"accountId": ACCOUNT_ID, "publicationId": PUBLICATION_ID,
+                                                  "bindingRevision": BINDING_REVISION}
+    assert set(member["context"]["body"]["capabilities"]) == {"read", "review", "decide"}, "capped at the member role"
+    assert member["status"]["status"] == 200 and member["status"]["body"]["accountId"] == ACCOUNT_ID
+    assert member["contract"]["status"] == 200
+    assert member["importAttempt"]["status"] == 200, member["importAttempt"]
+    assert context.inputs_after_member == [{"url": SOURCE_URL}]
+
+
+@then("the viewer can read monitoring but cannot start an import")
+def step_viewer_reads_but_cannot_import(context):
+    viewer = context.route_outcomes["viewer"]
+    assert viewer["context"]["body"]["capabilities"] == ["read"]
+    assert viewer["status"]["status"] == 200 and viewer["contract"]["status"] == 200
+    assert viewer["importAttempt"]["status"] == 403, viewer["importAttempt"]
+    assert viewer["importAttempt"]["body"]["code"] == "capability_refused"
+
+
+@then("the peer never receives the viewer's import")
+def step_peer_never_receives_viewer_import(context):
+    assert context.curation_workspace.source_transformer.received_inputs == context.inputs_after_member

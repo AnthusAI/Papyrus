@@ -235,10 +235,29 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "e7ace217-ed13-40d5-83dc-130989a1ee16",
+      "author": "home",
+      "text": "Phase A plan (Ryan approved the design, central Cyclotron lab as production upstream). Branch feature/PPY-58f107-curation-routes off develop 5d42f46e (includes #418). Adds three Node routes under app/api/newsroom/curation/ (context, publication, priming) as an authenticated pass-through, lib/curation-routes.ts (order: upstream configured, Origin and body, sealed cookie, fresh Prospectus re-authorization, pins, capability; forward with fresh bearer, no redirects, 15 s timeout, 4 MB/8 MB caps; post-upstream re-check and echoed-scope check; generic 503), components/newsroom-curation-bootstrap.tsx plus a 3-line wrap at topic-steering-workspace.tsx, scripts/test-curation-routes.ts, test:curation-routes, and a BDD scenario. No env var, IAM, Lambda, amplify.yml or deploy change. Publication id from PAPYRUS_CURATION_PUBLICATION_ID, default site brand id. No open PR touches topic-steering-workspace.tsx (checked).",
+      "created_at": "2026-10-21T03:01:08.376879Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "ad260e3d-7196-401f-aec6-51572d0b6d7e",
+      "author": "home",
+      "text": "Phase A built on feature/PPY-58f107-curation-routes: three routes, lib/curation-routes.ts, bootstrap + wrap, unit test (test:curation-routes) and a BDD scenario driving the real routes against a live curation peer. Tolerates the lab contract from Cyclotron PR 76: refusal codes mapped to plain editor wording (unknown codes get a generic line), context and every success must echo the three pins, empty priming.transformers passes through (PrimingPanel already hides URL transformation then). CI workflow gains setup-node and npm ci for the python job. No env var, IAM, Lambda, amplify.yml or deploy change. Phase B needs: lab priming routes and storage authority, PAPYRUS_CURATION_UPSTREAM_URL and PAPYRUS_CURATION_PUBLICATION_ID plus an amplify.yml export, cms.prospectusAccountsApiStageArn (PPY-0c5242), the site's Prospectus registration.",
+      "created_at": "2026-10-21T03:51:12.037716Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-sonnet-5-5",
+        "name": "Papyrus owner (PPY-58f107)"
+      }
     }
   ],
   "created_at": "2026-10-15T18:18:59.481451Z",
-  "updated_at": "2026-10-20T04:20:31.426891Z",
+  "updated_at": "2026-10-21T03:51:12.037764Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
