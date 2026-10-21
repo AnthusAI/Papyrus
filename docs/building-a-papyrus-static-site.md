@@ -199,7 +199,9 @@ papyrus ops content project --all --from-dir content --static-dir web --out dist
 
 Every `.md` under `content/` is a published item (the first directory is its section; front matter `type` defaults to
 `article`, `type: page` makes a root page, `aliases` become redirects). Redirects are reported by the CMS path only;
-a repository-built site keeps them in `projection.json` (`redirects`). Sync `dist/` to the bucket as before.
+a repository-built site keeps them in `projection.json` (`redirects`). Directories below the section nest the slug:
+`content/examples/basics/first.md` is the item `basics/first` of the `examples` section, at `/examples/basics/first/`
+(`examples/basics.md` is `/examples/basics/`). Sync `dist/` to the bucket as before.
 
 ## Forms
 
