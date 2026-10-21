@@ -137,6 +137,8 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         section = settings.section(summary.section)
         if section is None:
             return None
+        if summary.slug == "index":
+            return None  # the section's introduction: shown above its listing, not a listed page of its own
     front_matter = summary.front_matter
     has_page = section.pages if section is not None else True
     key = policy.item_key(section, summary.slug) if has_page else None
@@ -175,6 +177,13 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         link=link,
         derived=dict(derive(summary) or {}) if derive is not None else {},
     )
+
+
+def order_of(entry: "StandardEntry") -> tuple:
+    """Front matter ``order`` ascending (entries without one last), then title: a section with ``sort: order``."""
+    value = entry.data.get("order")
+    number = int(value) if isinstance(value, (int, float)) or str(value).isdigit() else 1000
+    return (number, entry.title.casefold())
 
 
 def newest_first(entries) -> list[StandardEntry]:
