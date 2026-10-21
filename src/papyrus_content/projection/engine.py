@@ -102,22 +102,34 @@ def _item_keys(context: ProjectionContext, site: SiteIndex) -> set[str]:
     return {key for summary in site.items for key in context.projector.item_page_paths(summary)}
 
 
-def _moved_redirects(state: ItemState | None, live_keys: set[str]) -> dict[str, str]:
+def _canonical_path(projector, key: str) -> str:
+    """The public path of a page: the projector's own (``urls.style: clean`` serves ``x.html`` at ``/x``), else the stored key's."""
+    canonical = getattr(projector, "canonical_path", None)
+    return canonical(key) if canonical is not None else request_paths_for_key(key)[0]
+
+
+def _request_paths(projector, key: str) -> tuple[str, ...]:
+    """Every path a request for the page can use: the canonical one first, then the stored key's own paths."""
+    return tuple(dict.fromkeys((_canonical_path(projector, key), *request_paths_for_key(key))))
+
+
+def _moved_redirects(projector, state: ItemState | None, live_keys: set[str]) -> dict[str, str]:
     if state is None or not state.page_keys or not state.former_page_keys:
         return {}
-    target = request_paths_for_key(state.page_keys[0])[0]
+    target = _canonical_path(projector, state.page_keys[0])
     moved: dict[str, str] = {}
     for former in state.former_page_keys:
         if former in live_keys:
             continue
-        for source in request_paths_for_key(former):
-            moved[source] = target
+        for source in _request_paths(projector, former):
+            if source != target:
+                moved[source] = target
     return moved
 
 
 def _redirects_for(context: ProjectionContext, site: SiteIndex, state: ItemState | None) -> dict[str, str]:
     live_keys = _item_keys(context, site)
-    return {**context.projector.redirects(site), **_moved_redirects(state, live_keys)}
+    return {**context.projector.redirects(site), **_moved_redirects(context.projector, state, live_keys)}
 
 
 REDIRECT_LOOKUP_LIMIT = 10
@@ -152,7 +164,7 @@ def _release_redirects_for_new_pages(context: ProjectionContext, report: Project
     store = context.redirect_store
     if store is None:
         return
-    candidates = [source for key in sorted(new_keys) for source in request_paths_for_key(key)]
+    candidates = [source for key in sorted(new_keys) for source in _request_paths(context.projector, key)]
     if len(candidates) > REDIRECT_LOOKUP_LIMIT:
         present = store.list_all()  # a few list calls cost less than a billed read per path
         shadowing = [source for source in candidates if source in present]
@@ -413,7 +425,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     live_keys = _item_keys(context, site)
     redirects = dict(projector.redirects(site))
     for state in states:
-        redirects.update(_moved_redirects(state, live_keys))
+        redirects.update(_moved_redirects(context.projector, state, live_keys))
     _write_static(context, report, projector.static_files())
     _write_item_pages(context, report, rendered, _versions_by_page(context, site))
     _write_listing_pages(context, report, listings, inputs)
@@ -593,7 +605,7 @@ def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteInd
             continue
         _delete_pages(context, cleanup, set(state.page_keys) - keep)
         stale_redirects.update(normalized_redirect_source(alias) for alias in state.summary.aliases)
-        stale_redirects.update(_moved_redirects(state, set()))
+        stale_redirects.update(_moved_redirects(context.projector, state, set()))
         if context.keep_state:
             write_item_state(
                 context.writer,
@@ -620,7 +632,7 @@ def _reconcile_redirects(context: ProjectionContext, report: ReconcileReport, si
     live_keys = _item_keys(context, site)
     for summary in site.items:
         state = read_item_state(context.writer, summary.item_id) if context.keep_state else None
-        expected.update(_moved_redirects(state, live_keys))
+        expected.update(_moved_redirects(context.projector, state, live_keys))
     current = store.list_all()
     missing = {source: target for source, target in expected.items() if current.get(source) != target}
     report.redirects_unexpected = len(set(current) - set(expected))

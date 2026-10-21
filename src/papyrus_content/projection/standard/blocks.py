@@ -25,7 +25,7 @@ DIRECTIVE = re.compile(r"^::(band|column|island|button|include)(?:\{(.*)\})?[ \t
 RAW_OPEN = re.compile(r"^::raw[ \t]*$")
 RAW_CLOSE = re.compile(r"^::endraw[ \t]*$")
 ATTRIBUTE = re.compile(r'([\w-]+)="([^"]*)"')
-TOKEN = re.compile(r"\{\{(\w+)\}\}")
+TOKEN = re.compile(r"(\\)?\{\{(\w+)\}\}")
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})(.*)$")
 CONTAINER_OPEN = re.compile(r"^:::[\w-]+")
 CONTAINER_CLOSE = re.compile(r"^:::[ \t]*$")
@@ -51,12 +51,16 @@ def esc(value) -> str:
 
 
 def substitute(text: str, values: Mapping[str, str], source: str) -> str:
-    """Replace ``{{name}}`` tokens; a name that ``values`` does not define is an error. No values: the text is untouched."""
+    """Replace ``{{name}}`` tokens; a name that ``values`` does not define is an error. No values: the text is untouched.
+
+    ``\\{{name}}`` is an escape: it comes out as the literal ``{{name}}`` (for pages that print a placeholder)."""
     if not values:
         return text
 
     def replace(match: re.Match) -> str:
-        name = match.group(1)
+        name = match.group(2)
+        if match.group(1):
+            return match.group(0)[1:]
         if name not in values:
             raise ValueError(f"{source}: no value named {{{{{name}}}}} in projection.json values")
         return values[name]
@@ -277,7 +281,11 @@ def render(
             panel = attributes.get("panel", "")
             if panel:
                 _choice(source, "column panel", panel, PANELS)
-            bands[-1]["columns"].append({"panel": panel, "parts": []})
+            columns = bands[-1]["columns"]
+            if len(columns) == 1 and not columns[0]["parts"] and not columns[0]["panel"]:
+                columns[0]["panel"] = panel   # the band starts with ::column: its implicit first column stays empty, so it is this one
+            else:
+                columns.append({"panel": panel, "parts": []})
         elif name == "island":
             parts().append(_island_html(source, attributes))
         else:

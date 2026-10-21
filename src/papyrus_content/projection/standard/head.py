@@ -45,6 +45,7 @@ class PageHead:
     extra: str = ""                # raw head markup appended last (the head_extra hook)
     social_title: str = ""         # og:title / twitter:title when it differs from the title (a share card's own headline)
     image_alt: str = ""            # og:image:alt / twitter:image:alt
+    based_on: str = ""             # absolute URL of the original this page is based on (JSON-LD isBasedOn)
 
 
 class HeadBuilder:
@@ -162,6 +163,8 @@ class HeadBuilder:
             data["mainEntityOfPage"] = url
         if image:
             data["image"] = image
+        if page.based_on:
+            data["isBasedOn"] = page.based_on
         return data
 
     def _breadcrumb_json_ld(self, crumbs) -> dict:
