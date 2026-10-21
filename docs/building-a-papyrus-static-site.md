@@ -110,7 +110,7 @@ One builder writes the head of every page, in this order: font links, icons and 
 autodiscovery (RSS and Atom), sitemap link, robots meta, description, canonical, Open Graph (with image width and
 height when known), Twitter card, `article:*` times and tags, JSON-LD (`Article` or the mapped type, with
 `datePublished` and `dateModified`, authors, publisher; plus `BreadcrumbList`), then whatever the `head_extra` hook
-returns. Description falls back from the entry summary to the first paragraph to the site description. The image
+returns. The JSON-LD `headline` is the entry title; a page built through `PageHead` with a title template ("Title | Site") sets `headline` to keep it plain. Description falls back from the entry summary to the first paragraph to the site description. The image
 falls back from the entry's cover to the first image in the body to `seo.defaultImage`. JSON-LD escapes `</`.
 
 ## Sitemap, robots, 404
@@ -228,7 +228,8 @@ only `http(s):`, `mailto:`, site-absolute (`/x`) and `#fragment` hrefs are accep
 between directives is converted by Markus one segment at a time and joined, so the page has no `<article>` wrapper and no
 Markus header; the band markup is the page. A page that uses bands must start with a `::band` line (after the front
 matter). Unknown attributes, tones, sizes and variants are errors that name the file. Directives inside code fences are
-text.
+text. `::island` and `::button` also work inside a Markus `:::` container (a card, a column): there they are swapped in
+after the container is converted; `::band` and `::column` stay top-level only.
 
 **Values.** `{{name}}` is replaced, in text and in directive attributes, before conversion, from the top-level
 `values` object of `projection.json` (strings or numbers). A name that is not defined is a build error naming the file

@@ -418,7 +418,7 @@ def test_a_site_using_none_of_it_has_none_of_its_markup_or_files():
 
 def test_a_longer_code_fence_can_hold_shorter_ones():
     text = "::band\n````lua\n```nested```\n::band\n````\n\n::band{tone=\"muted\"}\nAfter.\n"
-    names = [name for _line, name, _attributes in blocks._directives(text) if name]
+    names = [name for _line, name, _attributes, _inside in blocks._directives(text) if name]
     assert names == ["band", "band"]
     html = blocks.render(text, "f.md", lambda markdown: f"<md>{markdown}</md>")
     assert html.count("<section") == 2 and "::band" in html.split("</section>")[0]
@@ -431,3 +431,61 @@ def test_the_family_footer_shows_a_logo_beside_the_name_and_description():
         'alt="Tactus icon" width="48" height="48"><div><h2 class="papyrus-family-footer-title">Tactus</h2>'
     ) in page
     assert "papyrus-family-footer-intro-row" not in family_page(family={"siteId": "tactus"})
+
+# ------------------------------------------------------------------ blocks inside Markus containers
+
+CARDS = """---
+title: Cards
+type: page
+---
+::band
+:::card-grid{columns=2 label="Both"}
+:::card{title="One"}
+Text before.
+
+::island{name="Chart" kind="bar"}
+
+::button{href="/a/" label="A"}
+::button{href="/b/" label="B" variant="secondary"}
+
+After the buttons.
+:::
+
+:::card{title="Two"}
+::island{name="Chart"}
+```lua
+::island{name="NotAnIsland"}
+```
+:::
+:::
+
+::column
+Outside the cards.
+
+::button{href="/c/" label="C"}
+"""
+
+
+def test_islands_and_buttons_work_inside_a_markus_container():
+    site = Site(settings(**ISLANDS), {"cards.md": CARDS}, ISLAND_FILES)
+    try:
+        assert site.project_all().ok
+        page = site.text("cards.html")
+        cards = page.split('<section class="markus-card-grid"')[1].split("</section>")[0]
+        assert cards.count("<article") == 2 and cards.count('class="papyrus-island"') == 2
+        assert 'data-island="Chart" data-props=\'{"kind":"bar"}\'' in cards
+        assert (
+            '<p class="markus-actions"><a class="markus-button" data-size="default" data-variant="default" href="/a/">A</a>'
+            '<a class="markus-button" data-size="default" data-variant="secondary" href="/b/">B</a></p>'
+        ) in cards
+        assert "<p>Text before.</p>" in cards and "<p>After the buttons.</p>" in cards and "PAPYRUSBLOCK" not in page
+        assert "::island{name=&quot;NotAnIsland&quot;}" in cards or "::island{name=\"NotAnIsland\"}" in cards
+        assert page.count('class="markus-column"') == 2 and "Outside the cards." in page.split("</section>")[1]
+        assert '<a class="markus-button" data-size="default" data-variant="default" href="/c/">C</a>' in page.split("Outside the cards.")[1]
+    finally:
+        site.cleanup()
+
+
+def test_the_markdown_twin_of_a_page_with_blocks_in_containers_has_links_and_no_islands():
+    text = blocks.twin(CARDS, {}, "cards.md")
+    assert "[A](/a/) · [B](/b/)" in text and "island" not in text.split("```")[0]
