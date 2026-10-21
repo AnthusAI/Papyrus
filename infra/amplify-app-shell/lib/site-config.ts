@@ -81,6 +81,13 @@ export type AmplifyAppShellSiteConfig = {
     repo: string;
     branches: string[];
     ciCanDeployInfra: boolean;
+    /**
+     * GitHub's numeric ids of the owner and the repository. Repositories with the immutable OIDC subject
+     * (`repo:<owner>@<ownerId>/<repo>@<repoId>:ref:...`, see `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`)
+     * present that form instead of `repo:<owner>/<repo>:ref:...`; with both ids set, roles trust both forms.
+     */
+    ownerId?: number;
+    repoId?: number;
   };
 };
 
@@ -94,6 +101,17 @@ export function resolveGithubRepository(config: Pick<AmplifyAppShellSiteConfig, 
   if (config.github) return { owner: config.github.owner, repo: config.github.repo };
   const [owner, repo] = config.repository.replace("https://github.com/", "").split("/");
   return { owner, repo };
+}
+
+/** The OIDC `sub` values a GitHub Actions run on `ref` of the site's repository can present. */
+export function githubOidcSubjects(config: Pick<AmplifyAppShellSiteConfig, "repository" | "github">, ref: string): string[] {
+  const { owner, repo } = resolveGithubRepository(config);
+  const subjects = [`repo:${owner}/${repo}:ref:refs/heads/${ref}`];
+  const { ownerId, repoId } = config.github ?? {};
+  if (ownerId !== undefined && repoId !== undefined) {
+    subjects.push(`repo:${owner}@${ownerId}/${repo}@${repoId}:ref:refs/heads/${ref}`);
+  }
+  return subjects;
 }
 
 export const DEFAULT_CI_BRANCHES = ["main", "staging"];
@@ -472,7 +490,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   if (record.github !== undefined) {
     if (cms === undefined) fail("github", "requires cms (the CI role is scoped to the CMS app)");
     const githubRecord = requireObject(record.github, "github");
-    rejectUnknownKeys(githubRecord, ["owner", "repo", "branches", "ciCanDeployInfra"], "github");
+    rejectUnknownKeys(githubRecord, ["owner", "repo", "branches", "ciCanDeployInfra", "ownerId", "repoId"], "github");
     const owner = requireString(githubRecord.owner, "github.owner", GITHUB_OWNER_PATTERN, "plain GitHub login");
     const repo = requireString(githubRecord.repo, "github.repo", GITHUB_REPO_PATTERN);
     if (repository !== `https://github.com/${owner}/${repo}`) {
@@ -492,7 +510,15 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     }
     const ciCanDeployInfra = githubRecord.ciCanDeployInfra ?? false;
     if (typeof ciCanDeployInfra !== "boolean") fail("github.ciCanDeployInfra", "must be a boolean");
-    github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean };
+    const optionalId = (value: unknown, name: string): number | undefined => {
+      if (value === undefined) return undefined;
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) fail(name, "must be a positive integer (GitHub numeric id)");
+      return value as number;
+    };
+    const ownerId = optionalId(githubRecord.ownerId, "github.ownerId");
+    const repoId = optionalId(githubRecord.repoId, "github.repoId");
+    if ((ownerId === undefined) !== (repoId === undefined)) fail("github", "ownerId and repoId must be set together");
+    github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean, ...(ownerId !== undefined ? { ownerId, repoId } : {}) };
   }
 
   const hasDomain = cms?.domainName !== undefined || reader?.domainName !== undefined;

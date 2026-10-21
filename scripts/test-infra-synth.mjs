@@ -295,9 +295,11 @@ try {
     assert.equal(deployTrust.length, 1);
     assert.equal(deployTrust[0].Action, "sts:AssumeRoleWithWebIdentity");
     assert.equal(flattenArn(deployTrust[0].Principal.Federated).endsWith(":oidc-provider/token.actions.githubusercontent.com"), true);
+    assert.deepEqual(Object.keys(deployTrust[0].Condition), ["StringEquals"], `${example}: deploy trust is exact-match only`);
+    assert.equal(deployTrust[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"], "sts.amazonaws.com");
     assert.deepEqual(
-      deployTrust[0].Condition,
-      { StringEquals: { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com", "token.actions.githubusercontent.com:sub": `repo:${github.owner}/${github.repo}:ref:refs/heads/main` } },
+      asList(deployTrust[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"]),
+      [`repo:${github.owner}/${github.repo}:ref:refs/heads/main`],
       `${example}: deploy role trusts exactly main of the site repository`,
     );
     const deployKey = Object.keys(template.Resources).find((key) => template.Resources[key] === deployRole);
@@ -336,6 +338,33 @@ try {
   const callerTemplate = fs.readFileSync(path.join(shell, "examples/deploy-on-merge.workflow.yml"), "utf8");
   assert.match(callerTemplate, /needs: ci/, "deploy only after CI");
   assert.match(callerTemplate, /github\.ref == 'refs\/heads\/main'/, "deploy only from main");
+
+  const immutableSubjectSite = structuredClone(pilobolExample);
+  immutableSubjectSite.github.ownerId = 152415604;
+  immutableSubjectSite.github.repoId = 1358579276;
+  const immutableSubjectTemplate = synthesizeSite("pilobol-immutable-subject", immutableSubjectSite);
+  const immutableRoles = resourcesOfType(immutableSubjectTemplate, "AWS::IAM::Role");
+  const trustedSubjects = (roleName, key) => {
+    const role = immutableRoles.find((candidate) => candidate.Properties.RoleName === roleName);
+    const condition = role.Properties.AssumeRolePolicyDocument.Statement[0].Condition;
+    return [condition.StringEquals?.[key] ?? condition.StringLike[key]].flat();
+  };
+  const subjectKey = "token.actions.githubusercontent.com:sub";
+  assert.deepEqual(
+    trustedSubjects("pilobol-us-github-deploy", subjectKey),
+    ["repo:AnthusAI/Pilobol.us:ref:refs/heads/main", "repo:AnthusAI@152415604/Pilobol.us@1358579276:ref:refs/heads/main"],
+    "immutable OIDC subject: the deploy role trusts the classic and the immutable subject of main",
+  );
+  assert.deepEqual(
+    trustedSubjects("pilobol-us-github-ci", subjectKey),
+    [
+      "repo:AnthusAI/Pilobol.us:ref:refs/heads/main",
+      "repo:AnthusAI@152415604/Pilobol.us@1358579276:ref:refs/heads/main",
+      "repo:AnthusAI/Pilobol.us:ref:refs/heads/staging",
+      "repo:AnthusAI@152415604/Pilobol.us@1358579276:ref:refs/heads/staging",
+    ],
+    "immutable OIDC subject: the CI role trusts both subject forms for each branch",
+  );
 
   const privateSite = structuredClone(pilobolExample);
   privateSite.autoDeploy = false;
