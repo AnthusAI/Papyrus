@@ -108,7 +108,7 @@ One builder writes the head of every page, in this order: font links, icons and 
 autodiscovery (RSS and Atom), sitemap link, robots meta, description, canonical, Open Graph (with image width and
 height when known), Twitter card, `article:*` times and tags, JSON-LD (`Article` or the mapped type, with
 `datePublished` and `dateModified`, authors, publisher; plus `BreadcrumbList`), then whatever the `head_extra` hook
-returns. Description falls back from the entry summary to the first paragraph to the site description. The image
+returns. The JSON-LD `headline` is the entry title; a page built through `PageHead` with a title template ("Title | Site") sets `headline` to keep it plain. Description falls back from the entry summary to the first paragraph to the site description. The image
 falls back from the entry's cover to the first image in the body to `seo.defaultImage`. JSON-LD escapes `</`.
 
 ## Sitemap, robots, 404
