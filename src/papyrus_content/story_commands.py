@@ -12,9 +12,12 @@ from .story_reporting import (
     STORY_MESSAGE_KINDS,
     advance_stage,
     append_story_message,
+    create_story,
     move_story_stage,
-    latest_story_version,
+    current_story_version,
     link_reference_to_story,
+    published_story_version,
+    repair_story_versions,
     save_story_version,
     story_references,
     story_versions,
@@ -37,7 +40,7 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
 
 
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance]"""
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--no-check]"""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories save-version")
     lineage_id = _required_option(options, "story")
@@ -45,7 +48,7 @@ def stories_save_version(flags: list[str]) -> None:
     if body is None:
         raise ValueError("--body-file (or --body) is required.")
     client, _ = create_authoring_client()
-    latest = latest_story_version(client, lineage_id)
+    latest = current_story_version(client, lineage_id)
     front_matter = _text_from_option_or_file(options, "front-matter", "front-matter-file")
     if front_matter is None:
         metadata = latest.get("metadata")
@@ -63,6 +66,10 @@ def stories_save_version(flags: list[str]) -> None:
         stage = advance_stage(latest.get("stage"))
     record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    if not options.get("no-check"):
+        from .editorial_commands import check_after_save
+
+        check_after_save(record["id"])
 
 
 def stories_versions(flags: list[str]) -> None:
@@ -71,6 +78,21 @@ def stories_versions(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     for version in story_versions(client, _required_option(options, "story")):
         print("\t".join(["stories", "versions", str(version.get("versionNumber")), str(version.get("versionState")), str(version.get("versionCreatedAt") or version.get("updatedAt") or ""), str(version.get("versionCreatedBy") or ""), str(version.get("changeReason") or ""), str(version["id"])]))
+
+
+def stories_repair_versions(flags: list[str]) -> None:
+    """papyrus stories repair-versions --story <lineage> [--dry-run]
+
+    Renumbers the lineage's records 1..n by creation order, chains previousVersionId, and leaves exactly one record
+    current (the live one if published, else the newest). Content is not changed. Dry run unless applied."""
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories repair-versions")
+    lineage_id = _required_option(options, "story")
+    client, _ = create_authoring_client()
+    updates = repair_story_versions(client, lineage_id, apply=apply)
+    for update in updates:
+        print("\t".join(["stories", "repair-versions", str(update["id"]), json.dumps({k: v for k, v in update.items() if k != "id"})]))
+    print(f"stories\trepair-versions\t{lineage_id}\t{len(updates)} record(s) {'updated' if apply else 'would change (dry run)'}")
 
 
 def stories_link_reference(flags: list[str]) -> None:
@@ -117,8 +139,8 @@ def stories_show(flags: list[str]) -> None:
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     versions = story_versions(client, lineage_id)
-    latest = versions[0] if versions else {}
-    print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tlatest version {latest.get('versionNumber')} of {len(versions)}")
+    latest = current_story_version(client, lineage_id) if versions else {}
+    print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
 
@@ -139,10 +161,13 @@ def stories_set_slug(flags: list[str]) -> None:
         raise ValueError("--slug must be lowercase letters, digits and single hyphens (for example my-story-title).")
     client, _ = create_authoring_client()
     item = client.get_record("Item", story)
+    lineage_id = (item.get("lineageId") or item["id"]) if item is not None else story
+    if client.list_by_index("itemsByLineageAndVersion", lineage_id):
+        # Always the live text (or, if never published, the working draft), never a superseded record.
+        item = published_story_version(client, lineage_id) or current_story_version(client, lineage_id)
     if item is None:
-        item = latest_story_version(client, story)
+        raise ValueError(f"No story found for {story}.")
     item_id = item["id"]
-    lineage_id = item.get("lineageId") or item_id
     if item.get("slug") == slug:
         print(f"stories\tset-slug\tunchanged\t{item_id}\t{slug}")
         return
@@ -172,6 +197,9 @@ def stories_set_slug(flags: list[str]) -> None:
     )
     actor = normalize_string(options.get("author-label")) or "papyrus-cli"
     save_item(client, fields, actor=actor, allow_published_slug_change=published)
+    for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
+        if sibling["id"] != item_id:  # a later draft must not publish under the old address
+            client.update_record("Item", {"id": sibling["id"], "slug": slug, "aliases": aliases})
     print(f"stories\tset-slug\tsaved\t{item_id}\t{slug}")
     if not published:
         return
@@ -186,11 +214,6 @@ def stories_set_slug(flags: list[str]) -> None:
 
 def stories_create(flags: list[str]) -> None:
     """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--with-assignment]"""
-    from datetime import datetime, timezone
-
-    from .content_item_lifecycle import build_new_content_item_version, content_item_lineage_id_for_first_work
-    from .records import apply_record_changes, build_record_changes
-
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories create")
     title = _required_option(options, "title")
@@ -200,20 +223,14 @@ def stories_create(flags: list[str]) -> None:
     section_key = normalize_string(options.get("section"))
     summary = normalize_string(options.get("summary")) or title
     actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
-    now = datetime.now(timezone.utc).isoformat()
-    lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
-    item = build_new_content_item_version(
-        lineage_id=lineage_id, title=title, summary=summary, section_key=section_key, stage=stage, actor_label=actor, now=now
-    )
-    client, _ = create_authoring_client()
-    if section_key and not client.get_record("NewsroomSection", section_key):
-        raise ValueError(f"Unknown NewsroomSection for --section {section_key}.")
-    print(f"stories\tcreate\t{lineage_id}\tstage {stage}\t{'write' if apply else 'dry run'}")
+    print(f"stories\tcreate\t{title}\tstage {stage}\t{'write' if apply else 'dry run'}")
     if not apply:
         if options.get("with-assignment"):
             print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
         return
-    apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
+    client, _ = create_authoring_client()
+    item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
+    lineage_id = item["lineageId"]
     print(f"stories\tcreate\tcreated\t{item['id']}")
     if options.get("with-assignment"):
         from .assignments_workflow import create_reporting_assignment

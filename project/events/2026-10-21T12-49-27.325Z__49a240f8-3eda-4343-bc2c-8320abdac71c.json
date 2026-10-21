@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "49a240f8-3eda-4343-bc2c-8320abdac71c",
+  "issue_id": "PPY-2523ce9b-dfd4-4da8-8f7b-86fa8d837aa8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.325Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Submit-a-link form as a standard component",
+    "description": "As a publication builder, I want a standard submit-a-link component, so that a static site gets the form without custom code.\n\nFields: URL, title with a 90-character counter, type, section, evidence links of closed types, \"what you checked\", disclosure. Works as a client component on a static page; submit goes to the authenticated mutation. Shows signed-in state and handle.\n\n```gherkin\nFeature: Submit form component\n  Scenario: Signed-out\n    Given a guest on the submit page\n    Then the form is replaced by a sign-in prompt\n\n  Scenario: Submit from the form\n    Given a signed-in reader\n    When the reader fills the form and submits\n    Then the item appears as pending and the form shows its status\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

@@ -20,11 +20,13 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import itertools
 import json
 import math
 import re
 from collections.abc import Callable, Collection
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 
 from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_page
 from ...renditions import RenditionCatalog
@@ -50,7 +52,7 @@ from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_sum
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
-from .markdown import FRONT_MATTER, LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
+from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_listing
@@ -518,8 +520,24 @@ class StandardMarkusProjector(MarkusSiteProjector):
             ]
         else:
             groups = [("Articles", visible[:limit])]
-        pages = [entry for entry in entries if not entry.listed and entry.key and not entry.noindex][:limit]
-        return [*groups, ("Pages", pages)]
+        pages = [entry for entry in entries if not entry.listed and entry.key and not entry.noindex]
+        pages += [
+            SimpleNamespace(title=title, key=None, link=(self.environment.origin or "") + path, summary_text="", date="")
+            for title, path, _text in self._static_twin_documents()
+        ]
+        return [*groups, ("Pages", pages[:limit])]
+
+    def _static_twin_documents(self) -> list[tuple[str, str, str]]:
+        """``(title, twin path, text)`` for each ``sitemap.extra`` route whose Markdown twin the site publishes by hand (``static.copy``)."""
+        found = []
+        for route in self.standard.sitemap_extra:
+            key = static_twin_key(route)
+            if key is None or key not in self._passthrough or key not in self._static_files:
+                continue
+            text = self._static_files[key].decode("utf-8")
+            heading = re.search(r"^# (.+)$", text, re.M)
+            found.append((heading.group(1).strip() if heading else route, "/" + key, text))
+        return found
 
     def _llms_full_entries(self, entries: list[StandardEntry]) -> list[StandardEntry]:
         return [entry for entry in entries if entry.key and not entry.noindex and (entry.listed or entry.type == "page")]
@@ -530,7 +548,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return
         origin = self.environment.origin
         full_entries = self._llms_full_entries(entries)
-        full_enabled = agents.llms_full and 0 < len(full_entries) <= agents.llms_full_max_items
+        static_documents = self._static_twin_documents()
+        full_enabled = agents.llms_full and 0 < len(full_entries) + len(static_documents) <= agents.llms_full_max_items
         if agents.llms_txt:
             optional = []
             if "rss" in self.standard.feeds.formats:
@@ -545,14 +564,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if full_enabled:
             identity = self.standard.identity
             versions = [[entry.item_id, entry.summary.version_number] for entry in full_entries]
-            digest = digest_of([self._shared_fingerprint, versions, agents.llms_full_max_bytes])
+            digest = digest_of([self._shared_fingerprint, versions, agents.llms_full_max_bytes, [text for _title, _path, text in static_documents]])
 
             def render() -> bytes:
                 documents = (
                     item_markdown(entry, self._twin(site.load_item(entry.item_id).source_text, entry.summary.output_path), entry.canonical or self.head.absolute(entry.url))
                     for entry in full_entries
                 )
-                return llms_full_txt(identity, documents, agents.llms_full_max_bytes).encode("utf-8")
+                return llms_full_txt(identity, itertools.chain(documents, (text for _title, _path, text in static_documents)), agents.llms_full_max_bytes).encode("utf-8")
 
             plan[LLMS_FULL_KEY] = (digest, render)
 
@@ -913,7 +932,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Copy / view / open-in actions on an article's page; only where the page has a Markdown twin."""
         settings = self.standard.page_actions
         entry = page.entry
-        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or entry.type not in self.standard.listings.types:
+        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or not (entry.type in self.standard.listings.types or entry.type in (settings.types or ())):
             return ""
         twin = md_path(entry.key)
         if twin is None:

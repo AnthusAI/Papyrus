@@ -36,6 +36,21 @@ The new `Item` row gets `versionNumber` n+1, `previousVersionId`, `versionCreate
 version. Older versions are listed in the story's Reporting trail and open read-only. Publishing still publishes the
 latest version. Add `--dry-run` to any command to preview.
 
+"Latest draft" and "published" are different records. The **current** record (`versionState` `current`) is the working
+draft: saving a version or publishing one makes that record current and supersedes the rest. The **published** record is
+the one the lineage's `PublishedItem.sourceItemId` names. Neither is picked by the highest `versionNumber`, and
+publishing never changes any record's `versionNumber` (the publish counter lives on `PublishedItem`). `stories set-slug`
+always acts on the published record, and keeps the old address as a redirect.
+
+To repair a lineage whose numbers are muddled (duplicate numbers, several current records), preview and then apply:
+
+```bash
+papyrus stories repair-versions --story <lineage> --dry-run   # lists the changes
+papyrus stories repair-versions --story <lineage>             # renumbers 1..n by creation order, one current record
+```
+
+Content is not changed. The live record stays current if the story is published; otherwise the newest record is.
+
 A human editing in the story editor presses "Save draft" to correct the current draft in place, or "Save as new version"
 to keep the previous text.
 

@@ -1,0 +1,38 @@
+{
+  "id": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+  "title": "Public submit-a-link",
+  "description": "Signed-in readers submit a link to a publication. Decision (2026-10-21): submissions are public immediately; moderation (epic below, optional) acts after the fact unless a publication turns pre-moderation on. Entity extraction runs asynchronously on a worker, never in the request.\n\nParent initiative: PPY-77bb3b (milestones 6 and 7). Depends on: reader accounts epic (sibling). Related: moderation epic (sibling), Biblicus typed-entity extractor blbs-81ec10 (extraction backend), existing reference intake (editor-only today). Pilot: Shipped.\n\nChildren: submit mutation and pending record; asynchronous extraction and entity confirm step; duplicate check, spam and abuse limits; submit form component.\nDefinition of Done: a signed-in reader on a pilot site can submit a link, sees it publicly as pending at once, and the extraction result arrives afterwards without blocking the submit.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "91683cc4-da62-4a15-bf75-7ae160c90928",
+      "author": "home",
+      "text": "Sibling epics: reader accounts PPY-1546fc, moderation PPY-af98c7, comments PPY-739cb4, votes PPY-73a82d. Biblicus extraction: blbs-81ec10 (typed entities), blbs-e14d5c (evaluation). Knowledge base initiative: PPY-428252.",
+      "created_at": "2026-10-21T12:50:17.575104Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
+  "created_at": "2026-10-21T12:49:27.041834Z",
+  "updated_at": "2026-10-21T12:50:17.575122Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

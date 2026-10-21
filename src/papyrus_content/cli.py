@@ -75,7 +75,15 @@ from .editions_commands import (
     editions_plan,
     editions_purge,
 )
-from .editorial_commands import editorial_check, editorial_import, editorial_pack, editorial_suggest
+from .editorial_commands import (
+    editorial_check,
+    editorial_check_drafts,
+    editorial_check_version,
+    editorial_import,
+    editorial_pack,
+    editorial_policies,
+    editorial_suggest,
+)
 from .categories_commands import (
     categories_draft_add_topic,
     categories_draft_archive_topic,
@@ -311,6 +319,7 @@ PORTED_COMMANDS = frozenset(
         "stories:show",
         "stories:create",
         "stories:move",
+        "stories:repair-versions",
         "stories:set-slug",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
@@ -408,6 +417,9 @@ PORTED_COMMANDS = frozenset(
         "editorial:suggest",
         "editorial:pack",
         "editorial:import",
+        "editorial:policies",
+        "editorial:check-version",
+        "editorial:check-drafts",
         "renderers:markus-build",
     }
 )
@@ -643,6 +655,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_set_slug
 
         stories_set_slug(flags)
+    elif route == "stories:repair-versions":
+        from .story_commands import stories_repair_versions
+
+        stories_repair_versions(flags)
     elif route == "stories:move":
         from .story_commands import stories_move
 
@@ -860,6 +876,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         editorial_suggest(flags)
     elif route == "editorial:pack":
         editorial_pack(flags)
+    elif route == "editorial:policies":
+        editorial_policies(flags)
+    elif route == "editorial:check-version":
+        editorial_check_version(flags)
+    elif route == "editorial:check-drafts":
+        editorial_check_drafts(flags)
     elif route == "editorial:import":
         editorial_import(flags)
     elif route == "renderers:markus-build":
@@ -1617,7 +1639,7 @@ def print_usage() -> None:
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
-    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; PAPYRUS_CONTENT_ACTIONS_FUNCTION schedules it on the Lambda, else it runs locally),")
+    print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")

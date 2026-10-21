@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "ffead12d-9179-439e-9a4c-ca4f372a6d4c",
+  "issue_id": "PPY-0b2cbbcc-2c57-4748-9738-eccb8fb31fae",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:28.461Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Score combination: how editor and reader scores combine (exploration)",
+    "description": "Open question, no decision yet: how should editor and reader scores combine into what a publication shows and ranks by? This epic holds an exploration only. Parent initiative: PPY-77bb3b (milestone 4).",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

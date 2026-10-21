@@ -1,0 +1,25 @@
+{
+  "id": "PPY-63279d00-af3b-448e-a8e1-699189b06f44",
+  "title": "AI moderation with human override",
+  "description": "As a publication admin, I want an AI moderator to review content against the rules with a human able to override, so that moderation scales.\n\nNotes: the AI returns a decision (allow, hide, escalate), a short rationale and a confidence. Low confidence escalates to the human queue. Human overrides are recorded and become labelled examples (can feed Cyclotron feedback, see PPY-77bb3b milestone 5). Default model for language-model tasks: GPT-6 Luna unless stated otherwise; any other model needs explicit approval.\n\n```gherkin\nFeature: AI moderation\n  Scenario: Confident allow\n    When the AI moderator allows an item with high confidence\n    Then the item stays public and the decision and rationale are recorded\n\n  Scenario: Hide\n    When the AI moderator decides to hide an item\n    Then it is hidden and the author may see the reason\n\n  Scenario: Escalate\n    When confidence is below the threshold\n    Then the item goes to the human queue\n\n  Scenario: Human override\n    When a moderator reverses an AI decision\n    Then the reversal is recorded as an override with the moderator's identity\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:27.674294Z",
+  "updated_at": "2026-10-21T12:49:27.674321Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

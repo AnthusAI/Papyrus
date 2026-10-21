@@ -1,0 +1,25 @@
+{
+  "id": "PPY-5fe2f175-5956-43b7-ae4e-b5720bb04805",
+  "title": "Report control and moderation rules",
+  "description": "As a reader, I want to report content, and as an admin I want written rules, so that moderation is understandable and consistent.\n\n```gherkin\nFeature: Reports and rules\n  Scenario: Report\n    Given a signed-in reader viewing public content\n    When the reader reports it with a reason\n    Then a report is queued once per reader per item\n\n  Scenario: Rules text\n    Given an admin has written moderation rules\n    Then the rules are shown on the submit and comment forms\n    And moderators and the AI moderator see the same rules\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:27.605047Z",
+  "updated_at": "2026-10-21T12:49:27.605072Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

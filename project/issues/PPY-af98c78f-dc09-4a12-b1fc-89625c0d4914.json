@@ -1,0 +1,38 @@
+{
+  "id": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
+  "title": "Moderation: optional, AI first, human override",
+  "description": "Moderation of public content (submissions, comments, ratings) is supported and optional, per publication. Decision (2026-10-21): content is public immediately, and Papyrus must support optional human moderation: a queue, approve, hide and ban actions, and rules. Plan: build and test human moderation, then switch human moderation off per publication once AI moderation is trusted (decisions align). Default goal: AI moderation with human override.\n\nParent initiative: PPY-77bb3b (milestone 7). Applies to: public submit-a-link and comments epics (siblings). Language-model tasks default to the cheap GPT-6 Luna tier unless stated otherwise. Humanus checks on submissions are an input signal.\n\nChildren: per-publication moderation setting; moderation queue in Administration; report control; moderation rules; AI moderation with human override; trust graduation (turning human moderation off).\nDefinition of Done: a pilot publication can run in each mode (off, human, AI with override) and switch between them by setting.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "441d28e1-36c9-420f-8ec3-9e34f77a1544",
+      "author": "home",
+      "text": "Applies to: submit-a-link PPY-5b8cdc, comments PPY-739cb4, ratings in PPY-73a82d. Reader accounts: PPY-1546fc.",
+      "created_at": "2026-10-21T12:50:17.623785Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
+  "created_at": "2026-10-21T12:49:27.397345Z",
+  "updated_at": "2026-10-21T12:50:17.623806Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

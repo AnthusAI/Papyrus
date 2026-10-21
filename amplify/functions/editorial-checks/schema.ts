@@ -49,6 +49,35 @@ export const editorialChecksSchemaDefinitions = {
       .disableOperations(["subscriptions"])
       .secondaryIndexes((index) => [index("itemId").queryField("listEditorialFeedbackByItem")])
       .authorization((allow) => [allow.group("editor").to(["create", "read"]), allow.group("admin")]),
+    EditorialCheckRun: a
+      .model({
+        id: a.id().required(),
+        itemId: a.string().required(),
+        lineageId: a.string().required(),
+        versionNumber: a.integer().required(),
+        section: a.string(),
+        contentHash: a.string(),
+        packVersion: a.string(),
+        violations: a.integer().required(),
+        reviews: a.integer().required(),
+        findings: a.json().required(),
+        lanes: a.json(),
+        checkedAt: a.datetime().required(),
+      })
+      .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("lineageId").sortKeys(["versionNumber"]).queryField("listEditorialCheckRunsByLineage")])
+      .authorization((allow) => [allow.group("editor").to(["read"]), allow.group("admin")]),
+    listEditorialStarterPacks: a
+      .query()
+      .returns(a.json())
+      .authorization((allow) => [allow.groups(editors)])
+      .handler(a.handler.function(editorialChecks)),
+    checkItemVersion: a
+      .mutation()
+      .arguments({ itemId: a.id().required() })
+      .returns(a.json())
+      .authorization((allow) => [allow.groups(editors)])
+      .handler(a.handler.function(editorialChecks)),
     checkEditorial: a
       .query()
       .arguments({ body: a.string().required(), format: a.string(), section: a.string() })

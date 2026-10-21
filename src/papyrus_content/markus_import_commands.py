@@ -89,5 +89,12 @@ def content_import_markus(flags: list[str]) -> None:
             print(f"  projection: {json.dumps(payload['projection'])}")
         for message in payload["errors"]:
             print(f"  error: {message}")
+    if apply and report.ok and (payload["created"] or payload["updated"]) and not options.get("no-check"):
+        from .editorial_commands import check_unchecked_drafts
+
+        try:
+            check_unchecked_drafts(client)
+        except Exception as error:
+            print(f"editorial\tcheck-drafts\tnot checked\t{str(error)[:200]} (run: papyrus editorial check-drafts)")
     if not report.ok:
         raise SystemExit(1)

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "cbfc8450-7e4e-4637-aa76-4b8d5d5fb4f4",
+  "issue_id": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:26.830Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader accounts: signed-in readers per publication",
+    "description": "Signed-in readers for a publication, so that votes, submissions and comments can be attributed. Guests still read everything. Optional per publication; editors-only remains the default for every existing site.\n\nContext: today only staff sign in (Google). No reader identity exists. Prospectus accounts integration is in progress for another consumer (PPY-58f107); reuse it, do not fork it. Standing rule: Google sign-in only; never create password users.\n\nParent initiative: PPY-77bb3b (milestone 2). Pilot: Shipped (ship-b35fa2).\n\nChildren: Google reader sign-in; public handle and profile.\nDefinition of Done: a guest can sign in as a reader on a pilot site, pick a handle, and sign out; staff permissions are unchanged.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "35f69030-d471-463a-802a-ba4bee4b3a3e",
+  "issue_id": "PPY-7cf3d959-cff4-4907-bc01-2576994eaa96",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.734Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Trending list and entity kinds filter",
+    "description": "As a reader, I want a list of trending entities by kind, so that I can see what is moving.\n\n```gherkin\nFeature: Trending list\n  Scenario: Ordered by change\n    Given computed trends\n    Then the list orders entities by change with counts shown, excluding entities marked new\n\n  Scenario: Filter by kind\n    When a kind is chosen\n    Then only entities of that kind are listed\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a45fd1e5-60fe-4068-981f-1ca5851ba3d0",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

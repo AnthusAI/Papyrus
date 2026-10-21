@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "ec314881-b803-4448-8f8a-d6d442dd7d77",
+  "issue_id": "PPY-787680fc-3b5f-41b0-a183-fb1539bc3e1f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.112Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Submit mutation creates a public pending record immediately",
+    "description": "As a signed-in reader, I want my submitted link to appear publicly right away, so that submitting feels immediate.\n\nNotes: creates a pending reference record with provenance (submitter handle, time, canonical URL) and returns immediately. The pending record is visible to everyone (public immediately). How pending items are rendered (a JSON record shown by one client-side item shell versus a static page generated on promotion) is an implementer decision; record the choice and its effect on feeds, search and agent-readable twins on this story. Optional pre-moderation (hold until approved) is a publication setting owned by the moderation epic.\n\n```gherkin\nFeature: Submit a link\n  Scenario: Submit\n    Given a signed-in reader on a publication with submissions enabled\n    When the reader submits a URL, a title (at most 90 characters), a type and a note\n    Then a pending submission exists with the reader's handle and the canonical URL\n    And it is visible publicly without waiting for extraction or review\n    And the response returns without waiting for extraction\n\n  Scenario: Guest cannot submit\n    When a guest calls the submit mutation\n    Then it is rejected\n\n  Scenario: Invalid input\n    When the title exceeds 90 characters or the URL is not http or https\n    Then the submission is rejected with a clear message\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

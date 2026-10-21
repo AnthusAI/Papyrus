@@ -292,12 +292,44 @@ def twin_text(staged_page: Path) -> tuple[str, str]:
     return text + "\n", title
 
 
+PAGE_ACTIONS_STYLESHEET = "_plugins/papyrus-page-actions.css"
+
+
+def page_actions_stylesheet() -> str:
+    """The page-actions rules of the standard front end's component stylesheet (they use the ``--papyrus-*`` tokens)."""
+    from papyrus_content.projection.standard.projector import ASSET_DIRECTORY
+
+    lines = (ASSET_DIRECTORY / "markus-components.css").read_text(encoding="utf-8").splitlines()
+    return "\n".join(line for line in lines if "markus-page-actions" in line or "markus-actions-" in line or "markus-copy-md" in line) + "\n"
+
+
+def add_page_actions(page_html: str, *, address: str, title: str, canonical: str) -> str:
+    """Page actions at the top of a docs page that has a Markdown twin: a head link to the twin, the actions group,
+    the shared stylesheet and the enhancing script. The links work without JavaScript."""
+    from papyrus_content.projection.standard.config import PageActionSettings
+    from papyrus_content.projection.standard.page_actions import SCRIPT_PATH, render_page_actions
+
+    prefix = "../" * address.count("/")
+    twin = address.rsplit("/", 1)[-1].removesuffix(".html") + ".md"
+    actions = render_page_actions(PageActionSettings(), markdown_path=twin, title=title, canonical=canonical)
+    head = (
+        f'<link rel="alternate" type="text/markdown" href="{html.escape(twin)}">'
+        f'<link rel="stylesheet" href="{prefix}{PAGE_ACTIONS_STYLESHEET}">'
+    )
+    script = f'<script src="{prefix}{SCRIPT_PATH}" defer></script>'
+    if "<main>" not in page_html or "</head>" not in page_html or "</body>" not in page_html:
+        return page_html
+    page_html = page_html.replace("</head>", head + "</head>", 1).replace("<main>", "<main>\n" + actions, 1)
+    return page_html.replace("</body>", script + "</body>", 1)
+
+
 def write_agent_outputs(
     config: DocsSiteConfig, output_directory: Path, content_directory: Path, page_addresses: list[str]
 ) -> None:
     """Markdown twins beside the pages, ``/llms.txt``, ``/llms-full.txt`` and ``/robots.txt`` (kept when the site wrote one)."""
     site_url = config.published_site_url
     entries: list[tuple[str, str, str]] = []
+    wrote_actions = False
     for address in page_addresses:
         twin_address = address.removesuffix(".html") + ".md"
         staged_page = content_directory / twin_address
@@ -305,7 +337,21 @@ def write_agent_outputs(
             continue
         text, title = twin_text(staged_page)
         (output_directory / twin_address).write_text(text, encoding="utf-8")
+        page_file = output_directory / address
+        page_file.write_text(
+            add_page_actions(page_file.read_text(encoding="utf-8"), address=address, title=title, canonical=site_url + address),
+            encoding="utf-8",
+        )
+        wrote_actions = True
         entries.append((twin_address, title, text))
+    if wrote_actions:
+        from papyrus_content.projection.standard.page_actions import SCRIPT_PATH
+        from papyrus_content.projection.standard.projector import ASSET_DIRECTORY
+
+        plugins = output_directory / "_plugins"
+        plugins.mkdir(exist_ok=True)
+        (output_directory / SCRIPT_PATH).write_bytes((ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes())
+        (output_directory / PAGE_ACTIONS_STYLESHEET).write_text(page_actions_stylesheet(), encoding="utf-8")
     entries.sort(key=lambda entry: (entry[0] != INDEX_PAGE_PATH, entry[0]))
     summary = config.tagline or f"Documentation for {config.site_name}."
     links = "\n".join(f"- [{title}]({site_url}{address})" for address, title, _ in entries)

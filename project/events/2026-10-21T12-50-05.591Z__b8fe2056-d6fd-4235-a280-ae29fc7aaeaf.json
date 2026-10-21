@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b8fe2056-d6fd-4235-a280-ae29fc7aaeaf",
+  "issue_id": "PPY-a45fd1e5-60fe-4068-981f-1ca5851ba3d0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.591Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Entity trends by weekly counting",
+    "description": "Per-entity weekly series and change figures, computed by counting confirmed entity links per ISO week. No topic model is needed. Feeds sparklines, the trending list and trend charts.\n\nDefinition (written into the page): change is items in the last 4 weeks versus the prior 4 weeks, shown with absolute counts; the percent is dropped when the prior period is under 5 items; \"new\" when under 4 weeks of history. Depends on typed-entity extraction (Biblicus blbs-81ec10) producing confirmed entity links. Parent initiative: PPY-428252.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

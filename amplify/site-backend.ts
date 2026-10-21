@@ -723,6 +723,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   backend.addOutput({
     custom: {
       publicForms: { endpoint: publicFormsEndpoint },
+      // Lets the operator CLI re-project on publish without PAPYRUS_PUBLICATION_KIND / PAPYRUS_CONTENT_ACTIONS_FUNCTION (PPY-0c0b75).
+      publication:
+        s3ProjectionPublication !== undefined
+          ? { kind: "s3-projection", contentActionsFunction: contentActionsLambda.functionName }
+          : null,
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,

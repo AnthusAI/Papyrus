@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "2566db90-fdd9-41e1-8451-f07866c55e28",
+  "issue_id": "PPY-cb95f822-f1e9-41c9-aeaf-ef5417d604a3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.954Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Dimension ratings (1 to 5) with histograms, separate from upvotes",
+    "description": "As a signed-in reader, I want to rate an item on each configured dimension from 1 to 5, so that the board reflects more than popularity.\n\nDimensions are publication data (for the Shipped pilot: real, useful, notable, novel). Per dimension store mean, n and the five-bucket histogram; n differs per dimension. Editors' ratings are stored with voterRole \"editor\" and tallied as their own mean. The upvote count and the number of people who rated are different numbers and are labelled as such.\n\n```gherkin\nFeature: Dimension ratings\n  Scenario: Rate\n    When a reader rates the dimension \"A\" with 4\n    Then the tally for \"A\" has n increased by one and an updated mean and histogram\n\n  Scenario: Change a rating\n    When the same reader rates \"A\" again with 2\n    Then the earlier rating is replaced\n\n  Scenario: Editor mean separate\n    When editors and readers have rated\n    Then the reader mean and the editor mean are both available and distinct\n\n  Scenario: Partial rating\n    Given a reader rates only two of the four dimensions\n    Then only those two tallies change\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "1ae68174-6826-4ad6-bcb2-8eaeb56fe65a",
+  "issue_id": "PPY-db2d69a2-e0ea-41f3-86de-ef89352b863d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.090Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Topic and beat pages from accepted categories and subtopics",
+    "description": "As a reader, I want a page per beat (root topic) and subtopic, so that I can browse by subject.\n\nA page Item in a topics section for each accepted beat or subtopic (same sync as entity pages), plus the existing published category tree. Beats are accepted root categories (roughly 8 to 12); the index lists beats and accepted entities. Subtopics are shown only for beats with enough items (default 30). Subtopics come from Biblicus child-topic discovery through steering proposals.\n\n```gherkin\nFeature: Topic pages\n  Scenario: Beat page\n    Given an accepted root category\n    Then a draft topic page exists and, once published, lists the beat's items\n\n  Scenario: Small beats\n    Given a beat with fewer items than the subtopic minimum\n    Then no subtopic list is shown\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-495ec80d-6bbe-4ab0-afc3-cb1010c9500d",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

@@ -119,7 +119,7 @@ class DocsAgentOutputTests(unittest.TestCase):
             out = root / "out"
             (out / "articles").mkdir(parents=True)
             for name in ("index", "articles/cli", "articles/guides-setup", "articles/not-found"):
-                (out / f"{name}.html").write_text("<html><head></head></html>", encoding="utf-8")
+                (out / f"{name}.html").write_text("<html><head></head><body><main>\n<h1>x</h1>\n</main></body></html>", encoding="utf-8")
             write_sitemap_and_not_found_page(config, out, content_directory=staging, last_modified_by_address={"index.html": "2026-01-02"})
             self.assertIn("# CLI", (out / "articles" / "cli.md").read_text())
             llms = (out / "llms.txt").read_text()
@@ -131,6 +131,16 @@ class DocsAgentOutputTests(unittest.TestCase):
             self.assertEqual(sitemap.count("<lastmod>"), 3)
             self.assertIn("Sitemap: https://d.example/sitemap.xml", (out / "robots.txt").read_text())
             self.assertFalse((out / "articles" / "not-found.md").exists())
+            page = (out / "articles" / "cli.html").read_text()
+            self.assertIn('<link rel="alternate" type="text/markdown" href="cli.md">', page)
+            self.assertIn('data-markdown="cli.md" data-title="CLI" data-canonical="https://d.example/articles/cli.html"', page)
+            self.assertIn('<a class="markus-action-link" data-action="view" href="cli.md">View as Markdown</a>', page)
+            self.assertIn('href="../_plugins/papyrus-page-actions.css"', page)
+            self.assertIn('<script src="../_plugins/papyrus-page-actions-v1.js" defer>', page)
+            self.assertIn('href="_plugins/papyrus-page-actions.css"', (out / "index.html").read_text())
+            self.assertIn(".markus-page-actions {", (out / "_plugins" / "papyrus-page-actions.css").read_text())
+            self.assertTrue((out / "_plugins" / "papyrus-page-actions-v1.js").is_file())
+            self.assertNotIn("page-actions", (out / "404.html").read_text())
 
 
 class DocsMarkdownDialectTests(unittest.TestCase):

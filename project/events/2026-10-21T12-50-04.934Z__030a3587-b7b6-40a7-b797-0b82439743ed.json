@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "030a3587-b7b6-40a7-b797-0b82439743ed",
+  "issue_id": "PPY-f927a170-d1d5-4af4-ad7e-cc8851720e8b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:04.934Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reviewed-by-desk versus draft stamp on wiki pages",
+    "description": "As a reader, I want to see whether a page was reviewed, so that a generated description can never look attested.\n\nImplements the stamp ideas of PPY-964472 for public pages: visible \"reviewed by the desk on DATE\" versus \"draft, not yet reviewed\"; superseded pages are marked; a non-LLM checker enforces the stamp.\n\n```gherkin\nFeature: Wiki page stamps\n  Scenario: Reviewed\n    Given a page published after human acceptance\n    Then it shows \"reviewed\" with the date\n\n  Scenario: Unreviewed generated text\n    Given a page whose text was generated and not accepted\n    Then it is not public\n\n  Scenario: Superseded\n    Given a page marked superseded\n    Then it shows the superseded notice and links to its replacement\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-495ec80d-6bbe-4ab0-afc3-cb1010c9500d",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

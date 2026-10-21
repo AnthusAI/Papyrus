@@ -24,6 +24,7 @@ from papyrus_content.rebuild_trigger import (
 )
 from papyrus_content.story_reporting import save_story_version
 from papyrus_content.publication import ensure_publication_from_environment
+from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
 from papyrus_content.reference_intake import IntakeError, intake_references
 from papyrus_content.publishing import (
     ItemFields,
@@ -150,9 +151,19 @@ def schedule_unpurged_invalidation(keys: list[str]) -> None:
     schedule_projection_task({"task": "invalidate", "keys": keys}, "edge invalidation failed")
 
 
+def ensure_default_editorial_policies(client) -> None:
+    """A deployed site starts with working editorial policies. Never fails the deploy: a problem is logged."""
+    try:
+        result = ensure_default_policies(GraphQLEditorialStore(execute=client.graphql))
+        print(json.dumps({"defaultEditorialPolicies": result}))
+    except Exception as error:
+        print(json.dumps({"defaultEditorialPoliciesError": str(error)[:500]}))
+
+
 def run_deploy_render_task(client) -> dict:
     """Render every published page after a backend deploy, then report drift (a dry run: nothing is deleted)."""
     ensure_publication_from_environment(client)
+    ensure_default_editorial_policies(client)
     context = projection_context(client)
     report = deploy_render(context)
     print(drift_metric_line(report))

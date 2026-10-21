@@ -1,0 +1,25 @@
+{
+  "id": "PPY-9abb983a-722d-4627-9658-8abb7f203ff6",
+  "title": "papyrus knowledge snapshot: public-safe JSON of entities, relations and series",
+  "description": "As a publication builder, I want one command that writes the public knowledge JSON, so that pages and components have a single data source.\n\nContents: index of entities; per entity: key, kind, name, aliases, description state, item counts, weekly series (8 and 26 weeks), neighbours by relation with weights (items linking both), related items with the shared entity as the reason. Series come from Papyrus counting (trends epic) and Biblicus (blbs-7d8c88 weekly bins, blbs-846d62 cluster identity). A guest-surface test pins the shape.\n\n```gherkin\nFeature: Knowledge snapshot\n  Scenario: Public-safe output\n    Given accepted and unaccepted entities and private notes\n    When the snapshot runs\n    Then only accepted entities appear\n    And no reference text, private note or email address appears\n\n  Scenario: Rebuildable\n    When the snapshot runs twice on the same data\n    Then the outputs are identical\n\n  Scenario: Shape pinned\n    Then a test fails if a field outside the documented shape is added\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4939307b-9fd0-4380-872f-6bd0d2222974",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:50:05.234524Z",
+  "updated_at": "2026-10-21T12:50:05.234551Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

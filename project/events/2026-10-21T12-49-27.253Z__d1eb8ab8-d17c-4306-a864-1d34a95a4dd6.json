@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "d1eb8ab8-d17c-4306-a864-1d34a95a4dd6",
+  "issue_id": "PPY-f2753b45-481d-4cab-9599-da901c18e61c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.253Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Duplicate check, spam and abuse limits for submissions",
+    "description": "As the publication desk, I want duplicates caught and abuse limited, so that public-immediate submissions do not flood the board.\n\n```gherkin\nFeature: Submission limits\n  Scenario: Exact duplicate\n    Given a submission with the same canonical URL already exists\n    When a reader submits it again\n    Then the reader is shown the existing item instead of creating a second\n\n  Scenario: Same domain warning\n    Given the same domain was submitted recently\n    When a reader submits another URL on it\n    Then a warning shows the recent item, and the reader may continue\n\n  Scenario: Rate limit\n    Given a reader exceeds the configured submissions per period\n    Then further submissions are rejected until the period passes\n\n  Scenario: New account limit\n    Given an account younger than the configured minimum age\n    Then it is held to a lower submission limit\n```\n\nRate limits and account-age thresholds are per-publication configuration. Edge protection (WAF) follows the existing plugin contract.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

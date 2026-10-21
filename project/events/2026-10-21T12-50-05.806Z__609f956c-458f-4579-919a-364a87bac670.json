@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "609f956c-458f-4579-919a-364a87bac670",
+  "issue_id": "PPY-0331f5ca-9cb2-46e0-bef9-4bab79030a72",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.806Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Emerging-cluster callouts",
+    "description": "Show \"what the graph noticed\": clusters that are new, growing or cooling. Uses cluster identity across topic-model runs from Biblicus (blbs-846d62) and weekly bins (blbs-7d8c88). Only clusters the desk accepted as a steering proposal are named and shown; unaccepted clusters appear as \"unnamed, n items\" or are hidden (editor choice). State labels are never claimed with fewer than 4 weeks of data. At launch show accepted proposals, not raw clusters.\n\nWeekly modelling runs on a worker (a developer workstation for now; see Biblicus cloud job runner blbs-9668cf for the later automated path). Parent initiative: PPY-428252.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

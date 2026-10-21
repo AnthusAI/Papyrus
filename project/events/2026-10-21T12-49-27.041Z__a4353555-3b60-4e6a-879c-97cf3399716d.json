@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a4353555-3b60-4e6a-879c-97cf3399716d",
+  "issue_id": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:27.041Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public submit-a-link",
+    "description": "Signed-in readers submit a link to a publication. Decision (2026-10-21): submissions are public immediately; moderation (epic below, optional) acts after the fact unless a publication turns pre-moderation on. Entity extraction runs asynchronously on a worker, never in the request.\n\nParent initiative: PPY-77bb3b (milestones 6 and 7). Depends on: reader accounts epic (sibling). Related: moderation epic (sibling), Biblicus typed-entity extractor blbs-81ec10 (extraction backend), existing reference intake (editor-only today). Pilot: Shipped.\n\nChildren: submit mutation and pending record; asynchronous extraction and entity confirm step; duplicate check, spam and abuse limits; submit form component.\nDefinition of Done: a signed-in reader on a pilot site can submit a link, sees it publicly as pending at once, and the extraction result arrives afterwards without blocking the submit.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

@@ -4,6 +4,9 @@
     papyrus editorial import --profile publications/<pub>/style-profile.yml [--replace]
     papyrus editorial check --draft FILE [--section KEY] [--pack FILE] [--output FILE]
     papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--pack FILE]
+    papyrus editorial policies list | import-starter NAME | ensure-defaults
+    papyrus editorial check-version --item VERSION_ID
+    papyrus editorial check-drafts [--limit N] [--dry-run]
 
 Policies and settings come from the site (EditorialPolicy / EditorialCheckSettings,
 read with the authoring role) unless `--pack` names a Humanus policy-pack file.
@@ -26,6 +29,8 @@ from .editorial_checks import (
     Services,
     check_editorial,
     compose_pack,
+    ensure_default_policies,
+    import_starter_pack,
     policy_record_id,
     record_from_policy,
     settings_from,
@@ -71,6 +76,9 @@ class PackFileStore:
         raise ValueError("A policy-pack file is read-only here.")
 
     update_policy = create_policy
+
+    def put_settings(self, values: dict[str, Any], *, exists: bool) -> None:
+        raise ValueError("A policy-pack file is read-only here.")
 
 
 def _store(pack: str | None):
@@ -177,3 +185,103 @@ def editorial_suggest(flags: list[str]) -> None:
         _emit(suggest_rewrite(arguments, services), args.output)
     except humanus.SuggestUnavailableError as error:
         raise ValueError(str(error)) from error
+
+
+def editorial_policies(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="papyrus editorial policies", description="List or add the site's editorial policies.")
+    subcommands = parser.add_subparsers(dest="action", required=True)
+    listing = subcommands.add_parser("list", help="The site's policies: key, scope, severity, enabled, source.")
+    listing.add_argument("--json", action="store_true")
+    starter = subcommands.add_parser("import-starter", help="Add a Humanus starter pack's policies that the site does not have yet.")
+    starter.add_argument("name", help="ai-writing-tells, plain-language or asd-ste100")
+    subcommands.add_parser("ensure-defaults", help="Import the default starter packs once (what a deploy does).")
+    args = parser.parse_args(flags)
+    store = GraphQLEditorialStore()
+    if args.action == "list":
+        rows = sorted(store.list_policies(), key=lambda row: (row["scope"], row["policyKey"]))
+        if args.json:
+            _emit([{key: row.get(key) for key in ("policyKey", "scope", "severity", "enabled", "source", "version")} for row in rows], None)
+            return
+        for row in rows:
+            print(f"{row['scope']}\t{row['policyKey']}\t{row['severity']}\t{'enabled' if row.get('enabled') else 'disabled'}\t{row.get('source')}")
+        print(f"{len(rows)} policies")
+    elif args.action == "import-starter":
+        counts = import_starter_pack({"name": args.name}, Services(store=store))
+        print(f"{args.name}: {counts['created']} created, {counts['skipped']} already present")
+    else:
+        _emit(ensure_default_policies(store), None)
+
+
+CHECK_ITEM_VERSION = "mutation CheckItemVersion($itemId: ID!) { checkItemVersion(itemId: $itemId) }"
+LIST_CHECK_RUNS = "query ListEditorialCheckRuns($nextToken: String) { listEditorialCheckRuns(limit: 1000, nextToken: $nextToken) { items { id contentHash } nextToken } }"
+CHECKED_ITEM_TYPES = ("article", "page")
+
+
+def request_item_check(item_id: str, execute=None) -> dict[str, Any]:
+    """Ask the site's editorial-checks function to check one saved version and store the result with it."""
+    if execute is None:
+        from .graphql_http import execute_graphql
+
+        execute = execute_graphql
+    from .editorial_checks import _awsjson_document
+
+    return _awsjson_document(execute(CHECK_ITEM_VERSION, {"itemId": item_id})["checkItemVersion"])
+
+
+def check_summary_line(result: dict[str, Any]) -> str:
+    if result.get("skipped"):
+        return f"editorial\tcheck\t{result.get('itemId')}\tskipped\t{result['skipped']}"
+    return f"editorial\tcheck\t{result.get('itemId')}\t{result.get('violations', 0)} violations\t{result.get('reviews', 0)} for review"
+
+
+def check_after_save(item_id: str, execute=None) -> None:
+    """Every save path checks the new version; a failed check never undoes the save."""
+    try:
+        print(check_summary_line(request_item_check(item_id, execute)))
+    except Exception as error:
+        print(f"editorial\tcheck\t{item_id}\tnot checked\t{str(error)[:200]} (run: papyrus editorial check-version --item {item_id})")
+
+
+def unchecked_draft_versions(items: list[dict[str, Any]], runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Unpublished draft versions with no stored check, or whose text changed since their check."""
+    checked = {run["id"]: run.get("contentHash") for run in runs}
+    return [
+        item for item in items
+        if item.get("type") in CHECKED_ITEM_TYPES
+        and item.get("versionState") in ("draft", "current")
+        and item.get("status") != "published"
+        and (item["id"] not in checked or checked[item["id"]] != item.get("contentHash"))
+    ]
+
+
+def editorial_check_version(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="papyrus editorial check-version", description="Check one saved version of a story and store the result with it.")
+    parser.add_argument("--item", required=True, help="Item version id, e.g. <lineage>-v2.")
+    args = parser.parse_args(flags)
+    print(check_summary_line(request_item_check(args.item)))
+
+
+def editorial_check_drafts(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="papyrus editorial check-drafts", description="Check every unpublished draft version that has no stored check yet.")
+    parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args(flags)
+    from .graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    check_unchecked_drafts(client, limit=args.limit, dry_run=args.dry_run)
+
+
+def check_unchecked_drafts(client, *, limit: int = 0, dry_run: bool = False) -> None:
+    """Check every unpublished draft version with no stored check (or a stale one), through the given client."""
+    runs = GraphQLEditorialStore()._list(LIST_CHECK_RUNS, "listEditorialCheckRuns")
+    pending = unchecked_draft_versions(client.list_records("Item"), runs)
+    if limit:
+        pending = pending[:limit]
+    print(f"editorial\tcheck-drafts\t{len(pending)} versions to check\t{'dry run' if dry_run else 'checking'}")
+    if dry_run:
+        for item in pending:
+            print(f"editorial\tcheck-drafts\t{item['id']}\t{item.get('section')}\t{item.get('title')}")
+        return
+    for item in pending:
+        check_after_save(item["id"])

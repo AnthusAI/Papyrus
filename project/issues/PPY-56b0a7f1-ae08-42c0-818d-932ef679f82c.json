@@ -1,0 +1,25 @@
+{
+  "id": "PPY-56b0a7f1-ae08-42c0-818d-932ef679f82c",
+  "title": "Upvote and the vote model: one per person per item, materialised tallies",
+  "description": "As a signed-in reader, I want to upvote an item, so that good items rise.\n\nVote model: subject, voter, voterRole (editor or reader, set at write time), kind (up or rating), dimension, value, timestamp; one per person per subject and kind. Tallies are materialised, not computed on read. Built as a Papyrus plugin using the existing plugin contract (manifest, signed-in mutation, WAF rules).\n\n```gherkin\nFeature: Upvote\n  Scenario: Cast\n    Given a signed-in reader and an item\n    When the reader upvotes\n    Then exactly one upvote exists for that reader and item\n    And the upvote tally increases by one\n\n  Scenario: Repeat\n    When the reader upvotes again\n    Then nothing changes (idempotent) or the vote is withdrawn, per the documented rule\n\n  Scenario: Guest\n    When a guest tries to vote\n    Then the request is rejected\n\n  Scenario: Role recorded\n    When an editor votes\n    Then the vote carries voterRole \"editor\" and is tallied separately\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:27.883079Z",
+  "updated_at": "2026-10-21T12:49:27.883105Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b32a219b-83ee-4714-b7df-9cbb6fd00430",
+  "issue_id": "PPY-231533de-8ae9-4de3-af00-fc5c4976b52a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:49:28.097Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Karma: define and implement a reader reputation number",
+    "description": "As a reader, I want my contributions to build a visible reputation, so that good contributors are recognised and trusted.\n\nDecision (2026-10-21): karma is needed. Define the model first and record it on this story before implementing: which events add or subtract (submissions that reach a good outcome, ratings that agree with later editor judgement, moderation outcomes, reports upheld), decay, caps, abuse resistance (new accounts, vote rings), and where karma gates things (rate limits, voting weight, track-record rules). Karma is shown only once it is a defined number. Until it ships, UI shows submission count and account age.\n\n```gherkin\nFeature: Karma\n  Scenario: Earn\n    Given a reader's submission is confirmed by an editor\n    Then the reader's karma increases by the documented amount\n\n  Scenario: Lose\n    Given a reader's content is hidden by moderation\n    Then karma decreases by the documented amount\n\n  Scenario: Public display\n    Then karma is shown beside the handle only when the publication has karma enabled\n\n  Scenario: Gate\n    Given a karma threshold for a privilege\n    Then readers below it are limited, and readers above it are not\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

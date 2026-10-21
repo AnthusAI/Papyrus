@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "f879ef93-3324-4ade-b5b0-a598e01578e6",
+  "issue_id": "PPY-dd7b071c-a272-422e-a450-b0bcd5b836c6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:50:05.521Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Wire the concept directives to the knowledge index in static builds",
+    "description": "As a publication builder, I want recent-concepts, concept-list and concept-count to render real data in static sites, so that wiki directives are not empty placeholders.\n\n```gherkin\nFeature: Concept directives in static builds\n  Scenario: Render from the index\n    Given a knowledge index JSON file\n    When a page uses concept-count\n    Then the number of accepted entities is rendered in the page\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-4939307b-9fd0-4380-872f-6bd0d2222974",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Sonnet 5.5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

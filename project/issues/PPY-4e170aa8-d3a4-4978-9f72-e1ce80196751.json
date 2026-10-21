@@ -1,0 +1,25 @@
+{
+  "id": "PPY-4e170aa8-d3a4-4978-9f72-e1ce80196751",
+  "title": "Scheduled board snapshot job writing public JSON",
+  "description": "As a publication builder, I want a scheduled job that writes the board as JSON, so that a static site can show ranks and counts without live queries.\n\nSnapshot (per week and current): top N items, rank, per-dimension means, n, upvote counts, editor means, derived values, rising (votes in the last 6 hours), new, verdict log. Public-safe by construction: counts and ids only, never private text. Cadence configurable (for example every 5 to 15 minutes). A guest-surface test pins the JSON shape and checks it contains no private fields. Requires an EventBridge-style schedule and a function: needs explicit approval before any AWS resource is created.\n\n```gherkin\nFeature: Board snapshot\n  Scenario: Snapshot written\n    Given items with votes and ratings\n    When the snapshot job runs\n    Then a board JSON file is written to the site's data path with ranks, means, n and counts\n\n  Scenario: Public-safe\n    Then the JSON contains no email addresses, reader ids or private message text\n\n  Scenario: Cadence\n    Given a configured cadence\n    Then the job runs on that schedule and records the time of the last run\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:49:28.675358Z",
+  "updated_at": "2026-10-21T12:49:28.675393Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

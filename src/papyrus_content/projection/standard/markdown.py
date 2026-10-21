@@ -38,6 +38,13 @@ def md_path(html_key: str) -> str | None:
     return "/" + key
 
 
+def static_twin_key(site_path: str) -> str | None:
+    """The key of the Markdown twin of a hand-published (``static.copy``) route: ``/docs/x/`` -> ``docs/x/index.md``."""
+    if site_path.endswith("/"):
+        return site_path.lstrip("/") + "index.md"
+    return md_key(site_path.lstrip("/"))
+
+
 def body_of(source_text: str) -> str:
     body = FRONT_MATTER.sub("", source_text, count=1).strip()
 

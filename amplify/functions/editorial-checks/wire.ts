@@ -12,6 +12,10 @@ export const EDITORIAL_CHECKS_FUNCTION_FIELDS = [
   "Query/fields/listEditorialFeedbacks",
   "Mutation/fields/createEditorialPolicy",
   "Mutation/fields/updateEditorialPolicy",
+  "Query/fields/getItem",
+  "Query/fields/getEditorialCheckRun",
+  "Mutation/fields/createEditorialCheckRun",
+  "Mutation/fields/updateEditorialCheckRun",
 ];
 
 export const EDITORIAL_CHECKS_SECRETS = ["TYPESAFE_API_KEY", "OPENAI_API_KEY"];

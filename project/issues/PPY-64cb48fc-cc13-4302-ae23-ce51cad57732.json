@@ -1,0 +1,38 @@
+{
+  "id": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+  "title": "Live numbers for static sites: scheduled snapshots and client components",
+  "description": "Static Papyrus sites publish pages, not live data, and nothing in a site runs on a schedule today. High-churn numbers (board ranks, vote counts, rising items) must be JSON that a small client component reads, refreshed by a scheduled job, with a visible \"updated N min ago\".\n\nParent initiative: PPY-77bb3b (milestone 6). Shares the snapshot mechanism with the public knowledge base initiative PPY-428252 (knowledge snapshot command). New scheduled compute or schedules need explicit human approval before creation.\n\nChildren: scheduled board snapshot job; client components and freshness label.\nDefinition of Done: a pilot site shows a ranked board, counts and a rising list from snapshot JSON that refreshes on a schedule.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e61a77ce-c83d-4bf7-b289-44347c7b078e",
+      "author": "home",
+      "text": "Same snapshot mechanism as the knowledge snapshot epic PPY-493930 under PPY-428252. Siblings: votes PPY-73a82d, comments PPY-739cb4.",
+      "created_at": "2026-10-21T12:50:17.771891Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
+  "created_at": "2026-10-21T12:49:28.601336Z",
+  "updated_at": "2026-10-21T12:50:17.771910Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
