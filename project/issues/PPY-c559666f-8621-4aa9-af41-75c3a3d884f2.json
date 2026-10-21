@@ -70,10 +70,17 @@
         "model": "gpt-6",
         "name": "papyrus-monitoring"
       }
+    },
+    {
+      "id": "7abf5a78-ce42-434a-a8c6-67246f0657c6",
+      "author": "home",
+      "text": "Cloud variant of the collector now runs on a 15 minute AWS schedule (stack papyrus-monitoring, PRs #401 and #402). Same fingerprint and event-id semantics as the local SQLite collector; checkpoint, lock and receipts live in DynamoDB. Verified two scheduled runs: 30 new, then 30 unchanged. See docs/monitoring-cloud.md. Intake into publication References remains out of scope until the routing step.",
+      "created_at": "2026-10-21T00:59:26.951474Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T11:02:36.927481Z",
-  "updated_at": "2026-10-20T13:02:39.106545Z",
+  "updated_at": "2026-10-21T00:59:26.951507Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
