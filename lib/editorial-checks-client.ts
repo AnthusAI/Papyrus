@@ -161,6 +161,24 @@ export async function importStarterPack(name: string): Promise<{ created: number
   return parsed(data.importEditorialStarterPack);
 }
 
+export type StarterPackSummary = {
+  name: string;
+  title: string;
+  version?: string | null;
+  language?: string | null;
+  guidance?: string | null;
+  policyCount: number;
+  importedCount: number;
+  isDefault: boolean;
+  policies: { id: string; title?: string | null; severity?: string | null; tags: string[]; lanes: string[] }[];
+};
+
+/** The starter packs the site's Humanus ships, with how many of each pack's policies the site already has. */
+export async function listStarterPacks(): Promise<{ humanusVersion?: string | null; packs: StarterPackSummary[] }> {
+  const data = await call<{ listEditorialStarterPacks: unknown }>(`query ListStarterPacks { listEditorialStarterPacks }`);
+  return parsed(data.listEditorialStarterPacks);
+}
+
 export async function tryPolicy(policy: Record<string, unknown>, text: string): Promise<EditorialCheckResult> {
   const data = await call<{ tryEditorialPolicy: unknown }>(
     `query TryEditorialPolicy($policy: AWSJSON!, $text: String!) { tryEditorialPolicy(policy: $policy, text: $text, format: "markus") }`,

@@ -75,7 +75,15 @@ from .editions_commands import (
     editions_plan,
     editions_purge,
 )
-from .editorial_commands import editorial_check, editorial_import, editorial_pack, editorial_suggest
+from .editorial_commands import (
+    editorial_check,
+    editorial_check_drafts,
+    editorial_check_version,
+    editorial_import,
+    editorial_pack,
+    editorial_policies,
+    editorial_suggest,
+)
 from .categories_commands import (
     categories_draft_add_topic,
     categories_draft_archive_topic,
@@ -408,6 +416,9 @@ PORTED_COMMANDS = frozenset(
         "editorial:suggest",
         "editorial:pack",
         "editorial:import",
+        "editorial:policies",
+        "editorial:check-version",
+        "editorial:check-drafts",
         "renderers:markus-build",
     }
 )
@@ -860,6 +871,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         editorial_suggest(flags)
     elif route == "editorial:pack":
         editorial_pack(flags)
+    elif route == "editorial:policies":
+        editorial_policies(flags)
+    elif route == "editorial:check-version":
+        editorial_check_version(flags)
+    elif route == "editorial:check-drafts":
+        editorial_check_drafts(flags)
     elif route == "editorial:import":
         editorial_import(flags)
     elif route == "renderers:markus-build":

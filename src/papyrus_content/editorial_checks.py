@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Protocol
 
 import humanus
-from humanus.packs import builtin_pack
+from humanus.packs import builtin_pack, list_builtin_packs
 
 PUBLICATION_SCOPE = "publication"
 SETTINGS_ID = "settings"
@@ -35,6 +35,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "publishWarning": True,
     "checkWhileTyping": True,
 }
+DEFAULT_STARTER_PACKS = ("ai-writing-tells",)
 POLICY_FIELDS = ("policyKey", "scope", "version", "title", "guidance", "severity", "enabled", "detectors", "examples", "rewriteGuidance", "source")
 
 
@@ -45,6 +46,9 @@ class EditorialStore(Protocol):
     def list_feedback(self) -> list[dict[str, Any]]: ...
     def create_policy(self, record: dict[str, Any]) -> None: ...
     def update_policy(self, record: dict[str, Any]) -> None: ...
+    def put_settings(self, values: dict[str, Any], *, exists: bool) -> None: ...
+    def get_item(self, item_id: str) -> dict[str, Any] | None: ...
+    def put_check_run(self, record: dict[str, Any]) -> None: ...
 
 
 _DEFAULT = object()
@@ -298,6 +302,103 @@ def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[s
     return {"created": created, "skipped": skipped}
 
 
+def list_starter_packs(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+    """The starter packs the installed Humanus ships, read at run time so new packs appear without a Papyrus change."""
+    imported: dict[str, int] = {}
+    for record in services.store.list_policies():
+        source = str(record.get("source") or "")
+        if source.startswith("starter:"):
+            imported[source.removeprefix("starter:")] = imported.get(source.removeprefix("starter:"), 0) + 1
+    packs = []
+    for name in list_builtin_packs():
+        pack = builtin_pack(name)
+        policies = pack.get("policies") or []
+        packs.append({
+            "name": name,
+            "title": pack.get("title") or name,
+            "version": pack.get("version"),
+            "language": pack.get("language"),
+            "guidance": pack.get("guidance"),
+            "policyCount": len(policies),
+            "importedCount": imported.get(name, 0),
+            "isDefault": name in DEFAULT_STARTER_PACKS,
+            "policies": [
+                {
+                    "id": policy["id"],
+                    "title": policy.get("title"),
+                    "severity": policy.get("severity"),
+                    "tags": policy.get("tags") or [],
+                    "lanes": sorted({detector.get("lane") for detector in policy.get("detectors") or [] if detector.get("lane")}),
+                }
+                for policy in policies
+            ],
+        })
+    return {"humanusVersion": getattr(humanus, "__version__", None), "packs": packs}
+
+
+def ensure_default_policies(store: EditorialStore, packs: tuple[str, ...] = DEFAULT_STARTER_PACKS) -> dict[str, Any]:
+    """A publication starts with working policies: each default starter pack is imported once.
+
+    The packs applied are recorded in the stored settings (``defaultStarterPacks``), so a policy an admin later edits,
+    disables or deletes is never added back. Policies that already exist with the same key are left alone.
+    """
+    stored = store.get_settings()
+    values = _json((stored or {}).get("settings"), {})
+    applied = list(values.get("defaultStarterPacks") or [])
+    results: dict[str, Any] = {}
+    for name in packs:
+        if name in applied:
+            results[name] = {"created": 0, "skipped": 0, "alreadyApplied": True}
+            continue
+        results[name] = import_starter_pack({"name": name}, Services(store=store))
+        applied.append(name)
+    if applied != list(values.get("defaultStarterPacks") or []):
+        store.put_settings({**values, "defaultStarterPacks": applied}, exists=stored is not None)
+    return {"packs": results, "defaultStarterPacks": applied}
+
+
+FINDING_SUMMARY_FIELDS = ("id", "policyId", "severity", "status", "message", "excerpt", "probability")
+
+
+def check_run_record(item: dict[str, Any], result: dict[str, Any], checked_at: datetime) -> dict[str, Any]:
+    """The stored outcome of checking one saved version: counts, a compact list of findings and lane status."""
+    findings = result.get("findings") or []
+    return {
+        "id": item["id"],
+        "itemId": item["id"],
+        "lineageId": item.get("lineageId") or item["id"],
+        "versionNumber": int(item.get("versionNumber") or 1),
+        "section": item.get("section"),
+        "contentHash": item.get("contentHash"),
+        "packVersion": (result.get("pack") or {}).get("version") or result.get("packVersion"),
+        "violations": sum(1 for finding in findings if finding.get("status") == "violation"),
+        "reviews": sum(1 for finding in findings if finding.get("status") == "review"),
+        "findings": [{key: finding.get(key) for key in FINDING_SUMMARY_FIELDS if finding.get(key) is not None} for finding in findings],
+        "lanes": result.get("lanes"),
+        "checkedAt": checked_at.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def check_item_version(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+    """Check one saved version of a story against its section's pack and store the result with the version.
+
+    Every save path (the article editor, ``stories save-version``, imports, copywriting) calls this, so drafts written
+    by people and by agents are copy-edited the same way. Turned-off checks are a skip, not an error.
+    """
+    item = services.store.get_item(arguments["itemId"])
+    if item is None:
+        raise ValueError(f"No item version {arguments['itemId']}.")
+    try:
+        result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section")}, services)
+    except EditorialChecksDisabled:
+        return {"itemId": item["id"], "skipped": "disabled"}
+    record = check_run_record(item, result, services.now())
+    if services.last_check_request:
+        record["packVersion"] = services.last_check_request["pack"].get("version")
+    services.store.put_check_run(record)
+    return {key: record[key] for key in ("itemId", "lineageId", "versionNumber", "violations", "reviews", "packVersion", "checkedAt")}
+
+
 def recalibrate(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     labels = [
         {"policyId": f["policyId"], "detectorId": f["detectorId"], "probability": float(f["probability"]), "violates": f["decision"] != "dismissed"}
@@ -330,6 +431,8 @@ OPERATIONS: dict[str, Callable[[dict[str, Any], Services], dict[str, Any]]] = {
     "tryEditorialPolicy": try_policy,
     "importEditorialStarterPack": import_starter_pack,
     "recalibrateEditorialPolicies": recalibrate,
+    "checkItemVersion": check_item_version,
+    "listEditorialStarterPacks": list_starter_packs,
 }
 
 
@@ -351,6 +454,12 @@ GET_SETTINGS = "query GetEditorialCheckSettings($id: ID!) { getEditorialCheckSet
 LIST_FEEDBACK = "query ListEditorialFeedbacks($nextToken: String) { listEditorialFeedbacks(limit: 1000, nextToken: $nextToken) { items { policyId detectorId lane probability decision text } nextToken } }"
 CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInput!) { createEditorialPolicy(input: $input) { id } }"
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
+GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id lineageId versionNumber section contentHash bodyMarkus } }"
+GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id } }"
+CREATE_CHECK_RUN = "mutation CreateEditorialCheckRun($input: CreateEditorialCheckRunInput!) { createEditorialCheckRun(input: $input) { id } }"
+UPDATE_CHECK_RUN = "mutation UpdateEditorialCheckRun($input: UpdateEditorialCheckRunInput!) { updateEditorialCheckRun(input: $input) { id } }"
+CREATE_SETTINGS = "mutation CreateEditorialCheckSettings($input: CreateEditorialCheckSettingsInput!) { createEditorialCheckSettings(input: $input) { id } }"
+UPDATE_SETTINGS = "mutation UpdateEditorialCheckSettings($input: UpdateEditorialCheckSettingsInput!) { updateEditorialCheckSettings(input: $input) { id } }"
 
 
 class GraphQLEditorialStore:
@@ -408,6 +517,17 @@ class GraphQLEditorialStore:
 
     def update_policy(self, record: dict[str, Any]) -> None:
         self._execute(UPDATE_POLICY, {"input": policy_input(record)})
+
+    def put_settings(self, values: dict[str, Any], *, exists: bool) -> None:
+        self._execute(UPDATE_SETTINGS if exists else CREATE_SETTINGS, {"input": {"id": SETTINGS_ID, "settings": json.dumps(values)}})
+
+    def get_item(self, item_id: str) -> dict[str, Any] | None:
+        return self._execute(GET_ITEM, {"id": item_id})["getItem"]
+
+    def put_check_run(self, record: dict[str, Any]) -> None:
+        exists = self._execute(GET_CHECK_RUN, {"id": record["id"]})["getEditorialCheckRun"] is not None
+        payload = {**record, "findings": json.dumps(record["findings"]), "lanes": json.dumps(record["lanes"]) if record.get("lanes") is not None else None}
+        self._execute(UPDATE_CHECK_RUN if exists else CREATE_CHECK_RUN, {"input": payload})
 
 
 def policy_input(record: dict[str, Any]) -> dict[str, Any]:

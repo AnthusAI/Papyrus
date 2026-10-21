@@ -12,6 +12,7 @@ import {
   draftQuestions,
   importStarterPack,
   listPolicies,
+  listStarterPacks,
   loadSettings,
   recalibrate,
   savePolicy,
@@ -19,13 +20,9 @@ import {
   tryPolicy,
   type EditorialPolicyRecord,
   type EditorialSettings,
+  type StarterPackSummary,
 } from "../lib/editorial-checks-client";
 
-const STARTER_PACKS = [
-  { name: "ai-writing-tells", label: "AI-writing tells" },
-  { name: "plain-language", label: "Federal Plain Language Guidelines" },
-  { name: "asd-ste100", label: "ASD-STE100 Simplified Technical English" },
-] as const;
 const POLICY_KEY = /^[a-z0-9][a-z0-9._-]*$/;
 
 type Draft = {
@@ -91,7 +88,8 @@ export function EditorialChecksAdminPanel() {
   const [settings, setSettings] = useState<EditorialSettings>(DEFAULT_EDITORIAL_SETTINGS);
   const [settingsExist, setSettingsExist] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [starterPack, setStarterPack] = useState<string>(STARTER_PACKS[0].name);
+  const [starterPacks, setStarterPacks] = useState<StarterPackSummary[]>([]);
+  const [starterPack, setStarterPack] = useState<string>("");
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [tryText, setTryText] = useState("");
@@ -99,7 +97,9 @@ export function EditorialChecksAdminPanel() {
 
   const refresh = useCallback(async () => {
     try {
-      const [loadedPolicies, loadedSettings] = await Promise.all([listPolicies(), loadSettings()]);
+      const [loadedPolicies, loadedSettings, catalog] = await Promise.all([listPolicies(), loadSettings(), listStarterPacks()]);
+      setStarterPacks(catalog.packs);
+      setStarterPack((current) => current || catalog.packs[0]?.name || "");
       setPolicies(loadedPolicies);
       setSettings(loadedSettings.settings);
       setSettingsExist(loadedSettings.exists);
@@ -163,14 +163,18 @@ export function EditorialChecksAdminPanel() {
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => { setDraft(draftFrom(emptyPolicy(), true)); setTryResult(null); }} size="sm" type="button">New policy</Button>
         <select aria-label="Starter pack" onChange={(event) => setStarterPack(event.target.value)} value={starterPack}>
-          {STARTER_PACKS.map((pack) => <option key={pack.name} value={pack.name}>{pack.label}</option>)}
+          {starterPacks.map((pack) => (
+            <option key={pack.name} value={pack.name}>
+              {pack.title} ({pack.importedCount} of {pack.policyCount} added)
+            </option>
+          ))}
         </select>
         <Button
-          disabled={working !== null}
+          disabled={working !== null || !starterPack}
           onClick={() => run("import", async () => {
             const outcome = await importStarterPack(starterPack);
             await refresh();
-            const label = STARTER_PACKS.find((pack) => pack.name === starterPack)?.label ?? starterPack;
+            const label = starterPacks.find((pack) => pack.name === starterPack)?.title ?? starterPack;
             return `${label}: ${outcome.created} policies added, ${outcome.skipped} already present.`;
           })}
           size="sm"
@@ -179,6 +183,17 @@ export function EditorialChecksAdminPanel() {
         >
           Add starter pack
         </Button>
+      </div>
+      {(() => {
+        const selected = starterPacks.find((pack) => pack.name === starterPack);
+        return selected ? (
+          <p className="text-sm text-muted-foreground">
+            {selected.title}{selected.version ? ` ${selected.version}` : ""}: {selected.policyCount} policies
+            {selected.isDefault ? " (added to every new site)" : ""}. {selected.guidance}
+          </p>
+        ) : null;
+      })()}
+      <div className="flex flex-wrap gap-2">
         <Button
           disabled={working !== null}
           onClick={() => run("recalibrate", async () => {
