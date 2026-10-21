@@ -690,3 +690,15 @@ def card(entry, page):
         assert site.projector._entries(site.context.source.site_index())[0].derived["tier"] in ("long", "short")
     finally:
         site.cleanup()
+
+
+def test_an_authored_home_page_uses_its_front_matter_description(tmp_path):
+    content = tmp_path / "content"
+    content.mkdir()
+    (content / "index.md").write_text("---\ntitle: Home\ndescription: The curated description.\n---\nFirst paragraph of the page.\n", encoding="utf-8")
+    site = ProjectedSite(settings=minimal(), content=content)
+    try:
+        html = site.text("index.html")
+        assert '<meta name="description" content="The curated description.">' in html
+    finally:
+        site.cleanup()
