@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "28d9feb7-da24-4430-9c7f-f72ebb5da928",
+  "issue_id": "PPY-13369f4b-b62c-4136-9bf9-23acd2b52db7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:12:41.668Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document page blocks, islands and family footer on the Papyrus marketing site (p.apyr.us)",
+    "description": "Follow-up, not part of the core story: describe the new standard front end features (page blocks, islands, brand and nav groups, family footer) on the Papyrus marketing site.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}
