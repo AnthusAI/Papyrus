@@ -83,4 +83,10 @@ jobs:
             --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
             --ignore=procedures/newsroom/tests/test_papyrus_content.py
       # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
+      # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: poetry run behave features_backend --tags=~@live-agent --exclude 'research-reporting-context'
