@@ -28,7 +28,8 @@ const html = renderToStaticMarkup(createElement(ReferenceRelevanceReview, {
 }));
 for (const text of [
   "Should this candidate source become a reference for this publication?",
-  "82% sure · version 1",
+  "Suggested: ",
+  " (82% sure)",
   "Why you are seeing this: Every decision is reviewed while the cyclotron is onboarding.",
   "Yes · include",
   "No · exclude",

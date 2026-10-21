@@ -1,8 +1,8 @@
 "use client";
 
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
-import { ReferencePriming } from "./reference-priming";
-import { ReferenceCurationControls } from "./reference-curation-controls";
+import { ReferenceAddEntry } from "./reference-add-entry";
+import { ReferenceCurationControls, useReferenceImport } from "./reference-curation-controls";
 
 import {
   ArchiveIcon,
@@ -63,7 +63,7 @@ import type { SectionSuggestion, SiteSectionAgreement } from "../lib/site-sectio
 /** What an editor adds to an accept: the Section the reference belongs in, which becomes a training label. */
 export type ReferenceReviewOptions = { sectionId?: string | null };
 import type { DelegatedCuration, ShadowAgreement } from "../lib/cyclotron-suggestions";
-import { ReferenceCyclotronPriming, type PrimingFormInput } from "./reference-cyclotron-priming";
+import type { PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
 import type { PrimingRequestView } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
@@ -485,6 +485,7 @@ export function NewsroomReferencesView({
   references,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
+  const sessionImport = useReferenceImport(disabled);
   const isMobileDetail = useMediaQuery("(max-width: 767px)");
   const pathnameLineageId = useMemo(
     () => parseReferenceLineageIdFromNewsroomPathname(pathname),
@@ -590,17 +591,14 @@ export function NewsroomReferencesView({
           </p>
         </div>
         <ReferenceLiveAgreement agreement={shadowAgreement} />
+        <ReferenceAddEntry
+          importOptions={disabled ? null : priming ?? sessionImport?.panel}
+          key={sessionImport?.sessionKey ?? "no-session"}
+          url={cyclotronPriming && !disabled
+            ? { labels: cyclotronPriming.labels, onRequest: cyclotronPriming.onRequest, requests: cyclotronPriming.requests }
+            : null}
+        />
         <ReferenceCurationControls disabled={disabled} />
-        {priming && !disabled ? <ReferencePriming {...priming} /> : null}
-        {cyclotronPriming && !disabled ? (
-          <div className="shrink-0">
-            <ReferenceCyclotronPriming
-              labels={cyclotronPriming.labels}
-              onRequestPriming={cyclotronPriming.onRequest}
-              requests={cyclotronPriming.requests}
-            />
-          </div>
-        ) : null}
         {cyclotronStatus ? (
           <div className="shrink-0">
             <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />

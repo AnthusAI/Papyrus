@@ -10,17 +10,17 @@ const output=path.resolve('.papyrus-runs/curation-review-proof');fs.mkdirSync(ou
  await page.getByRole('button',{name:'not publish',exact:true}).click();assert(await page.getByRole('button',{name:'Submit review',exact:true}).isEnabled());assert.equal(await page.getByLabel('Explanation (optional)',{exact:true}).inputValue(),'');await page.getByRole('button',{name:'Submit review',exact:true}).click();
  await page.waitForFunction(async()=>Object.values((await(await fetch('/review/proof')).json()).accounts)[0].operationalLabels===1);
  await page.getByLabel('Execution',{exact:true}).selectOption('remote');await page.getByText('Canonical classifier data owned by the shared remote lab.').waitFor();
- await page.getByRole('button',{name:'Curate reference examples (optional)'}).click();await page.getByRole('button',{name:'From reference / URL'}).click();
+ await page.getByRole('button',{name:'Import a file',exact:true}).click();await page.getByRole('button',{name:'From reference / URL'}).click();
  await page.getByLabel('Source URL',{exact:true}).fill('https://example.invalid/web');await page.getByRole('button',{name:'Start curation'}).click();
- await page.getByRole('button',{name:'Accept examples and labels'}).waitFor();assert(await page.getByRole('button',{name:'Accept examples and labels'}).isDisabled());
- await page.getByRole('button',{name:/Explicit publication judgment: publish/}).click();assert(await page.getByRole('button',{name:'Accept examples and labels'}).isEnabled());
+ await page.getByRole('button',{name:'Add references',exact:true}).waitFor();assert(await page.getByRole('button',{name:'Add references',exact:true}).isDisabled());
+ await page.getByRole('button',{name:/Explicit publication judgment: publish/}).click();assert(await page.getByRole('button',{name:'Add references',exact:true}).isEnabled());
  let refuseOnce=true;
  await page.route('**/api/newsroom/curation/priming',async route=>{const body=route.request().postDataJSON();if(refuseOnce&&body.variables?.action==='accept'){refuseOnce=false;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Synthetic acknowledgement failure; retry explicitly.'})});}return route.continue();});
- await page.getByRole('button',{name:'Accept examples and labels'}).click();await page.getByRole('alert').filter({hasText:'Synthetic acknowledgement failure'}).waitFor();
+ await page.getByRole('button',{name:'Add references',exact:true}).click();await page.getByRole('alert').filter({hasText:'Synthetic acknowledgement failure'}).waitFor();
  assert.equal(await page.getByRole('button',{name:/Explicit publication judgment: publish/}).getAttribute('aria-pressed'),'true');
  assert.equal(await page.getByLabel('Explanation for Explicit publication judgment').inputValue(),'');
- await page.getByRole('button',{name:'Retry last request'}).click();await page.getByText('Examples and human labels saved.').waitFor();
- await page.getByLabel('Fixture account',{exact:true}).selectOption('22222222-2222-4222-8222-222222222222');await page.getByText('Decision provenance and version').first().waitFor();assert(!(await page.locator('body').innerText()).includes('Examples and human labels saved.'));
+ await page.getByRole('button',{name:'Retry last request'}).click();await page.getByText('References saved.').waitFor();
+ await page.getByLabel('Fixture account',{exact:true}).selectOption({index:1});await page.getByText('Decision provenance and version').first().waitFor();assert(!(await page.locator('body').innerText()).includes('References saved.'));
  await page.getByRole('button',{name:'Evaluate classifier proposal',exact:true}).click();await page.getByLabel('Proposed instructions').fill('Synthetic scoped evaluation rubric.');await page.getByLabel('Why make this change?').fill('Verify explicit evaluation before promotion.');await page.getByRole('button',{name:'Evaluate proposal',exact:true}).click();await page.getByText('Evaluation complete: no improvement was reported.').waitFor();assert(await page.getByRole('button',{name:'Promote evaluated proposal'}).isDisabled());
  await page.getByRole('button',{name:'Close proposal'}).click();
  for(const [width,height,theme,name] of [[1440,1000,'light','desktop-light'],[1440,1000,'dark','desktop-dark'],[375,812,'light','mobile-light'],[375,812,'dark','mobile-dark']]){

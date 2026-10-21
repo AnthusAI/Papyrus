@@ -3,7 +3,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useNewsroomCuration} from './newsroom-curation-provider';
 import {PublicationCyclotronPanel} from './publication-cyclotron-panel';
-import {ReferencePriming} from './reference-priming';
+import type {PrimingPanelProps} from 'cyclotron/components/priming-panel';
 import {Button} from './ui/button';
 import {publicationSteeringPayload,type PublicationHistory,type PublicationStatus} from '../lib/publication-cyclotron';
 import type {CurationSession} from '../lib/curation-client';
@@ -13,11 +13,20 @@ export function ReferenceCurationControls({disabled=false}:{disabled?:boolean}){
   return session&&!disabled?<Controls key={session.key} session={session} disabled={disabled}/>:null;
 }
 
+/**
+ * The import option of the Add a reference area, or null. Fail-closed: it exists
+ * only when a curation session supplies priming and the person may review.
+ */
+export function useReferenceImport(disabled=false):{panel:PrimingPanelProps;sessionKey:string}|null{
+  const session=useNewsroomCuration();
+  if(!session||disabled||!session.bootstrap.priming||!session.bootstrap.capabilities.includes('review'))return null;
+  return {sessionKey:session.key,panel:{client:session.priming,listId:session.bootstrap.priming.listId,classifiers:session.bootstrap.priming.classifiers}};
+}
+
 function Controls({session,disabled}:{session:CurationSession;disabled:boolean}){
   const [snapshot,setSnapshot]=useState<{status:PublicationStatus;history:PublicationHistory}|null>(null);
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
-  const [primingMessage,setPrimingMessage]=useState('');
   const [steering,setSteering]=useState<string|null>(null);
   const [rubric,setRubric]=useState('');
   const [explanation,setExplanation]=useState('');
@@ -70,8 +79,5 @@ function Controls({session,disabled}:{session:CurationSession;disabled:boolean})
       <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy||!canSteer||!rubric.trim()||!explanation.trim()}>Evaluate proposal</Button><Button type="button" variant="outline" disabled={busy||!canSteer||!trial?.improved||!explanation.trim()} onClick={()=>void steer('promote')}>Promote evaluated proposal</Button><Button type="button" variant="ghost" disabled={busy} onClick={()=>setSteering(null)}>Close proposal</Button></div>
       {steeringMessage?<p role="status">{steeringMessage}</p>:null}
     </form>:null}
-    {session.bootstrap.priming&&canReview?<ReferencePriming client={session.priming} listId={session.bootstrap.priming.listId} classifiers={session.bootstrap.priming.classifiers}
-      onAccepted={draft=>{setPrimingMessage(`Accepted ${draft.rows.length} example item${draft.rows.length===1?'':'s'} for this pinned publication. Operation remains available without priming.`);void refresh();}}/>:null}
-    {primingMessage?<p role="status">{primingMessage}</p>:null}
   </section>;
 }
