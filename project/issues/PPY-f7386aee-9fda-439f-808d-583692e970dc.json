@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f7386aee-9fda-439f-808d-583692e970dc",
+  "title": "Standard Markus front end in core (StandardMarkusProjector)",
+  "description": "One standard front end for Markus static sites, configured by projection.json: URL policy, environment guard, head builder, sitemap/robots/404, RSS+Atom, listings and tags, accessible components, named hooks, pattern redirects compiled into the edge function. Opt-in by a top-level site object.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-23a74399-02d6-46b2-9cd3-67a904fe004c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:27:59.914541Z",
+  "updated_at": "2026-10-21T00:27:59.914593Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

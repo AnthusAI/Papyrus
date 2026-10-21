@@ -27,6 +27,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 
 ## Sites, hosting and deploys
 
+- [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md): the one standard front end for Markus sites: `projection.json`, theme, hooks, migration checklist.
 - [site-hosting.md](site-hosting.md): hosting runbook for Markus (S3 and CloudFront) and Pretext (Amplify) sites.
 - [site-stacks.md](site-stacks.md): ops UI and reader output as independent plugins.
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
