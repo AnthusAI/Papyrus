@@ -76,6 +76,8 @@ the sign-in redirect URI, post-sign-in and sign-out redirects and same-origin ch
 the public origin from this variable (`lib/site-origin.ts`) and never from Host or
 `X-Forwarded-*`. The build spec's `PAPYRUS_` capture carries it into `.env.production`.
 
+Sites whose public host is served by their own CloudFront edge (for example `papyrus-edge-<site>`, with `/newsroom*` and `/api/*` going to the CMS app) must not have an Amplify domain association. They set `cms.siteOrigin` (an https origin with no path or trailing slash, such as `https://shipped.anth.us`) instead of `cms.domainName`; it becomes `PAPYRUS_SITE_ORIGIN` and is added to the OAuth redirect list beside the Amplify default domain. It is rejected together with `cms.domainName`.
+
 Host under a shared root domain: when the root domain (for example `anth.us`) is
 also associated with another Amplify app, set `cms.domainName` to the ROOT domain,
 `cms.domainPrefix` to the host's label and `cms.stagingDomainPrefix` to an explicit

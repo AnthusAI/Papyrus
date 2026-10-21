@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "00b62ecf-4910-44b7-93a2-d53eeae991b4",
+  "issue_id": "PPY-17a8e5dc-f3a9-434e-a780-c4bc2279c0ee",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T23:27:54.168Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "App shell: cms.siteOrigin for sites served behind their own edge",
+    "description": "Add optional cms.siteOrigin (https origin, rejected with cms.domainName) so PAPYRUS_SITE_ORIGIN and the OAuth redirect list use the edge host without an Amplify domain association. Tests in scripts/test-infra-site-config.ts and scripts/test-infra-synth.mjs; docs in README and site-hosting.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+    "labels": []
+  }
+}
