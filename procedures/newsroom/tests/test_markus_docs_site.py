@@ -135,6 +135,13 @@ class DocsAgentOutputTests(unittest.TestCase):
             self.assertIn('<link rel="alternate" type="text/markdown" href="cli.md">', page)
             self.assertIn('data-markdown="cli.md" data-title="CLI" data-canonical="https://d.example/articles/cli.html"', page)
             self.assertIn('<a class="markus-action-link" data-action="view" href="cli.md">View as Markdown</a>', page)
+            for name, label, base in (
+                ("chatgpt", "Open in ChatGPT", "https://chatgpt.com/?q="),
+                ("claude", "Open in Claude", "https://claude.ai/new?q="),
+                ("perplexity", "Open in Perplexity", "https://www.perplexity.ai/search?q="),
+            ):
+                self.assertIn(f'data-action="{name}" href="{base}Read%20https%3A%2F%2Fd.example%2Farticles%2Fcli.html', page)
+                self.assertIn(label, page)
             self.assertIn('href="../_plugins/papyrus-page-actions.css"', page)
             self.assertIn('<script src="../_plugins/papyrus-page-actions-v1.js" defer>', page)
             self.assertIn('href="_plugins/papyrus-page-actions.css"', (out / "index.html").read_text())

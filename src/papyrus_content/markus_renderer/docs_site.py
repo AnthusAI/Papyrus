@@ -306,12 +306,12 @@ def page_actions_stylesheet() -> str:
 def add_page_actions(page_html: str, *, address: str, title: str, canonical: str) -> str:
     """Page actions at the top of a docs page that has a Markdown twin: a head link to the twin, the actions group,
     the shared stylesheet and the enhancing script. The links work without JavaScript."""
-    from papyrus_content.projection.standard.config import PageActionSettings
+    from papyrus_content.projection.standard.config import AI_DESTINATIONS, PageActionSettings
     from papyrus_content.projection.standard.page_actions import SCRIPT_PATH, render_page_actions
 
     prefix = "../" * address.count("/")
     twin = address.rsplit("/", 1)[-1].removesuffix(".html") + ".md"
-    actions = render_page_actions(PageActionSettings(), markdown_path=twin, title=title, canonical=canonical)
+    actions = render_page_actions(PageActionSettings(ai=tuple(AI_DESTINATIONS)), markdown_path=twin, title=title, canonical=canonical)
     head = (
         f'<link rel="alternate" type="text/markdown" href="{html.escape(twin)}">'
         f'<link rel="stylesheet" href="{prefix}{PAGE_ACTIONS_STYLESHEET}">'
