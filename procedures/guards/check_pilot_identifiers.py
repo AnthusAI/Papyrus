@@ -42,6 +42,7 @@ ALLOWED_PATH_PATTERNS = tuple(
         r"^package-lock\.json$",
         r"^poetry\.lock$",
         r"^\.env\.example$",
+        r"-bdd-harness\.ts$",  # test harnesses pin fixture identifiers like tests do
         r"(^|/)anthus_sites\.json$",  # the Anthus site registry is configuration data (site addresses), mirrored from anthus-footer
     )
 )
