@@ -161,6 +161,7 @@ function Ready({ data, demo }: { data: MonitoringOverview; demo: boolean }) {
                 <strong>{formatUtc(run.startedAt)}</strong>
                 <span>Router, {run.mode === "live" ? "live" : "dry run"}: {status(run.status)}{run.stoppedBy ? `, ${STOP_WORDS[run.stoppedBy] ?? run.stoppedBy}` : ""}</span>
                 <span>{run.counts.examined ?? 0} examined &middot; {run.counts.decided ?? 0} judged &middot; {run.counts.delivered ?? 0} delivered &middot; {run.counts.deliveryFailed ?? 0} {(run.counts.deliveryFailed ?? 0) === 1 ? "delivery failure" : "delivery failures"} &middot; {run.errorCount} {run.errorCount === 1 ? "error" : "errors"}</span>
+                {run.waitingForClassifier?.length ? <span data-monitoring-waiting-for-classifier>Waiting for classifier: {run.waitingForClassifier.join(", ")} (skipped, not an error; probed on a 30 minute to 6 hour backoff)</span> : null}
               </li>
             ))}
           </ul>
