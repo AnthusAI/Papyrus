@@ -414,3 +414,11 @@ def test_a_site_using_none_of_it_has_none_of_its_markup_or_files():
         assert not (site.out / "_plugins" / "papyrus-islands-v1.js").exists()
     finally:
         site.cleanup()
+
+
+def test_a_longer_code_fence_can_hold_shorter_ones():
+    text = "::band\n````lua\n```nested```\n::band\n````\n\n::band{tone=\"muted\"}\nAfter.\n"
+    names = [name for _line, name, _attributes in blocks._directives(text) if name]
+    assert names == ["band", "band"]
+    html = blocks.render(text, "f.md", lambda markdown: f"<md>{markdown}</md>")
+    assert html.count("<section") == 2 and "::band" in html.split("</section>")[0]

@@ -19,7 +19,7 @@ from .markdown import FRONT_MATTER
 DIRECTIVE = re.compile(r"^::(band|column|island|button)(?:\{(.*)\})?[ \t]*$")
 ATTRIBUTE = re.compile(r'([\w-]+)="([^"]*)"')
 TOKEN = re.compile(r"\{\{(\w+)\}\}")
-FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})(.*)$")
 
 TONES = ("background", "card", "muted")
 SIZES = ("standard", "hero", "bare")
@@ -55,12 +55,20 @@ def substitute(text: str, values: Mapping[str, str], source: str) -> str:
 
 
 def _directives(text: str):
-    """``(line, name, attributes)`` for every line; ``name`` is ``None`` for text. Lines inside code fences are text."""
+    """``(line, name, attributes)`` for every line; ``name`` is ``None`` for text. Lines inside code fences are text.
+
+    A fence closes at a line of the same character, at least as long as the opening one, with nothing after it, so a
+    longer fence can hold shorter ones.
+    """
     fence = None
     for line in text.split("\n"):
         marker = FENCE.match(line)
         if marker is not None:
-            fence = None if fence == marker.group(1) else (fence or marker.group(1))
+            ticks, rest = marker.group(1), marker.group(2)
+            if fence is None:
+                fence = ticks
+            elif ticks[0] == fence[0] and len(ticks) >= len(fence) and not rest.strip():
+                fence = None
         match = DIRECTIVE.match(line) if fence is None else None
         if match is None:
             yield line, None, {}
