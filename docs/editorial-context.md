@@ -16,6 +16,8 @@ Tenant selection comes from the existing configured client/environment, never a 
 
 Repository YAML (`corpora/*-publication-doctrine.yml`, `corpora/*-newsroom-sections.yml`) is only a one-time import into the database (`papyrus sections import-doctrine`, `papyrus sections import`). The import creates what is absent and never overwrites a record that exists, so it is safe to re-run and cannot undo a newer edit made in the newsroom.
 
+To edit them from the command line, use `papyrus sections doctrine set --kind mission|policy --file <md>` (the topic-steering workspace's doctrine save) and `papyrus sections update --id <section> [--editorial-mission-file F] [--editorial-policy-file F] [--assignment-guidance-file F] [--kill-criteria-file F] [--enabled true|false]` (Administration > Sections). Both take `--dry-run`.
+
 The `editorial-context/v1` response includes publication and scope, ordered entries, source IDs/revisions/timestamps/content hashes, precedence, warnings, render version, `contextHash`, `resolvedAt` and generated `text`. The hash covers the rendered content and provenance, excluding fetch time. `--max-characters` fails if required text exceeds its limit; it never trims policy. Record the hash and source revisions in the story's reporting Messages. Private doctrine shapes editorial decisions; it is not evidence to quote in reader copy.
 
 ## Workers and existing API

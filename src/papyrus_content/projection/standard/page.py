@@ -10,6 +10,7 @@ from .config import StandardSettings
 from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
+from .hooks import HookSite
 
 KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found")
 
@@ -30,6 +31,8 @@ class ListingView:
     groups: tuple = ()          # ((key, label, entries), ...) when the section sets groupBy, newest group first
     group: str | None = None    # archive pages: the month or year this page lists
     archive_keys: tuple = ()    # archive pages: every key that has a page, newest first
+    collection: str | None = None   # the id of the collection this page lists
+    drafts: tuple[StandardEntry, ...] = ()   # page 1 of a collection with drafts: the draft entries its selection matches
 
     def url_for_page(self, number: int) -> str:
         prefix = f"/{self.base}" if self.base else ""
@@ -54,6 +57,7 @@ class StandardPage:
     breadcrumbs: tuple[tuple[str, str], ...] = ()
     tags: dict = field(default_factory=dict)    # tag index: tag -> entries
     showcase: tuple = ()                        # showcase page: the ShowcaseSite records, sorted
+    site: HookSite | None = None                # the site-wide view the item-level hooks also get
     components = components
 
     @property

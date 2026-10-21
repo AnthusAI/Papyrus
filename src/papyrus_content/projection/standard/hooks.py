@@ -20,6 +20,28 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
                                     are part of every fingerprint, and are how a site's row or card component is chosen
 ``page`` is a :class:`papyrus_content.projection.standard.page.StandardPage`.
 
+``card`` may also take ``variant`` (what an ``::include{kind="listing" card="..."}`` asks for) and ``index`` (the card's place in
+its list, from 0), by those names; a hook without ``variant`` rejects an include that names one.
+
+The hooks that shape an item page before and after it is converted (a site whose content needs more than Markus):
+
+``item_filter(summary) -> bool``    ``False`` leaves an item out of the site: no page, no listing, no sitemap entry
+``source(summary, text, site) -> str``      the Markus source that is converted; the item's own text unless the site stages it
+                                    (lifts legacy markup, adds a heading block). ``site`` is a :class:`HookSite`.
+``item_transform(summary) -> FragmentTransform | None``    applied to the converted fragment (class vocabulary, block passthrough)
+``image_pipeline(pipeline) -> ImagePipeline``   the site's image pipeline from ``projection.json`` ``images``, with the
+                                    callbacks that are not data (``wrap``) set; the renditions are unchanged
+``page_head(head, page) -> PageHead``   the description of the page's ``<head>`` (title, description, image, dates, JSON-LD) before it is built;
+                                    return ``dataclasses.replace(head, ...)``
+``page_finish(html, page) -> str``  the finished page, as text, before it is written (canonical links, a head tag); it is the last step
+``page_inputs(site) -> object``     JSON-able data that every page also renders from (a table of the site's URLs a page rewrites
+                                    its links with); with ``DEPENDS_ON`` declaring ``[]``, saving an article
+                                    re-renders the other pages only when this data changes
+``redirects(site) -> dict``         exact redirects (``{"/old/": "/new/"}``) a site derives from its items, on top of the items' ``aliases``;
+                                    ``projection.json`` ``redirects.exact`` wins over it, and a path that is a page is never redirected
+``block(name, attributes, page) -> str``    the markup of ``::include{kind="block" name="..."}`` in an authored page; the include's
+                                    ``depends`` attribute names the sections it reads (see ``includes.py``)
+
 A hook that takes ``page`` can read any entry, so by default every page depends on all of them. A module may narrow
 that with ``DEPENDS_ON = ["essays", "@root"]`` (section names; ``@root`` is the items with no section) or ``[]`` for
 "nothing beyond the page's own entry and the listing slice". It may also be a dict keyed by page id (``home``,
@@ -35,7 +57,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-HOOK_NAMES = ("masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "main", "page_body", "derive")
+HOOK_NAMES = (
+    "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "main", "page_body", "derive",
+    "item_filter", "source", "item_transform", "image_pipeline", "page_finish", "block", "page_inputs", "redirects", "page_head",
+)
 
 
 @dataclass(frozen=True)
@@ -49,18 +74,27 @@ class Hooks:
     main: object = None
     page_body: object = None
     derive: object = None
+    item_filter: object = None
+    source: object = None
+    item_transform: object = None
+    image_pipeline: object = None
+    page_finish: object = None
+    block: object = None
+    page_inputs: object = None
+    redirects: object = None
+    page_head: object = None
     fingerprint: str = ""
     depends_on: tuple[str, ...] | dict | None = None
 
     @property
     def sees_the_site(self) -> bool:
         """True when a hook is handed ``page`` (and so every entry and summary of the site)."""
-        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.body_class, self.main, self.page_body))
+        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.body_class, self.main, self.page_body, self.block, self.page_finish, self.page_head))
 
     @property
     def renders_listings(self) -> bool:
         """True when a hook may read any entry field, so listings depend on all of them."""
-        return any(hook is not None for hook in (self.card, self.main, self.page_body))
+        return any(hook is not None for hook in (self.card, self.main, self.page_body, self.block))
 
 
 NO_HOOKS = Hooks()
@@ -98,3 +132,28 @@ def load_hooks(static_directory: Path | None, relative_path: str | None) -> Hook
         fingerprint=fingerprint,
         depends_on=declared if isinstance(declared, dict) or declared is None else tuple(declared),
     )
+
+
+class HookSite:
+    """What the item-level hooks may know about the whole site: the items, the site's image renditions and a memo.
+
+    One instance belongs to one version of the site (the same ``items``); a hook that derives something from the whole
+    site (a table of every page, the images the site has) builds it once with :meth:`memo`.
+    """
+
+    def __init__(self, items, *, static_directory: Path | None, records) -> None:
+        self.items = items
+        self.static_directory = static_directory
+        self._records = records
+        self._memo: dict = {}
+
+    def memo(self, name, build):
+        if name not in self._memo:
+            self._memo[name] = build()
+        return self._memo[name]
+
+    def rendition_records(self) -> list[dict]:
+        """The ``meta.json`` records of the site store: the images the site has (empty when the site has no ``images`` settings)."""
+        if "records" not in self._memo:
+            self._memo["records"] = self._records()
+        return self._memo["records"]

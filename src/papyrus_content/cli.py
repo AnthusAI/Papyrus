@@ -352,6 +352,8 @@ PORTED_COMMANDS = frozenset(
         "newsroom:backfill-operational-indexes",
         "newsroom:import-sections",
         "newsroom:import-doctrine",
+        "newsroom:set-doctrine",
+        "newsroom:update-section",
         "newsroom:seed-required-procedures",
         "newsroom:purge-planning",
         "relations:import-types",
@@ -727,6 +729,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         newsroom_import_sections(flags)
     elif route == "newsroom:import-doctrine":
         newsroom_import_doctrine(flags)
+    elif route == "newsroom:set-doctrine":
+        from .section_editing import sections_doctrine_set
+        sections_doctrine_set(flags)
+    elif route == "newsroom:update-section":
+        from .section_editing import sections_update
+        sections_update(flags)
     elif route == "newsroom:seed-required-procedures":
         newsroom_seed_required_procedures(flags)
     elif route == "newsroom:purge-planning":

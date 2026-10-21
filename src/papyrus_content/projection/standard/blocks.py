@@ -2,7 +2,11 @@
 
 ``::band{id tone size eyebrow columns}`` starts a full-width section, ``::column{panel}`` the next column of the band,
 ``::button{href label size variant}`` a call to action (consecutive lines share a row) and ``::island{name height ...}``
-a mount point for a site script. Each directive sits alone on its line. Text between directives is converted by Markus
+a mount point for a site script. Each directive sits alone on its line.
+
+``::include{kind=... }`` places generated markup (a listing of entries chosen by tag or section, a showcase, a form, a
+block of the site's ``block`` hook) and ``::raw`` ... ``::endraw`` places the lines between them as they are. See
+``includes.py``; ``::raw`` is for pages that live in the site's static directory, never for items edited in a CMS. Text between directives is converted by Markus
 as usual, one segment at a time. ``::island`` and ``::button`` also work inside a Markus ``:::`` container (a card, a
 column): there they are swapped in after the container is converted. ``{{name}}`` tokens are replaced from the ``values`` object of ``projection.json``
 before anything else. A file with no ``::band`` line is not touched (apart from tokens).
@@ -17,13 +21,15 @@ from collections.abc import Callable, Mapping
 
 from .markdown import FRONT_MATTER
 
-DIRECTIVE = re.compile(r"^::(band|column|island|button)(?:\{(.*)\})?[ \t]*$")
+DIRECTIVE = re.compile(r"^::(band|column|island|button|include)(?:\{(.*)\})?[ \t]*$")
+RAW_OPEN = re.compile(r"^::raw[ \t]*$")
+RAW_CLOSE = re.compile(r"^::endraw[ \t]*$")
 ATTRIBUTE = re.compile(r'([\w-]+)="([^"]*)"')
 TOKEN = re.compile(r"\{\{(\w+)\}\}")
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})(.*)$")
 CONTAINER_OPEN = re.compile(r"^:::[\w-]+")
 CONTAINER_CLOSE = re.compile(r"^:::[ \t]*$")
-INLINE_BLOCKS = ("island", "button")
+INLINE_BLOCKS = ("island", "button", "include", "raw")
 
 TONES = ("background", "card", "muted")
 SIZES = ("standard", "hero", "bare")
@@ -63,11 +69,22 @@ def _directives(text: str):
 
     A fence closes at a line of the same character, at least as long as the opening one, with nothing after it, so a
     longer fence can hold shorter ones. ``inside`` is true for a line within a Markus ``:::`` container, where only
-    islands and buttons are directives (``::band`` and ``::column`` there are text).
+    islands, buttons, includes and raw markup are directives (``::band`` and ``::column`` there are text).
+
+    ``::raw`` opens a region that ends at ``::endraw``: its lines come out as ``"rawline"`` (nothing in them is a
+    directive, a fence or a container), the opening and closing lines as ``"raw"`` and ``"endraw"``.
     """
     fence = None
     depth = 0
+    raw = False
     for line in text.split("\n"):
+        if raw:
+            if RAW_CLOSE.match(line):
+                raw = False
+                yield line, "endraw", {}, depth > 0
+            else:
+                yield line, "rawline", {}, depth > 0
+            continue
         marker = FENCE.match(line)
         if marker is not None:
             ticks, rest = marker.group(1), marker.group(2)
@@ -75,6 +92,10 @@ def _directives(text: str):
                 fence = ticks
             elif ticks[0] == fence[0] and len(ticks) >= len(fence) and not rest.strip():
                 fence = None
+        if fence is None and marker is None and RAW_OPEN.match(line):
+            raw = True
+            yield line, "raw", {}, depth > 0
+            continue
         if fence is None and marker is None:
             if CONTAINER_CLOSE.match(line):
                 depth = max(depth - 1, 0)
@@ -87,10 +108,22 @@ def _directives(text: str):
             yield line, None, {}, depth > 0
         else:
             yield line, match.group(1), dict(ATTRIBUTE.findall(match.group(2) or "")), depth > 0
+    if raw:
+        raise ValueError("::raw without a closing ::endraw")
 
 
 def uses_bands(text: str) -> bool:
     return any(name == "band" for _line, name, _attributes, _inside in _directives(text))
+
+
+def uses_blocks(text: str) -> bool:
+    """True when the text holds anything this module handles: a band, an include or raw markup."""
+    return any(name in ("band", "include", "raw") for _line, name, _attributes, _inside in _directives(text))
+
+
+def includes_in(text: str) -> list[dict]:
+    """The attributes of every ``::include`` of a text, in order (the page's declared dependencies)."""
+    return [attributes for _line, name, attributes, _inside in _directives(text) if name == "include"]
 
 
 def _choice(source: str, label: str, value: str, allowed: tuple[str, ...]) -> str:
@@ -140,8 +173,14 @@ def _island_html(source: str, attributes: dict) -> str:
     return f'<div class="papyrus-island" data-island="{esc(name)}"{style} data-props=\'{props}\'></div>'
 
 
-def render(text: str, source: str, convert: Callable[[str], str]) -> str:
-    """The HTML of a page that uses bands. ``text`` has no front matter; ``convert`` turns one Markdown segment into HTML."""
+def render(
+    text: str, source: str, convert: Callable[[str], str], include: Callable[[dict], str] | None = None, *, trusted: bool = False,
+) -> str:
+    """The HTML of a page that uses bands. ``text`` has no front matter; ``convert`` turns one Markdown segment into HTML.
+
+    ``include`` turns the attributes of one ``::include`` into markup; ``trusted`` allows ``::raw`` (a page file of the
+    site's repository, not an item an editor wrote).
+    """
     bands: list[dict] = []
     lines: list[str] = []
     buttons: list[dict] = []
@@ -178,7 +217,32 @@ def render(text: str, source: str, convert: Callable[[str], str]) -> str:
                 converted = converted.replace(f"<p>{token}</p>", replacement).replace(token, replacement)
             parts().append(converted)
 
+    raw_lines: list[str] = []
+    raw_inside = False
     for line, name, attributes, inside in _directives(text):
+        if name == "raw":
+            if not trusted:
+                raise ValueError(f"{source}: ::raw is only allowed in a page file of the site's static directory")
+            raw_lines, raw_inside = [], inside
+            continue
+        if name == "rawline":
+            raw_lines.append(line)
+            continue
+        if name in ("endraw", "include"):
+            if name == "include":
+                if include is None:
+                    raise ValueError(f"{source}: ::include is not available here")
+                markup, raw_inside = include(attributes), inside
+            else:
+                markup = "\n".join(raw_lines)
+            if raw_inside:
+                flush_inline_buttons()
+                place(markup)
+            else:
+                flush_text()
+                flush_buttons()
+                parts().append(markup)
+            continue
         if inside and name == "island":
             flush_inline_buttons()
             place(_island_html(source, attributes))
@@ -243,7 +307,7 @@ def _band_html(band: dict) -> str:
 def twin(text: str, values: Mapping[str, str], source: str) -> str:
     """The Markdown twin's source: tokens replaced, and for a page with bands the markers dropped, buttons turned into links and islands omitted."""
     text = substitute(text, values, source)
-    if not uses_bands(text):
+    if not uses_blocks(text):
         return text
     front = FRONT_MATTER.match(text)
     head, body = (text[: front.end()], text[front.end():]) if front else ("", text)
