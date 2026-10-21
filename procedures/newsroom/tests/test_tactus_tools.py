@@ -34,6 +34,7 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_create_story",
                 "papyrus_editorial_context",
                 "papyrus_fetch_pdf_text",
+                "papyrus_find_or_register_source",
                 "papyrus_link_story_reference",
                 "papyrus_save_story_version",
                 "papyrus_story_versions",
@@ -68,6 +69,20 @@ class TactusToolsModuleTests(unittest.TestCase):
         with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)):
             with self.assertRaisesRegex(ValueError, "Unknown NewsroomSection"):
                 tactus_tools.papyrus_create_story("Anything", "no-such-section", "Ruling analyst")
+
+    def test_find_or_register_source_registers_once_and_then_finds_it(self):
+        client = client_with_one_story()
+        client.tables["KnowledgeCorpus"] = {"knowledge-corpus-site": {"id": "knowledge-corpus-site"}}
+        client.list_records = lambda model: list(client.tables.get(model, {}).values())
+        opinion = "https://ttabvue.uspto.gov/ttabvue/ttabvue-97752244-EXA-26.pdf"
+        with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)), mock.patch.dict(
+            "os.environ", {"PAPYRUS_GRAPHQL_ENDPOINT": "https://example.appsync-api.us-east-1.amazonaws.com/graphql"}
+        ), mock.patch("papyrus_content.reference_intake._provenance"):
+            first = tactus_tools.papyrus_find_or_register_source(opinion, "In re Wemby Corporation", "knowledge-corpus-site", "Ruling analyst", media_type="application/pdf")
+            second = tactus_tools.papyrus_find_or_register_source(opinion, "In re Wemby Corporation", "knowledge-corpus-site", "Ruling analyst", media_type="application/pdf")
+        self.assertEqual(first["id"], second["id"])
+        self.assertEqual(first["curationStatus"], "pending")
+        self.assertEqual(sum(1 for row in client.tables["Reference"].values() if row.get("sourceUri") == opinion), 1)
 
     def test_fetch_pdf_text_returns_numbered_pages_within_the_range(self):
         from pypdf import PdfWriter

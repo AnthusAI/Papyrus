@@ -114,6 +114,23 @@ def papyrus_link_story_reference(story: str, reference: str, role: str, author_l
     return link_reference_to_story(client, story, reference, role=role, actor=author_label, note=note or None, citation_key=citation_key or None)
 
 
+def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_label: str, media_type: str = "text/html", rationale: str = "") -> dict:
+    """Return the publication's Reference for a source URL (an opinion PDF, a notice, an article),
+    registering it as pending in the corpus when it is new. Use its id with papyrus_link_story_reference."""
+
+    import os
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.reference_intake import canonical_source_url, find_or_create_source_reference
+
+    client, _ = create_authoring_client()
+    if not client.get_record("KnowledgeCorpus", corpus):
+        raise ValueError(f"Unknown KnowledgeCorpus {corpus}.")
+    item = {"source_uri": canonical_source_url(url), "title": title, "media_type": media_type, "ingestion_rationale": rationale or f"Source for a story, registered by {author_label}."}
+    publication = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
+    return find_or_create_source_reference(client, client.list_records("Reference"), publication=publication, corpus_id=corpus, item=item, actor=f"agent:{author_label}")
+
+
 def papyrus_story_versions(story: str) -> list[dict[str, Any]]:
     """List a story's versions, newest first, with their state, author and reason."""
 
