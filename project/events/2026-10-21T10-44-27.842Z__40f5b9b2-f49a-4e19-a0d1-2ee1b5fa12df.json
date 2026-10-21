@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "40f5b9b2-f49a-4e19-a0d1-2ee1b5fa12df",
+  "issue_id": "PPY-7e524df9-5065-4ee0-948e-f0412194bb93",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T10:44:27.842Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "stories save-version keeps title and headline from the previous version",
+    "description": "Re-saving an imported story with stories save-version drops the stored title/headline when front matter has no title; new versions publish with title=null and core builds <title>, og:title and feed titles from the slug. Carry title and headline over from the previous version when the new front matter omits them (or require a front-matter title and say so).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}
