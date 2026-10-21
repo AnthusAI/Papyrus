@@ -30,7 +30,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | Key | Contents |
 |---|---|
 | `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`) |
-| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty } }`. Leave it out for a site without sections |
+| `urls` | `style`: `html` (`/x.html`, default) or `directory` (`/x/`). `sections`: `{ "<section>": { base, label, description, pages, listing, feed, sitemap, linkField, pageSize, listEmpty, sort } }`. Leave it out for a site without sections |
 | `nav` | `links: [{label, href, cta}]`, `disclosure` (a menu button for narrow screens), `homeLabel` |
 | `footer` | `columns: [{title, links}]`, `text` |
 | `seo` | `defaultImage`, `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs` |
@@ -60,7 +60,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 An item's section comes from its CMS path (`essays/slow-water`). A section lists its entries at `/<base>/`
 (paginated at `/<base>/page/N/`) and only when it has entries. `pages: false` makes a link-only section: items have
 no page, appear in listings as cards that link to `linkField` (front matter `url` by default), and are never in
-the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
+the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. An item named `index` in a declared section is that section's **introduction**: it has no page of its own; its body (and title and description) head the section's listing at `/<base>/`, and a line `{{ section listing }}` in it places the generated cards (otherwise they follow the introduction). `sort: "order"` lists a section by front matter `order` (ascending, then title) instead of newest first. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
 Items in a section that is not declared are ignored; items with no section are root pages (`/about.html`).
 
 ### Entries
@@ -165,7 +165,7 @@ error (prefix helpers with `_`):
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
 
-`page` is a `StandardPage`: `kind` (`item`, `home`, `listing`, `tags`, `tag`, `custom`, `not_found`), `path`, `title`,
+`page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `tags`, `tag`, `custom`, `not_found`), `path`, `title`,
 `entry`, `fragment`, `listing` (the slice, page numbers), `custom_id`, `entries`, `summaries`, `settings`,
 `environment`, `head`, plus `skip_link` and the `components` module. `papyrus_content.projection.standard.fragments` has `article_body(fragment)` (the article without Markus's wrapper and header), `lede_of` and `first_image_of`. A site with typed content (its own card
 fields, link-only items, special pages) builds its model from `page.summaries` and composes pages in `page_body`.

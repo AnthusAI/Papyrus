@@ -627,3 +627,38 @@ def test_an_authored_home_page_uses_its_front_matter_description(tmp_path):
         assert '<meta name="description" content="The curated description.">' in html
     finally:
         site.cleanup()
+
+
+def _intro_site(tmp_path, *, placeholder: bool):
+    content = tmp_path / "content"
+    (content / "guides").mkdir(parents=True)
+    intro = "## Start here\n\n{{ section listing }}\n\n## After the list\n\nMore words.\n" if placeholder else "Choose a guide.\n"
+    (content / "guides" / "index.md").write_text(f"---\ntitle: All guides\ndescription: Every guide we have.\n---\n{intro}", encoding="utf-8")
+    for slug, title, order in (("zeta", "Zeta guide", 1), ("alpha", "Alpha guide", 3), ("middle", "Middle guide", 2)):
+        (content / "guides" / f"{slug}.md").write_text(f"---\ntitle: {title}\norder: {order}\ndate: '2026-01-0{order}'\n---\nBody of {slug}.\n", encoding="utf-8")
+    settings = minimal(urls={"sections": {"guides": {"base": "guides", "label": "Guides", "sort": "order"}}})
+    return ProjectedSite(settings=settings, content=content)
+
+
+def test_a_section_index_is_the_introduction_of_its_listing(tmp_path):
+    site = _intro_site(tmp_path, placeholder=False)
+    try:
+        assert "guides/index.html" in site.tree and "guides/alpha.html" in site.tree
+        listing = site.text("guides/index.html")
+        assert "<title>All guides" in listing and "Choose a guide." in listing
+        assert 'content="Every guide we have."' in listing
+        assert listing.index("Choose a guide.") < listing.index("Zeta guide")  # the introduction comes first
+        assert listing.index("Zeta guide") < listing.index("Middle guide") < listing.index("Alpha guide")  # sort: order
+        assert "/guides/</loc>" in site.text("sitemap.xml") and "/guides/index.html" not in site.text("sitemap.xml")
+    finally:
+        site.cleanup()
+
+
+def test_the_listing_goes_where_the_introduction_asks(tmp_path):
+    site = _intro_site(tmp_path, placeholder=True)
+    try:
+        listing = site.text("guides/index.html")
+        assert listing.index("Start here") < listing.index("Zeta guide") < listing.index("After the list")
+        assert "{{ section listing }}" not in listing
+    finally:
+        site.cleanup()
