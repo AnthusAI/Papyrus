@@ -5,7 +5,7 @@ import * as amplify from "aws-cdk-lib/aws-amplify";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -362,7 +362,7 @@ export class AmplifyAppShellStack extends Stack {
       assumedBy: new iam.OpenIdConnectPrincipal(provider, {
         StringEquals: {
           [`${GITHUB_OIDC_PROVIDER_HOST}:aud`]: "sts.amazonaws.com",
-          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: `repo:${owner}/${repo}:ref:refs/heads/main`,
+          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: githubOidcSubjects(config, "main"),
         },
       }),
     });
@@ -411,9 +411,7 @@ export class AmplifyAppShellStack extends Stack {
       assumedBy: new iam.OpenIdConnectPrincipal(provider, {
         StringEquals: { [`${GITHUB_OIDC_PROVIDER_HOST}:aud`]: "sts.amazonaws.com" },
         StringLike: {
-          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: github.branches.map(
-            (branch) => `repo:${github.owner}/${github.repo}:ref:refs/heads/${branch}`,
-          ),
+          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: github.branches.flatMap((branch) => githubOidcSubjects(config, branch)),
         },
       }),
     });

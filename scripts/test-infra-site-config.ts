@@ -101,6 +101,9 @@ assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "AnthusAI
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.owner = "Other")), "must match repository");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.ciCanDeployInfra = "yes")), "ciCanDeployInfra");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.token = "x")), "github.token");
+assertRejects(mutated("pilobol-us.site.json", (c) => (c.github.ownerId = 152415604)), "ownerId and repoId must be set together");
+assertRejects(mutated("pilobol-us.site.json", (c) => { c.github.ownerId = 1; c.github.repoId = "7"; }), "github.repoId");
+assertRejects(mutated("pilobol-us.site.json", (c) => { c.github.ownerId = -1; c.github.repoId = 7; }), "github.ownerId");
 const domainFree = (c: any) => {
   delete c.hostedZoneId;
   delete c.cms.domainName;

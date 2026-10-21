@@ -355,7 +355,12 @@ Public sites get everything from the app shell, so a new site needs no extra inf
    provider, audience `sts.amazonaws.com`, subject exactly
    `repo:<owner>/<repo>:ref:refs/heads/main` (the repository comes from `github` or, without
    it, from `repository`; a renamed repository must be updated in `site.json`, because the
-   OIDC subject carries the repository's current name). Its only permissions are
+   OIDC subject carries the repository's current name). Most of our repositories use GitHub's
+   **immutable subject**, `repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/main`: check
+   with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`
+   (`use_immutable_subject`). Set `github.ownerId` and `github.repoId` (the numeric ids from
+   `gh api repos/<owner>/<repo> -q .id` and `.owner.id`) in `site.json` and the roles trust both
+   forms; without the ids an immutable-subject repository fails at the assume-role step. Its only permissions are
    `amplify:StartJob` and `amplify:GetJob` on `apps/<appId>/branches/main/jobs/*` of the site's
    app (and the reader app of a `markus-static` site). It is separate from the broader
    `<siteId>-github-ci` role, which stays optional.
