@@ -7,6 +7,26 @@ owns it, and an Amplify backend deploy would tie HN collection to one site's
 pipeline. Like the edge stacks (`infra/edge/README.md`) it is a hand-run
 CloudFormation stack in account 712236451410, us-east-1, applied with a change set.
 
+## Monitors and source types
+
+Each monitor is its own `MONITOR#<id>` partition with its own schedules. `CONFIG.sourceType` names what
+it reads: `hn-rss` (the default, the Hacker News feed) or `ttab-decisions` (the USPTO TTAB Reading Room
+decision search, `lookbackDays` 1 to 180, `finalDecisionsOnly` true by default). Each source type only
+accepts a `sourceUrl` on its own host. `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
+Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
+recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
+`seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400 --limit 100` and
+`seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`.
+
+| Monitor | Source | Collect | Route | Decisions | Publications |
+| --- | --- | --- | --- | --- | --- |
+| `hn` | `hn-rss` | `papyrus-monitoring-hn-collect`, every 15 min | `papyrus-monitoring-hn-route`, :07/:22/:37/:52 | cyclotron | anth-us, p-apyr-us, threat-intelligence |
+| `ttab` | `ttab-decisions` | `papyrus-monitoring-ttab-collect`, every 6 h (collects daily) | `papyrus-monitoring-ttab-route`, hourly at :41 | direct | distinctive |
+
+A publication the router delivers to needs its AppSync grants in the router role. The inline policy holds
+three sites; Distinctive Mark's are in the managed policy `RouterDistinctiveIntakePolicy`, and further
+sites should follow that pattern (a role's inline policies are limited to 10,240 characters).
+
 ## What it does, and does not do
 
 The **collector** collects, dedupes, checkpoints and records receipts. It holds no
