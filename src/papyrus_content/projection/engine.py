@@ -23,6 +23,8 @@ idempotent.
 from __future__ import annotations
 
 import logging
+import re
+from urllib.parse import quote
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -205,6 +207,34 @@ def _log(item_id: str, report: ProjectionReport) -> None:
     )
 
 
+def _adopt_lineage_states(context: ProjectionContext, item_id: str) -> tuple[ItemState | None, list[str]]:
+    """The remembered pages of the other versions of this item's lineage, when the item itself has no state.
+
+    Publishing a different version of a story (``<lineage>-v<n>``) changes the published row's source item, so a
+    page written while another version was published is remembered under that version's id. Without this, the old
+    pages are never deleted and their addresses never redirect. Returns the merged state and the keys of the
+    states it came from; the caller deletes those once the item's own state is written.
+    """
+    lineage_id_of = getattr(context.source, "lineage_id_of", None)
+    lineage_id = lineage_id_of(item_id) if lineage_id_of is not None else item_id
+    sibling = re.compile(rf"^{re.escape(lineage_id)}(-v\d+)?$")
+    own_key = item_state_key(item_id)
+    adopted: list[tuple[str, ItemState]] = []
+    for entry in context.writer.list(ITEM_STATE_PREFIX + quote(lineage_id, safe="")):
+        if entry.key == own_key or not sibling.match(item_id_from_state_key(entry.key)):
+            continue
+        state = read_item_state(context.writer, item_id_from_state_key(entry.key))
+        if state is not None:
+            adopted.append((entry.key, state))
+    if not adopted:
+        return None, []
+    projected = [state for _key, state in adopted if state.projected] or [state for _key, state in adopted]
+    page_keys = tuple(dict.fromkeys(key for state in projected if state.projected for key in state.page_keys))
+    former = tuple(dict.fromkeys(key for _key, state in adopted for key in state.former_page_keys))
+    merged = ItemState(summary=projected[0].summary, page_keys=page_keys, former_page_keys=former)
+    return merged, [key for key, _state in adopted]
+
+
 def project(context: ProjectionContext, item_id: str, *, unpublished: bool = False) -> ProjectionReport:
     """Project one item and the pages that depend on it.
 
@@ -214,6 +244,9 @@ def project(context: ProjectionContext, item_id: str, *, unpublished: bool = Fal
     """
     report = ProjectionReport()
     previous_state = read_item_state(context.writer, item_id) if context.keep_state else None
+    adopted_keys: list[str] = []
+    if previous_state is None and context.keep_state:
+        previous_state, adopted_keys = _adopt_lineage_states(context, item_id)
     site = context.source.site_index()
     item = context.source.published_item(item_id)
     if item is None:
@@ -222,6 +255,9 @@ def project(context: ProjectionContext, item_id: str, *, unpublished: bool = Fal
         _project_publication(context, report, item, previous_state, site)
     if report.follow_up_item_pages and not context.defer_follow_up:
         _run_follow_up(context, report, item_id)
+    for key in adopted_keys:
+        if key != item_state_key(item_id):
+            context.writer.delete(key)
     _finish(context, report)
     _log(item_id, report)
     return report

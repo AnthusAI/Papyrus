@@ -2,7 +2,9 @@
 
 A story keeps four kinds of reporting records, all addressed by its lineage id and none needing a new table:
 
-* Draft versions: one ``Item`` row per version, ``<lineage>-v<n>``; the highest ``versionNumber`` is the latest.
+* Draft versions: one ``Item`` row per version, ``<lineage>-v<n>``. The row whose ``versionState`` is ``current`` is the
+  working record (saving a draft or publishing a version makes that row current); the published record is the one the
+  lineage's ``PublishedItem`` points at. Neither is chosen by the highest ``versionNumber``.
 * References: one ``SemanticRelation`` with predicate ``uses_evidence`` per story and reference. Its metadata ``role``
   says whether the reference was ``consulted`` during reporting or is ``cited`` in the article.
 * Messages: one ``MessageThread`` of kind ``story_reporting`` per story, anchored at the lineage, holding ordered
@@ -27,6 +29,7 @@ from .publishing import (
     _status_keys,
     _without_server_fields,
     columns_from_front_matter,
+    published_item_id_for,
     utc_now_iso,
 )
 from .record_helpers import compact_dict, to_aws_json
@@ -56,11 +59,67 @@ def story_versions(client, lineage_id: str) -> list[dict[str, Any]]:
     return sorted(rows, key=lambda row: int(row.get("versionNumber") or 0), reverse=True)
 
 
-def latest_story_version(client, lineage_id: str) -> dict[str, Any]:
+def _current_of(versions: list[dict[str, Any]]) -> dict[str, Any]:
+    """The working record: the row marked current (the most recently touched one if a muddled lineage has several)."""
+    pool = [row for row in versions if row.get("versionState") == "current"] or versions
+    return max(pool, key=lambda row: (str(row.get("versionCreatedAt") or ""), int(row.get("versionNumber") or 0)))
+
+
+def current_story_version(client, lineage_id: str) -> dict[str, Any]:
+    """The working (latest draft) record of the story: the one marked current, not the highest version number."""
     versions = story_versions(client, lineage_id)
     if not versions:
         raise ValueError(f"No story found for lineage {lineage_id}.")
-    return versions[0]
+    return _current_of(versions)
+
+
+def latest_story_version(client, lineage_id: str) -> dict[str, Any]:
+    """The latest draft record. An alias of current_story_version; use published_story_version for the live text."""
+    return current_story_version(client, lineage_id)
+
+
+def published_story_version(client, lineage_id: str) -> dict[str, Any] | None:
+    """The record whose text is live (the source of the lineage's PublishedItem), or None when it is not published."""
+    published = client.get_record("PublishedItem", published_item_id_for(lineage_id))
+    if published is None:
+        return None
+    source_id = published.get("sourceItemId")
+    return next((row for row in story_versions(client, lineage_id) if row["id"] == source_id), None)
+
+
+def plan_version_repair(client, lineage_id: str) -> list[dict[str, Any]]:
+    """The record updates that renumber a muddled lineage by creation order and leave exactly one current record.
+
+    Content is never touched. Records are ordered by ``createdAt`` (the server's creation time; ``id`` breaks ties),
+    numbered 1..n, and chained through ``previousVersionId``. The current record is the live one when the story is
+    published, otherwise the most recently created.
+    """
+    rows = client.list_by_index("itemsByLineageAndVersion", lineage_id)
+    if not rows:
+        raise ValueError(f"No story found for lineage {lineage_id}.")
+    ordered = sorted(rows, key=lambda row: (str(row.get("createdAt") or ""), row["id"]))
+    published = published_story_version(client, lineage_id)
+    current_id = published["id"] if published else ordered[-1]["id"]
+    updates = []
+    for index, row in enumerate(ordered):
+        wanted = {
+            "versionNumber": index + 1,
+            "versionState": "current" if row["id"] == current_id else "superseded",
+            "previousVersionId": ordered[index - 1]["id"] if index else None,
+        }
+        changes = {key: value for key, value in wanted.items() if row.get(key) != value}
+        if changes:
+            updates.append({"id": row["id"], **changes})
+    return updates
+
+
+def repair_story_versions(client, lineage_id: str, *, apply: bool = False) -> list[dict[str, Any]]:
+    """Plans (and with ``apply`` performs) plan_version_repair. Returns the planned updates."""
+    updates = plan_version_repair(client, lineage_id)
+    if apply:
+        for update in updates:
+            client.update_record("Item", update)
+    return updates
 
 
 def next_version_record_id(lineage_id: str, version_number: int, taken_ids: set[str]) -> str:
@@ -91,7 +150,7 @@ def save_story_version(
     versions = story_versions(client, lineage_id)
     if not versions:
         raise ValueError(f"No story found for lineage {lineage_id}.")
-    latest = versions[0]
+    latest = _current_of(versions)
     next_number = max(int(row.get("versionNumber") or 1) for row in versions) + 1
     record_id = next_version_record_id(lineage_id, next_number, {row["id"] for row in versions})
     fields = ItemFields(
@@ -133,7 +192,9 @@ def save_story_version(
     if stage:
         record["stage"] = require_content_item_stage(stage)
     client.create_record("Item", compact_dict(record))
-    client.update_record("Item", {"id": latest["id"], "versionState": "superseded"})
+    for row in versions:
+        if row.get("versionState") == "current" or row["id"] == latest["id"]:
+            client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
     return record
 
 
