@@ -1,0 +1,24 @@
+{
+  "id": "PPY-a140987b-962a-4809-ac21-80f5f635ee1a",
+  "title": "App-shell stack deploys automatically on merge",
+  "description": "Problem. Ryan requires every deploy to happen automatically on merge. Site-code merges do (Actions -> OIDC -> Amplify RELEASE job). Changes that live in the app-shell stack do not: Amplify branch environment variables, buildspecs and IAM come only from `SITE=<site.json> npm run deploy` in infra/amplify-app-shell, run by hand. Found on 2026-10-21 rolling out PAPYRUS_SITE_ORIGIN (Prospectus sign-in fix, PR #483): the pin bump merged and built, but the variable was missing until a manual deploy, and without it sign-in fails closed with 503 site_origin_not_configured. Any future shell change has the same gap.\n\nGotchas found in the manual path (all fixable by automation):\n- bin/app-shell.ts defaults the target account to legacy 335163751677 unless CDK_DEFAULT_ENV, CDK_DEFAULT_ACCOUNT and CDK_DEFAULT_REGION are set. A forgotten env var targets the wrong account.\n- `npm run deploy` fails type-checking in v5.15.1 (lib/amplify-app-shell.ts lines 199 and 222: optional values spread into Record<string,string>); it only worked with TS_NODE_TRANSPILE_ONLY=true. `npm run build` should be a CI gate.\n- `cdk diff` shows only the real property edits, but the CloudFormation change set lists ~22 resources (Metadata-only changes and dynamic references flagged Always/Conditionally). A guard must read change-set Details, not just resource names.\n- Hand-set branch variables are replaced by the deploy; a guard must diff live variables against what site.json will produce.\n\nProposal (not implemented here).\n1. Reusable workflow in AnthusAI/Papyrus, `app-shell-deploy.yml`, called from each site's deploy.yml before the Amplify job (or as a second job the Amplify job needs). Assumes a per-site `<siteId>-shell-deploy` role through OIDC, restricted to repo main, scoped to that stack's CloudFormation change sets. The shell would provision this role.\n2. Steps: `npm run build` (type check); `cdk deploy --method=prepare-change-set --change-set-name gh-<sha>`; then the guard; then `execute-change-set` only if the guard passes. If there are no changes, skip.\n3. Change-set guard (script in the Papyrus repo, unit-tested): fail the job and leave the change set unexecuted when any of: a resource has Replacement True or RequiresRecreation Always/Conditionally on a Static evaluation; a Delete action; a stateful type (Cognito, DynamoDB, S3, SSM parameter, Amplify App/Domain) is replaced; an Amplify branch variable present live is absent from the new template (hand-set variable would be lost); the stack account is not 712236451410. Metadata-only modifications are ignored. Failures post the change-set summary to the run and the board.\n4. Ordering: run the shell deploy before start-job so the build always sees the new variables, and no second CMS build is needed. Alternative considered: run it inside the Amplify build (postinstall already calls papyrus-infra deploy --only-branch); rejected as the default because the build role would need CloudFormation rights and a failed guard would mean a failed site build.\n5. Pre-production sites (Pilobol.us, Threat Intelligence, p.apyr.us) auto-apply; Anth.us requires a manual approval environment before execute-change-set.\n\nAcceptance.\nFeature: App-shell stack deploys automatically on merge\n  Scenario: A merge that changes site.json applies the shell change before the site build\n    Given a site repository whose infra/site.json adds an environment variable\n    When the change merges to main\n    Then the workflow creates a change set, the guard passes, the change set executes, and the Amplify job starts after it\n    And the branch has the new variable in the build environment\n  Scenario: A destructive change set is blocked\n    Given a merge whose change set replaces the Amplify app or drops a live-only variable\n    When the guard runs\n    Then the change set is not executed, the job fails, and the summary names the resource or variable",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T21:01:28.802022Z",
+  "updated_at": "2026-10-21T21:01:28.802109Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
