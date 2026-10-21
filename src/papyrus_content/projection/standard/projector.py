@@ -43,11 +43,11 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 from . import components
 from .config import STANDARD_KEYS, SectionConfig, StandardSettings, standard_settings_from_mapping
-from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first
+from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
-from .fragments import first_image_of, lede_of
+from .fragments import first_image_of, lede_of, with_listing
 from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
@@ -250,7 +250,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for base, label, section_name, members in self._listing_groups(listed):
             for view in self._paginate(base, label, members, section_name):
                 key = self.policy.listing_key(base, view.page)
-                add(key, f"listing:{section_name or 'flat'}", [self._fingerprints(view.entries), view.page, view.pages, len(view.featured)], self._listing_builder("listing", view, site, listed))
+                intro = self._intro(summaries, section_name) if view.page == 1 else None
+                add(
+                    key,
+                    f"listing:{section_name or 'flat'}",
+                    [self._fingerprints(view.entries), view.page, view.pages, len(view.featured), self._intro_fingerprint(intro)],
+                    self._listing_builder("listing", view, site, listed, intro),
+                )
 
         # archives: one page per month (or year) that has entries
         for section_config in self.standard.sections:
@@ -348,6 +354,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if not section.listing:
                 continue
             members = [entry for entry in listed if entry.section and entry.section.name == section.name]
+            if section.sort == "order":
+                members = sorted(members, key=order_of)
             if members or section.list_empty:
                 yield section.base, section.label, section.name, members
 
@@ -398,17 +406,32 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 found.append(entry)
         return {label: found for label, found in sorted(merged.values(), key=lambda pair: slugify_tag(pair[0]))}
 
-    def _listing_builder(self, kind: str, view: ListingView, site: SiteIndex, listed: list[StandardEntry]):
+    def _intro(self, summaries, section_name: str | None) -> ItemSummary | None:
+        """The authored ``index`` item of a declared section: its body is shown above that section's listing."""
+        if section_name is None:
+            return None
+        for summary in summaries:
+            if summary.section == section_name and summary.slug == "index" and not PurePosixPath(summary.output_path).name.startswith(("_", ".")):
+                return summary
+        return None
+
+    @staticmethod
+    def _intro_fingerprint(intro: ItemSummary | None) -> list:
+        return [] if intro is None else [intro.item_id, intro.version_number, intro.front_matter]
+
+    def _listing_builder(self, kind: str, view: ListingView, site: SiteIndex, listed: list[StandardEntry], intro: ItemSummary | None = None):
         def build() -> StandardPage:
             suffix = f" — page {view.page}" if view.page > 1 else ""
             title = (f"Tagged {view.label}" if kind == "tag" else view.label) + suffix
             configured = self.standard.section(view.section)
-            head = PageHead(
-                title=title,
-                path=view.url_for_page(view.page),
-                description=(configured.description if configured is not None else "") or self.standard.identity.description,
-            )
-            return self._page(kind, head, site, entries=tuple(listed), listing=view)
+            description = (configured.description if configured is not None else "") or self.standard.identity.description
+            fragment = ""
+            if intro is not None:
+                fragment = self._fragment(site.load_item(intro.item_id).source_text, view.url_for_page(view.page).count("/") - 1)
+                title = entry_title(intro)
+                description = clipped(first_text(intro.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or description
+            head = PageHead(title=title, path=view.url_for_page(view.page), description=description)
+            return self._page(kind, head, site, entries=tuple(listed), listing=view, fragment=fragment)
 
         return build
 
@@ -627,6 +650,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             pager = components.pager(view.page, view.pages, view.url_for_page)
             heading = f"Tagged {view.label}" if page.kind == "tag" else view.label
             featured_html = f'<div class="markus-featured">{featured}</div>' if featured else ""
+            if page.fragment:
+                return with_listing(page.fragment, f'{featured_html}<div class="markus-card-grid">{grid}</div>{pager}')
             return f'<div class="markus-document"><h1>{components.esc(heading)}</h1>{featured_html}<div class="markus-card-grid">{grid}</div>{pager}</div>'
         if page.kind == "tags":
             items = "".join(
