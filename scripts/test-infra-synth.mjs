@@ -337,6 +337,7 @@ try {
   assert.match(reusableDeploy, /role-to-assume: \$\{\{ inputs\.role-to-assume \}\}/);
   assert.match(reusableDeploy, /--commit-id "\$COMMIT_ID"/, "the job builds the exact commit that passed CI");
   assert.match(reusableDeploy, /get-job/, "the workflow waits for the job");
+  assert.match(reusableDeploy, /LimitExceededException/, "back-to-back merges wait for the running job instead of failing");
   const callerTemplate = fs.readFileSync(path.join(shell, "examples/deploy-on-merge.workflow.yml"), "utf8");
   assert.match(callerTemplate, /needs: ci/, "deploy only after CI");
   assert.match(callerTemplate, /github\.ref == 'refs\/heads\/main'/, "deploy only from main");
