@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://almanac.example.org/sitemap.xml

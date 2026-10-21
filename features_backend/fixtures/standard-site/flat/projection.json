@@ -1,0 +1,13 @@
+{
+  "site": {
+    "name": "Example Almanac",
+    "tagline": "Notes on plants",
+    "description": "A small almanac of plants and the places they grow.",
+    "productionUrl": "https://almanac.example.org",
+    "author": "The Almanac Volunteers"
+  },
+  "listings": { "pageSize": 3 },
+  "nav": { "links": [{ "label": "Archive", "href": "/archive/" }, { "label": "About", "href": "/about.html" }] },
+  "seo": { "defaultImage": "/assets/share.png", "imageSize": [1200, 630] },
+  "publicData": { "searchIndex": true, "latest": true }
+}

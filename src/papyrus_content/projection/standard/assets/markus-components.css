@@ -1,0 +1,16 @@
+/* Baseline for the standard components: accessible defaults, themed through custom properties.
+   Loaded before the site theme, so the theme can override anything here. */
+.markus-skip-link { position: absolute; left: -9999px; top: 0; z-index: 1000; padding: .5rem 1rem; background: var(--papyrus-bg, #fff); color: var(--papyrus-ink, #000); }
+.markus-skip-link:focus { left: 0; }
+:where(a, button, input, select, textarea):focus-visible { outline: 3px solid var(--papyrus-focus, currentColor); outline-offset: 2px; }
+.markus-site-nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: .25em; }
+.markus-breadcrumbs ol { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; margin: 0 0 1rem; }
+.markus-breadcrumbs li + li::before { content: "/"; margin-right: .5rem; }
+.markus-pager { display: flex; justify-content: space-between; gap: 1rem; margin: 2rem 0; }
+.markus-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 1.5rem; }
+.markus-card-image { max-width: 100%; height: auto; }
+.markus-tags { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; }
+.markus-nav-toggle { display: none; }
+.markus-nav-js .markus-nav-toggle { display: inline-block; }
+@media (max-width: 40rem) { .markus-nav-js .markus-site-nav:not(.is-open) { display: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }

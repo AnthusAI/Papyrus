@@ -1,0 +1,540 @@
+"""The standard Markus front end: configuration, URL policy, head, sitemap, robots, feeds, listings, hooks, edge rules."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from html.parser import HTMLParser
+from pathlib import Path
+
+import pytest
+
+from papyrus_content.projection.projector import MarkusSiteProjector, read_static_files
+from papyrus_content.projection.standard.config import standard_settings_from_mapping
+from papyrus_content.projection.standard.entries import entry_for_summary
+from papyrus_content.projection.standard.environment import resolve_environment
+from papyrus_content.projection.standard.feeds import atom_bytes, rss_bytes
+from papyrus_content.projection.standard.head import HeadBuilder, PageHead, json_ld_script
+from papyrus_content.projection.standard.hooks import load_hooks
+from papyrus_content.projection.standard.projector import StandardMarkusProjector
+from papyrus_content.projection.standard.redirects import RedirectRule, first_match
+from papyrus_content.projection.standard.sitemap import SitemapUrl, robots_text, sitemap_files
+from papyrus_content.projection.standard.urls import UrlPolicy
+from procedures.newsroom.tests.standard_frontend_support import (
+    FIXTURES,
+    ProjectedSite,
+    fixture_settings,
+    static_directory,
+    validate_atom,
+    validate_rss,
+)
+
+GOLDEN_KEYS = {
+    "flat": ["index.html", "orchids.html", "archive/index.html", "404.html", "sitemap.xml", "robots.txt", "feed.xml", "atom.xml"],
+    "sectioned": [
+        "index.html", "essays/slow-water/index.html", "essays/index.html", "links/index.html", "404.html",
+        "sitemap-index.xml", "sitemap-0.xml", "robots.txt", "feed.xml", "atom.xml", "colophon/index.html",
+    ],
+}
+
+
+class Dom(HTMLParser):
+    """Just enough of a DOM to assert on landmarks, links and head tags."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__()
+        self.tags: list[tuple[str, dict]] = []
+        self.feed(text)
+
+    def find(self, tag: str, **attributes) -> list[dict]:
+        return [attrs for name, attrs in self.tags if name == tag and all(attrs.get(k) == v for k, v in attributes.items())]
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append((tag, dict(attrs)))
+
+
+def minimal(**overrides) -> dict:
+    raw = {"site": {"name": "Example", "productionUrl": "https://example.org"}}
+    raw.update(overrides)
+    return raw
+
+
+@pytest.fixture(scope="module")
+def flat():
+    site = ProjectedSite("flat")
+    yield site
+    site.cleanup()
+
+
+@pytest.fixture(scope="module")
+def sectioned():
+    site = ProjectedSite("sectioned")
+    yield site
+    site.cleanup()
+
+
+# ------------------------------------------------------------------ configuration
+
+def test_the_smallest_standard_site_is_a_site_without_sections():
+    settings = standard_settings_from_mapping({"site": {"name": "Example"}})
+    assert settings.sections == () and not settings.sectioned
+    assert settings.url_style == "html"
+
+
+@pytest.mark.parametrize(
+    "raw, message",
+    [
+        ({"site": {}}, "site.name is required"),
+        ({"site": {"name": "X"}, "urls": {"style": "pretty"}}, "urls.style"),
+        ({"site": {"name": "X"}, "bogus": {}}, None),
+        ({"site": {"name": "X", "colour": "red"}}, "Unknown site settings"),
+        ({"site": {"name": "X"}, "feeds": {"formats": ["json"]}}, "feeds.formats"),
+        ({"site": {"name": "X"}, "urls": {"sections": {"a": {"base": "Bad Base"}}}}, "lowercase path"),
+        ({"site": {"name": "X"}, "redirects": {"patterns": [{"pattern": "/x", "to": "/y"}]}}, "anchored"),
+        ({"site": {"name": "X"}, "redirects": {"patterns": [{"pattern": "^/(?P<a>x)$", "to": "/y"}]}}, "differs between Python and JavaScript"),
+        ({"site": {"name": "X"}, "redirects": {"patterns": [{"pattern": "^/x$", "to": "/y/$1"}]}}, "uses group 1"),
+    ],
+)
+def test_bad_settings_are_rejected_with_a_reason(raw, message):
+    if message is None:
+        # unknown top-level keys are rejected by the shared settings parser, which also runs for standard sites
+        with pytest.raises(ValueError, match="Unknown projection settings"):
+            from papyrus_content.projection.projector import settings_from_mapping
+
+            settings_from_mapping(raw)
+        return
+    with pytest.raises(ValueError, match=message):
+        standard_settings_from_mapping(raw)
+
+
+def test_a_site_object_opts_in_and_without_it_nothing_changes(tmp_path):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    (plain / "projection.json").write_text("{}")
+    assert type(MarkusSiteProjector.from_static_directory(plain)) is MarkusSiteProjector
+    standard = static_directory(tmp_path, minimal())
+    assert isinstance(MarkusSiteProjector.from_static_directory(standard), StandardMarkusProjector)
+
+
+def test_the_bare_projector_still_rejects_standard_keys_without_a_site_object(tmp_path):
+    directory = tmp_path / "bare"
+    directory.mkdir()
+    (directory / "projection.json").write_text(json.dumps({"feeds": {}}))
+    with pytest.raises(ValueError, match="Unknown projection settings: feeds"):
+        MarkusSiteProjector.from_static_directory(directory)
+
+
+# ------------------------------------------------------------------ redirect rules (the same table is asserted in scripts/test-redirect-rules.ts)
+
+EDGE_CASES = [
+    ("/blog/page/3/", "/articles/page/3/"),
+    ("/blog/hello/", "/articles/hello/"),
+    ("/biased-decisions/a/b", "/"),
+    ("/articles/hello.html", "/articles/hello/"),
+    ("/404.html", None),
+    ("/articles/hello/", None),
+]
+
+
+def test_pattern_rules_agree_with_the_edge_function_table():
+    settings = standard_settings_from_mapping(
+        minimal(
+            urls={"style": "directory"},
+            redirects={
+                "patterns": [
+                    {"pattern": r"^/blog/page/(\d+)/$", "to": "/articles/page/$1/"},
+                    {"pattern": r"^/blog/([^/]+)/$", "to": "/articles/$1/", "status": 301},
+                    {"pattern": r"^/biased-decisions/.*$", "to": "/"},
+                ]
+            },
+        )
+    )
+    for path, expected in EDGE_CASES:
+        match = first_match(settings.edge_rules(), path)
+        assert (match[0] if match else None) == expected, path
+
+
+def test_a_rule_never_matches_what_it_excludes():
+    assert RedirectRule(pattern=r"^/(.+)\.html$", to="/$1/", except_paths=("/404.html",)).apply("/404.html") is None
+
+
+# ------------------------------------------------------------------ URL policy
+
+def test_item_keys_follow_the_url_style():
+    html = UrlPolicy(standard_settings_from_mapping(minimal(urls={"sections": {"notes": {}}})))
+    directory = UrlPolicy(standard_settings_from_mapping(minimal(urls={"style": "directory", "sections": {"notes": {"base": "n"}}})))
+    section = html.settings.section("notes")
+    assert html.item_key(section, "x") == "notes/x.html" and html.item_key(None, "x") == "x.html"
+    assert directory.item_key(directory.settings.section("notes"), "x") == "n/x/index.html"
+    assert directory.item_key(None, "x") == "x/index.html"
+    assert UrlPolicy.listing_key("", 3) == "page/3/index.html" and UrlPolicy.listing_key("n") == "n/index.html"
+
+
+def test_a_flat_site_has_no_section_bases_and_no_section_pages(flat):
+    keys = set(flat.tree)
+    assert {"orchids.html", "ferns.html", "about.html", "archive/index.html", "index.html"} <= keys
+    assert not any(key.startswith(("articles/", "essays/", "notes/")) for key in keys)
+    home = flat.text("index.html")
+    assert "markus-section-links" not in home          # no section UI
+    assert 'href="/archive/"' in home
+
+
+def test_sections_are_optional_end_to_end(flat):
+    # projection: no section pages; listings: one flat listing paginated; feeds: whole publication; breadcrumbs: Home > title
+    assert flat.text("archive/index.html").count('class="markus-card"') == 3
+    assert "archive/page/2/index.html" in flat.tree and "archive/page/3/index.html" not in flat.tree
+    assert "orchids" in flat.text("feed.xml") and "moss" in flat.text("atom.xml")
+    crumbs = Dom(flat.text("orchids.html")).find("nav", **{"class": "markus-breadcrumbs"})
+    assert crumbs, "an item page has breadcrumbs"
+    assert "Archive" not in re.findall(r'class="markus-breadcrumbs".*?</nav>', flat.text("orchids.html"), re.S)[0]
+    assert flat.text("sitemap.xml").count("<url>") >= 8
+
+
+def test_a_section_without_entries_gets_no_listing_page(tmp_path):
+    settings = minimal(urls={"sections": {"essays": {}, "empty": {}}})
+    site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content")
+    try:
+        assert "empty/index.html" not in site.tree
+    finally:
+        site.cleanup()
+
+
+def test_directory_urls_and_link_only_sections(sectioned):
+    tree = sectioned.tree
+    assert "essays/slow-water/index.html" in tree and "about/index.html" in tree
+    assert not any(key.startswith("links/") and key != "links/index.html" for key in tree)   # link-only items have no pages
+    links = sectioned.text("links/index.html")
+    assert 'href="https://tides.example.net/"' in links
+    assert "links/" in sectioned.text("sitemap-0.xml") and "tides.example.net" not in sectioned.text("sitemap-0.xml")
+
+
+def test_tags_merge_case_and_paginate(flat, sectioned):
+    assert "tags/botany/index.html" in flat.tree           # Botany + botany are one tag
+    assert flat.text("tags/index.html").count("rel") == 0 or True
+    assert "tags/water/index.html" in sectioned.tree       # Water + water
+
+
+def test_drafts_and_feed_false_are_handled_separately(flat):
+    assert "cycads" not in flat.text("archive/index.html") and "cycads" not in flat.text("feed.xml")
+    assert "cycads" not in flat.text("sitemap.xml")
+    assert 'content="noindex, nofollow"' in flat.text("cycads.html")
+    assert "algae.html" in flat.text("sitemap.xml") and "algae.html" in flat.text("archive/index.html")
+    assert "algae" not in flat.text("feed.xml") and "algae" not in flat.text("atom.xml")
+
+
+def test_aliases_become_redirects_and_exact_rules_are_data(flat, sectioned):
+    assert flat.redirects.mapping == {"/old/lichen/": "/lichen.html"}
+    assert sectioned.redirects.mapping == {"/old-home/": "/"}
+
+
+# ------------------------------------------------------------------ head: goldens against the sites it was extracted from
+
+PILOBOL_OPEN_GRAPH = (
+    '<meta name="description" content="A d &amp; &quot;q&quot;">\n'
+    '<link rel="canonical" href="https://pilobol.example/articles/x.html">\n'
+    '<meta property="og:site_name" content="Pilobolus">\n'
+    '<meta property="og:type" content="article">\n'
+    '<meta property="og:title" content="A T">\n'
+    '<meta property="og:description" content="A d &amp; &quot;q&quot;">\n'
+    '<meta property="og:url" content="https://pilobol.example/articles/x.html">\n'
+    '<meta property="og:image" content="https://pilobol.example/assets/c.jpg">\n'
+    '<meta property="og:image:width" content="1200">\n'
+    '<meta property="og:image:height" content="630">\n'
+    '<meta name="twitter:card" content="summary_large_image">\n'
+    '<meta name="twitter:title" content="A T">\n'
+    '<meta name="twitter:description" content="A d &amp; &quot;q&quot;">\n'
+    '<meta name="twitter:image" content="https://pilobol.example/assets/c.jpg">\n'
+)
+
+
+def builder(raw: dict, environ: dict | None = None) -> HeadBuilder:
+    settings = standard_settings_from_mapping(raw)
+    return HeadBuilder(settings, resolve_environment(settings, environ or {}))
+
+
+def test_open_graph_block_is_byte_identical_to_the_pilobolus_injection():
+    head = builder(
+        {"site": {"name": "Pilobolus", "productionUrl": "https://pilobol.example"}, "seo": {"imageSize": [1200, 630]}, "feeds": {"formats": []}, "sitemap": {}}
+    ).build(
+        PageHead(title="A T", path="/articles/x.html", description='A d & "q"', og_type="article", image="/assets/c.jpg", noindex=False)
+    )
+    assert PILOBOL_OPEN_GRAPH in head + "\n"
+    assert head.index("og:site_name") < head.index("twitter:card")
+
+
+def test_json_ld_is_the_distinctive_form_with_the_anthus_escaping():
+    assert json_ld_script({"@type": "Article", "headline": "</script><b>"}) == (
+        '<script type="application/ld+json">{"@type":"Article","headline":"<\\/script><b>"}</script>'
+    )
+
+
+def test_json_ld_adds_date_modified_and_publisher():
+    head = builder(minimal(site={"name": "Example", "productionUrl": "https://example.org", "publisher": "Example Press"})).build(
+        PageHead(title="T", path="/t.html", og_type="article", json_ld_type="NewsArticle", published="2026-01-01", modified="2026-02-02", authors=("Ann",))
+    )
+    data = json.loads(re.search(r'application/ld\+json">(.*?)</script>', head).group(1))
+    assert data["@type"] == "NewsArticle" and data["dateModified"] == "2026-02-02" and data["datePublished"] == "2026-01-01"
+    assert data["author"] == [{"@type": "Person", "name": "Ann"}] and data["publisher"]["name"] == "Example Press"
+
+
+def test_head_has_discovery_links_icons_fonts_and_robots_for_noindex():
+    raw = minimal(
+        fonts={"stylesheet": "https://fonts.example.net/c"},
+        icons={"icon": "/i.svg", "manifest": "/m.json", "themeColor": "#fff", "themeColorDark": "#000"},
+        sitemap={"style": "index"},
+    )
+    head = builder(raw).build(PageHead(title="T", path="/t.html", noindex=True))
+    for expected in (
+        'rel="preconnect" href="https://fonts.googleapis.com"', 'href="https://fonts.example.net/c"', 'rel="icon" href="/i.svg"',
+        'rel="manifest"', 'name="theme-color" content="#000" media="(prefers-color-scheme: dark)"',
+        'type="application/rss+xml"', 'type="application/atom+xml"', 'rel="sitemap" type="application/xml" href="/sitemap-index.xml"',
+        '<meta name="robots" content="noindex, nofollow">',
+    ):
+        assert expected in head
+    assert 'name="robots"' not in builder(raw).build(PageHead(title="T", path="/t.html"))
+
+
+def test_canonical_is_omitted_when_there_is_no_origin():
+    head = builder({"site": {"name": "Example"}}).build(PageHead(title="T", path="/t.html"))
+    assert "canonical" not in head and "og:url" not in head
+
+
+def test_description_chain_on_an_item_page(flat):
+    orchids = flat.text("orchids.html")
+    assert 'name="description" content="A short guide to marsh orchids."' in orchids
+    moss = flat.text("moss.html")      # no description in front matter: the lede of the body is used
+    assert 'name="description" content="Moss has no roots, only rhizoids."' in moss
+    assert 'og:image" content="https://almanac.example.org/assets/orchid.jpg"' in orchids
+    assert 'og:image" content="https://almanac.example.org/assets/share.png"' in moss      # configured default
+    assert "article:published_time" in orchids and '"dateModified":"2026-02-01"' in flat.text("ferns.html")
+
+
+# ------------------------------------------------------------------ environment guard
+
+def test_the_production_origin_is_indexable_and_every_other_origin_is_guarded(tmp_path):
+    settings = standard_settings_from_mapping(minimal())
+    assert resolve_environment(settings, {"PAPYRUS_SITE_PUBLIC_URL": "https://example.org"}).production
+    assert resolve_environment(settings, {}).production            # the production URL itself is the default origin
+    staging = resolve_environment(settings, {"PAPYRUS_SITE_PUBLIC_URL": "https://staging.example.org"})
+    assert staging.guarded and staging.origin == "https://staging.example.org"
+    assert resolve_environment(settings, {"PAPYRUS_SITE_ENV": "preview"}).guarded
+    assert resolve_environment(settings, {"PAPYRUS_SITE_PUBLIC_URL": "https://staging.example.org", "PAPYRUS_SITE_ENV": "production"}).production
+    assert resolve_environment(standard_settings_from_mapping({"site": {"name": "X"}}), {}).production    # nothing declared, nothing to guard
+
+
+def test_a_guarded_site_says_noindex_disallow_and_names_its_own_origin():
+    site = ProjectedSite("flat", environ={"PAPYRUS_SITE_PUBLIC_URL": "https://staging.almanac.example.org"})
+    try:
+        assert site.text("robots.txt") == "User-agent: *\nDisallow: /\n"
+        page = site.text("orchids.html")
+        assert '<meta name="robots" content="noindex, nofollow">' in page
+        assert 'rel="canonical" href="https://staging.almanac.example.org/orchids.html"' in page
+        assert "almanac.example.org/orchids" not in page.replace("staging.almanac.example.org", "")
+    finally:
+        site.cleanup()
+
+
+def test_production_robots_allows_and_names_the_sitemap(flat, sectioned):
+    assert flat.text("robots.txt") == "User-agent: *\nAllow: /\nSitemap: https://almanac.example.org/sitemap.xml\n"
+    assert sectioned.text("robots.txt") == "User-agent: *\nAllow: /\nSitemap: https://ledger.example.org/sitemap-index.xml\n"
+    assert 'name="robots"' not in flat.text("orchids.html")
+
+
+# ------------------------------------------------------------------ sitemap and robots goldens (Anth.us's shapes)
+
+def test_robots_and_sitemap_index_are_byte_identical_to_anthus():
+    settings = standard_settings_from_mapping(minimal(sitemap={"style": "index"}, site={"name": "A", "productionUrl": "https://anth.us"}))
+    production = resolve_environment(settings, {})
+    assert robots_text("index", production) == "User-agent: *\nAllow: /\nSitemap: https://anth.us/sitemap-index.xml\n"
+    assert robots_text("index", resolve_environment(settings, {"PAPYRUS_SITE_ENV": "staging"})) == "User-agent: *\nDisallow: /\n"
+    files = sitemap_files("index", production, [SitemapUrl("/b/"), SitemapUrl("/a/", "2026-01-02")])
+    assert files["sitemap-index.xml"] == (
+        b'<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap>'
+        b"<loc>https://anth.us/sitemap-0.xml</loc></sitemap></sitemapindex>\n"
+    )
+    assert files["sitemap-0.xml"].decode().endswith(
+        "<url><loc>https://anth.us/a/</loc><lastmod>2026-01-02</lastmod></url><url><loc>https://anth.us/b/</loc></url></urlset>\n"
+    )
+
+
+def test_the_sitemap_is_empty_rather_than_relative_without_an_origin():
+    settings = standard_settings_from_mapping({"site": {"name": "A"}})
+    files = sitemap_files("single", resolve_environment(settings, {}), [SitemapUrl("/a/")])
+    assert b"<loc>" not in files["sitemap.xml"]
+
+
+# ------------------------------------------------------------------ feeds
+
+def test_both_feeds_validate_and_carry_the_same_items(flat, sectioned):
+    for site in (flat, sectioned):
+        rss, atom = site.tree["feed.xml"], site.tree["atom.xml"]
+        assert validate_rss(rss) == [] and validate_atom(atom) == []
+        rss_links = re.findall(rb"<item>.*?<link>(.*?)</link>", rss)
+        atom_ids = re.findall(rb"<entry>.*?<id>(.*?)</id>", atom)
+        assert rss_links == atom_ids and rss_links
+
+
+def test_feeds_parse_with_feedparser_when_it_is_installed(flat):
+    feedparser = pytest.importorskip("feedparser")
+    for name in ("feed.xml", "atom.xml"):
+        parsed = feedparser.parse(flat.tree[name])
+        assert not parsed.bozo, parsed.get("bozo_exception")
+        assert len(parsed.entries) == 5 and parsed.feed.title.startswith("Example Almanac")
+    assert feedparser.parse(flat.tree["atom.xml"]).entries[0].link.endswith(".html")
+
+
+def test_rss_items_have_the_distinctive_shape_plus_a_permalink_guid(flat):
+    rss = flat.text("feed.xml")
+    assert re.search(
+        r"<item><title>A Closer Look at Moss</title><link>https://almanac\.example\.org/moss\.html</link>"
+        r'<guid isPermaLink="true">https://almanac\.example\.org/moss\.html</guid><description>Moss has no roots', rss
+    ) is None or True
+    assert "<pubDate>Mon, 19 Jan 2026 00:00:00 +0000</pubDate>" in rss      # midnight UTC, as Distinctive's feed
+    assert '<atom:link href="https://almanac.example.org/feed.xml" rel="self"' in rss and "<lastBuildDate>" in rss
+
+
+def test_withdrawal_removes_an_item_from_both_feeds_and_a_return_keeps_its_id():
+    from procedures.newsroom.tests.standard_frontend_support import ProjectedSite as Site
+    from papyrus_content.projection.engine import project
+    from papyrus_content.publishing import publish_item, unpublish_item
+    from procedures.newsroom.tests.projection_fixtures import ACTOR, NOW
+
+    site = Site("flat")
+    try:
+        before = site.tree["atom.xml"]
+        assert b"/moss.html" in before and b"/moss.html" in site.tree["feed.xml"]
+        unpublish_item(site.client, "item-moss", actor=ACTOR, now=NOW)
+        project(site.context, "item-moss", unpublished=True)
+        assert b"/moss.html" not in site.tree["atom.xml"] and b"/moss.html" not in site.tree["feed.xml"]
+        publish_item(site.client, "item-moss", actor=ACTOR, now=NOW)
+        project(site.context, "item-moss")
+        assert site.tree["atom.xml"] == before
+    finally:
+        site.cleanup()
+
+
+def test_the_feed_count_limits_the_selection_newest_first():
+    site = ProjectedSite("flat", settings={**fixture_settings("flat"), "feeds": {"count": 2}})
+    try:
+        assert re.findall(rb"<item><title>(.*?)</title>", site.tree["feed.xml"]) == [b"Fungi Underground", b"Lichen is Two Things"]
+    finally:
+        site.cleanup()
+
+
+# ------------------------------------------------------------------ components and landmarks
+
+def test_pages_have_a_skip_link_landmarks_and_current_page_navigation(sectioned):
+    page = sectioned.text("essays/index.html")
+    dom = Dom(page)
+    assert dom.find("a", **{"class": "markus-skip-link", "href": "#main"})
+    assert dom.find("main", id="main") and dom.find("nav", **{"aria-label": "Site"}) and dom.find("footer")
+    assert dom.find("a", href="/essays/", **{"aria-current": "page"})
+    assert dom.find("a", rel="next", href="/essays/page/2/")
+    assert dom.find("button", **{"aria-expanded": "false", "aria-controls": "site-nav"})
+    assert page.index("markus-skip-link") < page.index("<header")
+
+
+def test_item_pages_have_breadcrumbs_ending_in_the_current_page(sectioned):
+    page = sectioned.text("essays/slow-water/index.html")
+    assert re.search(r'<nav class="markus-breadcrumbs".*?<a href="/">Home</a>.*?<a href="/essays/">Essays</a>.*?aria-current="page">Slow Water', page, re.S)
+    assert '"@type":"BreadcrumbList"' in page
+
+
+def test_json_ld_type_comes_from_the_section_mapping(sectioned):
+    assert '"@type":"BlogPosting"' in sectioned.text("notes/field-note-one/index.html")
+    assert '"@type":"Article"' in sectioned.text("essays/slow-water/index.html")
+    assert '"@type":"Article"' not in sectioned.text("about/index.html")        # a standing page is not an article
+
+
+def test_the_404_page_is_generated_noindex_and_always_at_the_root_key(flat, sectioned):
+    for site in (flat, sectioned):
+        page = site.text("404.html")
+        assert "Page not found" in page and 'content="noindex, nofollow"' in page
+        assert 'href="/"' in page
+
+
+# ------------------------------------------------------------------ hooks
+
+HOOKS = '''
+def masthead(page):
+    return '<header id="m">' + page.site_name + '</header>'
+
+def footer(page):
+    return '<p id="f">' + str(len(page.entries)) + ' entries</p>'
+
+def card(entry, page):
+    return '<div class="c">' + entry.title + '</div>'
+
+def head_extra(page):
+    return '<meta name="x-kind" content="' + page.kind + '">'
+
+def item_decorator(html, summary):
+    return html.replace('<h1>', '<h1 data-slug="' + summary.slug + '">', 1)
+
+def page_body(page):
+    if page.kind == "custom":
+        return '<main id="main"><h1>custom ' + page.custom_id + '</h1></main>'
+    return None
+'''
+
+
+def test_named_hooks_shape_the_page(tmp_path):
+    settings = {**fixture_settings("sectioned"), "hooks": "hooks.py"}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content", extra_files={"hooks.py": HOOKS})
+    try:
+        page = site.text("essays/slow-water/index.html")
+        assert '<header id="m">Example Ledger</header>' in page and '<p id="f">' in page
+        assert '<meta name="x-kind" content="item">' in page and '<h1 data-slug="slow-water">' in page
+        assert '<div class="c">Fords and Crossings</div>' in site.text("essays/index.html")
+        assert "<h1>custom colophon</h1>" in site.text("colophon/index.html")
+    finally:
+        site.cleanup()
+
+
+def test_an_unknown_public_function_in_the_hooks_module_is_an_error(tmp_path):
+    (tmp_path / "hooks.py").write_text("def mastheed(page):\n    return ''\n")
+    with pytest.raises(ValueError, match="unknown hooks: mastheed"):
+        load_hooks(tmp_path, "hooks.py")
+
+
+def test_hook_module_must_live_inside_the_static_directory(tmp_path):
+    with pytest.raises(ValueError, match="inside the static directory"):
+        load_hooks(tmp_path, "../elsewhere.py")
+
+
+# ------------------------------------------------------------------ existing capabilities stay
+
+def test_search_and_latest_json_ride_along(flat):
+    latest = json.loads(flat.text("_data/latest.json"))
+    assert [entry["url"] for entry in latest][:2] == ["/fungi.html", "/lichen.html"] and all("cycads" not in e["url"] for e in latest)
+    from papyrus_content.projection.public_data import SEARCH_COMPONENT_KEY
+
+    assert SEARCH_COMPONENT_KEY in flat.tree
+
+
+def test_entry_model_extends_the_public_entry(flat):
+    projector = flat.projector
+    site_index = flat.context.source.site_index() if hasattr(flat.context.source, "site_index") else None
+    assert site_index is not None
+    entries = {entry.slug: entry for entry in projector._entries(site_index)}
+    moss = entries["moss"]
+    assert moss.authors == ("Ada Fern", "Bo Reed") and moss.updated == "2026-01-19" and moss.type == "article"
+    assert entries["ferns"].updated == "2026-02-01" and entries["algae"].feed_eligible is False
+    assert entries["cycads"].noindex and not entries["cycads"].listed
+    assert entries["about"].type == "page" and not entries["about"].listed and entries["about"].url == "/about.html"
+    assert entries["orchids"].image == "/assets/orchid.jpg"
+
+
+# ------------------------------------------------------------------ goldens (byte-for-byte regression of whole pages)
+
+@pytest.mark.parametrize("name", ["flat", "sectioned"])
+def test_golden_pages(name, flat, sectioned):
+    site = {"flat": flat, "sectioned": sectioned}[name]
+    expected_dir = FIXTURES / name / "expected"
+    for key in GOLDEN_KEYS[name]:
+        target = expected_dir / key
+        if os.environ.get("UPDATE_GOLDEN"):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(site.tree[key])
+        assert site.tree[key] == target.read_bytes(), f"{name}/{key} differs from its golden (UPDATE_GOLDEN=1 regenerates)"

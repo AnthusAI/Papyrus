@@ -1,0 +1,29 @@
+{
+  "site": {
+    "name": "Example Ledger",
+    "tagline": "Essays and notes",
+    "description": "Essays, field notes and links about rivers and walls.",
+    "productionUrl": "https://ledger.example.org",
+    "publisher": "Example Ledger Press"
+  },
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "essays": { "base": "essays", "label": "Essays" },
+      "notes": { "base": "notes", "label": "Notes" },
+      "links": { "base": "links", "label": "Links", "pages": false, "feed": false }
+    }
+  },
+  "listings": { "pageSize": 2, "featuredCount": 1, "homeCount": 4 },
+  "nav": { "disclosure": true, "links": [{ "label": "Essays", "href": "/essays/" }, { "label": "Notes", "href": "/notes/" }, { "label": "Links", "href": "/links/" }] },
+  "footer": { "text": "Example Ledger Press", "columns": [{ "title": "Read", "links": [{ "label": "Essays", "href": "/essays/" }] }] },
+  "seo": { "jsonLdTypes": { "notes": "BlogPosting" }, "twitterSite": "exampleledger" },
+  "sitemap": { "style": "index" },
+  "fonts": { "stylesheet": "https://fonts.example.net/css?family=Serif" },
+  "icons": { "icon": "/assets/icon.svg", "themeColor": "#ffffff", "themeColorDark": "#111111" },
+  "redirects": {
+    "exact": { "/old-home/": "/" },
+    "patterns": [{ "pattern": "^/blog/([^/]+)/$", "to": "/essays/$1/" }]
+  },
+  "pages": [{ "id": "colophon", "path": "colophon", "title": "Colophon", "description": "How this site is made.", "dependsOn": [] }]
+}
