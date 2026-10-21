@@ -269,12 +269,17 @@ def editorial_check_drafts(flags: list[str]) -> None:
     from .graphql_authoring import create_authoring_client
 
     client, _ = create_authoring_client()
+    check_unchecked_drafts(client, limit=args.limit, dry_run=args.dry_run)
+
+
+def check_unchecked_drafts(client, *, limit: int = 0, dry_run: bool = False) -> None:
+    """Check every unpublished draft version with no stored check (or a stale one), through the given client."""
     runs = GraphQLEditorialStore()._list(LIST_CHECK_RUNS, "listEditorialCheckRuns")
     pending = unchecked_draft_versions(client.list_records("Item"), runs)
-    if args.limit:
-        pending = pending[: args.limit]
-    print(f"editorial\tcheck-drafts\t{len(pending)} versions to check\t{'dry run' if args.dry_run else 'checking'}")
-    if args.dry_run:
+    if limit:
+        pending = pending[:limit]
+    print(f"editorial\tcheck-drafts\t{len(pending)} versions to check\t{'dry run' if dry_run else 'checking'}")
+    if dry_run:
         for item in pending:
             print(f"editorial\tcheck-drafts\t{item['id']}\t{item.get('section')}\t{item.get('title')}")
         return
