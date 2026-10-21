@@ -66,6 +66,7 @@
     "test:prospectus-sign-in-routes": "tsx scripts/test-prospectus-sign-in-routes.ts",
     "test:prospectus-account-client": "tsx scripts/test-prospectus-account-client.ts",
     "test:curation-routes": "tsx scripts/test-curation-routes.ts",
+    "test:amplify-env-export": "tsx scripts/test-amplify-env-export.ts",
     "test:amplify-outputs-path": "tsx scripts/test-amplify-outputs-path.ts",
     "test:infra-synth": "node scripts/test-infra-synth.mjs",
     "test:infra-deploy-edge": "node scripts/test-infra-deploy-edge.mjs",
