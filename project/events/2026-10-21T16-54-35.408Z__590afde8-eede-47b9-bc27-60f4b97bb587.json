@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "590afde8-eede-47b9-bc27-60f4b97bb587",
+  "issue_id": "PPY-b3ef8f6a-c490-4d4d-9776-2fcc24282b7e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T16:54:35.408Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Theme the Data Parade newsroom and front end from the dataparade.io landing site",
+    "description": "Tokens, fonts and logo from the dataparade.io landing app (colour tokens in its design file, Source Serif 4 headings, Inter body, teal brand, logo files). Newsroom: refined-newsprint Kanbus theme with --kb-theme-* overrides in publication/theme.css and a NewsroomLogo. Front end: web/css/site-theme.css and web/projection.json brandHtml and icons. The dataparade.io app itself is not changed.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": []
+  }
+}

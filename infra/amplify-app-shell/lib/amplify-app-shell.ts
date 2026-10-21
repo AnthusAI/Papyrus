@@ -5,7 +5,7 @@ import * as amplify from "aws-cdk-lib/aws-amplify";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveProspectusAccountsEndpoint, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -72,6 +72,9 @@ export class AmplifyAppShellStack extends Stack {
     if (!hasCmsApp(config)) {
       if (!config.reader) throw new Error(`site ${config.siteId} has neither a cms section nor a reader`);
       this.readerAppId = this.addReaderApp(config, config.reader);
+      if (config.autoDeploy) {
+        this.addGithubDeployRole(config, [{ appId: this.readerAppId, branch: config.reader.branchName ?? "main" }]);
+      }
       return;
     }
 
@@ -185,7 +188,8 @@ export class AmplifyAppShellStack extends Stack {
       appId: cmsApp.attrAppId,
       branchName: "main",
       stage: "PRODUCTION",
-      enableAutoBuild: true,
+      // Auto-build off when GitHub Actions starts the job on merge (autoDeploy): nothing may double-build.
+      enableAutoBuild: !config.autoDeploy,
       enablePerformanceMode: false,
       environmentVariables: environmentVariables({
         ...config.cms.environment,
@@ -274,6 +278,13 @@ export class AmplifyAppShellStack extends Stack {
     const amplifyAppIds = [cmsApp.attrAppId, ...(this.readerAppId ? [this.readerAppId] : [])];
     this.addAuthoringRole(config, cmsApp.attrAppId, amplifyAppIds);
 
+    if (config.autoDeploy) {
+      this.addGithubDeployRole(config, [
+        { appId: cmsApp.attrAppId, branch: "main" },
+        ...(this.readerAppId && config.reader ? [{ appId: this.readerAppId, branch: config.reader.branchName ?? "main" }] : []),
+      ]);
+    }
+
     if (config.github) {
       this.addGithubCiRole(config, config.github, cmsApp.attrAppId, amplifyAppIds);
     }
@@ -326,6 +337,55 @@ export class AmplifyAppShellStack extends Stack {
     });
   }
 
+  /**
+   * The merge-to-main deploy role: assumable only by a GitHub Actions run on `main` of the site's own
+   * repository (OIDC, no keys), and able to do exactly one thing: start and read Amplify jobs on the
+   * production branch of the site's apps.
+   */
+  private addGithubDeployRole(config: AmplifyAppShellSiteConfig, targets: { appId: string; branch: string }[]): void {
+    const { owner, repo } = resolveGithubRepository(config);
+    const provider = iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(
+      this,
+      "GithubDeployOidcProvider",
+      this.formatArn({
+        service: "iam",
+        region: "",
+        resource: "oidc-provider",
+        resourceName: GITHUB_OIDC_PROVIDER_HOST,
+        arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+      }),
+    );
+    const deployRole = new iam.Role(this, "GithubDeployRole", {
+      roleName: `${config.siteId}-github-deploy`,
+      description: `Merge-to-main deploy for ${owner}/${repo}: GitHub OIDC on refs/heads/main only; amplify:StartJob and GetJob on the production branch of the site's apps only`,
+      maxSessionDuration: Duration.hours(1),
+      assumedBy: new iam.OpenIdConnectPrincipal(provider, {
+        StringEquals: {
+          [`${GITHUB_OIDC_PROVIDER_HOST}:aud`]: "sts.amazonaws.com",
+          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: githubOidcSubjects(config, "main"),
+        },
+      }),
+    });
+    deployRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: "StartAndReadProductionJobs",
+        actions: ["amplify:StartJob", "amplify:GetJob"],
+        resources: targets.map((target) =>
+          this.formatArn({
+            service: "amplify",
+            resource: "apps",
+            resourceName: `${target.appId}/branches/${target.branch}/jobs/*`,
+            arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+          }),
+        ),
+      }),
+    );
+    new CfnOutput(this, "GithubDeployRoleArn", {
+      value: deployRole.roleArn,
+      description: `Role for the merge-to-main deploy workflow in ${owner}/${repo}`,
+    });
+  }
+
   private addGithubCiRole(
     config: AmplifyAppShellSiteConfig,
     github: NonNullable<AmplifyAppShellSiteConfig["github"]>,
@@ -351,9 +411,7 @@ export class AmplifyAppShellStack extends Stack {
       assumedBy: new iam.OpenIdConnectPrincipal(provider, {
         StringEquals: { [`${GITHUB_OIDC_PROVIDER_HOST}:aud`]: "sts.amazonaws.com" },
         StringLike: {
-          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: github.branches.map(
-            (branch) => `repo:${github.owner}/${github.repo}:ref:refs/heads/${branch}`,
-          ),
+          [`${GITHUB_OIDC_PROVIDER_HOST}:sub`]: github.branches.flatMap((branch) => githubOidcSubjects(config, branch)),
         },
       }),
     });
@@ -420,7 +478,7 @@ export class AmplifyAppShellStack extends Stack {
       appId: readerApp.attrAppId,
       branchName: readerBranchName,
       stage: "PRODUCTION",
-      enableAutoBuild: true,
+      enableAutoBuild: !config.autoDeploy,
       environmentVariables: environmentVariables({
         ...(reader.environment ?? {}),
         PAPYRUS_SITE_BRAND: config.brand,

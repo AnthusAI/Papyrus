@@ -88,8 +88,9 @@ try {
   assert.equal(readerOnlyApps[0].Properties.Platform, "WEB", "reader-only: the app is the reader");
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Branch").length, 1, "reader-only: one branch");
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Domain").length, 0, "reader-only: no domain");
-  assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::IAM::Role").length, 1, "reader-only: only the reader service role");
-  assert.deepEqual(Object.keys(readerOnlyTemplate.Outputs).sort(), ["ReaderAppId", "ReaderOrigin"], "reader-only: reader outputs only");
+  assert.deepEqual(resourcesOfType(readerOnlyTemplate, "AWS::IAM::Role").map((role) => role.Properties.RoleName).filter(Boolean), ["anth-us-github-deploy"], "reader-only: the reader service role and the merge-to-main deploy role");
+  assert.deepEqual(Object.keys(readerOnlyTemplate.Outputs).sort(), ["GithubDeployRoleArn", "ReaderAppId", "ReaderOrigin"], "reader-only: reader and deploy outputs only");
+  assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Branch")[0].Properties.EnableAutoBuild, false, "reader-only: Amplify auto-build is off, GitHub Actions starts the job");
   const pilobolExample = JSON.parse(fs.readFileSync(path.join(shell, "examples/pilobol-us.site.json"), "utf8"));
   function synthesizeSite(name, site) {
     const sitePath = path.join(work, `${name}.site.json`);
@@ -287,6 +288,34 @@ try {
     }
     assert.ok(ciStatements.some((statement) => asList(statement.Action).includes("appsync:GraphQL")), `${example}: CI role may sign AppSync requests`);
 
+    const deployRole = roles.find((role) => role.Properties.RoleName === `${siteId}-github-deploy`);
+    assert.ok(deployRole, `${example}: merge-to-main deploy role exists`);
+    assert.equal(deployRole.Properties.ManagedPolicyArns, undefined, `${example}: deploy role has managed policies`);
+    const deployTrust = deployRole.Properties.AssumeRolePolicyDocument.Statement;
+    assert.equal(deployTrust.length, 1);
+    assert.equal(deployTrust[0].Action, "sts:AssumeRoleWithWebIdentity");
+    assert.equal(flattenArn(deployTrust[0].Principal.Federated).endsWith(":oidc-provider/token.actions.githubusercontent.com"), true);
+    assert.deepEqual(Object.keys(deployTrust[0].Condition), ["StringEquals"], `${example}: deploy trust is exact-match only`);
+    assert.equal(deployTrust[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"], "sts.amazonaws.com");
+    assert.deepEqual(
+      asList(deployTrust[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"]),
+      [`repo:${github.owner}/${github.repo}:ref:refs/heads/main`],
+      `${example}: deploy role trusts exactly main of the site repository`,
+    );
+    const deployKey = Object.keys(template.Resources).find((key) => template.Resources[key] === deployRole);
+    const deployStatements = Object.values(template.Resources)
+      .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === deployKey))
+      .flatMap((resource) => resource.Properties.PolicyDocument.Statement);
+    assert.equal(deployStatements.length, 1, `${example}: deploy role has a single statement`);
+    assert.deepEqual([...asList(deployStatements[0].Action)].sort(), ["amplify:GetJob", "amplify:StartJob"], `${example}: deploy role may only start and read jobs`);
+    const deployResources = asList(deployStatements[0].Resource).map((resource) => JSON.stringify(resource));
+    assert.equal(deployResources.length, expectedApps, `${example}: one job resource per app`);
+    for (const resource of deployResources) assert.match(resource, /apps\/.*\/branches\/main\/jobs\/\*/, `${example}: deploy resource is the main branch jobs of one app`);
+    for (const branch of branches.filter((candidate) => candidate.Properties.BranchName === "main")) {
+      assert.equal(branch.Properties.EnableAutoBuild, false, `${example}: Amplify auto-build is off on main (GitHub Actions starts the job)`);
+    }
+    assert.ok(Object.keys(template.Outputs).includes("GithubDeployRoleArn"), `${example}: GithubDeployRoleArn output`);
+
     const outputs = Object.keys(template.Outputs);
     assert.ok(outputs.includes("PapyrusAuthoringRoleArn"), `${example}: PapyrusAuthoringRoleArn output`);
     assert.ok(outputs.includes("GithubCiRoleArn"), `${example}: GithubCiRoleArn output`);
@@ -294,6 +323,55 @@ try {
     assert.equal(outputs.includes("ReaderAppId"), expectedApps === 2, `${example}: ReaderAppId output`);
     assert.ok(outputs.includes("StagingOrigin"));
   }
+
+  for (const workflowPath of [".github/workflows/amplify-deploy.yml", "infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml"]) {
+    const workflow = fs.readFileSync(path.join(repo, workflowPath), "utf8");
+    assert.equal(/secrets\.|aws-access-key-id|aws-secret-access-key|AWS_ACCESS_KEY_ID/i.test(workflow), false, `${workflowPath}: no stored credentials`);
+    assert.equal(/\benvironment:/.test(workflow), false, `${workflowPath}: no GitHub environments (the role trusts the branch subject only)`);
+    assert.match(workflow, /id-token: write/, `${workflowPath}: OIDC token permission`);
+  }
+  const reusableDeploy = fs.readFileSync(path.join(repo, ".github/workflows/amplify-deploy.yml"), "utf8");
+  assert.match(reusableDeploy, /workflow_call:/);
+  assert.match(reusableDeploy, /role-to-assume: \$\{\{ inputs\.role-to-assume \}\}/);
+  assert.match(reusableDeploy, /--commit-id "\$COMMIT_ID"/, "the job builds the exact commit that passed CI");
+  assert.match(reusableDeploy, /get-job/, "the workflow waits for the job");
+  const callerTemplate = fs.readFileSync(path.join(shell, "examples/deploy-on-merge.workflow.yml"), "utf8");
+  assert.match(callerTemplate, /needs: ci/, "deploy only after CI");
+  assert.match(callerTemplate, /github\.ref == 'refs\/heads\/main'/, "deploy only from main");
+
+  const immutableSubjectSite = structuredClone(pilobolExample);
+  immutableSubjectSite.github.ownerId = 152415604;
+  immutableSubjectSite.github.repoId = 1358579276;
+  const immutableSubjectTemplate = synthesizeSite("pilobol-immutable-subject", immutableSubjectSite);
+  const immutableRoles = resourcesOfType(immutableSubjectTemplate, "AWS::IAM::Role");
+  const trustedSubjects = (roleName, key) => {
+    const role = immutableRoles.find((candidate) => candidate.Properties.RoleName === roleName);
+    const condition = role.Properties.AssumeRolePolicyDocument.Statement[0].Condition;
+    return [condition.StringEquals?.[key] ?? condition.StringLike[key]].flat();
+  };
+  const subjectKey = "token.actions.githubusercontent.com:sub";
+  assert.deepEqual(
+    trustedSubjects("pilobol-us-github-deploy", subjectKey),
+    ["repo:AnthusAI/Pilobol.us:ref:refs/heads/main", "repo:AnthusAI@152415604/Pilobol.us@1358579276:ref:refs/heads/main"],
+    "immutable OIDC subject: the deploy role trusts the classic and the immutable subject of main",
+  );
+  assert.deepEqual(
+    trustedSubjects("pilobol-us-github-ci", subjectKey),
+    [
+      "repo:AnthusAI/Pilobol.us:ref:refs/heads/main",
+      "repo:AnthusAI@152415604/Pilobol.us@1358579276:ref:refs/heads/main",
+      "repo:AnthusAI/Pilobol.us:ref:refs/heads/staging",
+      "repo:AnthusAI@152415604/Pilobol.us@1358579276:ref:refs/heads/staging",
+    ],
+    "immutable OIDC subject: the CI role trusts both subject forms for each branch",
+  );
+
+  const privateSite = structuredClone(pilobolExample);
+  privateSite.autoDeploy = false;
+  const privateTemplate = synthesizeSite("pilobol-private", privateSite);
+  assert.equal(resourcesOfType(privateTemplate, "AWS::IAM::Role").some((role) => role.Properties.RoleName === "pilobol-us-github-deploy"), false, "autoDeploy false: no deploy role");
+  assert.equal(Object.keys(privateTemplate.Outputs).includes("GithubDeployRoleArn"), false, "autoDeploy false: no deploy output");
+  assert.equal(resourcesOfType(privateTemplate, "AWS::Amplify::Branch").every((branch) => branch.Properties.EnableAutoBuild === true), true, "autoDeploy false: Amplify keeps auto-build");
 
   const prospectusSite = JSON.parse(fs.readFileSync(path.join(shell, "examples/p-apyr-us.site.json"), "utf8"));
   prospectusSite.cms.prospectusAccountsApiStageArn = "arn:aws:execute-api:us-east-1:712236451410:abc123defg/api";

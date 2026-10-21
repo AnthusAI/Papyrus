@@ -1,0 +1,28 @@
+{
+  "id": "PPY-0609efc6-a39b-49e8-ab68-9f349bff055d",
+  "title": "Every site deploys automatically on merge to main",
+  "description": "Ryan's rule (2026-10-21): every site deploys automatically through DevOps when a change merges to main. Manual deploys are acceptable only during development. Infra creation is pre-approved for this epic; never delete resources.\n\nAcceptance for every site below: an empty commit merged to main starts the site's build and deploy with no manual step, and the run finishes green and updates the live site (check with curl: the deployed artefact or an etag/last-modified changes).\n\nSites that fail the rule today (evidence from 2026-10-21):\n- kanb.us (Kanbus-web, account kanbus-production 494166748521): no CI at all. The Amplify app and the kanbus-web-infra pipeline described in infra/README.md were never created. The 2026-10-21 deploy was a local projection pushed with a script (S3PageWriter) plus a CloudFormation change set on kanbus-web-site.\n- apricity.anth.us (Apricity-web, stack apricity-marketing-publication in papyrus-production 712236451410): no source-triggered build (no Amplify app or CodeBuild project for the marketing site); published today by running the amplify.yml commands locally. Its develop and main have drifted apart.\n- pr.ospect.us (Prospectus-web): the prospectus-marketing pipeline's push trigger did not fire.\n- chattic.us (Chattic.us-web, account 340169921348): the Verify stage was broken by a stale buildspec (fixed today, pipeline execution fab36a3c succeeded), but a merge to main (PR #39) still did not start the pipeline; execution 686038ea was started by hand. GitHub Actions CI on this repo also fails before starting jobs (payment/spending-limit message).\n- cyclotron.anth.us (Cyclotron-web, account cyclotron-production 682849160744): merge to main (PR #148) did not start the cyclotron-marketing pipeline; execution b2c1ed01 was started by hand.\n- aurit.us (Auritus-web, papyrus-production): no Amplify app for it; merging to main publishes nothing. Published today by running scripts/publish_s3.py by hand.\n\nApproved paths: GitHub OIDC role + GitHub Actions publish job, or the planned CodeBuild/CodePipeline per repo. Never delete resources.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "3bf6c5f4-6e42-49ff-bfe2-1e6d1fd091b2",
+      "author": "home",
+      "text": "Status 2026-10-21 (evening). WORKING (merge starts a deploy by itself, though the CodePipeline V2 push trigger lags 7-13 minutes): chattic.us (execution 5a5f9ea1 from PR #39 merge 94d2ac2), cyclotron.anth.us (a693ed7b from #148), pr.ospect.us (a046e997 from #13 fa0324c9, plus 61d50510, ed1c0928, 07ffcfe2 from earlier merges), tactus.anth.us and p.apyr.us (Amplify main builds), Threat Intelligence and read.p.apyr.us. BUILT BUT BLOCKED on one human console action each (CodeConnections cannot be authorised from the CLI): kanb.us (stack kanbus-web-site-pipeline, connection kanbus-web-github a59fcb14-cccc-4bda-b075-ea8e81b743c3 in 494166748521 PENDING; Kanbus-web PR #7), apricity.anth.us (stack apricity-marketing-pipeline, Apricity-web PR #11, develop/main drift reconciled by PR #12) and aurit.us (stack auritus-marketing-pipeline, Auritus-web PR #13) both use connection auritus-web-github 47db2fa9-ffa7-4879-85b4-6b1dc54c37ba in 712236451410 PENDING. Someone must open Developer Tools > Settings > Connections (us-east-1) and choose Update pending connection, then merge an empty commit to main for the acceptance check. NEW GAPS found by the rollout agents: merges to main did not start Amplify builds for Distinctive-web (app d2xke8ygmrzqpp), and the Pilobol.us and Anth.us-web apps (d1eiwl0gedkmnj, d7s858igkyct5) (release jobs started by hand); GitHub Actions never starts on private repos org-wide (billing): Cyclotron docs, Hard-Decisions docs workflows needed workflow_dispatch. Being investigated.",
+      "created_at": "2026-10-21T16:19:20.686665Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T15:53:35.131374Z",
+  "updated_at": "2026-10-21T16:19:20.687194Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

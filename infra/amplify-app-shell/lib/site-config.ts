@@ -69,11 +69,25 @@ export type AmplifyAppShellSiteConfig = {
   };
   papyrusVersion: string;
   storagePreviewPrefix?: string;
+  /**
+   * Merge-to-main deploy from GitHub Actions through OIDC. When true (the default) the stack creates the
+   * `<siteId>-github-deploy` role and turns off Amplify's own auto-build on the production branches, so the
+   * public repository's workflow is the only trigger. Set false for a site whose repository is private:
+   * private repositories get no Actions minutes, so Amplify's own repository-connected auto-build stays on.
+   */
+  autoDeploy: boolean;
   github?: {
     owner: string;
     repo: string;
     branches: string[];
     ciCanDeployInfra: boolean;
+    /**
+     * GitHub's numeric ids of the owner and the repository. Repositories with the immutable OIDC subject
+     * (`repo:<owner>@<ownerId>/<repo>@<repoId>:ref:...`, see `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`)
+     * present that form instead of `repo:<owner>/<repo>:ref:...`; with both ids set, roles trust both forms.
+     */
+    ownerId?: number;
+    repoId?: number;
   };
 };
 
@@ -81,6 +95,23 @@ export type CmsSiteConfig = AmplifyAppShellSiteConfig & { cms: CmsConfig };
 
 export function hasCmsApp(config: AmplifyAppShellSiteConfig): config is CmsSiteConfig {
   return config.cms !== undefined;
+}
+
+export function resolveGithubRepository(config: Pick<AmplifyAppShellSiteConfig, "repository" | "github">): { owner: string; repo: string } {
+  if (config.github) return { owner: config.github.owner, repo: config.github.repo };
+  const [owner, repo] = config.repository.replace("https://github.com/", "").split("/");
+  return { owner, repo };
+}
+
+/** The OIDC `sub` values a GitHub Actions run on `ref` of the site's repository can present. */
+export function githubOidcSubjects(config: Pick<AmplifyAppShellSiteConfig, "repository" | "github">, ref: string): string[] {
+  const { owner, repo } = resolveGithubRepository(config);
+  const subjects = [`repo:${owner}/${repo}:ref:refs/heads/${ref}`];
+  const { ownerId, repoId } = config.github ?? {};
+  if (ownerId !== undefined && repoId !== undefined) {
+    subjects.push(`repo:${owner}@${ownerId}/${repo}@${repoId}:ref:refs/heads/${ref}`);
+  }
+  return subjects;
 }
 
 export const DEFAULT_CI_BRANCHES = ["main", "staging"];
@@ -399,7 +430,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "autoDeploy", "github"],
     "site",
   );
 
@@ -452,11 +483,14 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     fail("cms.stagingPreview", "must not be set when cms.staging is false");
   }
 
+  const autoDeploy = record.autoDeploy ?? true;
+  if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
+
   let github: AmplifyAppShellSiteConfig["github"];
   if (record.github !== undefined) {
     if (cms === undefined) fail("github", "requires cms (the CI role is scoped to the CMS app)");
     const githubRecord = requireObject(record.github, "github");
-    rejectUnknownKeys(githubRecord, ["owner", "repo", "branches", "ciCanDeployInfra"], "github");
+    rejectUnknownKeys(githubRecord, ["owner", "repo", "branches", "ciCanDeployInfra", "ownerId", "repoId"], "github");
     const owner = requireString(githubRecord.owner, "github.owner", GITHUB_OWNER_PATTERN, "plain GitHub login");
     const repo = requireString(githubRecord.repo, "github.repo", GITHUB_REPO_PATTERN);
     if (repository !== `https://github.com/${owner}/${repo}`) {
@@ -476,7 +510,15 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     }
     const ciCanDeployInfra = githubRecord.ciCanDeployInfra ?? false;
     if (typeof ciCanDeployInfra !== "boolean") fail("github.ciCanDeployInfra", "must be a boolean");
-    github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean };
+    const optionalId = (value: unknown, name: string): number | undefined => {
+      if (value === undefined) return undefined;
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) fail(name, "must be a positive integer (GitHub numeric id)");
+      return value as number;
+    };
+    const ownerId = optionalId(githubRecord.ownerId, "github.ownerId");
+    const repoId = optionalId(githubRecord.repoId, "github.repoId");
+    if ((ownerId === undefined) !== (repoId === undefined)) fail("github", "ownerId and repoId must be set together");
+    github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean, ...(ownerId !== undefined ? { ownerId, repoId } : {}) };
   }
 
   const hasDomain = cms?.domainName !== undefined || reader?.domainName !== undefined;
@@ -499,6 +541,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     reader,
     papyrusVersion,
     storagePreviewPrefix,
+    autoDeploy: autoDeploy as boolean,
     github,
   };
 

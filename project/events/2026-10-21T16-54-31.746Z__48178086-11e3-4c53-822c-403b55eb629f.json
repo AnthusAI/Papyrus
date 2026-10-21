@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "48178086-11e3-4c53-822c-403b55eb629f",
+  "issue_id": "PPY-e62dc72a-6977-4251-a7cc-d6899913fd19",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T16:54:31.746Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Scaffold the Data Parade publication repo and CMS app shell",
+    "description": "Repo DataParade-io/DataParade-newsroom (private, Git Flow, develop and main). Standard app shell (infra/site.json, siteId dataparade, brand data-parade), Papyrus 5.12.0. CMS Amplify app d35q7zv4zad2we created by stack amplify-app-shell-dataparade-cms in papyrus-production. ACM certificate for dataparade.anth.us issued, validation CNAME in the anth.us zone. Private repo: Amplify auto-build deploys on merge to main (autoDeploy false once the Papyrus release with merge-to-main OIDC deploys is adopted).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": []
+  }
+}

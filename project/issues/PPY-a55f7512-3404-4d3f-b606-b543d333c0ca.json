@@ -3,17 +3,25 @@
   "title": "Unify Markus version pins across the fleet",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e1e37399-1c71-4ced-b685-d9a8c4a92c75",
+      "author": "home",
+      "text": "Fleet pinned to papyrus-newsroom 5.12.0 and anthus-markus 0.13.0 (policy >=0.13.0,<0.14, or via the [markus] extra), verified from each repo main and its green deploy: Tactus-web #18, Chattic.us-web #40, Cyclotron-web #150, Prospectus-web #14 (CMS backend pin also 5.12.0), Auritus-web #14, Papyrus-web #19, Markus #34, Biblicus #100, Cyclotron #82, Kanbus #530, Biased-Decisions #140, Hard-Decisions #3; already 5.12.0: kanb.us, pilobol.us, distinctive-mark.com, anth.us, threat-intelligence.anth.us, read.p.apyr.us. 5.10.0 had a bug (content-actions Lambda lacked humanus; Papyrus #467/#469) so 5.12.0 is the floor. Kanbus's own product package pins anthus-markus 0.5.1 (product, not a site).",
+      "created_at": "2026-10-21T17:11:20.203693Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:50.783507Z",
-  "updated_at": "2026-10-21T00:22:50.783565Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T17:11:20.252293Z",
+  "closed_at": "2026-10-21T17:11:20.252269Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

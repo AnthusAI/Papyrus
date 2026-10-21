@@ -3,17 +3,25 @@
   "title": "Cyclotron-web: drop the stale npm update anthus-footer step from the pipeline buildspec",
   "description": "infra/lib/cyclotron-marketing-pipeline-stack.ts still runs npm update anthus-footer (a no-op now the package is gone). Remove at the next owner CDK change, with its test.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 4,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2f9693dd-d866-46f1-8279-627b8bcb9ce6",
+      "author": "home",
+      "text": "Done 2026-10-21: the stale 'npm update anthus-footer' step removed from the Cyclotron marketing pipeline stack code; stack CyclotronMarketingPipeline updated via change set drop-footer-step (4 Modify, no Add/Remove/Replace), UPDATE_COMPLETE; build project buildspec no longer mentions anthus-footer.",
+      "created_at": "2026-10-21T17:11:22.267396Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T10:57:17.569879Z",
-  "updated_at": "2026-10-21T10:57:17.569905Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T17:11:22.319914Z",
+  "closed_at": "2026-10-21T17:11:22.319885Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

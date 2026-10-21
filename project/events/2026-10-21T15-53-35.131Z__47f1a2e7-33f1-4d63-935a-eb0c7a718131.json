@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "47f1a2e7-33f1-4d63-935a-eb0c7a718131",
+  "issue_id": "PPY-0609efc6-a39b-49e8-ab68-9f349bff055d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T15:53:35.131Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every site deploys automatically on merge to main",
+    "description": "Ryan's rule (2026-10-21): every site deploys automatically through DevOps when a change merges to main. Manual deploys are acceptable only during development. Infra creation is pre-approved for this epic; never delete resources.\n\nAcceptance for every site below: an empty commit merged to main starts the site's build and deploy with no manual step, and the run finishes green and updates the live site (check with curl: the deployed artefact or an etag/last-modified changes).\n\nSites that fail the rule today (evidence from 2026-10-21):\n- kanb.us (Kanbus-web, account kanbus-production 494166748521): no CI at all. The Amplify app and the kanbus-web-infra pipeline described in infra/README.md were never created. The 2026-10-21 deploy was a local projection pushed with a script (S3PageWriter) plus a CloudFormation change set on kanbus-web-site.\n- apricity.anth.us (Apricity-web, stack apricity-marketing-publication in papyrus-production 712236451410): no source-triggered build (no Amplify app or CodeBuild project for the marketing site); published today by running the amplify.yml commands locally. Its develop and main have drifted apart.\n- pr.ospect.us (Prospectus-web): the prospectus-marketing pipeline's push trigger did not fire.\n- chattic.us (Chattic.us-web, account 340169921348): the Verify stage was broken by a stale buildspec (fixed today, pipeline execution fab36a3c succeeded), but a merge to main (PR #39) still did not start the pipeline; execution 686038ea was started by hand. GitHub Actions CI on this repo also fails before starting jobs (payment/spending-limit message).\n- cyclotron.anth.us (Cyclotron-web, account cyclotron-production 682849160744): merge to main (PR #148) did not start the cyclotron-marketing pipeline; execution b2c1ed01 was started by hand.\n- aurit.us (Auritus-web, papyrus-production): no Amplify app for it; merging to main publishes nothing. Published today by running scripts/publish_s3.py by hand.\n\nApproved paths: GitHub OIDC role + GitHub Actions publish job, or the planned CodeBuild/CodePipeline per repo. Never delete resources.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

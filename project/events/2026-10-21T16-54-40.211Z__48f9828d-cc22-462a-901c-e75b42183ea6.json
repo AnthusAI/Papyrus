@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "48f9828d-cc22-462a-901c-e75b42183ea6",
+  "issue_id": "PPY-24772b01-2688-4c4d-971b-fbb1360a4503",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T16:54:40.211Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add the O'Reilly agentic code review article as a Reference",
+    "description": "https://www.oreilly.com/radar/agentic-code-review/ added as a pending Reference with no label; the accept label is recorded by Ryan through his delegation.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+    "labels": []
+  }
+}

@@ -1,0 +1,40 @@
+# Copy to <site repo>/.github/workflows/deploy.yml (PUBLIC repositories only).
+# CI runs on every push and pull request; a green push to main starts the Amplify job for
+# that exact commit through GitHub OIDC. Replace the CI steps with the repo's own checks,
+# and the app id and siteId with the site's (stack outputs CmsAppId and GithubDeployRoleArn).
+name: CI and deploy
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build --if-present
+      - run: npm test --if-present
+
+  deploy:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    uses: AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml@main
+    with:
+      app-id: dxxxxxxxxxxxxx
+      role-to-assume: arn:aws:iam::712236451410:role/<siteId>-github-deploy

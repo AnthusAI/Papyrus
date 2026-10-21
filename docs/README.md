@@ -2,11 +2,21 @@
 
 One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md); start there. Pages marked (archive) are historical logs and are not maintained.
 
+## Features at a glance
+
+- [agent-readable-sites.md](agent-readable-sites.md): Markdown twins, llms.txt, Accept negotiation, page actions, feeds, sitemap and robots on Markus sites.
+- [steering-and-relevance.md](steering-and-relevance.md): doctrine, include and exclude decisions, the relevance Cyclotron (Beta), category steering, and what is not built.
+- [sources-and-monitoring.md](sources-and-monitoring.md): the Hacker News Monitor (Beta), email, Slack, research dispatch, source-site enrichers.
+- [editor-agents.md](editor-agents.md): editor, reporter, copywriter and researcher procedures, editorial checks, story versions.
+- [knowledge-base.md](knowledge-base.md): concepts wiki, taxonomy, graph, context packs, the trending report (Beta), Biblicus.
+- [newsletter.md](newsletter.md): signup capture (Live); sending is not built.
+
 ## Start here
 
 - [how-papyrus-works.md](how-papyrus-works.md): taxonomy and ontology model, solver vs renderer, content boundary, cloud credentials.
 - [code-map.md](code-map.md): where the main files live.
 - [how-a-publish-flows.md](how-a-publish-flows.md): what happens when an editor saves or publishes, and what to do when it looks wrong.
+- [multi-tenancy.md](multi-tenancy.md): several publications on one backend, with `--tenant`.
 - [content-item-lifecycle.md](content-item-lifecycle.md): one content item and one lifecycle, with a configurable name (default Story).
 - [verification.md](verification.md): what to run before calling a change done, plus the reader browser smoke test.
 - [local-preview.md](local-preview.md): `npm run dev:preview` seeded newsroom Board with no AWS, plus headless screenshots for reviews.
@@ -24,6 +34,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [video-pipeline.md](video-pipeline.md): `papyrus videos` with VideoML, plus the agent rules for video work.
 - [favicon-pipeline.md](favicon-pipeline.md): generating favicon assets from the theme.
 - [public-surface.md](public-surface.md): what an anonymous visitor to a static Markus site can reach.
+- [public-forms.md](public-forms.md): the public form endpoint for contact forms and newsletter signups.
 
 ## Sites, hosting and deploys
 
@@ -34,11 +45,14 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
 - [standard-site.md](standard-site.md): the approved design for the standard Papyrus site.
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
+- [hosting/edge-under-the-cms-backend.md](hosting/edge-under-the-cms-backend.md): design notes (status: design only) for putting each site edge under its CMS backend.
 - [plugins.md](plugins.md): deploy-time site plugins.
 - [google-oauth-setup.md](google-oauth-setup.md): Google sign-in for a publication.
 - [aws-sandbox-personal.md](aws-sandbox-personal.md): standing up a personal Amplify sandbox.
 - [hosting/](hosting/): Amplify build spec examples, edge notes and Pilobolus DNS and front door files.
 - [migrations/](migrations/): per-site migration notes (copy backend, p.apyr.us, pilobol.us).
+- [migrations/app-shell-repository.md](migrations/app-shell-repository.md): connecting the Amplify apps to the site repository from `infra/site.json`.
+- [migrations/tenant-scoped-ids.md](migrations/tenant-scoped-ids.md): rollout order for tenant-scoped ids and adopting older records.
 - [production-content-operations.md](production-content-operations.md): targeted production content refreshes through the IAM authoring CLI.
 
 ## Newsroom
@@ -51,6 +65,9 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [category-steering-runbook.md](category-steering-runbook.md): pointer to the category-steering skill.
 - [reference-processing-terminology.md](reference-processing-terminology.md): vocabulary for reference workflows.
 - [inbound-email-submissions.md](inbound-email-submissions.md): suggesting references by email.
+- [reference-intake/user-session-intake.md](reference-intake/user-session-intake.md): pending Reference intake with an editor session.
+- [monitoring-cloud.md](monitoring-cloud.md): the Hacker News collector and router in AWS.
+- [monitoring-hn-pilot.md](monitoring-hn-pilot.md): the local Hacker News monitor worker.
 - [console-chat-runbook.md](console-chat-runbook.md): the editor-only console chat on `/newsroom`.
 - [slack-agent.md](slack-agent.md): the Slack channel for the console agent.
 - [newsroom-organizer-release.md](newsroom-organizer-release.md): the organizer layout and read-only Board release.
@@ -65,6 +82,10 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [cyclotron-ti-end-to-end-check.md](cyclotron-ti-end-to-end-check.md): the runbook that checks delegated Reference approval and Cyclotron training on a deployed site.
 - [cyclotron-chatgpt-test-prompt.md](cyclotron-chatgpt-test-prompt.md): the prompt for a ChatGPT research session that tests the deployed flow.
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
+- [editorial-checks.md](editorial-checks.md): Humanus editorial checks, policies and editor feedback.
+- [editorial-context.md](editorial-context.md): the mission, policy and section guidance that agents and checks read.
+- [story-reporting.md](story-reporting.md): story versions, reference links and the reporting trail.
+- [biblicus-1-14-upgrade.md](biblicus-1-14-upgrade.md): Biblicus catalog changes and upgrade steps.
 
 ## CLI and API
 

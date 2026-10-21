@@ -337,6 +337,60 @@ throwaway workflow on a listed branch (allowed: `amplify list-jobs`; denied:
 `iam list-users`), and confirm a run from an unlisted branch fails at the
 assume-role step.
 
+## Deploy on merge to main
+
+A merge to `main` always deploys, with no manual step. How depends on whether the site's
+repository is public, because GitHub Actions minutes are free for public repositories and not
+for private ones.
+
+| Repository | CI | CD (the deploy) |
+| --- | --- | --- |
+| Public | GitHub Actions runs the repo's tests and build | A green push to `main` makes the same workflow start the Amplify job through GitHub OIDC and wait for it. No keys are stored anywhere. Amplify's own auto-build is **off** on the production branches |
+| Private | None in Actions (zero minutes) | All in AWS: Amplify's own repository-connected auto-build, or CodePipeline/CodeBuild fed by CodeConnections |
+
+Public sites get everything from the app shell, so a new site needs no extra infrastructure:
+
+1. **The role.** Unless `site.json` sets `"autoDeploy": false`, the stack creates
+   `<siteId>-github-deploy` (output `GithubDeployRoleArn`). Its trust policy is the GitHub OIDC
+   provider, audience `sts.amazonaws.com`, subject exactly
+   `repo:<owner>/<repo>:ref:refs/heads/main` (the repository comes from `github` or, without
+   it, from `repository`; a renamed repository must be updated in `site.json`, because the
+   OIDC subject carries the repository's current name). Most of our repositories use GitHub's
+   **immutable subject**, `repo:<owner>@<ownerId>/<repo>@<repoId>:ref:refs/heads/main`: check
+   with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`
+   (`use_immutable_subject`). Set `github.ownerId` and `github.repoId` (the numeric ids from
+   `gh api repos/<owner>/<repo> -q .id` and `.owner.id`) in `site.json` and the roles trust both
+   forms; without the ids an immutable-subject repository fails at the assume-role step. Its only permissions are
+   `amplify:StartJob` and `amplify:GetJob` on `apps/<appId>/branches/main/jobs/*` of the site's
+   app (and the reader app of a `markus-static` site). It is separate from the broader
+   `<siteId>-github-ci` role, which stays optional.
+2. **Auto-build off.** The same stack sets `enableAutoBuild: false` on the production branches
+   so nothing builds twice. Staging branches keep their own setting.
+3. **The workflow.** Copy
+   [`infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml`](../infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml)
+   to `.github/workflows/deploy.yml`, replace its CI steps with the repository's own checks and
+   fill in the app id (`CmsAppId`) and the role ARN. Its `deploy` job calls the reusable
+   workflow `AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml`, which assumes the role,
+   runs `aws amplify start-job --job-type RELEASE --commit-id <the merged sha>` and polls
+   `get-job` until it succeeds or fails. The Amplify job therefore records the real commit id,
+   and a failed build fails the workflow. Do not put the job in a GitHub environment: the role
+   trusts the branch subject only.
+4. **The OIDC provider** is account-global. `aws iam list-open-id-connect-providers` must list
+   `token.actions.githubusercontent.com` (see [CI access without keys](#ci-access-without-keys));
+   create it once with `GithubOidcProviderStack` only when the account lacks it.
+
+Rolling out to an existing site: bump `@anthusai/papyrus` and `papyrusVersion` to the release
+that has this feature **in the same change** as the workflow. The production build runs
+`papyrus-infra deploy`, so a build on an older pin would redeploy the old template and remove
+the role. After the stack has the role, the first merge to `main` is the proof: the workflow
+run shows the job id, and `aws amplify list-jobs` shows the merged commit id.
+
+Private sites keep `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
+CodePipeline. If a repository-connected Amplify app answers the push webhook but starts no
+job, check that the branch has `enableAutoBuild` true, that exactly one Amplify app is
+connected to the repository branch, and CloudTrail for the `amplify.amazonaws.com` webhook
+events before replacing it with a pipeline.
+
 ## Authoring role and the CLI
 
 Every app-shell stack creates the role `<siteId>-papyrus-authoring`
@@ -391,7 +445,8 @@ Copy into the site's runbook and fill in:
 
 - [ ] Amplify GitHub App connected for `<siteId>-cms` (date: ____)
 - [ ] Amplify GitHub App connected for `<siteId>-reader`, static sites only (date: ____)
-- [ ] OIDC role ARN: `arn:aws:iam::335163751677:role/<siteId>-github-ci`
+- [ ] OIDC role ARN: `arn:aws:iam::<account>:role/<siteId>-github-ci`
+- [ ] Merge-to-main deploy (public repo): `<siteId>-github-deploy` exists, `.github/workflows/deploy.yml` calls the reusable workflow, an empty commit merged to `main` produced an Amplify job with its commit id (date: ____)
 - [ ] Secrets live in SSM only (nothing in GitHub secrets or Amplify variables)
 - [ ] Old PAT secret (`amplify/github-app-token`) deleted
 
