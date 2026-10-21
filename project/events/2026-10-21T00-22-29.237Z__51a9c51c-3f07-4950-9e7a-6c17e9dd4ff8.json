@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "51a9c51c-3f07-4950-9e7a-6c17e9dd4ff8",
+  "issue_id": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:29.237Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "One standard Papyrus front end for every Papyrus site",
+    "description": "Decision (Ryan, 2026-10-20): pay off front-end debt early. Every Papyrus/Markus site renders through ONE standard front end in Papyrus core (StandardMarkusProjector configured by projection.json). Sites keep only theme (CSS + tokens), brand assets, nav/redirect data and a few named hooks. Core owns: RSS and Atom feeds, sitemap with lastmod, robots, 404, canonical/Open Graph/Twitter/JSON-LD, listings/pagination/tags, accessible components, staging guard, pattern redirects as data, calls to action and forms, consent analytics.\n\nPilots: Distinctive Mark (sections, custom content types, hooks) and Pilobol.us (no sections: the reference case for a publication without sections). Then the small product sites (Papyrus-web, Prospectus-web, Kanbus-web, Auritus-web, Apricity-web), docs sites, the framework marketing sites that embed Markus prose (Chatticus, Tactus, Cyclotron-web; shared header/footer component), then Threat Intelligence and the read.p.apyr.us reader (no static projection today), and Anth.us last in gated phases (production).\n\nParity per site: every published URL before/after (status, headers, normalised DOM, head metadata, sitemap URL set, redirects, feed validity), intentional differences allow-listed with reasons.\n\nAlso: unify Markus pins (fleet ranges from 0.5.1 to git SHAs; latest 0.13.0); live gaps found in the inventory (missing sitemaps/robots on most sites, p.apyr.us 403 on missing pages, pr.ospect.us canonical ending /index.html).",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

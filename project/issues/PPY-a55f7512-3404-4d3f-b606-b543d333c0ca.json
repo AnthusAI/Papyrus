@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a55f7512-3404-4d3f-b606-b543d333c0ca",
+  "title": "Unify Markus version pins across the fleet",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:22:50.783507Z",
+  "updated_at": "2026-10-21T00:22:50.783565Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

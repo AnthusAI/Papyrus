@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a88fe988-0926-4f10-93da-78041e5dbe0f",
+  "issue_id": "PPY-283b448b-c2e1-42a4-9b61-449918d59632",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:22:46.632Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Threat Intelligence and the read.p.apyr.us reader onto static projection",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}
