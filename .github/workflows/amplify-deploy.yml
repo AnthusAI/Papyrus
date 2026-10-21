@@ -1,0 +1,92 @@
+# Reusable workflow: start an Amplify RELEASE job for the commit that just passed CI on main,
+# and wait for it. AWS access is GitHub OIDC only (no stored keys): the caller passes the
+# `<siteId>-github-deploy` role from the Papyrus app shell, which trusts exactly
+# repo:<owner>/<repo>:ref:refs/heads/main and may only amplify:StartJob/GetJob on that app's branch.
+#
+# Public repositories only. Private repositories get no free Actions minutes; their deploys run
+# in AWS (CodePipeline/CodeBuild or Amplify's own repository-connected auto-build).
+#
+# Caller (see infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml):
+#   deploy:
+#     needs: ci
+#     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#     permissions: { id-token: write, contents: read }
+#     uses: AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml@main
+#     with:
+#       app-id: d1234567890
+#       role-to-assume: arn:aws:iam::712236451410:role/<siteId>-github-deploy
+name: Deploy to Amplify
+
+on:
+  workflow_call:
+    inputs:
+      app-id:
+        description: Amplify app id (the CMS app, or the reader app for a reader-only site)
+        required: true
+        type: string
+      role-to-assume:
+        description: ARN of the <siteId>-github-deploy role
+        required: true
+        type: string
+      branch-name:
+        description: Amplify branch to build
+        required: false
+        type: string
+        default: main
+      region:
+        required: false
+        type: string
+        default: us-east-1
+      timeout-minutes:
+        description: How long to wait for the Amplify job
+        required: false
+        type: number
+        default: 60
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.role-to-assume }}
+          aws-region: ${{ inputs.region }}
+          role-session-name: gh-deploy-${{ github.run_id }}
+
+      - name: Start the Amplify job for this commit and wait for it
+        env:
+          APP_ID: ${{ inputs.app-id }}
+          BRANCH_NAME: ${{ inputs.branch-name }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+          COMMIT_ID: ${{ github.sha }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          subject="$(printf '%s' "${COMMIT_MESSAGE:-deploy ${COMMIT_ID}}" | head -n 1 | cut -c1-200)"
+          job_id="$(aws amplify start-job \
+            --app-id "$APP_ID" --branch-name "$BRANCH_NAME" --job-type RELEASE \
+            --commit-id "$COMMIT_ID" --commit-message "$subject" \
+            --query 'jobSummary.jobId' --output text)"
+          echo "Started Amplify job ${job_id} on ${APP_ID}/${BRANCH_NAME} for commit ${COMMIT_ID}"
+          deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+          while :; do
+            status="$(aws amplify get-job --app-id "$APP_ID" --branch-name "$BRANCH_NAME" --job-id "$job_id" \
+              --query 'job.summary.status' --output text)"
+            echo "job ${job_id}: ${status}"
+            case "$status" in
+              SUCCEED) break ;;
+              FAILED|CANCELLED) echo "::error::Amplify job ${job_id} ended ${status}"; exit 1 ;;
+            esac
+            if [ "$(date +%s)" -ge "$deadline" ]; then echo "::error::Timed out waiting for job ${job_id}"; exit 1; fi
+            sleep 20
+          done
+          {
+            echo "### Amplify deploy"
+            echo "- app \`${APP_ID}\`, branch \`${BRANCH_NAME}\`, job \`${job_id}\`"
+            echo "- commit \`${COMMIT_ID}\`: ${status}"
+          } >> "$GITHUB_STEP_SUMMARY"

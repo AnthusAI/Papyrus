@@ -69,6 +69,13 @@ export type AmplifyAppShellSiteConfig = {
   };
   papyrusVersion: string;
   storagePreviewPrefix?: string;
+  /**
+   * Merge-to-main deploy from GitHub Actions through OIDC. When true (the default) the stack creates the
+   * `<siteId>-github-deploy` role and turns off Amplify's own auto-build on the production branches, so the
+   * public repository's workflow is the only trigger. Set false for a site whose repository is private:
+   * private repositories get no Actions minutes, so Amplify's own repository-connected auto-build stays on.
+   */
+  autoDeploy: boolean;
   github?: {
     owner: string;
     repo: string;
@@ -81,6 +88,12 @@ export type CmsSiteConfig = AmplifyAppShellSiteConfig & { cms: CmsConfig };
 
 export function hasCmsApp(config: AmplifyAppShellSiteConfig): config is CmsSiteConfig {
   return config.cms !== undefined;
+}
+
+export function resolveGithubRepository(config: Pick<AmplifyAppShellSiteConfig, "repository" | "github">): { owner: string; repo: string } {
+  if (config.github) return { owner: config.github.owner, repo: config.github.repo };
+  const [owner, repo] = config.repository.replace("https://github.com/", "").split("/");
+  return { owner, repo };
 }
 
 export const DEFAULT_CI_BRANCHES = ["main", "staging"];
@@ -399,7 +412,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "autoDeploy", "github"],
     "site",
   );
 
@@ -452,6 +465,9 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     fail("cms.stagingPreview", "must not be set when cms.staging is false");
   }
 
+  const autoDeploy = record.autoDeploy ?? true;
+  if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
+
   let github: AmplifyAppShellSiteConfig["github"];
   if (record.github !== undefined) {
     if (cms === undefined) fail("github", "requires cms (the CI role is scoped to the CMS app)");
@@ -499,6 +515,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     reader,
     papyrusVersion,
     storagePreviewPrefix,
+    autoDeploy: autoDeploy as boolean,
     github,
   };
 
