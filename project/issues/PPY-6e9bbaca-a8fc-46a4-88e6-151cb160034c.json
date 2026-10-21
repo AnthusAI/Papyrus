@@ -3,17 +3,25 @@
   "title": "Migrate Prospectus-web (pr.ospect.us) onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e1bf7417-34c3-410e-ad20-69c487c17580",
+      "author": "home",
+      "text": "Done and live. Prospectus-web PR #10 (merged): web/projection.json + web/css/site-theme.css + web/hooks.py replace build_via_papyrus.py, publication_shell.py and the CMS projector (-144 lines; +77 hooks, +41 build, +29 settings). Built with papyrus ops content project --all --from-dir (Papyrus 5.1.0; core PR #408). Canonical links fixed (/ instead of /index.html); sitemap.xml, robots Sitemap line and noindex 404 now served. Parity vs live, 41 URLs: 0 blocking (DOM identical on 8 pages). Deployed by the prospectus-marketing CodePipeline in cyclotron-production (682849160744), Source/Build/Deploy Succeeded; live check: all old URLs same status, canonical https://pr.ospect.us/, sitemap.xml 200, robots 200, unknown path 404.",
+      "created_at": "2026-10-21T02:59:10.704859Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:06.988684Z",
-  "updated_at": "2026-10-21T00:48:06.988739Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T02:59:20.562640Z",
+  "closed_at": "2026-10-21T02:59:11.472455Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

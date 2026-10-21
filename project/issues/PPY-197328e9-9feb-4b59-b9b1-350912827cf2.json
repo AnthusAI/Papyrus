@@ -3,17 +3,30 @@
   "title": "Migrate Apricity-web (cut over) onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1ad4243a-a59c-4246-9d1d-f520184c9dcf",
+      "author": "home",
+      "text": "Code migrated and published to the candidate; cut-over blocked. Apricity-web PRs #6 and #7 (merged): web/projection.json + web/hooks.py + theme replace the SiteChrome/build_markus_site rendering in scripts/publication.py (136 -> 99 lines; +47 hooks, +24 settings). URLs now directory style (/articles/about/) because the candidate CloudFront function redirects *.html to a directory (the old build would have 404ed). Parity vs previous candidate build: 0 blocking (DOM identical on 3 pages). Candidate published with the documented publish --execute (account 712236451410 asserted) to apricity-marketing-publication-publicationbucket-2sgzw22pef9k; candidate distribution E27MARBCWWS6SV (d1z2wrz905nioh.cloudfront.net): / , /articles/about/, sitemap, robots, 404 verified. Cut-over blocked: apricity.anth.us is currently the Apricity application (CNAME to the legacy Amplify app d2n7w4kwqyfwn4 in 335163751677); the app must first move to play.apricity.anth.us (Amplify domain association and Cognito callback/logout URLs are legacy-account writes, not authorized). Then: ACM cert + alias on the candidate stack (none today) and repoint the apricity CNAME in the anth.us zone Z04979341DPRV5BDQNZMG (papyrus-production, authoritative). No Amplify app/CodeBuild project exists for Apricity-web yet.",
+      "created_at": "2026-10-21T02:59:11.752796Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:13.513729Z",
-  "updated_at": "2026-10-21T00:48:13.513799Z",
+  "updated_at": "2026-10-21T02:59:28.972723Z",
   "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "small-sites-migration"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
