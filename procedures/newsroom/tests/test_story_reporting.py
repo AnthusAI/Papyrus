@@ -45,6 +45,8 @@ class FakeAuthoringClient:
     def list_by_index(self, index_name, key_value, *, limit=100):
         if index_name == "itemsByLineageAndVersion":
             return [row for row in self.tables.get("Item", {}).values() if row["lineageId"] == key_value]
+        if index_name == "referencesByLineageAndVersion":
+            return [row for row in self.tables.get("Reference", {}).values() if row.get("lineageId") == key_value and row["id"] != key_value]
         if index_name == "semanticRelationsBySubjectState":
             return [row for row in self.tables.get("SemanticRelation", {}).values() if row["subjectStateKey"] == key_value]
         raise AssertionError(index_name)
@@ -56,8 +58,8 @@ def client_with_one_story():
         "section": None, "status": "draft", "stage": "reporting", "headline": "Sandbox escape", "title": "Sandbox escape", "aliases": [],
         "metadata": json.dumps({"frontMatterYaml": 'title: "Sandbox escape"'}), "bodyMarkus": "First draft.", "createdAt": NOW, "updatedAt": NOW,
     }
-    reference = {"id": "reference-pwn-ai-v1", "lineageId": "reference-pwn-ai", "versionNumber": 1}
-    return FakeAuthoringClient({"Item": {LINEAGE: first_version}, "Reference": {"reference-pwn-ai-v1": reference, "reference-pwn-ai": reference}})
+    reference = {"id": "reference-pwn-ai-v1", "lineageId": "reference-pwn-ai", "versionNumber": 1, "versionState": "current"}
+    return FakeAuthoringClient({"Item": {LINEAGE: first_version}, "Reference": {"reference-pwn-ai-v1": reference}})
 
 
 class StoryReportingTests(unittest.TestCase):
@@ -114,6 +116,12 @@ class StoryReportingTests(unittest.TestCase):
         self.assertEqual(rows[0]["citationKey"], "pwn2026")
         self.assertEqual(rows[0]["note"], "primary source")
         self.assertEqual(rows[0]["addedAt"], NOW)
+
+    def test_a_reference_can_be_linked_by_its_lineage_id(self):
+        client = client_with_one_story()
+        link_reference_to_story(client, LINEAGE, "reference-pwn-ai", role="cited", actor="Ruling analyst", now=NOW)
+        rows = story_references(client, LINEAGE)
+        self.assertEqual([row["role"] for row in rows], ["cited"])
 
     def test_messages_are_ordered_attributed_and_kept_in_one_thread_per_story(self):
         client = client_with_one_story()

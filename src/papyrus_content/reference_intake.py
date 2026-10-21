@@ -142,38 +142,48 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     # Full batch validation precedes all writes. Existing legacy rows participate
     # in URL deduplication without recuration or replacement.
     existing = client.list_records("Reference")
-    results = []
-    for item in items:
-        matches = []
-        for row in existing:
-            if row.get("corpusId") != corpus_id or row.get("versionState") != "current":
-                continue
-            try:
-                same = canonical_source_url(row.get("sourceUri")) == item["source_uri"]
-            except IntakeError:
-                same = False
-            if same:
-                matches.append(row)
-        if len({r["lineageId"] for r in matches}) > 1:
-            raise IntakeError("Multiple existing source lineages match this URL; editorial resolution is required.")
-        if matches:
-            ref = max(matches, key=lambda r: r.get("versionNumber", 0))
-            if str(ref.get("importRunId", "")).startswith("reference-user-intake-"):
-                first = client.get_record("Reference", f"{ref['lineageId']}-v1")
-                if first is None:
-                    raise IntakeError("The initial intake record is missing.")
-                _provenance(client, first, publication)
-        else:
-            digest = hashlib.sha256(f"{publication}\n{corpus_id}\n{item['source_uri']}".encode()).hexdigest()
-            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-            plan = reference_record({**item, "item_id": f"url-{digest}", "curation_status": "pending"}, {
-                "corpusId": corpus_id, "importRunId": f"reference-user-intake-{digest}",
-                "now": now, "actor": f"user:{actor}",
-            })
-            proposed = plan["expected"]
-            proposed.pop("metadata", None)
-            ref = _create_once(client, "Reference", proposed)
-            _provenance(client, ref, publication)
-            existing.append(ref)
-        results.append({k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")})
+    results = [
+        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}")
+        for item in items
+    ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
+
+
+def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str) -> dict:
+    """Returns the current Reference for a source URL in a corpus, creating a pending one when none exists.
+
+    ``item`` carries a canonical ``source_uri`` plus ``title``, ``media_type`` and ``ingestion_rationale``;
+    ``existing`` is the Reference listing, extended with any record created here.
+    """
+    matches = []
+    for row in existing:
+        if row.get("corpusId") != corpus_id or row.get("versionState") != "current":
+            continue
+        try:
+            same = canonical_source_url(row.get("sourceUri")) == item["source_uri"]
+        except IntakeError:
+            same = False
+        if same:
+            matches.append(row)
+    if len({r["lineageId"] for r in matches}) > 1:
+        raise IntakeError("Multiple existing source lineages match this URL; editorial resolution is required.")
+    if matches:
+        ref = max(matches, key=lambda r: r.get("versionNumber", 0))
+        if str(ref.get("importRunId", "")).startswith("reference-user-intake-"):
+            first = client.get_record("Reference", f"{ref['lineageId']}-v1")
+            if first is None:
+                raise IntakeError("The initial intake record is missing.")
+            _provenance(client, first, publication)
+    else:
+        digest = hashlib.sha256(f"{publication}\n{corpus_id}\n{item['source_uri']}".encode()).hexdigest()
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        plan = reference_record({**item, "item_id": f"url-{digest}", "curation_status": "pending"}, {
+            "corpusId": corpus_id, "importRunId": f"reference-user-intake-{digest}",
+            "now": now, "actor": actor,
+        })
+        proposed = plan["expected"]
+        proposed.pop("metadata", None)
+        ref = _create_once(client, "Reference", proposed)
+        _provenance(client, ref, publication)
+        existing.append(ref)
+    return {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}
