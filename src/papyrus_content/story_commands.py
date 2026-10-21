@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from .graphql_authoring import create_authoring_client
@@ -124,6 +125,67 @@ def stories_show(flags: list[str]) -> None:
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tlatest version {latest.get('versionNumber')} of {len(versions)}")
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+
+
+SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def stories_set_slug(flags: list[str]) -> None:
+    """papyrus stories set-slug --story <lineage|id> --slug <new> [--force] [--no-trigger] [--dry-run]"""
+    from .projection_trigger import SKIP_LINE, item_task, projection_enabled, trigger_projection
+    from .publishing import ItemFields, publish_item, published_item_id_for, save_item
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories set-slug")
+    story = _required_option(options, "story")
+    slug = _required_option(options, "slug")
+    if not SLUG_PATTERN.match(slug):
+        raise ValueError("--slug must be lowercase letters, digits and single hyphens (for example my-story-title).")
+    client, _ = create_authoring_client()
+    item = client.get_record("Item", story)
+    if item is None:
+        item = latest_story_version(client, story)
+    item_id = item["id"]
+    lineage_id = item.get("lineageId") or item_id
+    if item.get("slug") == slug:
+        print(f"stories\tset-slug\tunchanged\t{item_id}\t{slug}")
+        return
+    clashes = [
+        row for row in client.list_by_index("itemBySlug", slug)
+        if row.get("section") == item.get("section") and (row.get("lineageId") or row["id"]) != lineage_id
+    ]
+    if clashes:
+        raise ValueError(f"Slug {slug!r} is already used by {clashes[0]['id']} in this publication section.")
+    published = item.get("status") == "published" or client.get_record("PublishedItem", published_item_id_for(lineage_id)) is not None
+    if published and not options.get("force"):
+        raise ValueError(
+            f"{item_id} is already published; changing its address needs --force "
+            "(the old address is kept as a redirect)."
+        )
+    print(f"stories\tset-slug\t{item_id}\t{item.get('slug')} -> {slug}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        return
+    metadata = item.get("metadata")
+    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    aliases = list(item.get("aliases") or [])
+    if published and item.get("slug") and item["slug"] not in aliases:
+        aliases.append(item["slug"])
+    fields = ItemFields(
+        type=item["type"], slug=slug, section=item.get("section"), front_matter_yaml=metadata.get("frontMatterYaml"),
+        body_markus=item.get("bodyMarkus") or "", aliases=aliases, id=item_id,
+    )
+    actor = normalize_string(options.get("author-label")) or "papyrus-cli"
+    save_item(client, fields, actor=actor, allow_published_slug_change=published)
+    print(f"stories\tset-slug\tsaved\t{item_id}\t{slug}")
+    if not published:
+        return
+    publish_item(client, item_id, actor=actor)
+    if not projection_enabled():
+        return
+    if options.get("no-trigger"):
+        print(SKIP_LINE)
+    else:
+        print(f"stories\tset-slug\tprojection\t{json.dumps(trigger_projection(item_task(item_id, unpublished=False)))}")
 
 
 def stories_create(flags: list[str]) -> None:

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1fcd1cf3-e3a8-4087-957c-073f1dedbd99",
+  "title": "Checks cover front-matter prose, not only the body",
+  "description": "Wire items have no body: their text is the title and the one- or two-sentence take in front matter; rulings and commentary also carry dek, summary and ownerTakeaway there. checkItemVersion (and check-drafts) should check those fields as segments with their own provenance (field name), so wire takes, deks and owner takeaways are copy-edited too.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:37:54.147154Z",
+  "updated_at": "2026-10-21T03:37:54.147177Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

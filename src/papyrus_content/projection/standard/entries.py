@@ -87,6 +87,7 @@ class StandardEntry:
     tags: tuple[str, ...]
     link: str | None         # external target of a link-only item
     derived: dict            # fields a site's ``derive`` hook computed from the item (a tier, a week); open for new shapes
+    draft: bool = False      # served and noindexed, but never selected by a listing, a tag page or a feed
 
     @property
     def slug(self) -> str:
@@ -115,7 +116,7 @@ class StandardEntry:
             return card
         return card + [
             self.item_id, self.updated, self.type, self.canonical, self.feed_eligible, self.noindex, self.listed,
-            list(self.tags), self.section.name if self.section else None, self.summary.front_matter, self.derived,
+            list(self.tags), self.section.name if self.section else None, self.summary.front_matter, self.derived, self.draft,
         ]
 
 
@@ -125,18 +126,20 @@ def entry_title(summary: ItemSummary) -> str:
     return clipped(parsed or summary.page_title or summary.title or summary.slug.replace("-", " ").title(), 200)
 
 
-def build_entries(items, settings: StandardSettings, policy: UrlPolicy, derive=None) -> list[StandardEntry]:
+def build_entries(items, settings: StandardSettings, policy: UrlPolicy, derive=None, accept=None) -> list[StandardEntry]:
     entries = []
     for summary in items:
-        entry = entry_for_summary(summary, settings, policy, derive)
+        entry = entry_for_summary(summary, settings, policy, derive, accept)
         if entry is not None:
             entries.append(entry)
     return entries
 
 
-def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: UrlPolicy, derive=None) -> StandardEntry | None:
+def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: UrlPolicy, derive=None, accept=None) -> StandardEntry | None:
     if PurePosixPath(summary.output_path).name.startswith(("_", ".")):
         return None
+    if accept is not None and not accept(summary):
+        return None  # the site's item_filter hook leaves this item out
     if settings.showcase is not None and summary.section == settings.showcase.section:
         return None  # showcase items are data for the logo wall, not pages
     if summary.section is None and summary.slug == "index":
@@ -152,7 +155,12 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
     has_page = section.pages if section is not None else True
     key = policy.item_key(section, summary.slug) if has_page else None
     link = first_text(front_matter, (section.link_field, "url", "sourceUrl", "link")) if (section is not None and not has_page) else None
-    draft = truthy(front_matter.get("draft")) or str(front_matter.get("status", "")).strip().lower() == "draft"
+    listings = settings.listings
+    draft = (
+        truthy(front_matter.get("draft"))
+        or str(front_matter.get("status", "")).strip().lower() == "draft"
+        or (bool(listings.draft_field) and str(front_matter.get(listings.draft_field, "")).strip().lower() in listings.draft_values)
+    )
     robots = str(front_matter.get("robots", "")).lower()
     noindex = draft or truthy(front_matter.get("noindex")) or "noindex" in robots
     feed_flag = front_matter.get("feed")
@@ -185,6 +193,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         tags=tags_of(front_matter.get("tags")),
         link=link,
         derived=dict(derive(summary) or {}) if derive is not None else {},
+        draft=draft,
     )
 
 
@@ -197,3 +206,14 @@ def order_of(entry: "StandardEntry") -> tuple:
 
 def newest_first(entries) -> list[StandardEntry]:
     return sorted(entries, key=lambda entry: (entry.date, entry.updated, entry.slug), reverse=True)
+
+
+def sorted_by(entries, sort: str = "date", ties: str = "slug-desc") -> list[StandardEntry]:
+    """``entries`` in a collection's or include's order: newest first (equal dates by slug), by front matter ``order``, or by title."""
+    if sort == "order":
+        return sorted(entries, key=order_of)
+    if sort == "title":
+        return sorted(entries, key=lambda entry: entry.title.casefold())
+    if ties == "slug-asc":  # the date alone decides; a stable sort keeps the slug order among equal dates, also when reversed
+        return sorted(sorted(entries, key=lambda entry: entry.slug), key=lambda entry: entry.date, reverse=True)
+    return newest_first(entries)

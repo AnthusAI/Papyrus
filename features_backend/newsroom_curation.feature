@@ -18,6 +18,13 @@ Feature: Account-scoped reference curation in Papyrus
     Then the operation is refused before protected reads or writes
     And the UI discards the old snapshot and draft state
 
+  Scenario: The Papyrus routes pass only what the person's role allows to the curation peer
+    Given a central curation peer for the publication
+    When a member and a viewer of the account open References through the Papyrus routes
+    Then the routes pass monitoring and a source URL preview to the peer for the member
+    And the viewer can read monitoring but cannot start an import
+    And the peer never receives the viewer's import
+
   Scenario: An unconfigured publication uses the released CMS
     Given no curation host has been configured
     When the editor opens References

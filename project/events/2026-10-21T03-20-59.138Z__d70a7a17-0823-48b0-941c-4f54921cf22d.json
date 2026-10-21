@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d70a7a17-0823-48b0-941c-4f54921cf22d",
+  "issue_id": "PPY-12e5e073-fe8f-4566-be55-4a7c51f75176",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:20:59.138Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M4 New publication from a bundle, and scheduled backups",
+    "description": "Create a new publication from a template bundle (e.g. a starter editorial setup) and schedule private bundle exports to the site's backup storage, with retention, as the data half of disaster recovery.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+    "labels": []
+  }
+}

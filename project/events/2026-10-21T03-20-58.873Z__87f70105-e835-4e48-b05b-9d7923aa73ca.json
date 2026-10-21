@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "87f70105-e835-4e48-b05b-9d7923aa73ca",
+  "issue_id": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:20:58.873Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publication data: one structured import and export of everything that is not code",
+    "description": "A Papyrus publication's identity and editorial operation live in its backend as data, not in the site repository: editorial mission and policy, sections and their guidance, writing guidelines (Humanus policies) and editorial-check settings, content shapes, monitor configurations and query sets, curation labels, references, stories and articles with their versions, media, and redirects. Today each has its own partial path (sections import, import-doctrine, starter-pack import, catalog import, import-markus) and nothing exports them together.\n\nGoal: a clean, simple, structured way to export all of it as one versioned bundle (a directory or archive with a manifest and one file per kind, human-readable, diffable), and to import a bundle into another backend (a new site, staging, a restore) with a dry-run plan, create-only by default and an explicit replace mode. Private by default: bundles hold private editorial material and personal data, so they are never committed to a public repository and personal data can be excluded.\n\nUses: starting a new publication from a template; moving a site (the standard front-end migration); backups and restores; reviewing editorial configuration changes as diffs; agents and people working on the same data offline.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

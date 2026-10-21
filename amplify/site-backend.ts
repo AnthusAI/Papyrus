@@ -42,6 +42,9 @@ import { knowledgeQuery } from "./functions/knowledge-query/resource";
 import { manageUserRole } from "./functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
 import { newsroomSummary } from "./functions/newsroom-summary/resource";
+import { derivePublicFormOrigins } from "./functions/public-forms/origins";
+import { publicForms } from "./functions/public-forms/resource";
+import { wirePublicForms } from "./functions/public-forms/wire";
 import { procedureAction } from "./functions/procedure-action/resource";
 import { readerSettings } from "./functions/reader-settings/resource";
 import { emailSubmissionProcessor } from "./functions/email-submission-processor/resource";
@@ -122,6 +125,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     modelAttachmentUpload,
     newsroomSummary,
     procedureAction,
+    publicForms,
     readerSettings,
     emailSubmissionProcessor,
     sesInboundReceive,
@@ -707,8 +711,18 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     }),
   );
 
+  const publicFormsEndpoint = wirePublicForms(backend, {
+    allowedOrigins: derivePublicFormOrigins({
+      explicit: site.publicForms?.allowedOrigins,
+      hosts: [activeBrand?.readerDeployment?.domain, ...(publication?.distribution?.aliases ?? [])],
+      urls: [site.revalidateBaseUrl, ...siteAuthRedirectUrls(authConfig)],
+    }),
+    honeypotFields: site.publicForms?.honeypotFields,
+  });
+
   backend.addOutput({
     custom: {
+      publicForms: { endpoint: publicFormsEndpoint },
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,

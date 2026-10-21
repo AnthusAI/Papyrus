@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b17cd6f4-1d67-4639-a5bd-9873879671d2",
+  "issue_id": "PPY-c385b260-64d7-4aa9-a1c1-a1ace70714db",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T10:57:17.569Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cyclotron-web: drop the stale npm update anthus-footer step from the pipeline buildspec",
+    "description": "infra/lib/cyclotron-marketing-pipeline-stack.ts still runs npm update anthus-footer (a no-op now the package is gone). Remove at the next owner CDK change, with its test.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 4,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": []
+  }
+}

@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
+from .projection_trigger import SKIP_LINE, item_task, projection_enabled, skipped_projection, trigger_projection
 from .publishing import DryRunClient, PublishError, publish_item, unpublish_item
 from .rebuild_trigger import (
     DEFAULT_READER_BRANCH,
@@ -40,12 +41,17 @@ def resolve_item_id(client, options: dict[str, Any]) -> str:
     return matches[0]["id"]
 
 
-def run_site_triggers(client, options: dict[str, Any], result) -> dict[str, Any]:
+def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: bool = False) -> dict[str, Any]:
+    projecting = projection_enabled()
     if options.get("no-trigger"):
-        return {}
+        return {"projection": skipped_projection()} if projecting else {}
     triggers: dict[str, Any] = {}
+    if projecting:
+        triggers["projection"] = trigger_projection(item_task(result.item_id, unpublished=unpublished))
+    if not result.changed:
+        return triggers
     item = client.get_record("Item", result.item_id) or {}
-    if item.get("slug"):
+    if item.get("slug") and not projecting:
         try:
             revalidated = trigger_pretext_revalidation([item["slug"]], None)
         except Exception as error:  # noqa: BLE001 - a trigger failure never fails the publish
@@ -60,7 +66,7 @@ def run_site_triggers(client, options: dict[str, Any], result) -> dict[str, Any]
     return triggers
 
 
-def _run(flags: list[str], label: str, action: Callable[..., Any]) -> None:
+def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublished: bool = False) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, label)
     client, claims = create_authoring_client()
@@ -79,7 +85,9 @@ def _run(flags: list[str], label: str, action: Callable[..., Any]) -> None:
         print(json.dumps(payload, indent=2) if options.get("json") else f"{label} failed [{error.code}]: {error.message}")
         raise SystemExit(1)
     planned = [] if apply else target.planned
-    triggers = run_site_triggers(client, options, result) if apply and result.changed else {}
+    triggers: dict[str, Any] = {}
+    if apply and (result.changed or projection_enabled()):
+        triggers = run_site_triggers(client, options, result, unpublished=unpublished)
     payload = {
         "ok": True,
         "dryRun": not apply,
@@ -98,7 +106,10 @@ def _run(flags: list[str], label: str, action: Callable[..., Any]) -> None:
     for entry in planned:
         print(f"  would {entry['operation']} {entry['model']} {entry['id']}")
     for key, outcome in triggers.items():
-        print(f"  {key}: {json.dumps(outcome)}")
+        if key == "projection" and outcome.get("skipped"):
+            print(f"  {SKIP_LINE}")
+        else:
+            print(f"  {key}: {json.dumps(outcome)}")
 
 
 def content_publish(flags: list[str]) -> None:
@@ -106,7 +117,7 @@ def content_publish(flags: list[str]) -> None:
 
 
 def content_unpublish(flags: list[str]) -> None:
-    _run(flags, "content unpublish", unpublish_item)
+    _run(flags, "content unpublish", unpublish_item, unpublished=True)
 
 
 def content_rebuild(flags: list[str]) -> None:

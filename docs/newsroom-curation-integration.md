@@ -109,3 +109,52 @@ Offline checks: owner-composed publication SDK/ASGI harness, new host and actual
 flow pytest modules, shared-control and controller TS checks, isolated Vite build,
 typecheck with a type-only missing-output declaration, focused ESLint and browser
 screenshots. The declaration provides no runtime Amplify outputs or credentials.
+
+## Production routes (PPY-58f107 phase A)
+
+`app/api/newsroom/curation/{context,publication,priming}` are Node route handlers
+(`lib/curation-routes.ts`) that sit between the References tab and a curation
+upstream, the central Cyclotron lab. They run no Python and hold no storage. Per
+request, in order: the upstream is configured (`PAPYRUS_CURATION_UPSTREAM_URL`,
+https, else 503 `curation_not_configured`); Origin matches and the body is JSON
+under 4 MB; the sealed Prospectus session has a selected account; Prospectus
+re-authorizes that account now; the three pins match the session account and the
+site publication (`PAPYRUS_CURATION_PUBLICATION_ID`, default the site brand id);
+the role grants the capability (priming imports and other mutations need
+`review`). The request is forwarded with the person's current access token (read
+from the cookie on that call), no redirects, a 15 s timeout and an 8 MB response
+cap. Before anything is returned the person is re-authorized again and the echoed
+pins and publication envelope must equal the request. Any failure is a refusal or
+a generic 503; the token is never returned or logged.
+
+`components/newsroom-curation-bootstrap.tsx` mounts `NewsroomCurationProvider`
+around the References view. It reads the Prospectus session, and only for a
+signed-in person with a selected account asks for `context`. Everything else
+leaves the provider empty, so the released CMS is unchanged.
+
+### Site environment variables
+
+| Variable | Meaning |
+| --- | --- |
+| `PAPYRUS_CURATION_UPSTREAM_URL` | Base URL of the curation upstream (the central Cyclotron lab API). It must be an **origin with no path**: `https://host`, with no trailing path, query or credentials. The routes call `/api/newsroom/curation/<route>` on it, so a path you add is discarded rather than honored. It must be `https`; `http` is accepted only for loopback (local review). |
+| `PAPYRUS_CURATION_PUBLICATION_ID` | The publication id the pins must match and that the upstream sees. Optional: defaults to the site brand id. |
+
+**Unset means off (fail closed).** With `PAPYRUS_CURATION_UPSTREAM_URL` unset,
+blank, not `https` (non-loopback), or carrying credentials, every curation route
+answers 503 `curation_not_configured`. The References bootstrap treats any
+non-OK `context` response as no provider, so "Import a file" stays hidden and
+only "Paste a URL" renders. There is no fallback upstream.
+
+Expected value for the shared lab: `PAPYRUS_CURATION_UPSTREAM_URL=https://o01d28uizl.execute-api.us-east-1.amazonaws.com`.
+This is the value to set when the site is activated; it is **not** set anywhere
+yet. These are Amplify branch variables on the SSR app (set per branch, outside
+this repository). `amplify.yml` copies `^PAPYRUS_CURATION_` into `.env.production`
+at build time (checked by `npm run test:amplify-env-export`) so both reach the
+server at runtime. Sites whose generated build spec (the app shell) or own
+`amplify.yml` already exports every `^PAPYRUS_` variable need no change.
+
+Nothing is activated by this code. Phase B needs separate approval: the upstream
+(lab priming routes, S3 priming storage authority, extraction worker and provider
+budget), `PAPYRUS_CURATION_UPSTREAM_URL` and `PAPYRUS_CURATION_PUBLICATION_ID` on
+the site, `cms.prospectusAccountsApiStageArn` (PPY-0c5242), and the site's
+Prospectus registration.

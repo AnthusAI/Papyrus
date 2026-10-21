@@ -3,17 +3,25 @@
   "title": "Anth.us onto the standard front end (production, gated phases)",
   "description": "",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "78a0e669-d257-41c2-bcee-8436b0388ab7",
+      "author": "home",
+      "text": "Closed with phases a, b, d, e live and verified; c and f not reached, filed under PPY-e8db7c. Anth.us-web PRs 96 (a: SEO, sitemap, robots, guard to core, Papyrus 5.4.0), 97 (b: rendition catalog replaces site-state.json), 98 (d: render state object, items rendered in process), 99 (e: pattern redirects as data, edge function compiled by core; stack papyrus-edge-anth-us change set phase-e-core-edge-function). Papyrus PRs 433 (PageHead.headline), 436 (directory canonical URLs, /404, papyrus-infra compile-edge-function), 438 (RenditionCatalog.all_records), 439 (deployed edge template); releases 5.4.0 and 5.5.0. Each phase: parity on every URL (1,107 live, 908 local) with 0 blocking differences, 10 screenshots (home, article, listing, about, engage at 1440 and 390) pixel-identical or within 0.02/255, a 3 s poll through the change with no non-200 HTTP response, live crawl equal to the local projection. Evidence: STATE.md and rep-*.json under .baselines/std-anthus in the Projects directory.",
+      "created_at": "2026-10-21T06:56:17.591629Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:22:48.695547Z",
-  "updated_at": "2026-10-21T00:22:48.695613Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T06:57:03.378416Z",
+  "closed_at": "2026-10-21T06:56:17.621278Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

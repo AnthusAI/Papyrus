@@ -1,0 +1,25 @@
+{
+  "id": "PPY-a395e460-187e-4c77-8179-ce06051abc04",
+  "title": "Anth.us: decide the legacy full build and the MDX normaliser",
+  "description": "build_via_papyrus.py main(), stage(), write_generated, relocate_pages, copy_static_root, write_custom_rules, anthus_content.discover and the Gatsby-era MDX path (anthus_mdx.py 1224 lines, mdx_codemod.py 914 lines) only serve the CMS staging preview (infra/site.json cms.stagingPreview.buildCommand) and local builds from the content submodule. The CMS app's staging branch (d7s858igkyct5) has never run a job. If Ryan agrees the preview is not wanted (or is replaced by a projection with drafts), delete them, bin/dev-server.py, bin/deploy-amplify.sh, bin/apply_custom_rules.py, customHttp.yml and cms.stagingPreview. Check first: projection of the 130 current items without normalize_body differs only by trailing whitespace (measured 2026-10-21); the {{pictogram}} token feature would go with it.",
+  "type": "task",
+  "status": "closed",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e8db7cd6-190c-4f97-8d3d-9677c2eee85c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T06:56:10.109228Z",
+  "updated_at": "2026-10-21T11:52:56.564087Z",
+  "closed_at": "2026-10-21T11:52:56.564054Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet 5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

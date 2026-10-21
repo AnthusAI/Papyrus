@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bfa70ab4-ca88-440e-ae4c-1b4ec132d884",
+  "issue_id": "PPY-c3046a62-9f6e-4399-924e-2e98a9e1917b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:20:58.945Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M1 Bundle format and export",
+    "description": "Define the publication bundle: manifest (schema version, Papyrus version, publication key, exported-at, kinds and counts, content hashes) plus one structured file per kind (YAML or JSON) and content files (Markus) and media by path. papyrus publication export --out DIR [--kinds ...] [--exclude-personal-data] covering mission, policy, sections, writing guidelines and editorial-check settings first, then shapes, monitors, references and labels, stories and articles, media, redirects. Deterministic output so two exports diff cleanly.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3fd4064c-8f00-4a07-aed2-2e70487c28d9",
+    "labels": []
+  }
+}

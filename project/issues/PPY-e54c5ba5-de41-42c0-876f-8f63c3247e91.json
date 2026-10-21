@@ -3,7 +3,7 @@
   "title": "Migrate Auritus-web (cut over aurit.us) onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Code migrated and published to the candidate; cut-over blocked. Auritus-web PR #6 (merged): web/projection.json + web/hooks.py replace web/projector.py (211) and scripts/project_local.py (66) (-277; +93 hooks, +74 settings, offers.py kept 76). Core additions (5.1.0): static.copy and sitemap.extra (PR #416), body_class hook and authored home description (PR #413). Parity vs previous candidate, 118 URLs: 0 blocking (DOM identical on 21 pages; 404 intentionally regenerated). Behave suite 14 scenarios pass against the 5.1.0 handler (submodule bumped to cb5dd78). Candidate: published to bucket auritus-marketing-publication-publicationbucket-d3u4zvo1lmsr (papyrus-production 712236451410) with scripts/publish_s3.py; candidate distribution E1VM6E6VYPBQ0B (dmliybjlyvh56.cloudfront.net): all 20 sitemap URLs 200, .html redirect, 404, robots, sitemap. Cut-over needs: aurit.us zone Z0891357UAST0841IMEZ is authoritative in the LEGACY account (dig NS matches); needs a papyrus-production zone with the existing records and a registrar NS change (Ryan), an ACM cert for aurit.us in us-east-1, an alias parameter on the marketing-publication stack (none today), the apex alias record, and live-route parity of the legacy Next export vs web/site (README: hashes differ). No Amplify app is connected to Auritus-web (GitHub handshake pending), so there is no push-triggered pipeline yet.",
       "created_at": "2026-10-21T02:59:11.679640Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a65b3de8-67fd-49fb-a50c-446604350bce",
+      "author": "home",
+      "text": "aurit.us is live (2026-10-21 UTC). Cert 58cbc45c-9fee-478f-994d-49954b88b6b2 (us-east-1, papyrus-production 712236451410) validated in legacy zone Z0891357UAST0841IMEZ; alias param on stack auritus-marketing-publication (Auritus-web PR 7); distribution E1VM6E6VYPBQ0B (dmliybjlyvh56.cloudfront.net). aurit.us A and AAAA aliases in the legacy zone now point there; www has no record (unchanged). The first parity pass found the retained docs/examples pages older than live (license wording, sample audio); they were refreshed from live and then matched live text for all 18 routes, all referenced assets 200. Home and pricing carry the new offers-driven content by design. The Amplify domain association for aurit.us on app d1xec2o22j5yq2 was removed to free the alias; app kept. Rollback: re-create that association and point the A alias back at d11nqalufqzgfu.cloudfront.net.",
+      "created_at": "2026-10-21T03:42:03.673310Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T00:48:11.328363Z",
-  "updated_at": "2026-10-21T02:59:28.922791Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T03:42:03.712322Z",
+  "closed_at": "2026-10-21T03:42:03.712294Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",

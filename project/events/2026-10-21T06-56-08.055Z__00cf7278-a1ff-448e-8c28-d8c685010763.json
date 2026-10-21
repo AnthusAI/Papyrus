@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "00cf7278-a1ff-448e-8c28-d8c685010763",
+  "issue_id": "PPY-93816eeb-95df-4899-add1-36ebe803a267",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T06:56:08.055Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us: authored pages as content, retire anthus_pages.py (phase f)",
+    "description": "Phase f of PPY-e329c3, not done. Home, about, engage, ai-solutions, ryan, decision-models, benchmarks, platform index and product chrome are Python HTML (anthus_pages.py 1136 lines, solution_marks.py, arcade_pictograms.py, inquiry_form.py). PPY-d16f64 (include construct, design only) is not implemented, and nothing in core can express the arcade hero, pictogram, case-card or capability-card compositions as Markus content. Until the include construct and block vocabulary exist, these pages can only move into hooks.py page_body functions (same code, not retired). Production copy rules apply to any move: memory notes on featured solutions, Primus credibility section, footer Auritus logo, Built and run for years, free and open source wording, claims honesty.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e8db7cd6-190c-4f97-8d3d-9677c2eee85c",
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7489c046-f019-45d4-af73-a95eeb4406ac",
+  "issue_id": "PPY-fc93e4d9-654d-48e4-ae28-f1a3cc7c2b9c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:34:13.110Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Core: urls.style clean (extensionless URLs) and islands.prerender (server-rendered island HTML)",
+    "description": "Needed by the Cyclotron-web migration (PPY-c6cabf): the live site serves /x for x.html, and its React islands ship server-rendered HTML that the browser hydrates.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": []
+  }
+}

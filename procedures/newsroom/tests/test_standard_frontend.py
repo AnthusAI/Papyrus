@@ -135,6 +135,16 @@ EDGE_CASES = [
     ("/articles/hello.html", "/articles/hello/"),
     ("/404.html", None),
     ("/articles/hello/", None),
+    ("/about", "/about/"),
+    ("/articles/hello", "/articles/hello/"),
+    ("/404", None),
+    ("/", None),
+    ("/index.html", None),
+    ("/articles/index.html", None),
+    ("/articles/page/2/index.html", None),
+    ("/myindex.html", "/myindex/"),
+    ("/sitemap.xml", None),
+    ("/_plugins/papyrus-search.js", None),
 ]
 
 
@@ -277,6 +287,17 @@ def test_json_ld_adds_date_modified_and_publisher():
     data = json.loads(re.search(r'application/ld\+json">(.*?)</script>', head).group(1))
     assert data["@type"] == "NewsArticle" and data["dateModified"] == "2026-02-02" and data["datePublished"] == "2026-01-01"
     assert data["author"] == [{"@type": "Person", "name": "Ann"}] and data["publisher"]["name"] == "Example Press"
+
+
+def test_json_ld_headline_can_differ_from_the_title_that_carries_the_site_name():
+    head = builder(minimal()).build(
+        PageHead(title="Slow water | Example", headline="Slow water", path="/t.html", og_type="article", json_ld_type="Article", published="2026-01-01")
+    )
+    data = json.loads(re.search(r'application/ld\+json">(.*?)</script>', head).group(1))
+    assert data["headline"] == "Slow water"
+    assert '<meta property="og:title" content="Slow water | Example">' in head
+    plain = builder(minimal()).build(PageHead(title="Slow water", path="/t.html", og_type="article", json_ld_type="Article"))
+    assert json.loads(re.search(r'application/ld\+json">(.*?)</script>', plain).group(1))["headline"] == "Slow water"
 
 
 def test_head_has_discovery_links_icons_fonts_and_robots_for_noindex():
@@ -493,6 +514,39 @@ def test_named_hooks_shape_the_page(tmp_path):
         site.cleanup()
 
 
+MAIN_HOOK = '''
+def main(page):
+    if page.kind == "custom":
+        return '<div id="fragment">fragment for ' + page.custom_id + '</div>'
+    if page.kind == "not_found":
+        return '<div id="gone">nothing here</div>'
+    return None
+'''
+
+
+def test_the_main_hook_replaces_the_inside_of_main_and_keeps_the_standard_header_and_footer():
+    pages = [{"id": "shared", "path": "results/shared", "title": "Shared results", "description": "One result.", "dependsOn": [],
+              "image": "/og/shared.png", "imageAlt": "A card about results", "socialTitle": "The results, in one line"}]
+    settings = {**fixture_settings("sectioned"), "hooks": "hooks.py", "pages": pages, "seo": {"imageSize": [1200, 630], "defaultImage": "/og/home.png", "defaultImageAlt": "The home card", "homeSocialTitle": "Home, in one line"}}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "sectioned" / "content", extra_files={"hooks.py": MAIN_HOOK})
+    try:
+        page = site.text("results/shared/index.html")
+        assert '<div id="fragment">fragment for shared</div>' in page
+        assert '<main id="main">' in page and "markus-site-footer" in page and 'class="markus-skip' in page
+        assert '<title>Shared results' in page                                  # the head still takes the page title
+        assert '<meta property="og:title" content="The results, in one line">' in page
+        assert '<meta name="twitter:title" content="The results, in one line">' in page
+        assert '<meta property="og:image" content="/og/shared.png">' in page or "/og/shared.png" in page
+        assert '<meta property="og:image:alt" content="A card about results">' in page
+        assert '<meta name="twitter:image:alt" content="A card about results">' in page
+        assert '<div id="gone">nothing here</div>' in site.text("404.html")
+        assert '<meta property="og:image:alt" content="The home card">' in site.text("404.html")
+        assert '<meta property="og:title" content="Home, in one line">' in site.text("index.html")      # a page on the default image takes its alt text
+        assert "Fords and Crossings" in site.text("essays/index.html")          # a hook that returns None keeps the default
+    finally:
+        site.cleanup()
+
+
 def test_an_unknown_public_function_in_the_hooks_module_is_an_error(tmp_path):
     (tmp_path / "hooks.py").write_text("def mastheed(page):\n    return ''\n")
     with pytest.raises(ValueError, match="unknown hooks: mastheed"):
@@ -596,6 +650,13 @@ def test_the_logo_wall_is_accessible_and_safe(showcase):
     page = showcase.text("built-with/index.html")
     dom = Dom(page)
     assert dom.find("img", src="/assets/acme.svg", alt="Acme Gazette logo", loading="lazy")
+    # One link per tile: named by the visible name, described by the description (never in the alt text).
+    assert 'aria-labelledby="showcase-customer-' in page and 'aria-describedby="showcase-customer-' in page
+    assert re.search(r'<span class="markus-logo-name" id="showcase-customer-\d-name">Acme Gazette</span>', page)
+    assert re.search(r'<span class="markus-logo-description" id="showcase-customer-\d-description">Regional news and weather, published daily</span>', page)
+    assert "Regional news" not in "".join(re.findall(r'alt="[^"]*"', page))
+    assert re.search(r'<span class="markus-logo-text" id="showcase-anthus-0-name">Borealis Review</span><span class="markus-logo-description"', page)   # text-only tile: name is the mark
+    assert 'aria-describedby' not in page[page.index("Cedar Notes") - 200:page.index("Cedar Notes")]                # no description, no describedby
     assert dom.find("a", href="https://borealis.example.org", rel="noopener")      # a text fallback link without a logo
     assert dom.find("section", **{"aria-labelledby": "showcase-customer"})
     assert "javascript:" not in page and "Bad Link" not in page                    # unsafe URLs are skipped
@@ -820,7 +881,7 @@ def test_a_form_with_an_endpoint_has_labelled_fields_a_honeypot_and_the_submit_s
     try:
         page = site.text("contact/index.html")
         dom = Dom(page)
-        assert dom.find("form", **{"data-papyrus-form": "contact", "data-endpoint": "https://forms.example.org/intake"})
+        assert dom.find("form", **{"data-papyrus-form": "contact", "data-endpoint": "https://forms.example.org/intake?form=contact"})
         for field in ("topic", "name", "email", "message"):
             assert f'<label for="form-contact-{field}">' in page
         assert dom.find("input", name="email", type="email", required=None, autocomplete="email")
@@ -945,3 +1006,79 @@ def test_agent_readable_output_can_be_turned_off():
         site.cleanup()
     with pytest.raises(ValueError, match="turn agents.markdown on"):
         standard_settings_from_mapping({"site": {"name": "X"}, "agents": {"markdown": False}})
+
+
+# ------------------------------------------------------------------ page actions
+
+def with_actions(**actions):
+    return ProjectedSite("flat", settings={**fixture_settings("flat"), "pageActions": actions})
+
+
+def test_articles_have_page_actions_with_a_working_no_javascript_fallback(flat):
+    page = flat.text("orchids.html")
+    dom = Dom(page)
+    group = dom.find("div", **{"data-papyrus-page-actions": None})
+    assert group and group[0]["role"] == "group" and group[0]["aria-label"] == "Page actions"
+    assert group[0]["data-markdown"] == "/orchids.md" and group[0]["data-canonical"] == "https://almanac.example.org/orchids.html"
+    assert dom.find("a", href="/orchids.md", **{"data-action": "view"})            # works with JavaScript off
+    assert dom.find("button", type="button", **{"data-action": "copy"})
+    assert dom.find("span", role="status", **{"aria-live": "polite"})
+    assert '<script src="/_plugins/papyrus-page-actions-v1.js' in page
+    assert page.index("markus-page-actions") < page.index('class="markus-document"')       # header placement: above the article
+
+
+def test_page_actions_are_only_on_articles_with_a_twin(flat, sectioned):
+    assert "markus-page-actions" not in flat.text("about.html")                    # a standing page is not an article
+    assert "markus-page-actions" not in flat.text("archive/index.html") and "markus-page-actions" not in flat.text("cycads.html")
+    assert "markus-page-actions" in sectioned.text("essays/slow-water/index.html")
+
+
+def test_ai_destinations_carry_a_short_prompt_with_the_url_and_never_the_page_body():
+    site = with_actions(ai=["chatgpt", "claude", "perplexity"], placement="aside")
+    try:
+        page = site.text("orchids.html")
+        dom = Dom(page)
+        prompt = "Read%20https%3A%2F%2Falmanac.example.org%2Forchids.html%20and%20help%20me%20with%20it."
+        assert dom.find("a", href=f"https://chatgpt.com/?q={prompt}", target="_blank", rel="noopener noreferrer")
+        assert dom.find("a", href=f"https://claude.ai/new?q={prompt}")
+        assert dom.find("a", href=f"https://www.perplexity.ai/search?q={prompt}")
+        assert "Open in ChatGPT" in page and "Open in Claude" in page and "Open in Perplexity" in page
+        assert "Marsh orchids flower" not in " ".join(re.findall(r'href="(https://(?:chatgpt|claude|www\.perplexity)[^"]+)"', page))
+        assert page.index('class="markus-document"') < page.index("markus-page-actions")       # aside placement: after the article
+    finally:
+        site.cleanup()
+
+
+def test_page_actions_can_be_turned_off_or_trimmed():
+    off, trimmed = with_actions(enabled=False), with_actions(actions=["view"])
+    try:
+        assert "markus-page-actions" not in off.text("orchids.html") and "_plugins/papyrus-page-actions-v1.js" not in off.tree
+        page = trimmed.text("orchids.html")
+        assert 'data-action="copy"' not in page and 'data-action="view"' in page
+    finally:
+        off.cleanup()
+        trimmed.cleanup()
+
+
+def test_no_actions_without_markdown_twins():
+    site = ProjectedSite("flat", settings={**fixture_settings("flat"), "agents": {"markdown": False, "llmsTxt": False, "llmsFull": False}})
+    try:
+        assert "markus-page-actions" not in site.text("orchids.html")
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize(
+    "bad, message",
+    [({"placement": "footer"}, "placement"), ({"actions": ["print"]}, "actions"), ({"ai": ["bard"]}, "pageActions.ai"), ({"prompt": "Help me"}, "must contain")],
+)
+def test_bad_page_action_settings_are_rejected(bad, message):
+    with pytest.raises(ValueError, match=message):
+        standard_settings_from_mapping({"site": {"name": "X"}, "pageActions": bad})
+
+
+def test_the_script_follows_the_aria_menu_button_pattern(flat):
+    script = flat.text("_plugins/papyrus-page-actions-v1.js")
+    for needle in ('"aria-haspopup", "menu"', '"aria-expanded"', '"aria-controls"', 'setAttribute("role", "menu")', '"menuitem"', "ArrowDown", "ArrowUp", "Escape", "Home", "End"):
+        assert needle in script, needle
+    assert "gtag" in script and "page_action" in script and "execCommand" in script and "ClipboardItem" in script

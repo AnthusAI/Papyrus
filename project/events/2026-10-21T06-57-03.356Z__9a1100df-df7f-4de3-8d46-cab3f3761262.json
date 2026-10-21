@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9a1100df-df7f-4de3-8d46-cab3f3761262",
+  "issue_id": "PPY-e8db7cd6-190c-4f97-8d3d-9677c2eee85c",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-21T06:57:03.356Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "What PPY-e329c3 left after phases a, b, d and e (all live and verified, see that epic). Phases c and f need the site to run on StandardMarkusProjector with hooks plus the core gaps listed in the two tasks below. Gate for every step: parity on every published URL with 0 blocking differences, using ~/Projects/.baselines/std-anthus/{parity2.py,crawl.py,poll.py,shoot.cjs} (copied into Anth.us-web bin/ by the part 1 closing PR if present).",
+        "to": "What PPY-e329c3 left after phases a, b, d and e (all live and verified, see that epic). Phases c and f need the site to run on StandardMarkusProjector with hooks plus the core gaps listed in the tasks below. Gate for every step: parity on every published URL with 0 blocking differences, using the tooling in the Anth.us-web bin/ directory (parity.py, crawl.py, poll.py, shoot.cjs) and the baselines kept under .baselines/std-anthus in the Projects directory."
+      }
+    }
+  }
+}

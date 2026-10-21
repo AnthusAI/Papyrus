@@ -3,17 +3,25 @@
   "title": "Migrate Papyrus-web (p.apyr.us product site) onto the standard front end",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8ce37a06-83e7-4fe9-9255-0582058d5447",
+      "author": "home",
+      "text": "Done: Papyrus-web PR https://github.com/AnthusAI/Papyrus-web/pull/9 merged and deployed (Amplify job 9). Standard front end (papyrus-newsroom 5.1.0, anthus-markus 0.13.0); parity vs live 0 blocking, 34 allow-listed; robots, sitemap, 404 added. p.apyr.us 403 on missing pages fixed (bucket policy ListBucket via reviewed change set, viewer-request function directory index, 404 error response; infra/edge/apply.py).",
+      "created_at": "2026-10-21T04:07:07.135239Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:04.753170Z",
-  "updated_at": "2026-10-21T00:48:04.753224Z",
-  "closed_at": null,
+  "updated_at": "2026-10-21T04:07:07.175540Z",
+  "closed_at": "2026-10-21T04:07:07.175504Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

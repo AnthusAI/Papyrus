@@ -102,27 +102,34 @@ function pipSpec(): string {
   return (process.env.PAPYRUS_PIP_SPEC ?? "").trim() || `papyrus-newsroom==${toPep440(papyrusVersion())}`;
 }
 
+/** What the first pip install gets: `papyrus-newsroom` with its dependencies, plus the function's own requirements. Empty means skip it. */
+export function firstPipRequirements(options: Pick<PythonBundleOptions, "noDeps" | "requirements">): string[] {
+  return [...(options.noDeps ? [] : [pipSpec()]), ...(options.requirements ?? [])];
+}
+
 function bundleFromPip(outputDir: string, options: PythonBundleOptions): void {
   const extra = (process.env.PAPYRUS_PIP_EXTRA_ARGS ?? "").trim().split(/\s+/).filter(Boolean);
   const python = (process.env.PAPYRUS_PIP_PYTHON ?? "python3").trim();
-  execFileSync(
-    python,
-    [
-      "-m", "pip", "install",
-      "--target", outputDir,
-      "--no-cache-dir",
-      "--platform", "manylinux2014_aarch64",
-      "--implementation", "cp",
-      "--python-version", "3.12",
-      "--only-binary=:all:",
-      // Older pip (e.g. a Python 3.9 build image) checks Requires-Python against the host interpreter, not --python-version.
-      "--ignore-requires-python",
-      ...extra,
-      ...(options.noDeps ? [] : [pipSpec()]),
-      ...(options.requirements ?? []),
-    ],
-    { stdio: "inherit" },
-  );
+  const requirements = firstPipRequirements(options);
+  if (requirements.length > 0) {
+    execFileSync(
+      python,
+      [
+        "-m", "pip", "install",
+        "--target", outputDir,
+        "--no-cache-dir",
+        "--platform", "manylinux2014_aarch64",
+        "--implementation", "cp",
+        "--python-version", "3.12",
+        "--only-binary=:all:",
+        // Older pip (e.g. a Python 3.9 build image) checks Requires-Python against the host interpreter, not --python-version.
+        "--ignore-requires-python",
+        ...extra,
+        ...requirements,
+      ],
+      { stdio: "inherit" },
+    );
+  }
   if (options.noDeps) {
     execFileSync(
       python,

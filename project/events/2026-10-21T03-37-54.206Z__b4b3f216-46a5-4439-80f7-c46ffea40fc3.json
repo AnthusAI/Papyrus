@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b4b3f216-46a5-4439-80f7-c46ffea40fc3",
+  "issue_id": "PPY-05954d55-3fed-48a7-8d04-cd84d8e49de0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:37:54.206Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Drafted judgment questions: make polarity obvious and reviewable",
+    "description": "humanus draft-questions (draftEditorialQuestions) inverted 2 of 30 drafted detectors for a real publication policy: it asked 'does the document have a clear US connection?' and flagged 'yes', which would mark every relevant item. The approval screen for PPY-604f84 must show each question with 'flags when the answer is yes/no' and a sample pass/fail sentence, and offer a one-click flip. Report the inversion pattern to Humanus so draft-questions can self-check polarity against the policy's prohibitions.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": []
+  }
+}
