@@ -37,6 +37,7 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_find_or_register_source",
                 "papyrus_link_story_reference",
                 "papyrus_save_story_version",
+                "papyrus_set_story_slug",
                 "papyrus_story_version",
                 "papyrus_story_versions",
             ],
@@ -68,6 +69,15 @@ class TactusToolsModuleTests(unittest.TestCase):
         self.assertEqual(item["section"], "rulings")
         self.assertEqual(created["stage"], "reporting")
         self.assertEqual(item["lineageId"], created["lineageId"])
+
+    def test_set_story_slug_refuses_a_published_story(self):
+        client = client_with_one_story()
+        client.tables["Item"][LINEAGE]["status"] = "published"
+        client.list_by_index_original = client.list_by_index
+        client.list_by_index = lambda index_name, key_value, **kwargs: [] if index_name == "itemBySlug" else client.list_by_index_original(index_name, key_value, **kwargs)
+        with mock.patch("papyrus_content.story_commands.create_authoring_client", return_value=(client, None)):
+            with self.assertRaisesRegex(ValueError, "already published"):
+                tactus_tools.papyrus_set_story_slug(LINEAGE, "a-better-address", "Ruling analyst")
 
     def test_create_story_rejects_an_unknown_section(self):
         client = client_with_one_story()

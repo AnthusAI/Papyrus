@@ -131,6 +131,23 @@ def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_la
     return find_or_create_source_reference(client, client.list_records("Reference"), publication=publication, corpus_id=corpus, item=item, actor=f"agent:{author_label}")
 
 
+def papyrus_set_story_slug(story: str, slug: str, author_label: str) -> dict:
+    """Give a story's draft its page address (for example in-re-wemby-corporation for the caption
+    In re Wemby Corporation): lowercase letters, digits and single hyphens. New stories start with a
+    placeholder slug. Refuses a published story: an editor changes a live address."""
+
+    import contextlib
+    import io
+
+    from papyrus_content.story_commands import stories_set_slug
+
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        stories_set_slug(["--story", story, "--slug", slug, "--author-label", author_label])
+    lines = [line.split("\t") for line in output.getvalue().splitlines() if line.strip()]
+    return {"slug": slug, "lines": ["\t".join(line) for line in lines]}
+
+
 def papyrus_story_version(version: str) -> dict:
     """Read one story version in full: its YAML front matter and Markus body, with its state and stage.
     Use the version ids from papyrus_story_versions or papyrus_save_story_version."""
