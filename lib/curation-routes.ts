@@ -48,7 +48,30 @@ const PUBLICATION_OPERATION_CAPABILITIES: Record<string, PublicationCapability> 
   replay: "read",
   steer: "steer",
 };
-const FORWARDED_UPSTREAM_REFUSALS = new Set([400, 403, 409, 413, 415]);
+const FORWARDED_UPSTREAM_REFUSALS = new Set([400, 401, 403, 409, 413, 415, 503]);
+
+/** Editor-facing wording for the refusal codes the curation upstream returns. Unknown codes get a generic line. */
+export const UPSTREAM_REFUSAL_MESSAGES: Record<string, string> = {
+  pins_required: "Your account or publication selection is incomplete. Refresh the page and try again.",
+  invalid_request: "That request could not be understood. Refresh the page and try again.",
+  json_required: "That request could not be understood. Refresh the page and try again.",
+  bearer_invalid: "Sign in again: your session expired. Your selection is preserved.",
+  access_refused: "Your account does not have access to this publication.",
+  outside_publication: "That item is outside the publication you selected.",
+  account_changed: "The selected account or publication changed. Refresh and try again.",
+  operation_unavailable: "This action is not available yet.",
+  firewall_overlap: "This example is also in material kept aside for checking results, so it cannot be added.",
+  auto_prime_failed: "Your example could not be fully applied. Check saved history before retrying.",
+  request_too_large: "That request is too large. Try something smaller.",
+  import_too_large: "That file is too large. Try a smaller file.",
+  storage_limit: "This publication has reached its storage limit for imported examples.",
+  authority_unavailable: "Account access could not be confirmed right now. Try again shortly.",
+  priming_not_configured: "Importing examples is not set up for this publication yet.",
+  status_unavailable: "Monitoring is not available right now. Try again shortly.",
+  live_disabled: "Live decisions are switched off for this publication.",
+  no_hosted_transformer: "Adding a reference from a web address is not available. Import a file instead.",
+};
+const GENERIC_UPSTREAM_REFUSAL = "The curation service refused the request. Check saved history before retrying.";
 
 class CurationRefusal extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {
@@ -196,14 +219,21 @@ async function forward(
 }
 
 function sanitizedUpstreamRefusal(status: number, text: string): CurationRefusal {
+  let code = "";
   try {
-    const parsed = JSON.parse(text) as { error?: unknown; code?: unknown };
-    const message = typeof parsed.error === "string" ? parsed.error.slice(0, 300) : "The curation service refused the request.";
-    const code = typeof parsed.code === "string" ? parsed.code.slice(0, 80) : "upstream_refused";
-    return refusal(status, code, message);
+    const parsed = JSON.parse(text) as { code?: unknown };
+    code = typeof parsed.code === "string" ? parsed.code : "";
   } catch {
-    return refusal(status, "upstream_refused", "The curation service refused the request.");
+    code = "";
   }
+  const known = Object.hasOwn(UPSTREAM_REFUSAL_MESSAGES, code);
+  return refusal(status, known ? code : "upstream_refused", known ? UPSTREAM_REFUSAL_MESSAGES[code] : GENERIC_UPSTREAM_REFUSAL);
+}
+
+function validPriming(value: unknown): Record<string, unknown> | null {
+  const priming = value as { listId?: unknown; classifiers?: unknown; transformers?: unknown } | null;
+  if (!priming || typeof priming.listId !== "string" || !priming.listId || !Array.isArray(priming.classifiers) || !priming.classifiers.length) return null;
+  return { listId: priming.listId, classifiers: priming.classifiers, transformers: Array.isArray(priming.transformers) ? priming.transformers : [] };
 }
 
 function contextBootstrap(value: unknown, selection: ProspectusPublishingSelection, publicationId: string): Record<string, unknown> {
@@ -218,7 +248,7 @@ function contextBootstrap(value: unknown, selection: ProspectusPublishingSelecti
   return {
     scope: { accountId: scope.accountId, publicationId: scope.publicationId, bindingRevision: scope.bindingRevision },
     mode: body!.mode,
-    priming: body!.priming ?? null,
+    priming: validPriming(body!.priming),
     capabilities: body!.capabilities.filter((capability): capability is string => typeof capability === "string" && granted.has(capability)),
     bindingRef: body!.bindingRef ?? null,
   };
@@ -294,7 +324,16 @@ export async function handleCurationRoute(request: NextRequest, route: CurationR
       }
       return jsonResponse(answer, 200, pins);
     }
-    return jsonResponse(contextBootstrap(answer, selection, publicationId));
+    const bootstrap = contextBootstrap(answer, selection, publicationId);
+    const bindingRevision = (bootstrap.scope as { bindingRevision: string }).bindingRevision;
+    if (upstream.headers.get("x-cyclotron-account") !== selection.accountId
+      || upstream.headers.get("x-papyrus-publication") !== publicationId
+      || upstream.headers.get("x-papyrus-binding") !== bindingRevision) {
+      throw refusal(502, "upstream_scope_mismatch", "The curation service answered for a different scope.");
+    }
+    return jsonResponse(bootstrap, 200, {
+      "x-cyclotron-account": selection.accountId, "x-papyrus-publication": publicationId, "x-papyrus-binding": bindingRevision,
+    });
   } catch (error) {
     if (error instanceof CurationRefusal) return jsonResponse({ error: error.message, code: error.code }, error.status);
     console.error(`Curation route failed (${error instanceof Error ? error.name : "error"}).`);

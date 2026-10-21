@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { loadCurationBootstrap } from "../components/newsroom-curation-bootstrap";
-import { CURATION_MAXIMUM_REQUEST_BYTES, CURATION_MAXIMUM_RESPONSE_BYTES, handleCurationRoute, primingCapability, type CurationRoute, type CurationRouteOptions } from "../lib/curation-routes";
+import { CURATION_MAXIMUM_REQUEST_BYTES, CURATION_MAXIMUM_RESPONSE_BYTES, UPSTREAM_REFUSAL_MESSAGES, handleCurationRoute, primingCapability, type CurationRoute, type CurationRouteOptions } from "../lib/curation-routes";
 import { PROSPECTUS_SESSION_COOKIE, sealProspectusCookie, type ProspectusSignInRuntime } from "../lib/prospectus-session";
 import { ProspectusAccountsError, ProspectusSiteAccounts, type ProspectusRequest } from "../lib/prospectus-site-identity";
 
@@ -62,7 +62,7 @@ function setup(overrides: Partial<World> = {}, upstream?: (call: UpstreamCall) =
 function defaultUpstream(call: UpstreamCall): Response {
   const headers = { "content-type": "application/json", ...pinHeaders };
   if (call.url.endsWith("/context")) {
-    return Response.json({ scope, mode: "remote", priming: { listId: "examples", classifiers: [{ id: "c", revision: 1 }] }, capabilities: ["read", "review", "decide", "steer"], bindingRef: null });
+    return Response.json({ scope, mode: "remote", priming: { listId: "examples", classifiers: [{ id: "c", revision: 1 }], transformers: [] }, capabilities: ["read", "review"], bindingRef: null }, { headers });
   }
   if (call.url.endsWith("/publication")) return Response.json({ contractVersion: "cyclotron-publication/v1", ...scope, outputs: [] }, { headers });
   return Response.json({ data: { primingContract: {} } }, { headers });
@@ -199,16 +199,29 @@ async function main() {
     assert.equal(contextCall.status, 200);
     assert.equal(upstreamCalls[2].init.method, "GET");
     assert.equal(upstreamCalls[2].init.body, undefined);
-    assert.deepEqual(await contextCall.json(), { scope, mode: "remote", priming: { listId: "examples", classifiers: [{ id: "c", revision: 1 }] }, capabilities: ["read", "review", "decide", "steer"].filter((capability) => ["read", "review", "decide"].includes(capability)), bindingRef: null }, "capabilities are capped at the member role");
+    assert.deepEqual(await contextCall.clone().json(), { scope, mode: "remote", priming: { listId: "examples", classifiers: [{ id: "c", revision: 1 }], transformers: [] }, capabilities: ["read", "review"], bindingRef: null }, "the lab context passes through");
+    assert.equal(contextCall.headers.get("x-papyrus-binding"), "binding-1");
+    const viewerContext = setup({ role: "viewer" });
+    assert.deepEqual((await (await handleCurationRoute(get(), "context", viewerContext.options)).json()).capabilities, ["read"], "capabilities are capped at the viewer role");
   }
 
   // Upstream failures: redirects, refusals, size, bad JSON, throws, timeouts.
   {
     const redirect = setup({}, () => new Response(null, { status: 302, headers: { location: "https://evil.example" } }));
     assert.equal((await handleCurationRoute(post("priming", primingQuery), "priming", redirect.options)).status, 502);
-    const refusedUpstream = setup({}, () => Response.json({ error: "binding moved", code: "account_changed", detail: accessToken }, { status: 409 }));
+    const refusedUpstream = setup({}, () => Response.json({ error: "engine said: " + accessToken, code: "account_changed", detail: accessToken }, { status: 409 }));
     const refusedResponse = await handleCurationRoute(post("publication", statusBody), "publication", refusedUpstream.options);
-    assert.deepEqual([refusedResponse.status, await refusedResponse.json()], [409, { error: "binding moved", code: "account_changed" }], "only the sanitized refusal is forwarded");
+    assert.deepEqual([refusedResponse.status, await refusedResponse.json()], [409, { error: UPSTREAM_REFUSAL_MESSAGES.account_changed, code: "account_changed" }], "only the mapped refusal is forwarded");
+    const labRefusals: Array<[number, string]> = [[400, "pins_required"], [400, "invalid_request"], [401, "bearer_invalid"], [403, "access_refused"], [403, "outside_publication"], [409, "account_changed"], [409, "operation_unavailable"], [409, "firewall_overlap"], [409, "auto_prime_failed"], [413, "request_too_large"], [413, "import_too_large"], [413, "storage_limit"], [415, "json_required"], [503, "authority_unavailable"], [503, "priming_not_configured"], [503, "status_unavailable"], [503, "live_disabled"], [400, "no_hosted_transformer"]];
+    for (const [status, code] of labRefusals) {
+      const lab = setup({}, () => Response.json({ error: "lab words: " + code, code }, { status }));
+      const labResponse = await handleCurationRoute(post("priming", primingQuery), "priming", lab.options);
+      assert.deepEqual([labResponse.status, await labResponse.json()], [status, { error: UPSTREAM_REFUSAL_MESSAGES[code], code }], `${status} ${code}`);
+      assert.doesNotMatch(UPSTREAM_REFUSAL_MESSAGES[code], /engine|classifier|binding|cyclotron|prime|priming|account_|pin/i, `${code}: editor-facing wording`);
+    }
+    const unknownCode = setup({}, () => Response.json({ error: "internal detail", code: "mystery" }, { status: 503 }));
+    const unknownResponse = await handleCurationRoute(post("priming", primingQuery), "priming", unknownCode.options);
+    assert.deepEqual([unknownResponse.status, (await unknownResponse.json()).code], [503, "upstream_refused"], "unknown codes get the generic line");
     const server = setup({}, () => new Response("boom " + accessToken, { status: 500 }));
     const serverResponse = await handleCurationRoute(post("publication", statusBody), "publication", server.options);
     assert.equal(serverResponse.status, 502);
@@ -241,8 +254,14 @@ async function main() {
     assert.equal((await handleCurationRoute(post("publication", statusBody), "publication", wrongEnvelope.options)).status, 502, "envelope account differs");
     const wrongContract = setup({}, () => Response.json({ contractVersion: "other", ...scope }, { headers: pinHeaders }));
     assert.equal((await handleCurationRoute(post("publication", statusBody), "publication", wrongContract.options)).status, 502);
+    const staleHeaders = setup({}, () => Response.json(defaultContext(), { headers: { ...pinHeaders, "x-papyrus-binding": "binding-2" } }));
+    assert.equal((await handleCurationRoute(get(), "context", staleHeaders.options)).status, 502, "context echo differs from its body");
+    const bareContext = setup({}, () => Response.json(defaultContext()));
+    assert.equal((await handleCurationRoute(get(), "context", bareContext.options)).status, 502, "context without echoed pins");
+    const badPriming = setup({}, () => Response.json({ ...defaultContext(), priming: { listId: "", classifiers: [] } }, { headers: pinHeaders }));
+    assert.equal((await (await handleCurationRoute(get(), "context", badPriming.options)).json()).priming, null, "malformed priming is dropped");
     for (const body of [{ ...defaultContext(), scope: { ...scope, accountId: "account-2" } }, { ...defaultContext(), scope: { ...scope, publicationId: "pub-2" } }, { ...defaultContext(), mode: "other" }, {}]) {
-      const wrongContext = setup({}, () => Response.json(body));
+      const wrongContext = setup({}, () => Response.json(body, { headers: pinHeaders }));
       assert.equal((await handleCurationRoute(get(), "context", wrongContext.options)).status, 502, "context scope mismatch");
     }
   }
