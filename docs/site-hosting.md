@@ -337,6 +337,18 @@ throwaway workflow on a listed branch (allowed: `amplify list-jobs`; denied:
 `iam list-users`), and confirm a run from an unlisted branch fails at the
 assume-role step.
 
+## Which account hosts a site
+
+A site whose product has a dedicated AWS account is hosted in that account, not in `papyrus-production`
+(`712236451410`): Apricity in `apricity-production` (873363353715), Auritus in `auritus-production`
+(961068435042), Kanbus in `kanbus-production` (494166748521), Cyclotron and Prospectus in
+`cyclotron-production`, Chattic.us in `chatticus-production`. Publication bucket, CloudFront, certificate,
+pipeline and CodeConnections connection all live there; only DNS validation and alias records may be written
+cross-account into the zone's own account. Sites that belong to the Papyrus platform itself (Shipped,
+Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`.
+A new CodeConnections connection is created PENDING and needs a one-time console approval by a human
+(Developer Tools, Settings, Connections, Update pending connection) before its pipeline can run.
+
 ## Deploy on merge to main
 
 A merge to `main` always deploys, with no manual step. How depends on whether the site's
@@ -385,8 +397,10 @@ that has this feature **in the same change** as the workflow. The production bui
 the role. After the stack has the role, the first merge to `main` is the proof: the workflow
 run shows the job id, and `aws amplify list-jobs` shows the merged commit id.
 
-Private sites keep `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
-CodePipeline. If a repository-connected Amplify app answers the push webhook but starts no
+Private sites set `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
+CodePipeline. A private site's app-shell stack that was deployed before this setting existed
+(for example `prospectus-web-cms`) must get `autoDeploy: false` before its next deploy, or its
+auto-build stays off and nothing builds. If a repository-connected Amplify app answers the push webhook but starts no
 job, check that the branch has `enableAutoBuild` true, that exactly one Amplify app is
 connected to the repository branch, and CloudTrail for the `amplify.amazonaws.com` webhook
 events before replacing it with a pipeline.
