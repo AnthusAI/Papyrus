@@ -285,7 +285,7 @@ default footer rendering (a `footer` hook still wins):
 `family` keys, all optional: `siteId` (a key of the registry such as `tactus`; its label is the site's heading), `name`
 (heading when the site is not in the registry; default the site name), `tagline` (a small line above the heading; none by
 default), `description` (default `footer.text`, then the package's sentence), `byline` (`© Anthus AI Solutions`, linked to
-the company site). The markup has three parts, as in the package: the site's own band (`papyrus-family-footer-local`: the
+the company site), `logo` and `logoAlt` (an image beside the name and description). The markup has three parts, as in the package: the site's own band (`papyrus-family-footer-local`: the
 `-intro` with heading and description, then one column per `footer.columns` entry); the "Made by Anthus AI Solutions" band
 (`-band`: the `-groups` Products, Open source we use and Research, each site with its one-line description, then the
 byline); and the `-community` links with descriptions (Contact us, GitHub, LinkedIn). The registry is `anthus_sites.json`

@@ -422,3 +422,12 @@ def test_a_longer_code_fence_can_hold_shorter_ones():
     assert names == ["band", "band"]
     html = blocks.render(text, "f.md", lambda markdown: f"<md>{markdown}</md>")
     assert html.count("<section") == 2 and "::band" in html.split("</section>")[0]
+
+
+def test_the_family_footer_shows_a_logo_beside_the_name_and_description():
+    page = family_page(family={"siteId": "tactus", "logo": "/assets/icon.png", "logoAlt": "Tactus icon"})
+    assert (
+        '<div class="papyrus-family-footer-intro-row"><img class="papyrus-family-footer-logo" src="/assets/icon.png" '
+        'alt="Tactus icon" width="48" height="48"><div><h2 class="papyrus-family-footer-title">Tactus</h2>'
+    ) in page
+    assert "papyrus-family-footer-intro-row" not in family_page(family={"siteId": "tactus"})
