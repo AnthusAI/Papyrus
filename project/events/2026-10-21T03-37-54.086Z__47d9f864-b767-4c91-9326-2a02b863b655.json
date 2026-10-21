@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "47d9f864-b767-4c91-9326-2a02b863b655",
+  "issue_id": "PPY-b534fb99-800b-40a5-87b6-c46ac8d6d520",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T03:37:54.086Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A check whose judgment lane did not run must say so loudly",
+    "description": "Found running a whole publication's drafts through Humanus: the papyrus-newsroom Python environment installs humanus without the jev extra, so every judgment policy was silently skipped (lanes.classifier.status 'unavailable') and the run looked like a clean result. Fix both ends: the CLI and agent tooling install humanus[jev] (or papyrus-newsroom gains an extra that does), and papyrus editorial check / check-version / check-drafts print a warning and exit non-zero (or mark the run incomplete) when a pack has judgment policies but the classifier lane did not run, with the reason (missing extra, missing TYPESAFE_API_KEY, deadline). Stored EditorialCheckRuns record incomplete lanes so the board does not show them as clean.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": []
+  }
+}

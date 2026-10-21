@@ -47,6 +47,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
+| `pageActions` | copy / view / open-in actions on article pages: `{enabled, placement (header\|aside), actions (copy, view), ai (chatgpt, claude, perplexity), prompt}` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `hooks` | path of the hooks module, relative to `web/` |
 | `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
@@ -234,6 +235,22 @@ body edit is seen; a republish that changes no visible field rewrites it with id
 two representations cache separately. It is enabled at deploy time for every standard front end site that does not set
 `agents.markdown: false`. A `Link: rel=alternate` response header is not added (S3 objects cannot carry one and no
 response function is attached); the `<link>` in the HTML head is the discovery path.
+
+## Page actions
+
+Article pages (entries of a listed type that have a Markdown twin) get a small actions group, on by default, above the
+article (`placement: "header"`) or after it (`"aside"`): a **Copy Markdown** button and a menu with **View as Markdown**
+and, if `ai` lists them, **Open in ChatGPT / Claude / Perplexity**. Copy fetches the page's own `.md` twin (the file the
+edge serves), adds the title and canonical URL when the twin lacks them, and confirms with an announced "Copied"; if the
+Clipboard API is unavailable or refuses, it selects the text through `execCommand`, and failing that leaves a selected
+textarea. The AI links open the provider's new-chat URL with a short prompt (`prompt`, default "Read {url} and help me
+with it.") that names the page URL; the page body is never put in a URL. Everything happens on an explicit click; the
+only reporting is a `page_action` event through the site's existing `gtag`, so consent mode applies.
+
+Without JavaScript the markup is a list of links (View as Markdown, Open in ...) and the copy button stays hidden
+(`visibility: hidden`, so it also stays out of the accessibility tree and keeps its space: no layout shift). With
+JavaScript the links become a menu button following the ARIA menu pattern (Enter, Space, Arrow keys, Home, End, Escape,
+Tab). Styling uses the `--papyrus-*` tokens, so light and dark themes follow the site's.
 
 ## Migration checklist
 

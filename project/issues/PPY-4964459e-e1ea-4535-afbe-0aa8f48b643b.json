@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4964459e-e1ea-4535-afbe-0aa8f48b643b",
+  "title": "list_records omits draft bodies for some Item versions",
+  "description": "PapyrusGraphQLAuthoringClient.list_records('Item') returned bodyMarkus empty for versions saved by stories save-version while getItem returned the full body; tooling that lists then reads bodies silently skips those drafts. Make list selections consistent with get (or document that lists are summaries and add list_item_bodies).",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:37:54.267768Z",
+  "updated_at": "2026-10-21T03:37:54.267794Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

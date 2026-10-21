@@ -3,16 +3,24 @@
   "title": "Migrate Tactus marketing site: standard header/footer and Markus prose",
   "description": "",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3f9f7f64-535e-4903-8f90-52d758d10d80",
+      "author": "home",
+      "text": "Started. Findings: Tactus-web already renders most pages through Markus (publication/) inside chrome scraped from a Gatsby donor page; Gatsby still owns header/footer/CSS, 3 orphan MDX example pages, demo-animated-square. Plan: full migration to the standard Papyrus site (web/projection.json, site-theme.css, hooks.py), content in repo content/ with core page blocks, islands in one esbuild bundle mounted via ::island, Gatsby removed. Core gap found: directory source only supports one directory level; need nested slugs for /examples/<chapter>/<example>/ (small core PR).",
+      "created_at": "2026-10-21T03:37:02.751515Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T00:48:28.348756Z",
-  "updated_at": "2026-10-21T00:48:28.348827Z",
+  "updated_at": "2026-10-21T03:37:02.751538Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
