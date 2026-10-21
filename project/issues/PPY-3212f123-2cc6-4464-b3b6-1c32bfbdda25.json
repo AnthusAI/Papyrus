@@ -189,10 +189,22 @@
         "model": "Sonnet 5.5",
         "name": "Claude Code"
       }
+    },
+    {
+      "id": "d74d3cf2-bf3d-4595-af58-f796750dd539",
+      "author": "home",
+      "text": "Live switched on 2026-10-21. Cyclotron stack parameter AllowLive=true (change set limited to the function environments); router mode=live and feedback=true in the monitoring table. With the provider key secret absent, a router run stopped with provider_key_unavailable: zero provider calls, items stay collected. Trust boundary for feedback: Cyclotron authenticates only the Papyrus router role (via the machine invoker role); the editor identity (user:<sub> from the Reference curation actor, site name) is asserted by Papyrus and recorded by Cyclotron as asserted, not verified. Feedback applies only to that publication's own output, is idempotent per request, and triggers no optimizer or provider call. Ceilings: 300 total, 100 per day, 300 items. Next: once the secret exists, one bounded pass, then verify delivery into each References queue and one editor decision flowing back.",
+      "created_at": "2026-10-21T02:41:37.042721Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "Claude Code"
+      }
     }
   ],
   "created_at": "2026-10-20T03:02:31.600249Z",
-  "updated_at": "2026-10-21T02:39:19.978223Z",
+  "updated_at": "2026-10-21T02:41:37.042776Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
