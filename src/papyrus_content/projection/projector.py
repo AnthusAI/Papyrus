@@ -224,25 +224,30 @@ class MarkusSiteProjector:
     def _nav_items(self, site: SiteIndex):
         return build_nav_items([(summary.slug, summary.page_title) for summary in self._articles(site)])
 
-    def _image_builder(self, text: str) -> StoredRenditionImageBuilder | None:
+    def _pipeline(self):
+        """The image pipeline pages are rendered with: ``projection.json`` ``images``, or nothing."""
         images = self._settings.images
-        if images is None:
+        return images.pipeline if images is not None else None
+
+    def _image_builder(self, text: str) -> StoredRenditionImageBuilder | None:
+        pipeline = self._pipeline()
+        if pipeline is None:
             return None
         if self._renditions is None:
             raise ValueError("This site configures images but the projector has no rendition store.")
-        catalog = RenditionCatalog(self._renditions, images.pipeline)
-        catalog.prefetch(request.src for request in prepare_page(text, images=images.pipeline, citations=None).images.values())
-        return StoredRenditionImageBuilder(images.pipeline, catalog)
+        catalog = RenditionCatalog(self._renditions, pipeline)
+        catalog.prefetch(request.src for request in prepare_page(text, images=pipeline, citations=None).images.values())
+        return StoredRenditionImageBuilder(pipeline, catalog)
 
-    def _fragment(self, text: str, depth: int) -> str:
-        images = self._settings.images
+    def _fragment(self, text: str, depth: int, *, transform=None) -> str:
         return render_fragment_text(
             text,
             convert=self._convert_text,
             depth=depth,
-            images=images.pipeline if images is not None else None,
+            images=self._pipeline(),
             image_builder=self._image_builder(text),
             citations=self._citations,
+            transform=transform,
         )
 
     def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:
