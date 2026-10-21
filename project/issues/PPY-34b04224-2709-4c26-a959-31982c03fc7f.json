@@ -1,0 +1,20 @@
+{
+  "id": "PPY-34b04224-2709-4c26-a959-31982c03fc7f",
+  "title": "M5 Run skills and Tactus procedures from the chat",
+  "description": "The chat agent can load the same SKILL.md skills the procedures use and start, watch and approve Tactus procedure runs (see PPY-8e13f6, Tactus procedures). Example: an editor asks for a write-up of a new TTAB decision and the agent runs the ruling-analysis skill.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:14:25.582850Z",
+  "updated_at": "2026-10-21T12:14:25.582879Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

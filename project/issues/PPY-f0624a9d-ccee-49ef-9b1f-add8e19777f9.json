@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f0624a9d-ccee-49ef-9b1f-add8e19777f9",
+  "title": "M5 Schedule procedures and trigger them from monitors",
+  "description": "Run a procedure on a schedule, or when a monitor brings in a new reference (for example the TTAB decisions monitor), with run limits, de-duplication so one ruling is analysed once, and notifications when a run needs a person.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-8e13f6a0-1f34-44cb-8379-8f75c8202978",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:14.693899Z",
+  "updated_at": "2026-10-21T12:12:14.693925Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

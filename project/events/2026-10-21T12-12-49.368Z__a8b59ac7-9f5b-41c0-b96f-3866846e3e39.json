@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a8b59ac7-9f5b-41c0-b96f-3866846e3e39",
+  "issue_id": "PPY-0498707b-4532-43dc-9048-eb5ebbe2b669",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:12:49.368Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Give procedure agents skills: load SKILL.md documents by reference",
+    "description": "A Tactus Agent gets a system_prompt string and tools; there is no way to hand it a skill document. Papyrus already has skills/newsroom-research-workflow/SKILL.md and the Humanus skill ships as humanus skill. Let a procedure (or an agent block) name skills, from Papyrus, from a site's repository or from the backend, and load them into the agent's instructions, so the same SKILL.md serves Claude Code interactively and the procedure's agent. First use: Distinctive's TTAB ruling-analysis skill.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-6f55cc96-c9a3-4dda-bb22-58eb6a875cae",
+    "labels": []
+  }
+}

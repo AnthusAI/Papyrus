@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b7cebe53-5d4f-4ad4-b67c-d7afb6eb6fa6",
+  "title": "M6 Test case: TTAB ruling analysis for Distinctive Mark",
+  "description": "The first real procedure: Distinctive's TTAB ruling analysis, from a TTABVUE proceeding to a draft ruling page that waits for editor approval. Each gap it hits is filed under M1 to M5.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-8e13f6a0-1f34-44cb-8379-8f75c8202978",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:14.759419Z",
+  "updated_at": "2026-10-21T12:12:14.759459Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-eeb02384-27a4-4ac2-808b-7e2d1021529d",
+  "title": "M1 Map both chat stacks and design the package boundary",
+  "description": "Inventory what Papyrus's console chat does today (console-chat-responder, console-chat-enqueue, Slack events/delivery, where transcripts live, how tools are called) and what Chatticus provides (turn protocol: POST plus per-turn SSE with Last-Event-Id replay; durable turns; the agent loop; pull workers; the web UI kit already exported for Chattic.us-web). Decide what becomes a Chatticus package (server turn engine, stream protocol, client components), what stays in Papyrus (tools, auth, pane placement), and how Papyrus hosts it on AWS without an always-on cost floor. Record the design as a Papyrus doc.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8d06e1a4-e59b-4507-ad21-f26eb09e64e1",
+      "author": "home",
+      "text": "Scope from Ryan's direction on PPY-de11ec: produce the feature table (core / optional plug-in / Chatticus-only), define the background-job contract the chat agent uses instead of a computer (start a job, stream its progress into the turn, report the result), and identify the seam in Chatticus where computer summoning attaches, so it can be left out by sites that embed the core (Papyrus, Auritus).",
+      "created_at": "2026-10-21T12:17:25.537312Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T12:14:25.324633Z",
+  "updated_at": "2026-10-21T12:17:25.537329Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

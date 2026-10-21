@@ -1,0 +1,28 @@
+{
+  "id": "PPY-0498707b-4532-43dc-9048-eb5ebbe2b669",
+  "title": "Give procedure agents skills: load SKILL.md documents by reference",
+  "description": "A Tactus Agent gets a system_prompt string and tools; there is no way to hand it a skill document. Papyrus already has skills/newsroom-research-workflow/SKILL.md and the Humanus skill ships as humanus skill. Let a procedure (or an agent block) name skills, from Papyrus, from a site's repository or from the backend, and load them into the agent's instructions, so the same SKILL.md serves Claude Code interactively and the procedure's agent. First use: Distinctive's TTAB ruling-analysis skill.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6f55cc96-c9a3-4dda-bb22-58eb6a875cae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c96b0b17-6121-46a3-8a2b-fe90940922fe",
+      "author": "home",
+      "text": "Correction after reading Tactus: Tactus already has an Agent Skills loader (tactus/skills/loader.py; Agent{ skills = {paths}, skills_mode = \"metadata\"|\"full\" }, Tactus-6aa). It has not been exercised by real work, so this task is (1) test it with the TTAB ruling-analysis skill and fix rough edges in Tactus, and (2) the Papyrus part: deliver a site's or Papyrus's SKILL.md files to a run (locally and in the cloud) so the paths resolve.",
+      "created_at": "2026-10-21T12:17:25.581025Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-21T12:12:49.368426Z",
+  "updated_at": "2026-10-21T12:17:25.581042Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

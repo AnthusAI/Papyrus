@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0c0b75ac-bc01-4e4d-ac12-ebe1f3e11b3c",
+  "title": "CLI publish derives the publication kind and projection function from the site, not env",
+  "description": "On 5.7.0 'papyrus ops content publish' on an S3-projection site falls back to Pretext revalidation (error: PAPYRUS_PUBLIC_SITE_BASE_URL or publicSite.baseUrl required) because projection_configured() only reads the PAPYRUS_PUBLICATION_KIND env var, which the content-actions Lambda has but an operator shell doesn't. Derive the publication kind (s3-projection vs pretext) and the content-actions function name from the site's papyrus.config.ts / deployed backend outputs (amplify_outputs custom outputs), so publish/unpublish re-project with no env. Workaround: PAPYRUS_PUBLICATION_KIND=s3-projection PAPYRUS_CONTENT_ACTIONS_FUNCTION=<name>.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:08:44.702456Z",
+  "updated_at": "2026-10-21T12:08:44.702523Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

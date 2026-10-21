@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6283c017-c1d6-49c9-b739-22fce8f6f23b",
+  "title": "Procedure tool: fetch a PDF and return its text (court and TTAB opinions)",
+  "description": "reference_fetch_url_text handles HTML; TTAB and court opinions are PDFs on ttabvue.uspto.gov and court sites. Add a PDF fetch that returns page-numbered text so agents can pin-cite (slip op. at N).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6f55cc96-c9a3-4dda-bb22-58eb6a875cae",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:49.600481Z",
+  "updated_at": "2026-10-21T12:12:49.600522Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

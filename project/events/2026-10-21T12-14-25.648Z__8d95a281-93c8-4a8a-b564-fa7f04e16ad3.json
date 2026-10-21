@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8d95a281-93c8-4a8a-b564-fa7f04e16ad3",
+  "issue_id": "PPY-839cf737-d3e6-46de-bb24-911bde8d11d4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:14:25.648Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "M6 Retire Papyrus's own chat engine",
+    "description": "Move the console and Slack chat paths onto the shared Chatticus core, then remove console-chat-responder and other duplicated chat code from Papyrus, with a migration for existing transcripts.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+    "labels": []
+  }
+}

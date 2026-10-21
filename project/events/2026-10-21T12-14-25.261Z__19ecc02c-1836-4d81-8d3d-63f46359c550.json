@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "19ecc02c-1836-4d81-8d3d-63f46359c550",
+  "issue_id": "PPY-de11ec53-e594-4e18-a016-95c436aacfcb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T12:14:25.261Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom chat agent: a pop-out chat pane that can use every backend feature, built on Chatticus as a dependency",
+    "description": "An authenticated editor in the newsroom (CMS) pops out a chat pane and talks to an agent that can do anything the backend can do for that editor: read and edit stories, run editorial checks, publish with approval, manage references and sections, run Tactus procedures and skills. The agent acts with the signed-in editor's own permissions, and consequential actions (publish, delete, send) stop for the editor's approval in the pane.\n\nThe chat technology is not rebuilt here. It comes from Chatticus (AnthusAI/Chatticus), where the team keeps its chat-session code, used as a dependency so the decisions are made once and shared by every system that needs chat: per-turn server-sent events instead of WebSockets (cheaper: the browser POSTs a message and reads SSE scoped to that turn, reconnecting with Last-Event-Id; no always-on process, so idle costs nothing), durable turns that survive a closed laptop (PyDurable, per Ryan), and the agent loop (PyAgents on PyDurable, per Ryan). Papyrus today has its own chat stack (amplify/functions/console-chat-responder, a Rust Lambda pinned to tactus 0.44.1, console-chat-enqueue, and the Slack events/delivery path); that duplication is what this initiative removes.\n\nPrinciple (Ryan, 2026-10-21): DRY and centralized. Shared chat behaviour lives in Chatticus and is consumed as packages; Papyrus supplies only its tools, its auth and its pane.\n\nDone when: an editor signed in to a site's newsroom opens the chat pane, asks the agent to do real newsroom work, the agent does it through Papyrus tools with the editor's permissions and approvals, the transcript streams over Chatticus's SSE turn protocol, and Papyrus no longer carries its own chat engine.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

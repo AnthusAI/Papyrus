@@ -1,0 +1,20 @@
+{
+  "id": "PPY-dbc158df-a9f7-4c0b-ab24-978d6f637d45",
+  "title": "Human approval steps in cloud runs: pause for an editor and resume",
+  "description": "Tactus has Human.approve, Human.input and Human.review, but no Papyrus procedure uses them and the CLI runs headless. A cloud run should be able to pause for approval, notify the newsroom (Messages), and resume or stop on the editor's decision. The TTAB analysis stops for approval before publishing.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f0624a9d-ccee-49ef-9b1f-add8e19777f9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:49.814697Z",
+  "updated_at": "2026-10-21T12:12:49.814724Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

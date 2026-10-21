@@ -1,0 +1,20 @@
+{
+  "id": "PPY-87d8e995-ead1-41da-bf74-52b6dd0a2f39",
+  "title": "M3 Edit procedures in the newsroom",
+  "description": "Editors and admins can read and edit a site's procedures and their skills in the newsroom, with versions, without a code deploy, and agents can do the same through the CLI.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-8e13f6a0-1f34-44cb-8379-8f75c8202978",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:14.558728Z",
+  "updated_at": "2026-10-21T12:12:14.558756Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

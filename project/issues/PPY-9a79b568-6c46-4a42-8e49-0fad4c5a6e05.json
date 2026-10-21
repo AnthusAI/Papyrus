@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9a79b568-6c46-4a42-8e49-0fad4c5a6e05",
+  "title": "Schedule procedure runs and trigger them from monitors",
+  "description": "No EventBridge schedule or event trigger references procedures; only inbound email reaches a procedure. Add schedules (cron per procedure, with limits) and a trigger when a monitor files a new reference (for example a new TTAB decision), with de-duplication so one source is processed once.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f0624a9d-ccee-49ef-9b1f-add8e19777f9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T12:12:49.748500Z",
+  "updated_at": "2026-10-21T12:12:49.748528Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
