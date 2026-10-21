@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2bd109d6-7638-4275-8972-7c9c6bee4b13",
+  "issue_id": "PPY-dd9dc504-331a-43d8-bb6e-186f4e6586d2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:15.790Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Markus docs site onto the standard front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+    "labels": []
+  }
+}

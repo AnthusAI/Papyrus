@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2971417f-d0d2-43ce-9d13-e15be5df0659",
+  "issue_id": "PPY-b13daa43-51c3-4e2b-bab5-35d39fe6f86d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:38.498Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Decide and plan: Babulus site",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}

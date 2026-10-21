@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ef584367-6d0a-4137-9985-eaf37b664a83",
+  "title": "Migrate Tactus marketing site: standard header/footer and Markus prose",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:48:28.348756Z",
+  "updated_at": "2026-10-21T00:48:28.348827Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

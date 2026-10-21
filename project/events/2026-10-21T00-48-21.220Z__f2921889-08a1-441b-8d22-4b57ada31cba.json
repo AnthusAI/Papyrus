@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f2921889-08a1-441b-8d22-4b57ada31cba",
+  "issue_id": "PPY-7f9935e5-9b25-4132-8f4b-83b692e9eec6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:21.220Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Kanbus docs site (publish) onto the standard front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+    "labels": []
+  }
+}

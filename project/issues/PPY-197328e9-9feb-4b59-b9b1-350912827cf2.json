@@ -1,0 +1,20 @@
+{
+  "id": "PPY-197328e9-9feb-4b59-b9b1-350912827cf2",
+  "title": "Migrate Apricity-web (cut over) onto the standard front end",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:48:13.513729Z",
+  "updated_at": "2026-10-21T00:48:13.513799Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bdebd5f8-7cd6-447f-b845-626a832c5dd8",
+  "issue_id": "PPY-99bfa575-0e9b-40bb-b4ea-b7cf2326cd55",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:09.224Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Kanbus-web (deploy on the standard front end) onto the standard front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+    "labels": []
+  }
+}

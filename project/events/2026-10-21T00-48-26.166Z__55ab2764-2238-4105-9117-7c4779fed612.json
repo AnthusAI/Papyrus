@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "55ab2764-2238-4105-9117-7c4779fed612",
+  "issue_id": "PPY-ef96e14e-2a7c-4823-96c1-2c7be34bcbdb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:26.166Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Chatticus marketing site (chattic.us): standard header/footer and Markus prose",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5eb8d1b3-c6b1-43bd-bd14-0d4bec59c0a4",
+    "labels": []
+  }
+}

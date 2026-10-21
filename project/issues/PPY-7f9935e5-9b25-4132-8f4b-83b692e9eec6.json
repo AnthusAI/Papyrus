@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7f9935e5-9b25-4132-8f4b-83b692e9eec6",
+  "title": "Migrate Kanbus docs site (publish) onto the standard front end",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T00:48:21.202907Z",
+  "updated_at": "2026-10-21T00:48:21.220954Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

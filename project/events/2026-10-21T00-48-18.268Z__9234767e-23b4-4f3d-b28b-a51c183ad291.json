@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9234767e-23b4-4f3d-b28b-a51c183ad291",
+  "issue_id": "PPY-3b0fae78-04e3-460d-8073-9dc2f7e946f6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:18.268Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Migrate Biblicus docs site onto the standard front end",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-70d27134-60b4-4513-a340-e63252648e28",
+    "labels": []
+  }
+}

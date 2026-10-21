@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "29f38bce-add8-44aa-a713-89eabbc9bc36",
+  "issue_id": "PPY-5aea6d5f-93c4-43e7-8cb3-f6f9a5451837",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-21T00:48:40.729Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Decide and plan: Kanbus/Auritus/Apricity legacy sites (Gatsby, Next export, Vite): retire after cut-over",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-bcfd2d11-540a-4ef7-ae33-92f46c4a78ed",
+    "labels": []
+  }
+}
