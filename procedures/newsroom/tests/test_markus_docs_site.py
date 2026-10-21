@@ -14,6 +14,7 @@ from papyrus_content.markus_renderer.docs_site import (
     rewrite_image_references,
     rewrite_links_between_pages,
     stage_docs_content,
+    write_sitemap_and_not_found_page,
 )
 
 
@@ -104,6 +105,32 @@ class DocsSiteTests(unittest.TestCase):
             self.assertEqual(len(result.pages), 3)
             self.assertIn("Demo", (temporary_directory / "out" / "index.html").read_text())
             self.assertTrue((temporary_directory / "out" / "assets" / "diagram.svg").is_file())
+
+
+class DocsAgentOutputTests(unittest.TestCase):
+    def test_site_with_an_address_gets_twins_llms_files_lastmod_and_robots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_name:
+            root = Path(temporary_name)
+            write_documentation_tree(root / "docs")
+            config = DocsSiteConfig("Demo", "A demo.", root / "docs", "https://x", published_site_url="https://d.example/")
+            staging = root / "staging"
+            staging.mkdir()
+            stage_docs_content(config, staging)
+            out = root / "out"
+            (out / "articles").mkdir(parents=True)
+            for name in ("index", "articles/cli", "articles/guides-setup", "articles/not-found"):
+                (out / f"{name}.html").write_text("<html><head></head></html>", encoding="utf-8")
+            write_sitemap_and_not_found_page(config, out, content_directory=staging, last_modified_by_address={"index.html": "2026-01-02"})
+            self.assertIn("# CLI", (out / "articles" / "cli.md").read_text())
+            llms = (out / "llms.txt").read_text()
+            self.assertTrue(llms.startswith("# Demo\n\n> A demo.\n"))
+            self.assertIn("[Home](https://d.example/index.md)", llms)
+            self.assertIn("Source: https://d.example/articles/cli.md", (out / "llms-full.txt").read_text())
+            sitemap = (out / "sitemap.xml").read_text()
+            self.assertIn("<loc>https://d.example/index.html</loc><lastmod>2026-01-02</lastmod>", sitemap)
+            self.assertEqual(sitemap.count("<lastmod>"), 3)
+            self.assertIn("Sitemap: https://d.example/sitemap.xml", (out / "robots.txt").read_text())
+            self.assertFalse((out / "articles" / "not-found.md").exists())
 
 
 class DocsMarkdownDialectTests(unittest.TestCase):
