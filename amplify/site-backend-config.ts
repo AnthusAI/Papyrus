@@ -178,6 +178,16 @@ export type PapyrusSiteBackendConfig = {
    * Unset: no plugin, and the synthesized backend is exactly what it was before plugins existed.
    */
   plugins?: PluginRequest[];
+  /**
+   * The public form receiving endpoint every site gets (docs/public-forms.md). It accepts posts only from the site's
+   * own public hosts (distribution aliases, reader domain, revalidate URL, sign-in redirect URLs) plus these.
+   */
+  publicForms?: {
+    /** Extra https origins (or http://localhost) allowed to post, for example `https://www.example.org`. */
+    allowedOrigins?: string[];
+    /** Extra honeypot field names besides `website`. */
+    honeypotFields?: string[];
+  };
   features?: {
     consoleResponder?: boolean;
     inboundEmail?: boolean;

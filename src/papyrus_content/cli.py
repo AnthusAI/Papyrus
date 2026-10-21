@@ -103,6 +103,7 @@ from .item_content_commands import (
     content_scrub_item_inline_body,
 )
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
+from .form_submissions_commands import messages_handle, messages_list
 from .messages_commands import (
     messages_backfill_message_body,
     messages_backfill_note_message_body,
@@ -363,6 +364,8 @@ PORTED_COMMANDS = frozenset(
         "ontology:dedupe",
         "ontology:recompute-authority",
         "ontology:doctor",
+        "messages:list",
+        "messages:handle",
         "messages:export-legacy-comments",
         "messages:import-legacy-comments",
         "messages:backfill-message-body",
@@ -760,6 +763,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
             ontology_doctor(flags)
         else:
             raise ValueError(f"Unsupported ontology command: {route}")
+    elif route == "messages:list":
+        messages_list(flags)
+    elif route == "messages:handle":
+        messages_handle(flags)
     elif route == "messages:export-legacy-comments":
         messages_export_legacy_comments(flags)
     elif route == "messages:import-legacy-comments":
