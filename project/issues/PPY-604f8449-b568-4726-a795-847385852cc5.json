@@ -1,0 +1,20 @@
+{
+  "id": "PPY-604f8449-b568-4726-a795-847385852cc5",
+  "title": "The publication's prose policy becomes Humanus judgment policies",
+  "description": "The mission, publication policy and section policies (doctrine and NewsroomSection records) are drafted into Humanus classifier policies with draftEditorialQuestions, proposed to admins for approval (never silently enabled), and flagged as stale when the prose they came from changes. Approved ones run in every check with their section scope.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-21T03:16:29.754649Z",
+  "updated_at": "2026-10-21T03:16:29.754682Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
