@@ -162,6 +162,7 @@ error (prefix helpers with `_`):
 | `footer(page)` | the page | the inside of the footer |
 | `card(entry, page)` | an entry | one card in a listing |
 | `head_extra(page)` | the page | raw markup appended to `<head>` |
+| `body_class(page)` | the page | classes added to `<body>` after `chrome.body_class` |
 | `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
 

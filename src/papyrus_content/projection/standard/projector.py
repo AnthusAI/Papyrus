@@ -501,6 +501,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         base = self._settings.chrome
         extra = self.hooks.head_extra(page) if self.hooks.head_extra is not None else ""
         head_html = self.head.build(dataclasses.replace(page.head, extra=extra))
+        if self.hooks.body_class is not None:
+            base = dataclasses.replace(base, body_class=f"{base.body_class} {self.hooks.body_class(page)}".strip())
         sheets = list(base.stylesheets)
         if self.standard.components_css and COMPONENTS_CSS_PATH not in sheets:
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)

@@ -9,6 +9,7 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
 ``footer(page) -> str``             the inside of the footer element
 ``card(entry, page) -> str``        one entry in a listing
 ``head_extra(page) -> str``         raw markup appended to ``<head>``
+``body_class(page) -> str``         classes added to ``<body>`` after the site's ``chrome.body_class``
 ``item_decorator(html, summary) -> str``   the converted article fragment, before it is placed in the page
 ``page_body(page) -> str | None``   the whole body of a page (everything between ``<body>`` and the scripts);
                                     ``None`` keeps the default. ``page.kind`` says which page it is.
@@ -30,7 +31,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-HOOK_NAMES = ("masthead", "footer", "card", "head_extra", "item_decorator", "page_body")
+HOOK_NAMES = ("masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "page_body")
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,7 @@ class Hooks:
     footer: object = None
     card: object = None
     head_extra: object = None
+    body_class: object = None
     item_decorator: object = None
     page_body: object = None
     fingerprint: str = ""
@@ -47,7 +49,7 @@ class Hooks:
     @property
     def sees_the_site(self) -> bool:
         """True when a hook is handed ``page`` (and so every entry and summary of the site)."""
-        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.page_body))
+        return any(hook is not None for hook in (self.masthead, self.footer, self.card, self.head_extra, self.body_class, self.page_body))
 
     @property
     def renders_listings(self) -> bool:
