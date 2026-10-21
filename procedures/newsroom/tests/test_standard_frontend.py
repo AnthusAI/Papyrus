@@ -690,3 +690,76 @@ def card(entry, page):
         assert site.projector._entries(site.context.source.site_index())[0].derived["tier"] in ("long", "short")
     finally:
         site.cleanup()
+
+
+# ------------------------------------------------------------------ public form component
+
+CONTACT_FORM = {
+    "title": "Contact us",
+    "fields": [
+        {"name": "topic", "label": "Topic", "type": "select", "options": [{"value": "general", "label": "General"}, {"value": "error", "label": "Report an error"}]},
+        {"name": "name", "label": "Name", "required": True, "autocomplete": "name"},
+        {"name": "email", "label": "Email", "type": "email", "required": True, "autocomplete": "email", "help": "We only use it to reply."},
+        {"name": "message", "label": "Message <b>", "type": "textarea", "required": True},
+    ],
+}
+
+
+def form_site(endpoint):
+    settings = {
+        "site": {"name": "Example", "productionUrl": "https://example.org"},
+        "forms": {"contact": {**CONTACT_FORM, "endpoint": endpoint}},
+        "pages": [{"id": "contact", "path": "contact", "title": "Contact", "form": "contact"}],
+    }
+    return ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content")
+
+
+def test_a_form_without_an_endpoint_says_it_is_not_open_and_cannot_be_submitted():
+    site = form_site(None)
+    try:
+        page = site.text("contact/index.html")
+        assert "This form is not open yet" in page and 'role="status"' in page
+        assert "<fieldset disabled>" in page and 'type="submit"' not in page and "data-papyrus-form" not in page
+        assert "_plugins/papyrus-form-v1.js" not in site.tree and "papyrus-form" not in page
+        assert "Thank you" not in page
+    finally:
+        site.cleanup()
+
+
+def test_a_form_with_an_endpoint_has_labelled_fields_a_honeypot_and_the_submit_script():
+    site = form_site("https://forms.example.org/intake")
+    try:
+        page = site.text("contact/index.html")
+        dom = Dom(page)
+        assert dom.find("form", **{"data-papyrus-form": "contact", "data-endpoint": "https://forms.example.org/intake"})
+        for field in ("topic", "name", "email", "message"):
+            assert f'<label for="form-contact-{field}">' in page
+        assert dom.find("input", name="email", type="email", required=None, autocomplete="email")
+        assert dom.find("input", name="website", tabindex="-1")          # the honeypot
+        assert 'aria-describedby="form-contact-email-help"' in page
+        assert "Message &lt;b&gt;" in page                                # labels are escaped
+        assert 'aria-live="polite"' in page and "hidden" in page
+        assert '<script src="/_plugins/papyrus-form-v1.js' in page
+        script = site.text("_plugins/papyrus-form-v1.js")
+        assert "response.ok" in script and "JSON.stringify" in script and "location.pathname" in script
+    finally:
+        site.cleanup()
+
+
+@pytest.mark.parametrize(
+    "form, message",
+    [
+        ({"fields": [{"name": "x", "type": "file"}]}, "type must be one of"),
+        ({"fields": [{"name": "1bad"}]}, "simple name"),
+        ({"endpoint": "http://insecure.example.org/"}, "https or a site path"),
+        ({"fields": [{"name": "website"}]}, "honeypot collides"),
+    ],
+)
+def test_bad_form_definitions_are_rejected(form, message):
+    with pytest.raises(ValueError, match=message):
+        standard_settings_from_mapping({"site": {"name": "X"}, "forms": {"f": form}})
+
+
+def test_a_page_cannot_name_a_form_that_does_not_exist():
+    with pytest.raises(ValueError, match="unknown form"):
+        standard_settings_from_mapping({"site": {"name": "X"}, "pages": [{"id": "p", "path": "p", "title": "P", "form": "nope"}]})

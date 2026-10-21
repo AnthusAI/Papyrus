@@ -19,7 +19,7 @@ from .redirects import RedirectRule, rule_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
-    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase",
+    "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "forms",
 )
 URL_STYLES = ("html", "directory")
 SITEMAP_STYLES = ("single", "index")
@@ -100,6 +100,7 @@ class CustomPage:
     depends_on: tuple[str, ...] = ("*",)
     sitemap: bool = True
     noindex: bool = False
+    form: str | None = None           # the id of a ``forms`` entry the default body shows
 
 
 @dataclass(frozen=True)
@@ -176,6 +177,36 @@ class ShowcaseSettings:
 
 
 @dataclass(frozen=True)
+class FormField:
+    name: str
+    label: str
+    type: str = "text"                      # text, email, textarea, select
+    required: bool = False
+    options: tuple[tuple[str, str], ...] = ()   # select: (value, label)
+    autocomplete: str = ""
+    help: str = ""
+
+
+@dataclass(frozen=True)
+class FormSpec:
+    """A public form defined as data. ``endpoint`` is ``None`` until the receiving endpoint exists: the form then
+    says it is not open yet and cannot be submitted. It never shows success it did not get from the endpoint."""
+
+    id: str
+    title: str
+    fields: tuple[FormField, ...]
+    endpoint: str | None = None
+    submit_label: str = "Send"
+    honeypot: str = "website"
+    closed_notice: str = "This form is not open yet. Please check back soon."
+    success_text: str = "Thank you. Your message was sent."
+    failure_text: str = "Your message could not be sent. Please try again later."
+
+
+FORM_FIELD_TYPES = ("text", "email", "textarea", "select")
+
+
+@dataclass(frozen=True)
 class StandardSettings:
     identity: SiteIdentity
     url_style: str = "html"
@@ -205,6 +236,7 @@ class StandardSettings:
     home_link_label: str = "Home"
     summary_fields: tuple[str, ...] = ()
     showcase: ShowcaseSettings | None = None
+    forms: tuple[FormSpec, ...] = ()
 
     @property
     def sectioned(self) -> bool:
@@ -375,7 +407,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
 
     custom = []
     for entry in raw.get("pages") or ():
-        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex"}, "pages")
+        _only(entry, {"id", "path", "title", "description", "dependsOn", "sitemap", "noindex", "form"}, "pages")
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
@@ -385,6 +417,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 depends_on=tuple(entry.get("dependsOn", ("*",))),
                 sitemap=bool(entry.get("sitemap", True)),
                 noindex=bool(entry.get("noindex", False)),
+                form=entry.get("form"),
             )
         )
     components = dict(raw.get("components") or {})
@@ -404,6 +437,43 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         )
         if any(section.name == showcase.section for section in sections):
             raise ValueError("showcase.section must not also be declared in urls.sections")
+    forms = []
+    for form_id, spec in dict(raw.get("forms") or {}).items():
+        _only(spec, {"title", "fields", "endpoint", "submitLabel", "honeypot", "closedNotice", "successText", "failureText"}, f"forms.{form_id}")
+        fields = []
+        for field_raw in spec.get("fields") or ():
+            _only(field_raw, {"name", "label", "type", "required", "options", "autocomplete", "help"}, f"forms.{form_id}.fields")
+            kind = field_raw.get("type", "text")
+            if kind not in FORM_FIELD_TYPES:
+                raise ValueError(f"forms.{form_id}.fields type must be one of {FORM_FIELD_TYPES}")
+            if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_]*", str(field_raw.get("name", ""))):
+                raise ValueError(f"forms.{form_id}.fields needs a simple name")
+            fields.append(
+                FormField(
+                    name=field_raw["name"], label=str(field_raw.get("label", field_raw["name"])), type=kind,
+                    required=bool(field_raw.get("required", False)),
+                    options=tuple((str(o["value"]), str(o.get("label", o["value"]))) for o in field_raw.get("options") or ()),
+                    autocomplete=str(field_raw.get("autocomplete", "")), help=str(field_raw.get("help", "")),
+                )
+            )
+        endpoint = spec.get("endpoint")
+        if endpoint is not None and not str(endpoint).startswith(("https://", "/")):
+            raise ValueError(f"forms.{form_id}.endpoint must be https or a site path")
+        defaults = FormSpec(form_id, "", ())
+        forms.append(
+            FormSpec(
+                id=form_id, title=str(spec.get("title", "")), fields=tuple(fields), endpoint=endpoint,
+                submit_label=str(spec.get("submitLabel", defaults.submit_label)), honeypot=str(spec.get("honeypot", defaults.honeypot)),
+                closed_notice=str(spec.get("closedNotice", defaults.closed_notice)),
+                success_text=str(spec.get("successText", defaults.success_text)), failure_text=str(spec.get("failureText", defaults.failure_text)),
+            )
+        )
+        if any(field.name == forms[-1].honeypot for field in forms[-1].fields):
+            raise ValueError(f"forms.{form_id}.honeypot collides with a field name")
+    known_forms = {form.id for form in forms}
+    for custom_page in custom:
+        if custom_page.form is not None and custom_page.form not in known_forms:
+            raise ValueError(f"pages.{custom_page.id}.form names an unknown form {custom_page.form!r}")
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -440,4 +510,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         home_link_label=_text(nav, "homeLabel", "Home"),
         summary_fields=tuple(site.get("summaryFields") or ()),
         showcase=showcase,
+        forms=tuple(forms),
     )

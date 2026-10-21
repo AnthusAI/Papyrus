@@ -48,6 +48,7 @@ from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
 from .fragments import first_image_of, lede_of
+from .forms import FORM_SCRIPT_PATH, render_form
 from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, Hooks, load_hooks
 from .page import ListingView, StandardPage
@@ -74,6 +75,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[COMPONENTS_CSS_PATH] = (ASSET_DIRECTORY / "markus-components.css").read_bytes()
         if standard.nav_disclosure:
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
+        if any(form.endpoint for form in standard.forms):
+            files[FORM_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-form.js").read_bytes()
         super().__init__(settings, files, **kwargs)
         self.standard = standard
         self.hooks = hooks
@@ -529,6 +532,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if self.standard.components_css and COMPONENTS_CSS_PATH not in sheets:
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         scripts = tuple(base.scripts) + ((NAV_SCRIPT_PATH,) if self.standard.nav_disclosure else ())
+        if any(form.endpoint for form in self.standard.forms):
+            scripts += (FORM_SCRIPT_PATH,)
         identity = self.standard.identity
         return dataclasses.replace(
             base,
@@ -644,4 +649,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 "<p>That page is not here. It may have moved, or the address may be mistyped.</p>"
                 '<p><a href="/">Back to the home page</a></p></div>'
             )
-        return f'<div class="markus-document"><h1>{components.esc(page.title)}</h1>' + (f"<p>{components.esc(page.description)}</p>" if page.description else "") + "</div>"
+        form = next((spec for spec in self.standard.forms if page.kind == "custom" and spec.id == self._custom_form(page)), None)
+        return (
+            f'<div class="markus-document"><h1>{components.esc(page.title)}</h1>'
+            + (f"<p>{components.esc(page.description)}</p>" if page.description else "")
+            + (render_form(form) if form is not None else "")
+            + "</div>"
+        )
+
+    def _custom_form(self, page: StandardPage) -> str | None:
+        custom = next((c for c in self.standard.pages if c.id == page.custom_id), None)
+        return custom.form if custom is not None else None
