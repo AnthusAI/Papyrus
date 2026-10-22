@@ -47,6 +47,7 @@ CLUSTER_COOLING = "cooling"
 CLUSTER_STATE_PERCENT = 20
 CLUSTER_MINIMUM_WEEKS = 4
 ACCEPTED = "accepted"
+BEAT_ENTITY_LIMIT = 12
 
 
 def entity_file(key: str) -> str:
@@ -140,7 +141,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 history=history,
                 values8=values8,
                 values26=values26,
-                change=change_of(values8),
+                change=change_of(values8, history),
                 new=is_new(history),
                 href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template else None,
             )
@@ -233,6 +234,7 @@ def _index_entity(entity: _Entity) -> dict:
         "key": entity.key,
         "kind": entity.kind,
         "name": entity.name,
+        "aliases": list(entity.aliases),
         "href": entity.href,
         "acceptedBy": _actor(entity.node.accepted_by),
         "itemCount": len(entity.item_keys),
@@ -292,18 +294,23 @@ def _concept_of_the_week(entities: list[_Entity], data: KnowledgeData, options: 
     }
 
 
-def _beat_row(beat: Beat, dated: dict[str, tuple[int, PublishedItem]], as_of_week: int) -> dict:
+def _beat_row(beat: Beat, dated: dict[str, tuple[int, PublishedItem]], as_of_week: int, entities: list[_Entity]) -> dict:
     members = [item for item in beat.item_keys if item in dated]
+    shared = ((len(entity.item_keys.intersection(members)), entity.key) for entity in entities)
+    top = sorted((pair for pair in shared if pair[0] > 0), key=lambda pair: (-pair[0], pair[1]))
     return {
         "key": beat.key,
         "name": beat.name,
         "href": beat.href,
         "itemCount": len(members),
         "series8": series(weekly_counts(dated[item][0] for item in members), as_of_week, SERIES_SHORT),
+        "topEntities": [key for _count, key in top[:BEAT_ENTITY_LIMIT]],
     }
 
 
-def _cluster_row(cluster: Cluster, published: set[str], options: SnapshotOptions, as_of_week: int, named: bool) -> dict | None:
+def _cluster_row(
+    cluster: Cluster, published: set[str], options: SnapshotOptions, as_of_week: int, named: bool, beat_members: dict[str, set[str]]
+) -> dict | None:
     members = [key for key in cluster.member_item_keys if key in published]
     count = len(members) if cluster.member_item_keys else cluster.member_count
     if count <= 0:
@@ -318,6 +325,7 @@ def _cluster_row(cluster: Cluster, published: set[str], options: SnapshotOptions
     change = change_of(values)
     return {
         "uid": cluster.uid,
+        "beats": sorted(key for key, beat_items in beat_members.items() if beat_items.intersection(members)),
         "name": cluster.name if named else None,
         "acceptedBy": _actor(cluster.accepted_by) if named else None,
         "state": _cluster_state(cluster, change, weeks_of_data, first_week, as_of_week),
@@ -352,7 +360,9 @@ def _cluster_state(cluster: Cluster, change: Change, weeks_of_data: int, first_w
     return None
 
 
-def _clusters_file(data: KnowledgeData, options: SnapshotOptions, published: set[str], as_of_week: int) -> dict:
+def _clusters_file(
+    data: KnowledgeData, options: SnapshotOptions, published: set[str], as_of_week: int, beat_members: dict[str, set[str]]
+) -> dict:
     rows: list[tuple[int, dict]] = []
     runs = sorted((cluster.run_as_of or "", cluster.run_id) for cluster in data.clusters if cluster.run_id)
     latest = runs[-1][1] if runs else None
@@ -362,7 +372,7 @@ def _clusters_file(data: KnowledgeData, options: SnapshotOptions, published: set
         named = cluster.accepted and bool(cluster.name)
         if not named and options.unaccepted_clusters != UNACCEPTED_UNNAMED:
             continue
-        row = _cluster_row(cluster, published, options, as_of_week, named)
+        row = _cluster_row(cluster, published, options, as_of_week, named, beat_members)
         if row is None:
             continue
         rows.append((sum(row["series8"][-4:]), row))
@@ -385,8 +395,9 @@ def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict
     kinds: dict[str, int] = defaultdict(int)
     for entity in entities:
         kinds[entity.kind] += 1
+    beat_members = {beat.key: set(beat.item_keys).intersection(dated) for beat in data.beats}
     beats = sorted(
-        (_beat_row(beat, dated, as_of_week) for beat in data.beats), key=lambda row: (-row["itemCount"], row["key"])
+        (_beat_row(beat, dated, as_of_week, entities) for beat in data.beats), key=lambda row: (-row["itemCount"], row["key"])
     )
     files: dict[str, dict] = {
         INDEX_FILE: {
@@ -400,7 +411,7 @@ def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict
             "trending": _trending_order(entities),
             "conceptOfTheWeek": _concept_of_the_week(entities, data, options),
         },
-        CLUSTERS_FILE: _clusters_file(data, options, set(dated), as_of_week),
+        CLUSTERS_FILE: _clusters_file(data, options, set(dated), as_of_week, beat_members),
     }
     for entity in entities:
         files[entity_file(entity.key)] = _entity_file(

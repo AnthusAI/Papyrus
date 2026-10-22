@@ -24,10 +24,17 @@
       "text": "Landed: PR #528 merged to develop (branch feature/PPY-9abb98-knowledge-snapshot). Verification: 35 pytest tests in src/papyrus_content/knowledge_snapshot (builder, guest-surface field pin, byte-identical rebuild, publish-run idempotency, entity review, snapshot end to end), CI python/ts/smoke green, offline snapshot from a fixture records file. Not yet run against Shipped: no CLI session for its publication on the build machine. Docs: docs/knowledge-snapshot.md.",
       "created_at": "2026-10-22T04:13:49.853488Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b104e14b-601c-43a7-b718-da058bdb1d7b",
+      "author": "home",
+      "text": "Follow-up PR #547 (branch fix/PPY-eb5f28-trend-history-rule): percent null under 8 weeks of history in the snapshot, trending by displayable percent, entities retype/registry, topic-config. CI python/ts/smoke green.",
+      "created_at": "2026-10-22T07:40:39.826855Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.663015Z",
-  "updated_at": "2026-10-22T04:13:49.853514Z",
+  "updated_at": "2026-10-22T07:40:39.826887Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

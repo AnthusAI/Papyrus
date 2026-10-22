@@ -55,6 +55,7 @@ from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
 from .knowledge import DATA_PREFIX, KnowledgeSource
+from .knowledge_lookup import KnowledgeLookup
 from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
 from . import wiki
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
@@ -142,6 +143,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._page_text_cache: dict[str, str] = {}
         self._prerendered = blocks.parse_prerendered(prerendered_bytes) if prerendered_bytes else {}
         self._knowledge = KnowledgeSource()
+        self._knowledge_lookup = KnowledgeLookup(self._knowledge)
         self._knowledge_items: object = None
         if "convert_text" not in kwargs:
             self._convert_text = self._convert_with_wiki_directives
@@ -267,7 +269,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for found in self._hook_sites:
             if found.items is site.items:
                 return found
-        found = HookSite(site.items, static_directory=self._static_directory, records=self._rendition_records)
+        found = HookSite(site.items, static_directory=self._static_directory, records=self._rendition_records, knowledge=self._knowledge_lookup)
         self._hook_sites.append(found)
         del self._hook_sites[:-4]
         return found
@@ -335,7 +337,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             implicit_band=is_wiki,
         )
         if self.hooks.item_decorator is not None:
-            fragment = self.hooks.item_decorator(fragment, summary)
+            keywords = {"site": self._hook_site(site)} if "site" in inspect.signature(self.hooks.item_decorator).parameters else {}
+            fragment = self.hooks.item_decorator(fragment, summary, **keywords)
         if self.standard.identity.lede_field:
             fragment = with_lede(fragment, summary.front_matter.get(self.standard.identity.lede_field))
         fragment = with_date_format(fragment, self.standard.identity.date_format)

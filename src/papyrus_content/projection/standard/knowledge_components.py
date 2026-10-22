@@ -121,7 +121,7 @@ def trend(entity: Mapping) -> str:
     series = list(entity.get("series8") or [])
     drawn = sparkline(series[-min(len(series), weeks):])
     percent = (entity.get("change") or {}).get("percent")
-    figure = change_figure(int(percent)) if state == "full" and percent is not None else ""
+    figure = change_figure(int(percent)) if percent is not None else ""
     if not (drawn or figure):
         return ""
     return f'<span class="papyrus-knowledge-trend" data-state="{state}">{drawn}{figure}</span>'

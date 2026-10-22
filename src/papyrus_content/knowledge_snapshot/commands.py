@@ -21,8 +21,9 @@ from ..env import graphql_endpoint
 from ..graphql_authoring import create_authoring_client
 from ..ids import knowledge_corpus_id
 from ..options import normalize_string, parse_options
-from ..project_commands import _context_for
+from ..project_commands import _context_for, _projection_environment
 from ..projection.engine import project_all
+from ..projection.runtime import load_projector
 from ..projection.writers import LocalDirectoryWriter, request_paths_for_key
 from ..reader_steering.snapshot import encoded
 from ..reader_steering.task import snapshot_key
@@ -46,6 +47,7 @@ from .entity_review import (
     reject_patches,
     rename_patches,
 )
+from .entity_retype import retype_plan
 from .loaders import (
     beats_from_categories,
     beats_from_config,
@@ -60,6 +62,8 @@ from .loaders import (
 )
 from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotOptions
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
+from .registry import build_registry
+from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
 from .relation_review import (
     RELATION_STATES,
     RelationReviewError,
@@ -69,7 +73,8 @@ from .relation_review import (
     reject_relation_patches,
     review_state,
 )
-from .run_input import load_run
+from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, write_export
+from .run_input import load_run, translate_item_ids
 from .weeks import current_monday, parse_day
 
 AUTH_LANES = ("user", "iam")
@@ -201,6 +206,8 @@ def knowledge_publish_run(flags: list[str]) -> None:
     agent_name = clean_name(options.get("actor-name"))
     client = authoring_client(options)
     items = published_items(client.list_published_item_summaries(), _no_url)
+    if run is not None:
+        run = translate_item_ids(run, {biblicus_item_id(item.item_id): item.item_id for item in items})
     node_rows = current_nodes(client.list_records("SemanticNode"))
     accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
     mention_rows = [row for row in relations_of_nodes(client, accepted) if is_item_mention(row)]
@@ -224,6 +231,22 @@ def knowledge_publish_run(flags: list[str]) -> None:
         apply_record_changes(client, changes)
         if not options.get("json"):
             print(f"knowledge\tpublish-run\tapplied\t{sum(1 for change in changes if change['action'] != 'noop')}")
+
+
+def knowledge_corpus_export(flags: list[str]) -> None:
+    options = parse_options(flags)
+    out = _path_option(options, "out")
+    if out is None:
+        raise ValueError("Pass --out DIR: the folder that receives <item id>.md, normally <corpus>/raw/papyrus.")
+    types = tuple(part.strip() for part in (normalize_string(options.get("types")) or ",".join(DEFAULT_TYPES)).split(",") if part.strip())
+    client = authoring_client(options)
+    projector = load_projector(_projection_environment(options))
+    items = export_items(client.list_records("PublishedItem"), url_resolver(projector), types)
+    counts = write_export(items, out)
+    if options.get("json"):
+        print(json.dumps({"out": str(out), "types": list(types), **counts}, indent=2, sort_keys=True))
+        return
+    print(f"knowledge\tcorpus-export\t{counts['items']} items\t{counts['undated']} undated\t{counts['removed']} removed\t{out}")
 
 
 def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
@@ -478,6 +501,61 @@ def knowledge_entities_describe(flags: list[str]) -> None:
     _review(flags, "describe", build)
 
 
+def knowledge_entities_retype(flags: list[str]) -> None:
+    options = parse_options(flags)
+    identifier = normalize_string(options.get("key"))
+    kind = normalize_string(options.get("kind"))
+    if not identifier or not kind:
+        raise ValueError("knowledge entities retype requires --key <node key, id or lineage id> and --kind <new kind>.")
+    actor = actor_from_options(options, today(), command="knowledge entities retype")
+    client = authoring_client(options)
+    rows = client.list_records("SemanticNode")
+    try:
+        node = find_node(rows, identifier)
+        records, patches, new_key = retype_plan(node, kind, rows, relations_of_nodes(client, [node]), actor=actor, now=utc_now())
+    except EntityReviewError as error:
+        raise ValueError(str(error)) from error
+    dry_run = options.get("dry-run") is True
+    print(f"knowledge\tentities\tretype\t{node['nodeKey']} -> {new_key}\t{node.get('status')}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
+    changes = [
+        build_record_change_from_current(record["modelName"], record["expected"], client.get_record(record["modelName"], record["expected"]["id"]))
+        for record in records
+    ] + [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches]
+    for (model, action), count in sorted(Counter((change["modelName"], change["action"]) for change in changes).items()):
+        print(f"knowledge\tentities\tretype\tchanges\t{model}\t{action}\t{count}")
+    if not dry_run:
+        apply_record_changes(client, changes)
+
+
+def knowledge_entities_registry(flags: list[str]) -> None:
+    options = parse_options(flags)
+    out = _path_option(options, "out")
+    if out is None:
+        raise ValueError("Pass --out FILE: the registry JSON for `biblicus extract typed-entities --registry`.")
+    client = authoring_client(options)
+    registry, warnings = build_registry(client.list_records("SemanticNode"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(registry, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    for warning in warnings:
+        print(f"knowledge\tentities\tregistry\twarning\t{warning}", file=sys.stderr)
+    aliases = sum(len(entry["aliases"]) for entry in registry)
+    print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings)} ambiguous\t{out}")
+
+
+def knowledge_topic_config(flags: list[str]) -> None:
+    options = parse_options(flags)
+    out = _path_option(options, "out")
+    if out is None:
+        raise ValueError("Pass --out FILE: the topic-modeling configuration for `biblicus analyze topics --configuration`.")
+    stop_words_file = _path_option(options, "stop-words")
+    extra = read_extra_stop_words(stop_words_file) if stop_words_file else []
+    configuration = topic_modeling_configuration(extra)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render(configuration), encoding="utf-8")
+    listed = len(configuration["bertopic_analysis"]["vectorizer"]["stop_words"])
+    print(f"knowledge\ttopic-config\t{len(extra)} extra stop words\t{listed} stop words in all\t{out}")
+
+
 def _cluster_row(row: dict) -> str:
     metadata = decode_metadata(row.get("summary")) or {}
     accepted_by = metadata.get("acceptedBy") or {}
@@ -585,6 +663,7 @@ def knowledge_relations_reject(flags: list[str]) -> None:
 
 
 KNOWLEDGE_COMMANDS = {
+    "corpus-export": knowledge_corpus_export,
     "publish-run": knowledge_publish_run,
     "snapshot": knowledge_snapshot,
     "entities-list": knowledge_entities_list,
@@ -592,6 +671,9 @@ KNOWLEDGE_COMMANDS = {
     "entities-reject": knowledge_entities_reject,
     "entities-rename": knowledge_entities_rename,
     "entities-describe": knowledge_entities_describe,
+    "entities-retype": knowledge_entities_retype,
+    "entities-registry": knowledge_entities_registry,
+    "topic-config": knowledge_topic_config,
     "clusters-list": knowledge_clusters_list,
     "clusters-accept": knowledge_clusters_accept,
     "clusters-name": knowledge_clusters_name,

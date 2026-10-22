@@ -31,7 +31,7 @@ def wrap(text: str, indent: str = "", first: str | None = None) -> str:
     return "\n".join(lines)
 
 
-def _inline(node: Node, site_url: str) -> str:
+def _inline(node: Node, site_url: str, links: list[str] | None = None) -> str:
     out: list[str] = []
     for c in node.children:
         if c.tag is None:
@@ -43,16 +43,20 @@ def _inline(node: Node, site_url: str) -> str:
             if alt:
                 out.append(f"[Image: {alt}]")
         elif c.tag == "a":
-            label = _inline(c, site_url).strip()
+            label = _inline(c, site_url, links).strip()
             href = absolute_url(c.attrs.get("href", ""), site_url)
-            if href is None or label == href:
+            if links is not None:
+                out.append(label)
+                if href is not None and not (href.startswith("mailto:") and label == href[7:]) and href != label:
+                    links.append(href)
+            elif href is None or label == href:
                 out.append(label)
             elif href.startswith("mailto:") and label == href[7:]:
                 out.append(label)
             else:
                 out.append(f"{label} ({href})" if label else href)
         else:
-            out.append(_inline(c, site_url))
+            out.append(_inline(c, site_url, links))
     return "".join(out)
 
 
@@ -76,6 +80,23 @@ def _inline_run(nodes: list[Node], site_url: str) -> str:
     return re.sub(r" *\n *", "\n", text).strip()
 
 
+def _heading(item: Node, site_url: str, indent: str, tag: str) -> str:
+    """Heading text with any link URLs moved to their own `<url>` lines, never uppercased or wrapped."""
+    links: list[str] = []
+    title = re.sub(r" *\n *", "\n", _inline(Node("span", children=item.children), site_url, links)).strip()
+    if not title:
+        return ""
+    if tag in ("h1", "h2", "h3"):
+        title = title.upper()
+    rule = {"h1": "=", "h2": "-"}.get(tag)
+    out = wrap(title, indent)
+    if rule:
+        out += "\n" + indent + rule * min(len(title), WIDTH - len(indent))
+    for url in dict.fromkeys(links):
+        out += f"\n{indent}<{url}>"
+    return out
+
+
 def blocks(node: Node, site_url: str, indent: str = "") -> list[str]:
     out: list[str] = []
     for kind, item in _runs(node):
@@ -86,17 +107,9 @@ def blocks(node: Node, site_url: str, indent: str = "") -> list[str]:
             continue
         tag = item.tag
         if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            title = _inline_run(item.children, site_url)
-            if not title:
-                continue
-            if tag == "h1":
-                title = title.upper()
-                out.append(wrap(title, indent) + "\n" + indent + "=" * min(len(title), WIDTH - len(indent)))
-            elif tag == "h2":
-                title = title.upper()
-                out.append(wrap(title, indent) + "\n" + indent + "-" * min(len(title), WIDTH - len(indent)))
-            else:
-                out.append(wrap(title.upper() if tag == "h3" else title, indent))
+            heading = _heading(item, site_url, indent, tag)
+            if heading:
+                out.append(heading)
         elif tag in ("ul", "ol"):
             out.append(_list(item, site_url, indent))
         elif tag == "blockquote":

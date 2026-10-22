@@ -119,7 +119,7 @@ def _source(service: IssueService, entry: Mapping[str, Any], summary: PublishedI
         body = alert_body(site_name, summary.title, summary.url, summary.dek, paragraph)
         source = IssueSource(subject=summary.title, markus=body, preheader=preheader)
         try:
-            render(service.settings, entry["name"], source, "Postal address placeholder", kind="alert")
+            render(service.settings, entry["name"], source, "Postal address placeholder")
         except Exception:  # noqa: BLE001 - retry without the paragraph; an unrenderable alert is left for the admin to see
             continue
         return source, paragraph

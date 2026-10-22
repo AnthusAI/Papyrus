@@ -3,17 +3,25 @@
   "title": "Document newsletters on the Papyrus marketing site",
   "description": "p.apyr.us: double opt-in, unsubscribe and suppression, roundup approval, alerts, agent-readable archive. Add to the features list (PPY-b9b038).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "95ec1f6b-041c-4e44-9ac9-b82d578e46a8",
+      "author": "home",
+      "text": "Live 2026-10-22: https://p.apyr.us/newsletters.html (Markus twin /newsletters.md 200 text/markdown; Accept: text/markdown works; in llms.txt and sitemap). Papyrus-web PR #36 merged to main (Amplify deploy). Page covers what a publication gets, the flow, agent-readable archives, setup with placeholder config and the sending-stack prerequisite; names shipped.anth.us as where it runs. Home Newsletter card (the features list) lost its Coming soon label and links to it; footer and personal-feed cards keep theirs. Screenshot /private/tmp/claude-502/newsletters.png",
+      "created_at": "2026-10-22T08:12:47.920417Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:42.690332Z",
-  "updated_at": "2026-10-22T02:43:42.690357Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T08:12:47.953482Z",
+  "closed_at": "2026-10-22T08:12:47.953449Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

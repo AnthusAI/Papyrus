@@ -37,6 +37,7 @@ Status: Beta. Public editing, history, discussion and contributor counts are out
 ```
 
 - `urls.sections.wiki` and `urls.sections.topics` give the entity pages and the topic pages their own sections and listing pages. The section names are the `--section` and `--topics-section` of the sync (defaults `wiki` and `topics`).
+- `urls.sections.wiki.pageSize` sets how many wiki pages one listing page shows (default: the site's `listings.pageSize`, 10), like any section: `"wiki": { "label": "Wiki", "pageSize": 48 }`. The listing continues at `/wiki/page/2/` and so on.
 - `listings.types` must include `wiki_page`, or the pages exist but no listing, tag page or feed selects them.
 - `components.itemPagesDependOn` is needed only when topic pages list items (see "Topic pages"): name the sections they list. An item page re-renders when the entries it depends on change, so a listing in a topic page without it is a build error, not a stale page.
 - `seo.jsonLdTypes` is optional; without it a listed type reports `Article` structured data.

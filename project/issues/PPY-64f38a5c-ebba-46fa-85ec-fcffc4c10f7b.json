@@ -10,9 +10,17 @@
   "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4a50da62-fa3b-4309-8078-d5e0589d9805",
+      "author": "home",
+      "text": "Shipped is live with the newsletter plugin (AnthusAI/Shipped-web PR #30, Amplify job 29 SUCCEED; plugin stack created: table, KMS key, key parameter, functions papyrus-newsletter-shipped and papyrus-newsletter-send-shipped, send queue plus DLQ, weekly draft schedule, two alarms, SNS subscriptions). Verified with the SES mailbox simulator, no real address mailed: form on /roundup/ (screenshots 1280 and 390), subscribe 202, honeypot stores nothing, invalid email/list 400, confirm 303 with confirmedAt/IP/UA, preferences 200, one-click unsubscribe 200, re-subscribe, bounce and complaint suppressed via SNS (SUPP rows, EVENTS rows), alarms OK, configuration set still sending; simulator subscribers erased. Finding for core: /api/* inherits the edge's distribution-level custom error responses (403 and 404 -> /404.html with 404), so the route's 403 origin_mismatch reaches a browser as the site 404 page (the origin does return 403 JSON); harmless for security, worth knowing for debugging. Waiting for the human test (Ryan subscribes with his own inbox, confirms, receives a test issue, one-click unsubscribe). Left open.",
+      "created_at": "2026-10-22T07:48:14.710374Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:40.960263Z",
-  "updated_at": "2026-10-22T02:43:40.960301Z",
+  "updated_at": "2026-10-22T07:48:14.710403Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
