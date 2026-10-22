@@ -3,6 +3,7 @@ import type { PluginRequest } from "../types";
 export const READER_DIMENSION_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const RESERVED_DIMENSIONS = ["up", "used-it"];
 export const READER_HANDLE_NAME = /^[a-z0-9_-]{3,24}$/;
+export const MODERATION_MODES = ["off", "human"] as const;
 export const SUBMISSION_KIND_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]{1,512}$/;
 
@@ -45,6 +46,21 @@ export type ReaderSteeringConfig = {
     similarHours: number;
     /** The kinds a reader may pick (a radio on the form). A single kind hides the radio. */
     kinds: string[];
+    /** The item type of the draft an editor makes by promoting a submission. */
+    itemType: string;
+    /** The section of that draft. */
+    section: string;
+  };
+  moderation: {
+    /**
+     * `human`: new submissions and comments are public at once and wait in the Administration queue (the default for a pilot).
+     * `off`: no queue; moderators can still hide, ban and undo. Turning human review off is the whole of "trust graduation".
+     */
+    mode: (typeof MODERATION_MODES)[number];
+    /** Hold new submissions and comments hidden until a moderator approves them. Needs a mode other than `off`. */
+    preModeration: boolean;
+    /** Reports one reader may file in a UTC day (a third of it for a new account). */
+    reportsPerDay: number;
   };
   comments: {
     /** Comments, replies and edits one reader may post in a clock hour (a third of it for new accounts). */
@@ -73,7 +89,7 @@ export type ReaderSteeringConfig = {
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments", "moderation"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -113,6 +129,12 @@ function names(raw: unknown, label: string, pattern: RegExp): string[] {
   return [...new Set(raw as string[])];
 }
 
+function lowercaseName(raw: unknown, label: string, fallback: string): string {
+  const value = raw === undefined ? fallback : raw;
+  if (typeof value !== "string" || !SUBMISSION_KIND_NAME.test(value)) throw new Error(`reader-steering plugin ${label} must be a lowercase name matching ${SUBMISSION_KIND_NAME}`);
+  return value;
+}
+
 function resolveHypeGap(raw: unknown, dimensions: string[]): { plus: string[]; minus: string[] } | undefined {
   if (raw === undefined) return undefined;
   const groups = object(raw, "hypeGap", ["plus", "minus"]);
@@ -141,7 +163,14 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const karma = object(raw.karma, "karma", ["upvoteWeight", "usedItWeight"]);
   const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
-  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds"]);
+  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section"]);
+  const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay"]);
+  const mode = moderation.mode === undefined ? "human" : moderation.mode;
+  if (!MODERATION_MODES.includes(mode as (typeof MODERATION_MODES)[number])) {
+    throw new Error(`reader-steering plugin moderation.mode must be one of: ${MODERATION_MODES.join(", ")}`);
+  }
+  const preModeration = flag(moderation.preModeration, "moderation.preModeration");
+  if (preModeration && mode === "off") throw new Error("reader-steering plugin moderation.preModeration needs a moderation.mode other than off");
   const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
   const comments = object(raw.comments, "comments", ["perHour", "editWindowMinutes", "maximumLength", "maximumLinks"]);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
@@ -177,6 +206,13 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       perDay: integer(submissions.perDay, "submissions.perDay", 10, 1, 1000),
       similarHours: integer(submissions.similarHours, "submissions.similarHours", 48, 1, 24 * 30),
       kinds: kinds.length > 0 ? kinds : ["link"],
+      itemType: lowercaseName(submissions.itemType, "submissions.itemType", "brief"),
+      section: lowercaseName(submissions.section, "submissions.section", "unsectioned"),
+    },
+    moderation: {
+      mode: mode as (typeof MODERATION_MODES)[number],
+      preModeration,
+      reportsPerDay: integer(moderation.reportsPerDay, "moderation.reportsPerDay", 20, 1, 1000),
     },
     comments: {
       perHour: integer(comments.perHour, "comments.perHour", 30, 1, 1000),

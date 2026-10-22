@@ -12,7 +12,7 @@ export const READER_BODY_BYTES_BY_ACTION: Partial<Record<ReaderAction, number>> 
 export const READER_MAXIMUM_SUBJECTS = 50;
 export const READER_SUBJECT_KEY = /^[A-Za-z0-9._:-]{1,200}$/;
 
-export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit" | "comment" | "comment-edit" | "comment-delete";
+export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit" | "comment" | "comment-edit" | "comment-delete" | "report";
 
 export interface ReaderActionEvent {
   publication: string;

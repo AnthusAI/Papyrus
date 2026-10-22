@@ -33,7 +33,8 @@ assert.deepEqual(defaults, {
   karma: { upvoteWeight: 1, usedItWeight: 2 },
   ranking: { halfLifeHours: 48, risingWindowHours: 6, readerMinimum: 5, editorWeight: 0.5 },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
-  submissions: { perDay: 10, similarHours: 48, kinds: ["link"] },
+  submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "brief", section: "unsectioned" },
+  moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
   comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
   retirementPoll: false,
 });
@@ -42,7 +43,11 @@ const tuned = resolveReaderSteeringConfig({ ...base, comments: { perHour: 5, edi
 assert.deepEqual(tuned.comments, { perHour: 5, editWindowMinutes: 0, maximumLength: 2000, maximumLinks: 0 });
 
 const withKinds = resolveReaderSteeringConfig({ ...base, submissions: { perDay: 20, kinds: ["article", "tool", "article"] } });
-assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"] });
+assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"], itemType: "brief", section: "unsectioned" });
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { itemType: "link", section: "tools" } }).submissions, { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "link", section: "tools" });
+
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { mode: "off" } }).moderation, { mode: "off", preModeration: false, reportsPerDay: 20 });
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { preModeration: true, reportsPerDay: 5 } }).moderation, { mode: "human", preModeration: true, reportsPerDay: 5 });
 
 const shipped = resolveReaderSteeringConfig({
   ...base,
@@ -103,16 +108,34 @@ for (const bad of [
   { comments: { maximumLinks: 1.5 } },
   { comments: { threads: 2 } },
   { comments: "yes" },
+  { moderation: { mode: "auto" } },
+  { moderation: { mode: "ai" } },
+  { moderation: { mode: "off", preModeration: true } },
+  { moderation: { preModeration: "yes" } },
+  { moderation: { reportsPerDay: 0 } },
+  { moderation: { trust: true } },
+  { moderation: "human" },
+  { submissions: { itemType: "Brief Item" } },
+  { submissions: { section: 3 } },
 ]) {
   assert.throws(() => resolveReaderSteeringConfig({ ...base, ...bad } as never), /reader-steering/, JSON.stringify(bad));
 }
 
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
-assert.deepEqual(Object.keys(definitions).sort(), [...readerSteeringManifest.models].sort(), "the schema defines exactly the manifest's models");
+assert.deepEqual(
+  Object.keys(definitions).sort(),
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt"].sort(),
+  "the schema defines exactly the manifest's models and mutations, plus the receipt type",
+);
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, []);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"]);
+assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
-const schemaSource = JSON.stringify(Object.values(definitions).map((model) => (model as { data?: { authorization?: unknown } }).data?.authorization));
+const schemaSource = JSON.stringify(
+  Object.entries(definitions)
+    .filter(([name]) => readerSteeringManifest.models.includes(name))
+    .map(([, model]) => (model as { data?: { authorization?: unknown } }).data?.authorization),
+);
 assert.equal(/guest|public|apiKey|private|custom/i.test(schemaSource), false, "no guest, API key or custom rule on any reader model");
 
 const settings = readerActionsSettings(shipped, false);
@@ -122,6 +145,7 @@ assert.deepEqual(settings, {
   reservedHandles: ["shipped-team"],
   submissions: shipped.submissions,
   comments: shipped.comments,
+  moderation: shipped.moderation,
   allowInterimSubjects: false,
   snapshotDebounceSeconds: 60,
 });
@@ -131,7 +155,7 @@ assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development", NODE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({}), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development" }), true);
-assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"] });
+assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"], moderation: { mode: "human" } });
 
 function synthesize(config = shipped, environment: Record<string, string> = {}) {
   const app = new App();
@@ -142,7 +166,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
-    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
   const outputs: unknown[] = [];
   const backend = {
@@ -173,7 +197,7 @@ assert.equal(permissions.filter((permission) => permission.Properties.Principal 
 const readerEnvironments = Object.values(template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
 const readerVariables = readerEnvironments.find((variables) => variables.PAPYRUS_READER_SETTINGS) as Record<string, string>;
 assert.ok(readerVariables, "the function gets its settings");
-for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_COMMENT_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
+for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_COMMENT_TABLE", "PAPYRUS_READER_REPORT_TABLE", "PAPYRUS_READER_ACTION_TABLE", "PAPYRUS_READER_ITEM_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
   assert.ok(name in readerVariables, `${name} is set`);
 }
 assert.equal(JSON.parse(readerVariables.PAPYRUS_READER_SETTINGS).allowInterimSubjects, false, "a production synth refuses interim subjects");
@@ -283,4 +307,11 @@ for (const model of readerSteeringManifest.models) {
   assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)/.test(declaration[0]), false, `${model} has no guest, API key or IAM rule: ${declaration[0]}`);
   assert.match(declaration[0], /groups: \["editor"\]|groups: \["admin"\]/);
 }
+const mutationStart = transformed.indexOf("moderateReader(");
+assert.ok(mutationStart > 0, "moderateReader is in the deployed schema");
+const mutation = transformed.slice(mutationStart, mutationStart + 400).split("\n\n")[0];
+assert.match(mutation, /@function/);
+assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
+assert.match(mutation, /groups: \["editor"\]/);
+assert.match(mutation, /groups: \["admin"\]/);
 console.log("reader steering schema ok");
