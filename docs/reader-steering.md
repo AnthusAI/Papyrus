@@ -182,6 +182,46 @@ snapshot as counts only.
 **Identity.** Rows hold the opaque `readerId` only. The pairwise `ss1_...` site subject is the profile key and never goes into a
 vote, a flag, a response or a snapshot file; the Person ID never reaches this plugin.
 
+### Snapshot output for subjects
+
+Every run writes, for each enabled type, `_data/reader/votes/<type>.json` (under `urls.basePath` when the site has one), and
+the same numbers under `votes` in `_data/reader/subjects.json`, next to `types` (the enabled types):
+
+```json
+{"generatedAt": "2026-10-22T12:00:00Z", "type": "proposal",
+ "subjects": {"prop-1": {"up": 2, "down": 1, "net": 1.0, "score": 0.0435,
+                         "flags": {"wrong": 1, "belongs_under": 0, "better_name": 2}}}}
+```
+
+Keys are the subject `id` (not the subject key). A type nobody has voted on has `"subjects": {}`.
+
+| Field | Meaning |
+|---|---|
+| `up`, `down` | Plain counts of the readers who voted up and down. |
+| `net` | Weighted up minus weighted down. A vote from a profile younger than `limits.newAccountHours` when it was cast weighs `ranking.newAccountWeight` (1/3 under `shrinkage`); an editor's vote weighs 1. |
+| `score` | The adopted shrinkage with a neutral prior of 0: `share(n) * (U - D) / n`, where `U`, `D` are the weighted counts, `n = U + D`, and `share = min(n / (shrinkageK + n), readerShareCap)`. It lies between `-readerShareCap` and `readerShareCap`; a subject with one vote scores near 0, and many agreeing votes approach the cap. |
+| `flags` | The number of flags of each kind. No reader, no reason, no target and no suggested name is ever published. |
+
+`items.json` also holds the other types under their subject key (`proposal:prop-1`) with `up`, `down`, `net`, `score`, `flags` and `comments`. Its item entries keep every field they had (`up` still counts upvotes only) and gain `down`, `net`, `score` and `flags`.
+Rising counts upvotes only, from profiles at least `ranking.risingMinimumAccountHours` old. A downvote earns the submitter no
+karma and takes none away. Votes on an `item` or `submission` that is no longer published or visible are left out; the other
+types have no record to check, so every well-formed id appears. A type the publication has not enabled is not written, and its
+stored votes are ignored.
+
+### Contract for Proposals
+
+The Proposals feature (PPY-409d96) votes on `proposal` subjects with nothing more than this contract; it must not depend on
+anything else in the plugin:
+
+- A proposal is the subject `{type: "proposal", id: <proposal id>}`, with `proposal` in `subjects.types`.
+- Readers vote and flag through `POST /api/reader/vote` and `POST /api/reader/flag` with that subject.
+- The proposal's numbers are `subjects[<proposal id>]` in `_data/reader/votes/proposal.json`: `up`, `down`, `net` (and `score`, `flags`),
+  and also `items["proposal:<proposal id>"]` in `_data/reader/items.json` with `up`, `down`, `net`, `score`, `flags` and `comments`.
+  Use `net` for ordering and `up` and `down` for display. `net` is weighted and can be fractional. A proposal absent from the file has no votes (read it as zeros).
+- The reader's own vote comes from `GET /api/reader/me?subjects=proposal:<id>` as `votes["proposal:<id>"].up` (1 or -1).
+
+This shape is stable: fields may be added, never renamed or removed.
+
 ## Data
 
 | Model | Key (`id`) | Fields |

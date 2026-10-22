@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from papyrus_content.projection.plugins import is_plugin_runtime_key  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering import proposals as public  # noqa: E402
-from reader_fixtures import ReaderBackend, reader_handler, run_snapshot  # noqa: E402
+from reader_fixtures import ReaderBackend, reader_handler, run_snapshot, subject_for  # noqa: E402
 
 rules = reader_handler.proposal_rules
 BODY = "# Name the agents cluster\n\nThe cluster mixes **tool use** with *planning*.\n"
@@ -226,6 +226,20 @@ class PublicFilesTests(unittest.TestCase):
             everything = "".join(entry.key + (writer.get(entry.key) or b"").decode() for entry in writer.list())
             for private in ("staff-sub-1", '"proposer"', "actor"):
                 self.assertNotIn(private, everything.replace("proposedBy", ""))
+
+    def test_votes_cast_on_a_proposal_reach_its_public_files(self) -> None:
+        with ReaderBackend(subject_types=("item", "proposal")) as backend, tempfile.TemporaryDirectory() as directory:
+            identifier = file_one(backend)
+            for name, handle, value in (("alice", "quiet-fox", 1), ("bob", "loud-owl", 1), ("carol", "plain-cat", -1)):
+                subject = subject_for(name)
+                backend.call(subject, "handle", {"handle": handle})
+                answer = backend.call(subject, "vote", {"subject": {"type": "proposal", "id": identifier}, "value": value})
+                self.assertEqual(answer["statusCode"], 200, answer)
+            backend.age_everyone()
+            writer = LocalDirectoryWriter(Path(directory))
+            self.snapshot(backend, writer, subject_types=("item", "proposal"))
+            votes = self.read(writer, "_data/proposals/index.json")["proposals"][0]["votes"]
+            self.assertEqual(votes, {"up": 2, "down": 1, "net": 1.0})
 
     def test_groups_follow_the_kind(self) -> None:
         self.assertEqual([public.group_of(kind) for kind in rules.KINDS], ["stories", "concepts", "map_changes", "map_changes", "map_changes", "map_changes", "map_changes"])

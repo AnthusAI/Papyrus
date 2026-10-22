@@ -23,6 +23,7 @@ from .ranking import (
     front_score,
     hype_gap,
     rank,
+    reader_share,
     rounded,
     shrinkage_front_score,
 )
@@ -33,6 +34,7 @@ BOARD_FILE = f"{READER_DATA_DIRECTORY}/board.json"
 READERS_FILE = f"{READER_DATA_DIRECTORY}/readers.json"
 SUBJECTS_FILE = f"{READER_DATA_DIRECTORY}/subjects.json"
 SUBMISSIONS_FILE = f"{READER_DATA_DIRECTORY}/submissions.json"
+VOTES_DIRECTORY = f"{READER_DATA_DIRECTORY}/votes"
 COMMENTS_DIRECTORY = f"{READER_DATA_DIRECTORY}/comments"
 COMMENT_VISIBLE = "visible"
 SAFE_FILE_SUBJECT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._:-]*")
@@ -41,6 +43,9 @@ SUBMISSIONS_LISTED = 200
 NEW_LISTED = 50
 KIND_ITEM = "item"
 KIND_SUBMISSION = "submission"
+DEFAULT_SUBJECT_TYPES = (KIND_ITEM, KIND_SUBMISSION)
+FLAG_KINDS = ("wrong", "belongs_under", "better_name")
+SUBMISSION_ID = re.compile(r"sub-[0-9a-f]{24}")
 SUBMISSION_PENDING = "pending"
 SUBMISSION_PROMOTED = "promoted"
 VISIBLE_SUBMISSION_STATES = (SUBMISSION_PENDING, SUBMISSION_PROMOTED)
@@ -68,6 +73,7 @@ class SnapshotSettings:
     ranking: RankingParameters = field(default_factory=RankingParameters)
     retirement_poll: bool = False
     hype_gap: HypeGapGroups | None = None
+    subject_types: tuple[str, ...] = DEFAULT_SUBJECT_TYPES
 
 
 def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
@@ -82,6 +88,7 @@ def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
         retirement_poll=raw.get("retirementPoll") is True,
         hype_gap=HypeGapGroups(plus=tuple(hype.get("plus") or ()), minus=tuple(hype.get("minus") or ())) if hype else None,
         dimensions=tuple(raw.get("dimensions") or ()),
+        subject_types=tuple((raw.get("subjects") or {}).get("types") or DEFAULT_SUBJECT_TYPES),
         karma=KarmaWeights(upvote=float(karma.get("upvoteWeight", 1)), used_it=float(karma.get("usedItWeight", 2))),
         ranking=RankingParameters(
             half_life_hours=float(ranking.get("halfLifeHours", defaults.half_life_hours)),
@@ -190,6 +197,53 @@ def reader_rating_pairs(
     return pairs
 
 
+def vote_subject_type(vote: Mapping) -> str:
+    """The subject type of a vote row; rows written before subject types have none and are read by the shape of their key."""
+    return vote.get("subjectType") or (KIND_SUBMISSION if SUBMISSION_ID.fullmatch(vote["subjectKey"]) else KIND_ITEM)
+
+
+def subject_id_of(vote_or_flag: Mapping) -> str:
+    """The id of the subject a row is about: the key itself for items and submissions, the key without its ``type:`` prefix for the rest."""
+    kind = vote_subject_type(vote_or_flag)
+    key = vote_or_flag["subjectKey"]
+    return key if kind in DEFAULT_SUBJECT_TYPES else key[len(kind) + 1 :]
+
+
+def vote_summary(
+    votes: Iterable[Mapping], flags: Iterable[Mapping], age_of: Callable[[Mapping], float | None], settings: SnapshotSettings
+) -> dict:
+    """``{up, down, net, score, flags}`` for one subject from its up/down votes and flags.
+
+    ``up`` and ``down`` are plain counts. ``net`` is the weighted up minus the weighted down, a vote from a profile younger than
+    ``new_account_hours`` at the time it was cast weighing ``new_account_weight`` (an editor's vote always weighs 1). ``score``
+    is the same shrinkage as the rating combination with a neutral prior of 0: ``share(n) * (U - D) / n`` with ``n = U + D``
+    (weighted) and ``share = min(n / (k + n), reader_share_cap)``, so it lies between ``-cap`` and ``cap``. ``flags`` counts flags
+    per kind and carries no reader.
+    """
+    ranking = settings.ranking
+    up = down = 0
+    weighted_up = weighted_down = 0.0
+    for vote in votes:
+        if vote["dimension"] != UP or vote["value"] not in (1, -1):
+            continue
+        age = age_of(vote)
+        young = age is not None and age < ranking.new_account_hours and vote.get("voterRole") != ROLE_EDITOR
+        weight = ranking.new_account_weight if young else 1.0
+        if vote["value"] == 1:
+            up += 1
+            weighted_up += weight
+        else:
+            down += 1
+            weighted_down += weight
+    total = weighted_up + weighted_down
+    score = rounded(reader_share(total, ranking) * (weighted_up - weighted_down) / total) if total > 0 else 0.0
+    counts = {kind: 0 for kind in FLAG_KINDS}
+    for flag in flags:
+        if flag.get("kind") in counts:
+            counts[flag["kind"]] += 1
+    return {"up": up, "down": down, "net": rounded(weighted_up - weighted_down), "score": score, "flags": counts}
+
+
 def karma_by_reader(
     votes: Iterable[Mapping], submitter_of: Callable[[str], str | None], weights: KarmaWeights
 ) -> dict[str, float]:
@@ -203,6 +257,8 @@ def karma_by_reader(
         if submitter is None or submitter == vote["readerId"]:
             continue
         if vote["dimension"] == UP:
+            if vote["value"] != 1:
+                continue  # a downvote earns nothing and takes nothing away
             karma[submitter] += weights.upvote
         elif vote["dimension"] == USED_IT:
             karma[submitter] += weights.used_it
@@ -239,6 +295,8 @@ class Snapshot:
     subjects: dict
     comments: dict[str, dict]
     """Subject key to the content of its comment file, for every subject with a visible comment or a stub."""
+    votes: dict[str, dict] = field(default_factory=dict)
+    """Subject type to the content of its ``votes/<type>.json`` file, for every enabled type."""
 
 
 def visible_submissions(submissions: Iterable[Mapping]) -> list[Mapping]:
@@ -354,6 +412,30 @@ def public_submission(submission: Mapping, handles: Mapping[str, str]) -> dict:
     return row
 
 
+def typed_vote_files(
+    votes: Iterable[Mapping], flags: Iterable[Mapping], age_of: Callable[[Mapping], float | None], settings: SnapshotSettings, generated_at: str
+) -> dict[str, dict]:
+    """Per enabled subject type, ``{generatedAt, type, subjects: {id: {up, down, net, score, flags}}}``; a type nobody voted on has an empty file."""
+    votes_by: dict[tuple[str, str], list[Mapping]] = defaultdict(list)
+    flags_by: dict[tuple[str, str], list[Mapping]] = defaultdict(list)
+    for vote in votes:
+        votes_by[(vote_subject_type(vote), subject_id_of(vote))].append(vote)
+    for flag in flags:
+        flags_by[(vote_subject_type(flag), subject_id_of(flag))].append(flag)
+    files: dict[str, dict] = {}
+    for kind in settings.subject_types:
+        subjects = {
+            identifier: vote_summary(votes_by.get((kind, identifier), ()), flags_by.get((kind, identifier), ()), age_of, settings)
+            for identifier in sorted({identifier for (found, identifier) in (*votes_by, *flags_by) if found == kind})
+        }
+        files[kind] = {"generatedAt": generated_at, "type": kind, "subjects": subjects}
+    return files
+
+
+def votes_key(kind: str) -> str:
+    return f"{VOTES_DIRECTORY}/{kind}.json"
+
+
 def build_snapshot(
     votes: Iterable[Mapping],
     profiles: Iterable[Mapping],
@@ -365,6 +447,7 @@ def build_snapshot(
     submissions: Iterable[Mapping] = (),
     comments: Iterable[Mapping] = (),
     published_items: Iterable[Mapping] = (),
+    flags: Iterable[Mapping] = (),
 ) -> Snapshot:
     """``published_at`` holds exactly the published subjects (its values may be ``None``); votes on any other subject are ignored.
 
@@ -381,10 +464,25 @@ def build_snapshot(
     handles = {profile["readerId"]: profile["handle"] for profile in profile_rows if profile.get("handle")}
     threads = comment_threads(comments, handles, published_at)
     comment_counts = {subject: sum(1 for entry in entries if not entry.get("stub")) for subject, entries in threads.items()}
-    live_votes = [vote for vote in votes if vote["subjectKey"] in published_at]
+    enabled_types = settings.subject_types
+    all_votes = [vote for vote in votes if vote_subject_type(vote) in enabled_types]
+    all_flags = [flag for flag in flags if flag.get("subjectType") in enabled_types]
+
+    def is_live(row: Mapping) -> bool:
+        """Items and submissions count while they are published or visible; the other types have no record to check."""
+        return row["subjectKey"] in published_at if vote_subject_type(row) in DEFAULT_SUBJECT_TYPES else True
+
+    live_votes = [vote for vote in all_votes if is_live(vote)]
+    live_flags = [flag for flag in all_flags if is_live(flag)]
     by_subject: dict[str, list[Mapping]] = defaultdict(list)
+    flags_by_subject: dict[str, list[Mapping]] = defaultdict(list)
     for vote in live_votes:
-        by_subject[vote["subjectKey"]].append(vote)
+        if vote_subject_type(vote) in DEFAULT_SUBJECT_TYPES:
+            by_subject[vote["subjectKey"]].append(vote)
+    for flag in live_flags:
+        flags_by_subject[flag["subjectKey"]].append(flag)
+        if vote_subject_type(flag) in DEFAULT_SUBJECT_TYPES:
+            by_subject.setdefault(flag["subjectKey"], [])
     for subject, count in comment_counts.items():
         if count:
             by_subject.setdefault(subject, [])  # a subject with comments and no votes still gets its numbers (zeros) and its comment count
@@ -408,7 +506,7 @@ def build_snapshot(
         reader_counts = {dimension: stats[dimension][ROLE_READER]["n"] for dimension in settings.dimensions}
         editor_counts = {dimension: stats[dimension][ROLE_EDITOR]["n"] for dimension in settings.dimensions}
         editor_composite, reader_composite = composite(editor_means.values()), composite(reader_means.values())
-        upvotes = [vote for vote in subject_votes if vote["dimension"] == UP]
+        upvotes = [vote for vote in subject_votes if vote["dimension"] == UP and vote["value"] == 1]
         used_it_reporters = {
             vote["readerId"]
             for vote in subject_votes
@@ -424,6 +522,7 @@ def build_snapshot(
             "editor": None if editor_composite is None else rounded(editor_composite),
             "reader": None if reader_composite is None else rounded(reader_composite),
             "hypeGap": item_hype_gap(settings, editor_means, reader_means, editor_counts, reader_counts),
+            **{key: value for key, value in vote_summary(subject_votes, flags_by_subject.get(subject, ()), age_of, settings).items() if key != "up"},
         }
         published = published_at[subject]
         age_hours = (now_seconds - seconds_of(published)) / SECONDS_PER_HOUR if published else 0.0
@@ -472,6 +571,13 @@ def build_snapshot(
     ]
     top_readers = sorted(reader_rows, key=lambda row: (-row["karma"], row["handle"]))[:TOP_READERS]
 
+    for kind, payload in typed_vote_files(live_votes, live_flags, age_of, settings, generated_at).items():
+        if kind in DEFAULT_SUBJECT_TYPES:
+            continue
+        for identifier, summary in payload["subjects"].items():
+            key = f"{kind}:{identifier}"  # the subject key; items.json holds every subject under its key, so a reader of one file finds them all
+            items[key] = {**summary, "comments": comment_counts.get(key, 0)}
+    vote_files = typed_vote_files(live_votes, live_flags, age_of, settings, generated_at)
     ranking = settings.ranking
     front, rising, new = rank(front_rows, "score"), rank(rising_rows, "upvotes"), new_rows(item_rows, submission_rows)
     listed = {row["subject"] for row in (*front, *rising, *new)}
@@ -496,7 +602,12 @@ def build_snapshot(
             "rising": rising,
             "new": new,
         },
-        subjects={"generatedAt": generated_at, "subjects": subject_index(listed, item_rows, submission_rows)},
+        subjects={
+            "generatedAt": generated_at,
+            "subjects": subject_index(listed, item_rows, submission_rows),
+            "types": list(enabled_types),
+            "votes": {kind: payload["subjects"] for kind, payload in vote_files.items()},
+        },
         readers={"generatedAt": generated_at, "readers": top_readers},
         karma=karma_values,
         submissions={
@@ -508,6 +619,7 @@ def build_snapshot(
             for subject, entries in threads.items()
             if comments_key(subject) is not None
         },
+        votes=vote_files,
     )
 
 

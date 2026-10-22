@@ -268,6 +268,8 @@ def run_the_snapshot(context, base_path: str = "", scheduled: bool = False) -> N
         retirement_poll=context.reader_poll if getattr(context, "reader_retired", None) is not None else None,
         poll_retirements=scheduled,
         hype_gap=getattr(context, "reader_hype_gap", None),
+        subject_types=context.reader_options.get("subject_types"),
+        ranking=getattr(context, "reader_ranking", None),
     )
 
 
@@ -338,14 +340,14 @@ def nobody_has_karma(context) -> None:
     assert public_file(context, "_data/reader/readers.json")["readers"] == []
 
 
-@then('the site store holds the five reader files under "{base}"')
+@then('the site store holds the reader files under "{base}"')
 def store_holds(context, base: str) -> None:
     keys = sorted(entry.key for entry in context.reader_site.list())
-    expected = sorted(f"{base}/_data/reader/{name}.json" for name in ("items", "board", "readers", "subjects", "submissions"))
+    expected = sorted(f"{base}/_data/reader/{name}.json" for name in ("items", "board", "readers", "subjects", "submissions", "votes/item", "votes/submission"))
     assert keys == expected, keys
 
 
-@then("the edge was asked to purge those five files and nothing else")
+@then("the edge was asked to purge those files and nothing else")
 def edge_purged(context) -> None:
     written = context.reader_report.written
     assert context.reader_purged == [written], (context.reader_purged, written)
@@ -859,3 +861,70 @@ def no_site_subject_stored(context, name: str) -> None:
 @when('"{name}" flags the {subject_type} "{subject_id}" as "{kind}" without a reason')
 def flags_without_reason(context, name: str, subject_type: str, subject_id: str, kind: str) -> None:
     call(context, name, "flag", flag_payload(subject_type, subject_id, kind, ""))
+
+
+@given("the publication has adopted the shrinkage combination")
+def adopted_shrinkage(context) -> None:
+    context.reader_ranking = {"combination": "shrinkage"}
+
+
+@when("the account of \"{name}\" is more than a day old")
+def account_ages(context, name: str) -> None:
+    backend = ensure_started(context)
+    backend.call(subject_for(name), "me")  # make sure the profile exists
+    backend.table("profile").update_item(
+        Key={"id": subject_for(name)}, UpdateExpression="SET createdAt = :c", ExpressionAttributeValues={":c": "2020-01-01T00:00:00.000Z"}
+    )
+
+
+def votes_entry(context, subject_type: str, subject_id: str) -> dict:
+    return public_file(context, f"_data/reader/votes/{subject_type}.json")["subjects"][subject_id]
+
+
+@then('the {subject_type} "{subject_id}" has {up:d} up and {down:d} down in its public votes file')
+def public_up_down(context, subject_type: str, subject_id: str, up: int, down: int) -> None:
+    entry = votes_entry(context, subject_type, subject_id)
+    assert (entry["up"], entry["down"]) == (up, down), entry
+
+
+@then('the {subject_type} "{subject_id}" has a net of {net:f} in its public votes file')
+def public_net(context, subject_type: str, subject_id: str, net: float) -> None:
+    assert abs(votes_entry(context, subject_type, subject_id)["net"] - net) < 0.001, votes_entry(context, subject_type, subject_id)
+
+
+@then('the {subject_type} "{subject_id}" has a score of {score:f} in its public votes file')
+def public_score(context, subject_type: str, subject_id: str, score: float) -> None:
+    assert abs(votes_entry(context, subject_type, subject_id)["score"] - score) < 0.0001, votes_entry(context, subject_type, subject_id)
+
+
+@then('the {subject_type} "{subject_id}" has {count:d} "{kind}" flag in its public votes file')
+def public_flags(context, subject_type: str, subject_id: str, count: int, kind: str) -> None:
+    assert votes_entry(context, subject_type, subject_id)["flags"][kind] == count
+
+
+@then('the public file "{key}" lists the subject types "{first}", "{second}", "{third}" and "{fourth}"')
+def lists_types(context, key: str, first: str, second: str, third: str, fourth: str) -> None:
+    assert public_file(context, key)["types"] == [first, second, third, fourth]
+
+
+@then('the public file "{key}" holds no reason text')
+def no_reason_text(context, key: str) -> None:
+    text = json.dumps(public_file(context, key))
+    assert "reason" not in text and context.reader_secret_reason not in text
+
+
+@when('"{name}" flags the proposal "{subject_id}" as "wrong" because of the secret reason')
+def flags_with_secret(context, name: str, subject_id: str) -> None:
+    context.reader_secret_reason = "a-very-private-reason"
+    call(context, name, "flag", flag_payload("proposal", subject_id, "wrong", context.reader_secret_reason))
+
+
+@then('"{name}" is not counted as rising on "{subject}"')
+def not_rising(context, name: str, subject: str) -> None:
+    assert subject not in [row["subject"] for row in public_file(context, "_data/reader/board.json")["rising"]]
+
+
+@then('the public file "{key}" shows {up:d} up and {down:d} down on "{subject}"')
+def public_up_down_on(context, key: str, up: int, down: int, subject: str) -> None:
+    entry = public_file(context, key)["items"][subject]
+    assert (entry["up"], entry["down"], entry["comments"]) == (up, down, 0), entry
