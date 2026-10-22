@@ -3,7 +3,7 @@
   "title": "Score combination: how editor and reader scores combine (exploration)",
   "description": "Open question, no decision yet: how should editor and reader scores combine into what a publication shows and ranks by? This epic holds an exploration only. Parent initiative: PPY-77bb3b (milestone 4).",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,25 @@
       "text": "Score combination exploration done; awaiting Ryan's decision (left open). No production change. Recommendation: Bayesian shrinkage per dimension, k=20, reader share capped at 0.4, ratings from profiles under 24h at weight 1/3, drop readerMinimum. Simulated on the 70 real Shipped items (editor composite sd 0.28): vs current blend the 5th-rating rank jump falls from 7.3 to 1.2; socks to put a mid-table item in the top 5 rise from 13 to 28 (96 at 1/3 weight); cost: slower to follow genuine reader disagreement (gap closure 0.36 vs 0.44 at 30 raters). Wilson on upvotes for Front rejected (ignores editors, split-half Spearman 0.17, overhyped item ranks 1 of 70). Rising and the 3-report Shipped stamp fall to 3 sock accounts whatever the formula; count only profiles older than 24h. Write-up and sim: Papyrus docs/score-combination.md (PR https://github.com/AnthusAI/Papyrus/pull/561); Shipped summary PR https://github.com/AnthusAI/Shipped-web/pull/42.",
       "created_at": "2026-10-22T11:26:36.637717Z",
       "comment_type": "default"
+    },
+    {
+      "id": "baba2b09-cabb-49cd-9ed7-f99e4b2e7868",
+      "author": "home",
+      "text": "Decision 2026-10-22 (Ryan): the score-combination recommendation is adopted, all five points; Readers tab skipped for launch; no Wilson bound. Implemented in the reader-steering plugin: ranking.combination shrinkage|blend (blend stays the default for other sites), shrinkageK 20, readerShareCap 0.4, newAccountWeight 1/3, risingMinimumAccountHours 24 (Rising and usedItReporters count only older profiles). Active parameters published in board.json. Shipped's site config supplies the shrinkage values. Docs: docs/reader-steering.md, docs/score-combination.md.",
+      "created_at": "2026-10-22T12:55:01.459165Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f872cd25-86b6-4479-b7ed-ce967a5e0323",
+      "author": "home",
+      "text": "Decision 2026-10-22 (Ryan): the score-combination recommendation is adopted, all five points; Readers tab skipped for launch; no Wilson bound. Implemented in the reader-steering plugin: ranking.combination shrinkage|blend (blend stays the default for other sites), shrinkageK 20, readerShareCap 0.4, newAccountWeight 1/3, risingMinimumAccountHours 24 (Rising and usedItReporters count only older profiles). Active parameters published in board.json. Shipped's site config supplies the shrinkage values. Docs: docs/reader-steering.md, docs/score-combination.md.",
+      "created_at": "2026-10-22T12:55:09.635734Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.461390Z",
-  "updated_at": "2026-10-22T11:26:36.637742Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T12:55:09.635762Z",
+  "closed_at": "2026-10-22T12:55:01.580454Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

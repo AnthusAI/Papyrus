@@ -31,7 +31,10 @@ assert.deepEqual(defaults, {
   limits: { actionsPerHour: 120, newAccountHours: 24, newAccountDivisor: 3 },
   reservedHandles: [],
   karma: { upvoteWeight: 1, usedItWeight: 2 },
-  ranking: { halfLifeHours: 48, risingWindowHours: 6, readerMinimum: 5, editorWeight: 0.5 },
+  ranking: {
+    halfLifeHours: 48, risingWindowHours: 6, readerMinimum: 5, editorWeight: 0.5,
+    combination: "blend", shrinkageK: 20, readerShareCap: 0.4, newAccountWeight: 1, risingMinimumAccountHours: 0,
+  },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
   submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "brief", section: "unsectioned" },
   moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
@@ -64,6 +67,16 @@ const shipped = resolveReaderSteeringConfig({
 });
 assert.deepEqual(shipped.dimensions, ["real", "useful", "notable", "novel"]);
 assert.equal(shipped.limits.actionsPerHour, 60);
+assert.equal(shipped.ranking.combination, "blend", "a site that does not ask keeps the blend");
+const shrinking = resolveReaderSteeringConfig({ ...base, ranking: { combination: "shrinkage" } }).ranking;
+assert.deepEqual(
+  [shrinking.combination, shrinking.shrinkageK, shrinking.readerShareCap, shrinking.newAccountWeight, shrinking.risingMinimumAccountHours],
+  ["shrinkage", 20, 0.4, 1 / 3, 24],
+  "shrinkage turns on the adopted defaults",
+);
+const tunedRanking = resolveReaderSteeringConfig({ ...base, ranking: { combination: "shrinkage", shrinkageK: 10, readerShareCap: 0.5, newAccountWeight: 0.5, risingMinimumAccountHours: 0 } }).ranking;
+assert.deepEqual([tunedRanking.shrinkageK, tunedRanking.readerShareCap, tunedRanking.newAccountWeight, tunedRanking.risingMinimumAccountHours], [10, 0.5, 0.5, 0]);
+assert.equal(readerSnapshotSettings(resolveReaderSteeringConfig({ ...base, ranking: { combination: "shrinkage" } })).limits.newAccountHours, 24, "the snapshot task learns the new-account age");
 assert.equal(shipped.limits.newAccountHours, 24);
 assert.equal(shipped.karma.usedItWeight, 3);
 assert.equal(shipped.karma.upvoteWeight, 1);
@@ -93,6 +106,11 @@ for (const bad of [
   { limits: [] },
   { karma: { upvoteWeight: -1 } },
   { ranking: { editorWeight: 2 } },
+  { ranking: { combination: "wilson" } },
+  { ranking: { shrinkageK: 0 } },
+  { ranking: { readerShareCap: 1.5 } },
+  { ranking: { newAccountWeight: -1 } },
+  { ranking: { risingMinimumAccountHours: -1 } },
   { snapshot: { schedule: "yes" } },
   { snapshot: { intervalHours: 0 } },
   { reservedHandles: ["Bad Handle"] },
