@@ -35,7 +35,16 @@ def one_line(value: str) -> str:
 
 
 def load_source(content: Any, issue: Mapping[str, Any]) -> IssueSource:
-    """The Item's current title, body and deck. Raises ``ItemMissing``."""
+    """The Item's current title, body and deck. Raises ``ItemMissing``.
+
+    An alert issue has no Item: its subject, body and preheader were written onto the issue when the alert was raised.
+    """
+    if issue.get("kind") == "alert":
+        return IssueSource(
+            subject=one_line(str(issue.get("subject") or "")),
+            markus=str(issue.get("bodyMarkus") or ""),
+            preheader=one_line(str(issue.get("preheader") or "")),
+        )
     item_id = issue.get("itemId")
     item = content.get_record("Item", item_id) if item_id else None
     if item is None:
@@ -44,7 +53,9 @@ def load_source(content: Any, issue: Mapping[str, Any]) -> IssueSource:
     return IssueSource(subject=subject, markus=str(item.get("bodyMarkus") or ""), preheader=one_line(str(item.get("deck") or "")))
 
 
-def reason_sentence(list_name: str, site_name: str) -> str:
+def reason_sentence(list_name: str, site_name: str, kind: str = "roundup") -> str:
+    if kind == "alert":
+        return f"You get this because you subscribed to {list_name} alerts on {site_name}."
     return f"You get this because you subscribed to {list_name} on {site_name}."
 
 
@@ -57,13 +68,14 @@ def render(
     manage_url: str = MANAGE_PLACEHOLDER,
     unsubscribe_url: str = UNSUBSCRIBE_PLACEHOLDER,
     subject_prefix: str = "",
+    kind: str = "roundup",
 ) -> RenderedEmail:
     """Render the issue. Raises ``PostalAddressMissing`` for a blank address."""
     site_url = settings.site_origin.rstrip("/") + "/"
     footer = EmailFooter(
         site_name=settings.from_name,
         site_url=site_url,
-        reason=reason_sentence(list_name, settings.from_name),
+        reason=reason_sentence(list_name, settings.from_name, kind),
         manage_url=manage_url,
         unsubscribe_url=unsubscribe_url,
         postal_address=postal_address,

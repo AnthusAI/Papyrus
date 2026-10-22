@@ -6,6 +6,7 @@ import json
 import os
 from typing import Any
 
+from .publish_alerts import PUBLISHED_TASK_KEY
 from .projection.runtime import PUBLICATION_KIND_ENV, S3_PROJECTION_KIND, projection_configured
 
 CONTENT_ACTIONS_FUNCTION_ENV = "PAPYRUS_CONTENT_ACTIONS_FUNCTION"
@@ -38,8 +39,12 @@ def content_actions_function() -> str:
     return str(site_publication().get("contentActionsFunction") or "").strip()
 
 
-def item_task(item_id: str, *, unpublished: bool) -> dict[str, Any]:
-    return {"task": "item", "itemId": item_id, "unpublished": unpublished}
+def item_task(item_id: str, *, unpublished: bool, published_item_id: str | None = None) -> dict[str, Any]:
+    """``published_item_id`` marks a real publish, so the function tells the newsletter once the page is projected."""
+    task: dict[str, Any] = {"task": "item", "itemId": item_id, "unpublished": unpublished}
+    if published_item_id and not unpublished:
+        task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
+    return task
 
 
 ALL_TASK: dict[str, Any] = {"task": "all"}

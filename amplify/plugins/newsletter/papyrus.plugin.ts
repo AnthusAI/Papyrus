@@ -16,12 +16,14 @@ import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../type
 import { resolveNewsletterConfig, type NewsletterConfig } from "./config";
 import { newsletterOps } from "./ops/resource";
 import { NEWSLETTER_MUTATIONS, NEWSLETTER_QUERIES, newsletterSchemaDefinitions } from "./schema";
-import { newsletterFunctionName, wireSending } from "./sending";
+import { functionArn, newsletterFunctionName, wireSending } from "./sending";
 
 export { resolveNewsletterConfig };
 export type { NewsletterConfig };
 
 export const NEWSLETTER_OUTPUT_KEY = "newsletter";
+/** Set on the site's content-actions function: it invokes this function (`item-published`) after a real publish. Unset: no alerts. */
+export const NEWSLETTER_FUNCTION_ENV = "PAPYRUS_NEWSLETTER_FUNCTION";
 export const NEWSLETTER_HANDLER = "papyrus_content.newsletter.handler.handler";
 /** `boto3` is bundled because the runtime's copy may predate SESv2 `Simple.Headers` (List-Unsubscribe). */
 export const NEWSLETTER_REQUIREMENTS = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12", "boto3>=1.35.8,<2"];
@@ -83,14 +85,17 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
     ITEM_URL_STYLE: config.itemUrlStyle,
+    INSTANT_ALERTS: config.instantAlerts ? "true" : "false",
     LISTS_JSON: JSON.stringify(
       config.lists.map((list) => ({
         id: list.id,
         name: list.name,
         description: list.description,
         kind: list.kind,
-        // A roundup's issue type, archive section and time zone are what drafting needs; schedules and rules stay in the stack.
+        // A roundup's issue type, archive section and time zone are what drafting needs; its schedule stays in the stack.
         ...(list.kind === "roundup" ? { issueType: list.issueType, archivePath: list.archivePath, timezone: list.schedule.timezone } : {}),
+        // An alert's rule and approval decide which published items raise an alert and whether an admin approves it.
+        ...(list.kind === "alert" ? { rule: list.rule, approval: list.approval } : {}),
       })),
     ),
     THEME_JSON: JSON.stringify(config.theme),
@@ -267,6 +272,18 @@ export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, { newsletterOps: 
       });
       alarm.addAlarmAction(new SnsAction(alarmTopic));
     }
+
+    // The publish path tells this function about a real publish. The ARN is spelled out (not referenced) so the content-actions
+    // stack does not depend on this one, and the grant is for this one function only.
+    const contentActions = context.contentActionsLambda;
+    contentActions.addEnvironment(NEWSLETTER_FUNCTION_ENV, newsletterFunctionName(config.siteId));
+    contentActions.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["lambda:InvokeFunction"],
+        resources: [functionArn(Stack.of(contentActions), newsletterFunctionName(config.siteId))],
+      }),
+    );
 
     lambda.addPermission("InvokeFromCmsCompute", {
       principal: new ArnPrincipal(config.computeRoleArn),

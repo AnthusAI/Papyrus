@@ -27,6 +27,7 @@ from papyrus_content.story_reporting import save_story_version
 from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
 from papyrus_content.reference_intake import IntakeError, intake_references
+from papyrus_content.publish_alerts import PUBLISHED_TASK_KEY, announce_published
 from papyrus_content.publishing import (
     ItemFields,
     PublishError,
@@ -119,11 +120,17 @@ def projection_context(client):
     return context
 
 
-def project_item_action(client, item_id: str, *, unpublished: bool) -> dict:
+def project_item_action(client, item_id: str, *, unpublished: bool, published_item_id: str | None = None) -> dict:
+    """Project one item. ``published_item_id`` is passed only for a real publish: the alert is announced once the page
+    is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
     if not projection_configured():
+        if published_item_id:
+            announce_published(item_id, published_item_id)
         return {}
     liveness = {} if unpublished else {"live": False}
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
+    if published_item_id:
+        task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
     try:
         report = project(projection_context(client), item_id, unpublished=unpublished)
     except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
@@ -145,6 +152,8 @@ def project_item_action(client, item_id: str, *, unpublished: bool) -> dict:
         schedule_unpurged_invalidation(report.unpurged)
     if report.follow_up_item_pages:
         schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
+    if report.ok and published_item_id:
+        announce_published(item_id, published_item_id)
     return response
 
 
@@ -201,6 +210,10 @@ def run_projection_task(task: dict) -> dict:
         schedule_unpurged_invalidation(report.unpurged)
     if not report.ok:
         raise ProjectionTaskFailed("; ".join(report.errors))
+    published = task.get(PUBLISHED_TASK_KEY)
+    if task.get("task") == "item" and not task.get("unpublished") and isinstance(published, dict):
+        # A real publish (the CLI marks it, as does the newsroom's retry): the page is live, so tell the newsletter.
+        announce_published(task["itemId"], published.get("publishedItemId"))
     return {"ok": True, "paths": [*report.written, *report.deleted]}
 
 
@@ -286,7 +299,9 @@ def publish_item_action(arguments: dict, actor: str) -> dict:
     }
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
-    response.update(project_item_action(client, arguments["id"], unpublished=False))
+    response.update(
+        project_item_action(client, arguments["id"], unpublished=False, published_item_id=result.published_item_id if result.changed else None)
+    )
     return response
 
 
