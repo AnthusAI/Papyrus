@@ -295,9 +295,10 @@ never a value). To print a placeholder literally on a site that has values, put 
 out as `{{name}}`. Values are part of the shared fingerprint, so changing one re-renders every page. A band whose first
 line of content is a `::column` has no empty implicit first column: that `::column` is the first one.
 
-**Agent-readable twins.** For a page with bands, the `.md` twin and `llms-full.txt` drop the band and column markers,
-turn buttons into Markdown links on one line (`[Start](/start/) · [Source](https://example.org/)`), omit islands and
-have tokens replaced.
+**Agent-readable twins.** The `.md` twin and `llms-full.txt` carry the page's Markus source as written: `::band`, `::column`,
+`::button` and `::island` lines stay, with their attributes, and `{{name}}` tokens are replaced. Only `::include` and
+`::raw` ... `::endraw` regions are left out, because they place generated or hand-written markup that has no source text.
+An island is read through its `summary` (see "Islands").
 
 The baseline `css/markus-components.css` styles bands, columns, panels and buttons through `--papyrus-band-*`,
 `--papyrus-button-*`, `--papyrus-rule` and `--papyrus-radius`; your theme restyles them and may key on `data-layout`.
@@ -368,6 +369,15 @@ The contract: the site bundle assigns `window.papyrusIslands = { ...window.papyr
 `[data-island]`; `props` is the parsed `data-props` JSON (the `::island` attributes other than `name` and `height`).
 An unknown name logs a console warning and never throws; an island that throws is logged and does not stop the others.
 `height` becomes `style="min-height:.."` so the page does not jump when the island mounts.
+
+**Text fallback.** `::island{name="Chart" summary="Accuracy by model: the 2B model leads."}` puts that line inside the
+mount point as `<p class="papyrus-island-summary">`, so a reader without JavaScript (and a crawler) has something to read.
+The runtime removes the paragraph after the island function returns without throwing, so the mounted island replaces it;
+a pre-rendered entry (below) replaces it at build time. The same `summary="..."` attribute is part of the `::island` line
+that the Markdown twin keeps, so agents read it there too. `summary` is plain text on one line (no `"` inside; it is
+HTML-escaped) and is not passed to the island as a prop. Without it the mount point stays empty, as before. This is the
+smaller of the two designs considered: a directive body between `::island` and `::endisland` would add a block syntax
+(with fences, containers and nesting to handle) for text that one attribute carries.
 
 **Server-rendered islands.** `islands.prerender` names a JSON file in `web/` (build input: it is read, never published)
 holding `[{"name": "Chart", "props": {"kind": "bar"}, "html": "<svg>..</svg>"}]`. Every empty mount point (a `div` or
@@ -449,11 +459,23 @@ receiving endpoint is built into every site's backend: set `endpoint` to its URL
 
 Every page has a Markdown twin built from the same published content: `x.html` has `x.md`, `x/index.html` has
 `x/index.md`, the home page `index.md`. An article twin is its facts (title, summary, authors, dates, canonical URL)
-and its Markus source without front matter (`::image` becomes a Markdown image; other directives pass through). A
+and its Markus source without front matter, **every directive as written** (`::image{...}` keeps its layout, caption and
+sizes; the twin is Markus, a Markdown superset, which is why the `.md` extension and the `text/markdown` type stay). A
 listing, archive, tag or home twin is a Markdown link list pointing at the other `.md` URLs. HTML pages advertise
 their twin with `<link rel="alternate" type="text/markdown">`; the objects are stored as
 `text/markdown; charset=utf-8`. The eligibility rules are the sitemap's and the feeds': only published pages, no twin
 for a `noindex` entry or the 404 page.
+
+An authored page (a `pages` entry with `source`) is read like an article. Its twin is its title, description and
+canonical URL followed by the page file's Markus source (page blocks as written, tokens replaced), `llms.txt` lists it
+under "Pages" with its title and the `description` of the `pages` entry, `llms-full.txt` includes the twin text, and the
+page has the page actions and the head link to the twin (see "Page actions"). A `noindex` page has none of these.
+
+**Bare `/x.md`.** A directory-style site (`urls.style: "directory"`) stores a page's twin at `x/index.md`. The edge
+function rewrites a request for `/<path>/<name>.md` to `/<path>/<name>/index.md` when `<name>` is not `index`, so `/x.md`
+works as well as `/x/index.md`. It cannot test for existence, so a hand-published flat `.md` file on a directory-style
+site is not reachable by that name. The rewrite is a compile-time option (`directoryTwins`, set from `urls.style` and
+`agents.markdown`) and does not depend on a base path, which is just part of `<path>`. Other URL styles are untouched.
 
 `/llms.txt` follows llmstxt.org: an H1 with the site name, a blockquote from the site description, H2 sections of
 links to the twins (one per section, or "Articles" for a flat site, then "Pages"), and an "Optional" section with the
@@ -506,7 +528,8 @@ textarea. The AI links open the provider's new-chat URL with a short prompt (`pr
 with it.") that names the page URL; the page body is never put in a URL. Everything happens on an explicit click; the
 only reporting is a `page_action` event through the site's existing `gtag`, so consent mode applies.
 
-Only entries of a listed type get actions by default. `pageActions.types` names further entry types (`["page"]`, `["guide"]`)
+Authored pages (`pages` entries with `source`) get the same actions, above or after the page file's content, unless the
+page is `noindex`; `page.page_actions` is set on them for hooks that compose the page. Only entries of a listed type get actions by default. `pageActions.types` names further entry types (`["page"]`, `["guide"]`)
 that get them too, for guides and standing pages; listings, archives and the home page never do. A site whose `page_body` or `main` hook composes
 the whole page places the group itself: `page.page_actions` holds the markup core would have used (empty when the page gets none) on item pages.
 

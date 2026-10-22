@@ -4,6 +4,9 @@
 ``::button{href label size variant}`` a call to action (consecutive lines share a row) and ``::island{name height ...}``
 a mount point for a site script. Each directive sits alone on its line.
 
+``::island`` takes an optional ``summary="..."``: a line of plain text that stands in for the island in the HTML (inside the
+mount point, until the island script mounts) and in the Markdown twin, for readers without JavaScript and for agents.
+
 ``::include{kind=... }`` places generated markup (a listing of entries chosen by tag or section, a showcase, a form, a
 block of the site's ``block`` hook) and ``::raw`` ... ``::endraw`` places the lines between them as they are. See
 ``includes.py``; ``::raw`` is for pages that live in the site's static directory, never for items edited in a CMS. Text between directives is converted by Markus
@@ -168,13 +171,15 @@ def _island_html(source: str, attributes: dict) -> str:
     name = attributes.pop("name", "")
     if not ISLAND_NAME.match(name):
         raise ValueError(f"{source}: ::island needs a name such as name=\"Chart\", got {name!r}")
+    summary = attributes.pop("summary", "")
     height = attributes.pop("height", "")
     if height and not ISLAND_HEIGHT.match(height):
         raise ValueError(f"{source}: ::island height {height!r} must be a number with px, rem, em, vh or %")
     style = f' style="min-height:{esc(height)}"' if height else ""
     props = json.dumps(attributes, ensure_ascii=False, separators=(",", ":"))
     props = html.escape(props, quote=False).replace("'", "&#x27;")
-    return f'<div class="papyrus-island" data-island="{esc(name)}"{style} data-props=\'{props}\'></div>'
+    fallback = f'<p class="papyrus-island-summary">{esc(summary)}</p>' if summary else ""
+    return f'<div class="papyrus-island" data-island="{esc(name)}"{style} data-props=\'{props}\'>{fallback}</div>'
 
 
 def render(
@@ -313,37 +318,23 @@ def _band_html(band: dict) -> str:
 
 
 def twin(text: str, values: Mapping[str, str], source: str) -> str:
-    """The Markdown twin's source: tokens replaced, and for a page with bands the markers dropped, buttons turned into links and islands omitted."""
+    """The Markdown twin's source: tokens replaced and every page block kept as written (an island carries its ``summary``).
+
+    Only ``::include`` and ``::raw`` regions are left out: they place generated or hand-written markup that has no
+    source text to read."""
     text = substitute(text, values, source)
     if not uses_blocks(text):
         return text
     front = FRONT_MATTER.match(text)
     head, body = (text[: front.end()], text[front.end():]) if front else ("", text)
-    out: list[str] = []
-    buttons: list[str] = []
-
-    def flush_buttons() -> None:
-        if buttons:
-            out.extend(["", " · ".join(buttons), ""])
-            buttons.clear()
-
-    for line, name, attributes, _inside in _directives(body):
-        if name == "button":
-            attributes = _button(source, attributes)
-            buttons.append(f"[{attributes['label']}]({attributes['href']})")
-            continue
-        if name is None and not line.strip() and buttons:
-            continue
-        flush_buttons()
-        if name is None:
-            out.append(line)
-        elif name in ("band", "column"):
-            out.append("")
-    flush_buttons()
+    out = [line for line, name, _attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw")]
     return head + re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"
 
 
-ISLAND_MOUNT = re.compile(r'<(?P<tag>div|span)(?P<attributes>(?=[^>]*\bclass="papyrus-island")[^>]*\bdata-island="(?P<name>[^"]+)"[^>]*)></(?P=tag)>')
+ISLAND_MOUNT = re.compile(
+    r'<(?P<tag>div|span)(?P<attributes>(?=[^>]*\bclass="papyrus-island")[^>]*\bdata-island="(?P<name>[^"]+)"[^>]*)>'
+    r'(?:<p class="papyrus-island-summary">[^<]*</p>)?</(?P=tag)>'
+)
 ISLAND_PROPS = re.compile(r"\bdata-props='([^']*)'")
 
 
@@ -363,7 +354,8 @@ def parse_prerendered(data: bytes) -> dict[str, list[tuple[dict, str]]]:
 def fill_islands(body: str, prerendered: Mapping[str, list[tuple[dict, str]]]) -> str:
     """Put the server-rendered HTML inside every empty mount point that has an entry for its name and props.
 
-    A mount point with no entry stays empty (the site script mounts it in the browser). The HTML is the site's own build
+    A mount point's text fallback (``summary``) is replaced by the HTML. A mount point with no entry stays as it is (the site
+    script mounts it in the browser). The HTML is the site's own build
     output and is inserted as written; the site script hydrates it."""
 
     def fill(match: re.Match) -> str:
