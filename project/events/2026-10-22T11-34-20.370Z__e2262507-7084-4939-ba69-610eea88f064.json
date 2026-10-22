@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "e2262507-7084-4939-ba69-610eea88f064",
+  "issue_id": "PPY-2166349a-528b-4fbc-ae85-a123e56659e3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T11:34:20.370Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Refuse projection deletions of published items' pages unless --allow-deletions (stale --static-dir guard)",
+    "description": "On 2026-10-22 `papyrus knowledge snapshot --reproject --static-dir ~/Projects/Shipped-web/web` ran with a checkout 23 commits behind origin/main. Its projection.json had no wiki section, so project_all deleted 564 objects (282 wiki_page items, HTML + .md) remembered as leftovers of still-published items. Fix: before any write, project_all and reconcile compute the planned deletions; when a CLI run would remove every page of a published item, or more than a threshold share of the stored owned pages, refuse with a list of what would be deleted unless --allow-deletions. Also warn when --static-dir is a git checkout behind its upstream. Specs, unit tests, docs in knowledge-snapshot.md and knowledge-workstation-run.md.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-3d905dde-4a01-467b-95b8-53abe6f9e1ef",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5"
+    }
+  }
+}

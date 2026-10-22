@@ -9,6 +9,7 @@ from pathlib import Path
 from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options
 from .projection.engine import (
+    DeletionGuard,
     ProjectionContext,
     project,
     project_all,
@@ -22,6 +23,7 @@ from .projection.runtime import (
     context_from_environment,
     load_projector,
 )
+from .projection.checkout import warn_if_checkout_is_behind
 from .projection.directory_source import DirectoryContentSource
 from .projection.source import PublishedContentSource
 from .projection.writers import LocalDirectoryWriter
@@ -35,10 +37,18 @@ def _projection_environment(options: dict) -> dict[str, str]:
     static_directory = normalize_string(options.get("static-dir"))
     if static_directory:
         environment[SITE_STATIC_DIRECTORY_ENV] = static_directory
+        warn_if_checkout_is_behind(static_directory)
     return environment
 
 
 def _context_for(client, options: dict) -> ProjectionContext:
+    context = _build_context(client, options)
+    if not options.get("allow-deletions"):
+        context.deletion_guard = DeletionGuard()
+    return context
+
+
+def _build_context(client, options: dict) -> ProjectionContext:
     environment = _projection_environment(options)
     output_directory = normalize_string(options.get("out"))
     from_directory = normalize_string(options.get("from-dir"))
