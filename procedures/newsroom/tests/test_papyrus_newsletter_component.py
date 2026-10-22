@@ -149,8 +149,9 @@ class NewsletterComponentTests(unittest.TestCase):
 class NewsletterAssetTests(unittest.TestCase):
     def test_the_plugin_ships_its_component_under_a_versioned_name(self) -> None:
         files = plugin_static_files(["newsletter"])
-        self.assertEqual(list(files), ["_plugins/papyrus-newsletter@1.js"])
+        self.assertEqual(list(files), ["_plugins/papyrus-newsletter@1.js", "_plugins/papyrus-newsletter-pages@1.js"])
         self.assertIn(b"papyrus-newsletter", files["_plugins/papyrus-newsletter@1.js"])
+        self.assertIn(b"/api/newsletter/state", files["_plugins/papyrus-newsletter-pages@1.js"])
 
     def test_the_manifest_declares_exactly_what_the_projector_ships(self) -> None:
         source = (Path(__file__).resolve().parents[3] / "amplify" / "plugins" / "newsletter" / "papyrus.plugin.ts").read_text(encoding="utf-8")

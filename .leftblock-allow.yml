@@ -237,3 +237,15 @@ allow:
     kind: "Personal email address"
     reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
     added: 2026-10-22
+  - id: "1f8c0ac4a81ec68c"
+    rule: "leftblock-personal-email"
+    file: "procedures/newsroom/tests/test_papyrus_newsletter_component.py"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "2960dd4a8ea8b61e"
+    rule: "leftblock-personal-email"
+    file: "procedures/newsroom/tests/test_papyrus_newsletter_component.py"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
