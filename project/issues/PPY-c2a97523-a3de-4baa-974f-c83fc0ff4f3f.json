@@ -1,0 +1,28 @@
+{
+  "id": "PPY-c2a97523-a3de-4baa-974f-c83fc0ff4f3f",
+  "title": "Reader identity: readerSubject accessor and reader API skeleton",
+  "description": "As a publication, I want reader requests keyed only on a per-site pairwise siteSubject so that no global person id ever reaches reader data.\n\nFeature: Reader identity fails closed\n  Scenario: No siteSubject in production\n    Given a signed-in reader whose session has no siteSubject\n    When they call any /api/reader route\n    Then the answer is 503 reader_identity_unavailable\n  Scenario: Signed out\n    Given no session\n    When they call GET /api/reader/me\n    Then the answer is 401\n  Scenario: Wrong origin\n    Given a signed-in reader with a siteSubject\n    When a POST arrives with a foreign Origin\n    Then the answer is 403\n\nDefinition of Done: lib/reader-subject.ts, app/api/reader/* routes, reader-steering plugin skeleton (models, config, reader-actions Lambda, wire), tests, docs/reader-steering.md.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e54370ac-e3c5-4a88-a5fb-b24ccf5888da",
+      "author": "home",
+      "text": "Part 1 PR: https://github.com/AnthusAI/Papyrus/pull/512 (branch feat/reader-steering-foundation). Verified: scripts/test-reader-subject.ts, test-reader-api.ts, test-reader-steering-plugin.ts, test-plugins.ts; procedures/newsroom/tests/test_reader_actions.py (moto DynamoDB); features_backend/reader-steering.feature. Off in production until Prospectus returns siteSubject.",
+      "created_at": "2026-10-22T01:53:20.558763Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-22T01:15:42.232490Z",
+  "updated_at": "2026-10-22T01:53:21.054890Z",
+  "closed_at": "2026-10-22T01:53:21.054853Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,38 @@
+import { defineFunction } from "@aws-amplify/backend";
+import { Duration, RemovalPolicy } from "aws-cdk-lib";
+import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
+import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { Architecture, Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
+import type { Construct } from "constructs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
+
+export const READER_ACTIONS_RESERVED_CONCURRENCY = 10;
+
+export const readerActions = defineFunction(
+  (scope: Construct) => {
+    const rateTable = new Table(scope, "PapyrusReaderRateWindows", {
+      partitionKey: { name: "pk", type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "expiresAt",
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    const lambda = new Function(scope, "papyrus-reader-actions", {
+      runtime: Runtime.PYTHON_3_12,
+      architecture: Architecture.ARM_64,
+      handler: "handler.handler",
+      timeout: Duration.seconds(10),
+      memorySize: 256,
+      reservedConcurrentExecutions: READER_ACTIONS_RESERVED_CONCURRENCY,
+      code: Code.fromAsset(functionDirectory, { exclude: ["*.ts", "__pycache__", "*.pyc"] }),
+      environment: { PAPYRUS_READER_RATE_TABLE: rateTable.tableName },
+    });
+    lambda.addToRolePolicy(
+      new PolicyStatement({ effect: Effect.ALLOW, actions: ["dynamodb:UpdateItem", "dynamodb:PutItem"], resources: [rateTable.tableArn] }),
+    );
+    return lambda;
+  },
+  { resourceGroupName: "data" },
+);

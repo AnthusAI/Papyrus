@@ -1,8 +1,10 @@
 import type { PapyrusPlugin, PluginRequest } from "./types";
+import { readerSteeringPlugin } from "./reader-steering/papyrus.plugin";
 import { signupPlugin } from "./signup/papyrus.plugin";
 
 /** Plugins are packaged with Papyrus and pinned by its version: there is no registry to fetch from. */
 export const KNOWN_PLUGINS: Record<string, PapyrusPlugin<any, any>> = {
+  "reader-steering": readerSteeringPlugin,
   signup: signupPlugin,
 };
 

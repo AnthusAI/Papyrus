@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4136b9a2-01f0-43e8-acff-75edf08c6780",
+  "issue_id": "PPY-5b5da899-d30c-4377-839d-2d28d3377db6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:15:46.916Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Docs: reader steering (papyrus docs and p.apyr.us page)",
+    "description": "Feature: Docs\n  Scenario: docs/reader-steering.md covers enabling, config, API, privacy, snapshot, karma and the siteSubject switch-on condition.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+    "labels": []
+  }
+}

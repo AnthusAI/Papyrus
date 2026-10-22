@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "970c8737-94f1-4046-9c66-95f16ce7702d",
+  "issue_id": "PPY-e8db82ba-0b5c-4b0f-b539-f649b90dc1f6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:15:45.967Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader islands: sign-in, vote, rating, used-it, freshness",
+    "description": "As a reader, I want small accessible controls on the page so that I can sign in, vote and rate.\n\nFeature: Islands\n  Scenario: Reader sign-in is not open yet\n    Given the API answers 503 reader_identity_unavailable\n    Then the controls show 'Reader sign-in is not open yet' and are disabled\n  Scenario: Keyboard\n    Then vote and rating are buttons with aria-pressed and text states",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+    "labels": []
+  }
+}
