@@ -46,9 +46,16 @@ def test_corpus_sync_exports_reindexes_extracts_and_uploads(tmp_path):
     assert run.state.read_text("runs/2026-W44/state.json")
 
 
-def test_the_site_is_a_fresh_clone_and_a_stale_checkout_is_refused(tmp_path):
+def test_the_site_is_checked_out_at_the_deployed_commit_and_nothing_else_is_accepted(tmp_path):
     run, shell = make_run(tmp_path)
-    shell.tip = "b" * 40
+    assert run_stage("snapshot", run) == 0
+    fetch = commands(shell, ["git", "-C"])[0]
+    assert "fetch" in fetch and "d" * 40 in fetch and "https://example.test/site.git" in fetch
+
+
+def test_a_checkout_that_is_not_the_deployed_commit_is_refused(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.head = "b" * 40
     assert run_stage("snapshot", run) == 1
     assert run.ledger.status("snapshot") == FAILED
     assert not commands(shell, ["papyrus", "knowledge", "snapshot"])
@@ -259,3 +266,36 @@ def test_no_stage_ever_reconciles_replaces_or_deletes(tmp_path):
         text = " ".join(" ".join(call) for call in shell.calls)
         for forbidden in ("--reconcile", "--allow-deletions", "--replace", "delete"):
             assert forbidden not in text, (stage, forbidden)
+
+
+def test_without_an_amplify_app_the_site_is_the_branch_tip_and_a_moved_tip_is_refused(tmp_path):
+    run, shell = make_run(tmp_path, {"KNOWLEDGE_AMPLIFY_APP_ID": ""})
+    assert run_stage("snapshot", run) == 0
+    stale, shell = make_run(tmp_path / "stale", {"KNOWLEDGE_AMPLIFY_APP_ID": ""}, execution="manual-2")
+    shell.tip = "b" * 40
+    assert run_stage("snapshot", stale) == 1
+
+
+def test_projection_runs_the_papyrus_the_site_pins(tmp_path):
+    run, shell = make_run(tmp_path)
+    assert run_stage("projection", run) == 0
+    install = commands(shell, ["pip", "install"])[0]
+    assert "--no-deps" in install and install[-1].endswith("requirements-publication.txt")
+    assert commands(shell, ["python", "-c"])[0][2] == "import papyrus_content.projection.lease"
+
+
+def test_a_pin_without_the_projection_lease_stops_the_projection_before_it_writes(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.fail_on = "projection.lease"
+    assert run_stage("projection", run) == 1
+    assert not commands(shell, ["papyrus", "ops", "content", "project"])
+    error = run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#projection"})["Item"]["error"]
+    assert "projection lease" in error
+
+
+def test_a_site_without_a_pin_cannot_be_projected(tmp_path):
+    run, shell = make_run(tmp_path)
+    run.clone_site()
+    (run.site / "requirements-publication.txt").write_text("boto3\n")
+    assert run_stage("projection", run) == 1
+    assert not commands(shell, ["papyrus", "ops", "content", "project"])

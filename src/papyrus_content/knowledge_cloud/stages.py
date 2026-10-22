@@ -145,16 +145,56 @@ class Run:
                 f"the content-actions Lambda has {sorted(deployed) or 'none'}. Fix `plugins` in the knowledgeRun config."
             )
 
+    @property
+    def pinned(self) -> Path:
+        return self.work / "pinned"
+
     def clone_site(self) -> None:
-        """A fresh shallow clone of the site's branch, and a check that it is that branch's tip (the stale-checkout guard)."""
+        """Check out the site code the live site runs, never anything older, and stop if that cannot be done.
+
+        With the Amplify app configured that is the commit of the app's latest successful deploy of the branch, so pages,
+        templates and hooks equal the deployed ones even while newer commits wait. Otherwise it is the tip of the branch,
+        checked against the remote (the stale-checkout guard)."""
         if self.site.exists():
             return
         repo, branch = self.config.site_repo, self.config.site_branch
-        self.shell(["git", "clone", "--depth", "1", "--branch", branch, repo, str(self.site)], cwd=self.work, env=self.command_env())
+        app_id = (self.environment.get("KNOWLEDGE_AMPLIFY_APP_ID") or "").strip()
+        env = self.command_env()
+        if app_id:
+            wanted = self.services.deployed_commit(app_id, branch)
+            self.shell(["git", "init", "--quiet", str(self.site)], cwd=self.work, env=env)
+            self.shell(["git", "-C", str(self.site), "fetch", "--quiet", "--depth", "1", repo, wanted], cwd=self.work, env=env)
+            self.shell(["git", "-C", str(self.site), "checkout", "--quiet", "--detach", "FETCH_HEAD"], cwd=self.work, env=env)
+            head = _git_output(self.shell, ["git", "-C", str(self.site), "rev-parse", "HEAD"], self)
+            if head != wanted:
+                raise StageFailed(f"The site checkout ({head[:8]}) is not the deployed commit ({wanted[:8]}).")
+            print(f"site code: {repo} at the deployed commit {wanted[:12]} of {branch}", flush=True)
+            return
+        self.shell(["git", "clone", "--depth", "1", "--branch", branch, repo, str(self.site)], cwd=self.work, env=env)
         head = _git_output(self.shell, ["git", "-C", str(self.site), "rev-parse", "HEAD"], self)
         tip = _git_output(self.shell, ["git", "ls-remote", repo, f"refs/heads/{branch}"], self).split()[:1]
         if not tip or tip[0] != head:
             raise StageFailed(f"The site checkout ({head[:8]}) is not the tip of {branch}; refusing to run from a stale checkout.")
+
+    def install_pinned_papyrus(self) -> None:
+        """Project with the Papyrus release the site pins (requirements-publication.txt), the one its Lambda runs.
+
+        It is installed over the image's own copy (PYTHONPATH), without its dependencies, which the image provides. The pin
+        must carry the projection lease, or the stage stops before it writes."""
+        requirements = self.site / "requirements-publication.txt"
+        if not requirements.exists():
+            raise StageFailed("The site has no requirements-publication.txt, so its Papyrus pin is unknown.")
+        pin = [line.strip() for line in requirements.read_text().splitlines() if line.strip().startswith("papyrus-newsroom")]
+        if len(pin) != 1 or "==" not in pin[0]:
+            raise StageFailed(f"requirements-publication.txt must pin papyrus-newsroom with ==, got {pin or 'nothing'}.")
+        self.pinned.mkdir(parents=True, exist_ok=True)
+        env = {**self.command_env(), "PYTHONPATH": str(self.pinned)}
+        self.shell(["pip", "install", "--quiet", "--no-deps", "--target", str(self.pinned), "-r", str(requirements)], cwd=self.work, env=env)
+        try:
+            self.shell(["python", "-c", "import papyrus_content.projection.lease"], cwd=self.work, env=env)
+        except StageFailed as error:
+            raise StageFailed(f"The pinned {pin[0]} does not carry the projection lease; bump the pin to a release that does.") from error
+        print(f"projecting with the site's pin: {pin[0]}", flush=True)
 
 
 def _plugin_set(value: str | None) -> set[str]:
@@ -377,7 +417,8 @@ def projection(run: Run) -> dict:
     run.prepare_site()
     arguments = ["papyrus", "ops", "content", "project", "--all", "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"]
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages
-    run.sh(*arguments, stdout=run.work / "projection.json")
+    run.install_pinned_papyrus()
+    run.shell(arguments, cwd=run.work, env={**run.command_env(), "PYTHONPATH": str(run.pinned)}, stdout=run.work / "projection.json")
     return json.loads((run.work / "projection.json").read_text() or "{}")
 
 

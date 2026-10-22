@@ -43,6 +43,7 @@
     "siteBucket": "amplify-dkycd9pntgo6d-main-bran-sitebucket397a1860-072ufgwmonqo",
     "edgeDistributionId": "EUQZ249T4OKXH",
     "appSyncApiId": "6sw6454pozbgvdgm233gqkxsxu",
+    "amplifyAppId": "dkycd9pntgo6d",
     "contentActionsFunction": "amplify-dkycd9pntgo6d-mai-papyruscontentactionsE8B-p01l4veHquVE",
     "plugins": ["newsletter", "reader-steering"],
     "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/7c0d81b7-e786-4ae3-a30b-abd7dd532560",

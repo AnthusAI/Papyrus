@@ -131,7 +131,7 @@ template.hasResourceProperties("AWS::ECS::TaskDefinition", {
 const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefinition"))[0];
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
-  "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "PAPYRUS_PLUGINS",
+  "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
   "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET",
@@ -142,6 +142,7 @@ assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,
 assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
 assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
+assert.equal(staticEnvironment.KNOWLEDGE_AMPLIFY_APP_ID, "dkycd9pntgo6d");
 assert.equal(staticEnvironment.KNOWLEDGE_CONTENT_ACTIONS_FUNCTION, "amplify-dkycd9pntgo6d-mai-papyruscontentactionsE8B-p01l4veHquVE");
 
 // ECR repository.
@@ -240,7 +241,7 @@ const taskStatements = policyStatements(template, "JobTaskRoleDefaultPolicy");
 const allowedActions = new Set([
   "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket", "s3:GetBucketLocation",
   "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
-  "ssm:GetParameter", "appsync:GraphQL", "lambda:GetFunctionConfiguration", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
+  "ssm:GetParameter", "appsync:GraphQL", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
   "cloudfront-keyvaluestore:DescribeKeyValueStore", "cloudfront-keyvaluestore:GetKey", "cloudfront-keyvaluestore:ListKeys",
   "cloudfront-keyvaluestore:PutKey", "cloudfront-keyvaluestore:DeleteKey", "cloudfront-keyvaluestore:UpdateKeys",
 ]);
@@ -268,6 +269,7 @@ assert.deepEqual(
   "arn:aws:lambda:us-east-1:712236451410:function:amplify-dkycd9pntgo6d-mai-papyruscontentactionsE8B-p01l4veHquVE",
 );
 assert.deepEqual(statementBySid("ReadContentActionsConfiguration").Action, "lambda:GetFunctionConfiguration");
+assert.deepEqual(statementBySid("ReadDeployedCommit").Resource, "arn:aws:amplify:us-east-1:712236451410:apps/dkycd9pntgo6d/branches/main");
 assert.deepEqual(statementBySid("SiteBucketObjects").Resource, `arn:aws:s3:::${config.siteBucket}/*`);
 assert.deepEqual(statementBySid("SiteBucketList").Resource, `arn:aws:s3:::${config.siteBucket}`);
 assert.deepEqual(statementBySid("InvalidateEdge").Resource, "arn:aws:cloudfront::712236451410:distribution/EUQZ249T4OKXH");

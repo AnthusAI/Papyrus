@@ -100,9 +100,31 @@ def step_previous(context, previous):
     context.run_.state.write_text("corpus/knowledge-run.json", json.dumps({"previousRunId": previous}))
 
 
-@given("the site repository has moved on since the clone")
+@given("the checkout comes out at a different commit")
 def step_stale(context):
-    context.shell.tip = "b" * 40
+    context.shell.head = "b" * 40
+
+
+@given("the pinned release lacks the projection lease")
+def step_no_lease(context):
+    context.shell.fail_on = "projection.lease"
+
+
+@then("the site was fetched at the deployed commit of the Amplify app")
+def step_deployed(context):
+    fetch = [call for call in context.shell.calls if call[:2] == ["git", "-C"] and "fetch" in call][0]
+    assert "d" * 40 in fetch
+
+
+@then("the pinned release from requirements-publication.txt was installed before the project command")
+def step_pinned_installed(context):
+    names = [" ".join(call[:2]) for call in context.shell.calls]
+    assert names.index("pip install") < names.index("papyrus ops")
+
+
+@then("the project command ran with the pinned release first on the Python path")
+def step_pinned_path(context):
+    assert context.shell.envs[-1]["PYTHONPATH"].endswith("/pinned")
 
 
 @given('the command "{text}" fails')
