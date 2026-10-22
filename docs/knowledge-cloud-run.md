@@ -25,7 +25,7 @@ Each stage is one ECS Fargate task (ARM64, CPU, 4 vCPU and 16 GB to start) from 
 | `ai-review` | GPT-6 Luna reviews the extractor's entities, new clusters and relations (step 11); see below |
 | `publish-relations` | Import again, so relations between entities accepted by the review land |
 | `snapshot` | `knowledge snapshot` to the site bucket, no `--reproject` (step 12) |
-| `archive` | `knowledge archive` for the week, never `--replace` (step 13) |
+| `archive` | `knowledge archive` for the week, never `--replace` (step 13). A week that already has an entry keeps it (entries are immutable), so a second run in the same week skips this step |
 | `wiki-sync` | `wiki sync --apply`, then `wiki publish --all-drafts --actor ai --no-trigger` (step 14) |
 | `projection` | `ops content project --all` under the projection lease and the deletion guard, never `--allow-deletions` |
 

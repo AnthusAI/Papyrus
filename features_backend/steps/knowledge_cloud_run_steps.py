@@ -387,3 +387,27 @@ def step_deployed_order(context, commit):
 
     assert latest_successful_commit(context.jobs, "app", "main") == commit
     assert latest_successful_commit(list(reversed(context.jobs)), "app", "main") == commit
+
+
+ENTRY_KEY = "_data/knowledge/history/2026-10-26.json"
+
+
+@given('the site already holds the archive entry of the week from run "{run_id}"')
+def step_archived(context, run_id):
+    context.run_.services.objects[ENTRY_KEY] = json.dumps({"asOf": "2026-10-26", "runId": run_id}).encode()
+
+
+@given("the site holds a corrupt archive entry for the week")
+def step_corrupt_entry(context):
+    context.run_.services.objects[ENTRY_KEY] = b"{not json"
+
+
+@given("the site holds an archive entry for the week that says it is for {day}")
+def step_other_week_entry(context, day):
+    context.run_.services.objects[ENTRY_KEY] = json.dumps({"asOf": day, "runId": "x"}).encode()
+
+
+@then('the ledger details for "{stage}" say "{text}"')
+def step_ledger_details(context, stage, text):
+    item = context.run_.ledger.table.get_item(Key={"publication": "shipped", "runKey": f"2026-W44#{context.run_.config.execution_name}#{stage}"})["Item"]
+    assert item["details"]["archive"] == text, item
