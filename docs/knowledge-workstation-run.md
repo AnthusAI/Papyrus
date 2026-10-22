@@ -297,7 +297,7 @@ papyrus knowledge snapshot --auth iam --amplify-outputs $OUT \
 curl -s https://shipped.anth.us/_data/knowledge/index.json | python -m json.tool | head -40
 ```
 
-`--concept-kinds` limits the concept of the week to those kinds (Shipped features a task, technique, concept or model family, not a platform or a licence); leave it out and every kind may be chosen. Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). The snapshot is deterministic for the same records and `--as-of`.
+`--concept-kinds` limits the concept of the week to those kinds (Shipped features a task, technique, concept or model family, not a platform or a licence); leave it out and every kind may be chosen. Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). `--reproject` warns when the `--static-dir` checkout is behind its upstream and refuses to delete the pages of published items unless you pass `--allow-deletions`. The snapshot is deterministic for the same records and `--as-of`.
 
 ### 13. Wiki
 
@@ -367,4 +367,4 @@ Found on this run:
 
 - Aliases added with `entities alias --actor ai`: `Mistral` on `maker--mistral-ai`, `Moonshot` on `maker--moonshotai`, `DeepSeek` on `maker--deepseek-ai`, `Aleph Alpha` on `maker--aleph-alpha-gmbh`. Four wiki pages (the aliased makers) have pending revisions that were not applied; the next `wiki sync --no-topics --apply` and `wiki publish` carry them.
 - Snapshot re-run with `--concept-kinds task,technique,concept,model_family` and `--reproject`: the concept of the week is `task--typed-decisions` (an AI-edited description already existed), with `href` `/wiki/task-typed-decisions/` returning 200 and the home rail showing "Edited by AI on 2026-10-22". `model_family` matches nodes stored as `model-family`.
-- Use a current checkout of the site repository for `--static-dir`. A first `--reproject` against a checkout 23 commits behind `origin/main` deleted the 282 wiki entity pages from the site bucket (the old `projection.json` had no wiki section); re-running `--reproject` with a fresh `origin/main` worktree restored them (984 pages written, 0 deleted).
+- Use a current checkout of the site repository for `--static-dir`. A first `--reproject` against a checkout 23 commits behind `origin/main` deleted the 282 wiki entity pages from the site bucket (the old `projection.json` had no wiki section); re-running `--reproject` with a fresh `origin/main` worktree restored them (984 pages written, 0 deleted). `--reproject` now refuses that deletion before writing anything, and warns when the checkout is behind; pass `--allow-deletions` only when the deletions are intended.
