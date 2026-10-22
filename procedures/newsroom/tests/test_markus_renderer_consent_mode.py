@@ -266,6 +266,26 @@ class ConsentBannerTests(unittest.TestCase):
         self.assertIn(html.escape(settings.banner_message), self.banner)
 
 
+class AnalyticsOnlyTests(unittest.TestCase):
+    def test_off_by_default_and_the_default_output_is_unchanged(self) -> None:
+        self.assertFalse(ConsentModeSettings().analytics_only)
+        self.assertIn("ad_storage:v,ad_user_data:v,ad_personalization:v,analytics_storage:v", render_ga4_snippet(MEASUREMENT_ID, consent_mode=ConsentModeSettings()))
+
+    def test_analytics_only_never_mentions_advertising_in_the_default_banner_text(self) -> None:
+        settings = ConsentModeSettings(analytics_only=True)
+        self.assertNotIn("if you agree, for advertising", settings.banner_message)
+        self.assertIn("do not use them for advertising", settings.banner_message)
+        self.assertNotIn("ad_storage:v", render_ga4_snippet(MEASUREMENT_ID, consent_mode=settings))
+
+    def test_a_custom_banner_message_is_kept(self) -> None:
+        self.assertEqual(ConsentModeSettings(analytics_only=True, banner_message="Custom.").banner_message, "Custom.")
+
+    def test_the_setting_comes_from_a_mapping_and_must_be_a_boolean(self) -> None:
+        self.assertTrue(consent_mode_from_mapping({"analytics_only": True}).analytics_only)
+        with self.assertRaises(ValueError):
+            consent_mode_from_mapping({"analytics_only": "yes"})
+
+
 class ConsentConfigurationTests(unittest.TestCase):
     def test_projection_settings_accept_a_consent_mode_mapping(self) -> None:
         settings = settings_from_mapping(
@@ -363,6 +383,29 @@ class ConsentRuntimeBehaviourTests(unittest.TestCase):
             set(result["commandsAfter"][-1][2].values()), {"denied"}
         )
         self.assertFalse(json.loads(result["storage"]["anthus-consent"])["granted"])
+
+    def _run_analytics_only(self, **state: object) -> dict:
+        html = _render(_consent_chrome(analytics_only=True))
+        completed = subprocess.run(
+            ["node", "-e", NODE_HARNESS, json.dumps(state)], input=html, capture_output=True, text=True, check=True
+        )
+        return json.loads(completed.stdout)
+
+    def test_analytics_only_accept_grants_only_analytics_and_reject_denies_all(self) -> None:
+        accepted = self._run_analytics_only(click="accept", now=1_700_000_000_000)
+        self.assertEqual(
+            accepted["commandsAfter"][-1][2],
+            {"ad_storage": "denied", "ad_user_data": "denied", "ad_personalization": "denied", "analytics_storage": "granted"},
+        )
+        rejected = self._run_analytics_only(click="reject", now=1_700_000_000_000)
+        self.assertEqual(set(rejected["commandsAfter"][-1][2].values()), {"denied"})
+
+    def test_analytics_only_applies_a_stored_acceptance_without_the_ad_signals(self) -> None:
+        stored = json.dumps({"version": 1, "savedAt": 1_700_000_000_000, "granted": True})
+        result = self._run_analytics_only(storage={"anthus-consent": stored}, now=1_700_000_000_000 + 1000)
+        update = [c for c in result["commands"] if c[:2] == ["consent", "update"]][0]
+        self.assertEqual(update[2]["ad_storage"], "denied")
+        self.assertEqual(update[2]["analytics_storage"], "granted")
 
     def _stored(self, **overrides: object) -> str:
         record = {"version": 1, "savedAt": 1_700_000_000_000, "granted": True}

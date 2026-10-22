@@ -42,3 +42,9 @@ Feature: Privacy-safe Google Analytics events
   Scenario: A footer link to #cookie-settings reopens the consent choices
     Given a page built with a measurement id and consent mode
     Then the consent script reopens the choices from links to "#cookie-settings"
+
+  Scenario: An analytics-only site never grants the advertising signals
+    Given a page built with a measurement id and analytics-only consent
+    Then accepting grants only analytics storage
+    And rejecting denies every signal
+    And the banner text does not offer advertising
