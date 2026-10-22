@@ -281,13 +281,40 @@ Add `--reproject` only when the site's pages use the knowledge blocks (it needs 
 ### 13. Wiki
 
 ```bash
-papyrus knowledge wiki sync --auth iam --amplify-outputs $OUT                    # dry run: lists the pages it would create or change
-papyrus knowledge wiki sync --auth iam --amplify-outputs $OUT --apply            # drafts only
-papyrus knowledge wiki publish --auth iam --amplify-outputs $OUT ...             # see public-wiki.md for the stamp options
+papyrus knowledge wiki sync --auth iam --amplify-outputs $OUT --beats-config ~/Projects/Shipped-web/web/scoring.json           # dry run: lists the pages it would create or change
+papyrus knowledge wiki sync --auth iam --amplify-outputs $OUT --beats-config ~/Projects/Shipped-web/web/scoring.json --apply   # drafts only
+papyrus knowledge wiki publish --auth iam --amplify-outputs $OUT --all-drafts --actor ai --apply   # the AI editor's stamp; see public-wiki.md
 ```
 
 Wiki pages are ordinary published items, so the next export (step 1) skips them by type. The site must already pin a Papyrus release that has the wiki section and the knowledge blocks ([public-wiki.md](public-wiki.md)).
 
 ## First run: Shipped, 2026-10-22
 
-See the run notes in this section (filled in by the run).
+The first real run, on a Mac, from `origin/develop` of Papyrus (plus this change) and Biblicus 1.15.0. Work folder: `/private/tmp/kb-work/shipped-run-2026-10-22` (corpus, outputs and logs). Operator IAM lane, AppSync host `imnmexcbrzcddk2g4vl6hsn7ie.appsync-api.us-east-1.amazonaws.com`, account 712236451410.
+
+| Step | Result |
+| --- | --- |
+| Export and `reindex` | 71 published items (70 `article`, 1 `page`), 0 undated; `scanned` 71, `skipped` 0. |
+| Extraction | `pass-through-text`, 71 extracted, 0 empty. |
+| Topic modelling | The settings above, once, not tuned. BERTopic embedder `all-MiniLM-L6-v2` (downloaded on this run). 71 documents, **4 clusters** of 21, 20, 20 and 9 items, **1 outlier** document (topic `-1`). 13 seconds. |
+| Trends | `--bin weekly --weeks 26 --as-of 2026-10-22`; 0 undated items. Many items are older than 26 weeks, so the series count fewer items than the clusters hold (cluster of 21: 5 items in the window). |
+| Identity | First run, no `--previous`: events `new` 4, `continued` 0. Threshold 0.5. `document_count` 71, `outlier_document_count` 1, `cluster_count` 4. |
+| Front-matter import | 119 accepted nodes (54 makers, 65 tasks) and 192 confirmed links, recorded as accepted by `ai` (actor name "Shipped research agent"). |
+| Typed entities | GLiNER2 `fastino/gliner2-base-v1` (revision `f9634218`), threshold 0.7, registry of the 119 accepted entities, vocabulary above. 71 items, 2,544 mentions (406 resolved, 2,138 proposed) and 292 relations. About 3 minutes on the CPU. |
+| Run import | Dry run, then `--apply`: 4 cluster proposals, 1,173 generated nodes, 1,767 unconfirmed extractor links, 1 relation (291 skipped because an endpoint was not accepted yet). |
+| Entity review (AI editor, `--actor ai`) | 170 extractor entities accepted and 271 rejected as junk (sizes and file formats such as `27B`, `GGUF`; the word `card`; hardware, metrics, languages, generic nouns). 7 more were rejected afterwards because each repeats a front-matter maker under another name (`Mistral` for `Mistral AI`, `Moonshot` for `moonshotai`, ...). Net: 282 accepted, 277 rejected, 719 left `generated` (not public). Candidates the extractor typed wrongly (a benchmark typed as a model, a platform typed as a task) were left alone, not accepted. |
+| Second import | The same `publish-run --apply` after the review: 89 more relations between accepted entities (90 proposed in all). Reviewed: 55 accepted (the item says it, for example "Qwen releases Qwen3Guard", "under MIT", "built on the MiniCPM-4 backbone"), 30 rejected (wrong or not stated, for example `licensed_under` Hugging Face), 5 left proposed because an endpoint was one of the duplicates rejected above. |
+| Clusters | All four accepted and named by the AI editor from the top terms and member titles: `cl-e7fea314e953` "Open text-to-speech models" (21 items, all open TTS), `cl-fb1252e1da52` "Decision models" (20; 19 decision models and the Policies page), `cl-522d40c1a286` "Open-weights language models" (20), `cl-482084205aab` "Safety and guard models" (9; one item is a Nemotron reasoning model). |
+| Descriptions | Ten entities described with `--actor ai`, from facts in the item titles and text only. |
+| Snapshot | `--as-of 2026-10-19`, 282 entities, 2 beats, 4 clusters, 44 trending; 284 files written. Live at `https://shipped.anth.us/_data/knowledge/index.json`. |
+| Wiki sync | Dry run only: 282 entity pages and 2 beat pages would be created as drafts. Not applied: Shipped needs a Papyrus pin bump first. |
+
+The previous run id is stored at `corpus/knowledge-run.json` of the work folder: `previousRunId` `10af8d000683aa5c118b29b438a56d66eb245372bdc37004c60b437d7b2dfc7f` (the topic-modeling snapshot id), `runOn` 2026-10-22, `trendsSnapshotId` `193da65c5d1ad3e0c27071f0f67ad26b58fbed46fd7eb42f09a73dccafeef2ae`. Next week's `topic-identity --previous` takes that id. Move the work folder into `~/knowledge/shipped` (or keep using it) so the corpus and that file persist.
+
+What the first run taught, for the next one:
+
+- With 71 items, BERTopic with these settings found four broad clusters and almost no outliers. That is what the settings produce, not a measure of how stable the clusters will be: the identity report says every cluster is `new` because there is no earlier run. Record the smallest corpus size at which events stayed stable once there are two runs to compare.
+- Cluster top terms are dominated by words every model card repeats (`card`, `model`, `hugging`). The names came from the member titles. A stop-word list for the publication would improve the terms; it would also change the clusters, so do it as a recorded change.
+- The extractor is noisy outside makers and named models; most `task`, `concept` and `dataset` proposals were not worth accepting. Reviewing with a short list of exact names (in one Python process, as in step 11) was practical; reviewing 1,100 nodes one command at a time is not.
+- A mention should be matched to an accepted entity before it is proposed again: `Mistral` was proposed next to the accepted `Mistral AI`. Adding the aliases of each accepted maker to the registry (step 7) avoids those duplicates.
+- A mention typed `model` for a benchmark (`SWE-bench`) or `platform` for a model card stays unaccepted, and there is no command to retype it.

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..graphql_authoring import create_authoring_client
-from ..knowledge_snapshot.commands import load_knowledge_data
+from ..knowledge_snapshot.commands import announce_backend, load_knowledge_data, select_backend
 from ..knowledge_snapshot.keys import slug
 from ..knowledge_snapshot.loaders import CURRENT, beats_from_categories
 from ..options import normalize_string, parse_comma_list, parse_options
@@ -125,7 +125,9 @@ def knowledge_wiki_sync(flags: list[str]) -> None:
         url_template=normalize_string(options.get("topics-url")) or f"/{topics_section}/{{slug}}/",
         sections=tuple(parse_comma_list(options.get("topic-sections")) or ()),
     )
+    select_backend(options)
     client, claims = create_authoring_client()
+    announce_backend()
     data = load_knowledge_data(client, _NoPages(), options)
     rows = client.list_records("Item")
     specs = entity_specs(data, wiki_lineages(rows, section))
@@ -182,7 +184,9 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
     on = normalize_string(options.get("on")) or datetime.now(timezone.utc).date().isoformat()
     review = review_mapping(actor, name, on)
     section = normalize_string(options.get("section"))
+    select_backend(options)
     client, claims = create_authoring_client()
+    announce_backend()
     who = normalize_string((claims or {}).get("sub")) or DEFAULT_ACTOR
     rows = client.list_records("Item")
     if identifier:
