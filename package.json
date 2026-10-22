@@ -58,6 +58,7 @@
     "test:reference-import-refresh": "tsx scripts/test-reference-import-refresh.ts",
     "test:reference-add-entry": "tsx scripts/test-reference-add-entry.ts",
     "test:relevance-priming-ui": "tsx scripts/test-relevance-priming-ui.ts",
+    "test:reference-rating-buttons": "node --import tsx --test scripts/test-reference-rating-buttons.ts",
     "test:priming-proof-page": "tsx scripts/test-priming-proof-page.ts",
     "approve:priming-proof": "tsx scripts/approve-priming-proof-report.ts",
     "test:newsroom-root-paths": "tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-paths.ts && PAPYRUS_SITE_BRAND=pilobol-us SITE_ENV=staging tsx scripts/test-newsroom-root-middleware.ts && PAPYRUS_SITE_BRAND=pilobol-us tsx scripts/test-newsroom-root-provider.ts",
