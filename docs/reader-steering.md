@@ -48,7 +48,7 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `snapshot.schedule` | `false` | Create the EventBridge rule that runs the snapshot every `snapshot.intervalHours`. |
 | `snapshot.intervalHours` | 6 | 1 to 24. Four runs a day was approved for the pilot. |
 | `snapshot.hypeMinimum` | 5 | Reader ratings every dimension needs before a hype gap is published. |
-| `retirementPoll` | `false` | Reserved for Prospectus's retired-subject poll. `true` is refused until the route exists. |
+| `retirementPoll` | `false` | Poll Prospectus for retired reader subjects in each scheduled run. Needs `snapshot.schedule: true`, and `cms.readerRetirementPoll: true` in the site's app-shell `site.json` (see [the retirement poll](#the-prospectus-retirement-poll)). |
 
 The deployed backend publishes `custom.readerSteering.actionsFunction` (the function name the CMS routes invoke) and
 `custom.papyrusPlugins["reader-steering"]` (`contract`, `dimensions`) in `amplify_outputs.json`.
@@ -183,16 +183,50 @@ submissions do not exist yet, so karma is 0 for everyone and the karma list is e
 `submitter_of(subject)` function for the day they do. The materialised value on `ReaderProfile.karma` is what
 `/api/reader/me` returns.
 
-### Schedule and the Prospectus retirement poll
+### Schedule
 
 With `snapshot.schedule: true` the plugin creates an EventBridge rule that invokes `content-actions` with
 `{"projectionTask": {"task": "reader-snapshot"}}` every `snapshot.intervalHours` (time decay and Rising change without any
 vote). Off by default; the site turns it on.
 
-Prospectus will tell sites which siteSubjects were retired. The route is not final; it will look like
-`GET /v1/site-subjects/retired?since=<cursor>`. The snapshot run already calls a step for it, `RetirementPoll.fetch(since)` in
-`src/papyrus_content/reader_steering/retirement.py`, and the implementation is `DisabledRetirementPoll`, which retires
-nothing. The plugin setting `retirementPoll` stays `false` and `true` is refused at synth time until the route exists.
+### The Prospectus retirement poll
+
+When Prospectus deletes or merges a person, each public-reader site they used gets retirement records at
+`GET /v1/accounts/site-subjects/retired?since=<cursor>`, answered as `{retired: [{siteSubject, reason: "deleted" | "merged",
+survivingSiteSubject?, retiredAt}], cursor, more}`. With `retirementPoll: true` the scheduled run (not the debounced runs
+that follow votes) applies them before it builds the numbers:
+
+- `deleted`: the profile, the handle claim and every vote and rating of that reader are deleted. The handle is free again.
+- `merged`: everything moves to `survivingSiteSubject`. If the survivor has no profile, the profile row is re-keyed and keeps its
+  `readerId`, handle and votes. If the survivor has one, the retired reader's votes are re-keyed onto the survivor's `readerId`;
+  where both have a row for the same item and dimension, the newer one (by `updatedAt`) is kept. The survivor keeps its own
+  handle (or adopts the retired one if it has none), takes the stricter `state`, and karma is recomputed by the same run.
+- Each record is "ensure dropped" or "ensure re-keyed", so a repeat, a chain of merges in one page and a retry after a failure
+  part way are all safe. The profile row is removed last, so a retry still finds it.
+- The cursor is stored on a `retirement-cursor` row in the `reader-actions` rate table (no TTL) after each applied page, the run
+  follows `more` (at most 50 pages), and a failure leaves the cursor at the last applied page. A failing poll is reported
+  (`retirementPoll.error` in the run's answer) and never stops the numbers.
+
+**IAM design.** Prospectus admits exactly one caller per site, the app's compute role (the `roleArn` of the site's registration),
+and decides which site is asking from that role. A dedicated role for the scheduled Lambda would be a different principal,
+and Prospectus refuses a role that is shared with any other registration or that is not registered, so option (a) of "a
+dedicated role with the same `execute-api` grant" cannot work without a second registration that would see different
+subjects. Widening the compute role's trust policy so `content-actions` can assume it would need the app-shell, which is
+deployed before the backend, to know the backend's role. So the poll goes through the compute role, which already holds
+`execute-api:Invoke` on `GET/v1/accounts/*`:
+
+1. The app-shell stack, when `site.json` has `cms.readerRetirementPoll: true` (it requires `prospectusAccountsApiStageArn`),
+   generates the SSM SecureString `/papyrus/<siteId>/reader-poll-secret`, lets the compute role read that one parameter and
+   passes its name as `PAPYRUS_READER_POLL_SECRET_PARAMETER`.
+2. The CMS route `GET /api/reader/retired?since=` (`lib/reader-retirement-route.ts`) answers only a caller that sends the secret
+   in `x-papyrus-reader-poll-secret` (401 otherwise, 503 when the parameter is not set), validates `since`, calls Prospectus
+   as the compute role and passes the page through with `no-store`. The SigV4 transport signs the query string.
+3. The plugin, with `retirementPoll: true`, gives `content-actions` the site origin (`PAPYRUS_SITE_ORIGIN`), the parameter
+   name, `ssm:GetParameter` on that one parameter, read and write on the vote, handle and rate tables, and makes the EventBridge
+   rule send `{"projectionTask": {"task": "reader-snapshot", "retirementPoll": true}}`. Without the poll none of these grants exist.
+
+Nothing new is open to the internet: the route is useless without the secret, and the secret is readable only by the compute
+role and `content-actions`.
 
 ## The page components
 

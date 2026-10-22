@@ -85,6 +85,25 @@ Feature: Reader steering for a signed-in reader
     And the snapshot runs
     Then the public file "_data/reader/items.json" shows a hype gap of 2.0 on "item-one"
 
+  Scenario: The scheduled run drops a deleted account's votes and frees its handle
+    When "alice" picks the handle "quiet-fox"
+    And "alice" upvotes "item-one"
+    And "bob" upvotes "item-one"
+    And Prospectus reports "alice" deleted
+    And the scheduled snapshot runs
+    Then the public file "_data/reader/items.json" shows 1 upvote on "item-one"
+    And the handle "quiet-fox" is free
+    And "alice" has no profile
+
+  Scenario: A merged account's votes move to the surviving subject, and a debounced run does not poll
+    When "alice" upvotes "item-one"
+    And Prospectus reports "alice" merged into "bob"
+    And the snapshot runs
+    Then Prospectus was not asked
+    When the scheduled snapshot runs
+    Then "bob" sees "up" on "item-one" in the reader state
+    And "alice" has no profile
+
   Scenario: Until submissions exist nobody has karma
     When "alice" picks the handle "quiet-fox"
     And "bob" upvotes "item-one"

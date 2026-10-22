@@ -40,12 +40,14 @@ class SnapshotSettings:
     dimensions: tuple[str, ...] = ()
     karma: KarmaWeights = field(default_factory=KarmaWeights)
     ranking: RankingParameters = field(default_factory=RankingParameters)
+    retirement_poll: bool = False
 
 
 def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
     karma, ranking = raw.get("karma") or {}, raw.get("ranking") or {}
     defaults = RankingParameters()
     return SnapshotSettings(
+        retirement_poll=raw.get("retirementPoll") is True,
         dimensions=tuple(raw.get("dimensions") or ()),
         karma=KarmaWeights(upvote=float(karma.get("upvoteWeight", 1)), used_it=float(karma.get("usedItWeight", 2))),
         ranking=RankingParameters(

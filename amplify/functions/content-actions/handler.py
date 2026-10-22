@@ -189,7 +189,7 @@ def run_projection_task(task: dict) -> dict:
     elif task.get("task") == "deploy-render":
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:
-        return run_reader_snapshot(projection_context(client), client).to_dict()
+        return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:

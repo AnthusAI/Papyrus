@@ -18,7 +18,14 @@ from moto import mock_aws
 from papyrus_content.projection.standard.config import standard_settings_from_mapping
 from papyrus_content.projection.standard.urls import UrlPolicy
 from papyrus_content.publishing import published_item_id_for
-from papyrus_content.reader_steering.task import PROFILE_TABLE_ENV, SETTINGS_ENV, VOTE_TABLE_ENV, run_reader_snapshot
+from papyrus_content.reader_steering.task import (
+    HANDLE_TABLE_ENV,
+    PROFILE_TABLE_ENV,
+    SETTINGS_ENV,
+    STATE_TABLE_ENV,
+    VOTE_TABLE_ENV,
+    run_reader_snapshot,
+)
 
 HANDLER_PATH = Path(__file__).resolve().parents[3] / "amplify" / "plugins" / "reader-steering" / "function" / "handler.py"
 _specification = importlib.util.spec_from_file_location("reader_actions_handler", HANDLER_PATH)
@@ -50,6 +57,23 @@ class RecordingLambda:
     def invoke(self, **arguments: Any) -> dict[str, Any]:
         self.invocations.append(arguments)
         return {"StatusCode": 202}
+
+
+class ScriptedRetirementPoll:
+    """A stand-in for the CMS retired-subject route: answers the pages it was given, in order."""
+
+    enabled = True
+
+    def __init__(self, *pages: Any) -> None:
+        self.pages = list(pages)
+        self.asked: list[str | None] = []
+
+    def fetch(self, since: str | None) -> Any:
+        self.asked.append(since)
+        page = self.pages.pop(0)
+        if isinstance(page, Exception):
+            raise page
+        return page
 
 
 class ReaderBackend:
@@ -124,6 +148,8 @@ def run_snapshot(
     published: tuple[str, ...] = PUBLISHED_SUBJECTS,
     dimensions: tuple[str, ...] = ("real", "useful"),
     submitter_of: Any = lambda subject: None,
+    retirement_poll: Any = None,
+    poll_retirements: bool = False,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -133,8 +159,19 @@ def run_snapshot(
     )
     context = SimpleNamespace(projector=SimpleNamespace(policy=url_policy(base_path)), writer=writer, invalidate=invalidate)
     environment = {
-        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5}),
+        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5, "retirementPoll": retirement_poll is not None}),
         VOTE_TABLE_ENV: TABLE_NAMES["vote"],
         PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
+        HANDLE_TABLE_ENV: TABLE_NAMES["handle"],
+        STATE_TABLE_ENV: TABLE_NAMES["rate"],
     }
-    return run_reader_snapshot(context, client, environment=environment, resource=backend.resource, now_seconds=now, submitter_of=submitter_of)
+    return run_reader_snapshot(
+        context,
+        client,
+        environment=environment,
+        resource=backend.resource,
+        now_seconds=now,
+        submitter_of=submitter_of,
+        retirement_poll=retirement_poll,
+        poll_retirements=poll_retirements,
+    )

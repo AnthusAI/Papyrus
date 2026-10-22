@@ -37,7 +37,10 @@ export type ReaderSteeringConfig = {
     /** A hype gap needs at least this many ratings on every dimension involved. */
     hypeMinimum: number;
   };
-  /** The Prospectus retired-subject poll is not live: this flag stays false and the run's step is a no-op. */
+  /**
+   * Poll Prospectus for retired reader subjects in each scheduled snapshot run (requires `snapshot.schedule`, and a site
+   * whose app-shell sets `cms.readerRetirementPoll`). Off by default.
+   */
   retirementPoll: boolean;
 };
 
@@ -97,7 +100,9 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
   const retirementPoll = flag(raw.retirementPoll, "retirementPoll");
-  if (retirementPoll) throw new Error("reader-steering plugin retirementPoll is not available yet: Prospectus does not serve the retired-subject route");
+  if (retirementPoll && !flag(snapshot.schedule, "snapshot.schedule")) {
+    throw new Error("reader-steering plugin retirementPoll runs inside the scheduled snapshot, so it needs snapshot.schedule: true");
+  }
   return {
     computeRoleArn,
     dimensions,
