@@ -488,3 +488,32 @@ def test_concept_kinds_restrict_the_concept_of_the_week_to_those_kinds():
     data, *_ = two_tasks()
     assert build_files(data, dataclasses.replace(OPTIONS, concept_kinds=("maker",)))[INDEX_FILE]["conceptOfTheWeek"] is None
     assert build_files(data, dataclasses.replace(OPTIONS, concept_kinds=("task", "maker")))[INDEX_FILE]["conceptOfTheWeek"]["key"] == "task--voice-cloning"
+
+
+def test_model_and_model_family_are_two_kinds_with_two_labels():
+    model = node("model", "Tern 3", accepted_by=AI)
+    family = node("model-family", "Tern", accepted_by=AI)
+    data = KnowledgeData(items=(item("a", 0),), nodes=(model, family), links=(link("a", model), link("a", family)))
+    index = build_files(data, OPTIONS)[INDEX_FILE]
+    assert {row["key"]: row["label"] for row in index["kinds"]} == {"model": "Model", "model_family": "Model Family"}
+    assert {row["key"]: row["kind"] for row in index["entities"]} == {"model--tern-3": "model", "model-family--tern": "model_family"}
+
+
+def test_a_member_of_relation_links_a_model_to_its_family_and_an_unrelated_model_stays_unrelated():
+    model = node("model", "Tern 3", accepted_by=AI)
+    family = node("model-family", "Tern", accepted_by=AI)
+    lone = node("model", "Lone 1", accepted_by=AI)
+    data = KnowledgeData(
+        items=(item("a", 0), item("b", 0)),
+        nodes=(model, family, lone),
+        links=(link("a", model), link("a", family), link("b", lone)),
+        relations=(NodeRelation(model.lineage_id, family.lineage_id, "member_of", confirmed=True),),
+    )
+    files = build_files(data, OPTIONS)
+
+    def explicit(key):
+        return [(row["relation"], row["key"]) for row in files[entity_file(key)]["neighbours"] if row["relation"] == "member_of"]
+
+    assert explicit("model--tern-3") == [("member_of", "model-family--tern")]
+    assert explicit("model-family--tern") == [("member_of", "model--tern-3")]
+    assert explicit("model--lone-1") == []

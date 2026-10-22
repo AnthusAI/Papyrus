@@ -166,6 +166,13 @@ def test_an_entity_without_a_description_gets_a_factual_line_and_no_generated_pr
     assert "description" not in front_matter_of(page)
 
 
+def test_a_model_and_a_model_family_are_described_by_their_own_kind_label():
+    from papyrus_content.knowledge_wiki.pages import entity_body
+
+    assert "Tern 3 is listed here as a model." in entity_body("Tern 3", "model", [], None, "model--tern-3")
+    assert "Tern is listed here as a model family." in entity_body("Tern", "model_family", [], None, "model-family--tern")
+
+
 def test_a_draft_description_nobody_accepted_stays_out_of_the_page_and_is_reported(client, capsys):
     describe(client, ACME, "Generated and unreviewed text.", reviewed=False)
     out = sync(client, "--apply", capsys=capsys)

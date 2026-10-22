@@ -57,6 +57,7 @@ export type SemanticPredicateId =
   | "related_to"
   | "broader_than"
   | "narrower_than"
+  | "member_of"
   | "supports"
   | "contradicts";
 
@@ -96,6 +97,7 @@ export const SEMANTIC_PREDICATES: SemanticPredicateDefinition[] = [
   { id: "related_to", label: "related to", group: "generic", inverseLabel: "related from" },
   { id: "broader_than", label: "broader than", group: "ontology", inverseLabel: "narrower concept" },
   { id: "narrower_than", label: "narrower than", group: "ontology", inverseLabel: "broader concept" },
+  { id: "member_of", label: "member of", group: "ontology", inverseLabel: "members" },
   { id: "supports", label: "supports", group: "evidence", inverseLabel: "supported by" },
   { id: "contradicts", label: "contradicts", group: "evidence", inverseLabel: "contradicted by" },
 ];

@@ -222,8 +222,11 @@ relation_types:
   - {key: measured_by, label: measured by}
   - {key: replaces, label: replaces}
   - {key: successor_of, label: successor of}
+  - {key: member_of, label: member of}
   - {key: licensed_under, label: licensed under}
 ```
+
+`model` and `model_family` are two kinds. A model is one specific named model or checkpoint (`CosyVoice2`, `CosyVoice 3`) and shows as "Model" on entity chips and wiki pages; a model family is the line above it (`CosyVoice`) and shows as "Model Family". Neither is folded into the other. `member_of` ties a model to its family and is seeded in `corpora/papyrus-semantic-relation-types.yml` (ontology, node to node, not transitive). The extractor proposes it only when the text states the membership, and a reviewer accepts it only on the same evidence; a model whose family nothing established stays without the relation. `successor_of` between two models is a separate relation and is kept as it is.
 
 ```bash
 biblicus extract typed-entities --corpus corpus --vocabulary $RUN/vocabulary.yml --registry $RUN/registry.json \
