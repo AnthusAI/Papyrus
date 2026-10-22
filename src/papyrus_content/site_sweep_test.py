@@ -357,3 +357,16 @@ def test_a_retired_classifiers_suggestion_stops_being_current_when_the_reference
     current = [relation for relation in site_relations(client, "reference-a") if relation["relationState"] == "current"]
     assert {json.loads(relation["metadata"])["classifier"] for relation in current} == {
         FIT_SECURITY, FIT_CLOUD, FIT_POLICY, new_selector}
+
+
+def test_site_sweep_apply_without_an_explicit_doctrine_exits_before_any_write_or_model_call(capsys):
+    from papyrus_content import cli
+
+    with mock.patch("papyrus_content.graphql_authoring.create_authoring_client") as client, \
+         mock.patch("papyrus_content.site_sweep.run_decide_site_sections") as run:
+        exit_code = cli.main(["references", "decide-site-sections", "--apply"])
+
+    assert exit_code != 0
+    assert "--doctrine" in capsys.readouterr().err
+    client.assert_not_called()
+    run.assert_not_called()

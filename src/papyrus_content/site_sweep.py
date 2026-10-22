@@ -495,7 +495,7 @@ def references_decide_site_sections(flags: list[str]) -> None:
     import socket
 
     from .graphql_authoring import create_authoring_client
-    from .newsroom_doctrine import load_publication_doctrine_seed
+    from .newsroom_doctrine import describe_doctrine_choice, load_publication_doctrine_seed, require_explicit_doctrine
     from .newsroom_sections import load_newsroom_section_seeds
     from .options import parse_options
     from .site_cyclotron import newsroom_sections_of_tenant, tenant_site_cyclotron_steering
@@ -503,13 +503,17 @@ def references_decide_site_sections(flags: list[str]) -> None:
     from .tenancy import tenant_id_from_options
 
     options = parse_options(flags)
+    if options.get("apply"):
+        require_explicit_doctrine(options, "references decide-site-sections --apply")
     tenant_id = tenant_id_from_options(options)
     config_path = options.get("config") if isinstance(options.get("config"), str) else None
     steering_config = require_steering_config(config_path)
     if not steering_config.get("siteCyclotron"):
         raise ValueError("This publication's steering config has no siteCyclotron block; see docs/cyclotron-priming.md.")
     steering_config = tenant_site_cyclotron_steering(steering_config, tenant_id)
-    doctrine = load_publication_doctrine_seed(options.get("doctrine"))["doctrine"]
+    doctrine_file = options.get("doctrine") if isinstance(options.get("doctrine"), str) else None
+    doctrine_choice = describe_doctrine_choice(doctrine_file)
+    doctrine = load_publication_doctrine_seed(doctrine_file)["doctrine"]
     if tenant_id:
         client, _ = create_authoring_client(tenant_id)
         sections = newsroom_sections_of_tenant(client, tenant_id)
@@ -526,9 +530,11 @@ def references_decide_site_sections(flags: list[str]) -> None:
     except CyclotronClaimed as error:
         raise SystemExit(f"references\tdecide-site-sections\terror\t{error}") from error
     if options.get("json"):
-        print(json.dumps(result.to_json(), indent=2, sort_keys=True))
+        print(json.dumps({**result.to_json(), "doctrine": doctrine_choice}, indent=2, sort_keys=True))
         return
     action = "apply" if result.applied else "dry-run"
+    kind = "default" if doctrine_choice["isDefault"] else "explicit"
+    print(f"references\tdecide-site-sections\tdoctrine\t{kind}\t{doctrine_choice['path']}\t{doctrine_choice['firstMissionLine']}")
     print(f"references\tdecide-site-sections\t{action}\tpending\t{len(result.pending)}")
     if result.applied:
         print(f"references\tdecide-site-sections\tdecided\t{result.decided}")
