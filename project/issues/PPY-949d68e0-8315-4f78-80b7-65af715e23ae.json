@@ -24,10 +24,17 @@
       "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Released in 5.21.0 (#532) and live on Shipped. Kept in progress: the double opt-in retest with a real inbox has not passed; the confirm page defect reported in the retest is being fixed by the email lead.",
       "created_at": "2026-10-22T10:45:14.545586Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c56f95b8-9f56-488f-af05-3e5d2c131a09",
+      "author": "home",
+      "text": "Shipped bug: Confirm subscription landed on the site 404. Cause: the newsletter pages sent Referrer-Policy no-referrer, so the browser posted Origin: null; the route's same-origin check answered 403 and CloudFront's origin 403/404 to /404.html mapping showed it as the styled 404 (reproduced in headless Chrome on shipped.anth.us; preferences and delete flows had the same exposure). Fix in PR #556, merged to develop (07811ee1): pages say same-origin; the check accepts the site Origin or a matching Referer, never null; refusals answer a styled 400. Also: with the newsletter plugin the standard projector writes a noindex chrome shell at _plugins/newsletter-shell/index.html, and the routes render confirm, preferences, unsubscribe and delete pages inside the site's header, footer and theme (self-contained fallback if the shell is missing). Deploy needs a full projection to write the shell. Verified: browser test in light and dark in CI, simulator subscriber erased.",
+      "created_at": "2026-10-22T11:02:08.929981Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T02:43:35.917559Z",
-  "updated_at": "2026-10-22T10:45:14.545611Z",
+  "updated_at": "2026-10-22T11:02:08.930012Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
