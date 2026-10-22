@@ -3,7 +3,7 @@
   "title": "Moderation: optional, AI first, human override",
   "description": "Moderation of public content (submissions, comments, ratings) is supported and optional, per publication. Decision (2026-10-21): content is public immediately, and Papyrus must support optional human moderation: a queue, approve, hide and ban actions, and rules. Plan: build and test human moderation, then switch human moderation off per publication once AI moderation is trusted (decisions align). Default goal: AI moderation with human override.\n\nParent initiative: PPY-77bb3b (milestone 7). Applies to: public submit-a-link and comments epics (siblings). Language-model tasks default to the cheap GPT-6 Luna tier unless stated otherwise. Humanus checks on submissions are an input signal.\n\nChildren: per-publication moderation setting; moderation queue in Administration; report control; moderation rules; AI moderation with human override; trust graduation (turning human moderation off).\nDefinition of Done: a pilot publication can run in each mode (off, human, AI with override) and switch between them by setting.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,18 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "3837689f-1441-46ee-ac9f-1e9d84c98922",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). All six children closed. Released in 5.21.0: PR #535 (moderation of submissions and comments, queue, rules, modes) and PR #537 (AI moderation with human override). Docs live: https://p.apyr.us/reader-submissions-and-moderation.md 200 text/markdown, listed in llms.txt. Ryan's decision stands: public at once, AI first, human override.",
+      "created_at": "2026-10-22T10:44:59.271773Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.397345Z",
-  "updated_at": "2026-10-21T12:50:17.623806Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:44:59.329845Z",
+  "closed_at": "2026-10-22T10:44:59.329816Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

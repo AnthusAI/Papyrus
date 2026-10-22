@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f80dfdff-4f81-4bdf-8b6d-d7566f809473",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Still open and not implemented beyond the tooling fixes in PR #491 (type-check, account targeting). Shipped's deploy workflow (.github/workflows/deploy.yml) still only runs CI and the Amplify job. Recent evidence of the gap: Shipped-web PR #38 (cms.readerRetirementPoll in infra/site.json) is open because the shell change was applied by hand by a reviewed change set.",
+      "created_at": "2026-10-22T10:45:26.659614Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T21:01:28.802022Z",
-  "updated_at": "2026-10-21T21:01:28.802109Z",
+  "updated_at": "2026-10-22T10:45:26.659636Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",

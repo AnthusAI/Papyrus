@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "81f4888e-fbb4-4a8a-92c1-25a01c99f8f3",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Now unblocked (caf9be closed). https://p.apyr.us/llms.txt does not yet list a public-forms page.",
+      "created_at": "2026-10-22T10:45:16.046160Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T01:35:14.319054Z",
-  "updated_at": "2026-10-21T01:35:14.381593Z",
+  "updated_at": "2026-10-22T10:45:16.046193Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

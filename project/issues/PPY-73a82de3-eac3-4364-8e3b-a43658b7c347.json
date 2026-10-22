@@ -3,7 +3,7 @@
   "title": "Votes, ratings and karma",
   "description": "Reader and editor signals on items. Decisions (2026-10-21): an upvote is separate from the 1-5 dimension ratings; karma is needed. The way editor and reader scores combine is an open exploration (see the score combination epic), so this epic stores both signals separately and tallies each.\n\nParent initiative: PPY-77bb3b (milestones 3 and 4). Depends on reader accounts. Pilot: Shipped, voting story ship-b35fa2 (dimensions real, useful, notable, novel are publication data, never code).\n\nChildren: upvote and vote model; dimension ratings with histograms; minimum-n rules and derived values; karma model.\nDefinition of Done: signed-in readers can upvote and rate; tallies are produced per item with editor and reader values separate; karma is computed and shown.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,17 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "cd03546a-750e-4907-937e-d49b4c6adca4",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Votes, ratings and karma are built and released in 5.20.0/5.21.0. Children closed: 56b0a7, 231533, c7dd8b, cf6f66. Open: cb95f8 (histograms), 5ce33a (too-few display). Shipped renders the islands and publishes empty snapshots; real writes wait on sign-in (ship-63b07d, Ryan).",
+      "created_at": "2026-10-22T10:45:05.284966Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.812222Z",
-  "updated_at": "2026-10-21T12:50:17.672877Z",
+  "updated_at": "2026-10-22T10:45:05.285020Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

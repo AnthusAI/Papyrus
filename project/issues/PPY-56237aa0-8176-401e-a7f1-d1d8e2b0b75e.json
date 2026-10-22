@@ -3,16 +3,24 @@
   "title": "Sync Cyclotron learned state and provenance into the site backend",
   "description": "M1–M3. For each Cyclotron version, sync the learned state and provenance into the site backend, the same way the cyclotron-status snapshot is stored today (KnowledgeRawPayload + ModelAttachment). Add the decision explanation to relevance_decision_is and site_decision_is decisions.",
   "type": "story",
-  "status": "open",
+  "status": "blocked",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d57ffa7a-19cf-414a-8d9a-4392d5bf71bd",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Blocked on the Cyclotron session: M1 decision-flywheel-ea4ee9c3 (read the learned state and per-version provenance) is still open on the Cyclotron board (checked in ~/Projects/Cyclotron at origin/develop 0.34.0, 2026-10-22). Nothing to build on the Papyrus side until its read API ships.",
+      "created_at": "2026-10-22T10:45:17.510324Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T00:56:28.548092Z",
-  "updated_at": "2026-10-22T00:56:28.548172Z",
+  "updated_at": "2026-10-22T10:45:17.510355Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

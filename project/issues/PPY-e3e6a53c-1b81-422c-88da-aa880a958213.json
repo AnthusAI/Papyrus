@@ -3,7 +3,7 @@
   "title": "Learned items with provenance in the newsroom console",
   "description": "Ryan committed (2026-10-21) to building learned items with provenance in the newsroom console. An editor reads, in plain words, everything a Cyclotron learned about the publication. Each item shows the approvals, rejections and notes behind it (e.g. 'From 12 approvals · 1 note'); every suggestion says which items and questions drove it. Editors edit, remove or add items, which go live only after measurement and an editor's promote.\nPlan: https://claude.ai/artifact/Jg1DpixLFcAvnPy7d9RNDE. Design: https://claude.ai/artifact/KzDCSDwgKos3iWjbm1oubz section 6. Tied to Cyclotron milestones M1–M4; the Cyclotron epic is filed on the Cyclotron board by the Cyclotron session. Ends with p.apyr.us documentation (Papyrus rule).",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,17 @@
         "model": "claude-opus-5-5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "394387fe-c30b-4a0c-8db2-32e0f86d06cf",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Only the bug ad8402 is delivered (PRs #506, #508, released 5.19.1). The five stories are blocked on Cyclotron milestones M1 to M4 (all open on the Cyclotron board as of 2026-10-22); safe undo (decision-flywheel-2abb3445) is closed. No Papyrus code exists for the rest.",
+      "created_at": "2026-10-22T10:45:24.731760Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T00:56:11.518146Z",
-  "updated_at": "2026-10-22T01:03:39.966301Z",
+  "updated_at": "2026-10-22T10:45:24.731792Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -10,9 +10,17 @@
   "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5e228d7e-f7a8-4b9a-bf22-b2659d86ea1e",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Waits on the milestones above; nothing shipped yet to retire a label.",
+      "created_at": "2026-10-22T10:45:23.771799Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T00:56:34.191524Z",
-  "updated_at": "2026-10-22T00:56:34.191566Z",
+  "updated_at": "2026-10-22T10:45:23.771852Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

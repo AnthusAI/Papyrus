@@ -3,7 +3,7 @@
   "title": "Collaborative steering: votes from editors and signed-in readers (optional)",
   "description": "Optional Papyrus features for 'web 2' style collaborative steering; editors-only stays the default for every existing site. Pilot publication: Shipped (shipped.anth.us, repo AnthusAI/Shipped-web).\n\nMilestones: (1) steering policy as publication data (who may vote: editors, members, signed-in readers; on what: references, story ideas, articles); (2) reader accounts (Google sign-in via Prospectus accounts, per publication; guests still read); (3) Vote model (subject, voter, value up/down or rating per dimension, timestamp; one per person per subject; materialised tallies; audit); (4) aggregation and ranking (editor quorum/majority/weighted, disagreement queue; reader ranking blending Cyclotron relevance, votes and time decay; editor override/hide); (5) Cyclotron feedback (aggregated labels with per-person attribution; editor and reader signals separate; per-publication choice whether reader votes train; disagreement as a hard-item signal); (6) standard front-end components (vote button, submit-a-link form, new/rising queue page, leaderboards; static pages with an authenticated vote API and periodically refreshed count JSON); (7) moderation and abuse controls (rate limits, account age, report/hide/ban, Humanus on submissions, moderation queue in Administration); (8) monitoring feeds straight into the reader queue. Scoring dimensions for Shipped: real, useful, notable, novel. Document on the Papyrus marketing site when live.",
   "type": "initiative",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,17 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "0c7964f6-839f-47c8-bc9a-6d46851580af",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Status. Released: 5.20.0 (reader steering foundation, snapshot, islands, privacy scan, siteSubject test; PRs #512, #516, #518, #520-#524), 5.21.0 (submit-a-link #531, comments #533, moderation #535, AI moderation #537), 5.22.0 (publicForms grant fix #548). Shipped has reader steering enabled (Shipped-web #39, deploy success). Live on https://shipped.anth.us (10:34Z): home renders the ReaderSignIn, Vote (30), UsedIt (30) and Freshness islands; the papyrus-reader v1 script under /_plugins/ 200; /_data/reader/items.json, board.json and readers.json 200 (generatedAt 2026-10-22T10:36:04Z, empty because nobody has voted); /api/auth/prospectus/sign-in answers 303 to the Cognito Google authorize URL. Shipped-web PR #39 deploy run 39761870423 completed success. Open: first real sign-in and vote test is blocked on Ryan adding the Google redirect URIs for papyrus-shipped-cms (ship-63b07d); Shipped does not yet enable submit or comments; ranked board component, histograms, minimum-n display label, per-week snapshot remain. Closed in this pass: moderation (af98c7), comments (739cb4), upvote (56b0a7), karma (231533), steering docs (ddd434).",
+      "created_at": "2026-10-22T10:44:54.441203Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T11:39:25.403593Z",
-  "updated_at": "2026-10-21T12:50:17.475500Z",
+  "updated_at": "2026-10-22T10:44:54.441232Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

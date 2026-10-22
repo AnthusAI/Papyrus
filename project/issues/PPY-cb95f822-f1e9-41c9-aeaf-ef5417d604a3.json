@@ -3,7 +3,7 @@
   "title": "Dimension ratings (1 to 5) with histograms, separate from upvotes",
   "description": "As a signed-in reader, I want to rate an item on each configured dimension from 1 to 5, so that the board reflects more than popularity.\n\nDimensions are publication data (for the Shipped pilot: real, useful, notable, novel). Per dimension store mean, n and the five-bucket histogram; n differs per dimension. Editors' ratings are stored with voterRole \"editor\" and tallied as their own mean. The upvote count and the number of people who rated are different numbers and are labelled as such.\n\n```gherkin\nFeature: Dimension ratings\n  Scenario: Rate\n    When a reader rates the dimension \"A\" with 4\n    Then the tally for \"A\" has n increased by one and an updated mean and histogram\n\n  Scenario: Change a rating\n    When the same reader rates \"A\" again with 2\n    Then the earlier rating is replaced\n\n  Scenario: Editor mean separate\n    When editors and readers have rated\n    Then the reader mean and the editor mean are both available and distinct\n\n  Scenario: Partial rating\n    Given a reader rates only two of the four dimensions\n    Then only those two tallies change\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Reconciliation 2026-10-22. Partly done. Exists: POST /api/reader/rating, 1 to 5 per configured dimension, replace and clear, partial ratings (Papyrus #512); per-dimension reader and editor mean, n and 5-bucket histogram in _data/reader/items.json, editor tallied separately (#516, snapshot.py); the Rating island shows the reader's own value, mean with n, and the editor mean (#516). Remains: histograms are in the JSON but no component renders them, and the island does not label upvote count versus number who rated.",
       "created_at": "2026-10-22T04:02:21.804165Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a1eab275-0234-4fc9-9c15-29714a9ea962",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). In progress. Done and released (5.20.0, PRs #512, #516): 1 to 5 ratings per configured dimension, replace on re-rate, reader mean and editor mean separate, n per dimension, Rating island live-capable. Not found: the five-bucket histogram per dimension in the snapshot or docs. Remaining: histogram, then close.",
+      "created_at": "2026-10-22T10:45:03.330431Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.954607Z",
-  "updated_at": "2026-10-22T04:02:21.804187Z",
+  "updated_at": "2026-10-22T10:45:03.330458Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
