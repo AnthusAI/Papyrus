@@ -759,15 +759,19 @@ def references_decide_relevance(flags: list[str]) -> None:
     import socket
 
     from .graphql_authoring import create_authoring_client
-    from .newsroom_doctrine import load_publication_doctrine_seed
+    from .newsroom_doctrine import describe_doctrine_choice, load_publication_doctrine_seed, require_explicit_doctrine
     from .options import parse_options
     from .steering import require_steering_config
 
     options = parse_options(flags)
+    if options.get("apply"):
+        require_explicit_doctrine(options, "references decide-relevance --apply")
     steering_config = require_steering_config(options.get("config"))
     if not steering_config.get("relevanceCyclotron"):
         raise ValueError("This publication's steering config has no relevanceCyclotron block; see docs/cyclotron-priming.md.")
-    doctrine = load_publication_doctrine_seed(options.get("doctrine"))["doctrine"]
+    doctrine_file = options.get("doctrine") if isinstance(options.get("doctrine"), str) else None
+    doctrine_choice = describe_doctrine_choice(doctrine_file)
+    doctrine = load_publication_doctrine_seed(doctrine_file)["doctrine"]
     max_count = int(options["max-count"]) if options.get("max-count") not in (None, True) else None
     worker = options.get("worker") if isinstance(options.get("worker"), str) else f"{socket.gethostname()}:{os.getpid()}"
     for flag in ("sample", "seed", "sample-list", "sample-manifest"):
@@ -791,9 +795,11 @@ def references_decide_relevance(flags: list[str]) -> None:
         write_manifest({key: value for key, value in result.sample.items() if key not in run_only},
                        options["sample-manifest"])
     if options.get("json"):
-        print(json.dumps(result.to_json(), indent=2, sort_keys=True))
+        print(json.dumps({**result.to_json(), "doctrine": doctrine_choice}, indent=2, sort_keys=True))
         return
     action = "apply" if result.applied else "dry-run"
+    kind = "default" if doctrine_choice["isDefault"] else "explicit"
+    print(f"references\tdecide-relevance\tdoctrine\t{kind}\t{doctrine_choice['path']}\t{doctrine_choice['firstMissionLine']}")
     print(f"references\tdecide-relevance\t{action}\tpending\t{len(result.pending)}")
     if result.sample is not None:
         sample = result.sample

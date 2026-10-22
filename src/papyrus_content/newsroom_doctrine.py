@@ -50,6 +50,39 @@ def load_publication_doctrine_seed(filepath: str | Path | None = None) -> dict[s
     return payload
 
 
+def require_explicit_doctrine(options: dict[str, Any], command: str, *, flag: str = "doctrine") -> None:
+    """Refuse to write for a publication without naming its doctrine file.
+
+    The default file is the doctrine of this repository's first publication
+    (Threat Intelligence). Falling back to it for another site silently seeds
+    that site's store with the wrong mission, so a writing run must say which
+    file it means.
+    """
+    if isinstance(options.get(flag), str) and options[flag].strip():
+        return
+    raise ValueError(
+        f"{command} writes to a publication's store, so it needs --{flag} <path> naming that publication's "
+        f"doctrine file. It will not fall back to the default ({_display_path(DEFAULT_PUBLICATION_DOCTRINE_PATH)}), "
+        "which is the Threat Intelligence doctrine and would seed this site with the wrong mission. "
+        f"Re-run with --{flag} <path>."
+    )
+
+
+def describe_doctrine_choice(filepath: str | Path | None = None) -> dict[str, Any]:
+    """Which doctrine file a run uses, whether it is the default, and its first mission line."""
+    resolved = Path(filepath or DEFAULT_PUBLICATION_DOCTRINE_PATH).resolve()
+    mission = next(entry for entry in load_publication_doctrine_seed(resolved)["doctrine"] if entry["kind"] == "mission")
+    return {"path": str(resolved), "isDefault": filepath is None or resolved == DEFAULT_PUBLICATION_DOCTRINE_PATH.resolve(),
+            "firstMissionLine": mission["body"][0]}
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PAPYRUS_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def build_publication_doctrine_records(
     doctrine_entries: list[dict[str, Any]],
     *,
