@@ -823,6 +823,7 @@ def test_the_appsync_proxy_forwards_the_claims_and_returns_the_body() -> None:
     assert ops_proxy.handle(event, client=FakeLambda({}, error=True), environment={"NEWSLETTER_FUNCTION_NAME": "fn"})["error"] == "unavailable"
     assert set(ops_proxy.FIELD_ACTIONS.values()) == {
         "issue_list", "issue_get", "issue_approve", "issue_cancel", "issue_stop", "issue_test_send", "issue_create_draft", "issue_preview",
+        "panel_overview", "panel_subscribers", "panel_export", "panel_erase", "panel_resume", "panel_deliveries",
     }
 
 

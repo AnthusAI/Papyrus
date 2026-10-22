@@ -28,6 +28,7 @@ from . import addresses, rate, tokens
 from .confirmation import build_confirmation
 from .events import handle_sns
 from .manage import MANAGE_ACTIONS
+from .panel import PANEL_ACTIONS
 from .keys import Keys, load_keys
 from .mailer import Mailer
 from .store import Conflict, Store, append_history, iso, membership_row, profile_key
@@ -126,6 +127,8 @@ class Newsletter:
         action = event.get("action") or event.get("task")  # a scheduler task names itself with "task"
         if isinstance(action, str) and action in MANAGE_ACTIONS:
             return MANAGE_ACTIONS[action](self, event)
+        if isinstance(action, str) and action in PANEL_ACTIONS:
+            return PANEL_ACTIONS[action](self, event)
         method = ACTIONS.get(action) if isinstance(action, str) else None
         if method is None:
             return respond(400, status="error", error="unknown_action")

@@ -1,6 +1,6 @@
 # Newsletter
 
-Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Unsubscribe, preferences, erasure, bounce and complaint suppression and the pause alarms are Built too (PPY-b5a699), as are roundup issues, admin approval and paced sending (PPY-3ae3b9). Alerts and the newsroom panel are Not built yet.
+Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Unsubscribe, preferences, erasure, bounce and complaint suppression and the pause alarms are Built too (PPY-b5a699), as are roundup issues, admin approval and paced sending (PPY-3ae3b9). The newsroom panel is Built (PPY-4005de). Alerts are Not built yet.
 
 ## What exists
 
@@ -174,13 +174,13 @@ Two CloudWatch alarms (`papyrus-newsletter-<siteId>-bounce-rate`, `-complaint-ra
 
 ### Known gaps
 
-Not built: alerts and the newsroom panel (their stories). The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasure finds them. Events carry the subscriber id, a pseudonym, so the 90 day event log is not erased with the subscriber; it expires. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
+Not built: alerts (their story). The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasure finds them. Events carry the subscriber id, a pseudonym, so the 90 day event log is not erased with the subscriber; it expires. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
 
 
 
 ## Issues, approval and sending
 
-Status: Built (PPY-3ae3b9). The newsroom panel that drives it is a later story; until then the operations below are the interface.
+Status: Built (PPY-3ae3b9). The newsroom Newsletter panel (below) drives these operations.
 
 A roundup issue is an `Item` of the list's `issueType` (default `newsletter_issue`), so editors write it in the ordinary newsroom editor (open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
@@ -237,7 +237,7 @@ No LLM is involved. Section headings are the Item section names, capitalised; li
 
 ### Operations (for the newsroom panel)
 
-Eight Amplify custom operations, all `input: AWSJSON` in and `AWSJSON` out. AppSync admits the groups below; the function checks the identity claims again. They enter through a thin function (`papyrus-newsletter-ops`) that forwards the verified claims and the input to `newsletter`. The recipient of a test send is the caller's own `email` claim, never the input.
+Eight Amplify custom operations (six more for the panel, below), all `input: AWSJSON` in and `AWSJSON` out. AppSync admits the groups below; the function checks the identity claims again. They enter through a thin function (`papyrus-newsletter-ops`) that forwards the verified claims and the input to `newsletter`. The recipient of a test send is the caller's own `email` claim, never the input.
 
 | Operation | Kind | Groups | Input | Output |
 |---|---|---|---|---|
@@ -301,3 +301,45 @@ Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-ad
 - Link paths assume a section's `base` equals its name. A section declared with another `base` would be linked wrongly in a draft (the editor fixes the link).
 - The article list in the newsroom does not show issue types; the panel links to the editor by item id.
 - Alerts are another story. `compliance.py` binds the unsubscribe story's `links`, `suppression` and `pause` calls to the sender's store and keys.
+
+
+## The newsroom Newsletter panel
+
+Status: Built (PPY-4005de). Administration, Newsletter appears only when `custom.papyrusPlugins.newsletter` is in `amplify_outputs.json`; `?demo=1` shows it with fixture data (`lib/newsletter-fixture.ts`). Editors and admins open it; every operation is checked in AppSync and again in the function from the verified groups. It has no realtime subscription: it reloads after each action and on the Refresh button.
+
+| Section | Who | What |
+|---|---|---|
+| Lists | editor, admin | confirmed, pending and unsubscribed per list, site totals (people, not memberships), and the suppressed count |
+| Site status | editor sees, admin acts | a paused banner with the reason; admin **Resume sending** |
+| Issues | editor, admin | filter by status; subject, list, status (word and mark), send time in the roundup list's time zone (UTC on hover), counts, the `note`, a blocked reason, and "edited since approval" for a scheduled issue. Links open the issue Item at `/newsroom/articles/<itemId>` and the archive page. **New draft** per roundup list. Unknown statuses (an alert kind may add its own) show as written; `awaiting_approval` is approved like a draft |
+| Issue actions | | Preview (HTML in an iframe with `srcdoc` and `sandbox=""`, plain text in a `<pre>`), Test send (to your own address), and, admin only, **Approve for a time** (a `datetime-local` in the site zone, default the next whole hour), Cancel (scheduled), Stop (sending, with a confirm step). A missing postal address says an operator sets it in the site's AWS configuration |
+| Delivery history | editor (masked), admin (full) | the ledger rows of one issue (result, queued and last event times, error code), paged, plus the recent events for that issue |
+| Subscribers | admin | a paged table with list and status filters, **Export CSV** (confirmed and pending, with consent evidence, formulas neutralised by `lib/signup-csv.ts`), and erase by address with a confirm step |
+
+### Operations added for the panel
+
+All take AWSJSON `input` and return AWSJSON through `papyrus-newsletter-ops`, like the issue operations. Failures are `{ok:false, error, message}`.
+
+| Operation | Kind | Groups | Input | Output |
+|---|---|---|---|---|
+| `newsletterOverview` | query | editor, admin | `{}` | `{ok, lists:[{id,name,kind,confirmed,pending,unsubscribed,timezone?}], totals, suppressed, paused, events}`; `events` are the last 100 (`type`, `at`, `issue?`, `list?`, `detail?`), never an address or subscriber id |
+| `newsletterIssueDeliveries` | query | editor, admin | `{issueId, cursor?}` | `{ok, deliveries:[{address,status,at,eventAt?,error?}], cursor?}`; 100 a page; `r***@example.com` for editors, the address for admins, `(erased)` when the subscriber is gone |
+| `newsletterSubscribers` | query | admin | `{listId?, status?, cursor?}` | `{ok, subscribers:[{email,status,lists,createdAt,confirmedAt?}], cursor?}` |
+| `newsletterExport` | query | admin | `{cursor?}` | `{ok, rows, cursor?}`, 200 rows a page; the browser pages through and builds the CSV. No IP hashes, IPs or user agents |
+| `newsletterErase` | mutation | admin | `{email}` | `{ok, removed}` |
+| `newsletterResume` | mutation | admin | `{}` | `{ok, paused:false}` |
+
+The Python actions are `panel_overview`, `panel_deliveries`, `panel_subscribers`, `panel_export`, `panel_erase` and `panel_resume` (`panel.py`); the internal `admin_erase` and `resume_sending` remain unauthenticated and are not reachable from AppSync.
+
+### Counters
+
+Counts are not scanned per request. Rows `COUNT#<listId>` / `COUNT` hold `confirmed`, `pending` and `unsubscribed` memberships; `COUNT#SITE` / `COUNT` holds the same three for profiles, `suppressed`, and `seeded` once a recount has run. `Store.save` adds the deltas in the same transaction as the membership rows (so signup, confirmation, list changes, unsubscribe, preference saves and the suppression-driven unsubscribe are all covered), and `records.put_suppression`, `delete_suppression` and `erase_subscriber` adjust the suppressed and membership counts next to their own writes. A test checks every transition against `recount`.
+
+`recount` (an operator action: invoke the function with `{"action":"recount"}`; no AppSync operation) scans and rewrites every counter. The overview runs it by itself when `COUNT#SITE` is not `seeded`, so a site that had subscribers before this shipped is counted at first use. DynamoDB TTL deleting an expired pending row does not pass through code, so pending counts drift upward until the next recount.
+
+### Known gaps
+
+- The subscriber list and export scan the table (ledger rows included), a bounded window at a time. Fine to tens of thousands of subscribers; an index of profiles is the follow-up.
+- Pending counts include rows past their 30 days until a recount.
+- "Edited since approval" is read per scheduled issue (up to ten) after the list loads.
+- The site time zone is the first roundup list's; a site with no roundup list uses the browser's zone.
