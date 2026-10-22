@@ -451,6 +451,17 @@ relationTypes:
     isSymmetric: false
     isTransitive: true
     contextPackTags: [reference_graph, research, category_context]
+  - key: member_of
+    label: member of
+    inverseLabel: members
+    description: Ontological membership edge from a specific member (for example a model) to the group it belongs to (for example its model family). Used only when the source text says which group the member belongs to.
+    domain: ontology
+    allowedSubjectKinds: [semanticNode]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, ontology_enrichment]
   - key: supports
     label: supports
     inverseLabel: supported by

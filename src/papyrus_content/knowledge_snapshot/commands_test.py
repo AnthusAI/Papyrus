@@ -946,3 +946,47 @@ def test_concept_kinds_limit_the_concept_of_the_week_and_the_default_is_every_ki
     assert concept("--concept-kinds", "model_family") is None
     with pytest.raises(ValueError, match="--concept-kinds"):
         run(commands.knowledge_snapshot, "--out", str(tmp_path / "site"), "--concept-kinds")
+
+
+# ------------------------------------------------------------------ the model kind and member_of
+
+def test_a_model_is_its_own_kind_labelled_model_and_is_related_to_its_family_only_when_the_extractor_said_so(client, tmp_path, monkeypatch, capsys):
+    path = tmp_path / "entities.json"
+    path.write_text(json.dumps({
+        "schema_version": 1, "vocabulary": {}, "backend": {}, "summary": {},
+        "items": [{
+            "item_id": "item-alpha",
+            "entities": [
+                {"id": "e1", "kind": "model", "text": "Tern 3", "state": "proposed", "entity_key": None, "span": None, "score": 0.9},
+                {"id": "e2", "kind": "model_family", "text": "Tern", "state": "proposed", "entity_key": None, "span": None, "score": 0.9},
+                {"id": "e3", "kind": "model", "text": "Lone 1", "state": "proposed", "entity_key": None, "span": None, "score": 0.9},
+            ],
+            "relations": [{"id": "r1", "type": "member_of", "subject": "e1", "object": "e2", "state": "proposed", "span": None, "score": 0.8}],
+        }],
+    }))
+    flags = ("--entities", str(path), "--apply")
+    for key in ("model--tern-3", "model-family--tern", "model--lone-1"):
+        run(commands.knowledge_publish_run, *flags)
+        run(commands.knowledge_entities_accept, "--key", key, "--actor", "ai")
+    run(commands.knowledge_publish_run, *flags)
+    capsys.readouterr()
+
+    relations = [row for row in client.rows["SemanticRelation"].values() if row["predicate"] == "member_of"]
+    assert len(relations) == 1 and relations[0]["subjectId"].startswith("semantic-node-model--tern-3")
+    assert relations[0]["objectId"].startswith("semantic-node-model-family--tern")
+    run(commands.knowledge_relations_accept, "--id", relations[0]["id"], "--actor", "ai")
+
+    out = snapshot_to(tmp_path, monkeypatch)
+    index = json.loads((out / "_data/knowledge/index.json").read_text())
+    labels = {row["key"]: row["label"] for row in index["kinds"]}
+    assert (labels["model"], labels["model_family"]) == ("Model", "Model Family")
+    kinds = {row["key"]: row["kind"] for row in index["entities"] if row["kind"].startswith("model")}
+    assert kinds == {"model--tern-3": "model", "model-family--tern": "model_family", "model--lone-1": "model"}
+
+    def neighbours(key):
+        body = json.loads((out / f"_data/knowledge/entities/{key}.json").read_text())
+        return [(row["relation"], row["key"]) for row in body["neighbours"] if row["relation"] == "member_of"]
+
+    assert neighbours("model--tern-3") == [("member_of", "model-family--tern")]
+    assert neighbours("model-family--tern") == [("member_of", "model--tern-3")]
+    assert neighbours("model--lone-1") == []

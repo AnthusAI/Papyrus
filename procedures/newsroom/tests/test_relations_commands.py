@@ -30,6 +30,16 @@ class RelationsCommandsTests(unittest.TestCase):
         self.assertIn("comment", keys)
         self.assertIn("classified_as", keys)
 
+    def test_member_of_is_a_seeded_ontology_relation_from_a_node_to_a_node(self):
+        seeds = relation_types.load_semantic_relation_type_seeds()
+        member_of = next(entry for entry in seeds if entry["key"] == "member_of")
+        self.assertEqual((member_of["label"], member_of["inverseLabel"], member_of["domain"]), ("member of", "members", "ontology"))
+        self.assertEqual((member_of["allowedSubjectKinds"], member_of["allowedObjectKinds"]), (["semanticNode"], ["semanticNode"]))
+        self.assertTrue(member_of["isDirectional"] and not member_of["isSymmetric"] and not member_of["isTransitive"])
+        fields = relation_types.semantic_relation_type_fields_for_predicate("member_of", seeds)
+        self.assertEqual(fields["relationDomain"], "ontology")
+        self.assertEqual(fields["relationTypeId"], relation_types.semantic_relation_type_id_for("member_of"))
+
     def test_build_semantic_relation_type_records_uses_stable_ids(self):
         seeds = relation_types.load_semantic_relation_type_seeds()
         comment = next(entry for entry in seeds if entry["key"] == "comment")
