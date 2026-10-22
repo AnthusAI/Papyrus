@@ -3,17 +3,25 @@
   "title": "Mount /posts on dataparade.io and show recent posts from the newsroom",
   "description": "In DataParade-io/dataparade (landing): add the Papyrus edge (dataparade.anth.us) as an origin of the landing CloudFront distribution (domain-edge/template.yaml) with one /posts/* behavior (CachingDisabled, AllViewerExceptHostHeader); remove the build-time MDX posts (lib/posts.ts, app/posts, content/posts); have RecentPostsSection read /posts/_data/latest.json in the browser. Needs a dataparade.io deploy in account 688128002352, which needs the owner's go-ahead.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5b7919ba-e8f5-4558-87dd-82a8d6a00af3",
+      "author": "home",
+      "text": "Done 2026-10-22: dataparade.io/posts serves the newsroom projection. DataParade-io/dataparade PR #85 (branch feat/PPY-b63c46-posts-from-newsroom, open for review there): domain-edge ArticlesOrigin (dataparade.anth.us) with /posts and /posts/* behaviors (CachingDisabled, AllViewerExceptHostHeader), deployed with sam deploy after reviewing the change set (only LandingDistribution modified, no replacement); landing without the build-time MDX posts, home recent posts read /posts/_data/latest.json, deployed with sam-build.sh using the live GA/CookieYes/PostHog ids, then a /* invalidation. Production runs that branch until it merges. DataParade-newsroom #7/#8: productionUrl https://dataparade.io (canonical, sitemap, robots name dataparade.io). Verified live: dataparade.io/posts/, articles, latest.json, /posts -> /posts/, Markdown negotiation and bare /posts/<slug>.md (Papyrus 5.19.0, #9/#10) all work; landing home shows the four newest newsroom posts.",
+      "created_at": "2026-10-22T01:22:41.883696Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T20:30:47.306465Z",
-  "updated_at": "2026-10-21T20:30:47.306519Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T01:22:41.917563Z",
+  "closed_at": "2026-10-22T01:22:41.917526Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",

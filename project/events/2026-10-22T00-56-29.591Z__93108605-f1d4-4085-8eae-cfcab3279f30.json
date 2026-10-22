@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "93108605-f1d4-4085-8eae-cfcab3279f30",
+  "issue_id": "PPY-0d0e668d-73fc-452c-ac7e-fb44685e28c6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T00:56:29.591Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cyclotron version card in References",
+    "description": "M1; buildable once Cyclotron ships its read API. In References, per Cyclotron, show: the current version in plain words, what changed and why (the optimizer's reason), how it was measured, and links to the labels it learned from.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

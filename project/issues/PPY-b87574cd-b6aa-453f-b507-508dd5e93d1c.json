@@ -1,0 +1,38 @@
+{
+  "id": "PPY-b87574cd-b6aa-453f-b507-508dd5e93d1c",
+  "title": "Learned items list per Cyclotron",
+  "description": "M3. A list per Cyclotron (relevance, and per section) showing kind, text, provenance, origin and last-changed. Drill into evidence references and notes, and into history.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ffa11199-a01b-4bec-81d6-fee836b1ead8",
+      "author": "home",
+      "text": "Depends on two Cyclotron issues. M3a decision-flywheel-4bfaf448 (structured items, equivalent decision prompt, accuracy gate): the list can show items once this lands. M3b decision-flywheel-14a1d461 (optimizer item operations with checked citations): needed for per-item provenance such as From 12 approvals.",
+      "created_at": "2026-10-22T01:03:40.445333Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
+  "created_at": "2026-10-22T00:56:32.317703Z",
+  "updated_at": "2026-10-22T01:03:40.445367Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

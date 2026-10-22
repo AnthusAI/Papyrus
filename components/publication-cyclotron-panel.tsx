@@ -5,6 +5,9 @@ import {ReviewControl,type ReviewControlReview} from 'cyclotron/components/revie
 import {CyclotronStatusView} from 'cyclotron/components/cyclotron-status';
 import {assertPublicationScope,publicationScopeKey,publicationReviewPayload,type PublicationStatus,type PublicationHistory,type PublicationHistoryRow,type PublicationReviewPayload} from '../lib/publication-cyclotron';
 
+/** Steering is offered only when the Cyclotron contract says so; absent means unknown, so off. */
+export function steeringAvailable(status:PublicationStatus):boolean{return status.features?.steering===true;}
+
 function requestId(){
  const bytes=crypto.getRandomValues(new Uint8Array(16));
  return Array.from(bytes,value=>value.toString(16).padStart(2,'0')).join('');
@@ -38,7 +41,9 @@ function PublicationControls({mode,status,history,onReview,onSteer}:PublicationP
   <header><h2 className="text-lg font-semibold">Suggestions · {status.publicationId}</h2><p className="text-sm text-muted-foreground">{mode==='embedded'?'Suggestions and reviews are kept by this site.':'Suggestions and reviews are kept by the shared review service.'}</p></header>
   {status.outputs.map(output=><section key={`${context}:${output.id}`} aria-label={output.question} className="space-y-3 rounded-md border p-3">
    <CyclotronStatusView status={status.classifiers[output.id]} classifierName={output.question} variant="card"/>
-   {onSteer?<button type="button" disabled={Boolean(busy)} onClick={()=>onSteer(output.id)}>Test a rule change</button>:null}
+   {onSteer?(steeringAvailable(status)
+    ?<button type="button" disabled={Boolean(busy)} onClick={()=>onSteer(output.id)}>Test a rule change</button>
+    :<div><button type="button" disabled aria-describedby={`steer-unavailable:${output.id}`}>Test a rule change · Not available yet</button><p id={`steer-unavailable:${output.id}`} className="text-sm text-muted-foreground">Rule changes cannot be tested on this service yet.</p></div>):null}
    {history.history.map(row=>{
     const prediction=row.decision.classifiers[output.id];if(!prediction)return null;
     const key=`${context}:${row.decision.decisionId}:${output.id}:${row.context?.contextId??'legacy'}`;const saved=row.reviews[output.id];const historical=Boolean(row.historicalContext||row.provenanceUnavailable||row.feedbackReconciliationRequired);

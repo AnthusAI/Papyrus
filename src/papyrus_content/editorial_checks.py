@@ -436,6 +436,19 @@ OPERATIONS: dict[str, Callable[[dict[str, Any], Services], dict[str, Any]]] = {
 }
 
 
+def event_field_name(event: dict[str, Any]) -> str:
+    """The GraphQL field an AppSync invocation is for.
+
+    Amplify's Lambda data source payload carries ``fieldName`` at the top level; a direct resolver
+    carries it under ``info``. Accept both so the function works however AppSync wires it.
+    """
+    info = event.get("info")
+    name = (info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName")
+    if not name:
+        raise ValueError("The invocation names no GraphQL field")
+    return str(name)
+
+
 def handle(field_name: str, arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     operation = OPERATIONS.get(field_name)
     if operation is None:

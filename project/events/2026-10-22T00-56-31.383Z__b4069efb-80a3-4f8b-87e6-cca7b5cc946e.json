@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b4069efb-80a3-4f8b-87e6-cca7b5cc946e",
+  "issue_id": "PPY-ad232ff6-2a67-49cb-82a3-f776a12f34b8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T00:56:31.383Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Why this item: decision explanation in reference detail",
+    "description": "M2–M3. In the reference detail, show the questions that moved the decision, the most similar reviewed items, and (from M3) the learned items that applied.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "papyrus-anthus"
+    }
+  }
+}

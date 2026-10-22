@@ -107,6 +107,27 @@ class DocsSiteTests(unittest.TestCase):
             self.assertTrue((temporary_directory / "out" / "assets" / "diagram.svg").is_file())
 
 
+    def test_twins_and_llms_full_carry_the_markus_source_with_directives_intact(self) -> None:
+        directive = '::image{src="images/diagram.svg" alt="A diagram" layout="full" caption="Flow"}'
+        with tempfile.TemporaryDirectory() as temporary_name:
+            root = Path(temporary_name)
+            write_documentation_tree(root / "docs")
+            (root / "docs" / "CLI.md").write_text(f"# CLI\n\n{directive}\n\n!!! warning \"Careful\"\n    Mind the gap.\n", encoding="utf-8")
+            config = DocsSiteConfig("Demo", "A demo.", root / "docs", "https://x", published_site_url="https://d.example/")
+            staging = root / "staging"
+            staging.mkdir()
+            stage_docs_content(config, staging)
+            out = root / "out"
+            (out / "articles").mkdir(parents=True)
+            for name in ("index", "articles/cli", "articles/guides-setup", "articles/not-found"):
+                (out / f"{name}.html").write_text("<html><head></head><body><main>\n<h1>x</h1>\n</main></body></html>", encoding="utf-8")
+            write_sitemap_and_not_found_page(config, out, content_directory=staging)
+            for text in ((out / "articles" / "cli.md").read_text(), (out / "llms-full.txt").read_text()):
+                self.assertIn(directive, text)
+                self.assertIn(':::callout{kind="warning" title="Careful"}', text)
+                self.assertNotIn("![A diagram]", text)
+
+
 class DocsAgentOutputTests(unittest.TestCase):
     def test_site_with_an_address_gets_twins_llms_files_lastmod_and_robots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_name:

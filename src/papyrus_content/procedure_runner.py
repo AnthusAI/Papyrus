@@ -75,7 +75,8 @@ def load_published_procedure(client, procedure_key: str) -> dict[str, Any]:
                    if str(entry.get("status") or "active") == "active"]
     source = str(version.get("tactusSource") or "")
     if source.strip().startswith("attachment://"):
-        code = next((entry for entry in attachments if entry.get("role") == "code"), None)
+        code = next((entry for entry in attachments
+                     if entry.get("role") == "code" and str(entry.get("sortKey") or "code") == "code"), None)
         if code is None:
             raise ProcedureNotRunnable(f"procedure {procedure_key} version {version['id']} has no code attachment")
         source = (download_attachment_buffer(client, code) or b"").decode("utf-8")
@@ -84,7 +85,7 @@ def load_published_procedure(client, procedure_key: str) -> dict[str, Any]:
     skills = []
     for entry in attachments:
         sort_key = str(entry.get("sortKey") or "")
-        if entry.get("role") == "skill" and sort_key.startswith(SKILL_SORT_KEY_PREFIX):
+        if entry.get("role") == "code" and sort_key.startswith(SKILL_SORT_KEY_PREFIX):
             skills.append((sort_key.removeprefix(SKILL_SORT_KEY_PREFIX), download_attachment_buffer(client, entry) or b""))
     return {"definition": definition, "version": version, "source": source, "skills": skills}
 

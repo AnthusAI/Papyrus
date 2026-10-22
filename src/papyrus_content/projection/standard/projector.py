@@ -52,7 +52,7 @@ from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_sum
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
-from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
+from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
@@ -299,8 +299,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return pages
 
     def _home_markdown(self, title: str, description: str, source_text: str) -> str:
-        lines = [f"# {title}", ""] + ([f"> {description}", ""] if description else [])
-        return "\n".join(lines + [body_of(source_text)]).rstrip() + "\n"
+        return home_markdown(title, description, source_text)
 
     def _based_on(self, entry: StandardEntry) -> str:
         """The original this page is based on: the URL in ``seo.isBasedOnField``, only when it is an absolute http(s) URL."""

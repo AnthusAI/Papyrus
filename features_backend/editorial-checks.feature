@@ -24,6 +24,15 @@ Feature: Editorial checks
     Then the check is refused because editorial checks are turned off
     And Humanus was not asked to check
 
+  Scenario Outline: The function finds its GraphQL field in the AppSync event Amplify sends
+    When AppSync invokes the function with the field in "<place>"
+    Then the function routes to "checkItemVersion"
+
+    Examples:
+      | place              |
+      | the top level      |
+      | the info object    |
+
   Scenario: Check an article against publication and section policies
     When an editor checks "This game-changing synergy ships going forward." in section "engineering"
     Then the check result is a valid Humanus "check-result-v1" document

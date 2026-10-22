@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -147,3 +147,27 @@ test("the compiled function stays within the CloudFront Functions size limit", (
   const compiled = compileRedirectFunctionSource(source, rules, { negotiateMarkdown: true, directoryTwins: true });
   assert.ok(Buffer.byteLength(compiled) < 10 * 1024);
 });
+
+// Accept: text/markdown is a URI rewrite to the page's twin, the same object the page actions copy and link and llms.txt lists.
+// It never converts or serves HTML as Markdown, so whatever the twin holds (Markus, directives intact) is what an agent gets.
+// Every page of the golden sites that has a twin is checked against the real tree.
+for (const [site, directoryTwins] of [["flat", false], ["sectioned", true]] as const) {
+  const golden = resolve(dirname(fileURLToPath(import.meta.url)), `../features_backend/fixtures/standard-site/${site}/expected`);
+  const pages = listFiles(golden).filter((file) => file.endsWith(".html") && file !== "404.html")
+    .filter((file) => existsSync(resolve(golden, file.slice(0, -".html".length) + ".md")));
+  test(`negotiated Markdown for every page of the ${site} site is its twin file`, async () => {
+    assert.ok(pages.length >= 2, `${pages.length} golden pages have a twin`);
+    for (const file of pages) {
+      const uri = file.endsWith("index.html") ? "/" + file.slice(0, -"index.html".length) : "/" + file;
+      const twin = "/" + file.slice(0, -".html".length) + ".md";
+      const response = await run([], {}, uri, { negotiateMarkdown: true, directoryTwins, accept: "text/markdown" });
+      assert.equal(response.uri, twin, uri);
+    }
+  });
+}
+
+function listFiles(directory: string, prefix = ""): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? listFiles(resolve(directory, entry.name), `${prefix}${entry.name}/`) : [`${prefix}${entry.name}`],
+  );
+}

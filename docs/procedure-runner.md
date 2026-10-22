@@ -26,7 +26,8 @@ For each request, the runner does these steps:
 
 1. It loads the procedure's current version from the newsroom (`getNewsroomProcedureDefinition`). The
    version must be published.
-2. It downloads the version's `code` attachment and every `skill:<path>` attachment.
+2. It downloads the version's `code` attachment (sort key `code`) and its skill files (further `code`
+   attachments with sort key `skill:<path>`).
 3. It records a ProcedureRun in the newsroom through the external-execution path of
    `startNewsroomProcedureRun`. The run is created as `running`, and the newsroom's parameter schema
    checks the input.
@@ -76,7 +77,7 @@ A router publication may list `procedureTriggers` (`CONFIG#router`; see `docs/mo
   "openaiKeyParameter": "/amplify/shared/<appId>/OPENAI_API_KEY",
   "procedureTriggers": [
     {"procedureKey": "distinctive.ttab.ruling-analysis",
-     "input": {"proceeding": "{sourceIdPrefix}", "opinion_url": "{canonicalUrl}"}}
+     "input": {"proceeding": "{sourceIdPrefix}", "opinion_url": "{documentUrl}"}}
   ]
 }
 ```
@@ -87,7 +88,8 @@ Input values are templates over the delivered item. These placeholders are avail
 |---|---|
 | `sourceId` | The item's source id |
 | `sourceIdPrefix` | The part of the source id before the first `-`. For a TTAB decision, this is the proceeding number. |
-| `canonicalUrl` | The item's canonical URL |
+| `canonicalUrl` | The item's canonical URL (the identity used for matching, which may not download) |
+| `documentUrl` | The address that downloads the document: the item's first alias, or its canonical URL when it has none. For a TTAB decision, this is the Reading Room PDF address in the form the site itself links. |
 | `sourceItemUrl` | The item's source page URL |
 | `title` | The item's title |
 | `publishedAt` | When the source published the item |

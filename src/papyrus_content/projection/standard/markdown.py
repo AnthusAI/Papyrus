@@ -84,6 +84,18 @@ def item_markdown(entry, source_text: str, canonical: str | None) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def home_markdown(title: str, description: str, source_text: str) -> str:
+    """The home page twin: the Markus source of the home item, with the title and description only where the source lacks them.
+
+    A home page written as page blocks opens with ``::band`` and carries its own H1, so a second title in front of it
+    would not be in the source."""
+    body = body_of(source_text)
+    lines = [] if _opens_with_heading(body) else [f"# {title}", ""]
+    if description:
+        lines += [f"> {description}", ""]
+    return "\n".join(lines + [body]).rstrip() + "\n"
+
+
 def entry_line(entry, origin: str | None) -> str:
     target = md_path(entry.key) if entry.key else None
     href = _link(origin, target) if target else (entry.link or "")
