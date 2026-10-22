@@ -85,3 +85,18 @@ Feature: The standard Markus front end
   Scenario: A guarded environment publishes no llms files
     Given the standard flat fixture site served from "https://staging.example.org"
     Then the standard site lacks these pages: "llms.txt, llms-full.txt"
+
+  Scenario: Public data entries name the publication and carry an absolute image
+    Given the standard flat fixture site
+    Then the standard public entry "/orchids.html" has the image "https://almanac.example.org/assets/orchid.jpg"
+    And the standard public entry "/orchids.html" has the publication "Example Almanac"
+    And every standard public entry has the image its page names in its Open Graph tag
+
+  Scenario: Public data images follow the site origin
+    Given the standard flat fixture site served from "https://staging.example.org"
+    Then the standard public entry "/orchids.html" has the image "https://staging.example.org/assets/orchid.jpg"
+
+  Scenario: A site with no URL gives its entries no image but still names the publication
+    Given a standard site with only a name and no site URL
+    Then no standard public entry has an image
+    And the standard public entry "/orchids.html" has the publication "No Origin"

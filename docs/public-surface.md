@@ -11,7 +11,7 @@ publish time like any other generated page:
 
 | File | Content |
 |---|---|
-| `/_data/search-index.json` | Every listed page, newest first: `{title, url, summary, tags, date}`. |
+| `/_data/search-index.json` | Every listed page, newest first: `{title, url, summary, tags, date}`, plus `image` and `publication` when known (below). |
 | `/_data/latest.json` | The first `latestCount` entries of the same list (default 20). |
 | `/_plugins/papyrus-search@1.js` | The `<papyrus-search>` component (section 2). |
 
@@ -19,6 +19,28 @@ They need no credentials, cost nothing per request, and cannot be abused. They
 carry only front matter fields (`title`, `description`/`summary`/`excerpt`,
 `tags`, `date`) and the page address: what the page HTML already shows. An item
 with `feed: false` is left out.
+
+**`image` and `publication`** (optional keys on every entry of both files, for
+sites that syndicate each other's articles as cards):
+
+- `image` is the entry's **absolute** Open Graph image URL: the front matter
+  image (`image`, `cover`, `ogImage`, `thumbnail`) or else `seo.defaultImage`,
+  made absolute with the site's origin by the same function the page's
+  `og:image` tag uses (`HeadBuilder.og_image`). An image that is already an
+  `http(s)` URL is kept as written. The key is **omitted**, never `null`, when
+  the entry has no image or the site has no URL (no `productionUrl` and no
+  `PAPYRUS_SITE_PUBLIC_URL`). An image the page takes only from its body (the
+  first picture in the text) is not read, because that needs the rendered
+  page: set `image` in the front matter to have it syndicated.
+- `publication` is the site's name as the feeds title it (`feeds.title`, which
+  defaults to `site.name`). It is omitted only when empty.
+- The bare Markus projector (a `projection.json` with no `site` object) has no
+  identity and no URL, so it writes neither key.
+
+Existing keys, their order and their values are unchanged, and
+`<papyrus-search>` reads only `title`, `url` and `summary`, so it ignores the
+new keys. Readers should treat the file as open-ended and ignore keys they do
+not know.
 
 **Opt in** in the site's `projection.json`:
 
